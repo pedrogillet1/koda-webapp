@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documents Inspector</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+        }
+        .info {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        iframe {
+            width: 100%;
+            height: calc(100vh - 200px);
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h1>Documents Page Inspector</h1>
+        <p>The documents page is loaded below. Right-click on any element and select "Inspect" to open DevTools.</p>
+        <p><strong>Keyboard shortcut:</strong> F12 or Ctrl+Shift+I (Windows) / Cmd+Option+I (Mac)</p>
+        <p><a href="http://localhost:3000/documents" target="_blank">Open in new tab</a></p>
+    </div>
+    <iframe src="http://localhost:3000/documents"></iframe>
+</body>
+</html>

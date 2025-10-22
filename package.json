@@ -1,0 +1,21 @@
+{
+  "name": "koda-speed-testing",
+  "version": "1.0.0",
+  "description": "Speed testing system for KODA adaptive AI",
+  "scripts": {
+    "test:speed": "node scripts/testChatSpeed.js",
+    "test:speed:all": "node scripts/testChatSpeed.js all",
+    "test:speed:greeting": "node scripts/testChatSpeed.js type greeting",
+    "test:speed:simple": "node scripts/testChatSpeed.js type simple",
+    "test:speed:factual": "node scripts/testChatSpeed.js type factual",
+    "test:speed:explanation": "node scripts/testChatSpeed.js type explanation",
+    "test:speed:comprehensive": "node scripts/testChatSpeed.js type comprehensive"
+  },
+  "dependencies": {
+    "axios": "^1.12.2",
+    "chalk": "^4.1.2",
+    "cli-table3": "^0.6.5",
+    "dotenv": "^17.2.3",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

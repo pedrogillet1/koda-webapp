@@ -1,0 +1,1911 @@
+import crypto from 'crypto';
+import prisma from '../config/database';
+import { uploadFile, downloadFile, getSignedUrl, deleteFile, bucket } from '../config/storage';
+import { config } from '../config/env';
+import * as textExtractionService from './textExtraction.service';
+import * as geminiService from './gemini.service';
+import * as folderService from './folder.service';
+import * as thumbnailService from './thumbnail.service';
+import markdownConversionService from './markdownConversion.service';
+import cacheService from './cache.service';
+import responseCacheService from './responseCache.service';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+
+export interface UploadDocumentInput {
+  userId: string;
+  filename: string;
+  fileBuffer: Buffer;
+  mimeType: string;
+  folderId?: string;
+  fileHash: string; // SHA-256 hash from client
+  thumbnailBuffer?: Buffer; // Optional thumbnail
+  relativePath?: string; // For nested folder uploads
+}
+
+/**
+ * Create folders recursively from a relative path
+ */
+async function createFoldersFromPath(userId: string, relativePath: string, parentFolderId: string | null = null): Promise<string> {
+  // Split the path into folder names (e.g., "folder1/folder2/file.txt" -> ["folder1", "folder2"])
+  const pathParts = relativePath.split('/').filter(p => p.trim() && p !== '.');
+
+  // Remove the filename (last part)
+  const folderNames = pathParts.slice(0, -1).filter(name => name !== '.' && name !== '..' && name.trim().length > 0);
+
+  if (folderNames.length === 0) {
+    // No folders in path, return the parent folder or null
+    return parentFolderId || '';
+  }
+
+  let currentParentId = parentFolderId;
+
+  // Create folders recursively
+  for (const folderName of folderNames) {
+    // Skip invalid folder names
+    if (folderName === '.' || folderName === '..' || !folderName.trim()) {
+      continue;
+    }
+
+    // Check if folder already exists at this level
+    const existingFolder = await prisma.folder.findFirst({
+      where: {
+        userId,
+        name: folderName,
+        parentFolderId: currentParentId,
+      },
+    });
+
+    if (existingFolder) {
+      currentParentId = existingFolder.id;
+    } else {
+      // Create new folder
+      const newFolder = await folderService.createFolder(userId, folderName, undefined, currentParentId || undefined);
+      currentParentId = newFolder.id;
+    }
+  }
+
+  return currentParentId || '';
+}
+
+/**
+ * Upload an encrypted document
+ */
+export const uploadDocument = async (input: UploadDocumentInput) => {
+  const { userId, filename, fileBuffer, mimeType, folderId, fileHash, thumbnailBuffer, relativePath } = input;
+
+  // If relativePath is provided AND contains folders (has /), create nested folders
+  // Skip if it's just a filename without folder structure
+  let finalFolderId = folderId;
+  if (relativePath && relativePath.includes('/')) {
+    finalFolderId = await createFoldersFromPath(userId, relativePath, folderId || null);
+  }
+
+  // Generate unique encrypted filename
+  const encryptedFilename = `${userId}/${crypto.randomUUID()}-${Date.now()}`;
+
+  // 🔒 ENCRYPT FILE BEFORE UPLOAD (AES-256-GCM)
+  console.log(`🔒 Encrypting file: ${filename} (${fileBuffer.length} bytes)`);
+  const encryptionService = await import('./encryption.service');
+  const encryptedFileBuffer = encryptionService.default.encryptFile(fileBuffer, `document-${userId}`);
+
+  // Extract IV and auth tag from encrypted buffer (stored as IV + AuthTag + EncryptedData)
+  const encryptionIV = encryptedFileBuffer.slice(0, 16).toString('base64'); // First 16 bytes
+  const encryptionAuthTag = encryptedFileBuffer.slice(16, 32).toString('base64'); // Next 16 bytes
+  console.log(`✅ File encrypted successfully (${encryptedFileBuffer.length} bytes)`);
+
+  // Upload encrypted file to GCS
+  await uploadFile(encryptedFilename, encryptedFileBuffer, mimeType);
+
+  // Upload thumbnail if provided, otherwise generate one
+  let thumbnailUrl: string | null = null;
+  if (thumbnailBuffer) {
+    const thumbnailFilename = `${userId}/thumbnails/${crypto.randomUUID()}-${Date.now()}.jpg`;
+    await uploadFile(thumbnailFilename, thumbnailBuffer, 'image/jpeg');
+    // Get public URL for thumbnail
+    thumbnailUrl = await getSignedUrl(thumbnailFilename);
+    console.log('✅ Thumbnail uploaded:', thumbnailFilename);
+  } else {
+    // Generate thumbnail on server if not provided
+    console.log('🖼️ Generating thumbnail on server...');
+    try {
+      // Save file to temp location for thumbnail generation
+      const tempDir = os.tmpdir();
+      const tempFilePath = path.join(tempDir, `upload-${crypto.randomUUID()}`);
+      fs.writeFileSync(tempFilePath, fileBuffer);
+
+      // Generate thumbnail
+      const thumbnailPath = await thumbnailService.generateThumbnail(tempFilePath, mimeType);
+
+      // Clean up temp file
+      fs.unlinkSync(tempFilePath);
+
+      if (thumbnailPath) {
+        thumbnailUrl = thumbnailPath; // Store GCS path
+        console.log('✅ Thumbnail generated:', thumbnailPath);
+      }
+    } catch (error) {
+      console.warn('⚠️ Thumbnail generation failed (non-critical):', error);
+    }
+  }
+
+  // Create document record with encryption metadata
+  const document = await prisma.document.create({
+    data: {
+      userId,
+      folderId: finalFolderId || null,
+      filename,
+      encryptedFilename,
+      fileSize: encryptedFileBuffer.length, // Store encrypted file size
+      mimeType,
+      fileHash,
+      status: 'processing',
+      isEncrypted: true,
+      encryptionIV,
+      encryptionAuthTag,
+    },
+    include: {
+      folder: true,
+    },
+  });
+
+  // Process document asynchronously (background processing) - upload returns immediately!
+  processDocumentInBackground(document.id, fileBuffer, filename, mimeType, userId, thumbnailUrl).catch(error => {
+    console.error('❌ Error in background document processing:', error);
+  });
+
+  // Return document immediately without waiting for processing
+  return document;
+};
+
+/**
+ * Process document in background without blocking the upload
+ * TypeScript cache fully cleared
+ */
+async function processDocumentInBackground(
+  documentId: string,
+  fileBuffer: Buffer,
+  filename: string,
+  mimeType: string,
+  userId: string,
+  thumbnailUrl: string | null
+) {
+  try {
+    console.log(`📄 Processing document in background: ${filename}`);
+
+    // Extract text based on file type
+    let extractedText = '';
+    let ocrConfidence: number | null = null;
+    let pageCount: number | null = null;
+    let wordCount: number | null = null;
+    let slidesData: any[] | null = null;
+    let pptxMetadata: any | null = null;
+
+    // Check if it's a PowerPoint file - use Python PPTX extractor
+    const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    if (isPPTX) {
+      console.log('📊 Using Python PPTX extractor for PowerPoint...');
+      try {
+        // Save file buffer to temporary file
+        const tempDir = os.tmpdir();
+        const tempFilePath = path.join(tempDir, `pptx-${crypto.randomUUID()}.pptx`);
+        fs.writeFileSync(tempFilePath, fileBuffer);
+
+        // Import and use PPTX extractor
+        const { pptxExtractorService } = await import('./pptxExtractor.service');
+        const result = await pptxExtractorService.extractText(tempFilePath);
+
+        if (result.success) {
+          extractedText = result.fullText || '';
+          slidesData = result.slides || [];
+          pptxMetadata = result.metadata || {};
+          pageCount = result.totalSlides || null;
+          console.log(`✅ PPTX extracted: ${slidesData?.length || 0} slides, ${extractedText.length} characters`);
+
+          // Generate slide images for preview
+          console.log('📊 Generating slide images for preview...');
+          try {
+            const { pptxSlideGeneratorService } = await import('./pptxSlideGenerator.service');
+            const slideResult = await pptxSlideGeneratorService.generateSlideImages(
+              tempFilePath,
+              documentId,
+              {
+                uploadToGCS: true,
+                maxWidth: 1920,
+                quality: 90
+              }
+            );
+
+            if (slideResult.success && slideResult.slides) {
+              // Update slidesData with image URLs
+              slidesData = slideResult.slides.map(slide => ({
+                slideNumber: slide.slideNumber,
+                imageUrl: slide.publicUrl,
+                width: slide.width,
+                height: slide.height
+              }));
+              console.log(`✅ Generated ${slideResult.totalSlides} slide images`);
+            } else {
+              console.warn('⚠️ Slide image generation failed:', slideResult.error);
+            }
+          } catch (slideError: any) {
+            console.warn('⚠️ Slide image generation failed (non-critical):', slideError.message);
+          }
+        } else {
+          throw new Error('PPTX extraction failed');
+        }
+
+        // Clean up temp file
+        fs.unlinkSync(tempFilePath);
+      } catch (pptxError: any) {
+        console.warn('⚠️ Python PPTX extraction failed, falling back to basic extraction');
+        console.warn('Error:', pptxError.message);
+        // Fall back to basic text extraction
+        const result = await textExtractionService.extractText(fileBuffer, mimeType);
+        extractedText = result.text;
+      }
+    }
+    // Check if it's an image type that needs OCR via Gemini Vision
+    else if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)) {
+      console.log('🖼️ Using Gemini Vision for image OCR...');
+      extractedText = await geminiService.extractTextFromImageWithGemini(fileBuffer, mimeType);
+      ocrConfidence = 0.95;
+    } else {
+      // Use standard text extraction service
+      console.log('📝 Using text extraction service...');
+      try {
+        const result = await textExtractionService.extractText(fileBuffer, mimeType);
+        extractedText = result.text;
+        ocrConfidence = result.confidence || null;
+        pageCount = result.pageCount || null;
+        wordCount = result.wordCount || null;
+      } catch (extractionError: any) {
+        console.warn('⚠️ Standard extraction failed');
+        console.warn('Error:', extractionError.message);
+
+        // For PDFs that failed standard extraction, use Google Cloud Vision (supports PDFs)
+        // For images, use Gemini Vision (OpenAI Vision)
+        if (mimeType === 'application/pdf') {
+          console.log('📸 Trying Google Cloud Vision for scanned PDF...');
+          try {
+            const visionService = await import('./vision.service');
+            const ocrResult = await visionService.extractTextFromScannedPDF(fileBuffer);
+            extractedText = ocrResult.text;
+            ocrConfidence = ocrResult.confidence || 0.85;
+            console.log('✅ Google Cloud Vision extraction successful');
+          } catch (visionError) {
+            console.error('❌ Google Cloud Vision also failed:', visionError);
+            throw new Error(`Failed to extract text from scanned PDF: ${extractionError.message}`);
+          }
+        } else if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)) {
+          console.log('📸 Trying Gemini Vision fallback for image...');
+          try {
+            extractedText = await geminiService.extractTextFromImageWithGemini(fileBuffer, mimeType);
+            ocrConfidence = 0.85; // Slightly lower confidence for fallback
+            console.log('✅ Fallback extraction successful');
+          } catch (visionError) {
+            console.error('❌ Fallback extraction also failed:', visionError);
+            throw new Error(`Failed to extract text from image: ${extractionError.message}`);
+          }
+        } else {
+          // For non-vision files (Word, Excel, etc.) that failed, throw error
+          console.error(`❌ Cannot extract text from ${mimeType}, marking as failed`);
+          throw new Error(`Failed to extract text from ${mimeType}: ${extractionError.message}`);
+        }
+      }
+    }
+
+    console.log(`✅ Text extracted (${extractedText.length} characters)`);
+
+    // CONVERT TO MARKDOWN
+    let markdownContent: string | null = null;
+    try {
+      console.log('📝 Converting document to markdown...');
+      const markdownResult = await markdownConversionService.convertToMarkdown(
+        fileBuffer,
+        mimeType,
+        filename,
+        documentId
+      );
+      markdownContent = markdownResult.markdownContent;
+      console.log(`✅ Markdown generated (${markdownContent.length} characters)`);
+    } catch (error) {
+      console.warn('⚠️ Markdown conversion failed (non-critical):', error);
+    }
+
+    // AUTO-CATEGORIZATION DISABLED: Documents now stay in "Recently Added" by default
+    // Users can manually organize documents using the chat interface or drag-and-drop
+    console.log('📁 Document will appear in Recently Added (auto-categorization disabled)');
+
+    // Analyze document with OpenAI to get classification and entities
+    let classification = null;
+    let entities = null;
+
+    if (extractedText && extractedText.length > 0) {
+      console.log('🤖 Analyzing document with OpenAI...');
+      try {
+        const analysis = await geminiService.analyzeDocumentWithGemini(extractedText, mimeType);
+        classification = analysis.suggestedCategories?.[0] || null;
+        entities = JSON.stringify(analysis.keyEntities || {});
+        console.log('✅ Document analyzed');
+      } catch (error) {
+        console.warn('⚠️ Document analysis failed (non-critical):', error);
+      }
+    }
+
+    // 🆕 ENHANCED METADATA ENRICHMENT with semantic understanding
+    let enrichedMetadata = null;
+    if (extractedText && extractedText.length > 100) {
+      console.log('🔍 Enriching document metadata with semantic analysis...');
+      try {
+        const metadataEnrichmentService = await import('./metadataEnrichment.service');
+        enrichedMetadata = await metadataEnrichmentService.default.enrichDocument(
+          extractedText,
+          filename,
+          {
+            extractTopics: true,
+            extractEntities: true,
+            generateSummary: true,
+            extractKeyPoints: true,
+            analyzeSentiment: true,
+            assessComplexity: true
+          }
+        );
+
+        // Use enriched data if basic analysis didn't provide these
+        if (!classification && enrichedMetadata.topics.length > 0) {
+          classification = enrichedMetadata.topics[0];
+        }
+        if (!entities || entities === '{}') {
+          entities = JSON.stringify(enrichedMetadata.entities);
+        }
+
+        console.log(`✅ Metadata enriched: ${enrichedMetadata.topics.length} topics, ${enrichedMetadata.keyPoints.length} key points, sentiment: ${enrichedMetadata.sentiment}`);
+      } catch (error) {
+        console.warn('⚠️ Metadata enrichment failed (non-critical):', error);
+      }
+    }
+
+    // Create metadata record with enriched data
+    await prisma.documentMetadata.create({
+      data: {
+        documentId,
+        extractedText,
+        ocrConfidence,
+        classification,
+        entities,
+        thumbnailUrl,
+        pageCount,
+        wordCount,
+        markdownContent,
+        slidesData: slidesData ? JSON.stringify(slidesData) : null,
+        pptxMetadata: pptxMetadata ? JSON.stringify(pptxMetadata) : null,
+      },
+    });
+
+    // AUTO-GENERATE TAGS: Generate smart tags for the document
+    if (extractedText && extractedText.length > 20) {
+      console.log('🏷️ Auto-generating tags...');
+      try {
+        const tags = await geminiService.generateDocumentTags(filename, extractedText);
+        console.log(`✅ Generated ${tags.length} tags: ${tags.join(', ')}`);
+
+        // Create or find tags and link them to the document
+        for (const tagName of tags) {
+          // Get or create tag
+          let tag = await prisma.tag.findUnique({
+            where: { userId_name: { userId, name: tagName } },
+          });
+
+          if (!tag) {
+            tag = await prisma.tag.create({
+              data: { userId, name: tagName },
+            });
+          }
+
+          // Link tag to document (skip if already linked)
+          await prisma.documentTag.upsert({
+            where: {
+              documentId_tagId: {
+                documentId,
+                tagId: tag.id,
+              },
+            },
+            update: {},
+            create: {
+              documentId,
+              tagId: tag.id,
+            },
+          });
+        }
+      } catch (error) {
+        console.warn('⚠️ Auto-tag generation failed (non-critical):', error);
+      }
+    }
+
+    // GENERATE VECTOR EMBEDDINGS FOR RAG WITH SEMANTIC CHUNKING
+    if (extractedText && extractedText.length > 50) {
+      console.log('🔮 Generating semantic chunks and vector embeddings...');
+      try {
+        const vectorEmbeddingService = await import('./vectorEmbedding.service');
+        const { default: semanticChunkerService } = await import('./semanticChunker.service');
+        const embeddingService = await import('./embeddingService.service');
+        let chunks;
+
+        // Use enhanced Excel processor for Excel files to preserve cell coordinates
+        if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            mimeType === 'application/vnd.ms-excel') {
+          console.log('📊 Using enhanced Excel processor for cell-level metadata...');
+          const excelProcessor = await import('./excelProcessor.service');
+          const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
+
+          // Convert Excel chunks to embedding format with full document metadata
+          // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
+          chunks = excelChunks.map(chunk => ({
+            content: `📄 File: ${filename} | ${chunk.content}`,
+            metadata: {
+              // ⚡ Document identification (CRITICAL for proper retrieval)
+              documentId: documentId,
+              filename: filename,
+
+              // ⚡ Excel-specific metadata
+              sheet: chunk.metadata.sheetName,
+              sheetNumber: chunk.metadata.sheetNumber,
+              row: chunk.metadata.rowNumber,
+              cells: chunk.metadata.cells,
+              chunkIndex: chunk.metadata.chunkIndex,
+              sourceType: chunk.metadata.sourceType,
+              tableHeaders: chunk.metadata.tableHeaders
+            }
+          }));
+          console.log(`📦 Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
+        } else {
+          // 🆕 Use semantic chunking for markdown content
+          if (markdownContent && markdownContent.length > 100) {
+            console.log('🧠 Using semantic chunker for markdown content...');
+            const semanticChunks = await semanticChunkerService.chunkDocument(
+              markdownContent,
+              { maxTokens: 512, overlapTokens: 50 }
+            );
+
+            chunks = semanticChunks.map((chunk: any) => ({
+              content: chunk.content,
+              metadata: {
+                chunkIndex: chunk.index,
+                startChar: 0,
+                endChar: chunk.content.length,
+                type: chunk.metadata.type || 'text',
+                heading: chunk.metadata.heading,
+                section: chunk.metadata.section,
+                tokenCount: chunk.tokenCount
+              }
+            }));
+            console.log(`📦 Created ${chunks.length} semantic chunks`);
+          } else {
+            // Fallback to standard text chunking if no markdown
+            console.log('📝 Using standard text chunking...');
+            chunks = chunkText(extractedText, 500);
+            console.log(`📦 Split document into ${chunks.length} chunks`);
+          }
+
+          // 🆕 Generate embeddings using Gemini embedding service
+          console.log('🔮 Generating embeddings with Gemini...');
+          const texts = chunks.map(c => c.content);
+          const embeddingResult = await embeddingService.default.generateBatchEmbeddings(texts, {
+            taskType: 'RETRIEVAL_DOCUMENT',
+            title: filename
+          });
+
+          // Update chunks with embeddings
+          chunks = chunks.map((chunk, i) => ({
+            ...chunk,
+            embedding: embeddingResult.embeddings[i].embedding
+          }));
+        }
+
+        // Store embeddings
+        await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
+        console.log(`✅ Stored ${chunks.length} vector embeddings`);
+      } catch (error) {
+        console.warn('⚠️ Vector embedding generation failed (non-critical):', error);
+      }
+    }
+
+    // Update document status to completed
+    await prisma.document.update({
+      where: { id: documentId },
+      data: { status: 'completed' },
+    });
+
+    // Invalidate cache for this user after successful processing
+    await cacheService.invalidateUserCache(userId);
+    console.log(`🗑️ Invalidated cache for user ${userId} after document upload`);
+
+    console.log(`✅ Document processing completed: ${filename}`);
+  } catch (error) {
+    console.error('❌ Error processing document:', error);
+    // Update status to failed
+    await prisma.document.update({
+      where: { id: documentId },
+      data: { status: 'failed' },
+    });
+  }
+}
+
+export interface CreateDocumentAfterUploadInput {
+  userId: string;
+  encryptedFilename: string;
+  filename: string;
+  mimeType: string;
+  fileSize: number;
+  fileHash: string;
+  folderId?: string;
+  thumbnailData?: string; // Base64 encoded thumbnail
+}
+
+/**
+ * Create document record after direct upload to GCS (via signed URL)
+ */
+export const createDocumentAfterUpload = async (input: CreateDocumentAfterUploadInput) => {
+  const { userId, encryptedFilename, filename, mimeType, fileSize, fileHash, folderId, thumbnailData } = input;
+
+  // Upload thumbnail if provided
+  let thumbnailUrl: string | null = null;
+  if (thumbnailData) {
+    try {
+      const thumbnailFilename = `${userId}/thumbnails/${crypto.randomUUID()}-${Date.now()}.jpg`;
+      const thumbnailBuffer = Buffer.from(thumbnailData, 'base64');
+      await uploadFile(thumbnailFilename, thumbnailBuffer, 'image/jpeg');
+      thumbnailUrl = await getSignedUrl(thumbnailFilename);
+      console.log('✅ Thumbnail uploaded:', thumbnailFilename);
+    } catch (error) {
+      console.warn('⚠️ Thumbnail upload failed (non-critical):', error);
+    }
+  }
+
+  // Create document record
+  const document = await prisma.document.create({
+    data: {
+      userId,
+      folderId: folderId || null,
+      filename,
+      encryptedFilename,
+      fileSize,
+      mimeType,
+      fileHash,
+      status: 'processing',
+    },
+    include: {
+      folder: true,
+    },
+  });
+
+  // Process document asynchronously (download from GCS, extract text, etc.)
+  processDocumentAsync(document.id, encryptedFilename, filename, mimeType, userId, thumbnailUrl).catch(error => {
+    console.error('❌ Error in async document processing:', error);
+  });
+
+  return document;
+};
+
+/**
+ * Process document asynchronously after direct upload
+ */
+async function processDocumentAsync(
+  documentId: string,
+  encryptedFilename: string,
+  filename: string,
+  mimeType: string,
+  userId: string,
+  thumbnailUrl: string | null
+) {
+  try {
+    console.log(`📄 Processing document: ${filename}`);
+
+    // Get document to check if it's encrypted
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+    });
+
+    if (!document) {
+      throw new Error('Document not found');
+    }
+
+    // Download file from GCS
+    let fileBuffer = await downloadFile(encryptedFilename);
+
+    // 🔓 DECRYPT FILE IF ENCRYPTED
+    if (document.isEncrypted && document.encryptionIV && document.encryptionAuthTag) {
+      console.log(`🔓 Decrypting file: ${filename}`);
+      const encryptionService = await import('./encryption.service');
+
+      // Reconstruct encrypted buffer format: IV + AuthTag + EncryptedData
+      const ivBuffer = Buffer.from(document.encryptionIV, 'base64');
+      const authTagBuffer = Buffer.from(document.encryptionAuthTag, 'base64');
+      const encryptedData = fileBuffer;
+
+      // Create buffer in format expected by decryptFile
+      const encryptedBuffer = Buffer.concat([ivBuffer, authTagBuffer, encryptedData]);
+
+      // Decrypt
+      fileBuffer = encryptionService.default.decryptFile(encryptedBuffer, `document-${userId}`);
+      console.log(`✅ File decrypted successfully (${fileBuffer.length} bytes)`);
+    }
+
+    // Extract text based on file type
+    let extractedText = '';
+    let ocrConfidence: number | null = null;
+    let pageCount: number | null = null;
+    let wordCount: number | null = null;
+    let slidesData: any[] | null = null;
+    let pptxMetadata: any | null = null;
+
+    // Check if it's a PowerPoint file - use Python PPTX extractor
+    const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    if (isPPTX) {
+      console.log('📊 Using Python PPTX extractor for PowerPoint...');
+      try {
+        // Save file buffer to temporary file
+        const tempDir = os.tmpdir();
+        const tempFilePath = path.join(tempDir, `pptx-${crypto.randomUUID()}.pptx`);
+        fs.writeFileSync(tempFilePath, fileBuffer);
+
+        // Import and use PPTX extractor
+        const { pptxExtractorService } = await import('./pptxExtractor.service');
+        const result = await pptxExtractorService.extractText(tempFilePath);
+
+        if (result.success) {
+          extractedText = result.fullText || '';
+          slidesData = result.slides || [];
+          pptxMetadata = result.metadata || {};
+          pageCount = result.totalSlides || null;
+          console.log(`✅ PPTX extracted: ${slidesData?.length || 0} slides, ${extractedText.length} characters`);
+
+          // Generate slide images for preview
+          console.log('📊 Generating slide images for preview...');
+          try {
+            const { pptxSlideGeneratorService } = await import('./pptxSlideGenerator.service');
+            const slideResult = await pptxSlideGeneratorService.generateSlideImages(
+              tempFilePath,
+              documentId,
+              {
+                uploadToGCS: true,
+                maxWidth: 1920,
+                quality: 90
+              }
+            );
+
+            if (slideResult.success && slideResult.slides) {
+              // Update slidesData with image URLs
+              slidesData = slideResult.slides.map(slide => ({
+                slideNumber: slide.slideNumber,
+                imageUrl: slide.publicUrl,
+                width: slide.width,
+                height: slide.height
+              }));
+              console.log(`✅ Generated ${slideResult.totalSlides} slide images`);
+            } else {
+              console.warn('⚠️ Slide image generation failed:', slideResult.error);
+            }
+          } catch (slideError: any) {
+            console.warn('⚠️ Slide image generation failed (non-critical):', slideError.message);
+          }
+        } else {
+          throw new Error('PPTX extraction failed');
+        }
+
+        // Clean up temp file
+        fs.unlinkSync(tempFilePath);
+      } catch (pptxError: any) {
+        console.warn('⚠️ Python PPTX extraction failed, falling back to basic extraction');
+        console.warn('Error:', pptxError.message);
+        // Fall back to basic text extraction
+        const result = await textExtractionService.extractText(fileBuffer, mimeType);
+        extractedText = result.text;
+      }
+    }
+    // Check if it's an image type that needs OCR via OpenAI Vision
+    else if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)) {
+      console.log('🖼️ Using OpenAI Vision for image OCR...');
+      extractedText = await geminiService.extractTextFromImageWithGemini(fileBuffer, mimeType);
+      ocrConfidence = 0.95;
+    } else {
+      // Use standard text extraction service
+      console.log('📝 Using text extraction service...');
+      try {
+        const result = await textExtractionService.extractText(fileBuffer, mimeType);
+        extractedText = result.text;
+        ocrConfidence = result.confidence || null;
+        pageCount = result.pageCount || null;
+        wordCount = result.wordCount || null;
+      } catch (extractionError: any) {
+        console.warn('⚠️ Standard extraction failed');
+        console.warn('Error:', extractionError.message);
+
+        if (mimeType === 'application/pdf') {
+          console.log('📸 Trying Google Cloud Vision for scanned PDF...');
+          try {
+            const visionService = await import('./vision.service');
+            const ocrResult = await visionService.extractTextFromScannedPDF(fileBuffer);
+            extractedText = ocrResult.text;
+            ocrConfidence = ocrResult.confidence || 0.85;
+            console.log('✅ Google Cloud Vision extraction successful');
+          } catch (visionError) {
+            console.error('❌ Google Cloud Vision also failed:', visionError);
+            throw new Error(`Failed to extract text from scanned PDF: ${extractionError.message}`);
+          }
+        } else if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)) {
+          console.log('📸 Trying Gemini Vision fallback for image...');
+          try {
+            extractedText = await geminiService.extractTextFromImageWithGemini(fileBuffer, mimeType);
+            ocrConfidence = 0.85;
+            console.log('✅ Fallback extraction successful');
+          } catch (visionError) {
+            console.error('❌ Fallback extraction also failed:', visionError);
+            throw new Error(`Failed to extract text from image: ${extractionError.message}`);
+          }
+        } else {
+          console.error(`❌ Cannot extract text from ${mimeType}, marking as failed`);
+          throw new Error(`Failed to extract text from ${mimeType}: ${extractionError.message}`);
+        }
+      }
+    }
+
+    console.log(`✅ Text extracted (${extractedText.length} characters)`);
+
+    // CONVERT TO MARKDOWN
+    let markdownContent: string | null = null;
+    try {
+      console.log('📝 Converting document to markdown...');
+      const markdownResult = await markdownConversionService.convertToMarkdown(
+        fileBuffer,
+        mimeType,
+        filename,
+        documentId
+      );
+      markdownContent = markdownResult.markdownContent;
+      console.log(`✅ Markdown generated (${markdownContent.length} characters)`);
+    } catch (error) {
+      console.warn('⚠️ Markdown conversion failed (non-critical):', error);
+    }
+
+    // Analyze document with Gemini
+    let classification = null;
+    let entities = null;
+
+    if (extractedText && extractedText.length > 0) {
+      console.log('🤖 Analyzing document with Gemini...');
+      try {
+        const analysis = await geminiService.analyzeDocumentWithGemini(extractedText, mimeType);
+        classification = analysis.suggestedCategories?.[0] || null;
+        entities = JSON.stringify(analysis.keyEntities || {});
+        console.log('✅ Document analyzed');
+      } catch (error) {
+        console.warn('⚠️ Document analysis failed (non-critical):', error);
+      }
+    }
+
+    // Create metadata record
+    await prisma.documentMetadata.create({
+      data: {
+        documentId,
+        extractedText,
+        ocrConfidence,
+        classification,
+        entities,
+        thumbnailUrl,
+        pageCount,
+        wordCount,
+        markdownContent,
+        slidesData: slidesData ? JSON.stringify(slidesData) : null,
+        pptxMetadata: pptxMetadata ? JSON.stringify(pptxMetadata) : null,
+      },
+    });
+
+    // AUTO-GENERATE TAGS
+    if (extractedText && extractedText.length > 20) {
+      console.log('🏷️ Auto-generating tags...');
+      try {
+        const tags = await geminiService.generateDocumentTags(filename, extractedText);
+        console.log(`✅ Generated ${tags.length} tags: ${tags.join(', ')}`);
+
+        for (const tagName of tags) {
+          let tag = await prisma.tag.findUnique({
+            where: { userId_name: { userId, name: tagName } },
+          });
+
+          if (!tag) {
+            tag = await prisma.tag.create({
+              data: { userId, name: tagName },
+            });
+          }
+
+          await prisma.documentTag.upsert({
+            where: {
+              documentId_tagId: {
+                documentId,
+                tagId: tag.id,
+              },
+            },
+            update: {},
+            create: {
+              documentId,
+              tagId: tag.id,
+            },
+          });
+        }
+      } catch (error) {
+        console.warn('⚠️ Auto-tag generation failed (non-critical):', error);
+      }
+    }
+
+    // GENERATE VECTOR EMBEDDINGS FOR RAG WITH SEMANTIC CHUNKING
+    if (extractedText && extractedText.length > 50) {
+      console.log('🔮 Generating semantic chunks and vector embeddings...');
+      try {
+        const vectorEmbeddingService = await import('./vectorEmbedding.service');
+        const { default: semanticChunkerService } = await import('./semanticChunker.service');
+        const embeddingService = await import('./embeddingService.service');
+        let chunks;
+
+        // Use enhanced Excel processor for Excel files to preserve cell coordinates
+        if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            mimeType === 'application/vnd.ms-excel') {
+          console.log('📊 Using enhanced Excel processor for cell-level metadata...');
+          const excelProcessor = await import('./excelProcessor.service');
+          const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
+
+          // Convert Excel chunks to embedding format with full document metadata
+          // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
+          chunks = excelChunks.map(chunk => ({
+            content: `📄 File: ${filename} | ${chunk.content}`,
+            metadata: {
+              // ⚡ Document identification (CRITICAL for proper retrieval)
+              documentId: documentId,
+              filename: filename,
+
+              // ⚡ Excel-specific metadata
+              sheet: chunk.metadata.sheetName,
+              sheetNumber: chunk.metadata.sheetNumber,
+              row: chunk.metadata.rowNumber,
+              cells: chunk.metadata.cells,
+              chunkIndex: chunk.metadata.chunkIndex,
+              sourceType: chunk.metadata.sourceType,
+              tableHeaders: chunk.metadata.tableHeaders
+            }
+          }));
+          console.log(`📦 Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
+        } else {
+          // 🆕 Use semantic chunking for markdown content
+          if (markdownContent && markdownContent.length > 100) {
+            console.log('🧠 Using semantic chunker for markdown content...');
+            const semanticChunks = await semanticChunkerService.chunkDocument(
+              markdownContent,
+              { maxTokens: 512, overlapTokens: 50 }
+            );
+
+            chunks = semanticChunks.map((chunk: any) => ({
+              content: chunk.content,
+              metadata: {
+                chunkIndex: chunk.index,
+                startChar: 0,
+                endChar: chunk.content.length,
+                type: chunk.metadata.type || 'text',
+                heading: chunk.metadata.heading,
+                section: chunk.metadata.section,
+                tokenCount: chunk.tokenCount
+              }
+            }));
+            console.log(`📦 Created ${chunks.length} semantic chunks`);
+          } else {
+            // Fallback to standard text chunking if no markdown
+            console.log('📝 Using standard text chunking...');
+            chunks = chunkText(extractedText, 500);
+            console.log(`📦 Split document into ${chunks.length} chunks`);
+          }
+
+          // 🆕 Generate embeddings using Gemini embedding service
+          console.log('🔮 Generating embeddings with Gemini...');
+          const texts = chunks.map(c => c.content);
+          const embeddingResult = await embeddingService.default.generateBatchEmbeddings(texts, {
+            taskType: 'RETRIEVAL_DOCUMENT',
+            title: filename
+          });
+
+          // Update chunks with embeddings
+          chunks = chunks.map((chunk, i) => ({
+            ...chunk,
+            embedding: embeddingResult.embeddings[i].embedding
+          }));
+        }
+
+        // Store embeddings
+        await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
+        console.log(`✅ Stored ${chunks.length} vector embeddings`);
+      } catch (error) {
+        console.warn('⚠️ Vector embedding generation failed (non-critical):', error);
+      }
+    }
+
+    // Update document status to completed
+    await prisma.document.update({
+      where: { id: documentId },
+      data: { status: 'completed' },
+    });
+
+    // Invalidate cache for this user after successful processing
+    await cacheService.invalidateUserCache(userId);
+    console.log(`🗑️ Invalidated cache for user ${userId} after document processing`);
+
+    console.log(`✅ Document processing completed: ${filename}`);
+  } catch (error) {
+    console.error('❌ Error processing document:', error);
+    await prisma.document.update({
+      where: { id: documentId },
+      data: { status: 'failed' },
+    });
+  }
+}
+
+/**
+ * Chunk text into smaller pieces for vector embedding
+ */
+function chunkText(text: string, maxWords: number = 500): Array<{content: string, metadata: any}> {
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  const chunks: Array<{content: string, metadata: any}> = [];
+  let currentChunk = '';
+  let currentWordCount = 0;
+  let chunkIndex = 0;
+
+  for (const sentence of sentences) {
+    const words = sentence.trim().split(/\s+/);
+    const sentenceWordCount = words.length;
+
+    if (currentWordCount + sentenceWordCount > maxWords && currentChunk.length > 0) {
+      // Save current chunk
+      chunks.push({
+        content: currentChunk.trim(),
+        metadata: {
+          chunkIndex,
+          startChar: text.indexOf(currentChunk),
+          endChar: text.indexOf(currentChunk) + currentChunk.length
+        }
+      });
+      chunkIndex++;
+      currentChunk = '';
+      currentWordCount = 0;
+    }
+
+    currentChunk += sentence + ' ';
+    currentWordCount += sentenceWordCount;
+  }
+
+  // Add remaining text as last chunk
+  if (currentChunk.trim().length > 0) {
+    chunks.push({
+      content: currentChunk.trim(),
+      metadata: {
+        chunkIndex,
+        startChar: text.indexOf(currentChunk),
+        endChar: text.indexOf(currentChunk) + currentChunk.length
+      }
+    });
+  }
+
+  return chunks;
+}
+
+/**
+ * Get document download URL
+ */
+export const getDocumentDownloadUrl = async (documentId: string, userId: string) => {
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+  });
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  if (document.userId !== userId) {
+    throw new Error('Unauthorized access to document');
+  }
+
+  // Generate signed URL (valid for 1 hour) with forced download
+  const signedUrl = await getSignedUrl(
+    document.encryptedFilename,
+    3600,
+    true, // Force download
+    document.filename // Original filename
+  );
+
+  return {
+    url: signedUrl,
+    filename: document.filename,
+    mimeType: document.mimeType,
+  };
+};
+
+/**
+ * Stream document file (returns signed URL for direct GCS access)
+ */
+export const streamDocument = async (documentId: string, userId: string) => {
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+  });
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  if (document.userId !== userId) {
+    throw new Error('Unauthorized access to document');
+  }
+
+  // Generate signed URL (valid for 15 minutes) for inline viewing
+  const signedUrl = await getSignedUrl(
+    document.encryptedFilename,
+    900, // 15 minutes
+    false, // Inline (not forced download)
+    document.filename // Original filename
+  );
+
+  return {
+    url: signedUrl,
+    filename: document.filename,
+    mimeType: document.mimeType,
+  };
+};
+
+/**
+ * List user documents
+ */
+export const listDocuments = async (
+  userId: string,
+  folderId?: string,
+  page: number = 1,
+  limit: number = 1000
+) => {
+  const skip = (page - 1) * limit;
+
+  const where: any = { userId };
+  if (folderId !== undefined) {
+    where.folderId = folderId === 'root' ? null : folderId;
+  }
+
+  const [documents, total] = await Promise.all([
+    prisma.document.findMany({
+      where,
+      include: {
+        folder: true,
+        tags: {
+          include: {
+            tag: true,
+          },
+        },
+        metadata: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    prisma.document.count({ where }),
+  ]);
+
+  return {
+    documents,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+
+/**
+ * Update document
+ */
+export const updateDocument = async (
+  documentId: string,
+  userId: string,
+  updates: { folderId?: string | null; filename?: string }
+) => {
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+  });
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  if (document.userId !== userId) {
+    throw new Error('Unauthorized');
+  }
+
+  // Build update data
+  const updateData: any = {};
+
+  if (updates.folderId !== undefined) {
+    updateData.folderId = updates.folderId === null ? null : updates.folderId;
+  }
+
+  if (updates.filename !== undefined && updates.filename.trim()) {
+    updateData.filename = updates.filename.trim();
+  }
+
+  // Update document
+  const updatedDocument = await prisma.document.update({
+    where: { id: documentId },
+    data: updateData,
+    include: {
+      folder: true,
+    },
+  });
+
+  return updatedDocument;
+};
+
+/**
+ * Delete document
+ */
+export const deleteDocument = async (documentId: string, userId: string) => {
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+  });
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  if (document.userId !== userId) {
+    throw new Error('Unauthorized');
+  }
+
+  // Delete from GCS
+  await deleteFile(document.encryptedFilename);
+
+  // Delete embeddings from vector store
+  try {
+    const vectorEmbeddingService = await import('./vectorEmbedding.service');
+    await vectorEmbeddingService.default.deleteDocumentEmbeddings(documentId);
+    console.log(`🗑️ Deleted embeddings for document ${documentId}`);
+  } catch (error) {
+    console.warn('⚠️ Failed to delete embeddings (non-critical):', error);
+  }
+
+  // Delete from database (cascade will handle metadata and tags)
+  await prisma.document.delete({
+    where: { id: documentId },
+  });
+
+  // Invalidate caches
+  await cacheService.invalidateUserCache(userId);
+  console.log(`🗑️ Invalidated user cache for ${userId} after document deletion`);
+
+  // Invalidate document-specific response cache (AI chat responses)
+  await responseCacheService.invalidateDocumentCache(documentId);
+  console.log(`🗑️ Invalidated response cache for document ${documentId}`);
+
+  return { success: true };
+};
+
+/**
+ * Delete all documents for a user
+ */
+export const deleteAllDocuments = async (userId: string) => {
+  try {
+    console.log(`🗑️ Starting deletion of all documents for user: ${userId}`);
+
+    // Get all documents for the user
+    const documents = await prisma.document.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        encryptedFilename: true,
+        filename: true
+      }
+    });
+
+    if (documents.length === 0) {
+      return {
+        totalDocuments: 0,
+        deleted: 0,
+        failed: 0,
+        message: 'No documents found to delete'
+      };
+    }
+
+    console.log(`📊 Found ${documents.length} documents to delete`);
+
+    let successCount = 0;
+    let failedCount = 0;
+    const results = [];
+
+    // Delete each document
+    for (const document of documents) {
+      try {
+        console.log(`🗑️ Deleting: ${document.filename} (${document.id})`);
+
+        // Delete from GCS
+        try {
+          await deleteFile(document.encryptedFilename);
+          console.log(`✅ Deleted file from GCS: ${document.filename}`);
+        } catch (error) {
+          console.warn(`⚠️ Failed to delete GCS file (continuing): ${document.filename}`, error);
+        }
+
+        // Delete embeddings from vector store
+        try {
+          const vectorEmbeddingService = await import('./vectorEmbedding.service');
+          await vectorEmbeddingService.default.deleteDocumentEmbeddings(document.id);
+          console.log(`✅ Deleted embeddings for: ${document.filename}`);
+        } catch (error) {
+          console.warn(`⚠️ Failed to delete embeddings (continuing): ${document.filename}`, error);
+        }
+
+        // Delete from database (cascade will handle metadata, tags, etc.)
+        await prisma.document.delete({
+          where: { id: document.id }
+        });
+
+        // Invalidate document-specific response cache
+        await responseCacheService.invalidateDocumentCache(document.id);
+
+        results.push({
+          documentId: document.id,
+          filename: document.filename,
+          status: 'success'
+        });
+
+        successCount++;
+        console.log(`✅ Successfully deleted: ${document.filename}`);
+
+      } catch (error: any) {
+        console.error(`❌ Failed to delete ${document.filename}:`, error.message);
+
+        results.push({
+          documentId: document.id,
+          filename: document.filename,
+          status: 'failed',
+          error: error.message
+        });
+
+        failedCount++;
+      }
+    }
+
+    // Invalidate cache for this user
+    await cacheService.invalidateUserCache(userId);
+    console.log(`🗑️ Invalidated cache for user ${userId}`);
+
+    console.log(`✅ Deletion complete: ${successCount} succeeded, ${failedCount} failed`);
+
+    return {
+      totalDocuments: documents.length,
+      deleted: successCount,
+      failed: failedCount,
+      results
+    };
+  } catch (error) {
+    console.error('❌ Error deleting all documents:', error);
+    throw error;
+  }
+};
+
+/**
+ * Upload new version of a document
+ */
+export const uploadDocumentVersion = async (
+  parentDocumentId: string,
+  input: Omit<UploadDocumentInput, 'folderId'>
+) => {
+  const parentDocument = await prisma.document.findUnique({
+    where: { id: parentDocumentId },
+  });
+
+  if (!parentDocument) {
+    throw new Error('Parent document not found');
+  }
+
+  if (parentDocument.userId !== input.userId) {
+    throw new Error('Unauthorized');
+  }
+
+  const { userId, filename, fileBuffer, mimeType, fileHash } = input;
+
+  // Generate unique encrypted filename
+  const encryptedFilename = `${userId}/${crypto.randomUUID()}-${Date.now()}`;
+
+  // Upload to GCS
+  await uploadFile(encryptedFilename, fileBuffer, mimeType);
+
+  // Create new version
+  const newVersion = await prisma.document.create({
+    data: {
+      userId,
+      folderId: parentDocument.folderId,
+      filename,
+      encryptedFilename,
+      fileSize: fileBuffer.length,
+      mimeType,
+      fileHash,
+      status: 'processing',
+      parentVersionId: parentDocumentId,
+    },
+  });
+
+  return newVersion;
+};
+
+/**
+ * Get document versions
+ */
+export const getDocumentVersions = async (documentId: string, userId: string) => {
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+  });
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  if (document.userId !== userId) {
+    throw new Error('Unauthorized');
+  }
+
+  // Get all versions (current and previous)
+  const versions = await prisma.document.findMany({
+    where: {
+      OR: [
+        { id: documentId },
+        { parentVersionId: documentId },
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return versions;
+};
+
+/**
+ * Get document processing status
+ */
+export const getDocumentStatus = async (documentId: string, userId: string) => {
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+    include: {
+      metadata: true,
+    },
+  });
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  if (document.userId !== userId) {
+    throw new Error('Unauthorized');
+  }
+
+  return {
+    documentId: document.id,
+    filename: document.filename,
+    status: document.status,
+    uploadedAt: document.createdAt,
+    metadata: document.metadata
+      ? {
+          hasExtractedText: !!document.metadata.extractedText,
+          textLength: document.metadata.extractedText?.length || 0,
+          ocrConfidence: document.metadata.ocrConfidence,
+          hasThumbnail: !!document.metadata.thumbnailUrl,
+          classification: document.metadata.classification,
+          entities: document.metadata.entities
+            ? JSON.parse(document.metadata.entities)
+            : {},
+        }
+      : null,
+  };
+};
+
+/**
+ * Get document thumbnail
+ */
+export const getDocumentThumbnail = async (documentId: string, userId: string) => {
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+    include: {
+      metadata: true,
+    },
+  });
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  if (document.userId !== userId) {
+    throw new Error('Unauthorized');
+  }
+
+  if (!document.metadata?.thumbnailUrl) {
+    return { thumbnailUrl: null };
+  }
+
+  // Get signed URL for the thumbnail
+  const thumbnailUrl = await thumbnailService.getThumbnailUrl(document.metadata.thumbnailUrl);
+
+  return { thumbnailUrl };
+};
+
+/**
+ * Get document preview URL (converts DOCX to PDF if needed)
+ */
+export const getDocumentPreview = async (documentId: string, userId: string) => {
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+    include: {
+      metadata: true,
+    },
+  });
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  if (document.userId !== userId) {
+    throw new Error('Unauthorized');
+  }
+
+  // If it's a DOCX file, convert to PDF for preview
+  const isDocx = document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+  if (isDocx) {
+    const { convertDocxToPdf } = await import('./docx-converter.service');
+    const { Storage } = await import('@google-cloud/storage');
+
+    const storage = new Storage({
+      keyFilename: process.env.GCS_KEY_FILE,
+      projectId: process.env.GCS_PROJECT_ID,
+    });
+
+    // Check if PDF version already exists
+    // Note: encryptedFilename might not have an extension, so we append .pdf instead of replacing
+    const pdfKey = `${document.encryptedFilename}.pdf`;
+    const bucket = storage.bucket(process.env.GCS_BUCKET_NAME!);
+    const pdfFile = bucket.file(pdfKey);
+
+    const [pdfExists] = await pdfFile.exists();
+
+    if (!pdfExists) {
+      console.log('📄 PDF not found, converting DOCX to PDF...');
+
+      // Download DOCX from GCS
+      const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
+      const docxBuffer = await downloadFile(document.encryptedFilename);
+      fs.writeFileSync(tempDocxPath, docxBuffer);
+
+      // Convert to PDF
+      const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
+
+      if (conversion.success && conversion.pdfPath) {
+        // Upload PDF to GCS
+        const pdfBuffer = fs.readFileSync(conversion.pdfPath);
+        await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
+
+        console.log('✅ PDF uploaded to GCS:', pdfKey);
+
+        // Clean up temp files
+        fs.unlinkSync(tempDocxPath);
+        fs.unlinkSync(conversion.pdfPath);
+      } else {
+        throw new Error('Failed to convert DOCX to PDF: ' + conversion.error);
+      }
+    }
+
+    // Generate signed URL for PDF
+    const pdfUrl = await getSignedUrl(pdfKey, 3600); // 1 hour expiry
+
+    return {
+      previewType: 'pdf',
+      previewUrl: pdfUrl,
+      originalType: document.mimeType,
+      filename: document.filename,
+    };
+  }
+
+  // For PowerPoint files, return slides data for custom preview
+  if (document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+    const slidesData = document.metadata?.slidesData;
+    const pptxMetadata = document.metadata?.pptxMetadata;
+
+    return {
+      previewType: 'pptx',
+      slidesData: slidesData ? JSON.parse(slidesData as string) : [],
+      pptxMetadata: pptxMetadata ? JSON.parse(pptxMetadata as string) : {},
+      originalType: document.mimeType,
+      filename: document.filename,
+    };
+  }
+
+  // For PDF files, return direct URL
+  if (document.mimeType === 'application/pdf') {
+    const url = await getSignedUrl(document.encryptedFilename, 3600);
+
+    return {
+      previewType: 'pdf',
+      previewUrl: url,
+      originalType: document.mimeType,
+      filename: document.filename,
+    };
+  }
+
+  // For other files, return stream URL
+  return {
+    previewType: 'original',
+    previewUrl: `/api/documents/${documentId}/stream`,
+    originalType: document.mimeType,
+    filename: document.filename,
+  };
+};
+
+/**
+ * Reindex all documents for a user - regenerate embeddings for all documents
+ */
+export const reindexAllDocuments = async (userId: string) => {
+  try {
+    console.log(`🔄 Starting reindexing for all documents for user: ${userId}`);
+
+    // Get all completed documents for the user
+    const documents = await prisma.document.findMany({
+      where: {
+        userId,
+        status: 'completed'
+      },
+      include: {
+        metadata: true
+      }
+    });
+
+    if (documents.length === 0) {
+      return {
+        totalDocuments: 0,
+        reindexed: 0,
+        failed: 0,
+        message: 'No documents found to reindex'
+      };
+    }
+
+    console.log(`📊 Found ${documents.length} documents to reindex`);
+
+    let successCount = 0;
+    let failedCount = 0;
+    const results = [];
+
+    // Process each document
+    for (const document of documents) {
+      try {
+        console.log(`🔄 Reprocessing: ${document.filename} (${document.id})`);
+
+        // Call the existing reprocessDocument function
+        const result = await reprocessDocument(document.id, userId);
+
+        results.push({
+          ...result,
+          status: 'success'
+        });
+
+        successCount++;
+        console.log(`✅ Successfully reprocessed: ${document.filename}`);
+      } catch (error: any) {
+        console.error(`❌ Failed to reprocess ${document.filename}:`, error.message);
+
+        results.push({
+          documentId: document.id,
+          filename: document.filename,
+          status: 'failed',
+          error: error.message
+        });
+
+        failedCount++;
+      }
+
+      // Add small delay between documents to avoid overwhelming the system
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    console.log(`✅ Reindexing complete: ${successCount} succeeded, ${failedCount} failed`);
+
+    return {
+      totalDocuments: documents.length,
+      reindexed: successCount,
+      failed: failedCount,
+      results
+    };
+  } catch (error) {
+    console.error('❌ Error reindexing all documents:', error);
+    throw error;
+  }
+};
+
+/**
+ * Reprocess document - regenerate vector embeddings
+ */
+export const reprocessDocument = async (documentId: string, userId: string) => {
+  try {
+    console.log(`🔄 Reprocessing document: ${documentId}`);
+
+    // 1. Get document and verify ownership
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      include: { metadata: true }
+    });
+
+    if (!document) {
+      throw new Error('Document not found');
+    }
+
+    if (document.userId !== userId) {
+      throw new Error('Unauthorized');
+    }
+
+    // 2. Check if it's a PowerPoint file and needs slide extraction
+    const isPPTX = document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    const hasSlides = document.metadata?.slidesData && JSON.parse(document.metadata.slidesData as string).length > 0;
+
+    // For PPTX files, reprocess slides if they're missing
+    if (isPPTX && !hasSlides) {
+      console.log('📊 PowerPoint file detected without slides data, extracting...');
+
+      // Download file from GCS
+      const fileBuffer = await downloadFile(document.encryptedFilename);
+
+      // Save file buffer to temporary file
+      const tempDir = os.tmpdir();
+      const tempFilePath = path.join(tempDir, `pptx-${crypto.randomUUID()}.pptx`);
+      fs.writeFileSync(tempFilePath, fileBuffer);
+
+      try {
+        // Import and use PPTX extractor
+        const { pptxExtractorService } = await import('./pptxExtractor.service');
+        const result = await pptxExtractorService.extractText(tempFilePath);
+
+        // Clean up temp file
+        fs.unlinkSync(tempFilePath);
+
+        if (result.success) {
+          const extractedText = result.fullText || '';
+          const slidesData = result.slides || [];
+          const pptxMetadata = result.metadata || {};
+          const pageCount = result.totalSlides || null;
+
+          console.log(`✅ PPTX extracted: ${slidesData.length} slides, ${extractedText.length} characters`);
+
+          // Update metadata with slides data
+          if (document.metadata) {
+            await prisma.documentMetadata.update({
+              where: { id: document.metadata.id },
+              data: {
+                extractedText,
+                slidesData: JSON.stringify(slidesData),
+                pptxMetadata: JSON.stringify(pptxMetadata),
+                pageCount
+              }
+            });
+          } else {
+            await prisma.documentMetadata.create({
+              data: {
+                documentId,
+                extractedText,
+                slidesData: JSON.stringify(slidesData),
+                pptxMetadata: JSON.stringify(pptxMetadata),
+                pageCount
+              }
+            });
+          }
+
+          // Delete old embeddings
+          const vectorEmbeddingService = await import('./vectorEmbedding.service');
+          await vectorEmbeddingService.default.deleteDocumentEmbeddings(documentId);
+          console.log('🗑️ Deleted old embeddings');
+
+          // Generate new embeddings
+          if (extractedText && extractedText.length > 50) {
+            const chunks = chunkText(extractedText, 500);
+            console.log(`📦 Split document into ${chunks.length} chunks`);
+
+            await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
+            console.log(`✅ Stored ${chunks.length} new vector embeddings`);
+          }
+
+          return {
+            documentId,
+            filename: document.filename,
+            chunksGenerated: extractedText.length > 50 ? chunkText(extractedText, 500).length : 0,
+            textLength: extractedText.length,
+            slidesExtracted: slidesData.length,
+            status: 'completed'
+          };
+        } else {
+          throw new Error('PPTX extraction failed');
+        }
+      } catch (pptxError: any) {
+        console.error('❌ PPTX extraction failed:', pptxError.message);
+        // Clean up temp file if it exists
+        if (fs.existsSync(tempFilePath)) {
+          fs.unlinkSync(tempFilePath);
+        }
+        throw new Error(`Failed to extract PowerPoint slides: ${pptxError.message}`);
+      }
+    }
+
+    // 3. Get or re-extract text for non-PPTX or when slides already exist
+    let extractedText = document.metadata?.extractedText;
+
+    if (!extractedText || extractedText.length === 0) {
+      console.log('📥 No extracted text found, downloading and extracting...');
+
+      // Download file from GCS
+      const fileBuffer = await downloadFile(document.encryptedFilename);
+
+      // Extract text
+      const result = await textExtractionService.extractText(fileBuffer, document.mimeType);
+      extractedText = result.text;
+
+      // Update metadata with extracted text
+      if (document.metadata) {
+        await prisma.documentMetadata.update({
+          where: { id: document.metadata.id },
+          data: {
+            extractedText,
+            wordCount: result.wordCount || null,
+            pageCount: result.pageCount || null
+          }
+        });
+      } else {
+        await prisma.documentMetadata.create({
+          data: {
+            documentId,
+            extractedText,
+            wordCount: result.wordCount || null,
+            pageCount: result.pageCount || null
+          }
+        });
+      }
+
+      console.log(`✅ Text extracted (${extractedText.length} characters)`);
+    } else {
+      console.log(`✅ Using existing extracted text (${extractedText.length} characters)`);
+    }
+
+    // 4. Delete old embeddings
+    const vectorEmbeddingService = await import('./vectorEmbedding.service');
+    await vectorEmbeddingService.default.deleteDocumentEmbeddings(documentId);
+    console.log('🗑️ Deleted old embeddings');
+
+    // 5. Generate new embeddings
+    if (extractedText && extractedText.length > 50) {
+      const chunks = chunkText(extractedText, 500);
+      console.log(`📦 Split document into ${chunks.length} chunks`);
+
+      await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
+      console.log(`✅ Stored ${chunks.length} new vector embeddings`);
+
+      return {
+        documentId,
+        filename: document.filename,
+        chunksGenerated: chunks.length,
+        textLength: extractedText.length,
+        status: 'completed'
+      };
+    } else {
+      console.warn('⚠️ Extracted text too short for embeddings');
+      return {
+        documentId,
+        filename: document.filename,
+        chunksGenerated: 0,
+        textLength: extractedText?.length || 0,
+        status: 'completed',
+        warning: 'Text too short for embeddings'
+      };
+    }
+  } catch (error) {
+    console.error('❌ Error reprocessing document:', error);
+    throw error;
+  }
+};
+
+/**
+ * Regenerate PPTX slides with improved ImageMagick rendering
+ */
+export const regeneratePPTXSlides = async (documentId: string, userId: string) => {
+  try {
+    console.log(`🔄 Regenerating PPTX slides: ${documentId}`);
+
+    // 1. Get document and verify ownership
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      include: { metadata: true }
+    });
+
+    if (!document) {
+      throw new Error('Document not found');
+    }
+
+    if (document.userId !== userId) {
+      throw new Error('Unauthorized');
+    }
+
+    // 2. Verify it's a PowerPoint file
+    const isPPTX = document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    if (!isPPTX) {
+      throw new Error('Document is not a PowerPoint presentation');
+    }
+
+    console.log('📊 PowerPoint file confirmed, regenerating slides with ImageMagick...');
+
+    // 3. Download file from GCS
+    const fileBuffer = await downloadFile(document.encryptedFilename);
+
+    // 4. Save file buffer to temporary file
+    const tempDir = os.tmpdir();
+    const tempFilePath = path.join(tempDir, `pptx-regen-${crypto.randomUUID()}.pptx`);
+    fs.writeFileSync(tempFilePath, fileBuffer);
+
+    try {
+      // 5. Generate new slide images using ImageMagick
+      const { PPTXSlideGeneratorService } = await import('./pptxSlideGenerator.service');
+      const slideGenerator = new PPTXSlideGeneratorService();
+
+      const slideResult = await slideGenerator.generateSlideImages(tempFilePath, documentId, {
+        uploadToGCS: true,
+        maxWidth: 1920,
+        quality: 90
+      });
+
+      // Clean up temp file
+      fs.unlinkSync(tempFilePath);
+
+      if (!slideResult.success) {
+        throw new Error(slideResult.error || 'Failed to generate slides');
+      }
+
+      const slides = slideResult.slides || [];
+      console.log(`✅ Successfully regenerated ${slides.length} slides`);
+
+      // 6. Update metadata with new slides data
+      const slidesData = slides.map((slide) => ({
+        slideNumber: slide.slideNumber,
+        imageUrl: slide.gcsPath ? `gcs://${config.GCS_BUCKET_NAME}/${slide.gcsPath}` : slide.publicUrl || '',
+        width: slide.width || 1920,
+        height: slide.height || 1080,
+      }));
+
+      await prisma.documentMetadata.update({
+        where: { documentId: document.id },
+        data: {
+          slidesData: JSON.stringify(slidesData),
+          updatedAt: new Date(),
+        },
+      });
+
+      console.log(`✅ Updated metadata with ${slidesData.length} slides`);
+
+      return {
+        totalSlides: slides.length,
+        slides: slidesData,
+        message: 'Slides regenerated successfully with improved font rendering'
+      };
+
+    } catch (error) {
+      // Clean up temp file on error
+      if (fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+      }
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('❌ Error regenerating PPTX slides:', error);
+    throw error;
+  }
+};

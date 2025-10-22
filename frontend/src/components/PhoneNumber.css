@@ -1,0 +1,92 @@
+/* Custom Phone Input Styling */
+.custom-phone-input {
+  width: 100%;
+}
+
+.custom-phone-input .PhoneInputInput {
+  color: #32302C;
+  fontSize: 16px;
+  fontFamily: 'Plus Jakarta Sans';
+  fontWeight: 400;
+  lineHeight: 24px;
+  background: transparent;
+  border: none;
+  outline: none;
+  width: 100%;
+}
+
+.custom-phone-input .PhoneInputInput::placeholder {
+  color: #9CA3AF;
+}
+
+.custom-phone-input .PhoneInputCountry {
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.custom-phone-input .PhoneInputCountryIcon {
+  width: 24px;
+  height: 16px;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.custom-phone-input .PhoneInputCountrySelect {
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: #32302C;
+  fontFamily: 'Plus Jakarta Sans';
+  fontWeight: 500;
+  cursor: pointer;
+  padding: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.custom-phone-input .PhoneInputCountrySelect:focus {
+  outline: none;
+}
+
+.custom-phone-input .PhoneInputCountrySelect:hover {
+  color: #1f2937;
+}
+
+.custom-phone-input .PhoneInputCountrySelectArrow {
+  width: 0.3em;
+  height: 0.3em;
+  margin-left: 0.35em;
+  margin-top: 0.1em;
+  border-style: solid;
+  border-color: #32302C;
+  border-top-width: 0;
+  border-bottom-width: 1px;
+  border-left-width: 1px;
+  border-right-width: 0;
+  transform: rotate(-45deg);
+  opacity: 0.45;
+}
+
+/* Phone input wrapper */
+.PhoneInput {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Remove default borders from react-phone-number-input */
+.PhoneInput input {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  outline: none !important;
+  font-family: 'Plus Jakarta Sans' !important;
+}
+
+.PhoneInput input:focus {
+  border: none !important;
+  box-shadow: none !important;
+}

@@ -1,0 +1,434 @@
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import api from '../services/api';
+
+const DocumentsContext = createContext();
+
+export const useDocuments = () => {
+  const context = useContext(DocumentsContext);
+  if (!context) {
+    throw new Error('useDocuments must be used within DocumentsProvider');
+  }
+  return context;
+};
+
+export const DocumentsProvider = ({ children }) => {
+  const [documents, setDocuments] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [recentDocuments, setRecentDocuments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  // Fetch all documents
+  const fetchDocuments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/api/documents');
+      setDocuments(response.data.documents || []);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      // If auth error or rate limit, stop making more requests
+      if (error.response?.status === 401 ||
+          error.response?.status === 429 ||
+          error.message?.includes('refresh')) {
+        return;
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch all folders
+  const fetchFolders = useCallback(async () => {
+    try {
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/api/folders?_t=${timestamp}`);
+      setFolders(response.data.folders || []);
+    } catch (error) {
+      console.error('Error fetching folders:', error);
+      // If auth error or rate limit, stop making more requests
+      if (error.response?.status === 401 ||
+          error.response?.status === 429 ||
+          error.message?.includes('refresh')) {
+        return;
+      }
+    }
+  }, []);
+
+  // Fetch recent documents (use existing endpoint with limit)
+  const fetchRecentDocuments = useCallback(async () => {
+    try {
+      const response = await api.get('/api/documents?limit=5');
+      setRecentDocuments(response.data.documents || []);
+    } catch (error) {
+      console.error('Error fetching recent documents:', error);
+      // If auth error or rate limit, stop making more requests
+      if (error.response?.status === 401 ||
+          error.response?.status === 429 ||
+          error.message?.includes('refresh')) {
+        return;
+      }
+    }
+  }, []);
+
+  // Initialize data on mount
+  useEffect(() => {
+    if (!initialized) {
+      fetchDocuments();
+      fetchFolders();
+      fetchRecentDocuments();
+      setInitialized(true);
+    }
+  }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments]);
+
+  // Auto-refresh data when window regains focus or becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && initialized) {
+        console.log('📱 Page became visible, refreshing documents...');
+        fetchDocuments();
+        fetchFolders();
+        fetchRecentDocuments();
+      }
+    };
+
+    const handleFocus = () => {
+      if (initialized) {
+        console.log('🔄 Window focused, refreshing documents...');
+        fetchDocuments();
+        fetchFolders();
+        fetchRecentDocuments();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments]);
+
+  // Add document (optimistic)
+  const addDocument = useCallback(async (file, folderId = null) => {
+    // Create temporary document object
+    const tempId = `temp-${Date.now()}-${Math.random()}`;
+    const tempDocument = {
+      id: tempId,
+      name: file.name,
+      size: file.size,
+      folderId: folderId,
+      createdAt: new Date().toISOString(),
+      status: 'uploading',
+      type: file.type || 'application/octet-stream',
+      gcsUrl: null
+    };
+
+    // Add to UI IMMEDIATELY (optimistic update)
+    setDocuments(prev => [tempDocument, ...prev]);
+    setRecentDocuments(prev => [tempDocument, ...prev.slice(0, 4)]);
+
+    try {
+      // Get upload URL from backend
+      const uploadUrlResponse = await api.post('/api/documents/upload-url', {
+        fileName: file.name,
+        fileType: file.type,
+        folderId: folderId
+      });
+
+      const { uploadUrl, gcsUrl, documentId } = uploadUrlResponse.data;
+
+      // Upload directly to GCS
+      await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type
+        },
+        body: file
+      });
+
+      // Confirm upload with backend
+      const confirmResponse = await api.post(`/api/documents/${documentId}/confirm-upload`);
+      const newDocument = confirmResponse.data.document;
+
+      // Replace temp document with real one
+      setDocuments(prev =>
+        prev.map(doc => doc.id === tempId ? newDocument : doc)
+      );
+      setRecentDocuments(prev =>
+        prev.map(doc => doc.id === tempId ? newDocument : doc)
+      );
+
+      return newDocument;
+    } catch (error) {
+      console.error('Error uploading document:', error);
+
+      // Remove temp document on error
+      setDocuments(prev => prev.filter(doc => doc.id !== tempId));
+      setRecentDocuments(prev => prev.filter(doc => doc.id !== tempId));
+
+      throw error;
+    }
+  }, []);
+
+  // Delete document (optimistic)
+  const deleteDocument = useCallback(async (documentId) => {
+    // Store document for potential rollback
+    const documentToDelete = documents.find(d => d.id === documentId);
+
+    // Remove from UI IMMEDIATELY
+    setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+    setRecentDocuments(prev => prev.filter(doc => doc.id !== documentId));
+
+    try {
+      // Delete on server in background
+      await api.delete(`/api/documents/${documentId}`);
+    } catch (error) {
+      console.error('Error deleting document:', error);
+
+      // Restore document on error
+      if (documentToDelete) {
+        setDocuments(prev => [documentToDelete, ...prev]);
+        setRecentDocuments(prev => [documentToDelete, ...prev].slice(0, 5));
+      }
+
+      throw error;
+    }
+  }, [documents]);
+
+  // Move document to folder (optimistic)
+  const moveToFolder = useCallback(async (documentId, newFolderId) => {
+    // Store old document for rollback
+    const oldDocument = documents.find(d => d.id === documentId);
+
+    // Update UI IMMEDIATELY
+    setDocuments(prev =>
+      prev.map(doc =>
+        doc.id === documentId
+          ? { ...doc, folderId: newFolderId }
+          : doc
+      )
+    );
+    setRecentDocuments(prev =>
+      prev.map(doc =>
+        doc.id === documentId
+          ? { ...doc, folderId: newFolderId }
+          : doc
+      )
+    );
+
+    try {
+      // Update on server in background
+      await api.patch(`/api/documents/${documentId}`, {
+        folderId: newFolderId
+      });
+    } catch (error) {
+      console.error('Error moving document:', error);
+
+      // Revert on error
+      if (oldDocument) {
+        setDocuments(prev =>
+          prev.map(doc =>
+            doc.id === documentId ? oldDocument : doc
+          )
+        );
+        setRecentDocuments(prev =>
+          prev.map(doc =>
+            doc.id === documentId ? oldDocument : doc
+          )
+        );
+      }
+
+      throw error;
+    }
+  }, [documents]);
+
+  // Rename document (optimistic)
+  const renameDocument = useCallback(async (documentId, newName) => {
+    // Store old document for rollback
+    const oldDocument = documents.find(d => d.id === documentId);
+
+    // Update UI IMMEDIATELY
+    setDocuments(prev =>
+      prev.map(doc =>
+        doc.id === documentId
+          ? { ...doc, filename: newName }
+          : doc
+      )
+    );
+    setRecentDocuments(prev =>
+      prev.map(doc =>
+        doc.id === documentId
+          ? { ...doc, filename: newName }
+          : doc
+      )
+    );
+
+    try {
+      // Update on server in background
+      await api.patch(`/api/documents/${documentId}`, {
+        filename: newName
+      });
+    } catch (error) {
+      console.error('Error renaming document:', error);
+
+      // Revert on error
+      if (oldDocument) {
+        setDocuments(prev =>
+          prev.map(doc =>
+            doc.id === documentId ? oldDocument : doc
+          )
+        );
+        setRecentDocuments(prev =>
+          prev.map(doc =>
+            doc.id === documentId ? oldDocument : doc
+          )
+        );
+      }
+
+      throw error;
+    }
+  }, [documents]);
+
+  // Create folder (optimistic)
+  const createFolder = useCallback(async (name, emoji, parentFolderId = null) => {
+    const tempId = `temp-folder-${Date.now()}`;
+    const tempFolder = {
+      id: tempId,
+      name,
+      emoji,
+      parentFolderId,
+      createdAt: new Date().toISOString(),
+      status: 'creating'
+    };
+
+    // Add to UI IMMEDIATELY
+    setFolders(prev => [tempFolder, ...prev]);
+
+    try {
+      const response = await api.post('/api/folders', {
+        name,
+        emoji,
+        parentFolderId
+      });
+
+      const newFolder = response.data.folder;
+
+      // Replace temp folder with real one
+      setFolders(prev =>
+        prev.map(folder => folder.id === tempId ? newFolder : folder)
+      );
+
+      return newFolder;
+    } catch (error) {
+      console.error('Error creating folder:', error);
+
+      // Remove temp folder on error
+      setFolders(prev => prev.filter(folder => folder.id !== tempId));
+
+      throw error;
+    }
+  }, []);
+
+  // Delete folder (optimistic)
+  const deleteFolder = useCallback(async (folderId) => {
+    const folderToDelete = folders.find(f => f.id === folderId);
+
+    // Remove from UI IMMEDIATELY
+    setFolders(prev => prev.filter(folder => folder.id !== folderId));
+
+    try {
+      await api.delete(`/api/folders/${folderId}`);
+    } catch (error) {
+      console.error('Error deleting folder:', error);
+
+      // Restore folder on error
+      if (folderToDelete) {
+        setFolders(prev => [folderToDelete, ...prev]);
+      }
+
+      throw error;
+    }
+  }, [folders]);
+
+  // Get document count by folder
+  const getDocumentCountByFolder = useCallback((folderId) => {
+    return documents.filter(doc => doc.folderId === folderId).length;
+  }, [documents]);
+
+  // Get file breakdown
+  const getFileBreakdown = useCallback(() => {
+    const breakdown = {
+      total: documents.length,
+      byType: {},
+      byFolder: {}
+    };
+
+    documents.forEach(doc => {
+      // Count by file type
+      const ext = doc.name.split('.').pop().toLowerCase();
+      breakdown.byType[ext] = (breakdown.byType[ext] || 0) + 1;
+
+      // Count by folder
+      const folderId = doc.folderId || 'uncategorized';
+      breakdown.byFolder[folderId] = (breakdown.byFolder[folderId] || 0) + 1;
+    });
+
+    return breakdown;
+  }, [documents]);
+
+  // Get documents by folder
+  const getDocumentsByFolder = useCallback((folderId) => {
+    return documents.filter(doc => doc.folderId === folderId);
+  }, [documents]);
+
+  // Get root folders (categories)
+  const getRootFolders = useCallback(() => {
+    return folders.filter(folder => folder.parentFolderId === null);
+  }, [folders]);
+
+  // Refresh all data
+  const refreshAll = useCallback(async () => {
+    await Promise.all([
+      fetchDocuments(),
+      fetchFolders(),
+      fetchRecentDocuments()
+    ]);
+  }, [fetchDocuments, fetchFolders, fetchRecentDocuments]);
+
+  const value = {
+    // State
+    documents,
+    folders,
+    recentDocuments,
+    loading,
+
+    // Document operations
+    addDocument,
+    deleteDocument,
+    moveToFolder,
+    renameDocument,
+
+    // Folder operations
+    createFolder,
+    deleteFolder,
+
+    // Queries
+    getDocumentCountByFolder,
+    getFileBreakdown,
+    getDocumentsByFolder,
+    getRootFolders,
+
+    // Fetch operations
+    fetchDocuments,
+    fetchFolders,
+    fetchRecentDocuments,
+    refreshAll
+  };
+
+  return (
+    <DocumentsContext.Provider value={value}>
+      {children}
+    </DocumentsContext.Provider>
+  );
+};
