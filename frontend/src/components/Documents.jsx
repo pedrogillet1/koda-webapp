@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
+import { useDocumentSelection } from '../hooks/useDocumentSelection';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import CreateCategoryModal from './CreateCategoryModal';
@@ -93,6 +94,17 @@ const Documents = () => {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [itemToRename, setItemToRename] = useState(null);
   const [categoriesRefreshKey, setCategoriesRefreshKey] = useState(0);
+
+  // Multi-select functionality
+  const {
+    isSelectMode,
+    selectedDocuments,
+    toggleSelectMode,
+    toggleDocument,
+    selectAll,
+    clearSelection,
+    isSelected
+  } = useDocumentSelection();
 
   // Force re-render when contextFolders changes
   useEffect(() => {
@@ -377,33 +389,214 @@ const Documents = () => {
       <div style={{flex: 1, height: '100%', display: 'flex', flexDirection: 'column'}}>
         {/* Header */}
         <div style={{height: 84, paddingLeft: 20, paddingRight: 20, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-          <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px'}}>
-            Welcome back, {user?.firstName || user?.email?.split('@')[0] || 'User'}!
-          </div>
+          {isSelectMode ? (
+            <>
+              {/* Left: Back arrow + Documents title */}
+              <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
+                <button
+                  onClick={() => navigate(-1)}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    background: '#F3F4F6',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    padding: 0
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#E5E7EB';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#F3F4F6';
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12.5 15L7.5 10L12.5 5" stroke="#111827" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+                <h1 style={{
+                  fontSize: 32,
+                  fontWeight: '600',
+                  color: '#111827',
+                  fontFamily: 'Plus Jakarta Sans',
+                  margin: 0
+                }}>
+                  Documents
+                </h1>
+              </div>
+            </>
+          ) : (
+            <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px'}}>
+              Welcome back, {user?.firstName || user?.email?.split('@')[0] || 'User'}!
+            </div>
+          )}
           <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
-            <div style={{position: 'relative', height: 52, display: 'flex', alignItems: 'center'}}>
-              <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search"
-                style={{
-                  height: '100%',
-                  minWidth: 250,
-                  paddingLeft: 46,
-                  paddingRight: 16,
-                  background: '#F5F5F5',
-                  borderRadius: 100,
-                  border: '1px #E6E6EC solid',
-                  outline: 'none',
+            {isSelectMode ? (
+              <>
+                {/* Delete Button */}
+                <button
+                  onClick={async () => {
+                    if (selectedDocuments.size === 0) return;
+                    if (!window.confirm(`Delete ${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's' : ''}?`)) return;
+
+                    try {
+                      await Promise.all(
+                        Array.from(selectedDocuments).map(docId =>
+                          deleteDocument(docId)
+                        )
+                      );
+
+                      clearSelection();
+                      toggleSelectMode();
+                    } catch (error) {
+                      console.error('Error deleting documents:', error);
+                      alert('Failed to delete documents');
+                    }
+                  }}
+                  disabled={selectedDocuments.size === 0}
+                  style={{
+                    minWidth: 100,
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                    background: selectedDocuments.size === 0 ? '#F5F5F5' : '#DC2626',
+                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                    overflow: 'hidden',
+                    borderRadius: 100,
+                    outline: '1px #E6E6EC solid',
+                    outlineOffset: '-1px',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 6,
+                    display: 'inline-flex',
+                    border: 'none',
+                    cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
+                    opacity: selectedDocuments.size === 0 ? 0.5 : 1,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <TrashCanIcon style={{ width: 16, height: 16, fill: selectedDocuments.size === 0 ? '#9CA3AF' : 'white' }} />
+                  <div style={{
+                    color: selectedDocuments.size === 0 ? '#9CA3AF' : 'white',
+                    fontSize: 16,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600',
+                    lineHeight: '24px',
+                    wordWrap: 'break-word'
+                  }}>
+                    Delete
+                  </div>
+                </button>
+
+                {/* Move Button */}
+                <button
+                  onClick={async () => {
+                    if (selectedDocuments.size === 0) return;
+                    // TODO: Implement move functionality
+                    alert('Move functionality coming soon');
+                  }}
+                  disabled={selectedDocuments.size === 0}
+                  style={{
+                    minWidth: 100,
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                    background: 'white',
+                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                    overflow: 'hidden',
+                    borderRadius: 100,
+                    border: '1px solid #E6E6EC',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 6,
+                    display: 'inline-flex',
+                    cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
+                    opacity: selectedDocuments.size === 0 ? 0.5 : 1,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{
+                    color: '#32302C',
+                    fontSize: 16,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '500',
+                    lineHeight: '24px'
+                  }}>
+                    Move
+                  </div>
+                </button>
+
+                {/* Selected Count */}
+                <div style={{
                   color: '#32302C',
                   fontSize: 16,
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '500',
                   lineHeight: '24px'
-                }}
-              />
+                }}>
+                  ({selectedDocuments.size}) Selected
+                </div>
+
+                {/* X Close Button */}
+                <button
+                  onClick={() => {
+                    clearSelection();
+                    toggleSelectMode();
+                  }}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    background: 'white',
+                    border: '1px solid #E6E6EC',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#F3F4F6';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'white';
+                  }}
+                >
+                  <CloseIcon style={{ width: 16, height: 16 }} />
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{position: 'relative', height: 52, display: 'flex', alignItems: 'center'}}>
+                  <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search"
+                    style={{
+                      height: '100%',
+                      minWidth: 250,
+                      paddingLeft: 46,
+                      paddingRight: 16,
+                      background: '#F5F5F5',
+                      borderRadius: 100,
+                      border: '1px #E6E6EC solid',
+                      outline: 'none',
+                      color: '#32302C',
+                      fontSize: 16,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '500',
+                      lineHeight: '24px'
+                    }}
+                  />
 
               {/* Search Results Dropdown */}
               {searchQuery && (
@@ -605,10 +798,47 @@ const Documents = () => {
                 </div>
               )}
             </div>
-            <div onClick={() => setShowUniversalUploadModal(true)} style={{height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'}}>
-              <LogoutBlackIcon style={{width: 24, height: 24}} />
-              <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload a Document</div>
-            </div>
+                {/* Select Button */}
+                <button
+                  onClick={toggleSelectMode}
+                  style={{
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                    background: '#F5F5F5',
+                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                    overflow: 'hidden',
+                    borderRadius: 100,
+                    outline: '1px #E6E6EC solid',
+                    outlineOffset: '-1px',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 6,
+                    display: 'inline-flex',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{
+                    color: '#32302C',
+                    fontSize: 16,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600',
+                    lineHeight: '24px',
+                    wordWrap: 'break-word'
+                  }}>
+                    Select
+                  </div>
+                </button>
+
+                <div onClick={() => setShowUniversalUploadModal(true)} style={{height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'}}>
+                  <LogoutBlackIcon style={{width: 24, height: 24}} />
+                  <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload a Document</div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

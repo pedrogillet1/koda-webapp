@@ -591,23 +591,47 @@ const CategoryDetail = () => {
   };
 
   const handleCategorySelection = async () => {
-    if (!selectedCategoryId || !selectedDocumentForCategory) return;
+    if (!selectedCategoryId) return;
 
     try {
-      if (selectedDocumentForCategory.type === 'folder') {
-        // Move folder to new parent
-        await api.patch(`/api/folders/${selectedDocumentForCategory.id}`, {
-          parentFolderId: selectedCategoryId
-        });
-
-        // Refresh context to get updated folder structure
-        await refreshAll();
-      } else {
-        // Move document
-        await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
+      // Check if we're moving selected documents (from select mode)
+      if (isSelectMode && selectedDocuments.size > 0) {
+        // Move all selected documents
+        await Promise.all(
+          Array.from(selectedDocuments).map(docId =>
+            moveToFolder(docId, selectedCategoryId)
+          )
+        );
 
         // Refresh context
         await refreshAll();
+
+        // Clear selection and exit select mode
+        clearSelection();
+        toggleSelectMode();
+
+        // Show success message
+        setSuccessCount(selectedDocuments.size);
+        setSuccessMessage(`${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's have' : ' has'} been successfully moved.`);
+        setShowSuccessModal(true);
+        setTimeout(() => setShowSuccessModal(false), 3000);
+      } else if (selectedDocumentForCategory) {
+        // Move single item (folder or document)
+        if (selectedDocumentForCategory.type === 'folder') {
+          // Move folder to new parent
+          await api.patch(`/api/folders/${selectedDocumentForCategory.id}`, {
+            parentFolderId: selectedCategoryId
+          });
+
+          // Refresh context to get updated folder structure
+          await refreshAll();
+        } else {
+          // Move document
+          await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
+
+          // Refresh context
+          await refreshAll();
+        }
       }
 
       setShowCategoryModal(false);
@@ -615,7 +639,7 @@ const CategoryDetail = () => {
       setSelectedCategoryId(null);
     } catch (error) {
       console.error('Error moving item to category:', error);
-      alert(`Failed to move ${selectedDocumentForCategory.type || 'item'} to category`);
+      alert(`Failed to move ${selectedDocumentForCategory?.type || 'item'} to category`);
     }
   };
 
@@ -1143,6 +1167,7 @@ const CategoryDetail = () => {
                     }}
                     disabled={selectedDocuments.size === 0}
                     style={{
+                      minWidth: 100,
                       paddingLeft: 18,
                       paddingRight: 18,
                       paddingTop: 10,
@@ -1178,79 +1203,91 @@ const CategoryDetail = () => {
 
                   {/* Move Button */}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (selectedDocuments.size === 0) return;
-                      // You can add a modal here to select target folder
-                      alert('Move functionality - implement folder selection modal');
+                      // Open category modal to select destination
+                      try {
+                        const response = await api.get('/api/folders');
+                        const folders = response.data?.folders || [];
+                        const availableFolders = folders.filter(f =>
+                          f.name.toLowerCase() !== 'recently added' && f.id !== currentFolderId
+                        );
+                        setAvailableCategories(availableFolders);
+                        setShowCategoryModal(true);
+                      } catch (error) {
+                        console.error('Error loading categories:', error);
+                        alert('Failed to load categories');
+                      }
                     }}
                     disabled={selectedDocuments.size === 0}
                     style={{
+                      minWidth: 100,
                       paddingLeft: 18,
                       paddingRight: 18,
                       paddingTop: 10,
                       paddingBottom: 10,
-                      background: '#F5F5F5',
+                      background: 'white',
                       boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
                       overflow: 'hidden',
                       borderRadius: 100,
-                      outline: '1px #E6E6EC solid',
-                      outlineOffset: '-1px',
+                      border: '1px solid #E6E6EC',
                       justifyContent: 'center',
                       alignItems: 'center',
                       gap: 6,
                       display: 'inline-flex',
-                      border: 'none',
                       cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
                       opacity: selectedDocuments.size === 0 ? 0.5 : 1,
                       transition: 'all 0.2s'
                     }}
                   >
-                    <FolderSvgIcon style={{ width: 16, height: 16 }} />
                     <div style={{
                       color: '#32302C',
                       fontSize: 16,
                       fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: '600',
-                      lineHeight: '24px',
-                      wordWrap: 'break-word'
+                      fontWeight: '500',
+                      lineHeight: '24px'
                     }}>
                       Move
                     </div>
                   </button>
 
-                  {/* Select Button with Count */}
+                  {/* Selected Count */}
+                  <div style={{
+                    color: '#32302C',
+                    fontSize: 16,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '500',
+                    lineHeight: '24px'
+                  }}>
+                    ({selectedDocuments.size}) Selected
+                  </div>
+
+                  {/* X Close Button */}
                   <button
-                    onClick={toggleSelectMode}
+                    onClick={() => {
+                      clearSelection();
+                      toggleSelectMode();
+                    }}
                     style={{
-                      paddingLeft: 18,
-                      paddingRight: 18,
-                      paddingTop: 10,
-                      paddingBottom: 10,
-                      background: '#111827',
-                      boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
-                      overflow: 'hidden',
-                      borderRadius: 100,
-                      outline: '1px #E6E6EC solid',
-                      outlineOffset: '-1px',
-                      justifyContent: 'center',
+                      width: 32,
+                      height: 32,
+                      background: 'white',
+                      border: '1px solid #E6E6EC',
+                      borderRadius: '50%',
+                      display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
-                      display: 'inline-flex',
-                      border: 'none',
+                      justifyContent: 'center',
                       cursor: 'pointer',
                       transition: 'all 0.2s'
                     }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#F3F4F6';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'white';
+                    }}
                   >
-                    <div style={{
-                      color: 'white',
-                      fontSize: 16,
-                      fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: '600',
-                      lineHeight: '24px',
-                      wordWrap: 'break-word'
-                    }}>
-                      Select ({selectedDocuments.size})
-                    </div>
+                    <CloseIcon style={{ width: 16, height: 16 }} />
                   </button>
                 </>
               ) : (
@@ -1754,38 +1791,6 @@ const CategoryDetail = () => {
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
                                 Rename
-                              </button>
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  try {
-                                    // Get all documents in this folder (recursively)
-                                    const response = await api.get(`/api/folders/${folder.id}/download`);
-                                    // Trigger download
-                                    window.location.href = response.data.downloadUrl;
-                                  } catch (error) {
-                                    console.error('Error downloading folder:', error);
-                                    alert('Failed to download folder');
-                                  }
-                                  setOpenFolderMenuId(null);
-                                }}
-                                style={{
-                                  width: '100%',
-                                  padding: '8px 12px',
-                                  background: 'none',
-                                  border: 'none',
-                                  borderTop: '1px solid #F3F4F6',
-                                  textAlign: 'left',
-                                  fontSize: 14,
-                                  fontFamily: 'Plus Jakarta Sans',
-                                  fontWeight: '500',
-                                  color: '#32302C',
-                                  cursor: 'pointer'
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
-                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                              >
-                                Download
                               </button>
                               <button
                                 onClick={async (e) => {
