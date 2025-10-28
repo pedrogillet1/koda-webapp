@@ -126,9 +126,25 @@ io.on('connection', (socket) => {
         message: 'Thinking...'
       });
 
-      console.log('🔄 Calling ENHANCED ADAPTIVE streaming service for intelligent response...');
-      const enhancedAdaptiveAIService = await import('./services/enhancedAdaptiveAI.service');
+      console.log('🔄 Calling RAG service with all fixes applied...');
+      const ragService = await import('./services/rag.service');
       const { default: prisma } = await import('./config/database');
+
+      // Get conversation history for context
+      const conversationHistory = await prisma.message.findMany({
+        where: { conversationId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: {
+          role: true,
+          content: true,
+          metadata: true,
+          createdAt: true
+        }
+      });
+
+      // Reverse to get chronological order
+      conversationHistory.reverse();
 
       // Save user message first
       const userMessage = await prisma.message.create({
@@ -140,31 +156,28 @@ io.on('connection', (socket) => {
         },
       });
 
-      // Use enhanced adaptive AI to generate intelligent response with streaming
-      const result = await enhancedAdaptiveAIService.default.generateStreamingResponse(
-        data.content,
+      // Use RAG service with all fixes (greeting, locate, folder search, etc.)
+      const result = await ragService.default.generateAnswer(
         authenticatedUserId,
-        (chunk: string) => {
-          console.log(`📤 Emitting chunk to conversation:${conversationId}:`, chunk.substring(0, 50));
-          // Emit each chunk in real-time to all clients in the conversation
-          io.to(`conversation:${conversationId}`).emit('message-chunk', {
-            chunk,
-            conversationId: conversationId
-          });
-        },
-        {
-          conversationId: conversationId,
-          attachedDocumentId: data.attachedDocumentId
-        }
+        data.content,
+        conversationId,
+        false, // researchMode
+        conversationHistory
       );
 
-      // Save assistant message
+      // Save assistant message with RAG metadata
       const assistantMessage = await prisma.message.create({
         data: {
           conversationId,
           role: 'assistant',
           content: result.answer,
           isDocument: false,
+          metadata: JSON.stringify({
+            ragSources: result.sources,
+            expandedQuery: result.expandedQuery,
+            contextId: result.contextId,
+            actions: result.actions || []
+          }),
         },
       });
 
@@ -174,27 +187,37 @@ io.on('connection', (socket) => {
         data: { updatedAt: new Date() },
       });
 
+      // Emit the answer as chunks for streaming effect
+      const words = result.answer.split(' ');
+      for (let i = 0; i < words.length; i++) {
+        const chunk = (i === 0 ? '' : ' ') + words[i];
+        io.to(`conversation:${conversationId}`).emit('message-chunk', {
+          chunk,
+          conversationId: conversationId
+        });
+      }
+
       // Update result to match expected format
       const formattedResult = {
         userMessage,
         assistantMessage,
-        followUp: result.followUp,
-        queryType: result.type,
-        confidence: result.confidence,
-        responseTime: result.responseTime
+        sources: result.sources,
+        expandedQuery: result.expandedQuery,
+        contextId: result.contextId,
+        actions: result.actions || []
       };
 
-      console.log('✅ Adaptive streaming completed, emitting new-message event');
+      console.log('✅ RAG service completed, emitting new-message event');
 
       // Emit the complete message back to ALL clients in the conversation room
       io.to(`conversation:${conversationId}`).emit('new-message', {
         conversationId: conversationId, // Include conversationId for frontend tracking
         userMessage: formattedResult.userMessage,
         assistantMessage: formattedResult.assistantMessage,
-        followUp: formattedResult.followUp,
-        queryType: formattedResult.queryType,
-        confidence: formattedResult.confidence,
-        responseTime: formattedResult.responseTime
+        sources: formattedResult.sources,
+        expandedQuery: formattedResult.expandedQuery,
+        contextId: formattedResult.contextId,
+        actions: formattedResult.actions
       });
 
       console.log('✅ new-message event emitted successfully');

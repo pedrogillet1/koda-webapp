@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import prisma from '../config/database';
-import { uploadFile, downloadFile, getSignedUrl, deleteFile, bucket } from '../config/storage';
+import { uploadFile, downloadFile, getSignedUrl, deleteFile, bucket, fileExists } from '../config/storage';
 import { config } from '../config/env';
 import * as textExtractionService from './textExtraction.service';
 import * as geminiService from './gemini.service';
@@ -770,6 +770,55 @@ async function processDocumentAsync(
       console.warn('⚠️ Markdown conversion failed (non-critical):', error);
     }
 
+    // PRE-GENERATE PDF PREVIEW FOR DOCX FILES (so viewing is instant)
+    const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (isDocx) {
+      console.log('📄 Pre-generating PDF preview for DOCX...');
+      try {
+        const { convertDocxToPdf } = await import('./docx-converter.service');
+        const { Storage } = await import('@google-cloud/storage');
+
+        const storage = new Storage({
+          keyFilename: process.env.GCS_KEY_FILE,
+          projectId: process.env.GCS_PROJECT_ID,
+        });
+
+        const pdfKey = `${encryptedFilename}.pdf`;
+        const bucket = storage.bucket(process.env.GCS_BUCKET_NAME!);
+        const pdfFile = bucket.file(pdfKey);
+
+        // Check if PDF already exists
+        const [pdfExists] = await pdfFile.exists();
+
+        if (!pdfExists) {
+          // Save DOCX to temp file
+          const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
+          fs.writeFileSync(tempDocxPath, fileBuffer);
+
+          // Convert to PDF
+          const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
+
+          if (conversion.success && conversion.pdfPath) {
+            // Upload PDF to GCS
+            const pdfBuffer = fs.readFileSync(conversion.pdfPath);
+            await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
+
+            console.log('✅ PDF preview pre-generated:', pdfKey);
+
+            // Clean up temp files
+            fs.unlinkSync(tempDocxPath);
+            fs.unlinkSync(conversion.pdfPath);
+          } else {
+            console.warn('⚠️ PDF preview generation failed (non-critical):', conversion.error);
+          }
+        } else {
+          console.log('✅ PDF preview already exists');
+        }
+      } catch (error: any) {
+        console.warn('⚠️ PDF preview generation failed (non-critical):', error.message);
+      }
+    }
+
     // Analyze document with Gemini
     let classification = null;
     let entities = null;
@@ -1479,9 +1528,32 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
     if (!pdfExists) {
       console.log('📄 PDF not found, converting DOCX to PDF...');
 
+      // ✅ First, check if DOCX file exists in GCS
+      const docxFile = bucket.file(document.encryptedFilename);
+      const [docxExists] = await docxFile.exists();
+
+      if (!docxExists) {
+        throw new Error(`Document file not found in storage: ${document.encryptedFilename}`);
+      }
+
       // Download DOCX from GCS
       const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
+      console.log(`⬇️  Downloading DOCX from GCS: ${document.encryptedFilename}`);
       const docxBuffer = await downloadFile(document.encryptedFilename);
+
+      // ✅ Validate that the downloaded buffer is not empty
+      if (!docxBuffer || docxBuffer.length === 0) {
+        throw new Error(`Downloaded DOCX file is empty: ${document.encryptedFilename}`);
+      }
+
+      console.log(`✅ Downloaded ${docxBuffer.length} bytes`);
+
+      // ✅ Validate DOCX file format (check ZIP signature)
+      // DOCX files are ZIP archives, so they should start with 'PK' (0x50, 0x4B)
+      if (docxBuffer[0] !== 0x50 || docxBuffer[1] !== 0x4B) {
+        throw new Error(`Invalid DOCX file format - not a valid ZIP archive: ${document.encryptedFilename}`);
+      }
+
       fs.writeFileSync(tempDocxPath, docxBuffer);
 
       // Convert to PDF
@@ -1529,6 +1601,13 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
 
   // For PDF files, return direct URL
   if (document.mimeType === 'application/pdf') {
+    // ✅ Check if PDF file exists in GCS before generating signed URL
+    const pdfExists = await fileExists(document.encryptedFilename);
+
+    if (!pdfExists) {
+      throw new Error(`PDF file not found in storage: ${document.encryptedFilename}`);
+    }
+
     const url = await getSignedUrl(document.encryptedFilename, 3600);
 
     return {

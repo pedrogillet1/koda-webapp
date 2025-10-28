@@ -503,31 +503,6 @@ const Settings = () => {
               <Right3Icon style={{ width: 16, height: 16 }} />
             </div>
           </div>
-
-          {/* Clear Cache Button */}
-          <div
-            onClick={handleClearCache}
-            style={{
-              alignSelf: 'stretch',
-              height: 52,
-              padding: 14,
-              background: '#F5F5F5',
-              borderRadius: 18,
-              border: '1px #E6E6EC solid',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: 12,
-              display: 'flex',
-              cursor: 'pointer',
-              transition: 'background 0.2s ease'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.background = '#E6E6EC'}
-            onMouseOut={(e) => e.currentTarget.style.background = '#F5F5F5'}
-          >
-            <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>
-              Clear Cache ({formatBytes(totalStorage)})
-            </div>
-          </div>
         </div>
       </div>
 
@@ -544,7 +519,12 @@ const Settings = () => {
         {activeSection === 'general' && (
         <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: 32, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 24, display: 'flex' }}>
           {/* Profile Card - Row 1 */}
-          <div style={{ alignSelf: 'stretch', padding: 24, background: 'white', borderRadius: 16, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 20, display: 'flex' }}>
+          <div
+            onClick={() => setActiveSection('profile')}
+            style={{ alignSelf: 'stretch', padding: 24, background: 'white', borderRadius: 16, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 20, display: 'flex', cursor: 'pointer', transition: 'background 0.2s ease' }}
+            onMouseOver={(e) => e.currentTarget.style.background = '#F5F5F5'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'white'}
+          >
             {user?.profileImage ? (
               <img
                 src={user.profileImage}
@@ -639,27 +619,6 @@ const Settings = () => {
                   <span style={{ color: '#32302C', fontSize: 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '40px' }}>{formatBytes(totalStorage)} </span>
                   <span style={{ color: '#B9B9B9', fontSize: 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '40px' }}>/ 1GB</span>
                 </div>
-                <button
-                  onClick={() => navigate('/upgrade')}
-                  style={{
-                    alignSelf: 'stretch',
-                    height: 52,
-                    marginTop: 8,
-                    background: '#181818',
-                    borderRadius: 12,
-                    border: 'none',
-                    color: 'white',
-                    fontSize: 16,
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'background 0.2s ease'
-                  }}
-                  onMouseOver={(e) => e.target.style.background = '#2D3748'}
-                  onMouseOut={(e) => e.target.style.background = '#181818'}
-                >
-                  Upgrade Now
-                </button>
               </div>
             </div>
           </div>

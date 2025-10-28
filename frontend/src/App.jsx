@@ -61,6 +61,7 @@ function App() {
             <Route path="/upload-hub" element={<ProtectedRoute><UploadHub /></ProtectedRoute>} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/forgot-password-code" element={<ForgotPasswordCode />} />
+            <Route path="/reset-password" element={<SetNewPassword />} />
             <Route path="/set-new-password" element={<SetNewPassword />} />
             <Route path="/password-changed" element={<PasswordChanged />} />
             <Route path="/chat" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />

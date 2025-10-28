@@ -4,9 +4,12 @@
  * Multi-Strategy → RRF Fusion → Re-Ranking → MMR Diversity
  */
 
-import multiStrategyRetrievalService from './multiStrategyRetrieval.service';
+import vectorEmbeddingService from './vectorEmbedding.service';
+import pineconeService from './pinecone.service';
 import rrfFusionService from './rrfFusion.service';
 import rerankerService from './reranker.service';
+import selectiveRerankerService from './selectiveReranker.service';
+import dynamicRRFWeightsService from './dynamicRRFWeights.service';
 import mmrService from './mmr.service';
 import { RerankResult } from './reranker.service';
 
@@ -16,6 +19,9 @@ interface EnhancedRetrievalOptions {
   enableMMR?: boolean;
   mmrLambda?: number;
   queryType?: string;
+  documentId?: string; // Optional document filter for document-scoped queries
+  documentIds?: string[]; // Optional multiple document filter for conversation context
+  folderId?: string; // Optional folder filter for folder-scoped queries
 }
 
 class EnhancedRetrievalService {
@@ -33,8 +39,17 @@ class EnhancedRetrievalService {
       enableReranking = true,
       enableMMR = true,
       mmrLambda,
-      queryType = 'general'
+      queryType = 'general',
+      documentId,
+      documentIds,
+      folderId
     } = options;
+
+    // FIX: Handle both documentId (singular) and documentIds (array)
+    // When a single document is attached, rag.service sets documentIds=[id]
+    // We need to extract that and pass it as attachedDocumentId to Pinecone
+    const attachedDocumentId = documentId || (documentIds && documentIds.length === 1 ? documentIds[0] : undefined);
+    const isMultiDocContext = documentIds && documentIds.length > 1;
 
     const startTime = Date.now();
 
@@ -44,46 +59,74 @@ class EnhancedRetrievalService {
     console.log(`║ Query: "${query.substring(0, 50)}${query.length > 50 ? '...' : ''}"`);
     console.log(`║ User: ${userId.substring(0, 20)}`);
     console.log(`║ Options: topK=${topK}, rerank=${enableReranking}, mmr=${enableMMR}`);
+    if (attachedDocumentId) {
+      console.log(`║ 🎯 ATTACHED DOCUMENT FILTER: ${attachedDocumentId.substring(0, 30)}...`);
+    }
+    if (isMultiDocContext) {
+      console.log(`║ 🎯 Context Documents: ${documentIds!.length} documents`);
+    }
+    if (folderId) {
+      console.log(`║ 📁 Folder-Scoped: ${folderId.substring(0, 20)}...`);
+    }
     console.log(`╚════════════════════════════════════════════════════════════╝\n`);
 
     try {
       // ═══════════════════════════════════════════════════════════════
-      // STAGE 1: Multi-Strategy Retrieval
-      // BM25F + Vector + Title in parallel
+      // STAGE 1: SIMPLE Hybrid Retrieval (What Actually Worked)
+      // Just vector search - simple and effective
       // ═══════════════════════════════════════════════════════════════
 
-      console.log(`┌─ STAGE 1: Multi-Strategy Retrieval`);
+      console.log(`┌─ STAGE 1: Vector Search${attachedDocumentId ? ' (ATTACHED DOCUMENT FILTER)' : folderId ? ' (Folder-Scoped)' : isMultiDocContext ? ' (Multi-Doc Context)' : ''}`);
       const stage1Start = Date.now();
 
-      const rawResults = await multiStrategyRetrievalService.retrieve(
-        query,
+      // Generate query embedding
+      const queryEmbedding = await vectorEmbeddingService.generateEmbedding(query);
+
+      // Search Pinecone for chunks - this is what worked before
+      const vectorResults = await pineconeService.searchSimilarChunks(
+        queryEmbedding,
         userId,
-        20 // Get more candidates for fusion
+        Math.min(topK * 3, 100), // Get more candidates for reranking
+        0.3, // Lowered threshold from 0.5 to get more results
+        attachedDocumentId, // Pass document filter (FIX: now using the correct variable)
+        folderId // Pass folder filter
       );
+
+      console.log(`   🔍 Found ${vectorResults.length} chunks`);
+
+      // FIX: For multi-document context, post-filter to only include chunks from context documents
+      let filteredResults = vectorResults;
+      if (isMultiDocContext && documentIds) {
+        const beforeCount = vectorResults.length;
+        filteredResults = vectorResults.filter((r: any) =>
+          documentIds.includes(r.metadata?.documentId)
+        );
+        console.log(`   🎯 Multi-doc context filter: ${beforeCount} → ${filteredResults.length} chunks (from ${documentIds.length} docs)`);
+      }
+
+      // Just use vector results directly - no complex fusion
+      const results = filteredResults.map((r: any) => ({
+        documentId: r.metadata?.documentId || '',
+        filename: r.metadata?.filename || 'Unknown',
+        content: r.metadata?.content || r.content || '',
+        score: r.score || 0,
+        fusedScore: r.score || 0, // Use vector score as fused score
+        rankSources: ['vector'], // Required by FusedResult type
+        source: 'vector' as const,
+        metadata: r.metadata,
+        pageNumber: r.metadata?.pageNumber || 1,
+        chunkIndex: r.metadata?.chunkIndex || 0
+      }));
 
       const stage1Time = Date.now() - stage1Start;
       console.log(`└─ ✅ Stage 1 complete (${stage1Time}ms)\n`);
 
       // ═══════════════════════════════════════════════════════════════
-      // STAGE 2: Reciprocal Rank Fusion (RRF)
-      // Intelligently merge results from all strategies
+      // STAGE 2: SKIP RRF (Not Needed With Single Strategy)
+      // Going straight to reranking with vector results
       // ═══════════════════════════════════════════════════════════════
 
-      console.log(`┌─ STAGE 2: Reciprocal Rank Fusion`);
-      const stage2Start = Date.now();
-
-      const fused = rrfFusionService.fuseResults(
-        rawResults,
-        {
-          bm25: 1.0,    // Standard weight
-          vector: 1.0,   // Standard weight
-          title: 1.5     // Higher weight for title matches
-        },
-        Math.min(topK * 3, 15) // Get 3x candidates for re-ranking
-      );
-
-      const stage2Time = Date.now() - stage2Start;
-      console.log(`└─ ✅ Stage 2 complete (${stage2Time}ms)\n`);
+      console.log(`┌─ STAGE 2: Skip Fusion (single strategy)`);
 
       // ═══════════════════════════════════════════════════════════════
       // STAGE 3: Re-Ranking (Optional)
@@ -92,26 +135,33 @@ class EnhancedRetrievalService {
 
       let reranked: RerankResult[];
 
-      if (enableReranking && fused.length > 0) {
-        console.log(`┌─ STAGE 3: Re-Ranking (Cohere ReRank)`);
+      if (enableReranking && results.length > 0) {
+        console.log(`┌─ STAGE 3: Re-Ranking (Cohere)`);
         const stage3Start = Date.now();
 
-        reranked = await rerankerService.rerank(
+        // Rerank the vector results
+        reranked = await selectiveRerankerService.rerank(
           query,
-          fused,
-          Math.min(topK * 2, 10) // Get 2x candidates for MMR
+          results,
+          queryType as any,
+          {
+            maxCandidates: Math.min(results.length, 10),
+            minCandidates: 3,
+            costThreshold: 0.01,
+          }
         );
 
         const stage3Time = Date.now() - stage3Start;
         console.log(`└─ ✅ Stage 3 complete (${stage3Time}ms)\n`);
       } else {
         console.log(`┌─ STAGE 3: Re-Ranking (SKIPPED)`);
-        reranked = fused.map((doc, index) => ({
+        reranked = results.map((doc, index) => ({
           ...doc,
           rerankScore: doc.fusedScore,
-          originalRank: index
+          originalRank: index,
+          rankSources: doc.rankSources // Preserve rankSources
         }));
-        console.log(`└─ Using fusion scores\n`);
+        console.log(`└─ Using vector scores\n`);
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -178,34 +228,21 @@ class EnhancedRetrievalService {
   }
 
   /**
-   * Retrieves documents using only BM25 + Vector (simpler, faster)
-   * Useful for real-time queries where latency is critical
+   * Fast retrieval - just calls the main retrieve method with MMR/reranking disabled
+   * Kept for backwards compatibility
    */
   async retrieveFast(
     query: string,
     userId: string,
     topK: number = 5
   ): Promise<RerankResult[]> {
-    console.log(`⚡ Fast retrieval (BM25 + Vector only)`);
+    console.log(`⚡ Fast retrieval (vector only, no reranking/MMR)`);
 
-    const rawResults = await multiStrategyRetrievalService.retrieve(
-      query,
-      userId,
-      topK * 2
-    );
-
-    // Simple fusion without re-ranking or MMR
-    const fused = rrfFusionService.fuseResults(
-      rawResults,
-      { bm25: 1.0, vector: 1.0, title: 1.5 },
-      topK
-    );
-
-    return fused.map((doc, index) => ({
-      ...doc,
-      rerankScore: doc.fusedScore,
-      originalRank: index
-    }));
+    return this.retrieve(query, userId, {
+      topK,
+      enableReranking: false,
+      enableMMR: false
+    });
   }
 
   /**

@@ -6,7 +6,9 @@ import NotificationPanel from './NotificationPanel';
 import UniversalUploadModal from './UniversalUploadModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import RenameModal from './RenameModal';
+import CreateFolderModal from './CreateFolderModal';
 import { useDocuments } from '../context/DocumentsContext';
+import { useDocumentSelection } from '../hooks/useDocumentSelection';
 import folderIcon from '../assets/folder_icon.svg';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can-red.svg';
@@ -161,7 +163,7 @@ const CategoryDetail = () => {
   const { categoryName, folderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { documents: contextDocuments, folders: contextFolders } = useDocuments(); // Get from context for auto-refresh
+  const { documents: contextDocuments, folders: contextFolders, deleteDocument, refreshAll } = useDocuments(); // Get from context for auto-refresh
   const [documents, setDocuments] = useState([]);
   const [subFolders, setSubFolders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -190,8 +192,23 @@ const CategoryDetail = () => {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [itemToRename, setItemToRename] = useState(null);
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [successCount, setSuccessCount] = useState(0);
   const fileInputRef = React.useRef(null);
   const folderInputRef = React.useRef(null);
+
+  // Multi-select functionality
+  const {
+    isSelectMode,
+    selectedDocuments,
+    toggleSelectMode,
+    toggleDocument,
+    selectAll,
+    clearSelection,
+    isSelected
+  } = useDocumentSelection();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -525,14 +542,14 @@ const CategoryDetail = () => {
     console.log('handleAddToCategory called for doc:', doc);
     setSelectedDocumentForCategory(doc);
     try {
-      // Load available categories (folders at root level), excluding "Recently Added"
+      // Load ALL folders (categories and subfolders), excluding "Recently Added"
       const response = await api.get('/api/folders');
       const folders = response.data?.folders || [];
-      const rootFolders = folders.filter(f =>
-        !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
+      const availableFolders = folders.filter(f =>
+        f.name.toLowerCase() !== 'recently added'
       );
-      console.log('Root folders loaded:', rootFolders);
-      setAvailableCategories(rootFolders);
+      console.log('All folders loaded:', availableFolders);
+      setAvailableCategories(availableFolders);
       setShowCategoryModal(true);
       console.log('Modal should be showing now');
       setOpenDropdownId(null);
@@ -710,11 +727,14 @@ const CategoryDetail = () => {
     }
   };
 
-  // Handle create folder
-  const handleCreateFolder = async () => {
-    const folderName = prompt('Enter folder name:');
-    if (!folderName || !folderName.trim()) return;
+  // Handle create folder - open modal
+  const handleCreateFolder = () => {
+    setShowCreateFolderModal(true);
+    setShowNewDropdown(false);
+  };
 
+  // Handle confirm create folder from modal
+  const handleConfirmCreateFolder = async (folderName) => {
     try {
       console.log('Creating folder:', folderName, 'with parentFolderId:', currentFolderId);
 
@@ -745,7 +765,7 @@ const CategoryDetail = () => {
       console.log('Folders with counts:', foldersWithCounts);
 
       setSubFolders(foldersWithCounts);
-      setShowNewDropdown(false);
+      setShowCreateFolderModal(false);
     } catch (error) {
       console.error('Error creating folder:', error);
       alert('Failed to create folder. Please try again.');
@@ -755,6 +775,12 @@ const CategoryDetail = () => {
   // Drag and Drop handlers
   const handleDocumentDragStart = (e, doc) => {
     e.stopPropagation();
+
+    // Get count of selected documents or just this one
+    const count = isSelectMode && selectedDocuments.has(doc.id)
+      ? selectedDocuments.size
+      : 1;
+
     setDraggedItem({ type: 'document', id: doc.id, name: doc.filename });
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('application/json', JSON.stringify({
@@ -762,10 +788,27 @@ const CategoryDetail = () => {
       id: doc.id,
       name: doc.filename
     }));
-    // Add dragging class after a brief delay
-    setTimeout(() => {
-      e.target.closest('.document-row, .document-card')?.classList.add('dragging');
-    }, 0);
+
+    // Create custom drag image showing document name(s)
+    const dragPreview = document.createElement('div');
+    dragPreview.style.cssText = `
+      position: absolute;
+      top: -1000px;
+      padding: 8px 12px;
+      background: #111827;
+      color: white;
+      border-radius: 8px;
+      font-family: 'Plus Jakarta Sans';
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+    `;
+    dragPreview.textContent = count > 1
+      ? `${count} documents`
+      : doc.filename;
+    document.body.appendChild(dragPreview);
+    e.dataTransfer.setDragImage(dragPreview, 0, 0);
+    setTimeout(() => document.body.removeChild(dragPreview), 0);
   };
 
   const handleDocumentDragEnd = (e) => {
@@ -847,10 +890,19 @@ const CategoryDetail = () => {
       const data = JSON.parse(e.dataTransfer.getData('application/json'));
 
       if (data.type === 'document') {
-        // Move document to folder
-        await api.patch(`/api/documents/${data.id}`, {
-          folderId: targetFolder.id
-        });
+        // If in select mode and the dragged document is selected, move all selected documents
+        const documentsToMove = isSelectMode && selectedDocuments.has(data.id)
+          ? Array.from(selectedDocuments)
+          : [data.id];
+
+        // Move documents to folder
+        await Promise.all(
+          documentsToMove.map(docId =>
+            api.patch(`/api/documents/${docId}`, {
+              folderId: targetFolder.id
+            })
+          )
+        );
 
         // Refresh documents list
         if (currentFolderId) {
@@ -868,7 +920,21 @@ const CategoryDetail = () => {
         }));
         setSubFolders(foldersWithCounts);
 
-        alert(`Moved "${data.name}" to "${targetFolder.name}"`);
+        // Show success modal and deactivate select mode
+        setSuccessCount(documentsToMove.length);
+        setSuccessMessage(`${documentsToMove.length} document${documentsToMove.length > 1 ? 's have' : ' has'} been successfully uploaded.`);
+        setShowSuccessModal(true);
+
+        // Clear selection and exit select mode
+        if (isSelectMode) {
+          clearSelection();
+          toggleSelectMode();
+        }
+
+        // Auto-hide modal after 3 seconds
+        setTimeout(() => {
+          setShowSuccessModal(false);
+        }, 3000);
       } else if (data.type === 'folder') {
         // Can't drop folder into itself
         if (data.id === targetFolder.id) {
@@ -1032,7 +1098,7 @@ const CategoryDetail = () => {
               </div>
             </div>
 
-            {/* Right: Search, View Toggle, New Button */}
+            {/* Right: Search, View Toggle, New Button OR Delete/Move buttons */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -1040,139 +1106,247 @@ const CategoryDetail = () => {
               flexShrink: 0,
               flexWrap: 'wrap'
             }}>
-              {/* Search Bar */}
-              <div style={{
-                paddingLeft: 12,
-                paddingRight: 12,
-                paddingTop: 10,
-                paddingBottom: 10,
-                background: '#F5F5F5',
-                boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
-                overflow: 'hidden',
-                borderRadius: 100,
-                outline: '1px #E6E6EC solid',
-                outlineOffset: '-1px',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: 6,
-                display: 'inline-flex'
-              }}>
-                <div style={{justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
-                  <SearchIcon style={{ width: 24, height: 24 }} />
-                  <input
-                    type="text"
-                    placeholder="Search any documents..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+              {isSelectMode ? (
+                <>
+                  {/* Delete Button */}
+                  <button
+                    onClick={async () => {
+                      if (selectedDocuments.size === 0) return;
+                      if (!window.confirm(`Delete ${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's' : ''}?`)) return;
+
+                      try {
+                        await Promise.all(
+                          Array.from(selectedDocuments).map(docId =>
+                            deleteDocument(docId)
+                          )
+                        );
+
+                        // Refresh documents
+                        await refreshAll();
+
+                        // Clear selection and exit select mode
+                        clearSelection();
+                        toggleSelectMode();
+
+                        // Show success message
+                        setSuccessCount(selectedDocuments.size);
+                        setSuccessMessage(`${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's have' : ' has'} been successfully deleted.`);
+                        setShowSuccessModal(true);
+                        setTimeout(() => setShowSuccessModal(false), 3000);
+                      } catch (error) {
+                        console.error('Error deleting documents:', error);
+                        alert('Failed to delete documents');
+                      }
+                    }}
+                    disabled={selectedDocuments.size === 0}
                     style={{
+                      paddingLeft: 18,
+                      paddingRight: 18,
+                      paddingTop: 10,
+                      paddingBottom: 10,
+                      background: selectedDocuments.size === 0 ? '#F5F5F5' : '#DC2626',
+                      boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                      overflow: 'hidden',
+                      borderRadius: 100,
+                      outline: '1px #E6E6EC solid',
+                      outlineOffset: '-1px',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 6,
+                      display: 'inline-flex',
                       border: 'none',
-                      outline: 'none',
-                      background: 'transparent',
+                      cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
+                      opacity: selectedDocuments.size === 0 ? 0.5 : 1,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <TrashCanIcon style={{ width: 16, height: 16, fill: selectedDocuments.size === 0 ? '#9CA3AF' : 'white' }} />
+                    <div style={{
+                      color: selectedDocuments.size === 0 ? '#9CA3AF' : 'white',
+                      fontSize: 16,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '600',
+                      lineHeight: '24px',
+                      wordWrap: 'break-word'
+                    }}>
+                      Delete
+                    </div>
+                  </button>
+
+                  {/* Move Button */}
+                  <button
+                    onClick={() => {
+                      if (selectedDocuments.size === 0) return;
+                      // You can add a modal here to select target folder
+                      alert('Move functionality - implement folder selection modal');
+                    }}
+                    disabled={selectedDocuments.size === 0}
+                    style={{
+                      paddingLeft: 18,
+                      paddingRight: 18,
+                      paddingTop: 10,
+                      paddingBottom: 10,
+                      background: '#F5F5F5',
+                      boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                      overflow: 'hidden',
+                      borderRadius: 100,
+                      outline: '1px #E6E6EC solid',
+                      outlineOffset: '-1px',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 6,
+                      display: 'inline-flex',
+                      border: 'none',
+                      cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
+                      opacity: selectedDocuments.size === 0 ? 0.5 : 1,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <FolderSvgIcon style={{ width: 16, height: 16 }} />
+                    <div style={{
                       color: '#32302C',
                       fontSize: 16,
                       fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: '500',
+                      fontWeight: '600',
                       lineHeight: '24px',
-                      width: 200
+                      wordWrap: 'break-word'
+                    }}>
+                      Move
+                    </div>
+                  </button>
+
+                  {/* Select Button with Count */}
+                  <button
+                    onClick={toggleSelectMode}
+                    style={{
+                      paddingLeft: 18,
+                      paddingRight: 18,
+                      paddingTop: 10,
+                      paddingBottom: 10,
+                      background: '#111827',
+                      boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                      overflow: 'hidden',
+                      borderRadius: 100,
+                      outline: '1px #E6E6EC solid',
+                      outlineOffset: '-1px',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 6,
+                      display: 'inline-flex',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
                     }}
+                  >
+                    <div style={{
+                      color: 'white',
+                      fontSize: 16,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '600',
+                      lineHeight: '24px',
+                      wordWrap: 'break-word'
+                    }}>
+                      Select ({selectedDocuments.size})
+                    </div>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Search Bar */}
+                  <div style={{
+                    paddingLeft: 12,
+                    paddingRight: 12,
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                    background: '#F5F5F5',
+                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                    overflow: 'hidden',
+                    borderRadius: 100,
+                    outline: '1px #E6E6EC solid',
+                    outlineOffset: '-1px',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 6,
+                    display: 'inline-flex'
+                  }}>
+                    <div style={{justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
+                      <SearchIcon style={{ width: 24, height: 24 }} />
+                      <input
+                        type="text"
+                        placeholder="Search any documents..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{
+                          border: 'none',
+                          outline: 'none',
+                          background: 'transparent',
+                          color: '#32302C',
+                          fontSize: 16,
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontWeight: '500',
+                          lineHeight: '24px',
+                          width: 200
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Select Button */}
+                  <button
+                    onClick={toggleSelectMode}
+                    style={{
+                      paddingLeft: 18,
+                      paddingRight: 18,
+                      paddingTop: 10,
+                      paddingBottom: 10,
+                      background: '#F5F5F5',
+                      boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                      overflow: 'hidden',
+                      borderRadius: 100,
+                      outline: '1px #E6E6EC solid',
+                      outlineOffset: '-1px',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 6,
+                      display: 'inline-flex',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <div style={{
+                      color: '#32302C',
+                      fontSize: 16,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '600',
+                      lineHeight: '24px',
+                      wordWrap: 'break-word'
+                    }}>
+                      Select
+                    </div>
+                  </button>
+
+                  {/* Hidden file inputs */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleFileUpload}
+                    style={{ display: 'none' }}
                   />
-                </div>
-              </div>
+                  <input
+                    ref={folderInputRef}
+                    type="file"
+                    webkitdirectory="true"
+                    directory="true"
+                    multiple
+                    onChange={handleFolderUpload}
+                    style={{ display: 'none' }}
+                  />
 
-              {/* View Toggle */}
-              <div style={{
-                display: 'flex',
-                gap: 4,
-                background: 'white',
-                border: '1px solid #E5E7EB',
-                borderRadius: 8,
-                padding: 4
-              }}>
-                <button
-                  onClick={() => setViewMode('grid')}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    background: viewMode === 'grid' ? '#111827' : 'transparent',
-                    border: 'none',
-                    borderRadius: 6,
-                    fontSize: 18,
-                    color: viewMode === 'grid' ? 'white' : '#6B7280',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  title="Grid view"
-                  onMouseEnter={(e) => {
-                    if (viewMode !== 'grid') {
-                      e.currentTarget.style.background = '#F3F4F6';
-                      e.currentTarget.style.color = '#111827';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (viewMode !== 'grid') {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#6B7280';
-                    }
-                  }}
-                >
-                  ⊞
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    background: viewMode === 'list' ? '#111827' : 'transparent',
-                    border: 'none',
-                    borderRadius: 6,
-                    fontSize: 18,
-                    color: viewMode === 'list' ? 'white' : '#6B7280',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  title="List view"
-                  onMouseEnter={(e) => {
-                    if (viewMode !== 'list') {
-                      e.currentTarget.style.background = '#F3F4F6';
-                      e.currentTarget.style.color = '#111827';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (viewMode !== 'list') {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#6B7280';
-                    }
-                  }}
-                >
-                  ☰
-                </button>
-              </div>
-
-              {/* New Dropdown Button */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                onChange={handleFileUpload}
-                style={{ display: 'none' }}
-              />
-              <input
-                ref={folderInputRef}
-                type="file"
-                webkitdirectory="true"
-                directory="true"
-                multiple
-                onChange={handleFolderUpload}
-                style={{ display: 'none' }}
-              />
-              <div style={{ position: 'relative' }} data-new-dropdown>
-                <button
+                  {/* New Dropdown Button */}
+                  <div style={{ position: 'relative' }} data-new-dropdown>
+                    <button
                   onClick={(e) => {
                     e.stopPropagation();
                     console.log('New button clicked!');
@@ -1412,6 +1586,8 @@ const CategoryDetail = () => {
                   </div>
                 )}
               </div>
+              </>
+            )}
             </div>
           </div>
         </div>
@@ -1708,10 +1884,16 @@ const CategoryDetail = () => {
                         draggable="true"
                         onDragStart={(e) => handleDocumentDragStart(e, doc)}
                         onDragEnd={handleDocumentDragEnd}
-                        onClick={() => navigate(`/document/${doc.id}`)}
+                        onClick={() => {
+                          if (isSelectMode) {
+                            toggleDocument(doc.id);
+                          } else {
+                            navigate(`/document/${doc.id}`);
+                          }
+                        }}
                         style={{
-                          background: 'white',
-                          border: '1px solid #E5E7EB',
+                          background: isSelected(doc.id) ? '#111827' : 'white',
+                          border: isSelected(doc.id) ? '2px solid #111827' : '1px solid #E5E7EB',
                           borderRadius: 12,
                           padding: 16,
                           cursor: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 'move' : 'pointer',
@@ -1802,7 +1984,7 @@ const CategoryDetail = () => {
                             <h3 style={{
                               fontSize: 14,
                               fontWeight: '500',
-                              color: '#111827',
+                              color: isSelected(doc.id) ? 'white' : '#111827',
                               fontFamily: 'Plus Jakarta Sans',
                               margin: '0 0 4px 0',
                               whiteSpace: 'nowrap',
@@ -1814,7 +1996,7 @@ const CategoryDetail = () => {
                           )}
                           <p style={{
                             fontSize: 12,
-                            color: '#6B7280',
+                            color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6B7280',
                             fontFamily: 'Plus Jakarta Sans',
                             margin: '0 0 4px 0'
                           }}>
@@ -2093,21 +2275,37 @@ const CategoryDetail = () => {
                             draggable="true"
                             onDragStart={(e) => handleDocumentDragStart(e, doc)}
                             onDragEnd={handleDocumentDragEnd}
-                            onClick={() => navigate(`/document/${doc.id}`)}
+                            onClick={() => {
+                              if (isSelectMode) {
+                                toggleDocument(doc.id);
+                              } else {
+                                navigate(`/document/${doc.id}`);
+                              }
+                            }}
                             style={{
                               borderBottom: '1px solid #F3F4F6',
+                              background: isSelected(doc.id) ? '#111827' : 'white',
                               cursor: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 'move' : 'pointer',
                               transition: 'background 0.2s',
-                              opacity: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 0.5 : 1
+                              opacity: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 0.5 : 1,
+                              borderLeft: isSelected(doc.id) ? '3px solid #111827' : '3px solid transparent'
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                            onMouseEnter={(e) => {
+                              if (!isSelected(doc.id)) {
+                                e.currentTarget.style.background = '#F9FAFB';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isSelected(doc.id)) {
+                                e.currentTarget.style.background = 'white';
+                              }
+                            }}
                           >
                             {/* File Name Cell */}
                             <td style={{
                               padding: '14px 16px',
                               fontSize: 14,
-                              color: '#374151',
+                              color: isSelected(doc.id) ? 'white' : '#374151',
                               fontFamily: 'Plus Jakarta Sans'
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -2157,7 +2355,7 @@ const CategoryDetail = () => {
                                 ) : (
                                   <span style={{
                                     fontWeight: '500',
-                                    color: '#111827'
+                                    color: isSelected(doc.id) ? 'white' : '#111827'
                                   }}>
                                     {doc.filename}
                                   </span>
@@ -2169,7 +2367,7 @@ const CategoryDetail = () => {
                             <td style={{
                               padding: '14px 16px',
                               fontSize: 14,
-                              color: '#6B7280',
+                              color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6B7280',
                               fontFamily: 'Plus Jakarta Sans'
                             }}>
                               {formatTime(doc.createdAt)}
@@ -2179,7 +2377,7 @@ const CategoryDetail = () => {
                             <td style={{
                               padding: '14px 16px',
                               fontSize: 14,
-                              color: '#6B7280',
+                              color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6B7280',
                               fontFamily: 'Plus Jakarta Sans',
                               fontVariantNumeric: 'tabular-nums'
                             }}>
@@ -2649,6 +2847,58 @@ const CategoryDetail = () => {
         itemName={itemToRename?.name}
         itemType={itemToRename?.type}
       />
+
+      {/* Create Folder Modal */}
+      <CreateFolderModal
+        isOpen={showCreateFolderModal}
+        onClose={() => setShowCreateFolderModal(false)}
+        onConfirm={handleConfirmCreateFolder}
+      />
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div style={{
+          position: 'fixed',
+          top: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 99999,
+          animation: 'slideDown 0.3s ease-out'
+        }}>
+          <div style={{
+            background: '#10B981',
+            borderRadius: 8,
+            padding: '12px 20px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12
+          }}>
+            <div style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              background: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M11.6667 3.5L5.25 9.91667L2.33333 7" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <span style={{
+              color: 'white',
+              fontSize: 14,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '500'
+            }}>
+              {successMessage}
+            </span>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

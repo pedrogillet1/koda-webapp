@@ -1,19 +1,52 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import backArrow from '../assets/arrow-narrow-left.svg';
 import hideIcon from '../assets/Hide.svg'; // Assuming you have a hide icon
 
 const SetNewPassword = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    const handleSave = () => {
-        if (!isSaveDisabled) {
-            console.log('Saving new password...');
+    const email = location.state?.email || '';
+    const phoneNumber = location.state?.phoneNumber || '';
+    const code = location.state?.code || '';
+
+    const handleSave = async () => {
+        if (isSaveDisabled) return;
+
+        try {
+            setLoading(true);
+            setError('');
+
+            const response = await fetch('http://localhost:5000/api/auth/reset-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email,
+                    phoneNumber,
+                    code,
+                    newPassword
+                }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to reset password');
+            }
+
             navigate('/password-changed');
+        } catch (err) {
+            setError(err.message || 'Failed to reset password');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -70,10 +103,18 @@ const SetNewPassword = () => {
                         </div>
                     </div>
 
+                    {error && (
+                        <div style={{alignSelf: 'stretch', padding: '12px 18px', background: '#FEE2E2', borderRadius: 14, border: '1px solid #FCA5A5'}}>
+                            <div style={{color: '#DC2626', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px'}}>{error}</div>
+                        </div>
+                    )}
+
                     {/* Save Button */}
                     <div style={{alignSelf: 'stretch'}}>
-                        <button onClick={handleSave} disabled={isSaveDisabled} style={{width: '100%', height: 52, background: isSaveDisabled ? '#F5F5F5' : '#181818', borderRadius: 14, border: 'none', cursor: isSaveDisabled ? 'not-allowed' : 'pointer'}}>
-                            <div style={{color: isSaveDisabled ? '#6C6B6E' : 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>Save</div>
+                        <button onClick={handleSave} disabled={isSaveDisabled || loading} style={{width: '100%', height: 52, background: (isSaveDisabled || loading) ? '#F5F5F5' : '#181818', borderRadius: 14, border: 'none', cursor: (isSaveDisabled || loading) ? 'not-allowed' : 'pointer'}}>
+                            <div style={{color: (isSaveDisabled || loading) ? '#6C6B6E' : 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>
+                                {loading ? 'Saving...' : 'Save'}
+                            </div>
                         </button>
                     </div>
                 </div>

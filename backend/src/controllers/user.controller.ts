@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 
 /**
  * Update user profile
@@ -92,17 +93,22 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
         return;
       }
 
-      if (!user.salt) {
+      if (!user.salt || !user.passwordHash) {
         res.status(400).json({ error: 'User account has no password set' });
         return;
       }
 
-      // Verify current password
-      const currentPasswordHash = crypto
-        .pbkdf2Sync(currentPassword, user.salt, 1000, 64, 'sha512')
-        .toString('hex');
+      // Extract after null check to narrow types
+      const salt = user.salt;
+      const passwordHash = user.passwordHash;
 
-      if (currentPasswordHash !== user.passwordHash) {
+      // Verify current password using bcrypt
+      const isPasswordValid = await bcrypt.compare(
+        currentPassword + salt,
+        passwordHash
+      );
+
+      if (!isPasswordValid) {
         res.status(401).json({ error: 'Current password is incorrect' });
         return;
       }
@@ -135,11 +141,9 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Generate new salt and hash
+    // Generate new salt and hash using bcrypt
     const newSalt = crypto.randomBytes(16).toString('hex');
-    const newPasswordHash = crypto
-      .pbkdf2Sync(newPassword, newSalt, 1000, 64, 'sha512')
-      .toString('hex');
+    const newPasswordHash = await bcrypt.hash(newPassword + newSalt, 12);
 
     // Update password
     await prisma.user.update({

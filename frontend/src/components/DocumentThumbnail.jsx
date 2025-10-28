@@ -12,8 +12,8 @@ import mp4Icon from '../assets/mp4.svg';
 import mp3Icon from '../assets/mp3.svg';
 import { hasCanvasSupport, safeCanvasOperation } from '../utils/browserUtils';
 
-// Set PDF.js worker - use self-hosted worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `${window.location.origin}/pdf.worker.min.js`;
+// Set PDF.js worker - use jsdelivr CDN matching the installed pdfjs-dist version
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 const DocumentThumbnail = ({ document, width = 120, height = 160, showIcon = false }) => {
     const [thumbnail, setThumbnail] = useState(null);

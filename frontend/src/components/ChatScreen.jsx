@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import LeftNav from './LeftNav';
 import ChatHistory from './ChatHistory';
 import ChatInterface from './ChatInterface';
 import NotificationPanel from './NotificationPanel';
 
 const ChatScreen = () => {
+    const location = useLocation();
     const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
 
     // Load current conversation from sessionStorage on mount (persists during session)
     const [currentConversation, setCurrentConversation] = useState(() => {
+        // Check if a new conversation was passed via navigation state
+        if (location.state?.newConversation) {
+            return location.state.newConversation;
+        }
+
         const saved = sessionStorage.getItem('currentConversationId');
         if (saved) {
             return { id: saved }; // Will be fully loaded by ChatInterface
@@ -17,6 +24,13 @@ const ChatScreen = () => {
     });
 
     const [updateConversationInList, setUpdateConversationInList] = useState(null);
+
+    // Check for new conversation passed via navigation state
+    useEffect(() => {
+        if (location.state?.newConversation) {
+            setCurrentConversation(location.state.newConversation);
+        }
+    }, [location.state]);
 
     // Save current conversation ID to sessionStorage whenever it changes
     useEffect(() => {

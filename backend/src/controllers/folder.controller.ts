@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import * as folderService from '../services/folder.service';
+import { emitFolderEvent } from '../services/websocket.service';
 
 /**
  * Create folder
@@ -26,6 +27,9 @@ export const createFolder = async (req: Request, res: Response): Promise<void> =
     }
 
     const folder = await folderService.createFolder(req.user.id, trimmedName, emoji, parentFolderId);
+
+    // Emit real-time event for folder creation
+    emitFolderEvent(req.user.id, 'created', folder.id);
 
     res.status(201).json({ folder });
   } catch (error) {
@@ -101,6 +105,9 @@ export const updateFolder = async (req: Request, res: Response): Promise<void> =
 
     const folder = await folderService.updateFolder(id, req.user.id, name, emoji, parentFolderId);
 
+    // Emit real-time event for folder update
+    emitFolderEvent(req.user.id, 'updated', id);
+
     res.status(200).json({ folder });
   } catch (error) {
     const err = error as Error;
@@ -138,6 +145,9 @@ export const bulkCreateFolders = async (req: Request, res: Response): Promise<vo
     console.log(`✅ [${requestId}] Successfully created ${Object.keys(folderMap).length} folders`);
     console.log(`🆔 [${requestId}] ===== REQUEST COMPLETE =====\n`);
 
+    // Emit real-time event for bulk folder creation (emit generic folders-changed)
+    emitFolderEvent(req.user.id, 'created');
+
     res.status(201).json({
       success: true,
       folderMap, // Returns mapping of folder paths to database IDs
@@ -163,6 +173,9 @@ export const deleteFolder = async (req: Request, res: Response): Promise<void> =
     const { id } = req.params;
 
     await folderService.deleteFolder(id, req.user.id);
+
+    // Emit real-time event for folder deletion
+    emitFolderEvent(req.user.id, 'deleted', id);
 
     res.status(200).json({ message: 'Folder deleted successfully' });
   } catch (error) {

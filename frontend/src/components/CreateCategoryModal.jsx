@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { ReactComponent as AddIcon } from '../assets/add.svg';
+import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import pdfIcon from '../assets/pdf-icon.svg';
 import docIcon from '../assets/doc-icon.svg';
 import txtIcon from '../assets/txt-icon.svg';
@@ -97,13 +99,8 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
       setNameError(false);
     }
 
-    // Check if no documents are selected
-    if (selectedDocuments.length === 0) {
-      setDocumentsError(true);
-      hasError = true;
-    } else {
-      setDocumentsError(false);
-    }
+    // Documents are optional - no validation needed
+    setDocumentsError(false);
 
     // If there are errors, don't proceed
     if (hasError) {
@@ -155,30 +152,35 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
   if (!isOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      background: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000
-    }}>
-      <div style={{
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
         width: '100%',
-        maxWidth: 500,
-        background: 'white',
-        borderRadius: 14,
-        outline: '1px #E6E6EC solid',
-        outlineOffset: '-1px',
+        height: '100%',
+        background: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
-        flexDirection: 'column',
-        gap: 18,
-        padding: '18px 0'
-      }}>
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: 500,
+          background: 'white',
+          borderRadius: 14,
+          outline: '1px #E6E6EC solid',
+          outlineOffset: '-1px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 18,
+          padding: '18px 0'
+        }}
+      >
         {/* Header */}
         <div style={{
           paddingLeft: 18,
@@ -275,85 +277,85 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
           gap: 12
         }}>
           <div style={{
-            color: '#32302C',
-            fontSize: 14,
-            fontFamily: 'Plus Jakarta Sans',
-            fontWeight: '600',
-            lineHeight: '20px'
-          }}>
-            Category Emoji
-          </div>
-          <div style={{
             display: 'flex',
-            flexDirection: 'column',
-            gap: 8
+            justifyContent: 'space-between',
+            alignItems: 'center'
           }}>
             <div style={{
-              display: 'flex',
-              gap: 8,
-              padding: 8,
-              background: '#F5F5F5',
-              borderRadius: 10,
-              outline: '1px #E6E6EC solid',
-              outlineOffset: '-1px',
-              overflowX: showAllEmojis ? 'auto' : 'visible',
-              flexWrap: showAllEmojis ? 'nowrap' : 'nowrap'
+              color: '#32302C',
+              fontSize: 14,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '600',
+              lineHeight: '20px'
             }}>
-              {(showAllEmojis ? emojis : emojis.slice(0, 8)).map((emoji) => (
-                <div
-                  key={emoji}
-                  onClick={() => setSelectedEmoji(emoji)}
-                  style={{
-                    minWidth: 44,
-                    width: 44,
-                    height: 44,
-                    background: selectedEmoji === emoji ? '#171717' : 'white',
-                    borderRadius: 8,
-                    outline: selectedEmoji === emoji ? '2px #171717 solid' : '1px #E6E6EC solid',
-                    outlineOffset: '-1px',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    fontSize: 20,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    flexShrink: 0
-                  }}
-                  onMouseEnter={(e) => {
-                    if (selectedEmoji !== emoji) {
-                      e.currentTarget.style.background = '#F9FAFB';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (selectedEmoji !== emoji) {
-                      e.currentTarget.style.background = 'white';
-                    }
-                  }}
-                >
-                  {emoji}
-                </div>
-              ))}
+              Category Emoji
             </div>
-            {!showAllEmojis && (
+            <button
+              onClick={() => setShowAllEmojis(!showAllEmojis)}
+              style={{
+                padding: '6px 12px',
+                background: '#F5F5F5',
+                border: '1px solid #E6E6EC',
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontSize: 12,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '600',
+                color: '#32302C',
+                transition: 'background 0.2s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+            >
+              {showAllEmojis ? 'Show Less' : 'See All'}
+            </button>
+          </div>
+          <div style={{
+            alignSelf: 'stretch',
+            display: 'flex',
+            flexWrap: showAllEmojis ? 'wrap' : 'nowrap',
+            gap: 8,
+            maxHeight: showAllEmojis ? 200 : 'auto',
+            overflowY: showAllEmojis ? 'auto' : 'visible',
+            padding: 4
+          }}>
+            {(showAllEmojis ? emojis : emojis.slice(0, 8)).map((emoji) => (
               <button
-                onClick={() => setShowAllEmojis(true)}
+                key={emoji}
+                onClick={() => setSelectedEmoji(emoji)}
                 style={{
-                  width: '100%',
-                  paddingTop: 8,
-                  paddingBottom: 8,
-                  background: 'transparent',
+                  width: 44,
+                  height: 44,
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  background: selectedEmoji === emoji ? '#171717' : '#F5F5F5',
+                  boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                  borderRadius: 100,
+                  outline: `1px ${selectedEmoji === emoji ? '#171717' : '#E6E6EC'} solid`,
+                  outlineOffset: '-1px',
                   border: 'none',
-                  color: '#32302C',
-                  fontSize: 14,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '600',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  display: 'flex',
                   cursor: 'pointer',
-                  textDecoration: 'underline'
+                  fontSize: 20,
+                  flexShrink: 0,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedEmoji !== emoji) {
+                    e.currentTarget.style.background = '#EBEBEB';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedEmoji !== emoji) {
+                    e.currentTarget.style.background = '#F5F5F5';
+                  }
                 }}
               >
-                See All Emojis
+                {emoji}
               </button>
-            )}
+            ))}
           </div>
         </div>
 
@@ -375,7 +377,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
             fontWeight: '600',
             lineHeight: '20px'
           }}>
-            Select Documents ({selectedDocuments.length} selected)
+            Add documents
           </div>
 
           {/* Search Bar */}
@@ -416,14 +418,13 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
             />
           </div>
 
-          {/* Documents List - Max 5 visible with scroll */}
+          {/* Documents List */}
           <div style={{
-            maxHeight: filteredDocuments.length > 5 ? 380 : 'auto', // 76px per item * 5 = 380px
-            overflowY: filteredDocuments.length > 5 ? 'auto' : 'visible',
-            display: 'flex',
             flexDirection: 'column',
-            gap: 8,
-            paddingRight: filteredDocuments.length > 5 ? 4 : 0
+            gap: 12,
+            display: 'flex',
+            maxHeight: 228,
+            overflowY: 'auto'
           }}>
             {loading ? (
               <div style={{
@@ -447,79 +448,104 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
               </div>
             ) : (
               filteredDocuments.map((doc) => (
-                <div
+                <button
                   key={doc.id}
                   onClick={() => toggleDocumentSelection(doc.id)}
                   style={{
-                    padding: 12,
-                    background: selectedDocuments.includes(doc.id) ? '#F9FAFB' : '#F5F5F5',
-                    borderRadius: 10,
-                    outline: selectedDocuments.includes(doc.id) ? '2px #181818 solid' : '1px #E6E6EC solid',
+                    alignSelf: 'stretch',
+                    padding: 14,
+                    background: selectedDocuments.includes(doc.id) ? '#F0F0F0' : '#F5F5F5',
+                    borderRadius: 18,
+                    outline: '1px #E6E6EC solid',
                     outlineOffset: '-1px',
-                    display: 'flex',
+                    justifyContent: 'flex-start',
                     alignItems: 'center',
                     gap: 12,
+                    display: 'flex',
+                    border: 'none',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease'
+                    transition: 'background 0.2s ease',
+                    width: '100%'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!selectedDocuments.includes(doc.id)) {
+                      e.currentTarget.style.background = '#EBEBEB';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!selectedDocuments.includes(doc.id)) {
+                      e.currentTarget.style.background = '#F5F5F5';
+                    }
                   }}
                 >
-                  {/* Checkbox */}
-                  <div style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 4,
-                    background: selectedDocuments.includes(doc.id) ? '#181818' : 'white',
-                    outline: selectedDocuments.includes(doc.id) ? '2px #181818 solid' : '2px #D0D5DD solid',
-                    outlineOffset: '-2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    {selectedDocuments.includes(doc.id) && (
-                      <div style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>✓</div>
-                    )}
-                  </div>
-
-                  {/* Document Icon */}
                   <img
                     src={getFileIcon(doc.filename)}
                     alt="File icon"
                     style={{
-                      width: 32,
-                      height: 32,
+                      width: 40,
+                      height: 40,
                       imageRendering: '-webkit-optimize-contrast',
                       objectFit: 'contain',
                       shapeRendering: 'geometricPrecision',
                       flexShrink: 0
                     }}
                   />
-
-                  {/* Document Info */}
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <div style={{
+                    flex: '1 1 0',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'flex-start',
+                    gap: 6,
+                    display: 'flex',
+                    minWidth: 0
+                  }}>
                     <div style={{
+                      width: '100%',
                       color: '#32302C',
-                      fontSize: 14,
+                      fontSize: 16,
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '600',
-                      lineHeight: '20px',
+                      lineHeight: '22.40px',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      textAlign: 'left'
                     }}>
                       {doc.filename}
                     </div>
                     <div style={{
+                      width: '100%',
                       color: '#6C6B6E',
-                      fontSize: 12,
+                      fontSize: 14,
                       fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: '400',
-                      lineHeight: '16px'
+                      fontWeight: '500',
+                      lineHeight: '15.40px',
+                      textAlign: 'left'
                     }}>
                       {formatFileSize(doc.fileSize)}
                     </div>
                   </div>
-                </div>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      background: selectedDocuments.includes(doc.id) ? '#171717' : 'white',
+                      borderRadius: 100,
+                      outline: '1px rgba(55, 53, 47, 0.09) solid',
+                      outlineOffset: '-1px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    {selectedDocuments.includes(doc.id) ? (
+                      <CheckIcon style={{width: 16, height: 16, color: 'white'}} />
+                    ) : (
+                      <AddIcon style={{width: 16, height: 16, color: '#171717'}} />
+                    )}
+                  </div>
+                </button>
               ))
             )}
           </div>

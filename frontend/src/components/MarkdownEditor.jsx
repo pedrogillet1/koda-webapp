@@ -216,22 +216,7 @@ const MarkdownEditor = ({ document, zoom, onSave }) => {
               >
                 Export
               </button>
-              <button
-                onClick={handleEdit}
-                style={{
-                  padding: '6px 12px',
-                  background: '#181818',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '500'
-                }}
-              >
-                Edit
-              </button>
+              {/* Edit button hidden per user request */}
             </>
           ) : (
             <>

@@ -1,269 +1,266 @@
-/**
- * Query Classifier Service
- * Classifies user queries into response types for adaptive AI responses
- */
+import { PrismaClient } from '@prisma/client';
 
+const prisma = new PrismaClient();
+
+/**
+ * Query classification types based on complexity and routing strategy
+ */
+export enum QueryType {
+  SIMPLE_GREETING = 'SIMPLE_GREETING',           // "Hello", "Hi", "How are you?"
+  SIMPLE_METADATA = 'SIMPLE_METADATA',           // "What files?", "How many documents?"
+  SIMPLE_CONVERSATION = 'SIMPLE_CONVERSATION',   // "Thanks", "Got it"
+  COMPLEX_RAG = 'COMPLEX_RAG'                    // Everything else requiring RAG
+}
+
+/**
+ * Classification result with confidence and metadata
+ */
 export interface QueryClassification {
-  type: 'greeting' | 'simple' | 'factual' | 'explanation' | 'comprehensive';
+  type: QueryType;
   confidence: number;
-  responseTime: string;
-  contextNeeded: boolean;
-  maxTokens: number;
-  retrievalCount?: number;
+  metadata?: {
+    categoryName?: string;
+    mimeType?: string;
+    filename?: string;
+  };
 }
 
 class QueryClassifier {
   /**
-   * Classify query into response type
-   * Returns: { type, confidence, suggestedContext }
+   * Main classification method - determines query type and routing
    */
-  classify(query: string): QueryClassification {
+  async classify(query: string, userId: string): Promise<QueryClassification> {
     const normalized = query.toLowerCase().trim();
 
-    // 1. Greeting (instant response)
-    if (this.isGreeting(normalized)) {
+    // 1. Check for simple greetings
+    const greetingResult = this.isGreeting(normalized);
+    if (greetingResult.isMatch) {
       return {
-        type: 'greeting',
-        confidence: 1.0,
-        responseTime: '1-2s',
-        contextNeeded: false,
-        maxTokens: 50,
+        type: QueryType.SIMPLE_GREETING,
+        confidence: greetingResult.confidence
       };
     }
 
-    // 2. Simple location/navigation query
-    if (this.isLocationQuery(normalized)) {
+    // 2. Check for simple conversational responses
+    const conversationResult = this.isSimpleConversation(normalized);
+    if (conversationResult.isMatch) {
       return {
-        type: 'simple',
-        confidence: 0.9,
-        responseTime: '2-5s',
-        contextNeeded: true,
-        maxTokens: 100,
-        retrievalCount: 3,
+        type: QueryType.SIMPLE_CONVERSATION,
+        confidence: conversationResult.confidence
       };
     }
 
-    // 3. Factual question (specific data point)
-    if (this.isFactualQuery(normalized)) {
+    // 3. Check for simple metadata queries
+    const metadataResult = await this.isMetadataQuery(normalized, userId);
+    if (metadataResult.isMatch) {
       return {
-        type: 'factual',
-        confidence: 0.85,
-        responseTime: '5-8s',
-        contextNeeded: true,
-        maxTokens: 150,
-        retrievalCount: 5,
+        type: QueryType.SIMPLE_METADATA,
+        confidence: metadataResult.confidence,
+        metadata: metadataResult.metadata
       };
     }
 
-    // 4. Explanation request
-    if (this.isExplanationQuery(normalized)) {
-      return {
-        type: 'explanation',
-        confidence: 0.8,
-        responseTime: '10-15s',
-        contextNeeded: true,
-        maxTokens: 300,
-        retrievalCount: 7,
-      };
-    }
-
-    // 5. Comprehensive guide request
-    if (this.isComprehensiveQuery(normalized)) {
-      return {
-        type: 'comprehensive',
-        confidence: 0.9,
-        responseTime: '15-20s',
-        contextNeeded: true,
-        maxTokens: 500,
-        retrievalCount: 10,
-      };
-    }
-
-    // Default: factual (safe middle ground)
+    // 4. Default to complex RAG query
     return {
-      type: 'factual',
-      confidence: 0.5,
-      responseTime: '5-8s',
-      contextNeeded: true,
-      maxTokens: 150,
-      retrievalCount: 5,
+      type: QueryType.COMPLEX_RAG,
+      confidence: 1.0
     };
   }
 
   /**
-   * Check if query is a greeting
+   * Detect greeting patterns
    */
-  private isGreeting(query: string): boolean {
-    const greetings = [
-      'hello',
-      'hi',
-      'hey',
-      'good morning',
-      'good afternoon',
-      'good evening',
-      'greetings',
-      'howdy',
-      "what's up",
-      'sup',
-      'yo',
-      'olá',
-      'oi',
-      'bom dia',
-      'boa tarde',
-      'boa noite', // Portuguese
+  private isGreeting(query: string): { isMatch: boolean; confidence: number } {
+    const greetingPatterns = [
+      /^hi$/i,
+      /^hello$/i,
+      /^hey$/i,
+      /^good (morning|afternoon|evening)$/i,
+      /^how are you(\?)?$/i,
+      /^what's up(\?)?$/i,
+      /^howdy$/i,
+      /^greetings$/i,
+      /^hi there$/i,
+      /^hello there$/i
     ];
 
-    // Check if query is ONLY a greeting (no other content)
-    const words = query.split(' ').filter((w) => w.length > 0);
-
-    if (words.length <= 3) {
-      return greetings.some((greeting) => query.includes(greeting));
+    for (const pattern of greetingPatterns) {
+      if (pattern.test(query)) {
+        return { isMatch: true, confidence: 0.95 };
+      }
     }
 
-    return false;
+    return { isMatch: false, confidence: 0 };
   }
 
   /**
-   * Check if query is asking for location/navigation
+   * Detect simple conversational responses
    */
-  private isLocationQuery(query: string): boolean {
-    const locationPatterns = [
-      /where is/i,
-      /where can i find/i,
-      /location of/i,
-      /which folder/i,
-      /in which/i,
-      /find document/i,
-      /show me/i,
-      /locate/i,
-      /onde está/i, // Portuguese: where is
-      /onde fica/i, // Portuguese: where is located
-      /em qual pasta/i, // Portuguese: in which folder
-      /mostrar/i, // Portuguese: show
+  private isSimpleConversation(query: string): { isMatch: boolean; confidence: number } {
+    const conversationPatterns = [
+      /^thanks?$/i,
+      /^thank you$/i,
+      /^ok$/i,
+      /^okay$/i,
+      /^got it$/i,
+      /^understood$/i,
+      /^cool$/i,
+      /^great$/i,
+      /^perfect$/i,
+      /^awesome$/i,
+      /^bye$/i,
+      /^goodbye$/i,
+      /^see you$/i,
+      /^no$/i,
+      /^yes$/i,
+      /^yeah$/i,
+      /^yep$/i,
+      /^nope$/i
     ];
 
-    return locationPatterns.some((pattern) => pattern.test(query));
+    for (const pattern of conversationPatterns) {
+      if (pattern.test(query)) {
+        return { isMatch: true, confidence: 0.9 };
+      }
+    }
+
+    return { isMatch: false, confidence: 0 };
   }
 
   /**
-   * Check if query is asking for specific fact
+   * Detect metadata queries that can be answered without RAG
    */
-  private isFactualQuery(query: string): boolean {
-    const factualPatterns = [
-      /what is the/i,
-      /when is/i,
-      /when does/i,
-      /when did/i,
-      /how much/i,
-      /how many/i,
-      /who is/i,
-      /which/i,
-      /what date/i,
-      /what time/i,
-      /what was/i,
-      /o que é/i, // Portuguese: what is
-      /quando/i, // Portuguese: when
-      /quanto/i, // Portuguese: how much
-      /quem/i, // Portuguese: who
-      /qual/i, // Portuguese: which
-    ];
+  private async isMetadataQuery(query: string, userId: string): Promise<{
+    isMatch: boolean;
+    confidence: number;
+    metadata?: any;
+  }> {
+    // Pattern 1: "What files?" / "What documents?"
+    if (
+      /^what (files|documents)(\?)?$/i.test(query) ||
+      /^list (files|documents)$/i.test(query) ||
+      /^show (me )?(my )?(files|documents)$/i.test(query)
+    ) {
+      return { isMatch: true, confidence: 0.9 };
+    }
 
-    // Factual queries are usually short and specific
-    const wordCount = query.split(' ').length;
-    const hasFactualPattern = factualPatterns.some((pattern) => pattern.test(query));
+    // Pattern 2: "How many files/documents?"
+    if (
+      /^how many (files|documents)(\?)?$/i.test(query) ||
+      /^(file|document) count$/i.test(query)
+    ) {
+      return { isMatch: true, confidence: 0.9 };
+    }
 
-    return hasFactualPattern && wordCount < 15;
+    // Pattern 3: "Do I have X files?" (specific file types)
+    const fileTypeMatch = query.match(/do i have (any )?(\w+) (files|documents)(\?)?$/i);
+    if (fileTypeMatch) {
+      const fileType = fileTypeMatch[2].toLowerCase();
+      const mimeType = this.getMimeTypeFromString(fileType);
+
+      return {
+        isMatch: true,
+        confidence: 0.85,
+        metadata: { mimeType }
+      };
+    }
+
+    // Pattern 4: "Which documents are PDFs/Excel/etc?"
+    const whichTypeMatch = query.match(/which (files|documents) are (\w+)(\?)?$/i);
+    if (whichTypeMatch) {
+      const fileType = whichTypeMatch[2].toLowerCase();
+      const mimeType = this.getMimeTypeFromString(fileType);
+
+      return {
+        isMatch: true,
+        confidence: 0.85,
+        metadata: { mimeType }
+      };
+    }
+
+    // Pattern 5: "Where is [filename]?"
+    const whereIsMatch = query.match(/where is (the )?(.+?)(\?)?$/i);
+    if (whereIsMatch) {
+      const filename = whereIsMatch[2].trim();
+
+      // Check if file exists
+      const fileExists = await this.checkFileExists(filename, userId);
+      if (fileExists) {
+        return {
+          isMatch: true,
+          confidence: 0.8,
+          metadata: { filename }
+        };
+      }
+    }
+
+    // Pattern 6: Category queries
+    const categoryMatch = query.match(/files in (the )?(.+?) (category|folder)(\?)?$/i);
+    if (categoryMatch) {
+      const categoryName = categoryMatch[2].trim();
+
+      return {
+        isMatch: true,
+        confidence: 0.8,
+        metadata: { categoryName }
+      };
+    }
+
+    return { isMatch: false, confidence: 0 };
   }
 
   /**
-   * Check if query requests explanation
+   * Convert file type string to MIME type
    */
-  private isExplanationQuery(query: string): boolean {
-    const explanationPatterns = [
-      /how does/i,
-      /how do/i,
-      /explain/i,
-      /why/i,
-      /what does.*mean/i,
-      /can you explain/i,
-      /tell me about/i,
-      /describe/i,
-      /what is the process/i,
-      /how to/i,
-      /como funciona/i, // Portuguese: how does it work
-      /explique/i, // Portuguese: explain
-      /por que/i, // Portuguese: why
-      /me fale sobre/i, // Portuguese: tell me about
-      /descreva/i, // Portuguese: describe
-    ];
-
-    return explanationPatterns.some((pattern) => pattern.test(query));
-  }
-
-  /**
-   * Check if query requests comprehensive guide
-   */
-  private isComprehensiveQuery(query: string): boolean {
-    const comprehensivePatterns = [
-      /guide/i,
-      /tutorial/i,
-      /step by step/i,
-      /detailed/i,
-      /comprehensive/i,
-      /in depth/i,
-      /complete/i,
-      /everything about/i,
-      /all information/i,
-      /full explanation/i,
-      /give me all/i,
-      /guia/i, // Portuguese: guide
-      /passo a passo/i, // Portuguese: step by step
-      /detalhado/i, // Portuguese: detailed
-      /completo/i, // Portuguese: complete
-      /tudo sobre/i, // Portuguese: everything about
-    ];
-
-    const hasComprehensivePattern = comprehensivePatterns.some((pattern) => pattern.test(query));
-    const wordCount = query.split(' ').length;
-
-    // Comprehensive queries are usually longer or explicitly request detailed info
-    return hasComprehensivePattern || wordCount > 20;
-  }
-
-  /**
-   * Generate follow-up suggestion based on query type
-   */
-  generateFollowUp(queryType: string, context: any = {}): string {
-    const followUps: Record<string, string[]> = {
-      greeting: [
-        'How can I help you with your documents today?',
-        'What would you like to know?',
-        'Feel free to ask me anything about your documents!',
-      ],
-      simple: [
-        'Would you like to know anything else about this document?',
-        'Need help with anything specific?',
-        'Is there anything else I can help you find?',
-      ],
-      factual: [
-        'Would you like more details about this?',
-        'Do you need any clarification?',
-        "Is there anything specific you'd like to know?",
-      ],
-      explanation: [
-        'Would you like me to elaborate on any part?',
-        'Do you need a more detailed guide?',
-        "Is there anything you'd like me to clarify?",
-      ],
-      comprehensive: [
-        'Would you like me to focus on any specific section?',
-        'Do you need examples or additional context?',
-        'Is there anything else you\'d like me to explain?',
-      ],
+  private getMimeTypeFromString(fileType: string): string | undefined {
+    const mimeTypeMap: Record<string, string> = {
+      'pdf': 'application/pdf',
+      'pdfs': 'application/pdf',
+      'excel': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'xls': 'application/vnd.ms-excel',
+      'word': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'doc': 'application/msword',
+      'powerpoint': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'ppt': 'application/vnd.ms-powerpoint',
+      'image': 'image/',
+      'images': 'image/',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'text': 'text/plain',
+      'txt': 'text/plain',
+      'csv': 'text/csv'
     };
 
-    const options = followUps[queryType] || followUps.factual;
-    return options[Math.floor(Math.random() * options.length)];
+    return mimeTypeMap[fileType.toLowerCase()];
+  }
+
+  /**
+   * Check if a file exists for the user
+   */
+  private async checkFileExists(filename: string, userId: string): Promise<boolean> {
+    try {
+      // Get all documents for the user and do case-insensitive matching in memory
+      // (SQLite doesn't support mode: 'insensitive' in Prisma Client)
+      const documents = await prisma.document.findMany({
+        where: { userId },
+        select: { filename: true }
+      });
+
+      const filenameLower = filename.toLowerCase();
+      const match = documents.find(doc =>
+        doc.filename.toLowerCase().includes(filenameLower)
+      );
+
+      return !!match;
+    } catch (error) {
+      console.error('Error checking file existence:', error);
+      return false;
+    }
   }
 }
 

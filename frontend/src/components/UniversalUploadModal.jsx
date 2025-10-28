@@ -10,6 +10,7 @@ import pdfIcon from '../assets/pdf-icon.svg';
 import docIcon from '../assets/doc-icon.svg';
 import txtIcon from '../assets/txt-icon.svg';
 import xlsIcon from '../assets/xls.svg';
+import pptxIcon from '../assets/pptx.svg';
 import jpgIcon from '../assets/jpg-icon.svg';
 import pngIcon from '../assets/png-icon.svg';
 import movIcon from '../assets/mov.svg';
@@ -24,6 +25,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   const [uploadingFiles, setUploadingFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [folderUploadProgress, setFolderUploadProgress] = useState(null);
+  const [showErrorBanner, setShowErrorBanner] = useState(false);
   const folderInputRef = React.useRef(null);
 
   const onDrop = useCallback((acceptedFiles) => {
@@ -78,6 +80,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
     if (ext.match(/\.(doc|docx)$/)) return docIcon;
     if (ext.match(/\.(txt|csv)$/)) return txtIcon;
     if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
+    if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
     if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
     if (ext.match(/\.(png|gif|webp)$/)) return pngIcon;
     if (ext.match(/\.(mov)$/)) return movIcon;
@@ -145,7 +148,9 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
         await fetchFolders();
       } catch (error) {
         console.error('❌ Error uploading folder:', error);
-        setFolderUploadProgress({ stage: 'error', message: error.message });
+        setShowErrorBanner(true);
+        setFolderUploadProgress(null);
+        setTimeout(() => setShowErrorBanner(false), 5000);
       }
     } else {
       // Regular file upload (not a folder)
@@ -190,6 +195,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
               error: error.message || 'Upload failed'
             } : f
           ));
+          setShowErrorBanner(true);
+          setTimeout(() => setShowErrorBanner(false), 5000);
         }
       }
     }
@@ -461,6 +468,78 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
           </div>
         </div>
 
+        {/* Error Banner */}
+        {showErrorBanner && (
+          <div style={{
+            alignSelf: 'stretch',
+            paddingLeft: 18,
+            paddingRight: 18
+          }}>
+            <div style={{
+              width: '100%',
+              padding: 10,
+              background: '#181818',
+              borderRadius: 14,
+              flexDirection: 'row',
+              justifyContent: 'flex-start',
+              alignItems: 'center',
+              gap: 12,
+              display: 'flex'
+            }}>
+              {/* Error Icon */}
+              <div style={{ width: 32, height: 32, position: 'relative', flexShrink: 0 }}>
+                <div style={{
+                  width: 32,
+                  height: 32,
+                  left: 0,
+                  top: 0,
+                  position: 'absolute',
+                  background: 'rgba(217, 45, 32, 0.60)',
+                  borderRadius: 9999
+                }} />
+                <div style={{
+                  width: 26,
+                  height: 26,
+                  left: 3,
+                  top: 3,
+                  position: 'absolute',
+                  background: 'rgba(217, 45, 32, 0.60)',
+                  borderRadius: 9999
+                }} />
+                <div style={{
+                  width: 20,
+                  height: 20,
+                  left: 6,
+                  top: 6,
+                  position: 'absolute',
+                  background: 'rgba(217, 45, 32, 0.60)',
+                  borderRadius: 9999
+                }} />
+                <div style={{
+                  width: 14,
+                  height: 14,
+                  left: 9,
+                  top: 9,
+                  position: 'absolute',
+                  background: '#D92D20',
+                  borderRadius: 9999
+                }} />
+              </div>
+              {/* Error Message */}
+              <div style={{
+                flex: 1,
+                color: 'white',
+                fontSize: 14,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '500',
+                lineHeight: '20px'
+              }}>
+                Hmm… the upload didn't work. Please retry.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Folder upload progress banner */}
         {folderUploadProgress && (
           <div style={{
@@ -579,7 +658,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                 )}
 
                 <div style={{
-                  width: 336,
+                  flex: 1,
+                  minWidth: 0,
                   justifyContent: 'flex-start',
                   alignItems: 'center',
                   gap: 12,
@@ -638,10 +718,10 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                       {item.status === 'failed'
                         ? 'Upload failed. Try again.'
                         : item.status === 'completed'
-                        ? `${formatFileSize(item.file.size)} – 100% uploaded`
+                        ? `${formatFileSize(item.file.size)} • 100% uploaded`
                         : item.status === 'uploading'
-                        ? `${formatFileSize(item.file.size)} – ${item.progress}% uploaded`
-                        : `${formatFileSize(item.file.size)} – Ready to upload`
+                        ? `${formatFileSize(item.file.size)} • ${item.progress}% uploaded`
+                        : `${formatFileSize(item.file.size)} • ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
                       }
                     </div>
                   </div>
@@ -750,7 +830,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   textTransform: 'capitalize',
                   lineHeight: '24px'
                 }}>
-                  {isUploading ? 'Uploading...' : 'Upload All'}
+                  {isUploading ? 'Uploading...' : 'Upload'}
                 </div>
               </button>
             </div>

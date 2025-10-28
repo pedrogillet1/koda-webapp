@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
+import { useDocumentSelection } from '../hooks/useDocumentSelection.js';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import CreateCategoryModal from './CreateCategoryModal';
@@ -19,6 +20,7 @@ import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as DotsIcon } from '../assets/dots.svg';
 import { ReactComponent as UploadIconMenu } from '../assets/Logout-black.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
+import { ReactComponent as AddIcon } from '../assets/add.svg';
 import logoSvg from '../assets/logo.svg';
 import api from '../services/api';
 import pdfIcon from '../assets/pdf-icon.svg';
@@ -29,6 +31,7 @@ import jpgIcon from '../assets/jpg-icon.svg';
 import pngIcon from '../assets/png-icon.svg';
 import pptxIcon from '../assets/pptx.svg';
 import folderIcon from '../assets/folder_icon.svg';
+import CategoryIcon from './CategoryIcon';
 
 const DocumentsPage = () => {
   const navigate = useNavigate();
@@ -47,6 +50,16 @@ const DocumentsPage = () => {
     getDocumentCountByFolder,
     refreshAll
   } = useDocuments();
+
+  // Selection hook for Recently Added section
+  const {
+    selectedDocuments,
+    isSelectMode,
+    toggleSelectMode,
+    toggleDocument,
+    clearSelection,
+    isSelected
+  } = useDocumentSelection();
 
   // Only UI state remains local
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -248,29 +261,139 @@ const DocumentsPage = () => {
             Documents
           </div>
           <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
-            <div style={{position: 'relative', height: 52, display: 'flex', alignItems: 'center'}}>
-              <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search any documents..."
-                style={{
-                  height: '100%',
-                  minWidth: 250,
-                  paddingLeft: 46,
-                  paddingRight: 16,
-                  background: '#F5F5F5',
-                  borderRadius: 100,
-                  border: '1px #E6E6EC solid',
-                  outline: 'none',
-                  color: '#32302C',
-                  fontSize: 16,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '500',
-                  lineHeight: '24px'
-                }}
-              />
+            {isSelectMode ? (
+              <>
+                {/* Delete Button in Select Mode */}
+                <button
+                  onClick={async () => {
+                    if (selectedDocuments.size === 0) return;
+                    if (!window.confirm(`Delete ${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's' : ''}?`)) return;
+
+                    try {
+                      await Promise.all(
+                        Array.from(selectedDocuments).map(docId =>
+                          deleteDocument(docId)
+                        )
+                      );
+
+                      // Refresh documents
+                      await refreshAll();
+
+                      // Clear selection and exit select mode
+                      clearSelection();
+                      toggleSelectMode();
+                    } catch (error) {
+                      console.error('Error deleting documents:', error);
+                      alert('Failed to delete documents');
+                    }
+                  }}
+                  disabled={selectedDocuments.size === 0}
+                  style={{
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                    background: selectedDocuments.size === 0 ? '#F5F5F5' : '#DC2626',
+                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                    overflow: 'hidden',
+                    borderRadius: 100,
+                    outline: '1px #E6E6EC solid',
+                    outlineOffset: '-1px',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 6,
+                    display: 'inline-flex',
+                    border: 'none',
+                    cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
+                    opacity: selectedDocuments.size === 0 ? 0.5 : 1,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <TrashCanIcon style={{ width: 16, height: 16, fill: selectedDocuments.size === 0 ? '#9CA3AF' : 'white' }} />
+                  <div style={{
+                    color: selectedDocuments.size === 0 ? '#9CA3AF' : 'white',
+                    fontSize: 16,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600',
+                    lineHeight: '24px',
+                    wordWrap: 'break-word'
+                  }}>
+                    Delete
+                  </div>
+                </button>
+
+                {/* Move Button in Select Mode */}
+                <button
+                  onClick={() => {
+                    if (selectedDocuments.size === 0) return;
+                    // Open category selection modal for moving
+                    alert('Move functionality - implement folder selection modal');
+                  }}
+                  disabled={selectedDocuments.size === 0}
+                  style={{
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                    background: '#F5F5F5',
+                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                    overflow: 'hidden',
+                    borderRadius: 100,
+                    outline: '1px #E6E6EC solid',
+                    outlineOffset: '-1px',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 6,
+                    display: 'inline-flex',
+                    border: 'none',
+                    cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
+                    opacity: selectedDocuments.size === 0 ? 0.5 : 1,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M14 5.33333V13.3333C14 13.687 13.8595 14.0261 13.6095 14.2761C13.3594 14.5262 13.0203 14.6667 12.6667 14.6667H3.33333C2.97971 14.6667 2.64057 14.5262 2.39052 14.2761C2.14048 14.0261 2 13.687 2 13.3333V5.33333" stroke="#32302C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6 7.33333V11.3333" stroke="#32302C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10 7.33333V11.3333" stroke="#32302C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M1.33334 5.33333H14.6667" stroke="#32302C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10.6667 2H5.33334L4 5.33333H12L10.6667 2Z" stroke="#32302C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <div style={{
+                    color: '#32302C',
+                    fontSize: 16,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600',
+                    lineHeight: '24px',
+                    wordWrap: 'break-word'
+                  }}>
+                    Move
+                  </div>
+                </button>
+              </>
+            ) : (
+              <div style={{position: 'relative', height: 52, display: 'flex', alignItems: 'center'}}>
+                <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search any documents..."
+                  style={{
+                    height: '100%',
+                    minWidth: 250,
+                    paddingLeft: 46,
+                    paddingRight: 16,
+                    background: '#F5F5F5',
+                    borderRadius: 100,
+                    border: '1px #E6E6EC solid',
+                    outline: 'none',
+                    color: '#32302C',
+                    fontSize: 16,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '500',
+                    lineHeight: '24px'
+                  }}
+                />
 
               {/* Search Results Dropdown */}
               {searchQuery && (
@@ -358,7 +481,45 @@ const DocumentsPage = () => {
                   )}
                 </div>
               )}
-            </div>
+              </div>
+            )}
+
+            {/* Select Button */}
+            <button
+              onClick={toggleSelectMode}
+              style={{
+                height: 52,
+                paddingLeft: 18,
+                paddingRight: 18,
+                paddingTop: 10,
+                paddingBottom: 10,
+                background: isSelectMode ? '#111827' : '#F5F5F5',
+                boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                overflow: 'hidden',
+                borderRadius: 100,
+                outline: '1px #E6E6EC solid',
+                outlineOffset: '-1px',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: 6,
+                display: 'inline-flex',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <div style={{
+                color: isSelectMode ? 'white' : '#32302C',
+                fontSize: 16,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '600',
+                lineHeight: '24px',
+                wordWrap: 'break-word'
+              }}>
+                Select{isSelectMode ? ` (${selectedDocuments.size})` : ''}
+              </div>
+            </button>
+
             <div onClick={() => setShowUniversalUploadModal(true)} style={{height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'}}>
               <LogoutBlackIcon style={{width: 24, height: 24}} />
               <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload a Document</div>
@@ -373,18 +534,63 @@ const DocumentsPage = () => {
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12}}>
               <div onClick={() => setIsModalOpen(true)} style={{padding: 14, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
                 <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                  <span style={{fontSize: 24, fontWeight: '300', color: '#6C6B6E', lineHeight: 1, display: 'block', transform: 'translateY(-1px)'}}>+</span>
+                  <AddIcon style={{ width: 20, height: 20 }} />
                 </div>
                 <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: 1}}>Add New Smart Category</span>
               </div>
               {categories.map((category, index) => (
-                <div key={index} style={{padding: 10, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, transition: 'transform 0.2s ease, box-shadow 0.2s ease', position: 'relative'}}>
+                <div
+                  key={index}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.background = '#E0E7FF';
+                    e.currentTarget.style.border = '2px dashed #4F46E5';
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.style.background = 'white';
+                    e.currentTarget.style.border = '1px #E6E6EC solid';
+                  }}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.background = 'white';
+                    e.currentTarget.style.border = '1px #E6E6EC solid';
+
+                    try {
+                      const data = JSON.parse(e.dataTransfer.getData('application/json'));
+
+                      if (data.type === 'document') {
+                        // Move single document
+                        await moveToFolder(data.id, category.id);
+                        console.log(`Moved document ${data.id} to folder ${category.id}`);
+                      } else if (data.type === 'documents') {
+                        // Move multiple documents
+                        await Promise.all(
+                          data.documentIds.map(docId => moveToFolder(docId, category.id))
+                        );
+                        console.log(`Moved ${data.documentIds.length} documents to folder ${category.id}`);
+
+                        // Clear selection and exit select mode
+                        if (isSelectMode) {
+                          clearSelection();
+                          toggleSelectMode();
+                        }
+                      }
+
+                      await refreshAll();
+                    } catch (error) {
+                      console.error('Error moving document:', error);
+                    }
+                  }}
+                  style={{padding: 10, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, transition: 'transform 0.2s ease, box-shadow 0.2s ease', position: 'relative'}}
+                >
                   <div onClick={() => {
                     console.log('📁 DocumentsPage - Clicking folder:', category.name, 'ID:', category.id);
                     console.log('🔗 DocumentsPage - Navigating to:', `/folder/${category.id}`);
                     navigate(`/folder/${category.id}`);
                   }} style={{display: 'flex', alignItems: 'center', gap: 8, flex: 1, cursor: 'pointer'}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
-                    <div style={{width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24}}>{category.emoji}</div>
+                    <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0}}>
+                      <CategoryIcon emoji={category.emoji} />
+                    </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: 4, flex: 1}}>
                       <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px'}}>{category.name}</div>
                       <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px'}}>
@@ -461,7 +667,7 @@ const DocumentsPage = () => {
                             e.stopPropagation();
                             // Show upload modal for this category
                             setUploadCategoryId(category.id);
-                            setShowUploadModal(true);
+                            setShowUniversalUploadModal(true);
                             setCategoryMenuOpen(null);
                           }}
                           style={{
@@ -567,7 +773,9 @@ const DocumentsPage = () => {
                         onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
                         onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
                       >
-                        <img src={folderIcon} alt="Folder" style={{width: 40, height: 40, flexShrink: 0}} />
+                        <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                          <img src={folderIcon} alt="Folder" style={{width: 24, height: 24}} />
+                        </div>
                         <div style={{flex: 1, overflow: 'hidden'}}>
                           <div style={{color: '#111827', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', marginBottom: 4}}>
                             {item.name}
@@ -604,19 +812,57 @@ const DocumentsPage = () => {
                   return (
                     <div
                       key={doc.id}
-                      onClick={() => navigate(`/document/${doc.id}`)}
+                      draggable
+                      onDragStart={(e) => {
+                        // If in select mode and this doc is selected, drag all selected docs
+                        if (isSelectMode && isSelected(doc.id)) {
+                          e.dataTransfer.setData('application/json', JSON.stringify({
+                            type: 'documents',
+                            documentIds: Array.from(selectedDocuments)
+                          }));
+                        } else {
+                          // Otherwise just drag this one document
+                          e.dataTransfer.setData('application/json', JSON.stringify({
+                            type: 'document',
+                            id: doc.id
+                          }));
+                        }
+                        e.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragEnd={(e) => {
+                        e.currentTarget.style.opacity = '1';
+                      }}
+                      onClick={() => {
+                        if (isSelectMode) {
+                          toggleDocument(doc.id);
+                        } else {
+                          navigate(`/document/${doc.id}`);
+                        }
+                      }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: 12,
                         padding: 12,
                         borderRadius: 12,
-                        background: '#F5F5F5',
-                        cursor: 'pointer',
+                        background: isSelectMode && isSelected(doc.id) ? '#111827' : '#F5F5F5',
+                        cursor: isSelectMode ? 'pointer' : 'grab',
                         transition: 'background 0.2s ease'
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                      onMouseEnter={(e) => {
+                        if (!isSelectMode) {
+                          e.currentTarget.style.background = '#E6E6EC';
+                        } else if (!isSelected(doc.id)) {
+                          e.currentTarget.style.background = '#E6E6EC';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelectMode) {
+                          e.currentTarget.style.background = '#F5F5F5';
+                        } else if (!isSelected(doc.id)) {
+                          e.currentTarget.style.background = '#F5F5F5';
+                        }
+                      }}
                     >
                       <img
                         src={getFileIcon(doc.filename)}
@@ -630,14 +876,28 @@ const DocumentsPage = () => {
                         }}
                       />
                       <div style={{flex: 1, overflow: 'hidden'}}>
-                        <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                        <div style={{
+                          color: isSelectMode && isSelected(doc.id) ? 'white' : '#32302C',
+                          fontSize: 14,
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontWeight: '600',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
                           {doc.filename}
                         </div>
-                        <div style={{color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 4}}>
+                        <div style={{
+                          color: isSelectMode && isSelected(doc.id) ? '#D1D5DB' : '#6C6B6E',
+                          fontSize: 12,
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontWeight: '500',
+                          marginTop: 4
+                        }}>
                           {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
                         </div>
                       </div>
-                      <div style={{position: 'relative'}} data-dropdown>
+                      {!isSelectMode && <div style={{position: 'relative'}} data-dropdown>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -793,7 +1053,7 @@ const DocumentsPage = () => {
                             </div>
                           </div>
                         )}
-                      </div>
+                      </div>}
                     </div>
                   );
                 })}
@@ -1063,8 +1323,9 @@ const DocumentsPage = () => {
           setEditingCategory(null);
         }}
         category={editingCategory}
-        onUpdate={() => {
-          // No manual refresh needed - context auto-updates!
+        onUpdate={async () => {
+          // Refresh to show updated emoji immediately
+          await refreshAll();
         }}
       />
 
@@ -1133,111 +1394,6 @@ const DocumentsPage = () => {
         itemType={itemToRename?.type}
       />
 
-      {/* Ask Koda Floating Button */}
-      {showAskKoda && (
-        <div style={{ width: 200, height: 56, right: 20, bottom: 20, position: 'absolute' }}>
-          {/* Close button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowAskKoda(false);
-            }}
-            style={{
-              width: 20,
-              height: 20,
-              right: 0,
-              top: -2,
-              position: 'absolute',
-              background: 'white',
-              borderRadius: 100,
-              outline: '1px rgba(55, 53, 47, 0.09) solid',
-              outlineOffset: '-1px',
-              justifyContent: 'center',
-              alignItems: 'center',
-              display: 'inline-flex',
-              border: 'none',
-              cursor: 'pointer',
-              zIndex: 10
-            }}
-          >
-            <div style={{ width: 10, height: 10, position: 'relative', overflow: 'hidden' }}>
-              <XCloseIcon style={{ width: 10, height: 10, position: 'absolute', left: 0, top: 0 }} />
-            </div>
-          </button>
-          <div style={{ width: 10, height: 10, right: 30, top: 4, position: 'absolute', background: '#171717', borderRadius: 9999 }} />
-          <button
-            onClick={() => navigate('/chat')}
-            style={{
-              width: 200,
-              height: 56,
-              paddingLeft: 16,
-              paddingRight: 16,
-              paddingTop: 10,
-              paddingBottom: 10,
-              left: 0,
-              top: 0,
-              position: 'absolute',
-              background: '#171717',
-              borderRadius: 100,
-              justifyContent: 'flex-start',
-              alignItems: 'center',
-              display: 'inline-flex',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.3)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          >
-            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 10, display: 'flex' }}>
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  padding: 6,
-                  background: 'white',
-                  borderRadius: 100,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  display: 'flex',
-                  flexShrink: 0
-                }}
-              >
-                <img
-                  src={logoSvg}
-                  alt="Koda"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    imageRendering: '-webkit-optimize-contrast',
-                    shapeRendering: 'geometricPrecision'
-                  }}
-                />
-              </div>
-              <div
-                style={{
-                  color: 'white',
-                  fontSize: 15,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '600',
-                  lineHeight: '20px',
-                  wordWrap: 'break-word'
-                }}
-              >
-                Ask Koda
-              </div>
-            </div>
-          </button>
-          <div style={{ width: 5, height: 5, right: 25, top: -2, position: 'absolute', background: '#171717', borderRadius: 9999 }} />
-        </div>
-      )}
     </div>
   );
 };

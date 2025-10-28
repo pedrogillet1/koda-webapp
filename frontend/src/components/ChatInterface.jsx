@@ -423,6 +423,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             if (metadata.expandedQuery) {
                                 msg.expandedQuery = metadata.expandedQuery;
                             }
+                            if (metadata.actions) {
+                                msg.actions = metadata.actions;
+                            }
                             if (metadata.contextId) {
                                 msg.contextId = metadata.contextId;
                             }
@@ -686,6 +689,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 conversationId,
                                 query: messageText,
                                 researchMode,
+                                attachedFile: fileToUpload ? { name: fileToUpload.name, type: fileToUpload.type } :
+                                            documentToAttach ? { name: documentToAttach.name, type: documentToAttach.type } : null,
+                                documentId: uploadedDocument?.id,
                             }),
                         }
                     );
@@ -708,6 +714,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         webSources: data.webSources || [],
                         expandedQuery: data.expandedQuery,
                         contextId: data.contextId,
+                        actions: data.actions || [],
                     };
 
                     setStreamingMessage('');
@@ -717,12 +724,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     // Add messages to history
                     setMessages((prev) => {
                         const withoutOptimistic = prev.filter(m => !m.isOptimistic);
-                        // Use the real user message from the response
+                        // Use the real user message from the response (with metadata)
                         const realUserMessage = {
-                            id: data.userMessage.id,
-                            role: 'user',
+                            ...data.userMessage,
                             content: displayMessageText,
-                            createdAt: new Date().toISOString()
                         };
                         return [...withoutOptimistic, realUserMessage, assistantMessage];
                     });
@@ -797,7 +802,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             </div>
 
             {/* Messages Area */}
-            <div ref={messagesContainerRef} style={{flex: '1 1 0', overflowY: 'auto', overflowX: 'hidden', padding: 20, paddingBottom: 140}}>
+            <div ref={messagesContainerRef} style={{flex: '1 1 0', overflowY: 'auto', overflowX: 'hidden', padding: 20, paddingBottom: 20}}>
                 {messages.length === 0 ? (
                     // Show welcome message when no messages
                     <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%'}}>
@@ -822,17 +827,19 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             >
                                 {msg.role === 'assistant' ? (
                                     // Assistant message with styled card
-                                    <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start'}}>
-                                        <div style={{maxWidth: '70%', padding: 12, background: 'white', borderRadius: 18, border: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
-                                            <div style={{overflow: 'hidden', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', maxWidth: '75%'}}>
+                                        <div style={{padding: 12, background: 'white', borderRadius: 18, border: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
+                                            <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
                                                 <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex'}}>
                                                     <div style={{width: 34, height: 34, minWidth: 34, minHeight: 34, background: 'white', borderRadius: '50%', border: '1px solid #F1F0EF', justifyContent: 'center', alignItems: 'center', gap: 10, display: 'flex', overflow: 'hidden'}}>
                                                         <img style={{width: '100%', height: '100%', objectFit: 'cover'}} src={logo} alt="KODA" />
                                                     </div>
-                                                    <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column'}}>
+                                                    <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
                                                         <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
-                                                            <div className="markdown-content" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', wordWrap: 'break-word', width: '100%'}}>
-                                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                            <div className="markdown-content" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
+                                                                <ReactMarkdown
+                                                                    remarkPlugins={[remarkGfm]}
+                                                                >
                                                                     {msg.content}
                                                                 </ReactMarkdown>
                                                             </div>
@@ -914,15 +921,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
                                                     {/* RAG Sources Display */}
                                                     {msg.ragSources && msg.ragSources.length > 0 && (() => {
-                                                        // Check if sources are relevant based on similarity scores
-                                                        const maxSimilarity = Math.max(...msg.ragSources.map(s => s.similarity || 0));
-                                                        const RELEVANCE_THRESHOLD = 0.5; // Only show sources with at least 50% relevance
-
-                                                        // Don't show document sources if they're not relevant to the query
-                                                        if (maxSimilarity < RELEVANCE_THRESHOLD) {
-                                                            return null;
-                                                        }
-
                                                         // Group sources by document ID to show unique documents
                                                         const uniqueDocuments = msg.ragSources.reduce((acc, source) => {
                                                             // Skip sources without valid document names
@@ -1523,8 +1521,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             </div>
                                             <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
                                                 <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4, display: 'flex'}}>
-                                                    <div className="markdown-content streaming" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', wordWrap: 'break-word'}}>
-                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    <div className="markdown-content streaming" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', whiteSpace: 'nowrap', overflow: 'auto'}}>
+                                                        <ReactMarkdown
+                                                            remarkPlugins={[remarkGfm]}
+                                                        >
                                                             {displayedText}
                                                         </ReactMarkdown>
                                                         {isStreaming && <span className="cursor">▋</span>}
@@ -1593,50 +1593,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             {/* Message Input */}
             <div style={{padding: 20, background: 'white', borderTop: '1px solid #E6E6EC'}}>
-                {/* Research Mode Toggle */}
-                <div style={{marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8}}>
-                    <button
-                        onClick={() => setResearchMode(!researchMode)}
-                        style={{
-                            padding: '8px 16px',
-                            background: researchMode ? '#181818' : 'transparent',
-                            color: researchMode ? 'white' : '#6C6B6E',
-                            border: '1px solid #E6E6EC',
-                            borderRadius: 10,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            fontSize: 14,
-                            fontWeight: '600',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                            if (!researchMode) {
-                                e.currentTarget.style.background = '#F5F5F5';
-                            }
-                        }}
-                        onMouseLeave={(e) => {
-                            if (!researchMode) {
-                                e.currentTarget.style.background = 'transparent';
-                            }
-                        }}
-                    >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="11" cy="11" r="8"/>
-                            <path d="m21 21-4.35-4.35"/>
-                        </svg>
-                        Research Mode
-                    </button>
-                    <div style={{
-                        fontSize: 13,
-                        color: '#8E8E93',
-                        fontStyle: 'italic'
-                    }}>
-                        {researchMode ? 'Searching your documents + the web' : 'Searching your documents only'}
-                    </div>
-                </div>
-
                 {/* Smart Research Mode Suggestion */}
                 {showResearchSuggestion && !researchMode && (
                     <div style={{
@@ -1909,6 +1865,24 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         </button>
                     )}
                 </form>
+
+                {/* TASK #10: Trust & Security Footer */}
+                <div style={{
+                    marginTop: 16,
+                    paddingTop: 12,
+                    borderTop: '1px solid rgba(0,0,0,0.06)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    color: '#8E8E93'
+                }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                    <span>Your workspace is encrypted. All documents and conversations are private and secure.</span>
+                </div>
             </div>
         </div>
     );
