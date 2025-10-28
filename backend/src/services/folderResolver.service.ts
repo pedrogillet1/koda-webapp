@@ -61,7 +61,7 @@ export class FolderResolverService {
     // 4. Try fuzzy match (Levenshtein distance)
     const allFolders = await prisma.folder.findMany({
       where: { userId: userId },
-      select: { id: true, name: true, parentId: true }
+      select: { id: true, name: true, parentFolderId: true }
     });
 
     const fuzzyMatch = this.findBestMatch(folderName, allFolders);

@@ -9,6 +9,7 @@ import * as thumbnailService from './thumbnail.service';
 import markdownConversionService from './markdownConversion.service';
 import cacheService from './cache.service';
 import responseCacheService from './responseCache.service';
+import encryptionService from './encryption.service';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -162,8 +163,9 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 /**
  * Process document in background without blocking the upload
  * TypeScript cache fully cleared
+ * EXPORTED for background worker to reprocess pending documents
  */
-async function processDocumentInBackground(
+export async function processDocumentInBackground(
   documentId: string,
   fileBuffer: Buffer,
   filename: string,
@@ -1077,7 +1079,7 @@ export const getDocumentDownloadUrl = async (documentId: string, userId: string)
 };
 
 /**
- * Stream document file (returns signed URL for direct GCS access)
+ * Stream document file (downloads and decrypts server-side, returns buffer)
  */
 export const streamDocument = async (documentId: string, userId: string) => {
   const document = await prisma.document.findUnique({
@@ -1092,16 +1094,22 @@ export const streamDocument = async (documentId: string, userId: string) => {
     throw new Error('Unauthorized access to document');
   }
 
-  // Generate signed URL (valid for 15 minutes) for inline viewing
-  const signedUrl = await getSignedUrl(
-    document.encryptedFilename,
-    900, // 15 minutes
-    false, // Inline (not forced download)
-    document.filename // Original filename
-  );
+  // Download file from GCS
+  const encryptedBuffer = await downloadFile(document.encryptedFilename);
+
+  // Decrypt if encrypted
+  let fileBuffer: Buffer;
+  if (document.isEncrypted) {
+    fileBuffer = encryptionService.decryptFile(
+      encryptedBuffer,
+      `document-${document.userId}`
+    );
+  } else {
+    fileBuffer = encryptedBuffer;
+  }
 
   return {
-    url: signedUrl,
+    buffer: fileBuffer,
     filename: document.filename,
     mimeType: document.mimeType,
   };

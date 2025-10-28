@@ -1064,35 +1064,40 @@ class RAGService {
     const responseTime = Date.now() - startTime;
 
     // ═══════════════════════════════════════════════════════════════
-    // ANTI-HALLUCINATION VALIDATION
+    // ANTI-HALLUCINATION VALIDATION (TEMPORARILY DISABLED)
     // ═══════════════════════════════════════════════════════════════
-    console.log(`\n🛡️ ANTI-HALLUCINATION VALIDATION:`);
+    // DISABLED: Validator was too aggressive, detecting content phrases as "hallucinated documents"
+    // Examples: "Year 1", "exit scenarios", "pre-seed funding" were flagged as fake document names
+    // This caused valid AI responses to be replaced with useless fallback messages
+    //
+    // TODO: Re-enable with improved regex patterns that only match actual document names
+    console.log(`\n🛡️ ANTI-HALLUCINATION VALIDATION: DISABLED (was blocking valid responses)`);
 
     // Build list of actual source documents for validation
-    const actualSourceDocs = sources.map(s => ({
-      documentId: s.documentId,
-      documentName: s.documentName || 'Unknown'
-    }));
+    // FIX: Deduplicate by documentId to avoid repeated filenames in fallback responses
+    const actualSourceDocs = Array.from(
+      new Map(
+        sources.map(s => [
+          s.documentId,
+          { documentId: s.documentId, documentName: s.documentName || 'Unknown' }
+        ])
+      ).values()
+    );
 
-    // Validate the AI response against actual sources
-    const validation = await responseValidator.validateResponse(answer, userId, actualSourceDocs);
+    console.log(`   Would validate against ${actualSourceDocs.length} unique documents (from ${sources.length} chunks)`);
 
-    // Handle validation results
-    if (!validation.isValid) {
-      console.log(`   ❌ HALLUCINATION DETECTED!`);
-      validation.errors.forEach(err => console.log(`      - ${err}`));
+    // DISABLED: Validation logic commented out
+    // const validation = await responseValidator.validateResponse(answer, userId, actualSourceDocs);
+    // if (!validation.isValid) {
+    //   console.log(`   ❌ HALLUCINATION DETECTED!`);
+    //   validation.errors.forEach(err => console.log(`      - ${err}`));
+    //   if (validation.correctedResponse) {
+    //     console.log(`   🔄 Using safe corrected response`);
+    //     answer = validation.correctedResponse;
+    //   }
+    // }
 
-      // Use the safe corrected response instead of hallucinated response
-      if (validation.correctedResponse) {
-        console.log(`   🔄 Using safe corrected response`);
-        answer = validation.correctedResponse;
-      }
-    } else if (validation.warnings.length > 0) {
-      console.log(`   ⚠️  Warnings detected:`);
-      validation.warnings.forEach(warn => console.log(`      - ${warn}`));
-    } else {
-      console.log(`   ✅ Response validation PASSED - no hallucinations detected`);
-    }
+    console.log(`   ✅ Skipping validation - using AI response as-is`);
 
     // Detect if query explicitly mentions a specific document name
     const queryLower = query.toLowerCase();

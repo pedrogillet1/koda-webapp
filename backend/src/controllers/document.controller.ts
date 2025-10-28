@@ -256,39 +256,22 @@ export const streamDocument = async (req: Request, res: Response): Promise<void>
 
     const { id } = req.params;
 
-    const { url, filename, mimeType } = await documentService.streamDocument(id, req.user.id);
+    // Get decrypted file buffer from service
+    const { buffer, filename, mimeType } = await documentService.streamDocument(id, req.user.id);
 
-    // Fetch from GCS and proxy through backend to avoid CORS issues
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch document from storage');
-    }
-
-    // Get content length for proper streaming
-    const contentLength = response.headers.get('content-length');
-
-    // Set appropriate headers for PDF viewing (especially for Safari/Mac)
+    // Set appropriate headers for viewing (especially for Safari/Mac PDF viewing)
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
     res.setHeader('Accept-Ranges', 'bytes'); // Important for Safari PDF viewing
     res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'); // Allow cross-origin access
-
-    if (contentLength) {
-      res.setHeader('Content-Length', contentLength);
-    }
-
-    // For PDFs, ensure proper streaming without corruption
-    // Safari is particularly sensitive to how PDFs are streamed
-    const buffer = await response.arrayBuffer();
-    const nodeBuffer = Buffer.from(buffer);
+    res.setHeader('Content-Length', buffer.length.toString());
 
     // Use res.end with binary encoding for PDFs to prevent corruption
     if (mimeType === 'application/pdf') {
-      res.end(nodeBuffer, 'binary');
+      res.end(buffer, 'binary');
     } else {
-      res.send(nodeBuffer);
+      res.send(buffer);
     }
   } catch (error) {
     const err = error as Error;

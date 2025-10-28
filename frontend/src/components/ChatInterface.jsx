@@ -51,6 +51,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const fileInputRef = useRef(null);
     const justCreatedConversationId = useRef(null);
     const abortControllerRef = useRef(null);
+    const manuallyRemovedDocumentRef = useRef(false);
 
     // Use streaming hook for the current AI response (5ms = 200 chars/sec for fast smooth streaming)
     const { displayedText, isStreaming } = useStreamingText(streamingMessage, 5);
@@ -354,6 +355,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         const searchParams = new URLSearchParams(location.search);
         const documentId = searchParams.get('documentId');
 
+        // Don't re-attach if user manually removed it
+        if (manuallyRemovedDocumentRef.current) {
+            console.log('⏭️ Skipping document attachment - user manually removed it');
+            return;
+        }
+
         if (documentId && !attachedDocument) {
             console.log('📎 Document ID found in URL:', documentId);
 
@@ -462,13 +469,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         const file = event.target.files[0];
         if (!file) return;
 
+        manuallyRemovedDocumentRef.current = false; // Reset flag when new file is selected
         setAttachedFile(file);
     };
 
     const handleRemoveAttachment = () => {
+        console.log('🗑️ Manually removing attachment');
+        manuallyRemovedDocumentRef.current = true; // Prevent re-attaching from URL
         setAttachedFile(null);
+        setAttachedDocument(null);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
+        }
+        // Clear documentId from URL if present
+        const searchParams = new URLSearchParams(location.search);
+        if (searchParams.has('documentId')) {
+            searchParams.delete('documentId');
+            const newSearch = searchParams.toString();
+            const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
+            window.history.replaceState({}, '', newUrl);
         }
     };
 
@@ -1736,17 +1755,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             </div>
                         </div>
                         <button
-                            onClick={() => {
-                                setAttachedDocument(null);
-                                // Clear documentId from URL if present
-                                const searchParams = new URLSearchParams(location.search);
-                                if (searchParams.has('documentId')) {
-                                    searchParams.delete('documentId');
-                                    const newSearch = searchParams.toString();
-                                    const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
-                                    window.history.replaceState({}, '', newUrl);
-                                }
-                            }}
+                            onClick={handleRemoveAttachment}
                             style={{width: 32, height: 32, background: '#F5F5F5', border: '1px solid #E6E6EC', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#8E8E93', transition: 'all 0.2s'}}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.background = '#E6E6EC';

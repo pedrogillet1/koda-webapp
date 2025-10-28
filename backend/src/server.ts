@@ -8,6 +8,7 @@ import { createSecureServer, createHTTPRedirectServer, getPortConfig, checkCerti
 
 import { startReminderScheduler } from './jobs/reminder.scheduler';
 import rbacService from './services/rbac.service';
+import prisma from './config/database';
 
 const portConfig = getPortConfig();
 
@@ -251,6 +252,103 @@ httpServer.listen(portConfig.httpsPort, () => {
 
   // Start reminder scheduler
   startReminderScheduler();
+
+  // ═══════════════════════════════════════════════════════════════
+  // START BACKGROUND DOCUMENT PROCESSOR
+  // ═══════════════════════════════════════════════════════════════
+  // Process pending documents every 30 seconds
+  const PROCESSING_INTERVAL = 30000; // 30 seconds
+  let isProcessing = false;
+
+  async function processPendingDocuments() {
+    if (isProcessing) {
+      console.log('⏳ Document processor already running, skipping...');
+      return;
+    }
+
+    try {
+      isProcessing = true;
+
+      // Find pending documents
+      const pendingDocs = await prisma.document.findMany({
+        where: { status: 'pending' },
+        orderBy: { createdAt: 'asc' },
+        take: 5, // Process 5 at a time
+      });
+
+      if (pendingDocs.length > 0) {
+        console.log(`\n📋 Found ${pendingDocs.length} pending documents to process`);
+
+        for (const doc of pendingDocs) {
+          try {
+            console.log(`🔄 Processing document: ${doc.filename} (${doc.id})`);
+
+            // Update status to processing
+            await prisma.document.update({
+              where: { id: doc.id },
+              data: { status: 'processing' },
+            });
+
+            // Download file from GCS
+            const { downloadFile } = await import('./config/storage');
+            const downloadedBuffer = await downloadFile(doc.encryptedFilename);
+
+            // Decrypt file if encrypted, otherwise use as-is
+            let fileBuffer: Buffer;
+            if (doc.isEncrypted) {
+              const encryptionService = await import('./services/encryption.service');
+              fileBuffer = encryptionService.default.decryptFile(
+                downloadedBuffer,
+                `document-${doc.userId}`
+              );
+            } else {
+              // File is not encrypted, use directly
+              fileBuffer = downloadedBuffer;
+            }
+
+            // Get thumbnail URL if exists
+            const metadata = await prisma.documentMetadata.findUnique({
+              where: { documentId: doc.id },
+            });
+
+            // Import and call the processing function
+            const documentService = await import('./services/document.service');
+            await documentService.processDocumentInBackground(
+              doc.id,
+              fileBuffer,
+              doc.filename,
+              doc.mimeType,
+              doc.userId,
+              metadata?.thumbnailUrl || null
+            );
+
+            console.log(`✅ Successfully processed: ${doc.filename}`);
+          } catch (error) {
+            console.error(`❌ Failed to process document ${doc.filename}:`, error);
+
+            // Mark as failed
+            await prisma.document.update({
+              where: { id: doc.id },
+              data: { status: 'failed' },
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error in background document processor:', error);
+    } finally {
+      isProcessing = false;
+    }
+  }
+
+  // Start the background processor
+  console.log(`🔄 Starting background document processor (polling every ${PROCESSING_INTERVAL/1000}s)`);
+  setInterval(processPendingDocuments, PROCESSING_INTERVAL);
+
+  // Process immediately on startup
+  processPendingDocuments().catch(err => {
+    console.error('❌ Error in initial document processing:', err);
+  });
 
   // Initialize RBAC system roles
   rbacService.initializeSystemRoles().catch(err => {
