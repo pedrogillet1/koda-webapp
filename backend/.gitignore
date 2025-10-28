@@ -70,3 +70,6 @@ verify-*.js
 investigate-*.js
 reembed-*.js
 trigger-*.ts
+nul
+*/nul
+**/nul
