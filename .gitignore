@@ -55,3 +55,4 @@ temp/
 
 # Redis dump
 dump.rdb
+nul
