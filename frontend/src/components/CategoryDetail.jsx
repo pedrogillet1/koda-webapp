@@ -163,7 +163,7 @@ const CategoryDetail = () => {
   const { categoryName, folderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { documents: contextDocuments, folders: contextFolders, deleteDocument, refreshAll } = useDocuments(); // Get from context for auto-refresh
+  const { documents: contextDocuments, folders: contextFolders, deleteDocument, createFolder, moveToFolder, refreshAll } = useDocuments(); // Get from context for auto-refresh
   const [documents, setDocuments] = useState([]);
   const [subFolders, setSubFolders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -356,6 +356,37 @@ const CategoryDetail = () => {
 
     fetchDocuments();
   }, [categoryName, folderId, refreshTrigger, contextDocuments, contextFolders]); // Re-fetch when context updates
+
+  // Auto-sync subfolders from context for instant updates with live document counts
+  useEffect(() => {
+    if (currentFolderId && contextFolders.length > 0) {
+      const subFoldersInCategory = contextFolders.filter(f => f.parentFolderId === currentFolderId);
+
+      // Recalculate document counts in real-time based on contextDocuments
+      const foldersWithCounts = subFoldersInCategory.map(folder => {
+        const docCount = contextDocuments.filter(doc => doc.folderId === folder.id).length;
+        return {
+          ...folder,
+          _count: {
+            ...folder._count,
+            documents: docCount
+          }
+        };
+      });
+
+      setSubFolders(foldersWithCounts);
+      console.log('Auto-synced subfolders with live counts:', foldersWithCounts);
+    }
+  }, [contextFolders, contextDocuments, currentFolderId]);
+
+  // Auto-sync documents from context for instant updates
+  useEffect(() => {
+    if (currentFolderId && contextDocuments.length >= 0) {
+      const docsInFolder = contextDocuments.filter(doc => doc.folderId === currentFolderId);
+      setDocuments(docsInFolder);
+      console.log('Auto-synced documents from context:', docsInFolder.length, 'documents');
+    }
+  }, [contextDocuments, currentFolderId]);
 
   // Format file size
   const formatFileSize = (bytes) => {
@@ -563,20 +594,28 @@ const CategoryDetail = () => {
     if (!selectedCategoryId || !selectedDocumentForCategory) return;
 
     try {
-      await api.patch(`/api/documents/${selectedDocumentForCategory.id}`, {
-        folderId: selectedCategoryId
-      });
+      if (selectedDocumentForCategory.type === 'folder') {
+        // Move folder to new parent
+        await api.patch(`/api/folders/${selectedDocumentForCategory.id}`, {
+          parentFolderId: selectedCategoryId
+        });
 
-      // Refresh documents
-      const response = await api.get(`/api/documents?folderId=${currentFolderId}`);
-      setDocuments(response.data.documents || []);
+        // Refresh context to get updated folder structure
+        await refreshAll();
+      } else {
+        // Move document
+        await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
+
+        // Refresh context
+        await refreshAll();
+      }
 
       setShowCategoryModal(false);
       setSelectedDocumentForCategory(null);
       setSelectedCategoryId(null);
     } catch (error) {
-      console.error('Error adding document to category:', error);
-      alert('Failed to add document to category');
+      console.error('Error moving item to category:', error);
+      alert(`Failed to move ${selectedDocumentForCategory.type || 'item'} to category`);
     }
   };
 
@@ -738,33 +777,12 @@ const CategoryDetail = () => {
     try {
       console.log('Creating folder:', folderName, 'with parentFolderId:', currentFolderId);
 
-      const response = await api.post('/api/folders', {
-        name: folderName.trim(),
-        parentFolderId: currentFolderId  // Changed from parentId to parentFolderId to match backend
-      });
+      // Use context's createFolder method for instant UI updates
+      await createFolder(folderName.trim(), null, currentFolderId);
 
-      console.log('Folder created:', response.data);
+      console.log('Folder created via context');
 
-      // Refresh folder list to get the newly created folder with all its properties
-      const foldersResponse = await api.get('/api/folders');
-      const folders = foldersResponse.data?.folders || [];
-
-      console.log('All folders:', folders);
-      console.log('Current folder ID:', currentFolderId);
-
-      const subFoldersInCategory = folders.filter(f => f.parentFolderId === currentFolderId);
-
-      console.log('Filtered subfolders:', subFoldersInCategory);
-
-      // Ensure each folder has a _count property for documents
-      const foldersWithCounts = subFoldersInCategory.map(folder => ({
-        ...folder,
-        _count: folder._count || { documents: 0 }
-      }));
-
-      console.log('Folders with counts:', foldersWithCounts);
-
-      setSubFolders(foldersWithCounts);
+      // Context automatically updates all components with the new folder!
       setShowCreateFolderModal(false);
     } catch (error) {
       console.error('Error creating folder:', error);
@@ -895,30 +913,15 @@ const CategoryDetail = () => {
           ? Array.from(selectedDocuments)
           : [data.id];
 
-        // Move documents to folder
+        // Use context's moveToFolder for instant UI updates
         await Promise.all(
           documentsToMove.map(docId =>
-            api.patch(`/api/documents/${docId}`, {
-              folderId: targetFolder.id
-            })
+            moveToFolder(docId, targetFolder.id)
           )
         );
 
-        // Refresh documents list
-        if (currentFolderId) {
-          const response = await api.get(`/api/documents?folderId=${currentFolderId}`);
-          setDocuments(response.data.documents || []);
-        }
-
-        // Refresh folder list to update counts
-        const foldersResponse = await api.get('/api/folders');
-        const folders = foldersResponse.data?.folders || [];
-        const subFoldersInCategory = folders.filter(f => f.parentFolderId === currentFolderId);
-        const foldersWithCounts = subFoldersInCategory.map(folder => ({
-          ...folder,
-          _count: folder._count || { documents: 0 }
-        }));
-        setSubFolders(foldersWithCounts);
+        // Refresh context to get latest counts
+        await refreshAll();
 
         // Show success modal and deactivate select mode
         setSuccessCount(documentsToMove.length);
@@ -1751,6 +1754,76 @@ const CategoryDetail = () => {
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
                                 Rename
+                              </button>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    // Get all documents in this folder (recursively)
+                                    const response = await api.get(`/api/folders/${folder.id}/download`);
+                                    // Trigger download
+                                    window.location.href = response.data.downloadUrl;
+                                  } catch (error) {
+                                    console.error('Error downloading folder:', error);
+                                    alert('Failed to download folder');
+                                  }
+                                  setOpenFolderMenuId(null);
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  background: 'none',
+                                  border: 'none',
+                                  borderTop: '1px solid #F3F4F6',
+                                  textAlign: 'left',
+                                  fontSize: 14,
+                                  fontFamily: 'Plus Jakarta Sans',
+                                  fontWeight: '500',
+                                  color: '#32302C',
+                                  cursor: 'pointer'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                              >
+                                Download
+                              </button>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  // Load categories and open modal
+                                  setSelectedDocumentForCategory({ type: 'folder', id: folder.id, name: folder.name });
+                                  try {
+                                    // Load ALL folders (categories and subfolders), excluding "Recently Added"
+                                    const response = await api.get('/api/folders');
+                                    const folders = response.data?.folders || [];
+                                    const availableFolders = folders.filter(f =>
+                                      f.name.toLowerCase() !== 'recently added'
+                                    );
+                                    setAvailableCategories(availableFolders);
+                                    setShowCategoryModal(true);
+                                  } catch (error) {
+                                    console.error('Error loading categories:', error);
+                                    alert('Failed to load categories');
+                                  }
+                                  setOpenFolderMenuId(null);
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  background: 'none',
+                                  border: 'none',
+                                  borderTop: '1px solid #F3F4F6',
+                                  textAlign: 'left',
+                                  fontSize: 14,
+                                  fontFamily: 'Plus Jakarta Sans',
+                                  fontWeight: '500',
+                                  color: '#32302C',
+                                  cursor: 'pointer'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                              >
+                                Move
                               </button>
                               <button
                                 onClick={async (e) => {
