@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -12,7 +12,6 @@ import UniversalUploadModal from './UniversalUploadModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import RenameModal from './RenameModal';
 import { ReactComponent as SmoothCorner } from '../assets/smoothinnercorner.svg';
-import { ReactComponent as SmoothCorner1 } from '../assets/smoothinnercorner1.svg';
 import { ReactComponent as SmoothCorner2 } from '../assets/smoothinnercorner2.svg';
 import { ReactComponent as ArrowIcon } from '../assets/arrow-narrow-right.svg';
 import { ReactComponent as TimeIcon } from '../assets/Time square.svg';
@@ -35,6 +34,8 @@ import kodaLogo from '../assets/koda-logo_1.svg';
 import logoCopyWhite from '../assets/Logo copy.svg';
 import { getCategoriesWithCounts, createCategory, deleteCategory, addDocumentToCategory } from '../utils/categoryManager';
 import api from '../services/api';
+import chatService from '../services/chatService';
+import CategoryIcon from './CategoryIcon';
 import pdfIcon from '../assets/pdf-icon.svg';
 import docIcon from '../assets/doc-icon.svg';
 import txtIcon from '../assets/txt-icon.svg';
@@ -74,6 +75,8 @@ const Documents = () => {
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [dropdownPosition, setDropdownPosition] = useState({});
+  const dropdownRefs = useRef({});
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -89,20 +92,26 @@ const Documents = () => {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [itemToRename, setItemToRename] = useState(null);
+  const [categoriesRefreshKey, setCategoriesRefreshKey] = useState(0);
+
+  // Force re-render when contextFolders changes
+  useEffect(() => {
+    setCategoriesRefreshKey(prev => prev + 1);
+  }, [contextFolders]);
 
   // Compute categories from context folders (auto-updates!)
-  const categories = useMemo(() => {
-    return getRootFolders()
-      .filter(folder => folder.name.toLowerCase() !== 'recently added')
-      .map(folder => ({
+  const categories = getRootFolders()
+    .filter(folder => folder.name.toLowerCase() !== 'recently added')
+    .map(folder => {
+      return {
         id: folder.id,
         name: folder.name,
-        emoji: folder.emoji || '📁',
+        emoji: folder.emoji || '__FOLDER_SVG__',
         fileCount: getDocumentCountByFolder(folder.id),
         folderCount: folder._count?.subfolders || 0,
         count: getDocumentCountByFolder(folder.id)
-      }));
-  }, [contextFolders, contextDocuments, getRootFolders, getDocumentCountByFolder]);
+      };
+    });
 
   // All folders for search (auto-updates!)
   const allFolders = useMemo(() => {
@@ -457,7 +466,7 @@ const Documents = () => {
                                 justifyContent: 'center',
                                 fontSize: 20
                               }}>
-                                {folder.emoji}
+                                <CategoryIcon emoji={folder.emoji || '__FOLDER_SVG__'} style={{width: 20, height: 20}} />
                               </div>
                               <div style={{flex: 1, overflow: 'hidden'}}>
                                 <div style={{
@@ -609,73 +618,46 @@ const Documents = () => {
           <div
             style={{
               alignSelf: 'stretch',
-              padding: '60px',
+              padding: '20px 60px',
               position: 'relative',
               background: '#181818',
               overflow: 'hidden',
               borderRadius: 20,
               display: 'flex',
-              justifyContent: 'space-between',
+              justifyContent: 'center',
               alignItems: 'center',
-              minHeight: 200
+              height: 'auto'
             }}
           >
-            {/* Small scattered stars */}
-            <div style={{ position: 'absolute', top: '20%', left: '35%', width: 3, height: 3, background: 'white', borderRadius: '50%', opacity: 0.5 }} />
-            <div style={{ position: 'absolute', top: '50%', left: '45%', width: 3, height: 3, background: 'white', borderRadius: '50%', opacity: 0.4 }} />
-            <div style={{ position: 'absolute', bottom: '30%', left: '40%', width: 3, height: 3, background: 'white', borderRadius: '50%', opacity: 0.5 }} />
-            <div style={{ position: 'absolute', top: '70%', right: '60%', width: 3, height: 3, background: 'white', borderRadius: '50%', opacity: 0.4 }} />
-            <div style={{ position: 'absolute', top: '25%', left: '50%', width: 3, height: 3, background: 'white', borderRadius: '50%', opacity: 0.3 }} />
-
-            {/* KODA Logo on LEFT side */}
-            <div style={{
-              position: 'relative',
-              zIndex: 10,
-              display: 'flex',
-              justifyContent: 'flex-start',
-              alignItems: 'center',
-              height: '100%'
-            }}>
-              <img
-                src={logoCopyWhite}
-                alt="KODA"
-                style={{
-                  width: '600px',
-                  height: 'auto',
-                  objectFit: 'contain',
-                  display: 'block',
-                  marginTop: '30px'
-                }}
-              />
-            </div>
-
-            {/* Large sparkle on RIGHT side */}
-            <div style={{
-              position: 'relative',
-              zIndex: 10,
-              width: '120px',
-              height: '120px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <SmoothCorner1 style={{ width: '100%', height: '100%', color: 'white' }} />
-            </div>
+            {/* KODA Logo CENTERED */}
+            <img
+              src={logoCopyWhite}
+              alt="KODA"
+              style={{
+                position: 'relative',
+                zIndex: 10,
+                height: '90px',
+                width: 'auto',
+                objectFit: 'contain'
+              }}
+            />
           </div>
 
           {/* Smart Categories */}
-          <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+          <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: 12}}>
             <div style={{display: 'flex', gap: 12}}>
               <div onClick={() => setIsModalOpen(true)} style={{flex: 1, padding: 14, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
                 <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                  <span style={{fontSize: 24, fontWeight: '300', color: '#6C6B6E', lineHeight: 1, display: 'block', transform: 'translateY(-1px)'}}>+</span>
+                  <AddIcon style={{ width: 20, height: 20 }} />
                 </div>
                 <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: 1}}>Add New Smart Category</span>
               </div>
               {(showAllCategories ? categories : categories.slice(0, 4)).map((category, index) => (
-                <div key={index} style={{flex: 1, padding: 10, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, transition: 'transform 0.2s ease, box-shadow 0.2s ease', position: 'relative'}}>
+                <div key={`${category.id}-${category.emoji}`} style={{flex: 1, padding: 10, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, transition: 'transform 0.2s ease, box-shadow 0.2s ease', position: 'relative'}}>
                   <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 8, flex: 1, cursor: 'pointer'}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
-                    <div style={{width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24}}>{category.emoji}</div>
+                    <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0}}>
+                      <CategoryIcon emoji={category.emoji} />
+                    </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: 4, flex: 1}}>
                       <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px'}}>{category.name}</div>
                       <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px'}}>
@@ -838,11 +820,13 @@ const Documents = () => {
           </div>
 
           {/* File Breakdown + Upcoming Actions (Side by Side) */}
-          <div style={{display: 'flex', gap: 20}}>
+          <div style={{display: 'flex', gap: 20, flex: 1, minHeight: 0}}>
             {/* File Breakdown - 40% */}
-            <div style={{width: '40%', padding: 16, background: 'white', borderRadius: 20, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', gap: 16}}>
+            <div style={{width: '40%', padding: 16, background: 'white', borderRadius: 20, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden'}}>
               <div style={{color: '#101828', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '26px'}}>File Breakdown</div>
 
+              {/* Chart and Legend Container - Centered */}
+              <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: 16, justifyContent: 'center'}}>
               {/* Semicircle Chart */}
               <div style={{position: 'relative', width: '100%', height: 200, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', pointerEvents: 'none'}}>
                 <div style={{width: '100%', height: '300px', position: 'absolute', bottom: 0}}>
@@ -895,23 +879,26 @@ const Documents = () => {
                   </div>
                 ))}
               </div>
+              </div>
             </div>
 
             {/* Recently Added - 60% */}
-            <div style={{width: '60%', padding: 24, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column'}}>
+            <div style={{width: '60%', padding: 24, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24}}>
                 <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Recently Added</div>
-                <div
-                  onClick={() => navigate('/category/recently-added')}
-                  style={{color: '#171717', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '22.40px', cursor: 'pointer'}}
-                >
-                  See All
-                </div>
+                {contextDocuments.length > 6 && (
+                  <div
+                    onClick={() => navigate('/category/recently-added')}
+                    style={{color: '#171717', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '22.40px', cursor: 'pointer'}}
+                  >
+                    See All
+                  </div>
+                )}
               </div>
 
-              {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5).length > 0 ? (
-                <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
-                  {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5).map((doc) => {
+              {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).length > 0 ? (
+                <div style={{display: 'flex', flexDirection: 'column', gap: 16, flex: 1, overflowY: 'auto', minHeight: 0}}>
+                  {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).map((doc) => {
                     const getFileIcon = (filename) => {
                       // Add null/undefined check
                       if (!filename) return docIcon;
@@ -975,10 +962,29 @@ const Documents = () => {
                         </div>
                         <div style={{position: 'relative'}} data-dropdown>
                           <button
+                            ref={(el) => {
+                              if (el) dropdownRefs.current[doc.id] = el;
+                            }}
                             onClick={(e) => {
                               e.stopPropagation();
                               console.log('Clicked three dots for doc:', doc.id);
-                              setOpenDropdownId(openDropdownId === doc.id ? null : doc.id);
+
+                              if (openDropdownId === doc.id) {
+                                setOpenDropdownId(null);
+                              } else {
+                                // Calculate if dropdown should open upward or downward
+                                const buttonRect = e.currentTarget.getBoundingClientRect();
+                                const dropdownHeight = 180; // Approximate height of dropdown menu
+                                const spaceBelow = window.innerHeight - buttonRect.bottom;
+                                const spaceAbove = buttonRect.top;
+
+                                setDropdownPosition({
+                                  [doc.id]: {
+                                    openUpward: spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                                  }
+                                });
+                                setOpenDropdownId(doc.id);
+                              }
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
@@ -1005,9 +1011,11 @@ const Documents = () => {
                             <div
                               style={{
                                 position: 'absolute',
-                                top: '100%',
+                                ...(dropdownPosition[doc.id]?.openUpward
+                                  ? { bottom: '100%', marginBottom: 4 }
+                                  : { top: '100%', marginTop: 4 }
+                                ),
                                 right: 0,
-                                marginTop: 4,
                                 background: 'white',
                                 boxShadow: '0px 4px 6px -2px rgba(16, 24, 40, 0.03)',
                                 borderRadius: 12,
@@ -1367,7 +1375,7 @@ const Documents = () => {
                         justifyContent: 'center',
                         fontSize: 20
                       }}>
-                        {category.emoji || '📁'}
+                        <CategoryIcon emoji={category.emoji} style={{width: 18, height: 18}} />
                       </div>
 
                       {/* Category Name */}
@@ -1555,9 +1563,7 @@ const Documents = () => {
           setEditingCategory(null);
         }}
         category={editingCategory}
-        onUpdate={() => {
-          // No manual refresh needed - context auto-updates!
-        }}
+        onUpdate={refreshAll}
       />
 
       <UploadModal
@@ -1627,7 +1633,7 @@ const Documents = () => {
 
       {/* Ask Koda Floating Button */}
       {showAskKoda && (
-        <div style={{ width: 200, height: 56, right: 20, bottom: 20, position: 'absolute' }}>
+        <div style={{ width: 280, height: 56, right: 20, bottom: 20, position: 'absolute' }}>
           {/* Close button */}
           <button
             onClick={(e) => {
@@ -1656,11 +1662,31 @@ const Documents = () => {
               <XCloseIcon style={{ width: 10, height: 10, position: 'absolute', left: 0, top: 0 }} />
             </div>
           </button>
-          <div style={{ width: 10, height: 10, right: 30, top: 4, position: 'absolute', background: '#171717', borderRadius: 9999 }} />
-          <button
-            onClick={() => navigate('/chat')}
+          {/* Speech bubble pointer - positioned at bottom right */}
+          <div
             style={{
-              width: 200,
+              width: 0,
+              height: 0,
+              right: 32,
+              bottom: -8,
+              position: 'absolute',
+              borderLeft: '8px solid transparent',
+              borderRight: '8px solid transparent',
+              borderTop: '8px solid #171717'
+            }}
+          />
+          <button
+            onClick={async () => {
+              try {
+                const newConversation = await chatService.createConversation();
+                navigate('/chat', { state: { newConversation } });
+              } catch (error) {
+                console.error('Error creating new chat:', error);
+                navigate('/chat');
+              }
+            }}
+            style={{
+              width: 280,
               height: 56,
               paddingLeft: 16,
               paddingRight: 16,
@@ -1670,7 +1696,7 @@ const Documents = () => {
               top: 0,
               position: 'absolute',
               background: '#171717',
-              borderRadius: 100,
+              borderRadius: 16,
               justifyContent: 'flex-start',
               alignItems: 'center',
               display: 'inline-flex',
@@ -1723,11 +1749,10 @@ const Documents = () => {
                   wordWrap: 'break-word'
                 }}
               >
-                Ask Koda
+                Need help finding something?
               </div>
             </div>
           </button>
-          <div style={{ width: 5, height: 5, right: 25, top: -2, position: 'absolute', background: '#171717', borderRadius: 9999 }} />
         </div>
       )}
     </div>
@@ -1735,3 +1760,4 @@ const Documents = () => {
 };
 
 export default Documents;
+

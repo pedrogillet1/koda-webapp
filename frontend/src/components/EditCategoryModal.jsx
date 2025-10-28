@@ -4,19 +4,27 @@ import { ReactComponent as SearchIcon } from '../assets/Search.svg';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import api from '../services/api';
+import pdfIcon from '../assets/pdf-icon.svg';
+import docIcon from '../assets/doc-icon.svg';
+import txtIcon from '../assets/txt-icon.svg';
+import xlsIcon from '../assets/xls.svg';
+import jpgIcon from '../assets/jpg-icon.svg';
+import pngIcon from '../assets/png-icon.svg';
+import pptxIcon from '../assets/pptx.svg';
+import folderIcon from '../assets/folder_icon.svg';
 
 const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
   const [categoryName, setCategoryName] = useState('');
-  const [selectedEmoji, setSelectedEmoji] = useState('📁');
+  const [selectedEmoji, setSelectedEmoji] = useState('__FOLDER_SVG__');
   const [searchQuery, setSearchQuery] = useState('');
   const [documents, setDocuments] = useState([]);
   const [selectedDocuments, setSelectedDocuments] = useState([]);
   const [allDocuments, setAllDocuments] = useState([]);
   const [showAllEmojis, setShowAllEmojis] = useState(false);
 
-  const defaultEmojis = ['📁', '🏠', '💼', '📊', '📄', '🎓', '💰'];
+  const defaultEmojis = ['__FOLDER_SVG__', '🏠', '💼', '📊', '📄', '🎓', '💰'];
   const allEmojis = [
-    '📁', '🏠', '💼', '📊', '📄', '🎓', '💰',
+    '__FOLDER_SVG__', '🏠', '💼', '📊', '📄', '🎓', '💰',
     '🏥', '🎯', '🎨', '🎭', '🎪', '🎬', '🎮', '🎲', '🎵',
     '🎸', '🎹', '🎺', '🎻', '🏀', '⚽', '🏈', '⚾',
     '🎾', '🏐', '🏉', '🎱', '🏓', '🏸', '🥊', '🥋',
@@ -37,7 +45,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
   useEffect(() => {
     if (isOpen && category) {
       setCategoryName(category.name);
-      setSelectedEmoji(category.emoji || '📁');
+      setSelectedEmoji(category.emoji || '__FOLDER_SVG__');
       fetchCategoryDocuments();
       fetchAllDocuments();
     }
@@ -74,7 +82,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
   const handleConfirm = async () => {
     try {
       // Update category name and emoji
-      await api.patch(`/api/folders/${category.id}`, {
+      const response = await api.patch(`/api/folders/${category.id}`, {
         name: categoryName,
         emoji: selectedEmoji
       });
@@ -83,6 +91,8 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
       const currentDocIds = documents.map(d => d.id);
       const toAdd = selectedDocuments.filter(id => !currentDocIds.includes(id));
       const toRemove = currentDocIds.filter(id => !selectedDocuments.includes(id));
+
+      console.log('Document changes:', { toAdd, toRemove });
 
       // Add documents to category
       for (const docId of toAdd) {
@@ -98,11 +108,18 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
         });
       }
 
-      onUpdate();
+      // Call onUpdate callback BEFORE closing modal
+      if (onUpdate) {
+        await onUpdate();
+      }
+
+      // Close modal after refresh completes
       onClose();
+
     } catch (error) {
       console.error('Error updating category:', error);
-      alert('Failed to update category');
+      console.error('Error details:', error.response?.data);
+      alert(`Failed to update category: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -113,6 +130,18 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
   };
 
+  const getFileIcon = (filename) => {
+    const ext = filename.toLowerCase();
+    if (ext.match(/\.(pdf)$/)) return pdfIcon;
+    if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
+    if (ext.match(/\.(png)$/)) return pngIcon;
+    if (ext.match(/\.(docx?|doc)$/)) return docIcon;
+    if (ext.match(/\.(xlsx?|xls)$/)) return xlsIcon;
+    if (ext.match(/\.(pptx?|ppt)$/)) return pptxIcon;
+    if (ext.match(/\.(txt)$/)) return txtIcon;
+    return docIcon; // Default fallback
+  };
+
   const filteredDocuments = allDocuments.filter(doc =>
     doc.filename.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -120,29 +149,34 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
   if (!isOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: 450,
-        height: 'auto',
-        maxHeight: '90vh',
-        paddingTop: 18,
-        paddingBottom: 18,
-        background: 'white',
-        borderRadius: 14,
-        outline: '1px #E6E6EC solid',
-        outlineOffset: '-1px',
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: 450,
+          height: 'auto',
+          maxHeight: '90vh',
+          paddingTop: 18,
+          paddingBottom: 18,
+          background: 'white',
+          borderRadius: 14,
+          outline: '1px #E6E6EC solid',
+          outlineOffset: '-1px',
         flexDirection: 'column',
         justifyContent: 'flex-start',
         alignItems: 'center',
@@ -320,8 +354,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                   style={{
                     width: 44,
                     height: 44,
-                    paddingTop: 10,
-                    paddingBottom: 10,
+                    padding: emoji === '__FOLDER_SVG__' ? 8 : '10px 0',
                     background: selectedEmoji === emoji ? '#171717' : '#F5F5F5',
                     boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
                     borderRadius: 100,
@@ -336,7 +369,18 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                     flexShrink: 0
                   }}
                 >
-                  {emoji}
+                  {emoji === '__FOLDER_SVG__' ? (
+                    <img
+                      src={folderIcon}
+                      alt="Folder"
+                      style={{
+                        width: 28,
+                        height: 28
+                      }}
+                    />
+                  ) : (
+                    emoji
+                  )}
                 </button>
               ))}
             </div>
@@ -452,7 +496,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                     }
                   }}
                 >
-                  <div style={{width: 40, height: 40, fontSize: 24, flexShrink: 0}}>📄</div>
+                  <img src={getFileIcon(doc.filename)} alt="File" style={{width: 40, height: 40, flexShrink: 0}} />
                   <div style={{
                     flex: '1 1 0',
                     flexDirection: 'column',

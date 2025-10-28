@@ -3,6 +3,17 @@ import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { useDocuments } from '../context/DocumentsContext';
 import UniversalAddToCategoryModal from './UniversalAddToCategoryModal';
 import CreateCategoryModal from './CreateCategoryModal';
+import pdfIcon from '../assets/pdf-icon.svg';
+import docIcon from '../assets/doc-icon.svg';
+import txtIcon from '../assets/txt-icon.svg';
+import xlsIcon from '../assets/xls.svg';
+import pptxIcon from '../assets/pptx.svg';
+import jpgIcon from '../assets/jpg-icon.svg';
+import pngIcon from '../assets/png-icon.svg';
+import movIcon from '../assets/mov.svg';
+import mp4Icon from '../assets/mp4.svg';
+import mp3Icon from '../assets/mp3.svg';
+import folderIcon from '../assets/folder_icon.svg';
 
 const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
   // Get context functions for optimistic uploads
@@ -155,19 +166,18 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
   };
 
   const getFileIcon = (filename) => {
-    const ext = filename.split('.').pop().toLowerCase();
-    const iconMap = {
-      txt: { gradient: 'linear-gradient(180deg, #9BAFB1 0%, #5B6869 100%)' },
-      mp3: { gradient: 'linear-gradient(180deg, #835AB5 0%, #5C299A 100%)' },
-      mov: { gradient: 'linear-gradient(180deg, #F59E0B 0%, #D97706 100%)' },
-      mp4: { gradient: 'linear-gradient(180deg, #8B5CF6 0%, #6D28D9 100%)' },
-      png: { gradient: 'linear-gradient(180deg, #65A531 0%, #3A6E10 100%)' },
-      jpg: { gradient: 'linear-gradient(180deg, #65A531 0%, #3A6E10 100%)' },
-      pdf: { gradient: 'linear-gradient(180deg, #E24C4B 0%, #C92A2A 100%)' },
-      doc: { gradient: 'linear-gradient(180deg, #4A90E2 0%, #2E5C8A 100%)' },
-      docx: { gradient: 'linear-gradient(180deg, #4A90E2 0%, #2E5C8A 100%)' },
-    };
-    return iconMap[ext] || iconMap.txt;
+    const ext = filename.toLowerCase();
+    if (ext.match(/\.(pdf)$/)) return pdfIcon;
+    if (ext.match(/\.(doc|docx)$/)) return docIcon;
+    if (ext.match(/\.(txt|csv)$/)) return txtIcon;
+    if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
+    if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
+    if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
+    if (ext.match(/\.(png|gif|webp)$/)) return pngIcon;
+    if (ext.match(/\.(mov)$/)) return movIcon;
+    if (ext.match(/\.(mp4)$/)) return mp4Icon;
+    if (ext.match(/\.(mp3)$/)) return mp3Icon;
+    return folderIcon; // Default fallback icon
   };
 
   if (!isOpen) return null;
@@ -659,38 +669,22 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                       zIndex: 1
                     }}>
                       {/* File Icon */}
-                      <div style={{ width: 40, height: 40, position: 'relative', flexShrink: 0 }}>
-                        <div style={{
-                          width: 31.67,
-                          height: 31.67,
-                          left: 4.17,
-                          top: 4.17,
-                          position: 'absolute',
-                          background: icon.gradient,
-                          boxShadow: '0px 5px 16.67px rgba(0, 0, 0, 0.12)',
-                          borderRadius: 5
-                        }} />
-                        <div style={{
-                          width: 38.33,
-                          height: 21.67,
-                          left: 0.83,
-                          top: 9.17,
-                          position: 'absolute',
-                          background: 'rgba(0, 0, 0, 0.35)',
-                          boxShadow: '0px 3.33px 5px rgba(0, 0, 0, 0.15)',
-                          borderRadius: 5,
-                          border: '0.83px white solid',
-                          backdropFilter: 'blur(4.17px)'
-                        }} />
-                        <div style={{
-                          width: 18,
-                          height: 7,
-                          left: 11,
-                          top: 17,
-                          position: 'absolute',
-                          background: 'rgba(255, 255, 255, 0.95)',
-                          boxShadow: '0px 1.67px 3.33px rgba(0, 0, 0, 0.15)'
-                        }} />
+                      <div style={{
+                        width: 40,
+                        height: 40,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <img
+                          src={icon}
+                          alt={file.name}
+                          style={{
+                            width: 40,
+                            height: 40,
+                            objectFit: 'contain'
+                          }}
+                        />
                       </div>
 
                       <div style={{
@@ -808,38 +802,22 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                       display: 'flex'
                     }}>
                       {/* File Icon */}
-                      <div style={{ width: 40, height: 40, position: 'relative', flexShrink: 0 }}>
-                        <div style={{
-                          width: 31.67,
-                          height: 31.67,
-                          left: 4.17,
-                          top: 4.17,
-                          position: 'absolute',
-                          background: icon.gradient,
-                          boxShadow: '0px 5px 16.67px rgba(0, 0, 0, 0.12)',
-                          borderRadius: 5
-                        }} />
-                        <div style={{
-                          width: 38.33,
-                          height: 21.67,
-                          left: 0.83,
-                          top: 9.17,
-                          position: 'absolute',
-                          background: 'rgba(0, 0, 0, 0.35)',
-                          boxShadow: '0px 3.33px 5px rgba(0, 0, 0, 0.15)',
-                          borderRadius: 5,
-                          border: '0.83px white solid',
-                          backdropFilter: 'blur(4.17px)'
-                        }} />
-                        <div style={{
-                          width: 18,
-                          height: 7,
-                          left: 11,
-                          top: 17,
-                          position: 'absolute',
-                          background: 'rgba(255, 255, 255, 0.95)',
-                          boxShadow: '0px 1.67px 3.33px rgba(0, 0, 0, 0.15)'
-                        }} />
+                      <div style={{
+                        width: 40,
+                        height: 40,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <img
+                          src={icon}
+                          alt={file.name}
+                          style={{
+                            width: 40,
+                            height: 40,
+                            objectFit: 'contain'
+                          }}
+                        />
                       </div>
 
                       <div style={{

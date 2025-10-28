@@ -1,6 +1,13 @@
 import { Request, Response } from 'express';
 import ragService from '../services/rag.service';
 import prisma from '../config/database';
+import { generateConversationName, shouldGenerateName } from '../services/conversationNaming.service';
+import { getIO } from '../services/websocket.service';
+import queryClassifier, { QueryType } from '../services/queryClassifier.service';
+import templateResponseService from '../services/templateResponse.service';
+import metadataQueryService from '../services/metadataQuery.service';
+import fileManagementIntentService, { FileManagementIntent } from '../services/fileManagementIntent.service';
+import navigationService from '../services/navigation.service';
 
 /**
  * RAG Controller
@@ -19,12 +26,261 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const { query, conversationId, researchMode = false } = req.body;
+    const { query, conversationId, researchMode = false, attachedFile, documentId } = req.body;
 
     if (!query || !conversationId) {
       res.status(400).json({ error: 'Query and conversationId are required' });
       return;
     }
+
+    // ========================================
+    // FILE MANAGEMENT INTENT DETECTION (FIRST PRIORITY)
+    // ========================================
+    // Check if this is a file management query (navigation/organization)
+    const fileIntent = await fileManagementIntentService.classifyIntent(query, userId);
+    console.log(`🧠 [INTENT] File management intent: ${fileIntent.intent} (confidence: ${fileIntent.confidence})`);
+
+    // Handle FIND_DOCUMENT - Use navigation service (NOT RAG!)
+    if (fileIntent.intent === FileManagementIntent.FIND_DOCUMENT && fileIntent.entities.documentName) {
+      console.log(`📍 [NAV] Finding document: "${fileIntent.entities.documentName}"`);
+
+      const navResult = await navigationService.findFile(userId, fileIntent.entities.documentName);
+
+      if (navResult.found) {
+        // Save messages
+        const userMessage = await prisma.message.create({
+          data: { conversationId, role: 'user', content: query }
+        });
+
+        const assistantMessage = await prisma.message.create({
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: navResult.message,
+            metadata: JSON.stringify({
+              navigationQuery: true,
+              actions: navResult.actions,
+              folderPath: navResult.folderPath
+            })
+          }
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() }
+        });
+
+        // Convert navigation actions to RAG-style sources
+        const sources = navResult.actions
+          .filter(action => action.type === 'open_file' && action.documentId)
+          .map(action => ({
+            documentId: action.documentId!,
+            filename: '',  // Will be filled from action metadata
+            chunkIndex: 0,
+            relevanceScore: 1.0
+          }));
+
+        return res.json({
+          success: true,
+          answer: navResult.message,
+          sources,
+          expandedQuery: [],
+          contextId: 'navigation-query',
+          actions: navResult.actions,
+          userMessage,
+          assistantMessage
+        });
+      }
+    }
+
+    // Handle FIND_FOLDER and DESCRIBE_FOLDER - Use navigation service (NOT RAG!)
+    if ((fileIntent.intent === FileManagementIntent.FIND_FOLDER || fileIntent.intent === FileManagementIntent.DESCRIBE_FOLDER) && fileIntent.entities.folderName) {
+      console.log(`📁 [NAV] Finding folder: "${fileIntent.entities.folderName}"`);
+
+      const navResult = await navigationService.findFolder(userId, fileIntent.entities.folderName);
+
+      if (navResult.found) {
+        // Save messages
+        const userMessage = await prisma.message.create({
+          data: { conversationId, role: 'user', content: query }
+        });
+
+        const assistantMessage = await prisma.message.create({
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: navResult.message,
+            metadata: JSON.stringify({
+              navigationQuery: true,
+              actions: navResult.actions,
+              folderPath: navResult.folderPath
+            })
+          }
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() }
+        });
+
+        return res.json({
+          success: true,
+          answer: navResult.message,
+          sources: [],
+          expandedQuery: [],
+          contextId: 'navigation-query',
+          actions: navResult.actions,
+          userMessage,
+          assistantMessage
+        });
+      }
+    }
+
+    // ========================================
+    // QUERY CLASSIFICATION & SMART ROUTING
+    // ========================================
+    // Classify query to determine routing strategy
+    const classification = await queryClassifier.classify(query, userId);
+    console.log(`🎯 Query classified as: ${classification.type} (confidence: ${classification.confidence})`);
+
+    // Handle SIMPLE_GREETING - instant template response
+    if (classification.type === QueryType.SIMPLE_GREETING) {
+      const templateResponse = templateResponseService.generateResponse(classification.type, query);
+
+      if (templateResponse) {
+        console.log(`⚡ Template response generated in ${templateResponse.responseTimeMs}ms`);
+
+        // Save user and assistant messages
+        const userMessage = await prisma.message.create({
+          data: { conversationId, role: 'user', content: query }
+        });
+
+        const assistantMessage = await prisma.message.create({
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: templateResponse.content,
+            metadata: JSON.stringify({ templateResponse: true, responseTimeMs: templateResponse.responseTimeMs })
+          }
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() }
+        });
+
+        return res.json({
+          success: true,
+          answer: templateResponse.content,
+          sources: [],
+          expandedQuery: [],
+          contextId: 'template-response',
+          actions: [],
+          userMessage,
+          assistantMessage
+        });
+      }
+    }
+
+    // Handle SIMPLE_CONVERSATION - instant template response
+    if (classification.type === QueryType.SIMPLE_CONVERSATION) {
+      const templateResponse = templateResponseService.generateResponse(classification.type, query);
+
+      if (templateResponse) {
+        console.log(`⚡ Template response generated in ${templateResponse.responseTimeMs}ms`);
+
+        const userMessage = await prisma.message.create({
+          data: { conversationId, role: 'user', content: query }
+        });
+
+        const assistantMessage = await prisma.message.create({
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: templateResponse.content,
+            metadata: JSON.stringify({ templateResponse: true, responseTimeMs: templateResponse.responseTimeMs })
+          }
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() }
+        });
+
+        return res.json({
+          success: true,
+          answer: templateResponse.content,
+          sources: [],
+          expandedQuery: [],
+          contextId: 'template-response',
+          actions: [],
+          userMessage,
+          assistantMessage
+        });
+      }
+    }
+
+    // Handle SIMPLE_METADATA - fast database query (no RAG/LLM needed)
+    if (classification.type === QueryType.SIMPLE_METADATA) {
+      console.log(`🗄️  Handling metadata query directly`);
+      const metadataResult = await metadataQueryService.handleQuery(query, userId, classification.metadata);
+
+      if (metadataResult.answer) {
+        const userMessage = await prisma.message.create({
+          data: { conversationId, role: 'user', content: query }
+        });
+
+        const assistantMessage = await prisma.message.create({
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: metadataResult.answer,
+            metadata: JSON.stringify({
+              metadataQuery: true,
+              ragSources: metadataResult.sources || [],
+              actions: metadataResult.actions || []
+            })
+          }
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() }
+        });
+
+        return res.json({
+          success: true,
+          answer: metadataResult.answer,
+          sources: metadataResult.sources || [],
+          expandedQuery: [],
+          contextId: 'metadata-query',
+          actions: metadataResult.actions || [],
+          userMessage,
+          assistantMessage
+        });
+      }
+    }
+
+    // ========================================
+    // COMPLEX_RAG - Full RAG pipeline
+    // ========================================
+    console.log(`🔍 Executing full RAG pipeline for complex query`);
+
+    // Get conversation history (last 5 messages) for context
+    const conversationHistory = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        role: true,
+        content: true,
+        metadata: true,
+        createdAt: true
+      }
+    });
+
+    // Reverse to get chronological order
+    conversationHistory.reverse();
 
     // Save user message to database
     const userMessage = await prisma.message.create({
@@ -32,15 +288,18 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         conversationId,
         role: 'user',
         content: query,
+        metadata: attachedFile ? JSON.stringify({ attachedFile }) : null,
       },
     });
 
-    // Generate RAG answer
+    // Generate RAG answer with conversation history
     const result = await ragService.generateAnswer(
       userId,
       query,
       conversationId,
-      researchMode
+      researchMode,
+      conversationHistory,
+      documentId
     );
 
     // Save assistant message to database with RAG metadata
@@ -53,7 +312,8 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           ragSources: result.sources,
           expandedQuery: result.expandedQuery,
           contextId: result.contextId,
-          researchMode
+          researchMode,
+          actions: result.actions || []
         }),
       },
     });
@@ -64,12 +324,68 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       data: { updatedAt: new Date() },
     });
 
+    // Auto-generate conversation name after first message (non-blocking)
+    const messageCount = await prisma.message.count({
+      where: { conversationId }
+    });
+
+    console.log(`🔍 [AUTO-NAMING] Checking conditions - conversationId: ${conversationId}, messageCount: ${messageCount}`);
+
+    if (messageCount === 2) { // 2 messages = first user message + first assistant message
+      console.log(`✅ [AUTO-NAMING] Message count is 2, proceeding with name generation`);
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { title: true }
+      });
+      console.log(`🔍 [AUTO-NAMING] Current title: "${conversation?.title}"`);
+
+      const shouldGenerate = shouldGenerateName(1, conversation?.title || '');
+      console.log(`🔍 [AUTO-NAMING] shouldGenerateName result: ${shouldGenerate}`);
+
+      if (conversation && shouldGenerate) {
+        console.log(`🚀 [AUTO-NAMING] Starting name generation for query: "${query}"`);
+        // Generate name asynchronously without blocking the response
+        generateConversationName(query)
+          .then(async (generatedTitle) => {
+            console.log(`✅ [AUTO-NAMING] Generated title: "${generatedTitle}"`);
+            // Update the conversation title
+            await prisma.conversation.update({
+              where: { id: conversationId },
+              data: { title: generatedTitle }
+            });
+
+            // Emit WebSocket event for real-time update (if WebSocket is initialized)
+            try {
+              const io = getIO();
+              io.to(`user:${userId}`).emit('conversation:updated', {
+                conversationId,
+                title: generatedTitle,
+                updatedAt: new Date()
+              });
+              console.log(`📡 [AUTO-NAMING] WebSocket event emitted to user:${userId}`);
+            } catch (wsError) {
+              console.warn('⚠️  [AUTO-NAMING] WebSocket not available, skipping real-time update:', wsError);
+            }
+
+            console.log(`🎉 [AUTO-NAMING] Successfully updated conversation name: "${generatedTitle}" for conversation ${conversationId}`);
+          })
+          .catch((error) => {
+            console.error('❌ [AUTO-NAMING] Failed to generate conversation name:', error);
+          });
+      } else {
+        console.log(`⏭️  [AUTO-NAMING] Skipping - conversation: ${!!conversation}, shouldGenerate: ${shouldGenerate}`);
+      }
+    } else {
+      console.log(`⏭️  [AUTO-NAMING] Skipping - messageCount is ${messageCount}, not 2`);
+    }
+
     res.json({
       success: true,
       answer: result.answer,
       sources: result.sources,
       expandedQuery: result.expandedQuery,
       contextId: result.contextId,
+      actions: result.actions || [],
       userMessage,
       assistantMessage
     });
@@ -130,7 +446,8 @@ export const answerFollowUp = async (req: Request, res: Response): Promise<void>
       answer: result.answer,
       sources: result.sources,
       expandedQuery: result.expandedQuery,
-      contextId: result.contextId
+      contextId: result.contextId,
+      actions: result.actions || []
     });
   } catch (error: any) {
     console.error('Error in RAG follow-up:', error);

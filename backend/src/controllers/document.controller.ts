@@ -4,6 +4,8 @@ import { sendDocumentShareEmail } from '../services/email.service';
 import { config } from '../config/env';
 import { getSignedUploadUrl } from '../config/storage';
 import crypto from 'crypto';
+import { emitDocumentEvent } from '../services/websocket.service';
+import multiLayerCache from '../services/multiLayerCache.service';
 
 /**
  * Generate signed upload URL for direct-to-GCS upload
@@ -15,21 +17,29 @@ export const getUploadUrl = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const { filename, mimeType, fileHash } = req.body;
+    const { fileName, fileType, folderId } = req.body;
 
-    if (!filename || !mimeType || !fileHash) {
-      res.status(400).json({ error: 'filename, mimeType, and fileHash are required' });
+    if (!fileName || !fileType) {
+      res.status(400).json({ error: 'fileName and fileType are required' });
       return;
     }
 
+    // Generate unique document ID upfront
+    const documentId = crypto.randomUUID();
+
     // Generate unique encrypted filename for GCS
-    const encryptedFilename = `${req.user.id}/${crypto.randomUUID()}-${Date.now()}`;
+    const encryptedFilename = `${req.user.id}/${documentId}-${Date.now()}`;
+
+    // Generate GCS URL (public bucket path)
+    const gcsUrl = `https://storage.googleapis.com/${config.GCS_BUCKET_NAME}/${encryptedFilename}`;
 
     // Generate signed upload URL (valid for 10 minutes)
-    const uploadUrl = await getSignedUploadUrl(encryptedFilename, mimeType, 600);
+    const uploadUrl = await getSignedUploadUrl(encryptedFilename, fileType, 600);
 
     res.status(200).json({
       uploadUrl,
+      gcsUrl,
+      documentId,
       encryptedFilename,
       expiresIn: 600, // seconds
     });
@@ -76,6 +86,12 @@ export const confirmUpload = async (req: Request, res: Response): Promise<void> 
       folderId: folderId || undefined,
       thumbnailData: thumbnailData || undefined,
     });
+
+    // Emit real-time event for document creation
+    emitDocumentEvent(req.user.id, 'created', document.id);
+
+    // Invalidate RAG cache (document added, search results may change)
+    await multiLayerCache.invalidateUserCache(req.user.id);
 
     res.status(201).json({
       message: 'Document uploaded successfully',
@@ -133,6 +149,9 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       relativePath: relativePath || undefined,
     });
 
+    // Emit real-time event for document creation
+    emitDocumentEvent(req.user.id, 'created', document.id);
+
     res.status(201).json({
       message: 'Document uploaded successfully',
       document,
@@ -188,6 +207,11 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
 
     const documents = await Promise.all(uploadPromises);
 
+    // Emit real-time events for all created documents
+    documents.forEach(doc => {
+      emitDocumentEvent(req.user!.id, 'created', doc.id);
+    });
+
     res.status(201).json({
       message: `${documents.length} documents uploaded successfully`,
       documents,
@@ -241,13 +265,31 @@ export const streamDocument = async (req: Request, res: Response): Promise<void>
       throw new Error('Failed to fetch document from storage');
     }
 
-    // Set appropriate headers
+    // Get content length for proper streaming
+    const contentLength = response.headers.get('content-length');
+
+    // Set appropriate headers for PDF viewing (especially for Safari/Mac)
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+    res.setHeader('Accept-Ranges', 'bytes'); // Important for Safari PDF viewing
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'); // Allow cross-origin access
 
-    // Stream the response
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+
+    // For PDFs, ensure proper streaming without corruption
+    // Safari is particularly sensitive to how PDFs are streamed
     const buffer = await response.arrayBuffer();
-    res.send(Buffer.from(buffer));
+    const nodeBuffer = Buffer.from(buffer);
+
+    // Use res.end with binary encoding for PDFs to prevent corruption
+    if (mimeType === 'application/pdf') {
+      res.end(nodeBuffer, 'binary');
+    } else {
+      res.send(nodeBuffer);
+    }
   } catch (error) {
     const err = error as Error;
     res.status(400).json({ error: err.message });
@@ -294,6 +336,13 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
     const { folderId, filename } = req.body;
 
     const document = await documentService.updateDocument(id, req.user.id, { folderId, filename });
+
+    // Emit real-time event for document update (moved or renamed)
+    if (folderId !== undefined) {
+      emitDocumentEvent(req.user.id, 'moved', id);
+    } else {
+      emitDocumentEvent(req.user.id, 'updated', id);
+    }
 
     res.status(200).json({
       message: 'Document updated successfully',
@@ -375,6 +424,12 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
     const { id } = req.params;
 
     await documentService.deleteDocument(id, req.user.id);
+
+    // Emit real-time event for document deletion
+    emitDocumentEvent(req.user.id, 'deleted', id);
+
+    // Invalidate RAG cache (document removed, search results may change)
+    await multiLayerCache.invalidateUserCache(req.user.id);
 
     res.status(200).json({ message: 'Document deleted successfully' });
   } catch (error) {

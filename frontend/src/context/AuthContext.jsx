@@ -8,15 +8,55 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Initialize auth state from localStorage
+  // Initialize auth state from localStorage or try session restore
   useEffect(() => {
-    const initAuth = () => {
+    const initAuth = async () => {
       const storedUser = authService.getCurrentUser();
       const authenticated = authService.isAuthenticated();
 
       if (storedUser && authenticated) {
         setUser(storedUser);
         setIsAuthenticated(true);
+        setLoading(false);
+        return;
+      }
+
+      // If localStorage is empty but we have a refreshToken, try to restore
+      // This handles the case where accessToken/user was cleared but refreshToken remains
+      try {
+        const refreshToken = localStorage.getItem('refreshToken');
+
+        if (refreshToken) {
+          console.log('🔄 Attempting session restore with refresh token...');
+
+          const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/refresh`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ refreshToken }),
+            credentials: 'include',
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+
+            // Restore full session
+            localStorage.setItem('accessToken', data.accessToken);
+            localStorage.setItem('refreshToken', data.refreshToken);
+            localStorage.setItem('user', JSON.stringify(data.user));
+
+            setUser(data.user);
+            setIsAuthenticated(true);
+            console.log('✅ Session restored successfully');
+          } else {
+            // Refresh failed, clear invalid token
+            localStorage.removeItem('refreshToken');
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Session restore failed:', error);
+        localStorage.removeItem('refreshToken');
       }
 
       setLoading(false);

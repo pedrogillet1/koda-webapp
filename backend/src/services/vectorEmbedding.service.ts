@@ -182,7 +182,7 @@ class VectorEmbeddingService {
       // Step 3: Store in Pinecone only
       console.log(`💾 [Store Embeddings] Saving to Pinecone...`);
 
-      // Get document metadata for Pinecone (to eliminate PostgreSQL query later!)
+      // Get document metadata for Pinecone
       const document = await prisma.document.findUnique({
         where: { id: documentId },
         select: {
@@ -202,7 +202,7 @@ class VectorEmbeddingService {
         throw new Error('Pinecone is not available - cannot store embeddings');
       }
 
-      // ⚡ Store with FULL metadata (eliminates 15s PostgreSQL query later!)
+      // Store embeddings in Pinecone
       await pineconeService.upsertDocumentEmbeddings(
         documentId,
         document.userId,

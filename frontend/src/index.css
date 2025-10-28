@@ -147,6 +147,12 @@ code {
   margin-bottom: 0;
 }
 
+.markdown-content span {
+  display: inline;
+  margin: 0;
+  white-space: normal;
+}
+
 .markdown-content strong {
   font-weight: 700;
   color: #181818;

@@ -16,6 +16,7 @@ export interface RetrievalResult {
   source: 'bm25' | 'vector' | 'title';
   metadata?: any;
   pageNumber?: number;
+  chunkIndex?: number;
 }
 
 export interface RetrievalResults {
@@ -27,19 +28,25 @@ export interface RetrievalResults {
 class MultiStrategyRetrievalService {
   /**
    * Retrieves documents using multiple strategies in parallel
+   * @param documentId Optional document ID to scope the search to a specific document
    */
   async retrieve(
     query: string,
     userId: string,
-    topK: number = 20
+    topK: number = 20,
+    documentId?: string
   ): Promise<RetrievalResults> {
-    console.log(`🔍 Multi-strategy retrieval for: "${query}"`);
+    if (documentId) {
+      console.log(`🔍 Document-scoped multi-strategy retrieval for: "${query}" (doc: ${documentId.substring(0, 8)}...)`);
+    } else {
+      console.log(`🔍 Multi-strategy retrieval for: "${query}"`);
+    }
 
     // Run all strategies in parallel for speed
     const [bm25Results, vectorResults, titleResults] = await Promise.all([
-      this.bm25Search(query, userId, topK),
-      this.vectorSearch(query, userId, topK),
-      this.titleSearch(query, userId, topK)
+      this.bm25Search(query, userId, topK, documentId),
+      this.vectorSearch(query, userId, topK, documentId),
+      this.titleSearch(query, userId, topK, documentId)
     ]);
 
     console.log(`  BM25: ${bm25Results.length} results`);
@@ -60,7 +67,8 @@ class MultiStrategyRetrievalService {
   private async bm25Search(
     query: string,
     userId: string,
-    topK: number
+    topK: number,
+    documentId?: string
   ): Promise<RetrievalResult[]> {
     try {
       const queryLower = query.toLowerCase();
@@ -70,9 +78,14 @@ class MultiStrategyRetrievalService {
         return [];
       }
 
-      // Get all documents for the user
+      // Get documents for the user (optionally filtered by documentId)
+      const whereClause: any = { userId };
+      if (documentId) {
+        whereClause.id = documentId;
+      }
+
       const documents = await prisma.document.findMany({
-        where: { userId },
+        where: whereClause,
         include: { metadata: true }
       });
 
@@ -213,7 +226,8 @@ class MultiStrategyRetrievalService {
   private async vectorSearch(
     query: string,
     userId: string,
-    topK: number
+    topK: number,
+    documentId?: string
   ): Promise<RetrievalResult[]> {
     try {
       const queryEmbedding = await vectorEmbeddingService.generateEmbedding(query);
@@ -222,7 +236,8 @@ class MultiStrategyRetrievalService {
         queryEmbedding,
         userId,
         topK,
-        0.3 // Lower threshold to get more candidates
+        0.3, // Lower threshold to get more candidates
+        documentId // Pass document filter to Pinecone
       );
 
       const mapped = results.map((r: any) => ({
@@ -235,11 +250,47 @@ class MultiStrategyRetrievalService {
         pageNumber: r.metadata?.pageNumber || 1
       }));
 
-      if (mapped.length > 0) {
-        console.log(`   🧠 Vector top result: ${mapped[0].filename} (score: ${mapped[0].score.toFixed(3)})`);
+      // ✅ FILTER OUT GHOST DOCUMENTS
+      // Get unique document IDs from vector results
+      const documentIds = [...new Set(mapped.map(r => r.documentId).filter(id => id))];
+
+      if (documentIds.length === 0) {
+        return [];
       }
 
-      return mapped;
+      // ✅ Validate that these documents still exist in the database
+      const existingDocs = await prisma.document.findMany({
+        where: {
+          id: { in: documentIds },
+          userId // Double-check ownership
+        },
+        select: { id: true, filename: true }
+      });
+
+      const existingDocIds = new Set(existingDocs.map(d => d.id));
+
+      // ✅ Filter out results for deleted documents
+      const filtered = mapped.filter(r => {
+        if (!r.documentId) {
+          console.log(`   ⚠️  Skipping result with no documentId`);
+          return false;
+        }
+        if (!existingDocIds.has(r.documentId)) {
+          console.log(`   🗑️  Filtered out ghost document: ${r.filename} (ID: ${r.documentId.substring(0, 8)}...)`);
+          return false;
+        }
+        return true;
+      });
+
+      if (filtered.length > 0) {
+        console.log(`   🧠 Vector top result: ${filtered[0].filename} (score: ${filtered[0].score.toFixed(3)})`);
+      }
+
+      if (filtered.length < mapped.length) {
+        console.log(`   🧹 Cleaned ${mapped.length - filtered.length} ghost documents from vector results`);
+      }
+
+      return filtered;
     } catch (error) {
       console.error('❌ Error in vector search:', error);
       return [];
@@ -252,14 +303,20 @@ class MultiStrategyRetrievalService {
   private async titleSearch(
     query: string,
     userId: string,
-    topK: number
+    topK: number,
+    documentId?: string
   ): Promise<RetrievalResult[]> {
     try {
       const queryLower = query.toLowerCase().trim();
 
-      // Get all documents
+      // Get documents (optionally filtered by documentId)
+      const whereClause: any = { userId };
+      if (documentId) {
+        whereClause.id = documentId;
+      }
+
       const documents = await prisma.document.findMany({
-        where: { userId },
+        where: whereClause,
         include: { metadata: true }
       });
 
@@ -349,3 +406,4 @@ class MultiStrategyRetrievalService {
 
 export default new MultiStrategyRetrievalService();
 export { MultiStrategyRetrievalService };
+// trigger reload

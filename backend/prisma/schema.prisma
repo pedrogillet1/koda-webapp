@@ -106,8 +106,11 @@ model Folder {
   id             String   @id @default(uuid())
   userId         String
   name           String
+  description    String? // Optional description for the folder
   emoji          String? // Emoji icon for the folder
+  color          String? // Color for UI representation
   parentFolderId String? // Null for root folders
+  path           String? // Full path for display (e.g., "/Work/Projects/Q1")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -119,7 +122,44 @@ model Folder {
 
   @@index([userId])
   @@index([parentFolderId])
+  @@index([path])
   @@map("folders")
+}
+
+// Category model for document classification (tags/labels)
+model Category {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String // e.g., "Financial", "Legal", "Personal", "Work"
+  description String? // Optional description
+  color       String? // Hex color for UI
+  icon        String? // Icon identifier or emoji
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  documents DocumentCategory[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("categories")
+}
+
+// Junction table for Document-Category many-to-many relationship
+model DocumentCategory {
+  id         String   @id @default(uuid())
+  documentId String
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, categoryId])
+  @@index([documentId])
+  @@index([categoryId])
+  @@map("document_categories")
 }
 
 // Document model
@@ -153,6 +193,7 @@ model Document {
   versions          Document[]            @relation("DocumentVersions")
   metadata          DocumentMetadata?
   tags              DocumentTag[]
+  categories        DocumentCategory[]
   summaries         DocumentSummary[]
   embeddings        DocumentEmbedding[]
   generatedDocument GeneratedDocument?
@@ -273,12 +314,19 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Context tracking for folder/category-scoped conversations
+  contextType   String?  // "folder" | "category" | "document" | null
+  contextId     String?  // ID of the folder/category/document
+  contextName   String?  // Display name for user reference
+  contextMeta   Json?    // Additional metadata
+
   // Relations
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages    Message[]
   chatContexts ChatContext[]
 
   @@index([userId])
+  @@index([contextType, contextId])
   @@map("conversations")
 }
 

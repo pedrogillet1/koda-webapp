@@ -65,6 +65,14 @@ class PineconeService {
       mimeType: string;
       createdAt: Date;
       status: string;
+      // Enhanced metadata for Issue #1
+      originalName?: string;
+      categoryId?: string;
+      categoryName?: string;
+      categoryEmoji?: string;
+      folderId?: string;
+      folderName?: string;
+      folderPath?: string;
     },
     chunks: Array<{
       chunkIndex: number;
@@ -92,9 +100,18 @@ class PineconeService {
           // ⚡ Document identification and metadata
           documentId,
           filename: documentMetadata.filename,
+          originalName: documentMetadata.originalName,
           mimeType: documentMetadata.mimeType,
           status: documentMetadata.status,
           createdAt: documentMetadata.createdAt.toISOString(),
+
+          // ⚡ Hierarchy metadata (Issue #1 enhancement)
+          categoryId: documentMetadata.categoryId,
+          categoryName: documentMetadata.categoryName,
+          categoryEmoji: documentMetadata.categoryEmoji,
+          folderId: documentMetadata.folderId,
+          folderName: documentMetadata.folderName,
+          folderPath: documentMetadata.folderPath,
 
           // ⚡ Chunk data
           chunkIndex: chunk.chunkIndex,
@@ -135,7 +152,8 @@ class PineconeService {
     userId: string,
     topK: number = 5,
     minSimilarity: number = 0.5,
-    attachedDocumentId?: string
+    attachedDocumentId?: string,
+    folderId?: string
   ): Promise<Array<{
     documentId: string;
     chunkIndex: number;
@@ -162,7 +180,7 @@ class PineconeService {
 
       const index = this.pinecone!.index(this.indexName);
 
-      // Build filter - always filter by userId, optionally by documentId
+      // Build filter - always filter by userId, optionally by documentId/folderId
       const filter: any = {
         userId: { $eq: userId } // ⚡ Filter by userId in Pinecone for speed
       };
@@ -173,6 +191,16 @@ class PineconeService {
         filter.$and = [
           { userId: { $eq: userId } },
           { documentId: { $eq: attachedDocumentId } }
+        ];
+        // Remove the top-level userId filter since it's in $and
+        delete filter.userId;
+      }
+      // ⚡ Add folder filter if folderId is provided (for folder-scoped queries)
+      else if (folderId) {
+        console.log(`📁 [Pinecone] Filtering by folder: ${folderId}`);
+        filter.$and = [
+          { userId: { $eq: userId } },
+          { folderId: { $eq: folderId } }
         ];
         // Remove the top-level userId filter since it's in $and
         delete filter.userId;

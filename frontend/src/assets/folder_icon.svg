@@ -42,3 +42,4 @@
   <!-- Pocket front gradient overlay to mimic the darker lower half -->
   <rect x="40" y="248" width="432" height="192" rx="32" ry="32" fill="url(#folderGrad)"/>
 </svg>
+

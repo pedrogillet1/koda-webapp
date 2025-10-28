@@ -33,9 +33,9 @@ import {
   logBrowserInfo
 } from '../utils/browserUtils';
 
-// Set up the worker for pdf.js - using self-hosted worker for reliability and offline support
-// This eliminates CDN dependency and works in offline mode
-pdfjs.GlobalWorkerOptions.workerSrc = `${window.location.origin}/pdf.worker.min.js`;
+// Set up the worker for pdf.js - react-pdf comes with its own pdfjs version
+// Use jsdelivr CDN as fallback with the bundled version
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 // Log browser information for debugging (only in development)
 if (process.env.NODE_ENV === 'development') {
@@ -217,6 +217,9 @@ const DocumentViewer = () => {
   const pdfOptions = useMemo(() => ({
     cMapUrl: 'https://unpkg.com/pdfjs-dist@' + pdfjs.version + '/cmaps/',
     cMapPacked: true,
+    // Add better error handling for PDF loading
+    withCredentials: false,
+    isEvalSupported: false,
   }), []);
 
   const formatFileSize = (bytes) => {
@@ -311,23 +314,57 @@ const DocumentViewer = () => {
           const isDocx = foundDocument.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
           if (isDocx) {
-            // Get PDF preview for DOCX
+            // Get PDF preview for DOCX with timeout
             console.log('🔍 Requesting DOCX preview for document:', documentId);
-            const previewResponse = await api.get(`/api/documents/${documentId}/preview`);
-            const { previewUrl, previewType } = previewResponse.data;
-            console.log('✅ Preview response received:', { previewUrl: previewUrl.substring(0, 100), previewType });
-            setDocumentUrl(previewUrl);
-            setIsDocxConvertedToPdf(true); // Mark that this DOCX should be treated as PDF for rendering
-            console.log('✅ DOCX marked as converted to PDF for rendering');
+
+            try {
+              // Short timeout since PDF should be pre-generated during upload
+              const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('DOCX preview timeout')), 10000)
+              );
+
+              const previewResponse = await Promise.race([
+                api.get(`/api/documents/${documentId}/preview`),
+                timeoutPromise
+              ]);
+
+              const { previewUrl, previewType } = previewResponse.data;
+              console.log('✅ Preview response received:', { previewUrl: previewUrl.substring(0, 100), previewType });
+              setDocumentUrl(previewUrl);
+              setIsDocxConvertedToPdf(true); // Mark that this DOCX should be treated as PDF for rendering
+              console.log('✅ DOCX marked as converted to PDF for rendering');
+            } catch (error) {
+              console.error('❌ DOCX preview failed:', error);
+              // Fall back to showing error message
+              setLoading(false);
+              alert('Failed to load DOCX preview. The document is still being processed. Please refresh the page in a few moments.');
+              return;
+            }
           } else {
             setIsDocxConvertedToPdf(false);
-            // Use existing stream endpoint for other files
-            const fileResponse = await api.get(`/api/documents/${documentId}/stream`, {
-              responseType: 'blob'
-            });
-            const blob = new Blob([fileResponse.data], { type: foundDocument.mimeType });
-            const url = URL.createObjectURL(blob);
-            setDocumentUrl(url);
+
+            // Mac (both Safari and Chrome) has issues with blob URLs for PDFs
+            const isPdf = foundDocument.mimeType === 'application/pdf';
+            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            const useMacPdfWorkaround = isMac && isPdf;
+
+            if (useMacPdfWorkaround) {
+              // For Mac PDFs, use the direct stream URL with authentication
+              // This bypasses blob URL issues that affect both Safari and Chrome on Mac
+              const accessToken = localStorage.getItem('accessToken');
+              const streamUrl = `${api.defaults.baseURL}/api/documents/${documentId}/stream?token=${accessToken}`;
+              console.log('🍎 Using Mac PDF workaround with direct stream URL (platform:', navigator.platform, ')');
+              setDocumentUrl(streamUrl);
+            } else {
+              // Use blob URL for Windows/Linux or non-PDF files
+              const fileResponse = await api.get(`/api/documents/${documentId}/stream`, {
+                responseType: 'blob'
+              });
+              const blob = new Blob([fileResponse.data], { type: foundDocument.mimeType });
+              const url = URL.createObjectURL(blob);
+              console.log('📄 Using blob URL for document (platform:', navigator.platform, ')');
+              setDocumentUrl(url);
+            }
           }
         }
         setLoading(false);
@@ -649,7 +686,102 @@ const DocumentViewer = () => {
               }
 
               switch (fileType) {
-                case 'word': // DOCX - show markdown editor
+                case 'word': // DOCX
+                  // If DOCX was converted to PDF for preview, render as PDF
+                  if (isDocxConvertedToPdf) {
+                    return (
+                      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+                        <Document
+                          file={fileConfig}
+                          onLoadSuccess={onDocumentLoadSuccess}
+                          onLoadError={(error) => {
+                            console.error('❌ PDF Load Error (DOCX preview):', error);
+                            console.error('PDF URL:', documentUrl);
+                            console.error('Document:', document);
+                          }}
+                          options={pdfOptions}
+                          loading={
+                            <div style={{
+                              padding: 40,
+                              background: 'white',
+                              borderRadius: 12,
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                              color: '#6C6B6E',
+                              fontSize: 16,
+                              fontFamily: 'Plus Jakarta Sans'
+                            }}>
+                              Loading DOCX preview...
+                            </div>
+                          }
+                          error={
+                            <div style={{
+                              padding: 40,
+                              background: 'white',
+                              borderRadius: 12,
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                              textAlign: 'center'
+                            }}>
+                              <div style={{ fontSize: 64, marginBottom: 20 }}>📄</div>
+                              <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
+                                Failed to load DOCX preview
+                              </div>
+                              <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
+                                {document.filename}
+                              </div>
+                              <button
+                                onClick={() => safariDownloadFile(documentUrl, document.filename)}
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '12px 24px',
+                                  background: '#181818',
+                                  color: 'white',
+                                  borderRadius: 14,
+                                  textDecoration: 'none',
+                                  fontSize: 14,
+                                  fontWeight: '600',
+                                  fontFamily: 'Plus Jakarta Sans',
+                                  border: 'none',
+                                  cursor: 'pointer'
+                                }}>
+                                {isSafari() || isIOS() ? 'Open Document' : 'Download Document'}
+                              </button>
+                            </div>
+                          }
+                        >
+                          {Array.from(new Array(numPages), (el, index) => (
+                            <Page
+                              key={`page_${index + 1}`}
+                              pageNumber={index + 1}
+                              width={900 * (zoom / 100)}
+                              scale={getOptimalPDFScale()}
+                              renderTextLayer={true}
+                              renderAnnotationLayer={true}
+                              loading={
+                                <div style={{
+                                  width: 900 * (zoom / 100),
+                                  height: 1200 * (zoom / 100),
+                                  background: 'white',
+                                  borderRadius: 8,
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#6C6B6E',
+                                  fontFamily: 'Plus Jakarta Sans'
+                                }}>
+                                  Loading page {index + 1}...
+                                </div>
+                              }
+                              onLoadSuccess={() => setCurrentPage(index + 1)}
+                            />
+                          ))}
+                        </Document>
+                      </div>
+                    );
+                  }
+                  // Otherwise show markdown editor
+                  return <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />;
+
                 case 'excel': // XLSX - show markdown editor
                   return <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />;
 
@@ -662,6 +794,11 @@ const DocumentViewer = () => {
                       <Document
                         file={fileConfig}
                         onLoadSuccess={onDocumentLoadSuccess}
+                        onLoadError={(error) => {
+                          console.error('❌ PDF Load Error:', error);
+                          console.error('PDF URL:', documentUrl);
+                          console.error('Document:', document);
+                        }}
                         options={pdfOptions}
                         loading={
                           <div style={{
@@ -821,13 +958,24 @@ const DocumentViewer = () => {
                       <video
                         src={documentUrl}
                         controls
+                        preload="metadata"
+                        playsInline
                         style={{
                           width: '100%',
                           borderRadius: 8,
                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                           background: 'black'
                         }}
+                        onError={(e) => {
+                          console.error('Video loading error:', e);
+                          console.error('Video source:', documentUrl);
+                          console.error('Document MIME type:', document.mimeType);
+                        }}
+                        onLoadedMetadata={(e) => {
+                          console.log('Video metadata loaded:', e.target.duration);
+                        }}
                       >
+                        <source src={documentUrl} type={document.mimeType || 'video/mp4'} />
                         Your browser does not support video playback.
                       </video>
                     </div>
@@ -999,35 +1147,37 @@ const DocumentViewer = () => {
           <button
             onClick={() => navigate(`/chat?documentId=${documentId}`)}
             style={{
-              padding: 8,
+              height: 56,
+              paddingLeft: 16,
+              paddingRight: 16,
+              paddingTop: 10,
+              paddingBottom: 10,
               bottom: 0,
               right: 0,
               position: 'absolute',
               background: '#171717',
-              borderRadius: 100,
+              borderRadius: 16,
               justifyContent: 'flex-start',
               alignItems: 'center',
-              gap: 10,
               display: 'inline-flex',
               border: 'none',
               cursor: 'pointer',
-              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.4)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.3)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
+              e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
+            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 10, display: 'flex' }}>
               <div style={{
-                width: 50,
-                height: 50,
-                padding: 8,
+                width: 36,
+                height: 36,
+                padding: 6,
                 background: 'white',
                 borderRadius: 100,
                 justifyContent: 'center',
@@ -1043,12 +1193,11 @@ const DocumentViewer = () => {
                     height: '100%',
                     objectFit: 'contain',
                     imageRendering: '-webkit-optimize-contrast',
-                    WebkitFontSmoothing: 'antialiased',
-                    MozOsxFontSmoothing: 'grayscale'
+                    shapeRendering: 'geometricPrecision'
                   }}
                 />
               </div>
-              <div style={{ textAlign: 'center', color: 'white', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '22px', wordWrap: 'break-word' }}>Ask Koda about this document</div>
+              <div style={{ color: 'white', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>Need help finding something?</div>
             </div>
           </button>
           <div style={{ width: 7, height: 7, right: 33, top: 0, position: 'absolute', background: '#171717', borderRadius: 9999 }} />

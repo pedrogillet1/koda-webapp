@@ -247,3 +247,25 @@ export const emitToConversation = (conversationId: string, event: string, data: 
     io.to(`conversation:${conversationId}`).emit(event, data);
   }
 };
+
+/**
+ * Emit document-related events to user for real-time updates
+ */
+export const emitDocumentEvent = (userId: string, eventType: 'created' | 'deleted' | 'moved' | 'updated', documentId?: string) => {
+  if (io) {
+    console.log(`📡 Emitting document-${eventType} event to user ${userId}`);
+    io.to(`user:${userId}`).emit(`document-${eventType}`, { documentId, timestamp: new Date() });
+    io.to(`user:${userId}`).emit('documents-changed', { timestamp: new Date() });
+  }
+};
+
+/**
+ * Emit folder-related events to user for real-time updates
+ */
+export const emitFolderEvent = (userId: string, eventType: 'created' | 'deleted' | 'updated', folderId?: string) => {
+  if (io) {
+    console.log(`📡 Emitting folder-${eventType} event to user ${userId}`);
+    io.to(`user:${userId}`).emit(`folder-${eventType}`, { folderId, timestamp: new Date() });
+    io.to(`user:${userId}`).emit('folders-changed', { timestamp: new Date() });
+  }
+};

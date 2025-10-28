@@ -11,7 +11,7 @@ router.use(authenticateToken);
 
 // Direct upload routes (for signed URL workflow)
 router.post('/upload-url', documentController.getUploadUrl);
-router.post('/confirm-upload', documentController.confirmUpload);
+router.post('/:id/confirm-upload', documentController.confirmUpload);
 
 // Document routes (legacy upload via backend)
 router.post('/upload', uploadLimiter, uploadWithThumbnail, documentController.uploadDocument);

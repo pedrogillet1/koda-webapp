@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { io } from 'socket.io-client';
 import api from '../services/api';
 
 const DocumentsContext = createContext();
@@ -106,6 +107,103 @@ export const DocumentsProvider = ({ children }) => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
+    };
+  }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments]);
+
+  // WebSocket real-time auto-refresh
+  const socketRef = useRef(null);
+
+  useEffect(() => {
+    if (!initialized) return;
+
+    // Get auth token
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+
+    console.log('🔌 Setting up WebSocket connection for real-time updates...');
+
+    // Initialize socket connection
+    const socket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000', {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('✅ WebSocket connected for real-time document updates');
+    });
+
+    socket.on('disconnect', () => {
+      console.log('❌ WebSocket disconnected');
+    });
+
+    // Listen for document processing updates
+    socket.on('document-processing-update', (data) => {
+      console.log('📄 Document processing update received:', data);
+
+      // Auto-refresh documents when processing completes
+      if (data.status === 'completed' || data.status === 'failed') {
+        fetchDocuments();
+        fetchRecentDocuments();
+      }
+    });
+
+    // Listen for general data changes (we'll add these events to backend)
+    socket.on('documents-changed', () => {
+      console.log('📚 Documents changed, refreshing...');
+      fetchDocuments();
+      fetchRecentDocuments();
+    });
+
+    socket.on('folders-changed', () => {
+      console.log('📁 Folders changed, refreshing...');
+      fetchFolders();
+    });
+
+    socket.on('document-created', () => {
+      console.log('➕ Document created, refreshing...');
+      fetchDocuments();
+      fetchRecentDocuments();
+    });
+
+    socket.on('document-deleted', () => {
+      console.log('🗑️ Document deleted, refreshing...');
+      fetchDocuments();
+      fetchRecentDocuments();
+    });
+
+    socket.on('document-moved', () => {
+      console.log('📦 Document moved, refreshing...');
+      fetchDocuments();
+      fetchRecentDocuments();
+    });
+
+    socket.on('folder-created', () => {
+      console.log('➕ Folder created, refreshing...');
+      fetchFolders();
+    });
+
+    socket.on('folder-deleted', () => {
+      console.log('🗑️ Folder deleted, refreshing...');
+      fetchFolders();
+      fetchDocuments();
+    });
+
+    return () => {
+      console.log('🔌 Cleaning up WebSocket connection');
+      socket.off('document-processing-update');
+      socket.off('documents-changed');
+      socket.off('folders-changed');
+      socket.off('document-created');
+      socket.off('document-deleted');
+      socket.off('document-moved');
+      socket.off('folder-created');
+      socket.off('folder-deleted');
+      socket.disconnect();
     };
   }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments]);
 
@@ -351,10 +449,26 @@ export const DocumentsProvider = ({ children }) => {
     }
   }, [folders]);
 
-  // Get document count by folder
+  // Get document count by folder (including subfolders recursively)
   const getDocumentCountByFolder = useCallback((folderId) => {
-    return documents.filter(doc => doc.folderId === folderId).length;
-  }, [documents]);
+    // Helper function to get all subfolder IDs recursively
+    const getAllSubfolderIds = (parentId) => {
+      const subfolderIds = [parentId];
+      const directSubfolders = folders.filter(f => f.parentFolderId === parentId);
+
+      directSubfolders.forEach(subfolder => {
+        subfolderIds.push(...getAllSubfolderIds(subfolder.id));
+      });
+
+      return subfolderIds;
+    };
+
+    // Get all folder IDs (current folder + all subfolders)
+    const allFolderIds = getAllSubfolderIds(folderId);
+
+    // Count documents in all these folders
+    return documents.filter(doc => allFolderIds.includes(doc.folderId)).length;
+  }, [documents, folders]);
 
   // Get file breakdown
   const getFileBreakdown = useCallback(() => {

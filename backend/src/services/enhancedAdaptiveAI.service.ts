@@ -187,7 +187,7 @@ Begin your response now following the exact 4-step format:
 
     // Step 2.5: Rewrite query for better retrieval (PHASE 0)
     const rewrittenQuery = await queryRewriterService.rewriteQuery(query, {
-      conversationHistory: contextManager.getContextSummary().recentTurns || [],
+      conversationHistory: [],
       documents: []
     });
 
@@ -208,7 +208,7 @@ Begin your response now following the exact 4-step format:
         topK: 5,
         enableReranking: true,
         enableMMR: true,
-        lambda: 0.7 // Balance between relevance and diversity
+        mmrLambda: 0.7 // Balance between relevance and diversity
       });
 
       if (retrievalResults.length > 0) {

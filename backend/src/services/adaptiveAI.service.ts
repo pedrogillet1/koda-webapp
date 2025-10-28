@@ -32,7 +32,7 @@ class AdaptiveAIService {
     const startTime = Date.now();
 
     // Step 1: Classify query (instant)
-    const classification = queryClassifier.classify(query);
+    const classification = await queryClassifier.classify(query);
     console.log(`📊 Query Type: ${classification.type} (${classification.responseTime})`);
 
     // Step 2: Get context (if needed)
@@ -246,7 +246,7 @@ Provide a complete, well-structured response that fully addresses the question.`
     const startTime = Date.now();
 
     // Classify query
-    const classification = queryClassifier.classify(query);
+    const classification = await queryClassifier.classify(query);
 
     // Get context if needed
     let context = '';

@@ -6,6 +6,7 @@ import NotificationPanel from './NotificationPanel';
 import CreateCategoryModal from './CreateCategoryModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import RenameModal from './RenameModal';
+import CreateFolderModal from './CreateFolderModal';
 import { ReactComponent as SearchIcon} from '../assets/Search.svg';
 import { ReactComponent as CheckIcon} from '../assets/check.svg';
 import LayeredFolderIcon from './LayeredFolderIcon';
@@ -83,6 +84,7 @@ const UploadHub = () => {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [itemToRename, setItemToRename] = useState(null);
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -228,12 +230,12 @@ const UploadHub = () => {
   const uploadFileDirectToGCS = async (file, fileHash, folderId, thumbnailBase64, onProgress) => {
     // Step 1: Request signed upload URL from backend
     const urlResponse = await api.post('/api/documents/upload-url', {
-      filename: file.name,
-      mimeType: file.type,
+      fileName: file.name,
+      fileType: file.type,
       fileHash
     });
 
-    const { uploadUrl, encryptedFilename } = urlResponse.data;
+    const { uploadUrl, encryptedFilename, documentId } = urlResponse.data;
 
     // Step 2: Upload file directly to GCS (this is where the speed improvement happens!)
     await fetch(uploadUrl, {
@@ -248,7 +250,7 @@ const UploadHub = () => {
     if (onProgress) onProgress(90);
 
     // Step 3: Confirm upload with backend to create document record
-    const confirmResponse = await api.post('/api/documents/confirm-upload', {
+    const confirmResponse = await api.post(`/api/documents/${documentId}/confirm-upload`, {
       encryptedFilename,
       filename: file.name,
       mimeType: file.type,
@@ -283,7 +285,7 @@ const UploadHub = () => {
         path: file.path || file.name, // Preserve folder structure
         folderPath: file.path ? file.path.substring(0, file.path.lastIndexOf('/')) : null
       }));
-      setUploadingFiles(prev => [...prev, ...pendingFiles]);
+      setUploadingFiles(prev => [...pendingFiles, ...prev]);
     },
     accept: {
       // Documents
@@ -383,9 +385,9 @@ const UploadHub = () => {
           // 3. Uploading files in parallel to correct folders
           // DO NOT create root category manually - let the service handle it
           await folderUploadService.uploadFolder(files, (progressData) => {
-            // Update progress in UI
-            setUploadingFiles(prev => prev.map((f, idx) => {
-              if (idx === i) {
+            // Update progress in UI using folderName to identify the correct item
+            setUploadingFiles(prev => prev.map((f) => {
+              if (f.isFolder && f.folderName === item.folderName) {
                 if (progressData.stage === 'uploading') {
                   completedFilesCountRef.current = progressData.uploaded || 0;
                   return {
@@ -407,14 +409,14 @@ const UploadHub = () => {
           }, null); // Pass null - service will create root folder from the folder tree
 
           // Mark folder as completed
-          setUploadingFiles(prev => prev.map((f, idx) =>
-            idx === i ? { ...f, status: 'completed', progress: 100 } : f
+          setUploadingFiles(prev => prev.map((f) =>
+            (f.isFolder && f.folderName === item.folderName) ? { ...f, status: 'completed', progress: 100 } : f
           ));
 
           await new Promise(resolve => setTimeout(resolve, 500));
 
           // Remove folder from upload list
-          setUploadingFiles(prev => prev.filter((f, idx) => idx !== i));
+          setUploadingFiles(prev => prev.filter((f) => !(f.isFolder && f.folderName === item.folderName)));
 
           // Refresh folders and documents to show the newly uploaded data
           console.log('🔄 Refreshing folders and documents...');
@@ -468,8 +470,11 @@ const UploadHub = () => {
               return targetFolderId;
             }
 
-            // Split path into parts
-            const parts = folderPath.split('/').filter(p => p && p.trim());
+            // Split path into parts and filter out invalid folder names
+            const parts = folderPath.split('/').filter(p => {
+              const trimmed = p?.trim();
+              return trimmed && trimmed !== '.' && trimmed !== '..';
+            });
             let currentParentId = targetFolderId;
 
             // Create each folder in the hierarchy
@@ -716,7 +721,7 @@ const UploadHub = () => {
       };
     });
 
-    setUploadingFiles(prev => [...prev, ...folderEntries]);
+    setUploadingFiles(prev => [...folderEntries, ...prev]);
   };
 
   const toggleCategorySelection = (filename, categoryName) => {
@@ -1082,6 +1087,34 @@ const UploadHub = () => {
                               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             >
                               Add to Category
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setItemToRename({ type: 'folder', id: item.id, name: item.name });
+                                setShowRenameModal(true);
+                                setOpenDropdownId(null);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '8px 14px',
+                                background: 'transparent',
+                                border: 'none',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                fontSize: 14,
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontWeight: '500',
+                                color: '#32302C',
+                                transition: 'background 0.2s ease',
+                                textAlign: 'left'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            >
+                              Rename Folder
                             </button>
                             <button
                               onClick={(e) => {
@@ -1969,25 +2002,27 @@ const UploadHub = () => {
           top: 20,
           left: '50%',
           transform: 'translateX(-50%)',
-          zIndex: 10000,
+          width: 'calc(100% - 700px)',
+          maxWidth: '960px',
+          minWidth: '400px',
+          zIndex: 99999,
           animation: 'slideDown 0.3s ease-out'
         }}>
           <div style={{
-            padding: '10px 16px',
+            width: '100%',
+            padding: '6px 16px',
             background: '#181818',
             borderRadius: 14,
-            display: 'inline-flex',
+            justifyContent: 'center',
             alignItems: 'center',
-            gap: 12,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-            minWidth: '300px',
-            maxWidth: '500px'
+            gap: 10,
+            display: 'inline-flex'
           }}>
             {notificationType === 'success' ? (
               <>
                 <div style={{
-                  width: 36,
-                  height: 36,
+                  width: 24,
+                  height: 24,
                   borderRadius: '50%',
                   background: '#34A853',
                   display: 'flex',
@@ -1995,36 +2030,38 @@ const UploadHub = () => {
                   justifyContent: 'center',
                   flexShrink: 0
                 }}>
-                  <CheckIcon style={{width: 14, height: 14}} />
+                  <CheckIcon style={{width: 12, height: 12}} />
                 </div>
                 <div style={{
+                  flex: '1 1 0',
                   color: 'white',
-                  fontSize: 14,
+                  fontSize: 13,
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '400',
-                  lineHeight: '20px'
+                  lineHeight: '18px',
+                  wordWrap: 'break-word'
                 }}>
                   {uploadedCount} document{uploadedCount > 1 ? 's have' : ' has'} been successfully uploaded.
                 </div>
               </>
             ) : (
               <>
-                <div style={{width: 36, height: 36, position: 'relative', flexShrink: 0}}>
-                  <div style={{width: 30.86, height: 30.86, left: 2.57, top: 2.57, position: 'absolute', background: 'rgba(217, 45, 32, 0.60)', borderRadius: 9999}} />
-                  <div style={{width: 36, height: 36, left: 0, top: 0, position: 'absolute', background: 'rgba(217, 45, 32, 0.60)', borderRadius: 9999}} />
-                  <div style={{width: 25.71, height: 25.71, left: 5.14, top: 5.14, position: 'absolute', background: '#D92D20', overflow: 'hidden', borderRadius: 12.86, outline: '1.61px #D92D20 solid', outlineOffset: '-1.61px'}}>
-                    <div style={{width: 14, height: 14, left: 5.86, top: 5.86, position: 'absolute'}}>
-                      <div style={{width: 11.67, height: 10.79, left: 1.17, top: 1.75, position: 'absolute', borderRadius: 5.83, outline: '1.20px white solid', outlineOffset: '-0.60px'}} />
+                <div style={{width: 24, height: 24, position: 'relative', flexShrink: 0}}>
+                  <div style={{width: 20.57, height: 20.57, left: 1.71, top: 1.71, position: 'absolute', background: 'rgba(217, 45, 32, 0.60)', borderRadius: 9999}} />
+                  <div style={{width: 24, height: 24, left: 0, top: 0, position: 'absolute', background: 'rgba(217, 45, 32, 0.60)', borderRadius: 9999}} />
+                  <div style={{width: 17.14, height: 17.14, left: 3.43, top: 3.43, position: 'absolute', background: '#D92D20', overflow: 'hidden', borderRadius: 8.57, outline: '1.07px #D92D20 solid', outlineOffset: '-1.07px'}}>
+                    <div style={{width: 9.33, height: 9.33, left: 3.91, top: 3.91, position: 'absolute'}}>
+                      <div style={{width: 7.78, height: 7.19, left: 0.78, top: 1.17, position: 'absolute', borderRadius: 3.89, outline: '0.80px white solid', outlineOffset: '-0.40px'}} />
                     </div>
                   </div>
                 </div>
                 <div style={{
                   flex: '1 1 0',
                   color: 'white',
-                  fontSize: 14,
+                  fontSize: 13,
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '400',
-                  lineHeight: 20,
+                  lineHeight: '18px',
                   wordWrap: 'break-word'
                 }}>
                   Hmm… the upload didn't work. Please retry.
@@ -2101,7 +2138,10 @@ const UploadHub = () => {
                 {/* Create New Category Button */}
                 <div style={{display: 'flex', gap: 12}}>
                   <button
-                    onClick={() => setShowNewCategoryModal(true)}
+                    onClick={() => {
+                      setShowCategoryModal(null);  // Close category selection modal first
+                      setShowNewCategoryModal(true);  // Then open create new modal
+                    }}
                     style={{flex: 1, padding: '18px 0', background: 'white', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', border: 'none', cursor: 'pointer'}}
                   >
                     <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6}}>
@@ -2202,28 +2242,58 @@ const UploadHub = () => {
           if (!itemToRename) return;
 
           try {
-            // Update document name via API
-            await api.patch(`/api/documents/${itemToRename.id}`, { filename: newName });
+            if (itemToRename.type === 'folder') {
+              // Update folder name via API
+              await api.patch(`/api/folders/${itemToRename.id}`, { name: newName });
 
-            // Update local state for uploading files
-            setUploadingFiles(prev => prev.map(file =>
-              file.documentId === itemToRename.id ? { ...file, file: { ...file.file, name: newName } } : file
-            ));
+              // Update folders list
+              setFolders(prev => prev.map(folder =>
+                folder.id === itemToRename.id ? { ...folder, name: newName } : folder
+              ));
+            } else {
+              // Update document name via API
+              await api.patch(`/api/documents/${itemToRename.id}`, { filename: newName });
 
-            // Update documents list
-            setDocuments(prev => prev.map(doc =>
-              doc.id === itemToRename.id ? { ...doc, filename: newName } : doc
-            ));
+              // Update local state for uploading files
+              setUploadingFiles(prev => prev.map(file =>
+                file.documentId === itemToRename.id ? { ...file, file: { ...file.file, name: newName } } : file
+              ));
+
+              // Update documents list
+              setDocuments(prev => prev.map(doc =>
+                doc.id === itemToRename.id ? { ...doc, filename: newName } : doc
+              ));
+            }
 
             setShowRenameModal(false);
             setItemToRename(null);
           } catch (error) {
             console.error('Rename error:', error);
-            alert('Failed to rename file');
+            alert(`Failed to rename ${itemToRename.type === 'folder' ? 'folder' : 'file'}`);
           }
         }}
         itemName={itemToRename?.name}
         itemType={itemToRename?.type}
+      />
+
+      {/* Create Folder Modal */}
+      <CreateFolderModal
+        isOpen={showCreateFolderModal}
+        onClose={() => setShowCreateFolderModal(false)}
+        onConfirm={async (folderName) => {
+          try {
+            // Create folder via API
+            const response = await api.post('/api/folders', { name: folderName });
+            const newFolder = response.data.folder;
+
+            // Add to folders list
+            setFolders(prev => [...prev, newFolder]);
+            setShowCreateFolderModal(false);
+          } catch (error) {
+            console.error('Create folder error:', error);
+            alert('Failed to create folder: ' + (error.response?.data?.error || error.message));
+          }
+        }}
       />
 
       {/* Animation Keyframes */}

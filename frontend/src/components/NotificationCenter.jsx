@@ -6,7 +6,9 @@ const NotificationCenter = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 50, bottom: 'auto' });
   const dropdownRef = useRef(null);
+  const buttonRef = useRef(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -105,13 +107,41 @@ const NotificationCenter = () => {
     return date.toLocaleDateString();
   };
 
+  // Calculate dropdown position based on viewport
+  const calculateDropdownPosition = () => {
+    if (!buttonRef.current) return;
+
+    const buttonRect = buttonRef.current.getBoundingClientRect();
+    const dropdownHeight = 500; // maxHeight of dropdown
+    const spaceBelow = window.innerHeight - buttonRect.bottom;
+    const spaceAbove = buttonRect.top;
+
+    // If not enough space below, but enough space above, open upward
+    if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+      setDropdownPosition({
+        bottom: window.innerHeight - buttonRect.top + 10,
+        top: 'auto'
+      });
+    } else {
+      // Default: open downward
+      setDropdownPosition({
+        top: 50,
+        bottom: 'auto'
+      });
+    }
+  };
+
   return (
     <div style={{ position: 'relative' }} ref={dropdownRef}>
       {/* Notification Bell Button */}
       <button
+        ref={buttonRef}
         onClick={() => {
+          if (!isOpen) {
+            calculateDropdownPosition();
+            fetchNotifications();
+          }
           setIsOpen(!isOpen);
-          if (!isOpen) fetchNotifications();
         }}
         style={{
           position: 'relative',
@@ -159,7 +189,8 @@ const NotificationCenter = () => {
         <div
           style={{
             position: 'absolute',
-            top: 50,
+            top: dropdownPosition.top,
+            bottom: dropdownPosition.bottom,
             right: 0,
             width: 380,
             maxHeight: 500,

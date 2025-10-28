@@ -61,7 +61,16 @@ export function detectLanguage(text: string): string {
     if (results && results.length > 0) {
       // Get the most likely language
       let detectedLang = results[0].lang;
-      const confidence = (results[0].prob * 100).toFixed(1);
+      const confidence = results[0].prob;
+
+      // IMPORTANT: Only switch from English if confidence is very high (>= 95%)
+      // This prevents false positives where English queries are detected as other languages
+      if (detectedLang !== 'en' && confidence < 0.95) {
+        console.log(`🌍 Language detection: ${detectedLang} detected but confidence too low (${(confidence * 100).toFixed(1)}%), defaulting to English`);
+        return 'en';
+      }
+
+      const confidencePercent = (confidence * 100).toFixed(1);
 
       // Portuguese/Spanish disambiguation
       // If detected as Spanish, check for Portuguese-specific indicators
@@ -101,7 +110,7 @@ export function detectLanguage(text: string): string {
         }
       }
 
-      console.log(`🌍 Detected query language: ${detectedLang} (${LANGUAGE_NAMES[detectedLang] || 'Unknown'}) with ${confidence}% confidence - AI will respond in this language`);
+      console.log(`🌍 Detected query language: ${detectedLang} (${LANGUAGE_NAMES[detectedLang] || 'Unknown'}) with ${confidencePercent}% confidence - AI will respond in this language`);
       return detectedLang;
     }
 

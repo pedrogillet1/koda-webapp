@@ -5,12 +5,16 @@ import backArrow from '../assets/arrow-narrow-left.svg';
 const ForgotPasswordCode = () => {
     const [code, setCode] = useState(new Array(6).fill(''));
     const [timer, setTimer] = useState(30);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
     const navigate = useNavigate();
     const location = useLocation();
     const inputsRef = useRef([]);
 
     // This would be passed from the previous screen
-    const contactInfo = location.state?.contactInfo || ''; 
+    const contactInfo = location.state?.contactInfo || '';
+    const email = location.state?.email || '';
+    const phoneNumber = location.state?.phoneNumber || ''; 
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -19,10 +23,74 @@ const ForgotPasswordCode = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const handleResendCode = () => {
+    const handleResendCode = async () => {
         if (timer === 0) {
-            setTimer(30);
-            console.log('Resending code...');
+            try {
+                setLoading(true);
+                setError('');
+
+                const response = await fetch('http://localhost:5000/api/auth/forgot-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, phoneNumber }),
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Failed to resend code');
+                }
+
+                setTimer(30);
+            } catch (err) {
+                setError(err.message || 'Failed to resend code');
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    const handleContinue = async () => {
+        if (isContinueDisabled) return;
+
+        try {
+            setLoading(true);
+            setError('');
+
+            const verificationCode = code.join('');
+
+            const response = await fetch('http://localhost:5000/api/auth/verify-reset-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email,
+                    phoneNumber,
+                    code: verificationCode
+                }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Invalid verification code');
+            }
+
+            const data = await response.json();
+
+            // Navigate to SetNewPassword with the verification code
+            navigate('/set-new-password', {
+                state: {
+                    email,
+                    phoneNumber,
+                    code: verificationCode
+                }
+            });
+        } catch (err) {
+            setError(err.message || 'Failed to verify code');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -102,9 +170,17 @@ const ForgotPasswordCode = () => {
                         </div>
                     </div>
 
+                    {error && (
+                        <div style={{alignSelf: 'stretch', padding: '12px 18px', background: '#FEE2E2', borderRadius: 14, border: '1px solid #FCA5A5'}}>
+                            <div style={{color: '#DC2626', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px'}}>{error}</div>
+                        </div>
+                    )}
+
                     <div style={{alignSelf: 'stretch'}}>
-                        <button onClick={() => navigate('/set-new-password')} disabled={isContinueDisabled} style={{width: '100%', height: 52, background: isContinueDisabled ? '#F5F5F5' : '#181818', borderRadius: 14, border: 'none', cursor: isContinueDisabled ? 'not-allowed' : 'pointer'}}>
-                            <div style={{color: isContinueDisabled ? '#6C6B6E' : 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>Continue</div>
+                        <button onClick={handleContinue} disabled={isContinueDisabled || loading} style={{width: '100%', height: 52, background: (isContinueDisabled || loading) ? '#F5F5F5' : '#181818', borderRadius: 14, border: 'none', cursor: (isContinueDisabled || loading) ? 'not-allowed' : 'pointer'}}>
+                            <div style={{color: (isContinueDisabled || loading) ? '#6C6B6E' : 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>
+                                {loading ? 'Verifying...' : 'Continue'}
+                            </div>
                         </button>
                     </div>
                 </div>

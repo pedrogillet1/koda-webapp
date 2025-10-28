@@ -91,14 +91,34 @@ export const convertDocxToPdf = async (
 
     // Step 3: Convert HTML to PDF using Puppeteer
     console.log('Step 2: Converting HTML to PDF with Puppeteer...');
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+
+    // Add timeout to prevent hanging on Mac systems
+    const launchTimeout = 30000; // 30 seconds
+    browser = await Promise.race([
+      puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process' // Helps on Mac
+        ],
+        timeout: launchTimeout
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Puppeteer launch timeout - browser failed to start')), launchTimeout)
+      )
+    ]);
 
     const page = await browser.newPage();
+
+    // Set shorter timeout for content loading to prevent hanging
     await page.setContent(styledHtml, {
-      waitUntil: 'networkidle0'
+      waitUntil: 'networkidle0',
+      timeout: 15000 // 15 second timeout
     });
 
     // Determine output PDF path
