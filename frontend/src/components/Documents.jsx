@@ -1662,19 +1662,6 @@ const Documents = () => {
               <XCloseIcon style={{ width: 10, height: 10, position: 'absolute', left: 0, top: 0 }} />
             </div>
           </button>
-          {/* Speech bubble pointer - positioned at bottom right */}
-          <div
-            style={{
-              width: 0,
-              height: 0,
-              right: 32,
-              bottom: -8,
-              position: 'absolute',
-              borderLeft: '8px solid transparent',
-              borderRight: '8px solid transparent',
-              borderTop: '8px solid #171717'
-            }}
-          />
           <button
             onClick={async () => {
               try {
@@ -1686,7 +1673,6 @@ const Documents = () => {
               }
             }}
             style={{
-              width: 280,
               height: 56,
               paddingLeft: 16,
               paddingRight: 16,
@@ -1753,6 +1739,7 @@ const Documents = () => {
               </div>
             </div>
           </button>
+          <div style={{ width: 7, height: 7, right: 33, top: 0, position: 'absolute', background: '#171717', borderRadius: 9999 }} />
         </div>
       )}
     </div>
