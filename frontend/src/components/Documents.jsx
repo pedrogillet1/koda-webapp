@@ -798,40 +798,6 @@ const Documents = () => {
                 </div>
               )}
             </div>
-                {/* Select Button */}
-                <button
-                  onClick={toggleSelectMode}
-                  style={{
-                    paddingLeft: 18,
-                    paddingRight: 18,
-                    paddingTop: 10,
-                    paddingBottom: 10,
-                    background: '#F5F5F5',
-                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
-                    overflow: 'hidden',
-                    borderRadius: 100,
-                    outline: '1px #E6E6EC solid',
-                    outlineOffset: '-1px',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    gap: 6,
-                    display: 'inline-flex',
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <div style={{
-                    color: '#32302C',
-                    fontSize: 16,
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: '600',
-                    lineHeight: '24px',
-                    wordWrap: 'break-word'
-                  }}>
-                    Select
-                  </div>
-                </button>
 
                 <div onClick={() => setShowUniversalUploadModal(true)} style={{height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'}}>
                   <LogoutBlackIcon style={{width: 24, height: 24}} />
