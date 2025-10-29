@@ -50,8 +50,10 @@ class EmbeddingService {
    */
   async generateEmbedding(
     text: string,
-    options: EmbeddingOptions = {}
+    options: EmbeddingOptions = {},
+    retryCount: number = 0
   ): Promise<EmbeddingResult> {
+    const maxRetries = 3;
     console.time('⚡ Embedding Generation');
 
     try {
@@ -97,8 +99,27 @@ class EmbeddingService {
         model: this.EMBEDDING_MODEL,
       };
     } catch (error: any) {
-      console.error('❌ [Embedding Service] Error:', error);
       console.timeEnd('⚡ Embedding Generation');
+
+      // Handle rate limiting with exponential backoff
+      if (error.message && error.message.includes('429')) {
+        if (retryCount < maxRetries) {
+          const backoffDelay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+          console.warn(`⏳ [Embedding Service] Rate limit hit (429). Retrying in ${backoffDelay}ms (attempt ${retryCount + 1}/${maxRetries})...`);
+          await this.sleep(backoffDelay);
+          return this.generateEmbedding(text, options, retryCount + 1);
+        } else {
+          console.error('❌ [Embedding Service] Max retries reached for rate limiting');
+        }
+      }
+
+      // Handle quota exceeded
+      if (error.message && (error.message.includes('quota') || error.message.includes('RESOURCE_EXHAUSTED'))) {
+        console.error('💰 [Embedding Service] API quota exceeded. Please check your Gemini API usage.');
+        throw new Error('API quota exceeded. Please try again later or upgrade your API plan.');
+      }
+
+      console.error('❌ [Embedding Service] Error:', error);
       throw new Error(`Failed to generate embedding: ${error.message}`);
     }
   }

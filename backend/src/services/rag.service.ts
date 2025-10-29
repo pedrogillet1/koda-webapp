@@ -40,6 +40,7 @@ import intentClassifierService from './intentClassifier.service';
 import locationQueryHandler from './handlers/locationQuery.handler';
 import folderContentsHandler from './handlers/folderContents.handler';
 import hierarchyQueryHandler from './handlers/hierarchyQuery.handler';
+import navigationOrchestrator from './navigationOrchestrator.service';
 import conversationContextService from './conversationContext.service';
 import relevanceScorerService from './relevanceScorer.service';
 import sourceTrackerService from './sourceTracker.service';
@@ -47,6 +48,7 @@ import confidenceCalibrationService from './confidenceCalibration.service';
 import auditTrailService from './auditTrail.service';
 import privacyAwareExtractor from './privacyAwareExtractor.service';
 import responseValidator from './responseValidator.service';
+import responsePostProcessor from './responsePostProcessor.service';
 import documentTypeClassifier from './documentTypeClassifier.service';
 import piiScanner from './piiScanner.service';
 // Folder-scoped query services
@@ -157,6 +159,47 @@ class RAGService {
     console.log(`🎯 Intent: ${intent.intent} (confidence: ${intent.confidence})`);
     console.log(`💡 Reasoning: ${intent.reasoning}`);
 
+    // STEP 1.5: CHECK IF QUERY MENTIONS A SPECIFIC DOCUMENT
+    // If user asks "Summarize Biology EOY F3.docx", we should only search that document
+    let resolvedDocumentId = documentId; // Start with explicitly attached document (if any)
+
+    if (!resolvedDocumentId) {
+      // No document attached, check if query mentions a document name
+      const queryParserService = await import('./queryParser.service');
+      const parsedQuery = queryParserService.default.parse(query);
+
+      if (parsedQuery.documentName) {
+        console.log(`📄 Document name detected in query: "${parsedQuery.documentName}"`);
+
+        // Look up document by filename (case-insensitive, partial match)
+        try {
+          const matchedDoc = await prisma.document.findFirst({
+            where: {
+              userId,
+              filename: {
+                contains: parsedQuery.documentName.replace(/\.\w+$/, ''), // Remove extension for flexible matching
+              },
+              status: 'completed'
+            },
+            select: {
+              id: true,
+              filename: true
+            }
+          });
+
+          if (matchedDoc) {
+            resolvedDocumentId = matchedDoc.id;
+            console.log(`   ✅ Matched document: "${matchedDoc.filename}" (ID: ${matchedDoc.id.substring(0, 8)}...)`);
+            console.log(`   🎯 Query will be filtered to this document only`);
+          } else {
+            console.log(`   ⚠️  No document found matching "${parsedQuery.documentName}"`);
+          }
+        } catch (error) {
+          console.error(`   ❌ Error looking up document:`, error);
+        }
+      }
+    }
+
     // STEP 2: ROUTE BASED ON INTENT
     if (intent.intent === 'greeting') {
       return await this.handleGreeting(userId, query, conversationId);
@@ -167,7 +210,7 @@ class RAGService {
       return await this.handleMetadataQuery(userId, query, conversationId);
     } else {
       // EXTRACT, SUMMARIZE, COMPARE, CAPABILITY all use RAG content retrieval
-      return await this.handleContentQuery(userId, query, conversationId, conversationHistory, documentId);
+      return await this.handleContentQuery(userId, query, conversationId, conversationHistory, resolvedDocumentId);
     }
   }
 
@@ -217,6 +260,28 @@ class RAGService {
     conversationId: string
   ): Promise<RAGResponse> {
     console.log(`🧭 NAVIGATION QUERY HANDLER`);
+
+    // NEW: Try navigation orchestrator first for complex queries
+    // Handles: time-based, file type, recently deleted, and multi-filter queries
+    try {
+      const orchestratorResult = await navigationOrchestrator.handle(userId, query);
+      if (orchestratorResult) {
+        console.log(`   ✅ Handled by navigation orchestrator (handlers: ${orchestratorResult.handledBy.join(', ')})`);
+        return {
+          answer: orchestratorResult.answer,
+          sources: [],
+          contextId: `navigation_${Date.now()}`,
+          confidence: {
+            score: Math.round(orchestratorResult.confidence * 100),
+            level: orchestratorResult.confidence >= 0.8 ? 'high' : orchestratorResult.confidence >= 0.5 ? 'medium' : 'low',
+            showWarning: orchestratorResult.confidence < 0.5
+          }
+        };
+      }
+    } catch (error) {
+      console.error(`   ⚠️  Navigation orchestrator error:`, error);
+      // Fall through to existing navigation logic
+    }
 
     // Try to extract file name
     const fileName = queryIntentService.extractFileName(query);
@@ -439,18 +504,19 @@ class RAGService {
       console.log(`   Query: "${query}"`);
 
       // Find identification documents (passports, licenses, IDs)
+      // Note: SQLite LIKE operator is case-insensitive by default, so no mode needed
       const idDocuments = await prisma.document.findMany({
         where: {
           userId,
           status: 'completed',
           OR: [
-            { filename: { contains: 'passport', mode: 'insensitive' } },
-            { filename: { contains: 'license', mode: 'insensitive' } },
-            { filename: { contains: 'driver', mode: 'insensitive' } },
-            { filename: { contains: 'cnh', mode: 'insensitive' } },
-            { filename: { contains: 'rg', mode: 'insensitive' } },
-            { filename: { contains: 'cpf', mode: 'insensitive' } },
-            { filename: { contains: 'id', mode: 'insensitive' } },
+            { filename: { contains: 'passport' } },
+            { filename: { contains: 'license' } },
+            { filename: { contains: 'driver' } },
+            { filename: { contains: 'cnh' } },
+            { filename: { contains: 'rg' } },
+            { filename: { contains: 'cpf' } },
+            { filename: { contains: 'id' } },
           ]
         },
         include: {
@@ -521,7 +587,7 @@ class RAGService {
           metadata: true
         },
         orderBy: {
-          uploadedAt: 'desc'
+          createdAt: 'desc'
         },
         take: 10  // Scan up to 10 most recent documents
       });
@@ -803,7 +869,7 @@ class RAGService {
             contextType: 'folder',
             contextId: scopedFolderId,
             contextName: scopedFolderName,
-            contextMeta: null
+            contextMeta: undefined
           }
         });
       } else {
@@ -853,10 +919,22 @@ class RAGService {
     // STEP 3: RETRIEVE RELEVANT DOCUMENTS
     console.log(`\n🔍 RETRIEVING DOCUMENTS...`);
 
+    // FIX Q15 & Q28 TIMEOUTS: Aggressively reduce topK and disable expensive operations
+    const queryIntent = queryIntentService.detectIntent(query);
+
+    // Determine if this is a synthesis/complex query
+    const isSynthesisQuery = queryIntent.intent === 'compare' ||
+                            query.toLowerCase().includes('compare') ||
+                            query.toLowerCase().includes('competitive') ||
+                            query.toLowerCase().includes('advantages');
+
+    // BALANCED topK: 25 for synthesis, 40 for simple queries (improved retrieval quality)
+    const baseTopK = isSynthesisQuery ? 25 : 40;
+
     const retrievalOptions: any = {
-      topK: 100, // HIGH retrieval count to handle documents with 200+ pages
-      enableReranking: true,
-      enableMMR: true,
+      topK: baseTopK, // Balanced: 25-40 chunks for quality without timeouts
+      enableReranking: false, // Disable expensive reranking for speed
+      enableMMR: false, // Disable MMR for speed
     };
 
     // Add sheet context if available
@@ -869,19 +947,19 @@ class RAGService {
     if (documentId) {
       console.log(`   📎 UPLOADED DOCUMENT ATTACHMENT - Restricting to documentId: ${documentId}`);
       retrievalOptions.documentIds = [documentId];
-      retrievalOptions.topK = 150; // Get more chunks from the specific uploaded document
+      retrievalOptions.topK = 50; // Increased for better single-doc retrieval
     }
     // PRIORITY 1: Folder-scoped retrieval (when user asks about a specific folder)
     else if (scopedFolderId) {
       console.log(`   📁 FOLDER-SCOPED RETRIEVAL - Restricting to folder: "${scopedFolderName}"`);
       retrievalOptions.folderId = scopedFolderId;
-      retrievalOptions.topK = 100; // Get documents from the specific folder
+      retrievalOptions.topK = 35; // Increased for better folder retrieval
     }
     // PRIORITY 2: Document-scoped retrieval (when user asks about a specific document)
     else if (scopedDocumentId) {
       console.log(`   🎯 DOCUMENT-SCOPED RETRIEVAL - Restricting to matched document: "${documentMatch?.filename}"`);
       retrievalOptions.documentIds = [scopedDocumentId];
-      retrievalOptions.topK = 150; // Get more chunks from the specific document
+      retrievalOptions.topK = 50; // Increased for better single-doc retrieval
     }
     // PRIORITY 3: Smart context filtering (for follow-ups on previous documents)
     else if (isFollowUp && contextDocumentIds.length > 0 && contextDocumentIds.length <= 10) {
@@ -1253,6 +1331,16 @@ class RAGService {
     //   console.log(`\n⚠️  LOW CONFIDENCE - Transparency statement appended to answer`);
     // }
 
+    // ═══════════════════════════════════════════════════════════════
+    // POST-PROCESSING: Enforce response quality rules
+    // ═══════════════════════════════════════════════════════════════
+    console.log('📝 [Post-Processor] Applying quality improvements...');
+    finalAnswer = await responsePostProcessor.processWithAllImprovements(
+      finalAnswer,
+      query
+    );
+    console.log(`   ✅ Post-processing complete (${finalAnswer.length} chars)`);
+
     // TASK #14: LOG ANSWER METADATA TO AUDIT TRAIL
     const answerGenerationTimeMs = Date.now() - startTime - retrievalTimeMs;
     auditTrailService.logAnswerMetadata(
@@ -1480,27 +1568,26 @@ When user asks "What files?", "Do I have X files?", "Which documents are Y?", "W
   Answer: "The Koda Business Plan is located in the **Business Documents** folder."
 
 ### FOR GENERAL INFORMATION QUERIES:
-Use this EXACT structured format:
+✅ **BE CONCISE** - Answer in 2-3 sentences maximum
+✅ **AVOID BULLET POINTS** - Use flowing sentences instead of list format
+✅ **SKIP UNNECESSARY HEADERS** - Only use headers when essential for clarity
+✅ **NO FOLLOW-UP QUESTIONS** - Just answer what was asked
+✅ **DIRECT ANSWERS** - Get straight to the point without preamble
 
-## [Document Name]
+**Format**: According to **[Document Name]**, [concise answer with **bold** key facts].
 
-[2-3 sentences providing a comprehensive, detailed answer with specific information from the documents. Extract actual data, numbers, facts, and details - NOT generic statements.]
+**Examples:**
+- Query: "What is Koda AI's core purpose?"
+  Answer: "According to the **Koda Business Plan**, Koda AI's core purpose is to transform fragmented document storage into a secure, AI-powered assistant, bringing clarity and control to how individuals manage their essential personal information."
 
-**Key Points:**
-- [Specific detail with **bold** emphasis on key data/numbers]
-- [Supporting facts with concrete information]
-- [Additional relevant details from the documents]
-- [More points as needed - be thorough and extract ALL relevant information]
+- Query: "What properties are mentioned?"
+  Answer: "The **Baxter Hotel Analysis** mentions three properties: Lone Mountain Ranch with a **67% profit margin**, Baxter Hotel in Bozeman with **44.82% annualized return**, and Rex Ranch in Tucson/Amado."
 
-[End with one helpful follow-up question related to the topic.]
-
-**CRITICAL FORMATTING RULES:**
-- Start with ## [Document Name] as a header (NO emoji, just the document name)
-- Extract and include SPECIFIC information from the documents (numbers, dates, percentages, names, etc.)
-- DO NOT give vague or generic answers like "The document outlines..." or "It likely includes..."
-- If the information is in the document, EXTRACT IT and present it
-- Be comprehensive - include all relevant details found in the retrieved documents
-- NEVER include emojis in the document name or title
+**CRITICAL RULES:**
+- NEVER include emojis in document names or titles
+- Extract SPECIFIC information (numbers, dates, percentages, names)
+- NO vague answers like "The document outlines..." - extract the actual content
+- Keep responses under 100 words unless the query demands more detail
 
 **SPECIAL RULE FOR FINANCIAL/NUMERICAL QUERIES:**
 When asked about projections, revenue, costs, metrics, or any numerical data:
@@ -1585,7 +1672,13 @@ ${documentsContext}
 
 # CRITICAL INSTRUCTIONS - READ CAREFULLY:
 
-⚠️ **YOU MUST EXTRACT ACTUAL DATA FROM THE DOCUMENTS ABOVE**
+⚠️ **HONESTY RULE: If the retrieved documents DO NOT contain the answer to the user's question, you MUST respond with:**
+- English: "I am unable to locate relevant information about [query] in the retrieved documents."
+- Portuguese: "Não consigo localizar informações relevantes sobre [query] nos documentos recuperados."
+
+**DO NOT reference documents that don't contain the answer. DO NOT try to extract unrelated information.**
+
+⚠️ **WHEN DOCUMENTS DO CONTAIN THE ANSWER - EXTRACT ACTUAL DATA:**
 
 DO NOT write generic summaries like:
 ❌ "The document outlines revenue projections..."
