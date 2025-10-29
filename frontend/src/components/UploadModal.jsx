@@ -166,6 +166,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
   };
 
   const getFileIcon = (filename) => {
+    if (!filename) return folderIcon;
     const ext = filename.toLowerCase();
     if (ext.match(/\.(pdf)$/)) return pdfIcon;
     if (ext.match(/\.(doc|docx)$/)) return docIcon;

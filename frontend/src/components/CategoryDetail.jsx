@@ -53,6 +53,7 @@ const DocumentThumbnail = ({ documentId, filename, width = 80, height = 80 }) =>
 
   // Get file icon as fallback
   const getFileIcon = (filename) => {
+    if (!filename) return pdfIcon;
     const ext = filename.toLowerCase();
     if (ext.match(/\.(pdf)$/)) return pdfIcon;
     if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
@@ -292,7 +293,7 @@ const CategoryDetail = () => {
           // Otherwise, find by category name (case-insensitive)
           const formattedCategoryName = formatCategoryName(categoryName);
           console.log('Looking for folder with name:', formattedCategoryName);
-          folder = folders.find(f => f.name.toLowerCase() === formattedCategoryName.toLowerCase());
+          folder = folders.find(f => f.name?.toLowerCase() === formattedCategoryName.toLowerCase());
         }
 
         console.log('All folders:', folders.map(f => ({ id: f.id, name: f.name })));
@@ -398,6 +399,7 @@ const CategoryDetail = () => {
 
   // Get file icon
   const getFileIcon = (filename) => {
+    if (!filename) return docIcon;
     const ext = filename.toLowerCase();
     if (ext.match(/\.(pdf)$/)) return pdfIcon;
     if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
@@ -443,7 +445,7 @@ const CategoryDetail = () => {
 
   // Filter and sort documents
   const filteredDocuments = documents.filter(doc =>
-    doc.filename.toLowerCase().includes(searchQuery.toLowerCase())
+    doc.filename?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const sortedDocuments = [...filteredDocuments].sort((a, b) => {
@@ -577,7 +579,7 @@ const CategoryDetail = () => {
       const response = await api.get('/api/folders');
       const folders = response.data?.folders || [];
       const availableFolders = folders.filter(f =>
-        f.name.toLowerCase() !== 'recently added'
+        f.name?.toLowerCase() !== 'recently added'
       );
       console.log('All folders loaded:', availableFolders);
       setAvailableCategories(availableFolders);
@@ -1210,7 +1212,7 @@ const CategoryDetail = () => {
                         const response = await api.get('/api/folders');
                         const folders = response.data?.folders || [];
                         const availableFolders = folders.filter(f =>
-                          f.name.toLowerCase() !== 'recently added' && f.id !== currentFolderId
+                          f.name?.toLowerCase() !== 'recently added' && f.id !== currentFolderId
                         );
                         setAvailableCategories(availableFolders);
                         setShowCategoryModal(true);
@@ -1747,7 +1749,7 @@ const CategoryDetail = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  navigate(`/category/${folder.name.toLowerCase().replace(/\s+/g, '-')}`);
+                                  navigate(`/category/${folder.name?.toLowerCase().replace(/\s+/g, '-')}`);
                                 }}
                                 style={{
                                   width: '100%',
@@ -1802,7 +1804,7 @@ const CategoryDetail = () => {
                                     const response = await api.get('/api/folders');
                                     const folders = response.data?.folders || [];
                                     const availableFolders = folders.filter(f =>
-                                      f.name.toLowerCase() !== 'recently added'
+                                      f.name?.toLowerCase() !== 'recently added'
                                     );
                                     setAvailableCategories(availableFolders);
                                     setShowCategoryModal(true);
@@ -2008,6 +2010,7 @@ const CategoryDetail = () => {
                         }}>
                           <img
                             src={(() => {
+                              if (!doc.filename) return pdfIcon;
                               const ext = doc.filename.toLowerCase();
                               if (ext.match(/\.(pdf)$/)) return pdfIcon;
                               if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
@@ -2389,6 +2392,7 @@ const CategoryDetail = () => {
                               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <img
                                   src={(() => {
+                                    if (!doc.filename) return pdfIcon;
                                     const ext = doc.filename.toLowerCase();
                                     if (ext.match(/\.(pdf)$/)) return pdfIcon;
                                     if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;

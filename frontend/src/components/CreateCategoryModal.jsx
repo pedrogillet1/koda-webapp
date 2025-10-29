@@ -138,6 +138,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
   };
 
   const getFileIcon = (filename) => {
+    if (!filename) return docIcon;
     const ext = filename.toLowerCase();
     if (ext.match(/\.(pdf)$/)) return pdfIcon;
     if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;

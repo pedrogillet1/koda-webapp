@@ -58,6 +58,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     // Helper function to get file icon based on extension
     const getFileIcon = (filename) => {
+        if (!filename) return docIcon;
         const ext = filename.toLowerCase();
         if (ext.match(/\.(pdf)$/)) return pdfIcon;
         if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
@@ -968,7 +969,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
                                                         // Helper function to get file icon based on filename
                                                         const getFileIcon = (filename) => {
-                                                            if (!filename) return docIcon; // Default if no filename
+                                                            if (!filename) return docIcon;
                                                             const ext = filename.toLowerCase();
                                                             if (ext.match(/\.(pdf)$/)) return pdfIcon;
                                                             if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;

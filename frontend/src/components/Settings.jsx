@@ -160,6 +160,7 @@ const Settings = () => {
   };
 
   const getFileIcon = (filename) => {
+    if (!filename) return docIcon;
     const ext = filename.toLowerCase();
     if (ext.match(/\.(pdf)$/)) return pdfIcon;
     if (ext.match(/\.(jpg|jpeg|png|gif)$/)) return jpgIcon;
