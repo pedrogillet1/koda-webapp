@@ -10,6 +10,7 @@
     "render-build": "npm install && prisma generate && tsc",
     "regenerate-markdown": "ts-node src/scripts/regenerateMarkdown.ts",
     "reprocess-powerpoints": "ts-node scripts/reprocess-powerpoints.ts",
+    "setup-cors": "ts-node src/scripts/setup-cors.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",

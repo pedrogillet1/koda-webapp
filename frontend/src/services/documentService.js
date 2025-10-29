@@ -37,7 +37,7 @@ class DocumentService {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 60000, // 60 second timeout
+        timeout: 600000, // 10 minute timeout for large files (up to 500MB)
         onUploadProgress: (progressEvent) => {
           if (onProgress && progressEvent.total) {
             const percentCompleted = Math.round(

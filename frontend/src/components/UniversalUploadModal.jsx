@@ -26,6 +26,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   const [isUploading, setIsUploading] = useState(false);
   const [folderUploadProgress, setFolderUploadProgress] = useState(null);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const folderInputRef = React.useRef(null);
 
   const onDrop = useCallback((acceptedFiles) => {
@@ -41,7 +42,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
     setUploadingFiles(prev => [...prev, ...newFiles]);
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept: {
       'application/pdf': ['.pdf'],
@@ -64,7 +65,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
     },
     maxSize: 500 * 1024 * 1024, // 500MB
     multiple: true,
-    noClick: false,
+    noClick: true, // Disable click on root div, we'll use manual button
   });
 
   const formatFileSize = (bytes) => {
@@ -148,9 +149,14 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
         await fetchFolders();
       } catch (error) {
         console.error('❌ Error uploading folder:', error);
+        const message = error.response?.data?.message || error.message || 'Upload failed. Please check your connection and try again.';
+        setErrorMessage(message);
         setShowErrorBanner(true);
         setFolderUploadProgress(null);
-        setTimeout(() => setShowErrorBanner(false), 5000);
+        setTimeout(() => {
+          setShowErrorBanner(false);
+          setErrorMessage('');
+        }, 8000);
       }
     } else {
       // Regular file upload (not a folder)
@@ -188,36 +194,50 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
           await new Promise(resolve => setTimeout(resolve, 300));
         } catch (error) {
           console.error('❌ Error uploading file:', error);
+          const message = error.response?.data?.message || error.message || 'Upload failed';
           setUploadingFiles(prev => prev.map((f, idx) =>
             idx === i ? {
               ...f,
               status: 'failed',
-              error: error.message || 'Upload failed'
+              error: message
             } : f
           ));
+          setErrorMessage(`Failed to upload ${item.file.name}: ${message}`);
           setShowErrorBanner(true);
-          setTimeout(() => setShowErrorBanner(false), 5000);
+          setTimeout(() => {
+            setShowErrorBanner(false);
+            setErrorMessage('');
+          }, 8000);
         }
       }
     }
 
     setIsUploading(false);
 
-    // Wait a moment then close (no manual refresh needed - context auto-updates!)
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
     if (onUploadComplete) {
       onUploadComplete();
     }
 
-    setUploadingFiles([]);
-    setFolderUploadProgress(null);
-    onClose();
+    // Check if there were any failures
+    const hasFailures = uploadingFiles.some(f => f.status === 'failed');
+
+    // Only auto-close if all uploads succeeded
+    if (!hasFailures) {
+      // Wait 2 seconds to let user see success, then close
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setUploadingFiles([]);
+      setFolderUploadProgress(null);
+      onClose();
+    }
+    // If there were failures, keep modal open so user can review errors
   };
 
   const handleCancel = () => {
     if (!isUploading) {
       setUploadingFiles([]);
+      setFolderUploadProgress(null);
+      setShowErrorBanner(false);
+      setErrorMessage('');
       onClose();
     }
   };
@@ -392,23 +412,29 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
               gap: 12,
               display: 'flex'
             }}>
-              <div style={{
-                width: 166,
-                height: 52,
-                paddingLeft: 18,
-                paddingRight: 18,
-                paddingTop: 10,
-                paddingBottom: 10,
-                background: 'white',
-                borderRadius: 14,
-                outline: '1px #E6E6EC solid',
-                outlineOffset: '-1px',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: 8,
-                display: 'flex',
-                cursor: 'pointer'
-              }}>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  open();
+                }}
+                style={{
+                  width: 166,
+                  height: 52,
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  background: 'white',
+                  borderRadius: 14,
+                  outline: '1px #E6E6EC solid',
+                  outlineOffset: '-1px',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 8,
+                  display: 'flex',
+                  cursor: 'pointer'
+                }}
+              >
                 <div style={{
                   color: '#323232',
                   fontSize: 16,
@@ -534,7 +560,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                 fontWeight: '500',
                 lineHeight: '20px'
               }}>
-                Hmm… the upload didn't work. Please retry.
+                {errorMessage || 'Hmm… the upload didn\'t work. Please retry.'}
               </div>
             </div>
           </div>

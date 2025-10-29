@@ -234,7 +234,17 @@ export const DocumentsProvider = ({ children }) => {
         folderId: folderId
       });
 
-      const { uploadUrl, gcsUrl, documentId } = uploadUrlResponse.data;
+      const { uploadUrl, gcsUrl, documentId, encryptedFilename } = uploadUrlResponse.data;
+
+      // Calculate file hash
+      const calculateFileHash = async (file) => {
+        const arrayBuffer = await file.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      };
+
+      const fileHash = await calculateFileHash(file);
 
       // Upload directly to GCS
       await fetch(uploadUrl, {
@@ -245,8 +255,15 @@ export const DocumentsProvider = ({ children }) => {
         body: file
       });
 
-      // Confirm upload with backend
-      const confirmResponse = await api.post(`/api/documents/${documentId}/confirm-upload`);
+      // Confirm upload with backend - send required metadata
+      const confirmResponse = await api.post(`/api/documents/${documentId}/confirm-upload`, {
+        encryptedFilename,
+        filename: file.name,
+        mimeType: file.type,
+        fileSize: file.size,
+        fileHash,
+        folderId
+      });
       const newDocument = confirmResponse.data.document;
 
       // Replace temp document with real one

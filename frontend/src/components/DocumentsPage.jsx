@@ -369,161 +369,198 @@ const DocumentsPage = () => {
                     Move
                   </div>
                 </button>
+
+                {/* Selected Count */}
+                <div style={{
+                  color: '#32302C',
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500',
+                  lineHeight: '24px'
+                }}>
+                  ({selectedDocuments.size}) Selected
+                </div>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => {
+                    clearSelection();
+                    toggleSelectMode();
+                  }}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    background: 'white',
+                    border: '1px solid #E6E6EC',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                >
+                  <CloseIcon style={{ width: 16, height: 16 }} />
+                </button>
               </>
             ) : (
-              <div style={{position: 'relative', height: 52, display: 'flex', alignItems: 'center'}}>
-                <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search any documents..."
-                  style={{
-                    height: '100%',
-                    minWidth: 250,
-                    paddingLeft: 46,
-                    paddingRight: 16,
-                    background: '#F5F5F5',
-                    borderRadius: 100,
+              <>
+                <div style={{position: 'relative', height: 52, display: 'flex', alignItems: 'center'}}>
+                  <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search any documents..."
+                    style={{
+                      height: '100%',
+                      minWidth: 250,
+                      paddingLeft: 46,
+                      paddingRight: 16,
+                      background: '#F5F5F5',
+                      borderRadius: 100,
+                      border: '1px #E6E6EC solid',
+                      outline: 'none',
+                      color: '#32302C',
+                      fontSize: 16,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '500',
+                      lineHeight: '24px'
+                    }}
+                  />
+
+                {/* Search Results Dropdown */}
+                {searchQuery && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 60,
+                    left: 0,
+                    right: 0,
+                    minWidth: 400,
+                    maxHeight: 400,
+                    background: 'white',
+                    borderRadius: 14,
                     border: '1px #E6E6EC solid',
-                    outline: 'none',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                    overflowY: 'auto',
+                    zIndex: 1000
+                  }}>
+                    {filteredDocuments.length > 0 ? (
+                      <div style={{padding: 8}}>
+                        {filteredDocuments.map((doc) => (
+                          <div
+                            key={doc.id}
+                            onClick={() => {
+                              navigate(`/document/${doc.id}`);
+                              setSearchQuery('');
+                            }}
+                            style={{
+                              padding: 12,
+                              borderRadius: 10,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 12,
+                              cursor: 'pointer',
+                              transition: 'background 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <div style={{
+                              width: 40,
+                              height: 40,
+                              background: '#F5F5F5',
+                              borderRadius: 8,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 20
+                            }}>
+                              📄
+                            </div>
+                            <div style={{flex: 1, overflow: 'hidden'}}>
+                              <div style={{
+                                color: '#32302C',
+                                fontSize: 14,
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontWeight: '600',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {doc.filename}
+                              </div>
+                              <div style={{
+                                color: '#6C6B6E',
+                                fontSize: 12,
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontWeight: '400'
+                              }}>
+                                {(doc.fileSize / 1024 / 1024).toFixed(2)} MB
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{
+                        padding: 40,
+                        textAlign: 'center',
+                        color: '#6C6B6E',
+                        fontSize: 14,
+                        fontFamily: 'Plus Jakarta Sans'
+                      }}>
+                        No documents found matching "{searchQuery}"
+                      </div>
+                    )}
+                  </div>
+                )}
+                </div>
+
+                {/* Select Button */}
+                <button
+                  onClick={toggleSelectMode}
+                  style={{
+                    height: 52,
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                    background: '#F5F5F5',
+                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                    overflow: 'hidden',
+                    borderRadius: 100,
+                    outline: '1px #E6E6EC solid',
+                    outlineOffset: '-1px',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 6,
+                    display: 'inline-flex',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{
                     color: '#32302C',
                     fontSize: 16,
                     fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: '500',
-                    lineHeight: '24px'
-                  }}
-                />
+                    fontWeight: '600',
+                    lineHeight: '24px',
+                    wordWrap: 'break-word'
+                  }}>
+                    Select
+                  </div>
+                </button>
 
-              {/* Search Results Dropdown */}
-              {searchQuery && (
-                <div style={{
-                  position: 'absolute',
-                  top: 60,
-                  left: 0,
-                  right: 0,
-                  minWidth: 400,
-                  maxHeight: 400,
-                  background: 'white',
-                  borderRadius: 14,
-                  border: '1px #E6E6EC solid',
-                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                  overflowY: 'auto',
-                  zIndex: 1000
-                }}>
-                  {filteredDocuments.length > 0 ? (
-                    <div style={{padding: 8}}>
-                      {filteredDocuments.map((doc) => (
-                        <div
-                          key={doc.id}
-                          onClick={() => {
-                            navigate(`/document/${doc.id}`);
-                            setSearchQuery('');
-                          }}
-                          style={{
-                            padding: 12,
-                            borderRadius: 10,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 12,
-                            cursor: 'pointer',
-                            transition: 'background 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                          <div style={{
-                            width: 40,
-                            height: 40,
-                            background: '#F5F5F5',
-                            borderRadius: 8,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 20
-                          }}>
-                            📄
-                          </div>
-                          <div style={{flex: 1, overflow: 'hidden'}}>
-                            <div style={{
-                              color: '#32302C',
-                              fontSize: 14,
-                              fontFamily: 'Plus Jakarta Sans',
-                              fontWeight: '600',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
-                            }}>
-                              {doc.filename}
-                            </div>
-                            <div style={{
-                              color: '#6C6B6E',
-                              fontSize: 12,
-                              fontFamily: 'Plus Jakarta Sans',
-                              fontWeight: '400'
-                            }}>
-                              {(doc.fileSize / 1024 / 1024).toFixed(2)} MB
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{
-                      padding: 40,
-                      textAlign: 'center',
-                      color: '#6C6B6E',
-                      fontSize: 14,
-                      fontFamily: 'Plus Jakarta Sans'
-                    }}>
-                      No documents found matching "{searchQuery}"
-                    </div>
-                  )}
+                <div onClick={() => setShowUniversalUploadModal(true)} style={{height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'}}>
+                  <LogoutBlackIcon style={{width: 24, height: 24}} />
+                  <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload a Document</div>
                 </div>
-              )}
-              </div>
+              </>
             )}
-
-            {/* Select Button */}
-            <button
-              onClick={toggleSelectMode}
-              style={{
-                height: 52,
-                paddingLeft: 18,
-                paddingRight: 18,
-                paddingTop: 10,
-                paddingBottom: 10,
-                background: isSelectMode ? '#111827' : '#F5F5F5',
-                boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
-                overflow: 'hidden',
-                borderRadius: 100,
-                outline: '1px #E6E6EC solid',
-                outlineOffset: '-1px',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: 6,
-                display: 'inline-flex',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              <div style={{
-                color: isSelectMode ? 'white' : '#32302C',
-                fontSize: 16,
-                fontFamily: 'Plus Jakarta Sans',
-                fontWeight: '600',
-                lineHeight: '24px',
-                wordWrap: 'break-word'
-              }}>
-                Select{isSelectMode ? ` (${selectedDocuments.size})` : ''}
-              </div>
-            </button>
-
-            <div onClick={() => setShowUniversalUploadModal(true)} style={{height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'}}>
-              <LogoutBlackIcon style={{width: 24, height: 24}} />
-              <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload a Document</div>
-            </div>
           </div>
         </div>
 

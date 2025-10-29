@@ -258,6 +258,7 @@ class FolderUploadService {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
+        timeout: 600000, // 10 minute timeout for large files (up to 500MB)
         onUploadProgress: (progressEvent) => {
           const percentComplete = (progressEvent.loaded / progressEvent.total) * 100;
           onProgress(percentComplete);
