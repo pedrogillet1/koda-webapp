@@ -8,7 +8,6 @@ import * as folderService from './folder.service';
 import * as thumbnailService from './thumbnail.service';
 import markdownConversionService from './markdownConversion.service';
 import cacheService from './cache.service';
-import responseCacheService from './responseCache.service';
 import encryptionService from './encryption.service';
 import fs from 'fs';
 import os from 'os';
@@ -462,6 +461,21 @@ export async function processDocumentInBackground(
             }
           }));
           console.log(`📦 Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
+
+          // 🆕 Generate embeddings for Excel chunks using Gemini embedding service
+          console.log('🔮 Generating embeddings for Excel chunks...');
+          const excelTexts = chunks.map(c => c.content);
+          const excelEmbeddingResult = await embeddingService.default.generateBatchEmbeddings(excelTexts, {
+            taskType: 'RETRIEVAL_DOCUMENT',
+            title: filename
+          });
+
+          // Update chunks with embeddings
+          chunks = chunks.map((chunk, i) => ({
+            ...chunk,
+            embedding: excelEmbeddingResult.embeddings[i].embedding
+          }));
+          console.log(`✅ Generated ${chunks.length} embeddings for Excel chunks`);
         } else {
           // 🆕 Use semantic chunking for markdown content
           if (markdownContent && markdownContent.length > 100) {
@@ -483,6 +497,22 @@ export async function processDocumentInBackground(
                 tokenCount: chunk.tokenCount
               }
             }));
+
+            // ✅ VALIDATE CHUNKS: Filter out invalid chunks before embedding
+            const validChunks = chunks.filter((chunk: any) => {
+              return chunk && chunk.content && typeof chunk.content === 'string' && chunk.content.trim().length > 0;
+            });
+
+            if (validChunks.length === 0) {
+              console.warn('⚠️ Semantic chunker produced no valid chunks, falling back to simple chunking');
+              chunks = chunkText(extractedText, 500);
+            } else if (validChunks.length < chunks.length) {
+              console.warn(`⚠️ Filtered out ${chunks.length - validChunks.length} invalid chunks from semantic chunker`);
+              chunks = validChunks;
+            } else {
+              chunks = validChunks;
+            }
+
             console.log(`📦 Created ${chunks.length} semantic chunks`);
           } else {
             // Fallback to standard text chunking if no markdown
@@ -509,8 +539,10 @@ export async function processDocumentInBackground(
         // Store embeddings
         await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
         console.log(`✅ Stored ${chunks.length} vector embeddings`);
-      } catch (error) {
-        console.warn('⚠️ Vector embedding generation failed (non-critical):', error);
+      } catch (error: any) {
+        // ❌ CRITICAL ERROR: Embedding generation is NOT optional!
+        console.error('❌ CRITICAL: Vector embedding generation failed:', error);
+        throw new Error(`Embedding generation failed: ${error.message || error}`);
       }
     }
 
@@ -927,6 +959,21 @@ async function processDocumentAsync(
             }
           }));
           console.log(`📦 Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
+
+          // 🆕 Generate embeddings for Excel chunks using Gemini embedding service
+          console.log('🔮 Generating embeddings for Excel chunks...');
+          const excelTexts = chunks.map(c => c.content);
+          const excelEmbeddingResult = await embeddingService.default.generateBatchEmbeddings(excelTexts, {
+            taskType: 'RETRIEVAL_DOCUMENT',
+            title: filename
+          });
+
+          // Update chunks with embeddings
+          chunks = chunks.map((chunk, i) => ({
+            ...chunk,
+            embedding: excelEmbeddingResult.embeddings[i].embedding
+          }));
+          console.log(`✅ Generated ${chunks.length} embeddings for Excel chunks`);
         } else {
           // 🆕 Use semantic chunking for markdown content
           if (markdownContent && markdownContent.length > 100) {
@@ -948,6 +995,22 @@ async function processDocumentAsync(
                 tokenCount: chunk.tokenCount
               }
             }));
+
+            // ✅ VALIDATE CHUNKS: Filter out invalid chunks before embedding
+            const validChunks = chunks.filter((chunk: any) => {
+              return chunk && chunk.content && typeof chunk.content === 'string' && chunk.content.trim().length > 0;
+            });
+
+            if (validChunks.length === 0) {
+              console.warn('⚠️ Semantic chunker produced no valid chunks, falling back to simple chunking');
+              chunks = chunkText(extractedText, 500);
+            } else if (validChunks.length < chunks.length) {
+              console.warn(`⚠️ Filtered out ${chunks.length - validChunks.length} invalid chunks from semantic chunker`);
+              chunks = validChunks;
+            } else {
+              chunks = validChunks;
+            }
+
             console.log(`📦 Created ${chunks.length} semantic chunks`);
           } else {
             // Fallback to standard text chunking if no markdown
@@ -974,8 +1037,10 @@ async function processDocumentAsync(
         // Store embeddings
         await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
         console.log(`✅ Stored ${chunks.length} vector embeddings`);
-      } catch (error) {
-        console.warn('⚠️ Vector embedding generation failed (non-critical):', error);
+      } catch (error: any) {
+        // ❌ CRITICAL ERROR: Embedding generation is NOT optional!
+        console.error('❌ CRITICAL: Vector embedding generation failed:', error);
+        throw new Error(`Embedding generation failed: ${error.message || error}`);
       }
     }
 
@@ -1242,7 +1307,7 @@ export const deleteDocument = async (documentId: string, userId: string) => {
   console.log(`🗑️ Invalidated user cache for ${userId} after document deletion`);
 
   // Invalidate document-specific response cache (AI chat responses)
-  await responseCacheService.invalidateDocumentCache(documentId);
+  await cacheService.invalidateDocumentCache(documentId);
   console.log(`🗑️ Invalidated response cache for document ${documentId}`);
 
   return { success: true };
@@ -1308,7 +1373,7 @@ export const deleteAllDocuments = async (userId: string) => {
         });
 
         // Invalidate document-specific response cache
-        await responseCacheService.invalidateDocumentCache(document.id);
+        await cacheService.invalidateDocumentCache(document.id);
 
         results.push({
           documentId: document.id,

@@ -5,7 +5,7 @@ import { config } from '../config/env';
 import { getSignedUploadUrl } from '../config/storage';
 import crypto from 'crypto';
 import { emitDocumentEvent } from '../services/websocket.service';
-import multiLayerCache from '../services/multiLayerCache.service';
+import cacheService from '../services/cache.service';
 
 /**
  * Generate signed upload URL for direct-to-GCS upload
@@ -91,7 +91,7 @@ export const confirmUpload = async (req: Request, res: Response): Promise<void> 
     emitDocumentEvent(req.user.id, 'created', document.id);
 
     // Invalidate RAG cache (document added, search results may change)
-    await multiLayerCache.invalidateUserCache(req.user.id);
+    await cacheService.invalidateUserCache(req.user.id);
 
     res.status(201).json({
       message: 'Document uploaded successfully',
@@ -412,7 +412,7 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
     emitDocumentEvent(req.user.id, 'deleted', id);
 
     // Invalidate RAG cache (document removed, search results may change)
-    await multiLayerCache.invalidateUserCache(req.user.id);
+    await cacheService.invalidateUserCache(req.user.id);
 
     res.status(200).json({ message: 'Document deleted successfully' });
   } catch (error) {

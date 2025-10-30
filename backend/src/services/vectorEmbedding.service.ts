@@ -1,7 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { PrismaClient } from '@prisma/client';
 import cacheService from './cache.service';
-import embeddingCacheService from './embeddingCache.service';
 import pineconeService from './pinecone.service';
 
 const prisma = new PrismaClient();
@@ -37,10 +36,10 @@ class VectorEmbeddingService {
     try {
       console.time('⏱️ [Embedding] Total time');
 
-      // Check fast in-memory cache first (node-cache)
-      console.time('⏱️ [Embedding] Check fast cache');
-      const cachedEmbedding = await embeddingCacheService.getCachedEmbedding(text);
-      console.timeEnd('⏱️ [Embedding] Check fast cache');
+      // Check cache first
+      console.time('⏱️ [Embedding] Check cache');
+      const cachedEmbedding = await cacheService.getCachedEmbedding(text);
+      console.timeEnd('⏱️ [Embedding] Check cache');
 
       if (cachedEmbedding) {
         console.log('✅ [Embedding] Cache HIT (fast cache)');
@@ -58,9 +57,9 @@ class VectorEmbeddingService {
       const embedding = result.embedding;
       console.timeEnd('⏱️ [Embedding] Gemini API call');
 
-      // Cache only in fast cache (skip Redis since it's down)
+      // Cache the result
       console.time('⏱️ [Embedding] Cache result');
-      await embeddingCacheService.cacheEmbedding(text, embedding.values);
+      await cacheService.cacheEmbedding(text, embedding.values);
       console.timeEnd('⏱️ [Embedding] Cache result');
 
       console.timeEnd('⏱️ [Embedding] Total time');
@@ -82,15 +81,11 @@ class VectorEmbeddingService {
       console.log(`⚡ [Batch Embedding] Processing ${texts.length} chunks in parallel...`);
       const startTime = Date.now();
 
-      // Check fast cache only (skip Redis since it's down)
+      // Check cache
       const cachedResults: (number[] | null)[] = await Promise.all(
         texts.map(async text => {
-          // Try fast cache first
-          const fastCached = await embeddingCacheService.getCachedEmbedding(text);
-          if (fastCached) return fastCached;
-
-          // Skip Redis cache check if Redis is unavailable (saves 10+ seconds!)
-          return null;
+          const cached = await cacheService.getCachedEmbedding(text);
+          return cached;
         })
       );
 
@@ -126,10 +121,10 @@ class VectorEmbeddingService {
 
         uncachedEmbeddings.push(...batchResults);
 
-        // Cache the new embeddings in fast cache only (skip Redis since it's down)
+        // Cache the new embeddings
         await Promise.all(
           batch.map(async (text, batchIdx) => {
-            await embeddingCacheService.cacheEmbedding(text, batchResults[batchIdx]);
+            await cacheService.cacheEmbedding(text, batchResults[batchIdx]);
           })
         );
 
@@ -190,7 +185,16 @@ class VectorEmbeddingService {
           filename: true,
           mimeType: true,
           createdAt: true,
-          status: true
+          updatedAt: true,
+          status: true,
+          fileSize: true,
+          folderId: true,
+          folder: {
+            select: {
+              name: true,
+              path: true
+            }
+          }
         }
       });
 
@@ -202,7 +206,7 @@ class VectorEmbeddingService {
         throw new Error('Pinecone is not available - cannot store embeddings');
       }
 
-      // Store embeddings in Pinecone
+      // Store embeddings in Pinecone with enhanced metadata
       await pineconeService.upsertDocumentEmbeddings(
         documentId,
         document.userId,
@@ -210,7 +214,12 @@ class VectorEmbeddingService {
           filename: document.filename,
           mimeType: document.mimeType,
           createdAt: document.createdAt,
-          status: document.status
+          updatedAt: document.updatedAt,
+          status: document.status,
+          fileSize: document.fileSize,
+          folderId: document.folderId ?? undefined,
+          folderName: document.folder?.name ?? undefined,
+          folderPath: document.folder?.path ?? undefined
         },
         chunks.map((chunk, i) => ({
           chunkIndex: i,

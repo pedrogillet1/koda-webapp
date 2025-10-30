@@ -8,6 +8,9 @@ import templateResponseService from '../services/templateResponse.service';
 import metadataQueryService from '../services/metadataQuery.service';
 import fileManagementIntentService, { FileManagementIntent } from '../services/fileManagementIntent.service';
 import navigationService from '../services/navigation.service';
+import intentClassifier from '../services/intentClassification.service';
+import { Intent } from '../types/intent.types';
+import fileActionsService from '../services/fileActions.service';
 
 /**
  * RAG Controller
@@ -28,20 +31,419 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     const { query, conversationId, researchMode = false, attachedFile, documentId } = req.body;
 
+    // CRITICAL FIX: Clear documentId if it's explicitly null/undefined to prevent sticky attachment
+    const cleanDocumentId = documentId || undefined;
+    console.log(`📎 [ATTACHMENT DEBUG] documentId from request: ${documentId}, cleaned: ${cleanDocumentId}`);
+    console.log(`📎 [ATTACHMENT DEBUG] attachedFile from request:`, attachedFile);
+
     if (!query || !conversationId) {
       res.status(400).json({ error: 'Query and conversationId are required' });
       return;
     }
 
     // ========================================
-    // FILE MANAGEMENT INTENT DETECTION (FIRST PRIORITY)
+    // INTENT CLASSIFICATION (New Brain - Ordered Pattern Matching)
     // ========================================
-    // Check if this is a file management query (navigation/organization)
-    const fileIntent = await fileManagementIntentService.classifyIntent(query, userId);
-    console.log(`🧠 [INTENT] File management intent: ${fileIntent.intent} (confidence: ${fileIntent.confidence})`);
+    const intentResult = intentClassifier.classify(query);
+    console.log(`🎯 [INTENT] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
+    console.log(`📝 [ENTITIES]`, intentResult.entities);
 
+    // Only fallback to Gemini AI classifier if confidence is very low
+    let fileIntent = null;
+    if (intentResult.confidence < 0.80 && intentResult.intent === Intent.GENERAL_QA) {
+      try {
+        fileIntent = await fileManagementIntentService.classifyIntent(query, userId);
+        if (fileIntent) {
+          console.log(`🧠 [GEMINI FALLBACK] Intent: ${fileIntent.intent} (confidence: ${fileIntent.confidence})`);
+        }
+      } catch (error) {
+        console.log(`⚠️ [GEMINI FALLBACK] Failed, using pattern result`);
+        fileIntent = null;
+      }
+    }
+
+    // ========================================
+    // INTENT HANDLERS (New Brain - Proper Execution)
+    // ========================================
+
+    // SUMMARIZE - Go straight to RAG with summarization instruction
+    if (intentResult.intent === Intent.SUMMARIZE_DOCUMENT) {
+      console.log(`📄 [SUMMARIZE] Processing summarization request`);
+      // Add instruction to enhance the query for summarization
+      const enhancedQuery = `Please provide a concise summary of ${intentResult.entities.documentName || 'the document'}. ${query}`;
+      // Continue to RAG processing below with enhanced query
+    }
+
+    // READ_EXCEL_CELL - Read specific cell from Excel
+    if (intentResult.intent === Intent.READ_EXCEL_CELL) {
+      console.log(`📊 [EXCEL] Reading Excel cell from query: "${query}"`);
+
+      const excelCellReader = await import('../services/excelCellReader.service');
+      const cellResult = await excelCellReader.default.readCell(query, userId);
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query }
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: cellResult.message,
+          metadata: JSON.stringify({
+            excelCellQuery: true,
+            success: cellResult.success,
+            cellValue: cellResult.value,
+            cellAddress: cellResult.cellAddress,
+            sheetName: cellResult.sheetName,
+            documentName: cellResult.documentName
+          })
+        }
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() }
+      });
+
+      res.json({
+        success: cellResult.success,
+        answer: cellResult.message,
+        sources: [],
+        expandedQuery: [],
+        contextId: 'excel-cell-query',
+        userMessage,
+        assistantMessage
+      });
+      return;
+    }
+
+    // CONTENT ANALYSIS - Go to RAG
+    if (intentResult.intent === Intent.SEARCH_CONTENT ||
+        intentResult.intent === Intent.EXTRACT_TABLES ||
+        intentResult.intent === Intent.COMPARE_DOCUMENTS ||
+        intentResult.intent === Intent.ANALYZE_DOCUMENT) {
+      console.log(`🔍 [CONTENT QUERY] Proceeding to RAG for content analysis`);
+      // These should go directly to RAG system - no navigation handler needed
+      // Continue to RAG processing below
+    }
+
+    // DESCRIBE_FOLDER - Use folder contents handler
+    if (intentResult.intent === Intent.DESCRIBE_FOLDER && intentResult.entities.folderName) {
+      console.log(`📁 [FOLDER] Describing folder: "${intentResult.entities.folderName}"`);
+
+      const folderContentsHandler = await import('../services/handlers/folderContents.handler');
+      const folderResult = await folderContentsHandler.default.handle(
+        intentResult.entities.folderName,
+        userId
+      );
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query }
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: folderResult.answer,
+          metadata: JSON.stringify({ actions: folderResult.actions })
+        }
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() }
+      });
+
+      return res.json({
+        success: true,
+        answer: folderResult.answer,
+        sources: [],
+        expandedQuery: [],
+        contextId: 'folder-query',
+        actions: folderResult.actions,
+        userMessage,
+        assistantMessage
+      });
+    }
+
+    // FIND_DOCUMENT_LOCATION - Use navigation service
+    if (intentResult.intent === Intent.FIND_DOCUMENT_LOCATION && intentResult.entities.documentName) {
+      console.log(`📍 [LOCATION] Finding: "${intentResult.entities.documentName}"`);
+
+      const navResult = await navigationService.findFile(userId, intentResult.entities.documentName);
+
+      if (navResult.found) {
+        const userMessage = await prisma.message.create({
+          data: { conversationId, role: 'user', content: query }
+        });
+
+        const assistantMessage = await prisma.message.create({
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: navResult.message,
+            metadata: JSON.stringify({
+              navigationQuery: true,
+              actions: navResult.actions,
+              folderPath: navResult.folderPath
+            })
+          }
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() }
+        });
+
+        const sources = navResult.actions
+          .filter(action => action.type === 'open_file' && action.documentId)
+          .map(action => ({
+            documentId: action.documentId!,
+            filename: '',
+            chunkIndex: 0,
+            relevanceScore: 1.0
+          }));
+
+        return res.json({
+          success: true,
+          answer: navResult.message,
+          sources,
+          expandedQuery: [],
+          contextId: 'navigation-query',
+          actions: navResult.actions,
+          userMessage,
+          assistantMessage
+        });
+      }
+    }
+
+    // LIST_FILES - Use metadata query service
+    if (intentResult.intent === Intent.LIST_FILES) {
+      console.log(`📋 [LIST] Listing files`);
+
+      const filesList = await metadataQueryService.listAllFiles(userId);
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query }
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: filesList.answer
+        }
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() }
+      });
+
+      return res.json({
+        success: true,
+        answer: filesList.answer,
+        sources: [],
+        expandedQuery: [],
+        contextId: 'list-query',
+        userMessage,
+        assistantMessage
+      });
+    }
+
+    // ========================================
+    // ACTION HANDLERS - Actually perform file operations
+    // ========================================
+
+    // CREATE_FOLDER - Create a new folder (ACTUAL EXECUTION)
+    if (intentResult.intent === Intent.CREATE_FOLDER && intentResult.entities.folderName) {
+      console.log(`📁 [ACTION] Creating folder: "${intentResult.entities.folderName}"`);
+
+      const result = await fileActionsService.createFolder(
+        intentResult.entities.folderName,
+        userId
+      );
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query }
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: result.message,
+          metadata: JSON.stringify({
+            actionType: 'create_folder',
+            success: result.success,
+            data: result.data
+          })
+        }
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() }
+      });
+
+      return res.json({
+        success: result.success,
+        answer: result.message,
+        sources: [],
+        expandedQuery: [],
+        contextId: 'action-create-folder',
+        userMessage,
+        assistantMessage
+      });
+    }
+
+    // RENAME_FOLDER - Rename an existing folder (ACTUAL EXECUTION)
+    if (intentResult.intent === Intent.RENAME_FOLDER &&
+        intentResult.entities.folderName &&
+        intentResult.entities.targetName) {
+      console.log(`📝 [ACTION] Renaming folder: "${intentResult.entities.folderName}" → "${intentResult.entities.targetName}"`);
+
+      const result = await fileActionsService.renameFolder(
+        intentResult.entities.folderName,
+        intentResult.entities.targetName,
+        userId
+      );
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query }
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: result.message,
+          metadata: JSON.stringify({
+            actionType: 'rename_folder',
+            success: result.success,
+            data: result.data
+          })
+        }
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() }
+      });
+
+      return res.json({
+        success: result.success,
+        answer: result.message,
+        sources: [],
+        expandedQuery: [],
+        contextId: 'action-rename-folder',
+        userMessage,
+        assistantMessage
+      });
+    }
+
+    // MOVE_FILES - Move documents to a folder (ACTUAL EXECUTION)
+    if (intentResult.intent === Intent.MOVE_FILES && intentResult.entities.targetName) {
+      console.log(`📦 [ACTION] Moving files to: "${intentResult.entities.targetName}"`);
+
+      const result = await fileActionsService.moveFiles(
+        query,
+        intentResult.entities.targetName,
+        userId
+      );
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query }
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: result.message,
+          metadata: JSON.stringify({
+            actionType: 'move_files',
+            success: result.success,
+            data: result.data
+          })
+        }
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() }
+      });
+
+      return res.json({
+        success: result.success,
+        answer: result.message,
+        sources: [],
+        expandedQuery: [],
+        contextId: 'action-move-files',
+        userMessage,
+        assistantMessage
+      });
+    }
+
+    // FIND_DUPLICATES - Find duplicate files
+    if (intentResult.intent === Intent.FIND_DUPLICATES) {
+      console.log(`🔍 [ACTION] Finding duplicate files`);
+
+      // Extract folder name if specified
+      const folderId = intentResult.entities.folderName
+        ? (await prisma.folder.findFirst({
+            where: {
+              userId,
+              name: {
+                contains: intentResult.entities.folderName
+              }
+            },
+            select: { id: true }
+          }))?.id
+        : undefined;
+
+      const result = await fileActionsService.findDuplicates(userId, folderId);
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query }
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: result.message,
+          metadata: JSON.stringify({
+            actionType: 'find_duplicates',
+            success: result.success,
+            data: result.data
+          })
+        }
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() }
+      });
+
+      return res.json({
+        success: result.success,
+        answer: result.message,
+        sources: [],
+        expandedQuery: [],
+        contextId: 'action-find-duplicates',
+        userMessage,
+        assistantMessage
+      });
+    }
+
+    // ========================================
+    // GEMINI FALLBACK HANDLERS (OLD SYSTEM)
+    // ========================================
     // Handle FIND_DOCUMENT - Use navigation service (NOT RAG!)
-    if (fileIntent.intent === FileManagementIntent.FIND_DOCUMENT && fileIntent.entities.documentName) {
+    if (fileIntent && fileIntent.intent === FileManagementIntent.FIND_DOCUMENT && fileIntent.entities.documentName) {
       console.log(`📍 [NAV] Finding document: "${fileIntent.entities.documentName}"`);
 
       const navResult = await navigationService.findFile(userId, fileIntent.entities.documentName);
@@ -94,7 +496,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     }
 
     // Handle FIND_FOLDER and DESCRIBE_FOLDER - Use navigation service (NOT RAG!)
-    if ((fileIntent.intent === FileManagementIntent.FIND_FOLDER || fileIntent.intent === FileManagementIntent.DESCRIBE_FOLDER) && fileIntent.entities.folderName) {
+    if (fileIntent && (fileIntent.intent === FileManagementIntent.FIND_FOLDER || fileIntent.intent === FileManagementIntent.DESCRIBE_FOLDER) && fileIntent.entities.folderName) {
       console.log(`📁 [NAV] Finding folder: "${fileIntent.entities.folderName}"`);
 
       const navResult = await navigationService.findFolder(userId, fileIntent.entities.folderName);
@@ -299,7 +701,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       conversationId,
       researchMode,
       conversationHistory,
-      documentId
+      cleanDocumentId
     );
 
     // Save assistant message to database with RAG metadata
