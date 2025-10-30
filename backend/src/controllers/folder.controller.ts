@@ -50,12 +50,16 @@ export const getFolderTree = async (req: Request, res: Response): Promise<void> 
 
     // Check if we should include all folders (including subfolders)
     const includeAll = req.query.includeAll === 'true';
+    console.log(`📊 getFolderTree API called, includeAll=${includeAll}, user=${req.user.id}`);
 
     const folders = await folderService.getFolderTree(req.user.id, includeAll);
 
-    // Log the actual folders being returned
+    // Log the actual folders being returned with count data
     console.log(`🔍 getFolderTree returning: ${folders.length} folders (includeAll: ${includeAll})`);
-    folders.forEach(f => console.log(`  - ${f.emoji || '📁'} ${f.name} (parent: ${f.parentFolderId || 'null'})`));
+    folders.forEach(f => {
+      const countInfo = (f as any)._count;
+      console.log(`  - ${f.emoji || '📁'} ${f.name} (parent: ${f.parentFolderId || 'null'}) | docs: ${countInfo?.documents || 'N/A'} | total: ${countInfo?.totalDocuments || 'N/A'} | subfolders: ${countInfo?.subfolders || 'N/A'}`);
+    });
 
     // Disable caching to ensure fresh data
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');

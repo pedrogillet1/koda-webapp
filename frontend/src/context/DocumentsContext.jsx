@@ -24,7 +24,23 @@ export const DocumentsProvider = ({ children }) => {
     setLoading(true);
     try {
       const response = await api.get('/api/documents');
-      setDocuments(response.data.documents || []);
+      const fetchedDocs = response.data.documents || [];
+
+      console.log('\n📄 FETCHED DOCUMENTS:', fetchedDocs.length, 'total');
+      console.log('Documents by folder:');
+      const docsByFolder = {};
+      fetchedDocs.forEach(d => {
+        const folderId = d.folderId || 'NO_FOLDER';
+        if (!docsByFolder[folderId]) {
+          docsByFolder[folderId] = [];
+        }
+        docsByFolder[folderId].push(d.filename);
+      });
+      Object.keys(docsByFolder).forEach(fId => {
+        console.log(`  Folder ${fId}: ${docsByFolder[fId].length} docs -`, docsByFolder[fId].join(', '));
+      });
+
+      setDocuments(fetchedDocs);
     } catch (error) {
       console.error('Error fetching documents:', error);
       // If auth error or rate limit, stop making more requests
@@ -42,8 +58,17 @@ export const DocumentsProvider = ({ children }) => {
   const fetchFolders = useCallback(async () => {
     try {
       const timestamp = new Date().getTime();
-      const response = await api.get(`/api/folders?_t=${timestamp}`);
-      setFolders(response.data.folders || []);
+      // IMPORTANT: Pass includeAll=true to get ALL folders (including subfolders)
+      // This is required for recursive document counting to work properly
+      const response = await api.get(`/api/folders?includeAll=true&_t=${timestamp}`);
+      const fetchedFolders = response.data.folders || [];
+
+      console.log('\n🗂️ FETCHED FOLDERS:', fetchedFolders.length, 'total');
+      fetchedFolders.forEach(f => {
+        console.log(`  ${f.emoji || '📁'} ${f.name} (id: ${f.id}, parent: ${f.parentFolderId || 'ROOT'})`);
+      });
+
+      setFolders(fetchedFolders);
     } catch (error) {
       console.error('Error fetching folders:', error);
       // If auth error or rate limit, stop making more requests
@@ -473,18 +498,29 @@ export const DocumentsProvider = ({ children }) => {
       const subfolderIds = [parentId];
       const directSubfolders = folders.filter(f => f.parentFolderId === parentId);
 
+      console.log(`  🔄 Getting subfolders for ${parentId}: found ${directSubfolders.length} direct subfolders`);
+
       directSubfolders.forEach(subfolder => {
-        subfolderIds.push(...getAllSubfolderIds(subfolder.id));
+        const nestedIds = getAllSubfolderIds(subfolder.id);
+        console.log(`  ↳ Subfolder ${subfolder.name} (${subfolder.id}) has ${nestedIds.length - 1} nested subfolders`);
+        subfolderIds.push(...nestedIds);
       });
 
       return subfolderIds;
     };
 
+    console.log(`\n📊 Counting documents for folder ${folderId}...`);
+
     // Get all folder IDs (current folder + all subfolders)
     const allFolderIds = getAllSubfolderIds(folderId);
+    console.log(`  ✓ Found ${allFolderIds.length} total folders (including nested)`, allFolderIds);
 
     // Count documents in all these folders
-    return documents.filter(doc => allFolderIds.includes(doc.folderId)).length;
+    const docsInFolders = documents.filter(doc => allFolderIds.includes(doc.folderId));
+    console.log(`  ✓ Found ${docsInFolders.length} documents across all folders`);
+    console.log(`  Documents:`, docsInFolders.map(d => `${d.filename} (folderId: ${d.folderId})`));
+
+    return docsInFolders.length;
   }, [documents, folders]);
 
   // Get file breakdown

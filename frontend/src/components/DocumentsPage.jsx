@@ -104,16 +104,32 @@ const DocumentsPage = () => {
 
   // Computed categories (auto-updates when folders or documents change!)
   const categories = useMemo(() => {
-    return getRootFolders()
+    console.log('🔍 Calculating categories...');
+    console.log('Total folders:', contextFolders.length);
+    console.log('Total documents:', contextDocuments.length);
+
+    const result = getRootFolders()
       .filter(folder => folder.name.toLowerCase() !== 'recently added')
-      .map(folder => ({
-        id: folder.id,
-        name: folder.name,
-        emoji: folder.emoji || '📁',
-        fileCount: getDocumentCountByFolder(folder.id),
-        folderCount: folder._count?.subfolders || 0,
-        count: getDocumentCountByFolder(folder.id)
-      }));
+      .map(folder => {
+        const fileCount = getDocumentCountByFolder(folder.id);
+        console.log(`📁 Category "${folder.name}" (${folder.id}):`, {
+          fileCount,
+          directDocs: contextDocuments.filter(d => d.folderId === folder.id).length,
+          subfolders: contextFolders.filter(f => f.parentFolderId === folder.id).length
+        });
+
+        return {
+          id: folder.id,
+          name: folder.name,
+          emoji: folder.emoji || '📁',
+          fileCount,
+          folderCount: folder._count?.subfolders || 0,
+          count: fileCount
+        };
+      });
+
+    console.log('Final categories:', result);
+    return result;
   }, [contextFolders, contextDocuments, getRootFolders, getDocumentCountByFolder]);
 
   // Computed available categories for modal
