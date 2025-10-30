@@ -546,7 +546,11 @@ const DocumentViewer = () => {
                 <DownloadIcon style={{ width: 36, height: 36 }} />
               </button>
               <button
-                onClick={() => navigate(`/chat?documentId=${documentId}`)}
+                onClick={() => {
+                  // Clear current conversation to force a new chat
+                  sessionStorage.removeItem('currentConversationId');
+                  navigate(`/chat?documentId=${documentId}`, { state: { newConversation: true } });
+                }}
                 style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
               >
                 <img
@@ -1145,7 +1149,11 @@ const DocumentViewer = () => {
           </button>
           <div style={{ width: 14, height: 14, right: 44, top: 9, position: 'absolute', background: '#171717', borderRadius: 9999 }} />
           <button
-            onClick={() => navigate(`/chat?documentId=${documentId}`)}
+            onClick={() => {
+              // Clear current conversation to force a new chat
+              sessionStorage.removeItem('currentConversationId');
+              navigate(`/chat?documentId=${documentId}`, { state: { newConversation: true } });
+            }}
             style={{
               height: 56,
               paddingLeft: 16,
