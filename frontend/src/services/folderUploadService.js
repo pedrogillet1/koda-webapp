@@ -2,12 +2,14 @@
  * FolderUploadService - REDESIGNED FROM SCRATCH
  *
  * CORE CONCEPT:
- * - The uploaded folder becomes a "Category" (root-level container)
- * - All immediate files in that folder are added to the category
- * - All immediate subfolders become subfolders of the category
+ * - The uploaded folder structure is ALWAYS preserved
+ * - When uploading from Documents page (no category): creates a new Category with the folder name
+ * - When uploading from inside a category/subfolder: creates the folder as a subfolder in that location
+ * - All immediate files in the folder are added to the created folder
+ * - All subfolders become nested subfolders
  * - Files in nested folders are properly mapped to their respective folders
  *
- * EXAMPLE:
+ * EXAMPLE 1 (from Documents page):
  * Upload "koda website/" containing:
  *   - file1.pdf
  *   - file2.doc
@@ -16,6 +18,14 @@
  *
  * Result:
  * - Category: "koda website" (shows 2 files: file1.pdf, file2.doc)
+ * - Subfolder: "saaa" (under koda website, shows 1 file: nested.pdf)
+ *
+ * EXAMPLE 2 (from inside a category called "Projects"):
+ * Upload same "koda website/" folder
+ *
+ * Result:
+ * - Category: "Projects" (unchanged)
+ * - Subfolder: "koda website" (under Projects, shows 2 files: file1.pdf, file2.doc)
  * - Subfolder: "saaa" (under koda website, shows 1 file: nested.pdf)
  */
 
@@ -360,12 +370,12 @@ class FolderUploadService {
    *
    * @param files - FileList from folder upload
    * @param onProgress - Progress callback
-   * @param existingCategoryId - If provided, upload INTO this category instead of creating new one
+   * @param existingCategoryId - If provided, create the folder AS A SUBFOLDER of this category/folder
    */
   async uploadFolder(files, onProgress, existingCategoryId = null) {
     console.log(`\n\n🚀 ===== STARTING FOLDER UPLOAD =====`);
     console.log(`Files to upload: ${files.length}`);
-    console.log(`Existing category ID: ${existingCategoryId || 'NONE (will create new category)'}`);
+    console.log(`Parent folder ID: ${existingCategoryId || 'NONE (will create new root category)'}`);
 
     try {
       // Step 1: Analyze folder structure
@@ -376,13 +386,26 @@ class FolderUploadService {
       let categoryName;
 
       if (existingCategoryId) {
-        // SCENARIO: Uploading INTO an existing category
-        console.log(`📂 Uploading into existing category: ${existingCategoryId}`);
-        categoryId = existingCategoryId;
-        categoryName = 'existing category';
-        onProgress({ stage: 'category', message: 'Adding to existing category...' });
+        // SCENARIO: Uploading INTO an existing category/subfolder
+        // Create the uploaded folder as a SUBFOLDER of the existing location
+        console.log(`📂 Creating folder "${structure.rootFolderName}" inside existing category: ${existingCategoryId}`);
+        onProgress({ stage: 'category', message: `Creating folder "${structure.rootFolderName}"...` });
+
+        try {
+          const createResponse = await api.post('/api/folders', {
+            name: structure.rootFolderName,
+            emoji: '📁',
+            parentFolderId: existingCategoryId
+          });
+          categoryId = createResponse.data.folder.id;
+          categoryName = structure.rootFolderName;
+          console.log(`✅ Created folder with ID: ${categoryId}`);
+        } catch (error) {
+          console.error('❌ Error creating folder:', error);
+          throw error;
+        }
       } else {
-        // SCENARIO: Creating NEW category from folder name
+        // SCENARIO: Creating NEW category from folder name (root level)
         console.log(`📂 Creating new category from folder name: "${structure.rootFolderName}"`);
         onProgress({ stage: 'category', message: `Setting up category "${structure.rootFolderName}"...` });
         categoryId = await this.ensureCategory(structure.rootFolderName);

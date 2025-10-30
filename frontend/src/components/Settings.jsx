@@ -568,18 +568,51 @@ const Settings = () => {
 
           {/* Plan and Storage Cards - Row 2 */}
           <div style={{ alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'stretch', gap: 24, display: 'flex' }}>
-            {/* Your Plan */}
+            {/* Beta Access */}
             <div style={{ flex: '1 1 0', padding: 24, background: 'white', borderRadius: 16, border: '1px #E6E6EC solid', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 20, display: 'flex' }}>
               <div style={{ width: 70, height: 70, background: 'white', borderRadius: 14, border: '2px solid #181818', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <img src={crownIcon} alt="Crown" style={{ width: 60, height: 60 }} />
               </div>
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex' }}>
-                <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', letterSpacing: '0.5px' }}>Your plan</div>
-                <div style={{ color: '#32302C', fontSize: 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '40px' }}>Free</div>
-                <div style={{ color: '#6C6B6E', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '22px', marginTop: 4 }}>
-                  Secure Storage, Basic Search, Ltd AI Qrys, 1 User, 1 GB. Upgrade to unlock more.
+                <div style={{ color: '#32302C', fontSize: 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '40px' }}>Beta Access</div>
+                <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>
+                  Early access · All features unlocked
+                </div>
+                <div style={{ color: '#6C6B6E', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '22px', marginTop: 8 }}>
+                  You're part of Koda's early access program. Every search, upload, and note helps refine how Koda thinks — and how secure document intelligence should feel.
                 </div>
               </div>
+              <button
+                onClick={() => window.open('mailto:support@koda.com?subject=Koda Beta Feedback', '_blank')}
+                style={{
+                  width: '100%',
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  background: '#F5F5F5',
+                  borderRadius: 100,
+                  border: '1px #E6E6EC solid',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+              >
+                <div style={{
+                  color: '#32302C',
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '600',
+                  lineHeight: '24px'
+                }}>
+                  Send Feedback
+                </div>
+              </button>
             </div>
 
             {/* Storage */}

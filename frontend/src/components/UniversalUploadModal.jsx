@@ -21,7 +21,7 @@ import folderIcon from '../assets/folder_icon.svg';
 
 const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComplete }) => {
   // Get context functions for optimistic uploads
-  const { addDocument, createFolder, fetchFolders } = useDocuments();
+  const { addDocument, createFolder, fetchFolders, fetchDocuments } = useDocuments();
 
   const [uploadingFiles, setUploadingFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -34,16 +34,62 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   const folderInputRef = React.useRef(null);
 
   const onDrop = useCallback((acceptedFiles) => {
-    const newFiles = acceptedFiles.map(file => ({
-      file,
-      id: Math.random().toString(36).substr(2, 9),
-      status: 'pending',
-      progress: 0,
-      error: null,
-      path: file.path || file.name, // Preserve folder structure
-      folderPath: file.path ? file.path.substring(0, file.path.lastIndexOf('/')) : null
-    }));
-    setUploadingFiles(prev => [...prev, ...newFiles]);
+    // Separate folder files from regular files
+    const folderFiles = acceptedFiles.filter(file => file.webkitRelativePath);
+    const regularFiles = acceptedFiles.filter(file => !file.webkitRelativePath);
+
+    const newEntries = [];
+
+    // Process folder files - group by root folder name
+    if (folderFiles.length > 0) {
+      const folderGroups = {};
+
+      folderFiles.forEach(file => {
+        const folderName = file.webkitRelativePath.split('/')[0];
+        if (!folderGroups[folderName]) {
+          folderGroups[folderName] = [];
+        }
+        folderGroups[folderName].push(file);
+      });
+
+      // Create a folder entry for each folder
+      Object.entries(folderGroups).forEach(([folderName, files]) => {
+        const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+
+        newEntries.push({
+          file: files[0], // Store first file as reference
+          allFiles: files, // Store all files for upload
+          id: Math.random().toString(36).substr(2, 9),
+          status: 'pending',
+          progress: 0,
+          error: null,
+          isFolder: true,
+          folderName: folderName,
+          fileCount: files.length,
+          totalSize: totalSize,
+          processingStage: null
+        });
+      });
+    }
+
+    // Process regular files - create individual entries
+    if (regularFiles.length > 0) {
+      regularFiles.forEach(file => {
+        newEntries.push({
+          file,
+          id: Math.random().toString(36).substr(2, 9),
+          status: 'pending',
+          progress: 0,
+          error: null,
+          path: file.path || file.name,
+          folderPath: file.path ? file.path.substring(0, file.path.lastIndexOf('/')) : null,
+          isFolder: false,
+          processingStage: null
+        });
+      });
+    }
+
+    setUploadingFiles(prev => [...prev, ...newEntries]);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
@@ -105,148 +151,157 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
 
     setIsUploading(true);
 
-    // Check if this is a folder upload (files have webkitRelativePath)
-    const isFolderUpload = pendingFiles.some(f => f.file.webkitRelativePath);
+    // Separate folder entries from regular file entries
+    const folderEntries = pendingFiles.filter(f => f.isFolder);
+    const fileEntries = pendingFiles.filter(f => !f.isFolder);
 
-    if (isFolderUpload) {
-      // Use FolderUploadService for lightning-fast parallel processing
-      console.log('🚀 Detected folder upload - using parallel processing');
+    let totalSuccessCount = 0;
+    let totalFailureCount = 0;
 
-      try {
-        const files = pendingFiles.map(f => f.file);
+    try {
+      // Process folders using folderUploadService
+      if (folderEntries.length > 0) {
+        console.log('🚀 Uploading folders using parallel processing');
 
-        // Mark all as uploading
-        setUploadingFiles(prev => prev.map(f =>
-          f.status === 'pending' ? { ...f, status: 'uploading' } : f
-        ));
+        for (const folderEntry of folderEntries) {
+          try {
+            // Mark folder as uploading
+            setUploadingFiles(prev => prev.map(f =>
+              f.id === folderEntry.id ? { ...f, status: 'uploading' } : f
+            ));
 
-        const results = await folderUploadService.uploadFolder(files, (progress) => {
-          setFolderUploadProgress(progress);
+            // Track stage timing to ensure minimum display time
+            let lastStageTime = Date.now();
+            const minStageDisplayTime = 600;
 
-          // Update individual file progress based on overall progress
-          if (progress.stage === 'uploading') {
-            const uploadedCount = progress.uploaded || 0;
-            const totalCount = progress.total || files.length;
+            const results = await folderUploadService.uploadFolder(
+              folderEntry.allFiles,
+              async (progress) => {
+                // Ensure minimum display time for previous stage
+                const elapsed = Date.now() - lastStageTime;
+                if (elapsed < minStageDisplayTime) {
+                  await new Promise(resolve => setTimeout(resolve, minStageDisplayTime - elapsed));
+                }
+                lastStageTime = Date.now();
 
-            setUploadingFiles(prev => prev.map((f, idx) => {
-              if (idx < uploadedCount) {
-                return { ...f, status: 'completed', progress: 100 };
-              } else if (f.status === 'uploading') {
-                return { ...f, progress: 50 };
-              }
-              return f;
-            }));
+                // Update folder entry progress
+                if (progress.stage === 'analyzing') {
+                  setUploadingFiles(prev => prev.map(f =>
+                    f.id === folderEntry.id ? { ...f, progress: 10, processingStage: 'Preparing...' } : f
+                  ));
+                } else if (progress.stage === 'uploading') {
+                  setUploadingFiles(prev => prev.map(f =>
+                    f.id === folderEntry.id ? { ...f, progress: progress.percentage || 50, processingStage: 'Uploading to cloud...' } : f
+                  ));
+                } else if (progress.stage === 'complete') {
+                  setUploadingFiles(prev => prev.map(f =>
+                    f.id === folderEntry.id ? { ...f, progress: 95, processingStage: 'Finalizing...' } : f
+                  ));
+                }
+              },
+              categoryId
+            );
+
+            // Show finalizing stage for at least 400ms
+            await new Promise(resolve => setTimeout(resolve, 400));
+
+            // Mark folder as completed
+            setUploadingFiles(prev => prev.map(f =>
+              f.id === folderEntry.id ? { ...f, status: 'completed', progress: 100, processingStage: null } : f
+            ));
+
+            totalSuccessCount += results.successCount;
+            totalFailureCount += results.failureCount;
+          } catch (error) {
+            console.error('❌ Error uploading folder:', error);
+            setUploadingFiles(prev => prev.map(f =>
+              f.id === folderEntry.id ? { ...f, status: 'failed', error: error.message } : f
+            ));
+            totalFailureCount += folderEntry.fileCount;
           }
-        }, categoryId);
-
-        console.log('✅ Folder upload complete:', results);
-
-        // Mark all as completed
-        setUploadingFiles(prev => prev.map(f => ({
-          ...f,
-          status: 'completed',
-          progress: 100
-        })));
-
-        setFolderUploadProgress({ stage: 'complete', message: 'Upload complete!', percentage: 100 });
-
-        // Show success notification
-        setUploadedCount(files.length);
-        setNotificationType('success');
-        setShowNotification(true);
-        setTimeout(() => setShowNotification(false), 5000);
-
-        // Refresh folders to show updated counts
-        await fetchFolders();
-      } catch (error) {
-        console.error('❌ Error uploading folder:', error);
-        const message = error.response?.data?.message || error.message || 'Upload failed. Please check your connection and try again.';
-        setErrorMessage(message);
-        setShowErrorBanner(true);
-        setFolderUploadProgress(null);
-
-        // Show error notification
-        setNotificationType('error');
-        setShowNotification(true);
-        setTimeout(() => setShowNotification(false), 5000);
-
-        setTimeout(() => {
-          setShowErrorBanner(false);
-          setErrorMessage('');
-        }, 8000);
-      }
-    } else {
-      // Regular file upload (not a folder)
-      // Mark all as uploading
-      setUploadingFiles(prev => prev.map(f =>
-        f.status === 'pending' ? { ...f, status: 'uploading' } : f
-      ));
-
-      let successCount = 0;
-      let failureCount = 0;
-
-      // Upload each file using context (optimistic - appears in UI instantly!)
-      for (let i = 0; i < uploadingFiles.length; i++) {
-        const item = uploadingFiles[i];
-        if (item.status !== 'pending') continue;
-
-        const file = item.file;
-
-        try {
-          // Update progress
-          setUploadingFiles(prev => prev.map((f, idx) =>
-            idx === i ? { ...f, progress: 10 } : f
-          ));
-
-          // Use context's addDocument for optimistic upload (file appears in UI instantly!)
-          await addDocument(file, categoryId);
-
-          // Update progress
-          setUploadingFiles(prev => prev.map((f, idx) =>
-            idx === i ? { ...f, progress: 100 } : f
-          ));
-
-          // Mark as completed
-          setUploadingFiles(prev => prev.map((f, idx) =>
-            idx === i ? { ...f, status: 'completed', progress: 100 } : f
-          ));
-
-          successCount++;
-          await new Promise(resolve => setTimeout(resolve, 300));
-        } catch (error) {
-          console.error('❌ Error uploading file:', error);
-          const message = error.response?.data?.message || error.message || 'Upload failed';
-          setUploadingFiles(prev => prev.map((f, idx) =>
-            idx === i ? {
-              ...f,
-              status: 'failed',
-              error: message
-            } : f
-          ));
-          setErrorMessage(`Failed to upload ${item.file.name}: ${message}`);
-          setShowErrorBanner(true);
-          setTimeout(() => {
-            setShowErrorBanner(false);
-            setErrorMessage('');
-          }, 8000);
-
-          failureCount++;
         }
       }
 
-      // Show notification based on results
-      if (successCount > 0) {
-        setUploadedCount(successCount);
+      // Process regular files using addDocument
+      if (fileEntries.length > 0) {
+        console.log('📄 Uploading regular files');
+
+        for (const fileEntry of fileEntries) {
+          try {
+            // Mark file as uploading
+            setUploadingFiles(prev => prev.map(f =>
+              f.id === fileEntry.id ? { ...f, status: 'uploading', progress: 10, processingStage: 'Preparing...' } : f
+            ));
+
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Update to uploading stage
+            setUploadingFiles(prev => prev.map(f =>
+              f.id === fileEntry.id ? { ...f, progress: 30, processingStage: 'Uploading to cloud...' } : f
+            ));
+
+            // Use context's addDocument for optimistic upload
+            const uploadPromise = addDocument(fileEntry.file, categoryId);
+            await Promise.all([
+              uploadPromise,
+              new Promise(resolve => setTimeout(resolve, 800))
+            ]);
+
+            // Update to finalizing stage
+            setUploadingFiles(prev => prev.map(f =>
+              f.id === fileEntry.id ? { ...f, progress: 95, processingStage: 'Finalizing...' } : f
+            ));
+
+            await new Promise(resolve => setTimeout(resolve, 400));
+
+            // Mark as completed
+            setUploadingFiles(prev => prev.map(f =>
+              f.id === fileEntry.id ? { ...f, status: 'completed', progress: 100, processingStage: null } : f
+            ));
+
+            totalSuccessCount++;
+          } catch (error) {
+            console.error('❌ Error uploading file:', error);
+            const message = error.response?.data?.message || error.message || 'Upload failed';
+            setUploadingFiles(prev => prev.map(f =>
+              f.id === fileEntry.id ? { ...f, status: 'failed', error: message } : f
+            ));
+            setErrorMessage(`Failed to upload ${fileEntry.file.name}: ${message}`);
+            setShowErrorBanner(true);
+            setTimeout(() => {
+              setShowErrorBanner(false);
+              setErrorMessage('');
+            }, 8000);
+            totalFailureCount++;
+          }
+        }
+      }
+
+      // Show success notification
+      if (totalSuccessCount > 0) {
+        setUploadedCount(totalSuccessCount);
         setNotificationType('success');
         setShowNotification(true);
         setTimeout(() => setShowNotification(false), 5000);
       }
 
-      if (failureCount > 0) {
+      // Show error notification
+      if (totalFailureCount > 0) {
         setNotificationType('error');
         setShowNotification(true);
         setTimeout(() => setShowNotification(false), 5000);
       }
+
+      // Refresh folders and documents to show updated data
+      await Promise.all([fetchFolders(), fetchDocuments()]);
+    } catch (error) {
+      console.error('❌ Unexpected error during upload:', error);
+      setErrorMessage(error.message || 'Upload failed');
+      setShowErrorBanner(true);
+      setTimeout(() => {
+        setShowErrorBanner(false);
+        setErrorMessage('');
+      }, 8000);
     }
 
     setIsUploading(false);
@@ -282,6 +337,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   const handleFolderSelect = (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) {
+      // Add webkitRelativePath to ensure proper folder detection
       onDrop(files);
     }
   };
@@ -603,75 +659,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
           </div>
         )}
 
-        {/* Folder upload progress banner */}
-        {folderUploadProgress && (
-          <div style={{
-            alignSelf: 'stretch',
-            paddingLeft: 18,
-            paddingRight: 18,
-            paddingTop: 16,
-            paddingBottom: 16,
-            background: folderUploadProgress.stage === 'error' ? '#FEE2E2' : '#F0F9FF',
-            borderRadius: 14,
-            flexDirection: 'column',
-            gap: 8,
-            display: 'flex'
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <div style={{
-                color: folderUploadProgress.stage === 'error' ? '#DC2626' : '#0369A1',
-                fontSize: 16,
-                fontFamily: 'Plus Jakarta Sans',
-                fontWeight: '600',
-                lineHeight: '24px'
-              }}>
-                {folderUploadProgress.message}
-              </div>
-              {folderUploadProgress.percentage !== undefined && (
-                <div style={{
-                  color: folderUploadProgress.stage === 'error' ? '#DC2626' : '#0369A1',
-                  fontSize: 16,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '700',
-                  lineHeight: '24px'
-                }}>
-                  {folderUploadProgress.percentage}%
-                </div>
-              )}
-            </div>
-            {folderUploadProgress.stage === 'uploading' && folderUploadProgress.currentBatch && (
-              <div style={{
-                color: '#6C6B6E',
-                fontSize: 14,
-                fontFamily: 'Plus Jakarta Sans',
-                fontWeight: '500',
-                lineHeight: '20px'
-              }}>
-                Batch {folderUploadProgress.currentBatch} of {folderUploadProgress.totalBatches} • {folderUploadProgress.uploaded} of {folderUploadProgress.total} files uploaded
-              </div>
-            )}
-            {folderUploadProgress.percentage !== undefined && folderUploadProgress.stage !== 'error' && (
-              <div style={{
-                width: '100%',
-                height: 8,
-                background: '#E0F2FE',
-                borderRadius: 4,
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  width: `${folderUploadProgress.percentage}%`,
-                  height: '100%',
-                  background: '#0369A1',
-                  transition: 'width 0.3s ease'
-                }} />
-              </div>
-            )}
-          </div>
-        )}
+        {/* Folder upload progress banner - HIDDEN (progress shown on individual files) */}
 
         {/* File list */}
         {uploadingFiles.length > 0 && (
@@ -705,19 +693,28 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   display: 'flex'
                 }}
               >
-                {/* Progress bar */}
+                {/* Progress bar - Only show during upload */}
                 {item.status === 'uploading' && (
                   <div style={{
-                    width: `${item.progress}%`,
-                    height: 72,
+                    width: '100%',
+                    height: '100%',
                     left: 0,
                     top: 0,
                     position: 'absolute',
-                    background: 'rgba(169, 169, 169, 0.12)',
-                    borderTopLeftRadius: 18,
-                    borderBottomLeftRadius: 18,
-                    transition: 'width 0.3s ease'
-                  }} />
+                    pointerEvents: 'none'
+                  }}>
+                    <div style={{
+                      width: `${item.progress}%`,
+                      height: '100%',
+                      left: 0,
+                      top: 0,
+                      position: 'absolute',
+                      background: 'rgba(169, 169, 169, 0.12)',
+                      borderTopLeftRadius: 18,
+                      borderBottomLeftRadius: 18,
+                      transition: 'width 0.3s ease-out'
+                    }} />
+                  </div>
                 )}
 
                 <div style={{
@@ -730,7 +727,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   position: 'relative',
                   zIndex: 1
                 }}>
-                  {/* File icon */}
+                  {/* File/Folder icon */}
                   <div style={{
                     width: 40,
                     height: 40,
@@ -739,8 +736,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                     justifyContent: 'center'
                   }}>
                     <img
-                      src={getFileIcon(item.file.name)}
-                      alt={item.file.name}
+                      src={item.isFolder ? folderIcon : getFileIcon(item.file.name)}
+                      alt={item.isFolder ? item.folderName : item.file.name}
                       style={{
                         width: 40,
                         height: 40,
@@ -768,7 +765,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap'
                     }}>
-                      {item.file.name}
+                      {item.isFolder ? item.folderName : item.file.name}
                     </div>
                     <div style={{
                       alignSelf: 'stretch',
@@ -778,14 +775,25 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                       fontWeight: '500',
                       lineHeight: '15.40px'
                     }}>
-                      {item.status === 'failed'
-                        ? 'Upload failed. Try again.'
-                        : item.status === 'completed'
-                        ? `${formatFileSize(item.file.size)} • 100% uploaded`
-                        : item.status === 'uploading'
-                        ? `${formatFileSize(item.file.size)} • ${item.progress}% uploaded`
-                        : `${formatFileSize(item.file.size)} • ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
-                      }
+                      {item.isFolder ? (
+                        // Folder status display
+                        item.status === 'failed'
+                          ? 'Upload failed. Try again.'
+                          : item.status === 'completed'
+                          ? `${formatFileSize(item.totalSize)} • ${item.fileCount} file${item.fileCount > 1 ? 's' : ''} • 100% uploaded`
+                          : item.status === 'uploading'
+                          ? item.processingStage || `${formatFileSize(item.totalSize)} • ${item.fileCount} file${item.fileCount > 1 ? 's' : ''} • ${item.progress}% uploaded`
+                          : `${formatFileSize(item.totalSize)} • ${item.fileCount} file${item.fileCount > 1 ? 's' : ''} • ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                      ) : (
+                        // File status display
+                        item.status === 'failed'
+                          ? 'Upload failed. Try again.'
+                          : item.status === 'completed'
+                          ? `${formatFileSize(item.file.size)} • 100% uploaded`
+                          : item.status === 'uploading'
+                          ? item.processingStage || `${formatFileSize(item.file.size)} • ${item.progress}% uploaded`
+                          : `${formatFileSize(item.file.size)} • ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                      )}
                     </div>
                   </div>
                 </div>

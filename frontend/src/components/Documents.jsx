@@ -94,6 +94,7 @@ const Documents = () => {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [itemToRename, setItemToRename] = useState(null);
   const [categoriesRefreshKey, setCategoriesRefreshKey] = useState(0);
+  const [dragOverCategoryId, setDragOverCategoryId] = useState(null);
 
   // Multi-select functionality
   const {
@@ -432,7 +433,7 @@ const Documents = () => {
             </>
           ) : (
             <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px'}}>
-              Welcome back, {user?.firstName || user?.email?.split('@')[0] || 'User'}!
+              Welcome back, {user && (user.firstName || user.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.email?.split('@')[0] || 'User'}!
             </div>
           )}
           <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
@@ -849,7 +850,46 @@ const Documents = () => {
                 <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: 1}}>Add New Smart Category</span>
               </div>
               {(showAllCategories ? categories : categories.slice(0, 4)).map((category, index) => (
-                <div key={`${category.id}-${category.emoji}`} style={{flex: 1, padding: 10, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, transition: 'transform 0.2s ease, box-shadow 0.2s ease', position: 'relative'}}>
+                <div
+                  key={`${category.id}-${category.emoji}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDragOverCategoryId(category.id);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDragOverCategoryId(null);
+                  }}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDragOverCategoryId(null);
+
+                    try {
+                      const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                      if (data.type === 'document') {
+                        // Move document to this category
+                        await moveToFolder(data.id, category.id);
+                      }
+                    } catch (error) {
+                      console.error('Error handling drop:', error);
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: 10,
+                    background: dragOverCategoryId === category.id ? '#F0F0F0' : 'white',
+                    borderRadius: 14,
+                    border: dragOverCategoryId === category.id ? '2px dashed #32302C' : '1px #E6E6EC solid',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease',
+                    position: 'relative'
+                  }}
+                >
                   <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 8, flex: 1, cursor: 'pointer'}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
                     <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0}}>
                       <CategoryIcon emoji={category.emoji} />
@@ -1123,6 +1163,17 @@ const Documents = () => {
                     return (
                       <div
                         key={doc.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('application/json', JSON.stringify({
+                            type: 'document',
+                            id: doc.id
+                          }));
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onDragEnd={(e) => {
+                          e.currentTarget.style.opacity = '1';
+                        }}
                         onClick={() => navigate(`/document/${doc.id}`)}
                         style={{
                           display: 'flex',
@@ -1131,7 +1182,7 @@ const Documents = () => {
                           padding: 12,
                           borderRadius: 12,
                           background: '#F5F5F5',
-                          cursor: 'pointer',
+                          cursor: 'grab',
                           transition: 'background 0.2s ease'
                         }}
                         onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}

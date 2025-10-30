@@ -472,24 +472,51 @@ export const DocumentsProvider = ({ children }) => {
 
   // Delete folder (optimistic)
   const deleteFolder = useCallback(async (folderId) => {
-    const folderToDelete = folders.find(f => f.id === folderId);
+    // Helper function to get all subfolder IDs recursively
+    const getAllSubfolderIds = (parentId) => {
+      const subfolderIds = [parentId];
+      const directSubfolders = folders.filter(f => f.parentFolderId === parentId);
 
-    // Remove from UI IMMEDIATELY
-    setFolders(prev => prev.filter(folder => folder.id !== folderId));
+      directSubfolders.forEach(subfolder => {
+        const nestedIds = getAllSubfolderIds(subfolder.id);
+        subfolderIds.push(...nestedIds);
+      });
+
+      return subfolderIds;
+    };
+
+    // Get all folder IDs that will be deleted (parent + all subfolders)
+    const allFolderIdsToDelete = getAllSubfolderIds(folderId);
+
+    // Store deleted items for potential rollback
+    const folderToDelete = folders.find(f => f.id === folderId);
+    const foldersToDelete = folders.filter(f => allFolderIdsToDelete.includes(f.id));
+    const documentsToDelete = documents.filter(d => allFolderIdsToDelete.includes(d.folderId));
+
+    // Remove folder and all subfolders from UI IMMEDIATELY
+    setFolders(prev => prev.filter(folder => !allFolderIdsToDelete.includes(folder.id)));
+
+    // Remove all documents in the folder and subfolders from UI IMMEDIATELY
+    setDocuments(prev => prev.filter(doc => !allFolderIdsToDelete.includes(doc.folderId)));
+    setRecentDocuments(prev => prev.filter(doc => !allFolderIdsToDelete.includes(doc.folderId)));
 
     try {
       await api.delete(`/api/folders/${folderId}`);
     } catch (error) {
       console.error('Error deleting folder:', error);
 
-      // Restore folder on error
-      if (folderToDelete) {
-        setFolders(prev => [folderToDelete, ...prev]);
+      // Restore folders and documents on error
+      if (foldersToDelete.length > 0) {
+        setFolders(prev => [...foldersToDelete, ...prev]);
+      }
+      if (documentsToDelete.length > 0) {
+        setDocuments(prev => [...documentsToDelete, ...prev]);
+        setRecentDocuments(prev => [...documentsToDelete, ...prev].slice(0, 5));
       }
 
       throw error;
     }
-  }, [folders]);
+  }, [folders, documents]);
 
   // Get document count by folder (including subfolders recursively)
   const getDocumentCountByFolder = useCallback((folderId) => {
