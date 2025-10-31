@@ -496,8 +496,9 @@ class PineconeService {
 
       // Query for vectors with this documentId using a zero vector
       // We only care about the metadata filter, not the actual similarity
+      // Use 768 dimensions to match Gemini embedding model
       const queryResponse = await index.query({
-        vector: new Array(1536).fill(0),
+        vector: new Array(768).fill(0),
         filter: { documentId: { $eq: documentId } },
         topK: 100,
         includeMetadata: true,
