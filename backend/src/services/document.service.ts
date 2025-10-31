@@ -2039,6 +2039,61 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 };
 
 /**
+ * Retry failed document processing
+ * Restarts async processing for a failed or stuck document
+ */
+export const retryDocument = async (documentId: string, userId: string) => {
+  try {
+    console.log(`🔄 Retrying document processing: ${documentId}`);
+
+    // 1. Get document and verify ownership
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      include: { metadata: true }
+    });
+
+    if (!document) {
+      throw new Error('Document not found');
+    }
+
+    if (document.userId !== userId) {
+      throw new Error('Unauthorized');
+    }
+
+    // 2. Update status to 'processing'
+    await prisma.document.update({
+      where: { id: documentId },
+      data: { status: 'processing' },
+    });
+
+    console.log(`✅ Status updated to 'processing'`);
+
+    // 3. Re-trigger async processing
+    processDocumentAsync(
+      document.id,
+      document.encryptedFilename,
+      document.filename,
+      document.mimeType,
+      userId,
+      document.metadata?.thumbnailUrl || null
+    ).catch(error => {
+      console.error('❌ Error in retry processing:', error);
+    });
+
+    console.log(`🚀 Async processing restarted`);
+
+    return {
+      id: document.id,
+      filename: document.filename,
+      status: 'processing'
+    };
+  } catch (error) {
+    console.error('❌ Error retrying document:', error);
+    throw error;
+  }
+};
+
+/**
  * Regenerate PPTX slides with improved ImageMagick rendering
  */
 export const regeneratePPTXSlides = async (documentId: string, userId: string) => {

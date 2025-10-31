@@ -37,6 +37,7 @@ router.delete('/:id', documentController.deleteDocument);
 router.post('/:id/share', documentController.shareDocument);
 router.post('/:id/search', documentController.searchInDocument);
 router.post('/:id/reprocess', documentController.reprocessDocument);
+router.post('/:id/retry', documentController.retryDocument);
 
 // Version control
 router.post('/:id/version', uploadLimiter, uploadSingle, documentController.uploadVersion);

@@ -202,10 +202,8 @@ class EmbeddingService {
         }
       }
 
-      // Rate limiting: small delay between batches
-      if (i < batches.length - 1) {
-        await this.sleep(200); // 200ms between batches
-      }
+      // No delay between batches - Gemini API can handle the load
+      // If rate limiting is needed, the API will return 429 errors which we can handle
     }
 
     const processingTime = Date.now() - startTime;
