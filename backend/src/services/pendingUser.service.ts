@@ -122,9 +122,7 @@ export const addPhoneToPending = async (email: string, phoneNumber: string) => {
     throw new Error('No pending registration found');
   }
 
-  if (!pendingUser.emailVerified) {
-    throw new Error('Please verify your email first');
-  }
+  // Allow phone verification without requiring email verification first
 
   if (pendingUser.expiresAt < new Date()) {
     await prisma.pendingUser.delete({
@@ -155,9 +153,7 @@ export const verifyPendingPhone = async (email: string, code: string) => {
     throw new Error('No pending registration found');
   }
 
-  if (!pendingUser.emailVerified) {
-    throw new Error('Please verify your email first');
-  }
+  // Allow phone verification without requiring email verification first
 
   if (pendingUser.expiresAt < new Date()) {
     await prisma.pendingUser.delete({

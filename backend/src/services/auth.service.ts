@@ -288,12 +288,14 @@ export const addPhoneToPendingUser = async (email: string, phoneNumber: string) 
   );
 
   // Send SMS
+  // Always log the code in development for easy testing
+  console.log(`📱 SMS Verification Code: ${phoneCode} for ${formattedPhone}`);
+
   try {
     await smsService.sendVerificationSMS(formattedPhone, phoneCode);
-    console.log(`📱 SMS code sent to ${formattedPhone}`);
+    console.log(`✅ SMS sent successfully to ${formattedPhone}`);
   } catch (error) {
-    console.error('Failed to send SMS:', error);
-    console.log(`📱 Would send SMS code ${phoneCode} to ${formattedPhone}`);
+    console.error('⚠️  Failed to send SMS (code still valid for testing):', error.message);
   }
 
   return {
@@ -311,8 +313,9 @@ export const verifyPendingUserPhone = async (email: string, code: string) => {
   // Verify phone code
   const pendingUser = await pendingUserService.verifyPendingPhone(email, code);
 
-  if (!pendingUser.emailVerified || !pendingUser.phoneVerified) {
-    throw new Error('Please complete all verification steps');
+  // Allow phone-only verification (don't require email to be verified)
+  if (!pendingUser.phoneVerified) {
+    throw new Error('Phone verification required');
   }
 
   // Create the actual user in the database
@@ -322,7 +325,7 @@ export const verifyPendingUserPhone = async (email: string, code: string) => {
       passwordHash: pendingUser.passwordHash,
       salt: pendingUser.salt,
       phoneNumber: pendingUser.phoneNumber!,
-      isEmailVerified: true,
+      isEmailVerified: pendingUser.emailVerified || false, // Set based on actual verification status
       isPhoneVerified: true,
     },
   });

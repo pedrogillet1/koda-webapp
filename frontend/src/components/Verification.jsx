@@ -11,7 +11,7 @@ const Verification = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const inputsRef = useRef([]);
-    const { user } = useAuth();
+    const { user, verifyPendingPhone } = useAuth();
 
     const phoneNumber = location.state?.phoneNumber || '';
 
@@ -28,15 +28,35 @@ const Verification = () => {
             setError('');
 
             try {
-                const token = localStorage.getItem('accessToken');
-                const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/verify/send-phone`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ phoneNumber })
-                });
+                // Check if this is a pending registration (from location state)
+                const email = location.state?.email;
+                const isPendingRegistration = !!email;
+
+                let response;
+                if (isPendingRegistration) {
+                    // Pending user registration - resend via add-phone endpoint
+                    response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/pending/add-phone`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            email: email,
+                            phoneNumber: phoneNumber
+                        })
+                    });
+                } else {
+                    // Existing user - requires auth
+                    const token = localStorage.getItem('accessToken');
+                    response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/verify/send-phone`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ phoneNumber })
+                    });
+                }
 
                 const data = await response.json();
 
@@ -66,24 +86,41 @@ const Verification = () => {
         setError('');
 
         try {
-            const token = localStorage.getItem('accessToken');
-            const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/verify/phone`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ code: verificationCode })
-            });
+            // Check if this is a pending registration (from location state)
+            const email = location.state?.email;
+            const isPendingRegistration = !!email;
 
-            const data = await response.json();
+            if (isPendingRegistration) {
+                // Pending user registration - use AuthContext method
+                await verifyPendingPhone({
+                    email: email,
+                    code: verificationCode
+                });
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Invalid verification code');
+                console.log('✅ Phone verified successfully');
+                localStorage.removeItem('pendingEmail'); // Clean up
+                navigate('/home');
+            } else {
+                // Existing user adding phone - requires auth
+                const token = localStorage.getItem('accessToken');
+                const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/verify/phone`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ code: verificationCode })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Invalid verification code');
+                }
+
+                console.log('✅ Phone verified successfully');
+                navigate('/home');
             }
-
-            console.log('✅ Phone verified successfully');
-            navigate('/');
         } catch (error) {
             console.error('Error verifying code:', error);
             setError(error.message || 'Invalid verification code');
