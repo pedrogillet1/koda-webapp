@@ -47,7 +47,8 @@ export const registerUser = async ({ email, password }: RegisterInput) => {
   const { hash, salt } = await hashPassword(password);
 
   // Import pending user service
-  const pendingUserService = await import('./pendingUser.service');
+  const pendingUserServiceModule = await import('./pendingUser.service');
+  const pendingUserService = pendingUserServiceModule.default;
 
   // Create pending user with email code
   const { pendingUser, emailCode } = await pendingUserService.createPendingUser({
@@ -58,7 +59,8 @@ export const registerUser = async ({ email, password }: RegisterInput) => {
 
   // Send email verification code
   try {
-    const emailService = await import('./email.service');
+    const emailServiceModule = await import('./email.service');
+    const emailService = emailServiceModule.default;
     await emailService.sendVerificationEmail(email, emailCode);
     console.log(`📧 Verification code sent to ${email}`);
   } catch (error) {
@@ -181,7 +183,8 @@ export const logoutUser = async (refreshToken: string) => {
  * Verify email code for pending user and complete registration (create actual user)
  */
 export const verifyPendingUserEmail = async (email: string, code: string) => {
-  const pendingUserService = await import('./pendingUser.service');
+  const pendingUserServiceModule = await import('./pendingUser.service');
+  const pendingUserService = pendingUserServiceModule.default;
 
   const pendingUser = await pendingUserService.verifyPendingEmail(email, code);
 
@@ -238,7 +241,8 @@ export const verifyPendingUserEmail = async (email: string, code: string) => {
  * Resend email verification code for pending user
  */
 export const resendPendingUserEmail = async (email: string) => {
-  const pendingUserService = await import('./pendingUser.service');
+  const pendingUserServiceModule = await import('./pendingUser.service');
+  const pendingUserService = pendingUserServiceModule.default;
 
   // Get pending user and regenerate email code
   const { pendingUser, emailCode } = await pendingUserService.resendEmailCode(email);
@@ -263,8 +267,10 @@ export const resendPendingUserEmail = async (email: string) => {
  * Add phone and send verification code for pending user
  */
 export const addPhoneToPendingUser = async (email: string, phoneNumber: string) => {
-  const pendingUserService = await import('./pendingUser.service');
-  const smsService = await import('./sms.service');
+  const pendingUserServiceModule = await import('./pendingUser.service');
+  const pendingUserService = pendingUserServiceModule.default;
+  const smsServiceModule = await import('./sms.service');
+  const smsService = smsServiceModule.default;
 
   // Validate and format phone number
   const formattedPhone = smsService.formatPhoneNumber(phoneNumber);
@@ -308,7 +314,8 @@ export const addPhoneToPendingUser = async (email: string, phoneNumber: string) 
  * Verify phone and create actual user (final step)
  */
 export const verifyPendingUserPhone = async (email: string, code: string) => {
-  const pendingUserService = await import('./pendingUser.service');
+  const pendingUserServiceModule = await import('./pendingUser.service');
+  const pendingUserService = pendingUserServiceModule.default;
 
   // Verify phone code
   const pendingUser = await pendingUserService.verifyPendingPhone(email, code);
@@ -466,7 +473,8 @@ export const sendPhoneVerificationCode = async (userId: string, phoneNumber: str
   }
 
   // Import SMS service dynamically
-  const smsService = await import('./sms.service');
+  const smsServiceModule = await import('./sms.service');
+  const smsService = smsServiceModule.default;
 
   // Validate phone number format
   const formattedPhone = smsService.formatPhoneNumber(phoneNumber);
@@ -623,7 +631,8 @@ export const requestPasswordReset = async ({
     }
   } else if (phoneNumber && user.phoneNumber) {
     try {
-      const smsService = await import('./sms.service');
+      const smsServiceModule = await import('./sms.service');
+      const smsService = smsServiceModule.default;
       await smsService.sendPasswordResetSMS(user.phoneNumber, code);
       console.log(`📱 Password reset code sent to ${user.phoneNumber}`);
     } catch (error) {
