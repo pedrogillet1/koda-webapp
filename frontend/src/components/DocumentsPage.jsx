@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
@@ -83,6 +83,8 @@ const DocumentsPage = () => {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [itemToRename, setItemToRename] = useState(null);
+  const [droppedFiles, setDroppedFiles] = useState(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -272,12 +274,49 @@ const DocumentsPage = () => {
     );
   }, [contextDocuments, searchQuery]);
 
+  // Handle page-level file drop
+  const handlePageDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    console.log('📁 DocumentsPage - Files dropped:', files);
+    console.log('📁 File count:', files.length);
+    if (files.length > 0) {
+      // Set both states together using functional updates to ensure they batch correctly
+      setDroppedFiles(files);
+      // Use setTimeout to ensure the files state is set before opening modal
+      setTimeout(() => {
+        setShowUniversalUploadModal(true);
+        console.log('📁 Modal opened with files');
+      }, 0);
+    }
+  }, []);
+
+  const handlePageDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handlePageDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
   return (
     <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Main Content */}
-      <div style={{flex: 1, height: '100%', display: 'flex', flexDirection: 'column'}}>
+      <div
+        style={{flex: 1, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative'}}
+        onDrop={handlePageDrop}
+        onDragOver={handlePageDragOver}
+        onDragLeave={handlePageDragLeave}
+      >
         {/* Header */}
         <div style={{height: 84, paddingLeft: 20, paddingRight: 20, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
           <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px'}}>
@@ -1129,6 +1168,81 @@ const DocumentsPage = () => {
             })()}
           </div>
         </div>
+
+        {/* Drag and Drop Overlay */}
+        {isDraggingOver && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(23, 23, 23, 0.95)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 20,
+              zIndex: 999,
+              pointerEvents: 'none',
+              animation: 'fadeIn 0.2s ease-in'
+            }}
+          >
+            <style>
+              {`
+                @keyframes fadeIn {
+                  from { opacity: 0; }
+                  to { opacity: 1; }
+                }
+              `}
+            </style>
+            <div
+              style={{
+                width: 120,
+                height: 120,
+                background: 'white',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                animation: 'pulse 1.5s ease-in-out infinite'
+              }}
+            >
+              <style>
+                {`
+                  @keyframes pulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.05); }
+                  }
+                `}
+              </style>
+              <LogoutBlackIcon style={{ width: 60, height: 60 }} />
+            </div>
+            <div
+              style={{
+                color: 'white',
+                fontSize: 32,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '700',
+                textAlign: 'center'
+              }}
+            >
+              Drop files here to upload
+            </div>
+            <div
+              style={{
+                color: 'rgba(255, 255, 255, 0.7)',
+                fontSize: 18,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '500',
+                textAlign: 'center'
+              }}
+            >
+              Release to open upload modal
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Create Category Modal */}
@@ -1407,12 +1521,23 @@ const DocumentsPage = () => {
       {/* Universal Upload Modal */}
       <UniversalUploadModal
         isOpen={showUniversalUploadModal}
-        onClose={() => setShowUniversalUploadModal(false)}
+        onClose={() => {
+          console.log('📁 DocumentsPage - Closing modal, clearing droppedFiles');
+          setShowUniversalUploadModal(false);
+          setDroppedFiles(null);
+        }}
         categoryId={null}
         onUploadComplete={() => {
           // No manual refresh needed - context auto-updates!
         }}
+        initialFiles={droppedFiles}
       />
+      {/* Debug: Log when props change */}
+      {console.log('📁 DocumentsPage - Rendering modal with:', {
+        isOpen: showUniversalUploadModal,
+        droppedFiles: droppedFiles,
+        fileCount: droppedFiles?.length
+      })}
 
       {/* Delete Confirmation Modal */}
       <DeleteConfirmationModal

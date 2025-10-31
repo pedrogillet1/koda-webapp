@@ -735,47 +735,66 @@ const UploadHub = () => {
   };
 
   const handleDeleteDocument = async (documentId) => {
+    // Save document for potential rollback
+    const documentToDelete = documents.find(doc => doc.id === documentId);
+
     try {
       console.log('🗑️ Deleting document:', documentId);
+
+      // Remove from UI IMMEDIATELY (optimistic update)
+      setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+      setOpenDropdownId(null);
 
       // Show notification immediately for instant feedback
       showSuccess('1 file has been deleted');
 
+      // Delete on server in background
       await api.delete(`/api/documents/${documentId}`);
-
-      // Remove from UI
-      setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-      setOpenDropdownId(null);
 
       console.log('✅ Document deleted successfully');
     } catch (error) {
       console.error('❌ Error deleting document:', error);
+
+      // Restore document on error (rollback)
+      if (documentToDelete) {
+        setDocuments(prev => [documentToDelete, ...prev]);
+      }
+
       alert('Failed to delete document. Please try again.');
     }
   };
 
   const handleDeleteFolder = async (folderId) => {
+    // Save folder and related documents for potential rollback
+    const folderToDelete = folders.find(f => f.id === folderId);
+    const docsInFolder = documents.filter(doc => doc.folderId === folderId);
+
     try {
       console.log('🗑️ Deleting folder:', folderId);
-      await api.delete(`/api/folders/${folderId}`);
 
-      // Reload both documents and folders
-      const [docsResponse, foldersResponse] = await Promise.all([
-        api.get('/api/documents'),
-        api.get('/api/folders')
-      ]);
-
-      setDocuments(docsResponse.data.documents || []);
-      const allFolders = foldersResponse.data.folders || [];
-      setFolders(allFolders.filter(f =>
-        !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
-      ));
+      // Remove from UI IMMEDIATELY (optimistic update)
+      setFolders(prev => prev.filter(f => f.id !== folderId));
+      setDocuments(prev => prev.filter(doc => doc.folderId !== folderId));
       setOpenDropdownId(null);
 
-      console.log('✅ Folder deleted successfully');
+      // Show notification immediately for instant feedback
       showSuccess('1 folder has been deleted');
+
+      // Delete on server in background
+      await api.delete(`/api/folders/${folderId}`);
+
+      console.log('✅ Folder deleted successfully');
     } catch (error) {
       console.error('❌ Error deleting folder:', error);
+
+      // Restore folder and documents on error (rollback)
+      if (folderToDelete) {
+        setFolders(prev => [folderToDelete, ...prev]);
+      }
+      if (docsInFolder.length > 0) {
+        setDocuments(prev => [...docsInFolder, ...prev]);
+      }
+
       alert('Failed to delete folder. Please try again.');
     }
   };
@@ -2215,27 +2234,35 @@ const UploadHub = () => {
           setShowDeleteModal(false);
           setItemToDelete(null);
         }}
-        onConfirm={async () => {
+        onConfirm={() => {
           if (!itemToDelete) return;
 
-          try {
-            if (itemToDelete.type === 'folder') {
-              await handleDeleteFolder(itemToDelete.id);
-            } else if (itemToDelete.type === 'document') {
-              await handleDeleteDocument(itemToDelete.id);
-            } else if (itemToDelete.type === 'uploadedFile') {
-              await api.delete(`/api/documents/${itemToDelete.documentId}`);
-              setOpenDropdownId(null);
-              removeUploadingFile(itemToDelete.isFolder ? itemToDelete.folderName : itemToDelete.name);
-              setDocuments(prev => prev.filter(doc => doc.id !== itemToDelete.documentId));
-              showSuccess('1 file has been deleted');
+          // Save reference before clearing state
+          const itemToDeleteCopy = itemToDelete;
+
+          // Close modal AND clear state IMMEDIATELY for instant feedback
+          setShowDeleteModal(false);
+          setItemToDelete(null);
+
+          // Delete in background
+          (async () => {
+            try {
+              if (itemToDeleteCopy.type === 'folder') {
+                await handleDeleteFolder(itemToDeleteCopy.id);
+              } else if (itemToDeleteCopy.type === 'document') {
+                await handleDeleteDocument(itemToDeleteCopy.id);
+              } else if (itemToDeleteCopy.type === 'uploadedFile') {
+                await api.delete(`/api/documents/${itemToDeleteCopy.documentId}`);
+                setOpenDropdownId(null);
+                removeUploadingFile(itemToDeleteCopy.isFolder ? itemToDeleteCopy.folderName : itemToDeleteCopy.name);
+                setDocuments(prev => prev.filter(doc => doc.id !== itemToDeleteCopy.documentId));
+                showSuccess('1 file has been deleted');
+              }
+            } catch (error) {
+              console.error('Delete error:', error);
+              alert('Failed to delete: ' + (error.response?.data?.error || error.message));
             }
-            setShowDeleteModal(false);
-            setItemToDelete(null);
-          } catch (error) {
-            console.error('Delete error:', error);
-            alert('Failed to delete: ' + (error.response?.data?.error || error.message));
-          }
+          })();
         }}
         itemName={itemToDelete?.name || ''}
       />

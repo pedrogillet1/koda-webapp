@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import LeftNav from './LeftNav';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
+import FeedbackModal from './FeedbackModal';
 import { ReactComponent as DonutIcon } from '../assets/Donut.svg';
 import { ReactComponent as UserIcon } from '../assets/User.svg';
 import { ReactComponent as LayersIcon } from '../assets/Layers.svg';
@@ -44,6 +45,7 @@ const Settings = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   // Notification preferences
   const [accountUpdates, setAccountUpdates] = useState(true);
@@ -583,7 +585,7 @@ const Settings = () => {
                 </div>
               </div>
               <button
-                onClick={() => window.open('mailto:support@koda.com?subject=Koda Beta Feedback', '_blank')}
+                onClick={() => setShowFeedbackModal(true)}
                 style={{
                   width: '100%',
                   paddingLeft: 18,
@@ -616,19 +618,42 @@ const Settings = () => {
             </div>
 
             {/* Storage */}
-            <div style={{ flex: '1 1 0', padding: 24, background: 'white', borderRadius: 16, border: '1px #E6E6EC solid', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 20, display: 'flex' }}>
-              <div style={{ width: 70, height: 70, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="70" height="70" style={{ transform: 'rotate(-90deg)' }}>
-                  {/* Progress circle */}
+            <div style={{
+              flex: '1 1 0',
+              padding: 24,
+              background: 'white',
+              borderRadius: 16,
+              border: '1px #E6E6EC solid',
+              flexDirection: 'column',
+              justifyContent: 'flex-start',
+              alignItems: 'center',
+              gap: 24,
+              display: 'flex',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+              cursor: 'default'
+            }}
+            >
+              <div style={{ width: 180, height: 180, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 16 }}>
+                <svg width="180" height="180" style={{ transform: 'rotate(-90deg)' }}>
+                  {/* Background circle (unused storage) */}
                   <circle
-                    cx="35"
-                    cy="35"
-                    r="30"
+                    cx="90"
+                    cy="90"
+                    r="74"
+                    fill="none"
+                    stroke="#E6E6EC"
+                    strokeWidth="18"
+                  />
+                  {/* Progress circle (used storage) */}
+                  <circle
+                    cx="90"
+                    cy="90"
+                    r="74"
                     fill="none"
                     stroke="#181818"
-                    strokeWidth="10"
-                    strokeDasharray={`${2 * Math.PI * 30}`}
-                    strokeDashoffset={`${2 * Math.PI * 30 * (1 - storagePercentage / 100)}`}
+                    strokeWidth="18"
+                    strokeDasharray={`${2 * Math.PI * 74}`}
+                    strokeDashoffset={`${2 * Math.PI * 74 * (1 - storagePercentage / 100)}`}
                     strokeLinecap="round"
                   />
                 </svg>
@@ -639,15 +664,15 @@ const Settings = () => {
                   left: '50%',
                   transform: 'translate(-50%, -50%)',
                   color: '#181818',
-                  fontSize: 16,
+                  fontSize: 28,
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '700',
-                  lineHeight: '20px'
+                  lineHeight: '32px'
                 }}>
                   {Math.round(storagePercentage)}%
                 </div>
               </div>
-              <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex' }}>
+              <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex', paddingLeft: 8 }}>
                 <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', letterSpacing: '0.5px' }}>Storage</div>
                 <div style={{ marginTop: 4 }}>
                   <span style={{ color: '#32302C', fontSize: 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '40px' }}>{formatBytes(totalStorage)} </span>
@@ -719,7 +744,34 @@ const Settings = () => {
 
             {/* Recently Added */}
             <div style={{ flex: '1 1 0', padding: 24, background: 'white', borderRadius: 16, border: '1px #E6E6EC solid', minHeight: 480, flexDirection: 'column', display: 'flex' }}>
-              <div style={{ color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', marginBottom: 24 }}>Recently Added</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                <div style={{ color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700' }}>Recently Added</div>
+                <button
+                  onClick={() => navigate('/documents')}
+                  style={{
+                    padding: '8px 16px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#6C6B6E',
+                    fontSize: 14,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    borderRadius: 8,
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#F5F5F5';
+                    e.currentTarget.style.color = '#32302C';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#6C6B6E';
+                  }}
+                >
+                  See all
+                </button>
+              </div>
 
               {recentDocuments.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -748,28 +800,6 @@ const Settings = () => {
                         <div style={{ color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 4 }}>
                           {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
                         </div>
-                      </div>
-                      <div
-                        onClick={(e) => handleDeleteDocument(doc.id, e)}
-                        style={{
-                          padding: 8,
-                          borderRadius: 8,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          transition: 'background 0.2s ease'
-                        }}
-                        onMouseOver={(e) => {
-                          e.stopPropagation();
-                          e.currentTarget.style.background = '#FFE6E6';
-                        }}
-                        onMouseOut={(e) => {
-                          e.stopPropagation();
-                          e.currentTarget.style.background = 'transparent';
-                        }}
-                      >
-                        <XCloseIcon style={{ width: 18, height: 18, stroke: '#E53E3E' }} />
                       </div>
                     </div>
                   ))}
@@ -1289,6 +1319,11 @@ const Settings = () => {
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleConfirmClearCache}
         itemName="cache and all documents"
+      />
+
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
       />
     </div>
   );

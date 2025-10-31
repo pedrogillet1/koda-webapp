@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as FolderIcon } from '../assets/folder_icon.svg';
@@ -19,9 +19,16 @@ import mp4Icon from '../assets/mp4.svg';
 import mp3Icon from '../assets/mp3.svg';
 import folderIcon from '../assets/folder_icon.svg';
 
-const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComplete }) => {
+const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComplete, initialFiles = null }) => {
+  console.log('🟢 UniversalUploadModal RENDER - Props:', {
+    isOpen,
+    initialFiles,
+    fileCount: initialFiles?.length,
+    categoryId
+  });
+
   // Get context functions for optimistic uploads
-  const { addDocument, createFolder, fetchFolders, fetchDocuments } = useDocuments();
+  const { addDocument, createFolder, refreshAll } = useDocuments();
 
   const [uploadingFiles, setUploadingFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -34,9 +41,14 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   const folderInputRef = React.useRef(null);
 
   const onDrop = useCallback((acceptedFiles) => {
+    console.log('🔵 onDrop called with files:', acceptedFiles);
+    console.log('🔵 Files count:', acceptedFiles.length);
+
     // Separate folder files from regular files
     const folderFiles = acceptedFiles.filter(file => file.webkitRelativePath);
     const regularFiles = acceptedFiles.filter(file => !file.webkitRelativePath);
+
+    console.log('🔵 Folder files:', folderFiles.length, 'Regular files:', regularFiles.length);
 
     const newEntries = [];
 
@@ -89,8 +101,27 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       });
     }
 
-    setUploadingFiles(prev => [...prev, ...newEntries]);
+    console.log('🔵 New entries to add:', newEntries.length);
+    console.log('🔵 Entries:', newEntries);
+    setUploadingFiles(prev => {
+      const updated = [...prev, ...newEntries];
+      console.log('🔵 Updated uploadingFiles:', updated);
+      return updated;
+    });
   }, []);
+
+  // Process initial files when modal opens with dropped files
+  useEffect(() => {
+    console.log('useEffect triggered - isOpen:', isOpen, 'initialFiles:', initialFiles);
+    if (isOpen && initialFiles && initialFiles.length > 0) {
+      console.log('✅ Processing dropped files:', initialFiles);
+      console.log('Files count:', initialFiles.length);
+      onDrop(initialFiles);
+      console.log('✅ onDrop called');
+    } else {
+      console.log('❌ Condition not met - isOpen:', isOpen, 'initialFiles length:', initialFiles?.length);
+    }
+  }, [isOpen, initialFiles, onDrop]);
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
@@ -241,11 +272,10 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
             ));
 
             // Use context's addDocument for optimistic upload
-            const uploadPromise = addDocument(fileEntry.file, categoryId);
-            await Promise.all([
-              uploadPromise,
-              new Promise(resolve => setTimeout(resolve, 800))
-            ]);
+            console.log('📤 Starting upload for:', fileEntry.file.name);
+            const uploadedDoc = await addDocument(fileEntry.file, categoryId);
+            console.log('✅ Upload complete, document:', uploadedDoc);
+            await new Promise(resolve => setTimeout(resolve, 800));
 
             // Update to finalizing stage
             setUploadingFiles(prev => prev.map(f =>
@@ -260,8 +290,14 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
             ));
 
             totalSuccessCount++;
+            console.log('✅ Success count:', totalSuccessCount);
           } catch (error) {
             console.error('❌ Error uploading file:', error);
+            console.error('❌ Error details:', {
+              message: error.message,
+              response: error.response?.data,
+              status: error.response?.status
+            });
             const message = error.response?.data?.message || error.message || 'Upload failed';
             setUploadingFiles(prev => prev.map(f =>
               f.id === fileEntry.id ? { ...f, status: 'failed', error: message } : f
@@ -273,6 +309,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
               setErrorMessage('');
             }, 8000);
             totalFailureCount++;
+            console.log('❌ Failure count:', totalFailureCount);
           }
         }
       }
@@ -293,7 +330,9 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       }
 
       // Refresh folders and documents to show updated data
-      await Promise.all([fetchFolders(), fetchDocuments()]);
+      console.log('🔄 Refreshing documents after upload...');
+      await refreshAll();
+      console.log('✅ Documents refreshed!');
     } catch (error) {
       console.error('❌ Unexpected error during upload:', error);
       setErrorMessage(error.message || 'Upload failed');

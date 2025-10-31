@@ -234,6 +234,8 @@ export const DocumentsProvider = ({ children }) => {
 
   // Add document (optimistic)
   const addDocument = useCallback(async (file, folderId = null) => {
+    console.log('🔵 addDocument called for:', file.name, 'folderId:', folderId);
+
     // Create temporary document object
     const tempId = `temp-${Date.now()}-${Math.random()}`;
     const tempDocument = {
@@ -247,17 +249,28 @@ export const DocumentsProvider = ({ children }) => {
       gcsUrl: null
     };
 
+    console.log('🔵 Created temp document:', tempDocument);
+
     // Add to UI IMMEDIATELY (optimistic update)
-    setDocuments(prev => [tempDocument, ...prev]);
+    setDocuments(prev => {
+      console.log('🔵 Adding temp doc to documents, current count:', prev.length);
+      return [tempDocument, ...prev];
+    });
     setRecentDocuments(prev => [tempDocument, ...prev.slice(0, 4)]);
 
     try {
       // Get upload URL from backend
+      console.log('🔵 Requesting upload URL for:', {
+        fileName: file.name,
+        fileType: file.type,
+        size: file.size
+      });
       const uploadUrlResponse = await api.post('/api/documents/upload-url', {
         fileName: file.name,
         fileType: file.type,
         folderId: folderId
       });
+      console.log('🔵 Upload URL response:', uploadUrlResponse.data);
 
       const { uploadUrl, gcsUrl, documentId, encryptedFilename } = uploadUrlResponse.data;
 
@@ -270,17 +283,33 @@ export const DocumentsProvider = ({ children }) => {
       };
 
       const fileHash = await calculateFileHash(file);
+      console.log('🔵 File hash calculated:', fileHash);
 
       // Upload directly to GCS
-      await fetch(uploadUrl, {
+      console.log('🔵 Uploading to GCS with Content-Type:', file.type);
+      const gcsResponse = await fetch(uploadUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': file.type
         },
         body: file
       });
+      console.log('🔵 GCS upload response status:', gcsResponse.status, gcsResponse.statusText);
+
+      if (!gcsResponse.ok) {
+        throw new Error(`GCS upload failed: ${gcsResponse.status} ${gcsResponse.statusText}`);
+      }
 
       // Confirm upload with backend - send required metadata
+      console.log('🔵 Confirming upload with backend:', {
+        documentId,
+        encryptedFilename,
+        filename: file.name,
+        mimeType: file.type,
+        fileSize: file.size,
+        fileHash,
+        folderId
+      });
       const confirmResponse = await api.post(`/api/documents/${documentId}/confirm-upload`, {
         encryptedFilename,
         filename: file.name,
@@ -289,22 +318,36 @@ export const DocumentsProvider = ({ children }) => {
         fileHash,
         folderId
       });
+      console.log('🔵 Confirm response:', confirmResponse.data);
       const newDocument = confirmResponse.data.document;
+      console.log('🔵 Received new document from server:', newDocument);
 
       // Replace temp document with real one
-      setDocuments(prev =>
-        prev.map(doc => doc.id === tempId ? newDocument : doc)
-      );
+      setDocuments(prev => {
+        const updated = prev.map(doc => doc.id === tempId ? newDocument : doc);
+        console.log('🔵 Replaced temp doc with real doc, count:', updated.length);
+        return updated;
+      });
       setRecentDocuments(prev =>
         prev.map(doc => doc.id === tempId ? newDocument : doc)
       );
 
+      console.log('🔵 Document upload fully complete, returning:', newDocument);
       return newDocument;
     } catch (error) {
-      console.error('Error uploading document:', error);
+      console.error('🔴 Error in addDocument:', error);
+      console.error('🔴 Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
 
       // Remove temp document on error
-      setDocuments(prev => prev.filter(doc => doc.id !== tempId));
+      setDocuments(prev => {
+        const updated = prev.filter(doc => doc.id !== tempId);
+        console.log('🔴 Removed temp doc on error, remaining count:', updated.length);
+        return updated;
+      });
       setRecentDocuments(prev => prev.filter(doc => doc.id !== tempId));
 
       throw error;
