@@ -413,10 +413,23 @@ export async function processDocumentInBackground(
       }
     }
 
-    // Create metadata record with enriched data
-    await prisma.documentMetadata.create({
-      data: {
+    // Create or update metadata record with enriched data
+    await prisma.documentMetadata.upsert({
+      where: { documentId },
+      create: {
         documentId,
+        extractedText,
+        ocrConfidence,
+        classification,
+        entities,
+        thumbnailUrl,
+        pageCount,
+        wordCount,
+        markdownContent,
+        slidesData: slidesData ? JSON.stringify(slidesData) : null,
+        pptxMetadata: pptxMetadata ? JSON.stringify(pptxMetadata) : null,
+      },
+      update: {
         extractedText,
         ocrConfidence,
         classification,
@@ -659,11 +672,47 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
     },
   });
 
-  // Process document asynchronously (download from GCS, extract text, etc.)
-  processDocumentAsync(document.id, encryptedFilename, filename, mimeType, userId, thumbnailUrl).catch(error => {
-    console.error('❌ Error in async document processing:', error);
-  });
+  // ⚡ FAST ASYNC PROCESSING: Return immediately, process in background
+  console.log(`🚀 Starting async processing for: ${filename} (Document ID: ${document.id})`);
 
+  // Process in background with proper error handling
+  (async () => {
+    try {
+      await processDocumentAsync(
+        document.id,
+        encryptedFilename,
+        filename,
+        mimeType,
+        userId,
+        thumbnailUrl
+      );
+      console.log(`✅ Document processing completed: ${filename}`);
+    } catch (error: any) {
+      console.error(`❌ Error in async document processing for ${filename}:`, error);
+
+      // Update document status to 'failed' so frontend can show error
+      await prisma.document.update({
+        where: { id: document.id },
+        data: { status: 'failed' },
+      });
+
+      // Emit WebSocket event to notify frontend of failure
+      try {
+        const io = require('../server').io;
+        if (io) {
+          io.to(userId).emit('document:failed', {
+            documentId: document.id,
+            filename: filename,
+            error: error.message || 'Processing failed'
+          });
+        }
+      } catch (wsError) {
+        console.warn('Failed to emit WebSocket event:', wsError);
+      }
+    }
+  })();
+
+  // Return document immediately with 'processing' status
   return document;
 };
 
@@ -913,10 +962,23 @@ async function processDocumentAsync(
       }
     }
 
-    // Create metadata record
-    await prisma.documentMetadata.create({
-      data: {
+    // Create or update metadata record (upsert handles retry cases)
+    await prisma.documentMetadata.upsert({
+      where: { documentId },
+      create: {
         documentId,
+        extractedText,
+        ocrConfidence,
+        classification,
+        entities,
+        thumbnailUrl,
+        pageCount,
+        wordCount,
+        markdownContent,
+        slidesData: slidesData ? JSON.stringify(slidesData) : null,
+        pptxMetadata: pptxMetadata ? JSON.stringify(pptxMetadata) : null,
+      },
+      update: {
         extractedText,
         ocrConfidence,
         classification,
@@ -1048,6 +1110,17 @@ async function processDocumentAsync(
         // Store embeddings
         await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
         console.log(`✅ Stored ${chunks.length} vector embeddings`);
+
+        // 🔍 VERIFY PINECONE STORAGE - Critical step!
+        console.log('🔍 Verifying Pinecone storage...');
+        const pineconeService = await import('./pinecone.service');
+        const verification = await pineconeService.default.verifyDocument(documentId);
+
+        if (!verification.success) {
+          throw new Error(`Pinecone verification failed: ${verification.error || 'No vectors found'}`);
+        }
+
+        console.log(`✅ Verification passed: Found ${verification.vectorCount} vectors in Pinecone`);
       } catch (error: any) {
         // ❌ CRITICAL ERROR: Embedding generation is NOT optional!
         console.error('❌ CRITICAL: Vector embedding generation failed:', error);
@@ -1055,11 +1128,25 @@ async function processDocumentAsync(
       }
     }
 
-    // Update document status to completed
+    // Update document status to completed (only if verification passed)
     await prisma.document.update({
       where: { id: documentId },
       data: { status: 'completed' },
     });
+
+    // Emit WebSocket event to notify frontend of success
+    try {
+      const io = require('../server').io;
+      if (io) {
+        io.to(userId).emit('document:completed', {
+          documentId: documentId,
+          filename: filename,
+          status: 'completed'
+        });
+      }
+    } catch (wsError) {
+      console.warn('Failed to emit WebSocket completion event:', wsError);
+    }
 
     // Invalidate cache for this user after successful processing
     await cacheService.invalidateUserCache(userId);
@@ -1973,6 +2060,61 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
     }
   } catch (error) {
     console.error('❌ Error reprocessing document:', error);
+    throw error;
+  }
+};
+
+/**
+ * Retry failed document processing
+ * Restarts async processing for a failed or stuck document
+ */
+export const retryDocument = async (documentId: string, userId: string) => {
+  try {
+    console.log(`🔄 Retrying document processing: ${documentId}`);
+
+    // 1. Get document and verify ownership
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      include: { metadata: true }
+    });
+
+    if (!document) {
+      throw new Error('Document not found');
+    }
+
+    if (document.userId !== userId) {
+      throw new Error('Unauthorized');
+    }
+
+    // 2. Update status to 'processing'
+    await prisma.document.update({
+      where: { id: documentId },
+      data: { status: 'processing' },
+    });
+
+    console.log(`✅ Status updated to 'processing'`);
+
+    // 3. Re-trigger async processing
+    processDocumentAsync(
+      document.id,
+      document.encryptedFilename,
+      document.filename,
+      document.mimeType,
+      userId,
+      document.metadata?.thumbnailUrl || null
+    ).catch(error => {
+      console.error('❌ Error in retry processing:', error);
+    });
+
+    console.log(`🚀 Async processing restarted`);
+
+    return {
+      id: document.id,
+      filename: document.filename,
+      status: 'processing'
+    };
+  } catch (error) {
+    console.error('❌ Error retrying document:', error);
     throw error;
   }
 };

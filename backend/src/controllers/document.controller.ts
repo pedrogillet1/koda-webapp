@@ -642,6 +642,35 @@ export const reprocessDocument = async (req: Request, res: Response): Promise<vo
 };
 
 /**
+ * Retry failed document processing
+ * Restarts async processing for a failed document
+ */
+export const retryDocument = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+
+    const result = await documentService.retryDocument(id, req.user.id);
+
+    // Emit real-time event for document retry
+    emitDocumentEvent(req.user.id, 'processing', id);
+
+    res.status(200).json({
+      message: 'Document processing restarted successfully',
+      document: result
+    });
+  } catch (error) {
+    const err = error as Error;
+    console.error('Retry error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/**
  * Search within a document
  */
 export const searchInDocument = async (req: Request, res: Response): Promise<void> => {

@@ -214,9 +214,7 @@ class VectorEmbeddingService {
           filename: document.filename,
           mimeType: document.mimeType,
           createdAt: document.createdAt,
-          updatedAt: document.updatedAt,
           status: document.status,
-          fileSize: document.fileSize,
           folderId: document.folderId ?? undefined,
           folderName: document.folder?.name ?? undefined,
           folderPath: document.folder?.path ?? undefined
