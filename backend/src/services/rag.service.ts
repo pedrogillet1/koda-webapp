@@ -30,13 +30,11 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import prisma from '../config/database';
-import queryIntentService from './queryIntent.service';
+import intentService from './intent.service';
 import metadataQueryService from './metadataQuery.service';
-import enhancedRetrievalService from './enhancedRetrieval.service';
 import navigationService from './navigation.service';
 import { detectLanguage, createLanguageInstruction } from './languageDetection.service';
-import multiLayerCache from './multiLayerCache.service';
-import intentClassifierService from './intentClassifier.service';
+import cacheService from './cache.service';
 import locationQueryHandler from './handlers/locationQuery.handler';
 import folderContentsHandler from './handlers/folderContents.handler';
 import hierarchyQueryHandler from './handlers/hierarchyQuery.handler';
@@ -155,7 +153,7 @@ class RAGService {
     console.log(`═══════════════════════════════════════════════════════\n`);
 
     // STEP 1: DETECT QUERY INTENT
-    const intent = queryIntentService.detectIntent(query);
+    const intent = intentService.detectIntent(query);
     console.log(`🎯 Intent: ${intent.intent} (confidence: ${intent.confidence})`);
     console.log(`💡 Reasoning: ${intent.reasoning}`);
 
@@ -284,7 +282,7 @@ class RAGService {
     }
 
     // Try to extract file name
-    const fileName = queryIntentService.extractFileName(query);
+    const fileName = intentService.extractFileName(query);
     if (fileName) {
       console.log(`   Looking for file: "${fileName}"`);
       const result = await navigationService.findFile(userId, fileName);
@@ -298,7 +296,7 @@ class RAGService {
     }
 
     // Try to extract folder name
-    const folderName = queryIntentService.extractFolderName(query);
+    const folderName = intentService.extractFolderName(query);
     if (folderName) {
       console.log(`   Looking for folder: "${folderName}"`);
       const result = await navigationService.findFolder(userId, folderName);
@@ -416,7 +414,7 @@ class RAGService {
     }
 
     // Check if asking about a specific category
-    const categoryName = queryIntentService.extractCategoryName(query);
+    const categoryName = intentService.extractCategoryName(query);
     if (categoryName) {
       console.log(`   Category: "${categoryName}"`);
       const result = await metadataQueryService.listFilesInCategory(userId, categoryName);
@@ -429,7 +427,7 @@ class RAGService {
     }
 
     // Check if asking about file types
-    const fileTypes = queryIntentService.extractFileTypes(query);
+    const fileTypes = intentService.extractFileTypes(query);
     if (fileTypes.length > 0) {
       console.log(`   File types: ${fileTypes.join(', ')}`);
       const result = await metadataQueryService.listAllFiles(userId, fileTypes);
@@ -674,8 +672,11 @@ class RAGService {
     // Simple follow-up detection: if there's conversation history, it's a follow-up
     const isFollowUp = conversationHistory && conversationHistory.length > 1;
 
+    // CRITICAL FIX: If documentId is undefined, user removed attachment - skip ALL context
+    const userRemovedAttachment = documentId === undefined && conversationHistory.length > 0;
+
     // PRIORITY 1: Check saved conversation context (most reliable)
-    if (conversationId) {
+    if (conversationId && !userRemovedAttachment) {
       try {
         const savedContext = await conversationContextService.getContext(conversationId);
         if (savedContext) {
@@ -706,7 +707,11 @@ class RAGService {
     }
 
     // PRIORITY 2: Extract from message metadata (fallback)
-    if (conversationHistory.length > 0 && contextDocumentIds.length === 0) {
+    if (userRemovedAttachment) {
+      console.log(`   🔓 User removed attachment - IGNORING conversation history, searching ALL documents`);
+    }
+
+    if (conversationHistory.length > 0 && contextDocumentIds.length === 0 && !userRemovedAttachment) {
       console.log(`   Analyzing last ${conversationHistory.length} messages for document context...`);
 
       for (const message of conversationHistory) {
@@ -757,8 +762,8 @@ class RAGService {
     // ═══════════════════════════════════════════════════════════════
     // CACHE CHECK (L1: Memory → L2: Redis)
     // ═══════════════════════════════════════════════════════════════
-    const cacheKey = multiLayerCache.generateKey(query, userId, { conversationId });
-    const cached = await multiLayerCache.get<RAGResponse>(cacheKey, {
+    const cacheKey = cacheService.generateKey(query, userId, { conversationId });
+    const cached = await cacheService.get<RAGResponse>(cacheKey, {
       ttl: 3600,  // 1 hour
       useMemory: true,
       useRedis: true,
@@ -920,7 +925,7 @@ class RAGService {
     console.log(`\n🔍 RETRIEVING DOCUMENTS...`);
 
     // FIX Q15 & Q28 TIMEOUTS: Aggressively reduce topK and disable expensive operations
-    const queryIntent = queryIntentService.detectIntent(query);
+    const queryIntent = intentService.detectIntent(query);
 
     // Determine if this is a synthesis/complex query
     const isSynthesisQuery = queryIntent.intent === 'compare' ||
@@ -991,11 +996,12 @@ class RAGService {
       }
     }
 
-    const retrievalResults = await enhancedRetrievalService.retrieve(
-      query,
+    // Enhanced retrieval consolidated into pinecone service
+    const retrievalResults = await pineconeService.query(embedding, {
       userId,
-      retrievalOptions
-    );
+      topK: retrievalOptions?.topK || 10,
+      ...retrievalOptions
+    });
     console.log(`   Found ${retrievalResults.length} relevant chunks`);
 
     if (retrievalResults.length === 0) {
@@ -1447,7 +1453,7 @@ class RAGService {
     // ═══════════════════════════════════════════════════════════════
     // CACHE THE RESULT (L1: Memory + L2: Redis)
     // ═══════════════════════════════════════════════════════════════
-    await multiLayerCache.set(cacheKey, result, {
+    await cacheService.set(cacheKey, result, {
       ttl: 3600,  // 1 hour
       useMemory: true,
       useRedis: true,

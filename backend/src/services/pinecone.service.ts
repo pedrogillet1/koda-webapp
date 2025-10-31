@@ -263,22 +263,19 @@ class PineconeService {
     try {
       const index = this.pinecone!.index(this.indexName);
 
-      // ⚡ IMPORTANT: We can't use metadata filter because documentId is not indexed
-      // Instead, we need to query first to get all vector IDs, then delete by IDs
-      // Since vector IDs follow pattern: ${documentId}-${chunkIndex}, we can list and delete
+      // CRITICAL FIX: Actually delete embeddings using metadata filter
+      // Pinecone supports deleteMany with metadata filters
+      console.log(`🗑️ [Pinecone] Deleting all vectors for document: ${documentId}`);
 
-      // Query to get all vectors for this document (using userId filter won't work without documentId)
-      // We'll use a dummy vector query to fetch vectors by metadata
-      // Alternative: Delete by ID prefix if we know the chunk count
+      await index.deleteMany({
+        filter: { documentId: { $eq: documentId } }
+      });
 
-      // For now, we'll silently skip delete and rely on upsert to overwrite
-      // This is safe because vector IDs are deterministic: ${documentId}-${chunkIndex}
-      console.log(`⚠️ [Pinecone] Skipping delete for document ${documentId} (will overwrite on upsert)`);
-      return;
+      console.log(`✅ [Pinecone] Successfully deleted embeddings for document ${documentId}`);
 
     } catch (error: any) {
-      // ⚡ IMPORTANT: Don't crash the upsert if delete fails
-      console.log(`⚠️ [Pinecone] Delete skipped for document ${documentId} (non-critical)`);
+      console.error(`❌ [Pinecone] Failed to delete embeddings for document ${documentId}:`, error.message);
+      // Don't throw - deletion failure shouldn't break document deletion
       return;
     }
   }
@@ -472,6 +469,63 @@ class PineconeService {
     } catch (error) {
       console.error('❌ [Pinecone] Failed to get stats:', error);
       return { available: false, error: String(error) };
+    }
+  }
+
+  /**
+   * Verify that document embeddings are stored and retrievable
+   * @param documentId - Document ID to verify
+   * @returns Verification result with success status, vector count, and error if any
+   */
+  async verifyDocument(documentId: string): Promise<{
+    success: boolean;
+    vectorCount: number;
+    error?: string;
+  }> {
+    if (!this.isAvailable()) {
+      return {
+        success: false,
+        vectorCount: 0,
+        error: 'Pinecone not available',
+      };
+    }
+
+    try {
+      console.log(`🔍 Verifying document ${documentId} in Pinecone...`);
+      const index = this.pinecone!.index(this.indexName);
+
+      // Query for vectors with this documentId using a zero vector
+      // We only care about the metadata filter, not the actual similarity
+      // Use 768 dimensions to match Gemini embedding model
+      const queryResponse = await index.query({
+        vector: new Array(768).fill(0),
+        filter: { documentId: { $eq: documentId } },
+        topK: 100,
+        includeMetadata: true,
+      });
+
+      const vectorCount = queryResponse.matches?.length || 0;
+
+      if (vectorCount === 0) {
+        return {
+          success: false,
+          vectorCount: 0,
+          error: 'No vectors found in Pinecone for this document',
+        };
+      }
+
+      console.log(`✅ Verification passed: Found ${vectorCount} vectors`);
+      return {
+        success: true,
+        vectorCount,
+      };
+    } catch (error: any) {
+      console.error('❌ Pinecone verification failed:', error.message);
+      return {
+        success: false,
+        vectorCount: 0,
+        error: error.message,
+      };
     }
   }
 }

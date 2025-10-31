@@ -8,7 +8,6 @@ import * as folderService from './folder.service';
 import * as thumbnailService from './thumbnail.service';
 import markdownConversionService from './markdownConversion.service';
 import cacheService from './cache.service';
-import responseCacheService from './responseCache.service';
 import encryptionService from './encryption.service';
 import fs from 'fs';
 import os from 'os';
@@ -75,6 +74,33 @@ async function createFoldersFromPath(userId: string, relativePath: string, paren
  */
 export const uploadDocument = async (input: UploadDocumentInput) => {
   const { userId, filename, fileBuffer, mimeType, folderId, fileHash, thumbnailBuffer, relativePath } = input;
+
+  console.log(`\n═══════════════════════════════════════════════════════`);
+  console.log(`📤 UPLOADING DOCUMENT: ${filename}`);
+  console.log(`👤 User: ${userId}`);
+  console.log(`🔐 Hash: ${fileHash}`);
+  console.log(`═══════════════════════════════════════════════════════\n`);
+
+  // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded
+  const existingDoc = await prisma.document.findFirst({
+    where: {
+      userId,
+      fileHash,
+      status: 'completed',
+    },
+  });
+
+  if (existingDoc) {
+    console.log(`⚡ IDEMPOTENCY: File already uploaded (${existingDoc.filename})`);
+    console.log(`  Skipping re-processing. Returning existing document.`);
+
+    return await prisma.document.findUnique({
+      where: { id: existingDoc.id },
+      include: { folder: true },
+    });
+  }
+
+  console.log('✅ New file detected, proceeding with upload...');
 
   // If relativePath is provided AND contains folders (has /), create nested folders
   // Skip if it's just a filename without folder structure
@@ -151,13 +177,31 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
     },
   });
 
-  // Process document asynchronously (background processing) - upload returns immediately!
-  processDocumentInBackground(document.id, fileBuffer, filename, mimeType, userId, thumbnailUrl).catch(error => {
-    console.error('❌ Error in background document processing:', error);
-  });
+  // ⚡ SYNCHRONOUS PROCESSING - Wait for all steps to complete
+  console.log('🔄 Processing document synchronously...');
 
-  // Return document immediately without waiting for processing
-  return document;
+  try {
+    await processDocumentInBackground(document.id, fileBuffer, filename, mimeType, userId, thumbnailUrl);
+
+    // Fetch updated document with all relationships
+    const completedDocument = await prisma.document.findUnique({
+      where: { id: document.id },
+      include: { folder: true },
+    });
+
+    console.log(`✅ Document processing complete: ${filename}`);
+    return completedDocument!;
+  } catch (error: any) {
+    console.error('❌ Document processing failed:', error.message);
+
+    // Mark document as failed
+    await prisma.document.update({
+      where: { id: document.id },
+      data: { status: 'failed' },
+    });
+
+    throw new Error(`Document processing failed: ${error.message}`);
+  }
 };
 
 /**
@@ -431,8 +475,7 @@ export async function processDocumentInBackground(
       console.log('🔮 Generating semantic chunks and vector embeddings...');
       try {
         const vectorEmbeddingService = await import('./vectorEmbedding.service');
-        const { default: semanticChunkerService } = await import('./semanticChunker.service');
-        const embeddingService = await import('./embeddingService.service');
+        const embeddingService = await import('./embedding.service');
         let chunks;
 
         // Use enhanced Excel processor for Excel files to preserve cell coordinates
@@ -462,28 +505,27 @@ export async function processDocumentInBackground(
             }
           }));
           console.log(`📦 Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
+
+          // 🆕 Generate embeddings for Excel chunks using Gemini embedding service
+          console.log('🔮 Generating embeddings for Excel chunks...');
+          const excelTexts = chunks.map(c => c.content);
+          const excelEmbeddingResult = await embeddingService.default.generateBatchEmbeddings(excelTexts, {
+            taskType: 'RETRIEVAL_DOCUMENT',
+            title: filename
+          });
+
+          // Update chunks with embeddings
+          chunks = chunks.map((chunk, i) => ({
+            ...chunk,
+            embedding: excelEmbeddingResult.embeddings[i].embedding
+          }));
+          console.log(`✅ Generated ${chunks.length} embeddings for Excel chunks`);
         } else {
           // 🆕 Use semantic chunking for markdown content
           if (markdownContent && markdownContent.length > 100) {
-            console.log('🧠 Using semantic chunker for markdown content...');
-            const semanticChunks = await semanticChunkerService.chunkDocument(
-              markdownContent,
-              { maxTokens: 512, overlapTokens: 50 }
-            );
-
-            chunks = semanticChunks.map((chunk: any) => ({
-              content: chunk.content,
-              metadata: {
-                chunkIndex: chunk.index,
-                startChar: 0,
-                endChar: chunk.content.length,
-                type: chunk.metadata.type || 'text',
-                heading: chunk.metadata.heading,
-                section: chunk.metadata.section,
-                tokenCount: chunk.tokenCount
-              }
-            }));
-            console.log(`📦 Created ${chunks.length} semantic chunks`);
+            console.log('📝 Using text chunking for markdown content...');
+            chunks = chunkText(markdownContent, 500);
+            console.log(`📦 Created ${chunks.length} chunks from markdown`);
           } else {
             // Fallback to standard text chunking if no markdown
             console.log('📝 Using standard text chunking...');
@@ -509,12 +551,25 @@ export async function processDocumentInBackground(
         // Store embeddings
         await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
         console.log(`✅ Stored ${chunks.length} vector embeddings`);
-      } catch (error) {
-        console.warn('⚠️ Vector embedding generation failed (non-critical):', error);
+      } catch (error: any) {
+        // ❌ CRITICAL ERROR: Embedding generation is NOT optional!
+        console.error('❌ CRITICAL: Vector embedding generation failed:', error);
+        throw new Error(`Embedding generation failed: ${error.message || error}`);
       }
     }
 
-    // Update document status to completed
+    // 🔍 VERIFY PINECONE STORAGE - Critical step!
+    console.log('🔍 Step 7: Verifying Pinecone storage...');
+    const pineconeService = await import('./pinecone.service');
+    const verification = await pineconeService.default.verifyDocument(documentId);
+
+    if (!verification.success) {
+      throw new Error(`Pinecone verification failed: ${verification.error || 'No vectors found'}`);
+    }
+
+    console.log(`✅ Verification passed: Found ${verification.vectorCount} vectors in Pinecone`);
+
+    // Update document status to completed (only if verification passed)
     await prisma.document.update({
       where: { id: documentId },
       data: { status: 'completed' },
@@ -551,6 +606,27 @@ export interface CreateDocumentAfterUploadInput {
  */
 export const createDocumentAfterUpload = async (input: CreateDocumentAfterUploadInput) => {
   const { userId, encryptedFilename, filename, mimeType, fileSize, fileHash, folderId, thumbnailData } = input;
+
+  // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded
+  const existingDoc = await prisma.document.findFirst({
+    where: {
+      userId,
+      fileHash,
+      status: 'completed',
+    },
+  });
+
+  if (existingDoc) {
+    console.log(`⚡ IDEMPOTENCY: File already uploaded (${existingDoc.filename})`);
+    console.log(`  Skipping re-processing. Returning existing document.`);
+
+    return await prisma.document.findUnique({
+      where: { id: existingDoc.id },
+      include: { folder: true },
+    });
+  }
+
+  console.log(`✅ New file detected: ${filename}`);
 
   // Upload thumbnail if provided
   let thumbnailUrl: string | null = null;
@@ -896,8 +972,7 @@ async function processDocumentAsync(
       console.log('🔮 Generating semantic chunks and vector embeddings...');
       try {
         const vectorEmbeddingService = await import('./vectorEmbedding.service');
-        const { default: semanticChunkerService } = await import('./semanticChunker.service');
-        const embeddingService = await import('./embeddingService.service');
+        const embeddingService = await import('./embedding.service');
         let chunks;
 
         // Use enhanced Excel processor for Excel files to preserve cell coordinates
@@ -927,28 +1002,27 @@ async function processDocumentAsync(
             }
           }));
           console.log(`📦 Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
+
+          // 🆕 Generate embeddings for Excel chunks using Gemini embedding service
+          console.log('🔮 Generating embeddings for Excel chunks...');
+          const excelTexts = chunks.map(c => c.content);
+          const excelEmbeddingResult = await embeddingService.default.generateBatchEmbeddings(excelTexts, {
+            taskType: 'RETRIEVAL_DOCUMENT',
+            title: filename
+          });
+
+          // Update chunks with embeddings
+          chunks = chunks.map((chunk, i) => ({
+            ...chunk,
+            embedding: excelEmbeddingResult.embeddings[i].embedding
+          }));
+          console.log(`✅ Generated ${chunks.length} embeddings for Excel chunks`);
         } else {
           // 🆕 Use semantic chunking for markdown content
           if (markdownContent && markdownContent.length > 100) {
-            console.log('🧠 Using semantic chunker for markdown content...');
-            const semanticChunks = await semanticChunkerService.chunkDocument(
-              markdownContent,
-              { maxTokens: 512, overlapTokens: 50 }
-            );
-
-            chunks = semanticChunks.map((chunk: any) => ({
-              content: chunk.content,
-              metadata: {
-                chunkIndex: chunk.index,
-                startChar: 0,
-                endChar: chunk.content.length,
-                type: chunk.metadata.type || 'text',
-                heading: chunk.metadata.heading,
-                section: chunk.metadata.section,
-                tokenCount: chunk.tokenCount
-              }
-            }));
-            console.log(`📦 Created ${chunks.length} semantic chunks`);
+            console.log('📝 Using text chunking for markdown content...');
+            chunks = chunkText(markdownContent, 500);
+            console.log(`📦 Created ${chunks.length} chunks from markdown`);
           } else {
             // Fallback to standard text chunking if no markdown
             console.log('📝 Using standard text chunking...');
@@ -974,8 +1048,10 @@ async function processDocumentAsync(
         // Store embeddings
         await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
         console.log(`✅ Stored ${chunks.length} vector embeddings`);
-      } catch (error) {
-        console.warn('⚠️ Vector embedding generation failed (non-critical):', error);
+      } catch (error: any) {
+        // ❌ CRITICAL ERROR: Embedding generation is NOT optional!
+        console.error('❌ CRITICAL: Vector embedding generation failed:', error);
+        throw new Error(`Embedding generation failed: ${error.message || error}`);
       }
     }
 
@@ -1242,7 +1318,7 @@ export const deleteDocument = async (documentId: string, userId: string) => {
   console.log(`🗑️ Invalidated user cache for ${userId} after document deletion`);
 
   // Invalidate document-specific response cache (AI chat responses)
-  await responseCacheService.invalidateDocumentCache(documentId);
+  await cacheService.invalidateDocumentCache(documentId);
   console.log(`🗑️ Invalidated response cache for document ${documentId}`);
 
   return { success: true };
@@ -1308,7 +1384,7 @@ export const deleteAllDocuments = async (userId: string) => {
         });
 
         // Invalidate document-specific response cache
-        await responseCacheService.invalidateDocumentCache(document.id);
+        await cacheService.invalidateDocumentCache(document.id);
 
         results.push({
           documentId: document.id,

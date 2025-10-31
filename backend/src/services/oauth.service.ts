@@ -2,67 +2,75 @@ import prisma from '../config/database';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
 import { hashToken } from '../utils/encryption';
 
-export interface GoogleProfile {
+export interface GoogleOAuthInput {
   id: string;
   email: string;
-  displayName?: string;
+  displayName: string;
+}
+
+export interface OAuthResult {
+  user: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+  };
+  tokens: {
+    accessToken: string;
+    refreshToken: string;
+  };
 }
 
 /**
- * Handle Google OAuth login/signup
+ * Process Google OAuth login - find or create user
  */
-export const googleOAuth = async (profile: GoogleProfile) => {
-  // Check if user exists with this Google ID
+export const googleOAuth = async ({
+  id,
+  email,
+  displayName,
+}: GoogleOAuthInput): Promise<OAuthResult> => {
+  console.log('🔐 Google OAuth login:', email);
+
+  // Find or create user
   let user = await prisma.user.findUnique({
-    where: { googleId: profile.id },
+    where: { email: email.toLowerCase() },
   });
 
-  // If not found by Google ID, check by email
   if (!user) {
-    user = await prisma.user.findUnique({
-      where: { email: profile.email.toLowerCase() },
-    });
+    console.log('👤 Creating new user from Google OAuth');
 
-    // If user exists with this email, link Google account
-    if (user) {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: { googleId: profile.id, isEmailVerified: true },
-      });
-    }
-  }
+    // Parse displayName into first and last names
+    const nameParts = displayName.split(' ');
+    const firstName = nameParts[0] || null;
+    const lastName = nameParts.slice(1).join(' ') || null;
 
-  // If still no user, create new one
-  if (!user) {
-    // Parse displayName into firstName and lastName
-    let firstName: string | undefined;
-    let lastName: string | undefined;
-
-    if (profile.displayName) {
-      const nameParts = profile.displayName.trim().split(' ');
-      firstName = nameParts[0];
-      lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined;
-    }
-
+    // Create new user (OAuth users don't have passwords)
     user = await prisma.user.create({
       data: {
-        email: profile.email.toLowerCase(),
-        googleId: profile.id,
+        email: email.toLowerCase(),
         firstName,
         lastName,
-        isEmailVerified: true,
+        isEmailVerified: true, // Google has already verified the email
+        isPhoneVerified: false,
+        passwordHash: null,
+        salt: null,
+        phoneNumber: null,
       },
     });
+
+    console.log('✅ New user created:', user.id);
+  } else {
+    console.log('✅ Existing user found:', user.id);
   }
 
   // Generate tokens
   const accessToken = generateAccessToken({ userId: user.id, email: user.email });
   const refreshToken = generateRefreshToken({ userId: user.id, email: user.email });
 
-  // Store refresh token
+  // Store refresh token in session
   const refreshTokenHash = hashToken(refreshToken);
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7);
+  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
   await prisma.session.create({
     data: {
@@ -72,13 +80,14 @@ export const googleOAuth = async (profile: GoogleProfile) => {
     },
   });
 
+  console.log('✅ OAuth session created for user:', user.id);
+
   return {
     user: {
       id: user.id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      isEmailVerified: user.isEmailVerified,
     },
     tokens: {
       accessToken,
@@ -86,3 +95,18 @@ export const googleOAuth = async (profile: GoogleProfile) => {
     },
   };
 };
+
+/** Legacy stub methods - kept for compatibility */
+class OAuthService {
+  async getAuthorizationUrl() {
+    return '';
+  }
+  async handleCallback() {
+    return null;
+  }
+  async refreshToken() {
+    return null;
+  }
+}
+
+export default new OAuthService();
