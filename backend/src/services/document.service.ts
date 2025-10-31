@@ -607,6 +607,27 @@ export interface CreateDocumentAfterUploadInput {
 export const createDocumentAfterUpload = async (input: CreateDocumentAfterUploadInput) => {
   const { userId, encryptedFilename, filename, mimeType, fileSize, fileHash, folderId, thumbnailData } = input;
 
+  // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded
+  const existingDoc = await prisma.document.findFirst({
+    where: {
+      userId,
+      fileHash,
+      status: 'completed',
+    },
+  });
+
+  if (existingDoc) {
+    console.log(`⚡ IDEMPOTENCY: File already uploaded (${existingDoc.filename})`);
+    console.log(`  Skipping re-processing. Returning existing document.`);
+
+    return await prisma.document.findUnique({
+      where: { id: existingDoc.id },
+      include: { folder: true },
+    });
+  }
+
+  console.log(`✅ New file detected: ${filename}`);
+
   // Upload thumbnail if provided
   let thumbnailUrl: string | null = null;
   if (thumbnailData) {
