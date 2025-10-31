@@ -475,8 +475,7 @@ export async function processDocumentInBackground(
       console.log('🔮 Generating semantic chunks and vector embeddings...');
       try {
         const vectorEmbeddingService = await import('./vectorEmbedding.service');
-        const { default: semanticChunkerService } = await import('./semanticChunker.service');
-        const embeddingService = await import('./embeddingService.service');
+        const embeddingService = await import('./embedding.service');
         let chunks;
 
         // Use enhanced Excel processor for Excel files to preserve cell coordinates
@@ -524,41 +523,9 @@ export async function processDocumentInBackground(
         } else {
           // 🆕 Use semantic chunking for markdown content
           if (markdownContent && markdownContent.length > 100) {
-            console.log('🧠 Using semantic chunker for markdown content...');
-            const semanticChunks = await semanticChunkerService.chunkDocument(
-              markdownContent,
-              { maxTokens: 512, overlapTokens: 50 }
-            );
-
-            chunks = semanticChunks.map((chunk: any) => ({
-              content: chunk.content,
-              metadata: {
-                chunkIndex: chunk.index,
-                startChar: 0,
-                endChar: chunk.content.length,
-                type: chunk.metadata.type || 'text',
-                heading: chunk.metadata.heading,
-                section: chunk.metadata.section,
-                tokenCount: chunk.tokenCount
-              }
-            }));
-
-            // ✅ VALIDATE CHUNKS: Filter out invalid chunks before embedding
-            const validChunks = chunks.filter((chunk: any) => {
-              return chunk && chunk.content && typeof chunk.content === 'string' && chunk.content.trim().length > 0;
-            });
-
-            if (validChunks.length === 0) {
-              console.warn('⚠️ Semantic chunker produced no valid chunks, falling back to simple chunking');
-              chunks = chunkText(extractedText, 500);
-            } else if (validChunks.length < chunks.length) {
-              console.warn(`⚠️ Filtered out ${chunks.length - validChunks.length} invalid chunks from semantic chunker`);
-              chunks = validChunks;
-            } else {
-              chunks = validChunks;
-            }
-
-            console.log(`📦 Created ${chunks.length} semantic chunks`);
+            console.log('📝 Using text chunking for markdown content...');
+            chunks = chunkText(markdownContent, 500);
+            console.log(`📦 Created ${chunks.length} chunks from markdown`);
           } else {
             // Fallback to standard text chunking if no markdown
             console.log('📝 Using standard text chunking...');
@@ -984,8 +951,7 @@ async function processDocumentAsync(
       console.log('🔮 Generating semantic chunks and vector embeddings...');
       try {
         const vectorEmbeddingService = await import('./vectorEmbedding.service');
-        const { default: semanticChunkerService } = await import('./semanticChunker.service');
-        const embeddingService = await import('./embeddingService.service');
+        const embeddingService = await import('./embedding.service');
         let chunks;
 
         // Use enhanced Excel processor for Excel files to preserve cell coordinates
@@ -1033,41 +999,9 @@ async function processDocumentAsync(
         } else {
           // 🆕 Use semantic chunking for markdown content
           if (markdownContent && markdownContent.length > 100) {
-            console.log('🧠 Using semantic chunker for markdown content...');
-            const semanticChunks = await semanticChunkerService.chunkDocument(
-              markdownContent,
-              { maxTokens: 512, overlapTokens: 50 }
-            );
-
-            chunks = semanticChunks.map((chunk: any) => ({
-              content: chunk.content,
-              metadata: {
-                chunkIndex: chunk.index,
-                startChar: 0,
-                endChar: chunk.content.length,
-                type: chunk.metadata.type || 'text',
-                heading: chunk.metadata.heading,
-                section: chunk.metadata.section,
-                tokenCount: chunk.tokenCount
-              }
-            }));
-
-            // ✅ VALIDATE CHUNKS: Filter out invalid chunks before embedding
-            const validChunks = chunks.filter((chunk: any) => {
-              return chunk && chunk.content && typeof chunk.content === 'string' && chunk.content.trim().length > 0;
-            });
-
-            if (validChunks.length === 0) {
-              console.warn('⚠️ Semantic chunker produced no valid chunks, falling back to simple chunking');
-              chunks = chunkText(extractedText, 500);
-            } else if (validChunks.length < chunks.length) {
-              console.warn(`⚠️ Filtered out ${chunks.length - validChunks.length} invalid chunks from semantic chunker`);
-              chunks = validChunks;
-            } else {
-              chunks = validChunks;
-            }
-
-            console.log(`📦 Created ${chunks.length} semantic chunks`);
+            console.log('📝 Using text chunking for markdown content...');
+            chunks = chunkText(markdownContent, 500);
+            console.log(`📦 Created ${chunks.length} chunks from markdown`);
           } else {
             // Fallback to standard text chunking if no markdown
             console.log('📝 Using standard text chunking...');
