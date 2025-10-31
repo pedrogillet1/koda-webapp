@@ -75,6 +75,33 @@ async function createFoldersFromPath(userId: string, relativePath: string, paren
 export const uploadDocument = async (input: UploadDocumentInput) => {
   const { userId, filename, fileBuffer, mimeType, folderId, fileHash, thumbnailBuffer, relativePath } = input;
 
+  console.log(`\n═══════════════════════════════════════════════════════`);
+  console.log(`📤 UPLOADING DOCUMENT: ${filename}`);
+  console.log(`👤 User: ${userId}`);
+  console.log(`🔐 Hash: ${fileHash}`);
+  console.log(`═══════════════════════════════════════════════════════\n`);
+
+  // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded
+  const existingDoc = await prisma.document.findFirst({
+    where: {
+      userId,
+      fileHash,
+      status: 'completed',
+    },
+  });
+
+  if (existingDoc) {
+    console.log(`⚡ IDEMPOTENCY: File already uploaded (${existingDoc.filename})`);
+    console.log(`  Skipping re-processing. Returning existing document.`);
+
+    return await prisma.document.findUnique({
+      where: { id: existingDoc.id },
+      include: { folder: true },
+    });
+  }
+
+  console.log('✅ New file detected, proceeding with upload...');
+
   // If relativePath is provided AND contains folders (has /), create nested folders
   // Skip if it's just a filename without folder structure
   let finalFolderId = folderId;
@@ -150,13 +177,31 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
     },
   });
 
-  // Process document asynchronously (background processing) - upload returns immediately!
-  processDocumentInBackground(document.id, fileBuffer, filename, mimeType, userId, thumbnailUrl).catch(error => {
-    console.error('❌ Error in background document processing:', error);
-  });
+  // ⚡ SYNCHRONOUS PROCESSING - Wait for all steps to complete
+  console.log('🔄 Processing document synchronously...');
 
-  // Return document immediately without waiting for processing
-  return document;
+  try {
+    await processDocumentInBackground(document.id, fileBuffer, filename, mimeType, userId, thumbnailUrl);
+
+    // Fetch updated document with all relationships
+    const completedDocument = await prisma.document.findUnique({
+      where: { id: document.id },
+      include: { folder: true },
+    });
+
+    console.log(`✅ Document processing complete: ${filename}`);
+    return completedDocument!;
+  } catch (error: any) {
+    console.error('❌ Document processing failed:', error.message);
+
+    // Mark document as failed
+    await prisma.document.update({
+      where: { id: document.id },
+      data: { status: 'failed' },
+    });
+
+    throw new Error(`Document processing failed: ${error.message}`);
+  }
 };
 
 /**
@@ -546,7 +591,18 @@ export async function processDocumentInBackground(
       }
     }
 
-    // Update document status to completed
+    // 🔍 VERIFY PINECONE STORAGE - Critical step!
+    console.log('🔍 Step 7: Verifying Pinecone storage...');
+    const pineconeService = await import('./pinecone.service');
+    const verification = await pineconeService.default.verifyDocument(documentId);
+
+    if (!verification.success) {
+      throw new Error(`Pinecone verification failed: ${verification.error || 'No vectors found'}`);
+    }
+
+    console.log(`✅ Verification passed: Found ${verification.vectorCount} vectors in Pinecone`);
+
+    // Update document status to completed (only if verification passed)
     await prisma.document.update({
       where: { id: documentId },
       data: { status: 'completed' },

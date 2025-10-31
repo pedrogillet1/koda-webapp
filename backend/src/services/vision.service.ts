@@ -1,5 +1,6 @@
 import vision from '@google-cloud/vision';
 import { config } from '../config/env';
+import { fromBuffer } from 'pdf2pic';
 
 // Initialize Google Cloud Vision client
 const visionClient = new vision.ImageAnnotatorClient({
@@ -173,54 +174,75 @@ export const detectDocumentType = async (
 };
 
 /**
- * Extract text from PDF document (for scanned PDFs)
+ * Extract text from scanned PDF by converting to images first
  * @param pdfBuffer - Buffer containing the PDF data
  * @returns Extracted text and confidence score
  */
 export const extractTextFromScannedPDF = async (pdfBuffer: Buffer): Promise<OCRResult> => {
   try {
-    console.log('🔍 Attempting Google Cloud Vision PDF extraction...');
-    // For scanned PDFs, Vision API can process them directly
-    const [result] = await visionClient.documentTextDetection(pdfBuffer);
-    const fullTextAnnotation = result.fullTextAnnotation;
+    console.log('🔍 Converting PDF to images for OCR...');
 
-    if (!fullTextAnnotation || !fullTextAnnotation.text) {
-      console.warn('⚠️ Google Cloud Vision returned no text for PDF');
-      console.warn('Result:', JSON.stringify(result, null, 2).substring(0, 500));
-      return {
-        text: '',
-        confidence: 0,
-      };
-    }
+    const converter = fromBuffer(pdfBuffer, {
+      density: 200,
+      format: 'png',
+      width: 2000,
+      height: 2000,
+    });
 
-    const pages = fullTextAnnotation.pages || [];
+    let allText = '';
     let totalConfidence = 0;
     let wordCount = 0;
 
-    pages.forEach((page) => {
-      page.blocks?.forEach((block) => {
-        block.paragraphs?.forEach((paragraph) => {
-          paragraph.words?.forEach((word) => {
-            if (word.confidence) {
-              totalConfidence += word.confidence;
-              wordCount++;
-            }
+    // Process up to 10 pages
+    for (let pageNum = 1; pageNum <= 10; pageNum++) {
+      try {
+        const pageImage = await converter(pageNum, { responseType: 'buffer' });
+
+        if (!pageImage || !pageImage.buffer) {
+          console.log(`  Reached end at page ${pageNum}`);
+          break;
+        }
+
+        // OCR the image
+        const [result] = await visionClient.documentTextDetection(pageImage.buffer);
+        const fullTextAnnotation = result.fullTextAnnotation;
+
+        if (fullTextAnnotation && fullTextAnnotation.text) {
+          allText += fullTextAnnotation.text + '\n\n';
+
+          // Calculate confidence
+          const pages = fullTextAnnotation.pages || [];
+          pages.forEach((page) => {
+            page.blocks?.forEach((block) => {
+              block.paragraphs?.forEach((paragraph) => {
+                paragraph.words?.forEach((word) => {
+                  if (word.confidence) {
+                    totalConfidence += word.confidence;
+                    wordCount++;
+                  }
+                });
+              });
+            });
           });
-        });
-      });
-    });
+        }
+
+        console.log(`  ✅ Page ${pageNum}: ${fullTextAnnotation?.text?.length || 0} chars`);
+      } catch (pageError) {
+        console.log(`  ⚠️ Page ${pageNum} failed, stopping`);
+        break;
+      }
+    }
 
     const averageConfidence = wordCount > 0 ? totalConfidence / wordCount : 0;
 
-    console.log(`✅ Google Cloud Vision extracted ${fullTextAnnotation.text.length} characters from PDF`);
+    console.log(`✅ OCR complete: ${allText.length} characters, confidence: ${averageConfidence.toFixed(2)}`);
+
     return {
-      text: fullTextAnnotation.text,
+      text: allText.trim(),
       confidence: averageConfidence,
     };
   } catch (error: any) {
-    console.error('❌ Error extracting text from scanned PDF with Google Cloud Vision:');
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('❌ PDF OCR failed:', error.message);
     throw new Error(`Failed to extract text from scanned PDF: ${error.message}`);
   }
 };

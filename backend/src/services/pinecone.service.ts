@@ -471,6 +471,62 @@ class PineconeService {
       return { available: false, error: String(error) };
     }
   }
+
+  /**
+   * Verify that document embeddings are stored and retrievable
+   * @param documentId - Document ID to verify
+   * @returns Verification result with success status, vector count, and error if any
+   */
+  async verifyDocument(documentId: string): Promise<{
+    success: boolean;
+    vectorCount: number;
+    error?: string;
+  }> {
+    if (!this.isAvailable()) {
+      return {
+        success: false,
+        vectorCount: 0,
+        error: 'Pinecone not available',
+      };
+    }
+
+    try {
+      console.log(`🔍 Verifying document ${documentId} in Pinecone...`);
+      const index = this.pinecone!.index(this.indexName);
+
+      // Query for vectors with this documentId using a zero vector
+      // We only care about the metadata filter, not the actual similarity
+      const queryResponse = await index.query({
+        vector: new Array(1536).fill(0),
+        filter: { documentId: { $eq: documentId } },
+        topK: 100,
+        includeMetadata: true,
+      });
+
+      const vectorCount = queryResponse.matches?.length || 0;
+
+      if (vectorCount === 0) {
+        return {
+          success: false,
+          vectorCount: 0,
+          error: 'No vectors found in Pinecone for this document',
+        };
+      }
+
+      console.log(`✅ Verification passed: Found ${vectorCount} vectors`);
+      return {
+        success: true,
+        vectorCount,
+      };
+    } catch (error: any) {
+      console.error('❌ Pinecone verification failed:', error.message);
+      return {
+        success: false,
+        vectorCount: 0,
+        error: error.message,
+      };
+    }
+  }
 }
 
 export default new PineconeService();
