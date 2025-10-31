@@ -135,23 +135,64 @@ class EmbeddingService {
     const embeddings: EmbeddingResult[] = [];
     let failedCount = 0;
 
-    console.log(`🔮 [Embedding Service] Generating embeddings for ${texts.length} texts...`);
+    console.log(`⚡ [Embedding Service] BATCH generating embeddings for ${texts.length} texts...`);
 
-    // Process in batches to respect rate limits
-    const batches = this.createBatches(texts, this.MAX_BATCH_SIZE);
+    // Preprocess all texts
+    const processedTexts = texts.map(t => this.preprocessText(t));
+
+    // Process in batches of 100 (Google API limit)
+    const batches = this.createBatches(processedTexts, this.MAX_BATCH_SIZE);
 
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
-      console.log(`   Processing batch ${i + 1}/${batches.length} (${batch.length} texts)...`);
+      console.log(`   📦 Processing batch ${i + 1}/${batches.length} (${batch.length} texts in ONE API call)...`);
 
-      for (const text of batch) {
-        try {
-          const result = await this.generateEmbedding(text, options);
-          embeddings.push(result);
-        } catch (error: any) {
-          console.error(`   ❌ Failed to generate embedding: ${error.message}`);
-          failedCount++;
-          // Add placeholder for failed embeddings
+      try {
+        // Get embedding model
+        const model = this.genAI.getGenerativeModel({ model: this.EMBEDDING_MODEL });
+
+        // ⚡ CRITICAL FIX: Use batchEmbedContents to send ALL texts in ONE API call
+        const result = await model.batchEmbedContents({
+          requests: batch.map(text => ({
+            content: { parts: [{ text }] },
+            taskType: options.taskType || 'RETRIEVAL_DOCUMENT',
+          }))
+        });
+
+        // Process results
+        for (let j = 0; j < batch.length; j++) {
+          const embeddingValues = result.embeddings[j].values;
+
+          if (!embeddingValues || embeddingValues.length === 0) {
+            console.error(`   ❌ Empty embedding for text ${j} in batch ${i + 1}`);
+            failedCount++;
+            embeddings.push({
+              text: batch[j],
+              embedding: new Array(this.EMBEDDING_DIMENSIONS).fill(0),
+              dimensions: this.EMBEDDING_DIMENSIONS,
+              model: this.EMBEDDING_MODEL,
+            });
+          } else {
+            // Cache the result
+            await cacheService.cacheEmbedding(batch[j], embeddingValues);
+
+            embeddings.push({
+              text: batch[j],
+              embedding: embeddingValues,
+              dimensions: embeddingValues.length,
+              model: this.EMBEDDING_MODEL,
+            });
+          }
+        }
+
+        console.log(`   ✅ Batch ${i + 1}/${batches.length} completed (${batch.length} embeddings)`);
+
+      } catch (error: any) {
+        console.error(`   ❌ Batch ${i + 1} failed: ${error.message}`);
+        failedCount += batch.length;
+
+        // Add placeholder embeddings for failed batch
+        for (const text of batch) {
           embeddings.push({
             text,
             embedding: new Array(this.EMBEDDING_DIMENSIONS).fill(0),
@@ -161,9 +202,9 @@ class EmbeddingService {
         }
       }
 
-      // Rate limiting: wait between batches
+      // Rate limiting: small delay between batches
       if (i < batches.length - 1) {
-        await this.sleep(1000); // 1 second between batches
+        await this.sleep(200); // 200ms between batches
       }
     }
 

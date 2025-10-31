@@ -659,11 +659,47 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
     },
   });
 
-  // Process document asynchronously (download from GCS, extract text, etc.)
-  processDocumentAsync(document.id, encryptedFilename, filename, mimeType, userId, thumbnailUrl).catch(error => {
-    console.error('❌ Error in async document processing:', error);
-  });
+  // ⚡ FAST ASYNC PROCESSING: Return immediately, process in background
+  console.log(`🚀 Starting async processing for: ${filename} (Document ID: ${document.id})`);
 
+  // Process in background with proper error handling
+  (async () => {
+    try {
+      await processDocumentAsync(
+        document.id,
+        encryptedFilename,
+        filename,
+        mimeType,
+        userId,
+        thumbnailUrl
+      );
+      console.log(`✅ Document processing completed: ${filename}`);
+    } catch (error: any) {
+      console.error(`❌ Error in async document processing for ${filename}:`, error);
+
+      // Update document status to 'failed' so frontend can show error
+      await prisma.document.update({
+        where: { id: document.id },
+        data: { status: 'failed' },
+      });
+
+      // Emit WebSocket event to notify frontend of failure
+      try {
+        const io = require('../server').io;
+        if (io) {
+          io.to(userId).emit('document:failed', {
+            documentId: document.id,
+            filename: filename,
+            error: error.message || 'Processing failed'
+          });
+        }
+      } catch (wsError) {
+        console.warn('Failed to emit WebSocket event:', wsError);
+      }
+    }
+  })();
+
+  // Return document immediately with 'processing' status
   return document;
 };
 
@@ -1048,6 +1084,17 @@ async function processDocumentAsync(
         // Store embeddings
         await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
         console.log(`✅ Stored ${chunks.length} vector embeddings`);
+
+        // 🔍 VERIFY PINECONE STORAGE - Critical step!
+        console.log('🔍 Verifying Pinecone storage...');
+        const pineconeService = await import('./pinecone.service');
+        const verification = await pineconeService.default.verifyDocument(documentId);
+
+        if (!verification.success) {
+          throw new Error(`Pinecone verification failed: ${verification.error || 'No vectors found'}`);
+        }
+
+        console.log(`✅ Verification passed: Found ${verification.vectorCount} vectors in Pinecone`);
       } catch (error: any) {
         // ❌ CRITICAL ERROR: Embedding generation is NOT optional!
         console.error('❌ CRITICAL: Vector embedding generation failed:', error);
@@ -1055,11 +1102,25 @@ async function processDocumentAsync(
       }
     }
 
-    // Update document status to completed
+    // Update document status to completed (only if verification passed)
     await prisma.document.update({
       where: { id: documentId },
       data: { status: 'completed' },
     });
+
+    // Emit WebSocket event to notify frontend of success
+    try {
+      const io = require('../server').io;
+      if (io) {
+        io.to(userId).emit('document:completed', {
+          documentId: documentId,
+          filename: filename,
+          status: 'completed'
+        });
+      }
+    } catch (wsError) {
+      console.warn('Failed to emit WebSocket completion event:', wsError);
+    }
 
     // Invalidate cache for this user after successful processing
     await cacheService.invalidateUserCache(userId);

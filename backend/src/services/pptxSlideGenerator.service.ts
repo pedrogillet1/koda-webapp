@@ -145,8 +145,9 @@ export class PPTXSlideGeneratorService {
       console.time('PPTX → PDF conversion');
 
       // Standard PDF conversion - fonts will be embedded automatically
+      // Use --headless --invisible --nologo --norestore to prevent any windows from appearing
       await execAsync(
-        `"${this.libreOfficePath}" --headless --convert-to pdf --outdir "${tempDir}" "${pptxFilePath}"`,
+        `"${this.libreOfficePath}" --headless --invisible --nologo --norestore --convert-to pdf --outdir "${tempDir}" "${pptxFilePath}"`,
         {
           timeout: 120000, // 2 minute timeout
           maxBuffer: 50 * 1024 * 1024 // 50MB buffer
