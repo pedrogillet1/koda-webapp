@@ -9,7 +9,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../config/env';
-import embeddingCacheService from './embeddingCache.service';
+import cacheService from './cache.service';
 
 interface EmbeddingResult {
   text: string;
@@ -61,7 +61,7 @@ class EmbeddingService {
       const processedText = this.preprocessText(text);
 
       // Check cache first using the optimized embedding cache service
-      const cachedEmbedding = await embeddingCacheService.getCachedEmbedding(processedText);
+      const cachedEmbedding = await cacheService.getCachedEmbedding(processedText);
       if (cachedEmbedding) {
         console.timeEnd('⚡ Embedding Generation');
         return {
@@ -87,7 +87,7 @@ class EmbeddingService {
       }
 
       // Cache the result using the optimized cache service
-      await embeddingCacheService.cacheEmbedding(processedText, embedding);
+      await cacheService.cacheEmbedding(processedText, embedding);
 
       console.log(`✅ [Embedding Service] Generated ${embedding.length}-dimensional embedding`);
       console.timeEnd('⚡ Embedding Generation');
@@ -279,17 +279,17 @@ class EmbeddingService {
   }
 
   /**
-   * Clear embedding cache (delegates to embeddingCacheService)
+   * Clear embedding cache (delegates to cacheService)
    */
-  clearCache(): void {
-    embeddingCacheService.clear();
+  async clearCache(): Promise<void> {
+    await cacheService.clearAll();
   }
 
   /**
-   * Get cache statistics (delegates to embeddingCacheService)
+   * Get cache statistics (delegates to cacheService)
    */
-  getCacheStats() {
-    return embeddingCacheService.getStats();
+  async getCacheStats() {
+    return await cacheService.getCacheStats();
   }
 
   /**
