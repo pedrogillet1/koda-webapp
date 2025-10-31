@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ReactComponent as AttachmentIcon } from '../assets/Paperclip.svg';
 import { ReactComponent as SendIcon } from '../assets/arrow-narrow-up.svg';
+import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import logo from '../assets/logo1.svg';
 import kodaLogoSvg from '../assets/koda-logo_1.svg';
 import sphere from '../assets/sphere.svg';
@@ -36,15 +37,19 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [isLoading, setIsLoading] = useState(false);
     const [user, setUser] = useState(null);
     const [streamingMessage, setStreamingMessage] = useState('');
-    const [attachedFile, setAttachedFile] = useState(null);
+    const [pendingFiles, setPendingFiles] = useState([]);      // Files attached but not yet sent
+    const [uploadingFiles, setUploadingFiles] = useState([]);  // Files currently being uploaded
     const [attachedDocument, setAttachedDocument] = useState(null);
-    const [isUploading, setIsUploading] = useState(false);
+    const [showNotification, setShowNotification] = useState(false);
+    const [notificationType, setNotificationType] = useState('success');
+    const [uploadedCount, setUploadedCount] = useState(0);
     const [copiedMessageId, setCopiedMessageId] = useState(null);
     const [currentStage, setCurrentStage] = useState({ stage: 'searching', message: 'Searching documents...' });
     const [researchMode, setResearchMode] = useState(false);
     const [showResearchSuggestion, setShowResearchSuggestion] = useState(false);
     const [expandedSources, setExpandedSources] = useState({});
     const [researchProgress, setResearchProgress] = useState(null);
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
     const inputRef = useRef(null);
@@ -71,6 +76,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         if (ext.match(/\.(mp4)$/)) return mp4Icon;
         if (ext.match(/\.(mp3)$/)) return mp3Icon;
         return docIcon; // Default icon
+    };
+
+    // Helper function to check if file is an image
+    const isImageFile = (file) => {
+        if (!file) return false;
+        // Check MIME type if available (for File objects)
+        if (file.type) {
+            return file.type.startsWith('image/');
+        }
+        // Fallback to filename extension check (for uploaded documents)
+        if (file.name) {
+            const ext = file.name.toLowerCase();
+            return ext.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|tif)$/);
+        }
+        return false;
     };
 
     // Scroll to bottom function
@@ -467,28 +487,129 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     };
 
     const handleFileSelect = async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
+        const files = Array.from(event.target.files);
+        console.log(`📎 File selection: ${files.length} file(s) selected`);
+        console.log('📎 Files:', files.map(f => f.name).join(', '));
+        if (files.length === 0) return;
 
         manuallyRemovedDocumentRef.current = false; // Reset flag when new file is selected
-        setAttachedFile(file);
+        setPendingFiles(prevFiles => {
+            const newFiles = [...prevFiles, ...files];
+            console.log(`📎 Pending files updated: now ${newFiles.length} file(s) total`);
+            return newFiles;
+        });
     };
 
-    const handleRemoveAttachment = () => {
+    const handleRemoveAttachment = (indexToRemove = null) => {
         console.log('🗑️ Manually removing attachment');
         manuallyRemovedDocumentRef.current = true; // Prevent re-attaching from URL
-        setAttachedFile(null);
-        setAttachedDocument(null);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
+
+        if (indexToRemove !== null) {
+            // Remove specific file from array
+            setPendingFiles(prevFiles => prevFiles.filter((_, index) => index !== indexToRemove));
+        } else {
+            // Remove all attachments
+            setPendingFiles([]);
+            setAttachedDocument(null);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+            // Clear documentId from URL if present
+            const searchParams = new URLSearchParams(location.search);
+            if (searchParams.has('documentId')) {
+                searchParams.delete('documentId');
+                const newSearch = searchParams.toString();
+                const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
+                window.history.replaceState({}, '', newUrl);
+            }
         }
-        // Clear documentId from URL if present
-        const searchParams = new URLSearchParams(location.search);
-        if (searchParams.has('documentId')) {
-            searchParams.delete('documentId');
-            const newSearch = searchParams.toString();
-            const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
-            window.history.replaceState({}, '', newUrl);
+    };
+
+    // Drag and drop handlers
+    const handleDragEnter = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(true);
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Required to allow drop
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Only set to false if leaving the container itself, not child elements
+        if (e.currentTarget === e.target) {
+            setIsDraggingOver(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(false);
+
+        const files = Array.from(e.dataTransfer.files);
+        console.log(`📎 Drag-and-drop: ${files.length} file(s) dropped`);
+        console.log('📎 Files:', files.map(f => f.name).join(', '));
+
+        if (files.length === 0) return;
+
+        // Use the same logic as handleFileSelect
+        manuallyRemovedDocumentRef.current = false;
+        setPendingFiles(prevFiles => {
+            const newFiles = [...prevFiles, ...files];
+            console.log(`📎 Pending files updated: now ${newFiles.length} file(s) total`);
+            return newFiles;
+        });
+    };
+
+    // Clipboard paste handler for images
+    const handlePaste = (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        const imageFiles = [];
+
+        // Iterate through clipboard items
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+
+            // Check if item is an image
+            if (item.type.startsWith('image/')) {
+                console.log(`📋 Pasted image detected: ${item.type}`);
+
+                // Get the blob from clipboard
+                const blob = item.getAsFile();
+
+                if (blob) {
+                    // Convert blob to File with a meaningful name
+                    const timestamp = Date.now();
+                    const extension = item.type.split('/')[1] || 'png';
+                    const file = new File(
+                        [blob],
+                        `screenshot-${timestamp}.${extension}`,
+                        { type: blob.type }
+                    );
+
+                    imageFiles.push(file);
+                    console.log(`📋 Created file: ${file.name}, size: ${file.size} bytes`);
+                }
+            }
+        }
+
+        // Add images to pending files
+        if (imageFiles.length > 0) {
+            console.log(`📋 Adding ${imageFiles.length} pasted image(s) to pending files`);
+            manuallyRemovedDocumentRef.current = false;
+            setPendingFiles(prevFiles => {
+                const newFiles = [...prevFiles, ...imageFiles];
+                console.log(`📋 Pending files updated: now ${newFiles.length} file(s) total`);
+                return newFiles;
+            });
         }
     };
 
@@ -548,7 +669,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }, 100);
     };
 
-    const uploadAttachedFile = async (file = attachedFile) => {
+    const uploadAttachedFile = async (file) => {
         if (!file) {
             console.log('❌ No file to upload');
             return null;
@@ -556,7 +677,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         try {
             console.log('📤 Starting file upload:', file.name);
-            setIsUploading(true);
 
             // Calculate file hash
             const arrayBuffer = await file.arrayBuffer();
@@ -570,6 +690,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             const formData = new FormData();
             formData.append('file', file);
             formData.append('fileHash', fileHash);
+            // Normalize filename to NFC form to handle special characters correctly
+            formData.append('filename', file.name.normalize('NFC'));
 
             const token = localStorage.getItem('accessToken');
             const response = await fetch(`${process.env.REACT_APP_API_URL}/api/documents/upload`, {
@@ -590,26 +712,110 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             const data = await response.json();
             console.log('✅ File uploaded successfully:', data.document);
-            setIsUploading(false);
             return data.document;
         } catch (error) {
             console.error('❌ Error uploading file:', error);
-            setIsUploading(false);
             alert('Failed to upload file: ' + error.message);
             return null;
         }
     };
 
+    const uploadMultipleFiles = async (files) => {
+        if (!files || files.length === 0) {
+            console.log('❌ No files to upload');
+            return [];
+        }
+
+        try {
+            // Move files from pending to uploading state
+            setUploadingFiles(files);
+            console.log(`📤 Starting upload of ${files.length} file(s)`);
+
+            // Calculate file hashes for all files
+            const fileHashPromises = files.map(async (file) => {
+                const arrayBuffer = await file.arrayBuffer();
+                const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            });
+            const fileHashes = await Promise.all(fileHashPromises);
+
+            // Prepare FormData
+            const formData = new FormData();
+
+            // Add all files
+            files.forEach(file => {
+                formData.append('files', file);
+            });
+
+            // Add file hashes as array
+            formData.append('fileHashes', JSON.stringify(fileHashes));
+
+            // Add filenames with proper encoding (NFC normalization)
+            const normalizedFilenames = files.map(f => f.name.normalize('NFC'));
+            formData.append('filenames', JSON.stringify(normalizedFilenames));
+
+            console.log('📋 Uploading files:', normalizedFilenames);
+
+            const token = localStorage.getItem('accessToken');
+            const response = await fetch(`${process.env.REACT_APP_API_URL}/api/documents/upload-multiple`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            console.log('📡 Upload response status:', response.status);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ Upload failed:', errorText);
+                throw new Error('Failed to upload files: ' + errorText);
+            }
+
+            const data = await response.json();
+            console.log(`✅ Successfully uploaded ${data.documents.length} file(s)`);
+
+            // Clear uploading state - files are uploaded successfully
+            setUploadingFiles([]);
+
+            // Show success notification (same as UniversalUploadModal)
+            setUploadedCount(data.documents.length);
+            setNotificationType('success');
+            setShowNotification(true);
+            setTimeout(() => setShowNotification(false), 5000);
+
+            return data.documents;
+        } catch (error) {
+            console.error('❌ Error uploading files:', error);
+            // On error, move files back to pending
+            setPendingFiles(prev => [...prev, ...files]);
+            setUploadingFiles([]);
+
+            // Show error notification (same as UniversalUploadModal)
+            setNotificationType('error');
+            setShowNotification(true);
+            setTimeout(() => setShowNotification(false), 5000);
+
+            return [];
+        }
+    };
+
     const handleSendMessage = async () => {
-        if ((!message.trim() && !attachedFile && !attachedDocument) || isLoading || isUploading) return;
+        const isUploadingFiles = uploadingFiles.length > 0;
+        if ((!message.trim() && pendingFiles.length === 0 && !attachedDocument) || isLoading || isUploadingFiles) return;
 
         let messageText = message;
-        const fileToUpload = attachedFile; // Store reference before clearing
+        const filesToUpload = [...pendingFiles]; // Store reference before clearing
         const documentToAttach = attachedDocument; // Store reference before clearing
 
-        // Clear input and attachments immediately for better UX
+        console.log(`📤 handleSendMessage: Preparing to send with ${filesToUpload.length} file(s)`);
+        console.log(`📤 Files to upload:`, filesToUpload.map(f => f.name).join(', '));
+
+        // Clear input and pending files immediately for better UX
         setMessage('');
-        handleRemoveAttachment();
+        setPendingFiles([]);  // Clear pending files
         setAttachedDocument(null);
 
         // Store original message text for UI display (files will be shown visually, not as text)
@@ -630,8 +836,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             content: displayMessageText,
             createdAt: new Date().toISOString(),
             isOptimistic: true,
-            attachedFile: fileToUpload ? { name: fileToUpload.name, type: fileToUpload.type } :
-                         documentToAttach ? { name: documentToAttach.name, type: documentToAttach.type } : null,
+            attachedFiles: filesToUpload.length > 0 ? filesToUpload.map(f => ({ name: f.name, type: f.type })) :
+                          documentToAttach ? [{ name: documentToAttach.name, type: documentToAttach.type }] : [],
         };
         setMessages((prev) => {
             // Check if this exact message was just added (prevent double-send)
@@ -648,24 +854,31 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         setIsLoading(true);
 
-        // Upload file in background if attached, or use already-uploaded document
-        let uploadedDocument = null;
-        if (fileToUpload) {
-            uploadedDocument = await uploadAttachedFile(fileToUpload);
+        // Upload files in background if attached, or use already-uploaded document
+        let uploadedDocuments = [];
+        if (filesToUpload.length > 0) {
+            uploadedDocuments = await uploadMultipleFiles(filesToUpload);
 
             // If no message text was provided, add a default message
-            if (uploadedDocument && !messageText.trim()) {
-                messageText = `I just uploaded a file called "${fileToUpload.name}". Please analyze it and tell me what's in it.`;
+            if (uploadedDocuments.length > 0 && !messageText.trim()) {
+                if (uploadedDocuments.length === 1) {
+                    messageText = `I just uploaded a file called "${filesToUpload[0].name}". Please analyze it and tell me what's in it.`;
+                } else {
+                    messageText = `I just uploaded ${uploadedDocuments.length} files. Please analyze them and tell me what's in them.`;
+                }
             }
         } else if (documentToAttach) {
             // Use the document that was already uploaded (from URL parameter)
-            uploadedDocument = { id: documentToAttach.id };
+            uploadedDocuments = [{ id: documentToAttach.id }];
 
             // If no message text was provided, add a default message
             if (!messageText.trim()) {
                 messageText = `I'd like to ask about this document: "${documentToAttach.name}". Please analyze it and tell me what's in it.`;
             }
         }
+
+        // For now, use the first uploaded document for compatibility with existing backend
+        const uploadedDocument = uploadedDocuments.length > 0 ? uploadedDocuments[0] : null;
 
         console.log('📤 Sending message:', { messageText, hasConversation: !!currentConversation, hasUser: !!user, hasDocument: !!uploadedDocument });
 
@@ -709,8 +922,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 conversationId,
                                 query: messageText,
                                 researchMode,
-                                attachedFile: fileToUpload ? { name: fileToUpload.name, type: fileToUpload.type } :
-                                            documentToAttach ? { name: documentToAttach.name, type: documentToAttach.type } : null,
+                                attachedFiles: filesToUpload.length > 0 ? filesToUpload.map(f => ({ name: f.name, type: f.type })) :
+                                             documentToAttach ? [{ name: documentToAttach.name, type: documentToAttach.type }] : [],
                                 documentId: uploadedDocument?.id,
                             }),
                         }
@@ -822,7 +1035,54 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             </div>
 
             {/* Messages Area */}
-            <div ref={messagesContainerRef} style={{flex: '1 1 0', overflowY: 'auto', overflowX: 'hidden', padding: 20, paddingBottom: 20}}>
+            <div
+                ref={messagesContainerRef}
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                style={{
+                    flex: '1 1 0',
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    padding: 20,
+                    paddingBottom: 20,
+                    position: 'relative',
+                    backgroundColor: isDraggingOver ? '#F5F5F7' : 'transparent',
+                    transition: 'background-color 0.2s ease',
+                }}
+            >
+                {/* Drag and Drop Overlay */}
+                {isDraggingOver && (
+                    <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(79, 70, 229, 0.05)',
+                        border: '3px dashed #4F46E5',
+                        borderRadius: 12,
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 1000,
+                        pointerEvents: 'none',
+                    }}>
+                        <div style={{
+                            background: 'white',
+                            padding: '24px 32px',
+                            borderRadius: 12,
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                            textAlign: 'center',
+                        }}>
+                            <div style={{fontSize: 48, marginBottom: 12}}>📎</div>
+                            <div style={{fontSize: 18, fontWeight: '600', color: '#4F46E5', marginBottom: 4}}>Drop files here</div>
+                            <div style={{fontSize: 14, color: '#6B7280'}}>Release to attach files to your message</div>
+                        </div>
+                    </div>
+                )}
+
                 {messages.length === 0 ? (
                     // Show welcome message when no messages
                     <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%'}}>
@@ -1424,88 +1684,95 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 ) : (
                                     // User message
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', maxWidth: '70%' }}>
-                                        {/* Attached file display - check both optimistic attachedFile and metadata */}
+                                        {/* Attached files display - check both optimistic attachedFiles and metadata */}
                                         {(() => {
-                                            // Try to get attached file from metadata first (for persisted messages)
-                                            let attachedFile = msg.attachedFile;
+                                            // Try to get attached files from metadata first (for persisted messages)
+                                            let attachedFiles = msg.attachedFiles || [];
 
-                                            if (!attachedFile && msg.metadata) {
+                                            if (attachedFiles.length === 0 && msg.metadata) {
                                                 try {
                                                     const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
-                                                    if (metadata?.attachedFile) {
-                                                        attachedFile = metadata.attachedFile;
+                                                    if (metadata?.attachedFiles) {
+                                                        attachedFiles = metadata.attachedFiles;
+                                                    } else if (metadata?.attachedFile) {
+                                                        // Backward compatibility with old single file format
+                                                        attachedFiles = [metadata.attachedFile];
                                                     }
                                                 } catch (e) {
                                                     console.error('Error parsing message metadata:', e);
                                                 }
                                             }
 
-                                            return attachedFile ? (
-                                            <div style={{
-                                                padding: 12,
-                                                background: '#FFFFFF',
-                                                border: '1px solid #E6E6EC',
-                                                borderRadius: 12,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 12,
-                                                minWidth: 280,
-                                            }}>
-                                                {/* File icon */}
-                                                <div style={{
-                                                    width: 40,
-                                                    height: 40,
-                                                    background: '#F5F5F5',
-                                                    borderRadius: 8,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    fontSize: 20,
-                                                    flexShrink: 0,
-                                                }}>
-                                                    {(() => {
-                                                        const ext = attachedFile.name.split('.').pop()?.toLowerCase() || '';
-                                                        const iconMap = {
-                                                            'pdf': '📕',
-                                                            'doc': '📘',
-                                                            'docx': '📘',
-                                                            'xls': '📗',
-                                                            'xlsx': '📗',
-                                                            'ppt': '📙',
-                                                            'pptx': '📙',
-                                                            'txt': '📄',
-                                                            'jpg': '🖼️',
-                                                            'jpeg': '🖼️',
-                                                            'png': '🖼️',
-                                                            'gif': '🖼️',
-                                                            'zip': '📦',
-                                                            'rar': '📦',
-                                                        };
-                                                        return iconMap[ext] || '📄';
-                                                    })()}
-                                                </div>
+                                            return attachedFiles.length > 0 ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                                                    {attachedFiles.map((attachedFile, fileIndex) => (
+                                                        <div key={fileIndex} style={{
+                                                            padding: 12,
+                                                            background: '#FFFFFF',
+                                                            border: '1px solid #E6E6EC',
+                                                            borderRadius: 12,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 12,
+                                                            minWidth: 280,
+                                                        }}>
+                                                            {/* File icon */}
+                                                            <div style={{
+                                                                width: 40,
+                                                                height: 40,
+                                                                background: '#F5F5F5',
+                                                                borderRadius: 8,
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                fontSize: 20,
+                                                                flexShrink: 0,
+                                                            }}>
+                                                                {(() => {
+                                                                    const ext = attachedFile.name.split('.').pop()?.toLowerCase() || '';
+                                                                    const iconMap = {
+                                                                        'pdf': '📕',
+                                                                        'doc': '📘',
+                                                                        'docx': '📘',
+                                                                        'xls': '📗',
+                                                                        'xlsx': '📗',
+                                                                        'ppt': '📙',
+                                                                        'pptx': '📙',
+                                                                        'txt': '📄',
+                                                                        'jpg': '🖼️',
+                                                                        'jpeg': '🖼️',
+                                                                        'png': '🖼️',
+                                                                        'gif': '🖼️',
+                                                                        'zip': '📦',
+                                                                        'rar': '📦',
+                                                                    };
+                                                                    return iconMap[ext] || '📄';
+                                                                })()}
+                                                            </div>
 
-                                                {/* File info */}
-                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{
-                                                        fontSize: 14,
-                                                        fontWeight: '600',
-                                                        color: '#32302C',
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                    }}>
-                                                        {attachedFile.name}
-                                                    </div>
-                                                    <div style={{
-                                                        fontSize: 12,
-                                                        color: '#8E8E93',
-                                                        marginTop: 2,
-                                                    }}>
-                                                        {attachedFile.type || 'File'}
-                                                    </div>
+                                                            {/* File info */}
+                                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                                <div style={{
+                                                                    fontSize: 14,
+                                                                    fontWeight: '600',
+                                                                    color: '#32302C',
+                                                                    whiteSpace: 'nowrap',
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                }}>
+                                                                    {attachedFile.name}
+                                                                </div>
+                                                                <div style={{
+                                                                    fontSize: 12,
+                                                                    color: '#8E8E93',
+                                                                    marginTop: 2,
+                                                                }}>
+                                                                    {attachedFile.type || 'File'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            </div>
                                             ) : null;
                                         })()}
 
@@ -1686,51 +1953,114 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     </div>
                 )}
 
-                {/* File Attachment Preview */}
-                {attachedFile && (
-                    <div style={{marginBottom: 12, padding: 12, background: '#F5F5F5', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
-                        <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0}}>
-                            <img
-                                src={getFileIcon(attachedFile.name)}
-                                alt="File icon"
-                                style={{
-                                    width: 40,
-                                    height: 40,
-                                    imageRendering: '-webkit-optimize-contrast',
-                                    objectFit: 'contain',
-                                    shapeRendering: 'geometricPrecision',
-                                    opacity: isUploading ? 0.5 : 1
-                                }}
-                            />
-                            {isUploading && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '50%',
-                                    left: '50%',
-                                    transform: 'translate(-50%, -50%)',
-                                    width: 20,
-                                    height: 20,
-                                    border: '3px solid #E6E6EC',
-                                    borderTop: '3px solid #181818',
-                                    borderRadius: '50%',
-                                    animation: 'spin 1s linear infinite'
-                                }} />
-                            )}
-                        </div>
-                        <div style={{flex: 1}}>
-                            <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>{attachedFile.name}</div>
-                            <div style={{fontSize: 12, color: isUploading ? '#3B82F6' : '#8E8E93'}}>
-                                {isUploading ? 'Uploading...' : `${(attachedFile.size / 1024).toFixed(2)} KB`}
+                {/* File Attachments Preview */}
+                {(pendingFiles.length > 0 || uploadingFiles.length > 0) && (
+                    <div style={{marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
+                        {/* Pending files */}
+                        {pendingFiles.map((file, index) => {
+                            const isImage = isImageFile(file);
+                            const previewUrl = isImage ? URL.createObjectURL(file) : null;
+
+                            return (
+                            <div key={`pending-${index}`} style={{padding: 12, background: '#F5F5F5', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
+                                <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0}}>
+                                    {isImage ? (
+                                        <img
+                                            src={previewUrl}
+                                            alt="Image preview"
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                objectFit: 'cover',
+                                                borderRadius: 6
+                                            }}
+                                        />
+                                    ) : (
+                                        <img
+                                            src={getFileIcon(file.name)}
+                                            alt="File icon"
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                imageRendering: '-webkit-optimize-contrast',
+                                                objectFit: 'contain',
+                                                shapeRendering: 'geometricPrecision'
+                                            }}
+                                        />
+                                    )}
+                                </div>
+                                <div style={{flex: 1}}>
+                                    <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>{file.name}</div>
+                                    <div style={{fontSize: 12, color: '#8E8E93'}}>
+                                        {`${(file.size / 1024).toFixed(2)} KB`}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleRemoveAttachment(index)}
+                                    style={{width: 32, height: 32, background: 'white', border: '1px solid #E6E6EC', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#8E8E93'}}
+                                >
+                                    ✕
+                                </button>
                             </div>
-                        </div>
-                        {!isUploading && (
-                            <button
-                                onClick={handleRemoveAttachment}
-                                style={{width: 32, height: 32, background: 'white', border: '1px solid #E6E6EC', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#8E8E93'}}
-                            >
-                                ✕
-                            </button>
-                        )}
+                            );
+                        })}
+
+                        {/* Uploading files */}
+                        {uploadingFiles.map((file, index) => {
+                            const isImage = isImageFile(file);
+                            const previewUrl = isImage ? URL.createObjectURL(file) : null;
+
+                            return (
+                            <div key={`uploading-${index}`} style={{padding: 12, background: '#EFF6FF', borderRadius: 12, border: '1px solid #3B82F6', display: 'flex', alignItems: 'center', gap: 12}}>
+                                <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0}}>
+                                    {isImage ? (
+                                        <img
+                                            src={previewUrl}
+                                            alt="Image preview"
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                objectFit: 'cover',
+                                                borderRadius: 6,
+                                                opacity: 0.5
+                                            }}
+                                        />
+                                    ) : (
+                                        <img
+                                            src={getFileIcon(file.name)}
+                                            alt="File icon"
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                imageRendering: '-webkit-optimize-contrast',
+                                                objectFit: 'contain',
+                                                shapeRendering: 'geometricPrecision',
+                                                opacity: 0.5
+                                            }}
+                                        />
+                                    )}
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '50%',
+                                        left: '50%',
+                                        transform: 'translate(-50%, -50%)',
+                                        width: 20,
+                                        height: 20,
+                                        border: '3px solid #E6E6EC',
+                                        borderTop: '3px solid #3B82F6',
+                                        borderRadius: '50%',
+                                        animation: 'spin 1s linear infinite'
+                                    }} />
+                                </div>
+                                <div style={{flex: 1}}>
+                                    <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>{file.name}</div>
+                                    <div style={{fontSize: 12, color: '#3B82F6'}}>
+                                        Uploading...
+                                    </div>
+                                </div>
+                            </div>
+                            );
+                        })}
                     </div>
                 )}
 
@@ -1798,6 +2128,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         placeholder="Ask KODA anything..."
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
+                        onPaste={handlePaste}
                         onFocus={(e) => {
                             // Always allow focus, even if disabled
                             if (e.target.disabled) {
@@ -1822,6 +2153,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             onChange={handleFileSelect}
                             style={{display: 'none'}}
                             accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif,.webp"
+                            multiple
                         />
                         <AttachmentIcon
                             onClick={() => fileInputRef.current?.click()}
@@ -1858,14 +2190,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     ) : (
                         <button
                             type="submit"
-                            disabled={!message.trim() && !attachedFile && !attachedDocument}
+                            disabled={!message.trim() && pendingFiles.length === 0 && !attachedDocument}
                             style={{
                                 width: 40,
                                 height: 40,
-                                background: (message.trim() || attachedFile || attachedDocument) ? '#171717' : '#ccc',
+                                background: (message.trim() || pendingFiles.length > 0 || attachedDocument) ? '#171717' : '#ccc',
                                 borderRadius: '50%',
                                 border: 'none',
-                                cursor: (message.trim() || attachedFile || attachedDocument) ? 'pointer' : 'not-allowed',
+                                cursor: (message.trim() || pendingFiles.length > 0 || attachedDocument) ? 'pointer' : 'not-allowed',
                                 display: 'flex',
                                 justifyContent: 'center',
                                 alignItems: 'center',
@@ -1894,6 +2226,85 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     <span>Your workspace is encrypted. All documents and conversations are private and secure.</span>
                 </div>
             </div>
+
+            {/* Upload Notification - Matches UniversalUploadModal */}
+            {showNotification && (uploadedCount > 0 || notificationType === 'error') && (
+                <div style={{
+                    position: 'fixed',
+                    top: 20,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 'calc(100% - 700px)',
+                    maxWidth: '960px',
+                    minWidth: '400px',
+                    zIndex: 99999,
+                    animation: 'slideDown 0.3s ease-out'
+                }}>
+                    <div style={{
+                        width: '100%',
+                        padding: '6px 16px',
+                        background: '#181818',
+                        borderRadius: 14,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: 10,
+                        display: 'inline-flex'
+                    }}>
+                        {notificationType === 'success' ? (
+                            <>
+                                <div style={{
+                                    width: 24,
+                                    height: 24,
+                                    borderRadius: '50%',
+                                    background: '#34A853',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0
+                                }}>
+                                    <CheckIcon style={{width: 12, height: 12}} />
+                                </div>
+                                <div style={{
+                                    flex: '1 1 0',
+                                    color: 'white',
+                                    fontSize: 13,
+                                    fontFamily: 'Plus Jakarta Sans',
+                                    fontWeight: '400',
+                                    lineHeight: '18px',
+                                    wordWrap: 'break-word'
+                                }}>
+                                    {uploadedCount} document{uploadedCount > 1 ? 's have' : ' has'} been successfully uploaded.
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div style={{width: 24, height: 24, position: 'relative', flexShrink: 0}}>
+                                    <div style={{width: 20.57, height: 20.57, left: 1.71, top: 1.71, position: 'absolute', background: 'rgba(217, 45, 32, 0.60)', borderRadius: 9999}} />
+                                    <div style={{width: 24, height: 24, left: 0, top: 0, position: 'absolute', background: 'rgba(217, 45, 32, 0.60)', borderRadius: 9999}} />
+                                    <div style={{width: 17.14, height: 17.14, left: 3.43, top: 3.43, position: 'absolute', background: '#D92D20', overflow: 'hidden', borderRadius: 8.57, outline: '1.07px #D92D20 solid', outlineOffset: '-1.07px'}}>
+                                        <div style={{width: 9.33, height: 9.33, left: 3.91, top: 3.91, position: 'absolute'}}>
+                                            <svg width="9" height="9" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M5.83333 2.5H4.16667V5.83333H5.83333V2.5ZM5.83333 7.5H4.16667V9.16667H5.83333V7.5Z" fill="white"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style={{
+                                    flex: '1 1 0',
+                                    color: 'white',
+                                    fontSize: 13,
+                                    fontFamily: 'Plus Jakarta Sans',
+                                    fontWeight: '400',
+                                    lineHeight: '18px',
+                                    wordWrap: 'break-word'
+                                }}>
+                                    Upload failed. Please try again.
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

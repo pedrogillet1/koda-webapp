@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { DocumentsProvider } from './context/DocumentsContext';
+import { ToastProvider } from './context/ToastContext';
 import { logPerformanceMetrics } from './utils/performance';
 import './styles/safari-fixes.css';
 import Login from './components/Login';
@@ -44,9 +45,10 @@ function App() {
   return (
     <AuthProvider>
       <DocumentsProvider>
-        <Router>
-          <div style={{ width: '100vw', height: '100vh' }}>
-            <Routes>
+        <ToastProvider>
+          <Router>
+            <div style={{ width: '100vw', height: '100vh' }}>
+              <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
@@ -73,9 +75,10 @@ function App() {
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/upgrade" element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
-          </Routes>
-          </div>
-        </Router>
+            </Routes>
+            </div>
+          </Router>
+        </ToastProvider>
       </DocumentsProvider>
     </AuthProvider>
   );

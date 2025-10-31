@@ -9,6 +9,7 @@ import RenameModal from './RenameModal';
 import CreateFolderModal from './CreateFolderModal';
 import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection';
+import { useToast } from '../context/ToastContext';
 import folderIcon from '../assets/folder_icon.svg';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can-red.svg';
@@ -164,6 +165,7 @@ const CategoryDetail = () => {
   const { categoryName, folderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { showSuccess } = useToast();
   const { documents: contextDocuments, folders: contextFolders, deleteDocument, createFolder, moveToFolder, refreshAll } = useDocuments(); // Get from context for auto-refresh
   const [documents, setDocuments] = useState([]);
   const [subFolders, setSubFolders] = useState([]);
@@ -662,6 +664,9 @@ const CategoryDetail = () => {
 
     try {
       if (itemToDelete.type === 'document') {
+        // Show notification immediately for instant feedback
+        showSuccess('1 file has been deleted');
+
         await api.delete(`/api/documents/${itemToDelete.id}`);
 
         // Refresh documents based on current category
@@ -679,6 +684,9 @@ const CategoryDetail = () => {
 
         setOpenDropdownId(null);
       } else if (itemToDelete.type === 'folder') {
+        // Show notification immediately for instant feedback
+        showSuccess('1 folder has been deleted');
+
         await api.delete(`/api/folders/${itemToDelete.id}`);
         // Navigate back after deletion
         navigate(-1);
@@ -1144,6 +1152,7 @@ const CategoryDetail = () => {
                       if (!window.confirm(`Delete ${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's' : ''}?`)) return;
 
                       try {
+                        const deleteCount = selectedDocuments.size;
                         await Promise.all(
                           Array.from(selectedDocuments).map(docId =>
                             deleteDocument(docId)
@@ -1158,10 +1167,7 @@ const CategoryDetail = () => {
                         toggleSelectMode();
 
                         // Show success message
-                        setSuccessCount(selectedDocuments.size);
-                        setSuccessMessage(`${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's have' : ' has'} been successfully deleted.`);
-                        setShowSuccessModal(true);
-                        setTimeout(() => setShowSuccessModal(false), 3000);
+                        showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
                       } catch (error) {
                         console.error('Error deleting documents:', error);
                         alert('Failed to delete documents');
