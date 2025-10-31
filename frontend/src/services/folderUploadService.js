@@ -57,11 +57,27 @@ class FolderUploadService {
 
     // Extract root folder name from first file
     const firstPath = files[0].webkitRelativePath;
+    if (!firstPath) {
+      throw new Error('Files must have webkitRelativePath (folder upload required)');
+    }
+
     const rootFolderName = firstPath.split('/')[0];
+
+    // Validate folder name
+    if (!rootFolderName || rootFolderName.trim() === '') {
+      throw new Error('Invalid folder name: folder name cannot be empty');
+    }
+    if (rootFolderName === '.' || rootFolderName === '..') {
+      throw new Error(`Invalid folder name: "${rootFolderName}" is not allowed`);
+    }
 
     console.log(`Root folder name: "${rootFolderName}"`);
     console.log(`\nSample file paths:`);
-    files.slice(0, 5).forEach(f => console.log(`  - ${f.webkitRelativePath}`));
+    files.slice(0, 5).forEach(f => {
+      console.log(`  - ${f.webkitRelativePath}`);
+      console.log(`    File object:`, f);
+      console.log(`    Has webkitRelativePath: ${!!f.webkitRelativePath}`);
+    });
 
     // Build subfolder structure
     const subfolderSet = new Set();
@@ -114,10 +130,17 @@ class FolderUploadService {
     });
 
     console.log(`\n📄 Files categorized:`);
+    console.log(`Total files in fileList: ${fileList.length}`);
     const rootFiles = fileList.filter(f => f.depth === 0);
     const nestedFiles = fileList.filter(f => f.depth > 0);
     console.log(`  - Root level (direct in category): ${rootFiles.length} files`);
     console.log(`  - Nested (in subfolders): ${nestedFiles.length} files`);
+
+    if (fileList.length > 0) {
+      console.log(`\nFirst file in fileList:`, fileList[0]);
+    } else {
+      console.warn(`⚠️ WARNING: fileList is EMPTY! This will cause no files to be uploaded.`);
+    }
 
     return {
       rootFolderName,
@@ -132,11 +155,21 @@ class FolderUploadService {
   async ensureCategory(categoryName) {
     console.log(`\n🏷️  ===== ENSURING CATEGORY "${categoryName}" =====`);
 
+    // Validate category name before making API call
+    if (!categoryName || typeof categoryName !== 'string') {
+      throw new Error(`Invalid category name: ${JSON.stringify(categoryName)}`);
+    }
+
+    const trimmedName = categoryName.trim();
+    if (trimmedName === '' || trimmedName === '.' || trimmedName === '..') {
+      throw new Error(`Invalid category name: "${categoryName}" is not allowed`);
+    }
+
     try {
       // Check if category exists (root folders have no parent)
       const response = await api.get('/api/folders');
       const existingCategory = response.data.folders.find(
-        f => f.name === categoryName && !f.parentFolderId
+        f => f.name === trimmedName && !f.parentFolderId
       );
 
       if (existingCategory) {
@@ -145,9 +178,9 @@ class FolderUploadService {
       }
 
       // Create new category
-      console.log(`📝 Creating new category...`);
+      console.log(`📝 Creating new category with name: "${trimmedName}"`);
       const createResponse = await api.post('/api/folders', {
-        name: categoryName,
+        name: trimmedName,
         emoji: '📁'
       });
 

@@ -7,6 +7,7 @@ import CreateCategoryModal from './CreateCategoryModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import RenameModal from './RenameModal';
 import CreateFolderModal from './CreateFolderModal';
+import { useToast } from '../context/ToastContext';
 import { ReactComponent as SearchIcon} from '../assets/Search.svg';
 import { ReactComponent as CheckIcon} from '../assets/check.svg';
 import LayeredFolderIcon from './LayeredFolderIcon';
@@ -65,6 +66,7 @@ const filterMacHiddenFiles = (files) => {
 
 const UploadHub = () => {
   const navigate = useNavigate();
+  const { showSuccess } = useToast();
   const [documents, setDocuments] = useState([]);
   const [folders, setFolders] = useState([]); // Track folders
   const [expandedFolders, setExpandedFolders] = useState(new Set()); // Track which folders are expanded
@@ -735,6 +737,10 @@ const UploadHub = () => {
   const handleDeleteDocument = async (documentId) => {
     try {
       console.log('🗑️ Deleting document:', documentId);
+
+      // Show notification immediately for instant feedback
+      showSuccess('1 file has been deleted');
+
       await api.delete(`/api/documents/${documentId}`);
 
       // Remove from UI
@@ -767,6 +773,7 @@ const UploadHub = () => {
       setOpenDropdownId(null);
 
       console.log('✅ Folder deleted successfully');
+      showSuccess('1 folder has been deleted');
     } catch (error) {
       console.error('❌ Error deleting folder:', error);
       alert('Failed to delete folder. Please try again.');
@@ -2221,6 +2228,7 @@ const UploadHub = () => {
               setOpenDropdownId(null);
               removeUploadingFile(itemToDelete.isFolder ? itemToDelete.folderName : itemToDelete.name);
               setDocuments(prev => prev.filter(doc => doc.id !== itemToDelete.documentId));
+              showSuccess('1 file has been deleted');
             }
             setShowDeleteModal(false);
             setItemToDelete(null);

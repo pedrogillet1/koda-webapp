@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection.js';
+import { useToast } from '../context/ToastContext';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import CreateCategoryModal from './CreateCategoryModal';
@@ -36,6 +37,7 @@ import CategoryIcon from './CategoryIcon';
 const DocumentsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showSuccess } = useToast();
 
   // Get global state from context
   const {
@@ -167,9 +169,11 @@ const DocumentsPage = () => {
     try {
       // Use context to delete folder (instant UI update!)
       await deleteFolder(categoryId);
+      showSuccess('1 folder has been deleted');
     } catch (error) {
       console.error('Error deleting folder:', error);
-      alert('Cannot delete folder with documents or subfolders');
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to delete folder';
+      alert(errorMessage);
     }
   };
 
@@ -225,6 +229,9 @@ const DocumentsPage = () => {
   // Handle document delete
   const handleDelete = async (docId) => {
     try {
+      // Show notification immediately for instant feedback
+      showSuccess('1 file has been deleted');
+
       // Use context to delete (instant UI update!)
       await deleteDocument(docId);
 
@@ -286,6 +293,7 @@ const DocumentsPage = () => {
                     if (!window.confirm(`Delete ${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's' : ''}?`)) return;
 
                     try {
+                      const deleteCount = selectedDocuments.size;
                       await Promise.all(
                         Array.from(selectedDocuments).map(docId =>
                           deleteDocument(docId)
@@ -298,6 +306,7 @@ const DocumentsPage = () => {
                       // Clear selection and exit select mode
                       clearSelection();
                       toggleSelectMode();
+                      showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
                     } catch (error) {
                       console.error('Error deleting documents:', error);
                       alert('Failed to delete documents');

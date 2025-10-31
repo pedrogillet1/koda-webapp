@@ -175,6 +175,9 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
 
     const files = req.files as Express.Multer.File[];
 
+    console.log(`📥 [Backend] Received ${files?.length || 0} file(s)`);
+    console.log(`📥 [Backend] Files:`, files?.map(f => f.originalname).join(', '));
+
     if (!files || files.length === 0) {
       res.status(400).json({ error: 'No files uploaded' });
       return;
@@ -182,7 +185,10 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
 
     const { folderId, fileHashes, filenames } = req.body;
 
-    if (!fileHashes || !Array.isArray(fileHashes) || fileHashes.length !== files.length) {
+    // Parse fileHashes if sent as JSON string
+    const parsedFileHashes = typeof fileHashes === 'string' ? JSON.parse(fileHashes) : fileHashes;
+
+    if (!parsedFileHashes || !Array.isArray(parsedFileHashes) || parsedFileHashes.length !== files.length) {
       res.status(400).json({ error: 'File hashes are required for each file' });
       return;
     }
@@ -201,11 +207,14 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
         fileBuffer: file.buffer,
         mimeType: file.mimetype,
         folderId: folderId || undefined,
-        fileHash: fileHashes[index],
+        fileHash: parsedFileHashes[index],
       });
     });
 
     const documents = await Promise.all(uploadPromises);
+
+    console.log(`📤 [Backend] Returning ${documents.length} document(s) to frontend`);
+    console.log(`📤 [Backend] Document IDs:`, documents.map(d => d?.id || 'null').join(', '));
 
     // Emit real-time events for all created documents
     documents.forEach(doc => {

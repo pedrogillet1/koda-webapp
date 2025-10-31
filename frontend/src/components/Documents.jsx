@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection';
+import { useToast } from '../context/ToastContext';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import CreateCategoryModal from './CreateCategoryModal';
@@ -52,6 +53,7 @@ import mp3Icon from '../assets/mp3.svg';
 const Documents = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showSuccess } = useToast();
 
   // Use DocumentsContext for instant updates
   const {
@@ -244,9 +246,11 @@ const Documents = () => {
       // Delete folder (UI updates INSTANTLY via context!)
       await deleteFolder(categoryId);
       // No manual state update needed!
+      showSuccess('1 folder has been deleted');
     } catch (error) {
       console.error('Error deleting folder:', error);
-      alert('Cannot delete folder with documents or subfolders');
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to delete folder';
+      alert(errorMessage);
     }
   };
 
@@ -302,6 +306,9 @@ const Documents = () => {
   // INSTANT UPDATE: Delete document
   const handleDelete = async (docId) => {
     try {
+      // Show notification immediately for instant feedback
+      showSuccess('1 file has been deleted');
+
       // Delete document (UI updates INSTANTLY via context!)
       await deleteDocument(docId);
       // File disappears immediately, counts update automatically!
@@ -446,6 +453,7 @@ const Documents = () => {
                     if (!window.confirm(`Delete ${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's' : ''}?`)) return;
 
                     try {
+                      const deleteCount = selectedDocuments.size;
                       await Promise.all(
                         Array.from(selectedDocuments).map(docId =>
                           deleteDocument(docId)
@@ -454,6 +462,7 @@ const Documents = () => {
 
                       clearSelection();
                       toggleSelectMode();
+                      showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
                     } catch (error) {
                       console.error('Error deleting documents:', error);
                       alert('Failed to delete documents');

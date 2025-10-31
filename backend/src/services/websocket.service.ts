@@ -10,4 +10,9 @@ export const emitDocumentEvent = (event: string, data: any) => {
   return true;
 };
 
+export const emitFolderEvent = (userId: string, event: string, folderId?: string) => {
+  // Stub: Would emit folder events via WebSocket
+  return true;
+};
+
 export default new WebSocketService();
