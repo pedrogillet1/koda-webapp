@@ -413,10 +413,23 @@ export async function processDocumentInBackground(
       }
     }
 
-    // Create metadata record with enriched data
-    await prisma.documentMetadata.create({
-      data: {
+    // Create or update metadata record with enriched data
+    await prisma.documentMetadata.upsert({
+      where: { documentId },
+      create: {
         documentId,
+        extractedText,
+        ocrConfidence,
+        classification,
+        entities,
+        thumbnailUrl,
+        pageCount,
+        wordCount,
+        markdownContent,
+        slidesData: slidesData ? JSON.stringify(slidesData) : null,
+        pptxMetadata: pptxMetadata ? JSON.stringify(pptxMetadata) : null,
+      },
+      update: {
         extractedText,
         ocrConfidence,
         classification,
@@ -949,10 +962,23 @@ async function processDocumentAsync(
       }
     }
 
-    // Create metadata record
-    await prisma.documentMetadata.create({
-      data: {
+    // Create or update metadata record (upsert handles retry cases)
+    await prisma.documentMetadata.upsert({
+      where: { documentId },
+      create: {
         documentId,
+        extractedText,
+        ocrConfidence,
+        classification,
+        entities,
+        thumbnailUrl,
+        pageCount,
+        wordCount,
+        markdownContent,
+        slidesData: slidesData ? JSON.stringify(slidesData) : null,
+        pptxMetadata: pptxMetadata ? JSON.stringify(pptxMetadata) : null,
+      },
+      update: {
         extractedText,
         ocrConfidence,
         classification,
