@@ -1,14 +1,9 @@
 import { Request, Response } from 'express';
 import ragService from '../services/rag.service';
 import prisma from '../config/database';
-import { generateConversationName, shouldGenerateName } from '../services/conversationNaming.service';
 import { getIO } from '../services/websocket.service';
-import queryClassifier, { QueryType } from '../services/queryClassifier.service';
-import templateResponseService from '../services/templateResponse.service';
-import metadataQueryService from '../services/metadataQuery.service';
-import fileManagementIntentService, { FileManagementIntent } from '../services/fileManagementIntent.service';
 import navigationService from '../services/navigation.service';
-import intentClassifier from '../services/intentClassification.service';
+import intentService from '../services/intent.service';
 import { Intent } from '../types/intent.types';
 import fileActionsService from '../services/fileActions.service';
 
@@ -44,7 +39,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     // ========================================
     // INTENT CLASSIFICATION (New Brain - Ordered Pattern Matching)
     // ========================================
-    const intentResult = intentClassifier.classify(query);
+    const intentResult = intentService.classify(query);
     console.log(`🎯 [INTENT] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
     console.log(`📝 [ENTITIES]`, intentResult.entities);
 

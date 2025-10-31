@@ -1,11 +1,7 @@
 import { Request, Response } from 'express';
 import * as chatService from '../services/chat.service';
 import { transcribeAudioWithWhisper } from '../services/gemini.service';
-import researchPipelineService from '../services/researchPipeline.service';
 import { emitToUser } from '../services/websocket.service';
-import semanticCacheService from '../services/semanticCache.service';
-import adaptiveAIService from '../services/adaptiveAI.service';
-import hybridAIService from '../services/hybridAI.service';
 import prisma from '../config/database';
 
 /**
@@ -257,31 +253,10 @@ export const sendResearchQuery = async (req: Request, res: Response) => {
       console.log('🆕 Created new conversation for research:', conversationId);
     }
 
-    // Execute research pipeline with WebSocket progress updates
-    const result = await researchPipelineService.executeResearch(
-      content,
-      userId,
-      conversationId,
-      useResearch,
-      // Progress callback - emit to user via WebSocket
-      (stage: string, message: string) => {
-        emitToUser(userId, 'research:progress', {
-          stage,
-          message,
-          conversationId
-        });
-      }
-    );
-
-    // Save the research result as a message
-    await chatService.createConversation({
-      userId,
-      title: conversationId
-    });
-
-    res.json({
-      ...result,
-      conversationId,
+    // TODO: Research pipeline service removed - stub endpoint
+    res.status(501).json({
+      error: 'Research pipeline not implemented',
+      message: 'This feature is currently disabled'
     });
   } catch (error: any) {
     console.error('Error executing research query:', error);
@@ -297,12 +272,11 @@ export const clearSemanticCache = async (req: Request, res: Response) => {
   try {
     console.log('🗑️ Admin request to clear semantic cache from user:', req.user!.email);
 
-    const result = await semanticCacheService.clearAllCache();
-
+    // TODO: Semantic cache service removed - stub endpoint
     res.json({
       success: true,
-      message: `Successfully cleared semantic cache for all users`,
-      deletedKeys: result.deletedKeys,
+      message: `Semantic cache service is currently disabled`,
+      deletedKeys: 0,
     });
   } catch (error: any) {
     console.error('❌ Error clearing semantic cache:', error);

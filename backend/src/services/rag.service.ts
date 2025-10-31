@@ -31,28 +31,14 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import prisma from '../config/database';
 import intentService from './intent.service';
-import metadataQueryService from './metadataQuery.service';
 import navigationService from './navigation.service';
 import { detectLanguage, createLanguageInstruction } from './languageDetection.service';
 import cacheService from './cache.service';
 import locationQueryHandler from './handlers/locationQuery.handler';
 import folderContentsHandler from './handlers/folderContents.handler';
 import hierarchyQueryHandler from './handlers/hierarchyQuery.handler';
-import navigationOrchestrator from './navigationOrchestrator.service';
 import conversationContextService from './conversationContext.service';
-import relevanceScorerService from './relevanceScorer.service';
-import sourceTrackerService from './sourceTracker.service';
-import confidenceCalibrationService from './confidenceCalibration.service';
-import auditTrailService from './auditTrail.service';
-import privacyAwareExtractor from './privacyAwareExtractor.service';
-import responseValidator from './responseValidator.service';
-import responsePostProcessor from './responsePostProcessor.service';
 import documentTypeClassifier from './documentTypeClassifier.service';
-import piiScanner from './piiScanner.service';
-// Folder-scoped query services
-import queryParserService from './queryParser.service';
-import folderResolverService from './folderResolver.service';
-import promptBuilderService from './promptBuilder.service';
 // STAGE 0 IMPORTS (DISABLED - preserved for future use)
 // import { detectDocumentReference } from '../lib/rag/query-understanding/document-detector';
 // import { matchDocument } from '../lib/rag/query-understanding/document-matcher';
