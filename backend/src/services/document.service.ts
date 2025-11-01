@@ -9,6 +9,7 @@ import * as thumbnailService from './thumbnail.service';
 import markdownConversionService from './markdownConversion.service';
 import cacheService from './cache.service';
 import encryptionService from './encryption.service';
+import pptxProcessorService from './pptxProcessor.service';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -227,6 +228,7 @@ export async function processDocumentInBackground(
     let wordCount: number | null = null;
     let slidesData: any[] | null = null;
     let pptxMetadata: any | null = null;
+    let pptxSlideChunks: any[] | null = null; // For Phase 4C: Slide-level chunks
 
     // Check if it's a PowerPoint file - use Python PPTX extractor
     const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
@@ -249,35 +251,52 @@ export async function processDocumentInBackground(
           pageCount = result.totalSlides || null;
           console.log(`✅ PPTX extracted: ${slidesData?.length || 0} slides, ${extractedText.length} characters`);
 
-          // Generate slide images for preview
-          console.log('📊 Generating slide images for preview...');
-          try {
-            const { pptxSlideGeneratorService } = await import('./pptxSlideGenerator.service');
-            const slideResult = await pptxSlideGeneratorService.generateSlideImages(
-              tempFilePath,
-              documentId,
-              {
-                uploadToGCS: true,
-                maxWidth: 1920,
-                quality: 90
-              }
-            );
-
-            if (slideResult.success && slideResult.slides) {
-              // Update slidesData with image URLs
-              slidesData = slideResult.slides.map(slide => ({
-                slideNumber: slide.slideNumber,
-                imageUrl: slide.publicUrl,
-                width: slide.width,
-                height: slide.height
-              }));
-              console.log(`✅ Generated ${slideResult.totalSlides} slide images`);
-            } else {
-              console.warn('⚠️ Slide image generation failed:', slideResult.error);
-            }
-          } catch (slideError: any) {
-            console.warn('⚠️ Slide image generation failed (non-critical):', slideError.message);
+          // 🆕 Phase 4C: Process PowerPoint into slide-level chunks
+          console.log('📊 Processing PowerPoint into slide-level chunks...');
+          const pptxProcessResult = await pptxProcessorService.processFile(tempFilePath);
+          if (pptxProcessResult.success) {
+            pptxSlideChunks = pptxProcessResult.chunks;
+            console.log(`✅ Created ${pptxSlideChunks.length} slide-level chunks`);
+          } else {
+            console.warn(`⚠️ PowerPoint processor failed: ${pptxProcessResult.error}`);
           }
+
+          // 🚀 OPTIMIZATION: Generate slide images in background (non-blocking)
+          console.log('📊 Starting slide image generation in background...');
+          (async () => {
+            try {
+              const { pptxSlideGeneratorService } = await import('./pptxSlideGenerator.service');
+              const slideResult = await pptxSlideGeneratorService.generateSlideImages(
+                tempFilePath,
+                documentId,
+                {
+                  uploadToGCS: true,
+                  maxWidth: 1920,
+                  quality: 90
+                }
+              );
+
+              if (slideResult.success && slideResult.slides) {
+                // Update metadata with image URLs
+                await prisma.document_metadata.update({
+                  where: { documentId },
+                  data: {
+                    slidesData: JSON.stringify(slideResult.slides.map(slide => ({
+                      slideNumber: slide.slideNumber,
+                      imageUrl: slide.publicUrl,
+                      width: slide.width,
+                      height: slide.height
+                    })))
+                  }
+                });
+                console.log(`✅ [Background] Generated ${slideResult.totalSlides} slide images for ${filename}`);
+              } else {
+                console.warn(`⚠️ [Background] Slide image generation failed for ${filename}:`, slideResult.error);
+              }
+            } catch (slideError: any) {
+              console.warn(`⚠️ [Background] Slide image generation error for ${filename}:`, slideError.message);
+            }
+          })().catch(err => console.error('Background slide generation error:', err));
         } else {
           throw new Error('PPTX extraction failed');
         }
@@ -297,8 +316,68 @@ export async function processDocumentInBackground(
       console.log('🖼️ Using Gemini Vision for image OCR...');
       extractedText = await geminiService.extractTextFromImageWithGemini(fileBuffer, mimeType);
       ocrConfidence = 0.95;
-    } else {
-      // Use standard text extraction service
+    }
+    // 📄 Special handling for PDFs - detect scanned PDFs proactively
+    else if (mimeType === 'application/pdf') {
+      console.log('📄 Processing PDF document...');
+
+      // Save PDF to temporary file for OCR service
+      const tempDir = os.tmpdir();
+      const tempPdfPath = path.join(tempDir, `pdf-${crypto.randomUUID()}.pdf`);
+      fs.writeFileSync(tempPdfPath, fileBuffer);
+
+      try {
+        // Import OCR service
+        const ocrService = (await import('./ocr.service')).default;
+
+        // Check if PDF is scanned
+        const isScanned = await ocrService.isScannedPDF(tempPdfPath);
+
+        if (isScanned && ocrService.isAvailable()) {
+          // Scanned PDF - use OCR
+          console.log('🔍 Detected scanned PDF - processing with OCR...');
+          extractedText = await ocrService.processScannedPDF(tempPdfPath);
+          ocrConfidence = 0.90; // High confidence for Google Cloud Vision
+          console.log(`✅ OCR complete - extracted ${extractedText.length} characters`);
+        } else if (isScanned && !ocrService.isAvailable()) {
+          // Scanned PDF but OCR not configured - try fallback
+          console.warn('⚠️ Detected scanned PDF but OCR is not configured');
+          console.warn('   Set GOOGLE_CLOUD_VISION_KEY_PATH to enable OCR');
+
+          // Try standard extraction (will likely get minimal text)
+          const result = await textExtractionService.extractText(fileBuffer, mimeType);
+          extractedText = result.text;
+          ocrConfidence = result.confidence || null;
+          pageCount = result.pageCount || null;
+          wordCount = result.wordCount || null;
+
+          if (extractedText.trim().length < 100) {
+            throw new Error('Scanned PDF detected but OCR is not configured. Please configure Google Cloud Vision API.');
+          }
+        } else {
+          // Text-based PDF - use standard extraction
+          console.log('📝 Text-based PDF - using standard extraction...');
+          const result = await textExtractionService.extractText(fileBuffer, mimeType);
+          extractedText = result.text;
+          ocrConfidence = result.confidence || null;
+          pageCount = result.pageCount || null;
+          wordCount = result.wordCount || null;
+          console.log(`✅ Extracted ${extractedText.length} characters`);
+        }
+
+        // Clean up temp file
+        fs.unlinkSync(tempPdfPath);
+
+      } catch (pdfError: any) {
+        // Clean up temp file on error
+        if (fs.existsSync(tempPdfPath)) {
+          fs.unlinkSync(tempPdfPath);
+        }
+        throw pdfError;
+      }
+    }
+    else {
+      // Use standard text extraction service for other file types
       console.log('📝 Using text extraction service...');
       try {
         const result = await textExtractionService.extractText(fileBuffer, mimeType);
@@ -310,21 +389,8 @@ export async function processDocumentInBackground(
         console.warn('⚠️ Standard extraction failed');
         console.warn('Error:', extractionError.message);
 
-        // For PDFs that failed standard extraction, use Google Cloud Vision (supports PDFs)
-        // For images, use Gemini Vision (OpenAI Vision)
-        if (mimeType === 'application/pdf') {
-          console.log('📸 Trying Google Cloud Vision for scanned PDF...');
-          try {
-            const visionService = await import('./vision.service');
-            const ocrResult = await visionService.extractTextFromScannedPDF(fileBuffer);
-            extractedText = ocrResult.text;
-            ocrConfidence = ocrResult.confidence || 0.85;
-            console.log('✅ Google Cloud Vision extraction successful');
-          } catch (visionError) {
-            console.error('❌ Google Cloud Vision also failed:', visionError);
-            throw new Error(`Failed to extract text from scanned PDF: ${extractionError.message}`);
-          }
-        } else if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)) {
+        // For images, use Gemini Vision fallback
+        if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)) {
           console.log('📸 Trying Gemini Vision fallback for image...');
           try {
             extractedText = await geminiService.extractTextFromImageWithGemini(fileBuffer, mimeType);
@@ -422,6 +488,7 @@ export async function processDocumentInBackground(
         ocrConfidence,
         classification,
         entities,
+        summary: enrichedMetadata?.summary || null,
         thumbnailUrl,
         pageCount,
         wordCount,
@@ -434,6 +501,7 @@ export async function processDocumentInBackground(
         ocrConfidence,
         classification,
         entities,
+        summary: enrichedMetadata?.summary || null,
         thumbnailUrl,
         pageCount,
         wordCount,
@@ -534,8 +602,25 @@ export async function processDocumentInBackground(
           }));
           console.log(`✅ Generated ${chunks.length} embeddings for Excel chunks`);
         } else {
-          // 🆕 Use semantic chunking for markdown content
-          if (markdownContent && markdownContent.length > 100) {
+          // 🆕 Phase 4C: For PowerPoint, use slide-level chunks with metadata
+          const isPowerPoint = mimeType.includes('presentation');
+
+          if (isPowerPoint && pptxSlideChunks && pptxSlideChunks.length > 0) {
+            console.log('📝 Using slide-level chunks for PowerPoint (Phase 4C)...');
+            chunks = pptxSlideChunks.map(slideChunk => ({
+              content: slideChunk.content,
+              metadata: {
+                filename,
+                slideNumber: slideChunk.metadata.slideNumber,
+                totalSlides: slideChunk.metadata.totalSlides,
+                slideTitle: slideChunk.metadata.slideTitle,
+                hasNotes: slideChunk.metadata.hasNotes,
+                sourceType: 'powerpoint',
+                chunkType: 'slide'
+              }
+            }));
+            console.log(`📦 Created ${chunks.length} slide-level chunks from PowerPoint`);
+          } else if (markdownContent && markdownContent.length > 100) {
             console.log('📝 Using text chunking for markdown content...');
             chunks = chunkText(markdownContent, 500);
             console.log(`📦 Created ${chunks.length} chunks from markdown`);
@@ -767,6 +852,7 @@ async function processDocumentAsync(
     let wordCount: number | null = null;
     let slidesData: any[] | null = null;
     let pptxMetadata: any | null = null;
+    let pptxSlideChunks: any[] | null = null; // For Phase 4C: Slide-level chunks
 
     // Check if it's a PowerPoint file - use Python PPTX extractor
     const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
@@ -789,35 +875,52 @@ async function processDocumentAsync(
           pageCount = result.totalSlides || null;
           console.log(`✅ PPTX extracted: ${slidesData?.length || 0} slides, ${extractedText.length} characters`);
 
-          // Generate slide images for preview
-          console.log('📊 Generating slide images for preview...');
-          try {
-            const { pptxSlideGeneratorService } = await import('./pptxSlideGenerator.service');
-            const slideResult = await pptxSlideGeneratorService.generateSlideImages(
-              tempFilePath,
-              documentId,
-              {
-                uploadToGCS: true,
-                maxWidth: 1920,
-                quality: 90
-              }
-            );
-
-            if (slideResult.success && slideResult.slides) {
-              // Update slidesData with image URLs
-              slidesData = slideResult.slides.map(slide => ({
-                slideNumber: slide.slideNumber,
-                imageUrl: slide.publicUrl,
-                width: slide.width,
-                height: slide.height
-              }));
-              console.log(`✅ Generated ${slideResult.totalSlides} slide images`);
-            } else {
-              console.warn('⚠️ Slide image generation failed:', slideResult.error);
-            }
-          } catch (slideError: any) {
-            console.warn('⚠️ Slide image generation failed (non-critical):', slideError.message);
+          // 🆕 Phase 4C: Process PowerPoint into slide-level chunks
+          console.log('📊 Processing PowerPoint into slide-level chunks...');
+          const pptxProcessResult = await pptxProcessorService.processFile(tempFilePath);
+          if (pptxProcessResult.success) {
+            pptxSlideChunks = pptxProcessResult.chunks;
+            console.log(`✅ Created ${pptxSlideChunks.length} slide-level chunks`);
+          } else {
+            console.warn(`⚠️ PowerPoint processor failed: ${pptxProcessResult.error}`);
           }
+
+          // 🚀 OPTIMIZATION: Generate slide images in background (non-blocking)
+          console.log('📊 Starting slide image generation in background...');
+          (async () => {
+            try {
+              const { pptxSlideGeneratorService } = await import('./pptxSlideGenerator.service');
+              const slideResult = await pptxSlideGeneratorService.generateSlideImages(
+                tempFilePath,
+                documentId,
+                {
+                  uploadToGCS: true,
+                  maxWidth: 1920,
+                  quality: 90
+                }
+              );
+
+              if (slideResult.success && slideResult.slides) {
+                // Update metadata with image URLs
+                await prisma.document_metadata.update({
+                  where: { documentId },
+                  data: {
+                    slidesData: JSON.stringify(slideResult.slides.map(slide => ({
+                      slideNumber: slide.slideNumber,
+                      imageUrl: slide.publicUrl,
+                      width: slide.width,
+                      height: slide.height
+                    })))
+                  }
+                });
+                console.log(`✅ [Background] Generated ${slideResult.totalSlides} slide images for ${filename}`);
+              } else {
+                console.warn(`⚠️ [Background] Slide image generation failed for ${filename}:`, slideResult.error);
+              }
+            } catch (slideError: any) {
+              console.warn(`⚠️ [Background] Slide image generation error for ${filename}:`, slideError.message);
+            }
+          })().catch(err => console.error('Background slide generation error:', err));
         } else {
           throw new Error('PPTX extraction failed');
         }
@@ -962,6 +1065,39 @@ async function processDocumentAsync(
       }
     }
 
+    // 🆕 ENHANCED METADATA ENRICHMENT with semantic understanding
+    let enrichedMetadata = null;
+    if (extractedText && extractedText.length > 100) {
+      console.log('🔍 Enriching document metadata with semantic analysis...');
+      try {
+        const metadataEnrichmentService = await import('./metadataEnrichment.service');
+        enrichedMetadata = await metadataEnrichmentService.default.enrichDocument(
+          extractedText,
+          filename,
+          {
+            extractTopics: true,
+            extractEntities: true,
+            generateSummary: true,
+            extractKeyPoints: true,
+            analyzeSentiment: true,
+            assessComplexity: true
+          }
+        );
+
+        // Use enriched data if basic analysis didn't provide these
+        if (!classification && enrichedMetadata.topics.length > 0) {
+          classification = enrichedMetadata.topics[0];
+        }
+        if (!entities || entities === '{}') {
+          entities = JSON.stringify(enrichedMetadata.entities);
+        }
+
+        console.log(`✅ Metadata enriched: ${enrichedMetadata.topics.length} topics, ${enrichedMetadata.keyPoints.length} key points, sentiment: ${enrichedMetadata.sentiment}`);
+      } catch (error) {
+        console.warn('⚠️ Metadata enrichment failed (non-critical):', error);
+      }
+    }
+
     // Create or update metadata record (upsert handles retry cases)
     await prisma.documentMetadata.upsert({
       where: { documentId },
@@ -971,6 +1107,7 @@ async function processDocumentAsync(
         ocrConfidence,
         classification,
         entities,
+        summary: enrichedMetadata?.summary || null,
         thumbnailUrl,
         pageCount,
         wordCount,
@@ -983,6 +1120,7 @@ async function processDocumentAsync(
         ocrConfidence,
         classification,
         entities,
+        summary: enrichedMetadata?.summary || null,
         thumbnailUrl,
         pageCount,
         wordCount,
@@ -1080,8 +1218,25 @@ async function processDocumentAsync(
           }));
           console.log(`✅ Generated ${chunks.length} embeddings for Excel chunks`);
         } else {
-          // 🆕 Use semantic chunking for markdown content
-          if (markdownContent && markdownContent.length > 100) {
+          // 🆕 Phase 4C: For PowerPoint, use slide-level chunks with metadata
+          const isPowerPoint = mimeType.includes('presentation');
+
+          if (isPowerPoint && pptxSlideChunks && pptxSlideChunks.length > 0) {
+            console.log('📝 Using slide-level chunks for PowerPoint (Phase 4C)...');
+            chunks = pptxSlideChunks.map(slideChunk => ({
+              content: slideChunk.content,
+              metadata: {
+                filename,
+                slideNumber: slideChunk.metadata.slideNumber,
+                totalSlides: slideChunk.metadata.totalSlides,
+                slideTitle: slideChunk.metadata.slideTitle,
+                hasNotes: slideChunk.metadata.hasNotes,
+                sourceType: 'powerpoint',
+                chunkType: 'slide'
+              }
+            }));
+            console.log(`📦 Created ${chunks.length} slide-level chunks from PowerPoint`);
+          } else if (markdownContent && markdownContent.length > 100) {
             console.log('📝 Using text chunking for markdown content...');
             chunks = chunkText(markdownContent, 500);
             console.log(`📦 Created ${chunks.length} chunks from markdown`);
@@ -1164,8 +1319,35 @@ async function processDocumentAsync(
 
 /**
  * Chunk text into smaller pieces for vector embedding
+ * Enhanced to handle PowerPoint slides and images properly
  */
 function chunkText(text: string, maxWords: number = 500): Array<{content: string, metadata: any}> {
+  // ENHANCEMENT 1: Check if this is PowerPoint content (contains slide markers)
+  const slideMarkerRegex = /===\s*Slide\s+(\d+)\s*===/gi;
+  const hasSlideMarkers = slideMarkerRegex.test(text);
+
+  if (hasSlideMarkers) {
+    console.log('📊 Detected PowerPoint content - splitting by slides...');
+    return chunkPowerPointText(text, maxWords);
+  }
+
+  // ENHANCEMENT 2: For short documents (< 100 words), create single chunk
+  // This helps with OCR text from images that might not have proper sentence structure
+  const wordCount = text.split(/\s+/).length;
+  if (wordCount < 100) {
+    console.log(`📄 Short document (${wordCount} words) - creating single chunk`);
+    return [{
+      content: text.trim(),
+      metadata: {
+        chunkIndex: 0,
+        startChar: 0,
+        endChar: text.length,
+        wordCount
+      }
+    }];
+  }
+
+  // ORIGINAL LOGIC: Standard sentence-based chunking
   const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
   const chunks: Array<{content: string, metadata: any}> = [];
   let currentChunk = '';
@@ -1206,6 +1388,101 @@ function chunkText(text: string, maxWords: number = 500): Array<{content: string
       }
     });
   }
+
+  return chunks;
+}
+
+/**
+ * Chunk PowerPoint text by slides
+ * Each slide becomes at least one chunk with slide metadata
+ */
+function chunkPowerPointText(text: string, maxWords: number = 500): Array<{content: string, metadata: any}> {
+  const chunks: Array<{content: string, metadata: any}> = [];
+
+  // Split by slide markers
+  const slideRegex = /===\s*Slide\s+(\d+)\s*===\n([\s\S]*?)(?=\n===\s*Slide\s+\d+\s*===|$)/gi;
+  let match;
+  let chunkIndex = 0;
+
+  while ((match = slideRegex.exec(text)) !== null) {
+    const slideNumber = parseInt(match[1], 10);
+    const slideContent = match[2].trim();
+
+    if (slideContent.length === 0) {
+      continue; // Skip empty slides
+    }
+
+    // Check if slide content needs to be further chunked
+    const slideWordCount = slideContent.split(/\s+/).length;
+
+    if (slideWordCount <= maxWords) {
+      // Slide fits in one chunk
+      chunks.push({
+        content: slideContent,
+        metadata: {
+          chunkIndex,
+          slide: slideNumber,
+          slideNumber, // Both formats for compatibility
+          startChar: match.index,
+          endChar: match.index + match[0].length,
+          wordCount: slideWordCount
+        }
+      });
+      chunkIndex++;
+    } else {
+      // Slide is too large, split into multiple chunks but preserve slide number
+      const sentences = slideContent.match(/[^.!?]+[.!?]+/g) || [slideContent];
+      let currentChunk = '';
+      let currentWordCount = 0;
+      let subChunkIndex = 0;
+
+      for (const sentence of sentences) {
+        const words = sentence.trim().split(/\s+/);
+        const sentenceWordCount = words.length;
+
+        if (currentWordCount + sentenceWordCount > maxWords && currentChunk.length > 0) {
+          chunks.push({
+            content: currentChunk.trim(),
+            metadata: {
+              chunkIndex,
+              slide: slideNumber,
+              slideNumber,
+              subChunk: subChunkIndex,
+              startChar: match.index,
+              endChar: match.index + currentChunk.length,
+              wordCount: currentWordCount
+            }
+          });
+          chunkIndex++;
+          subChunkIndex++;
+          currentChunk = '';
+          currentWordCount = 0;
+        }
+
+        currentChunk += sentence + ' ';
+        currentWordCount += sentenceWordCount;
+      }
+
+      // Add remaining content
+      if (currentChunk.trim().length > 0) {
+        chunks.push({
+          content: currentChunk.trim(),
+          metadata: {
+            chunkIndex,
+            slide: slideNumber,
+            slideNumber,
+            subChunk: subChunkIndex,
+            startChar: match.index,
+            endChar: match.index + currentChunk.length,
+            wordCount: currentWordCount
+          }
+        });
+        chunkIndex++;
+      }
+    }
+  }
+
+  console.log(`   ✅ Created ${chunks.length} chunks from PowerPoint (${new Set(chunks.map(c => c.metadata.slide)).size} unique slides)`);
 
   return chunks;
 }
