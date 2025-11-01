@@ -1620,17 +1620,6 @@ const UploadHub = () => {
                           }}
                         />
                       )}
-                      {f.status === 'uploading' && (
-                        <div style={{
-                          position: 'absolute',
-                          width: 32,
-                          height: 32,
-                          border: '4px solid rgba(0, 0, 0, 0.1)',
-                          borderTop: '4px solid #181818',
-                          borderRadius: '50%',
-                          animation: 'spin 0.8s linear infinite'
-                        }} />
-                      )}
                     </div>
 
                     {/* Details (File or Folder) */}

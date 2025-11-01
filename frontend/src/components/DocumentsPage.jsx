@@ -327,29 +327,17 @@ const DocumentsPage = () => {
               <>
                 {/* Delete Button in Select Mode */}
                 <button
-                  onClick={async () => {
+                  onClick={() => {
                     if (selectedDocuments.size === 0) return;
-                    if (!window.confirm(`Delete ${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's' : ''}?`)) return;
 
-                    try {
-                      const deleteCount = selectedDocuments.size;
-                      await Promise.all(
-                        Array.from(selectedDocuments).map(docId =>
-                          deleteDocument(docId)
-                        )
-                      );
-
-                      // Refresh documents
-                      await refreshAll();
-
-                      // Clear selection and exit select mode
-                      clearSelection();
-                      toggleSelectMode();
-                      showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
-                    } catch (error) {
-                      console.error('Error deleting documents:', error);
-                      alert('Failed to delete documents');
-                    }
+                    // Set up bulk delete info and show modal
+                    setItemToDelete({
+                      type: 'bulk-documents',
+                      ids: Array.from(selectedDocuments),
+                      count: selectedDocuments.size,
+                      name: `${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's' : ''}`
+                    });
+                    setShowDeleteModal(true);
                   }}
                   disabled={selectedDocuments.size === 0}
                   style={{
@@ -1549,21 +1537,40 @@ const DocumentsPage = () => {
         onConfirm={() => {
           if (!itemToDelete) return;
 
+          // Save reference before clearing state
+          const itemToDeleteCopy = itemToDelete;
+
           // Close modal IMMEDIATELY for instant feedback
           setShowDeleteModal(false);
+          setItemToDelete(null);
+
+          // For bulk delete, clear selection and exit select mode IMMEDIATELY
+          if (itemToDeleteCopy.type === 'bulk-documents') {
+            clearSelection();
+            toggleSelectMode();
+          }
 
           // Delete in background - context will update UI instantly
           (async () => {
             try {
-              if (itemToDelete.type === 'category') {
-                await handleDeleteCategory(itemToDelete.id);
-              } else if (itemToDelete.type === 'document') {
-                await handleDelete(itemToDelete.id);
+              if (itemToDeleteCopy.type === 'bulk-documents') {
+                // Handle bulk deletion of selected documents
+                const deleteCount = itemToDeleteCopy.count;
+
+                // Delete all selected documents
+                await Promise.all(
+                  itemToDeleteCopy.ids.map(docId => deleteDocument(docId))
+                );
+
+                // Show success message
+                showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
+              } else if (itemToDeleteCopy.type === 'category') {
+                await handleDeleteCategory(itemToDeleteCopy.id);
+              } else if (itemToDeleteCopy.type === 'document') {
+                await handleDelete(itemToDeleteCopy.id);
               }
             } catch (error) {
               console.error('Delete error:', error);
-            } finally {
-              setItemToDelete(null);
             }
           })();
         }}

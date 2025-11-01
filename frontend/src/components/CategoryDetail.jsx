@@ -166,7 +166,7 @@ const CategoryDetail = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showSuccess } = useToast();
-  const { documents: contextDocuments, folders: contextFolders, deleteDocument, createFolder, moveToFolder, refreshAll } = useDocuments(); // Get from context for auto-refresh
+  const { documents: contextDocuments, folders: contextFolders, createFolder, moveToFolder, refreshAll } = useDocuments(); // Get from context for auto-refresh
   const [documents, setDocuments] = useState([]);
   const [subFolders, setSubFolders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -662,41 +662,61 @@ const CategoryDetail = () => {
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
 
+    // Save reference before clearing state
+    const itemToDeleteCopy = itemToDelete;
+
+    // Close modal immediately
+    setShowDeleteModal(false);
+    setItemToDelete(null);
+
+    // For bulk delete, clear selection and exit select mode IMMEDIATELY
+    if (itemToDeleteCopy.type === 'bulk-documents') {
+      clearSelection();
+      toggleSelectMode();
+    }
+
     try {
-      if (itemToDelete.type === 'document') {
-        // Show notification immediately for instant feedback
+      if (itemToDeleteCopy.type === 'bulk-documents') {
+        // Handle bulk deletion of selected documents
+        const deleteCount = itemToDeleteCopy.count;
+
+        // Update UI immediately (optimistic update)
+        setDocuments(prev => prev.filter(doc => !itemToDeleteCopy.ids.includes(doc.id)));
+
+        // Show success message
+        showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
+
+        // Delete on server in background
+        await Promise.all(
+          itemToDeleteCopy.ids.map(docId =>
+            api.delete(`/api/documents/${docId}`).catch(error => {
+              console.error(`Error deleting document ${docId}:`, error);
+            })
+          )
+        );
+      } else if (itemToDeleteCopy.type === 'document') {
+        // Update UI immediately (optimistic update)
+        setDocuments(prev => prev.filter(doc => doc.id !== itemToDeleteCopy.id));
+
+        // Show success notification
         showSuccess('1 file has been deleted');
 
-        await api.delete(`/api/documents/${itemToDelete.id}`);
-
-        // Refresh documents based on current category
-        if (categoryName === 'recently-added') {
-          const response = await api.get('/api/documents');
-          const allDocuments = response.data.documents || [];
-          const sortedDocs = allDocuments.sort((a, b) =>
-            new Date(b.createdAt) - new Date(a.createdAt)
-          );
-          setDocuments(sortedDocs);
-        } else if (currentFolderId) {
-          const response = await api.get(`/api/documents?folderId=${currentFolderId}`);
-          setDocuments(response.data.documents || []);
-        }
-
         setOpenDropdownId(null);
-      } else if (itemToDelete.type === 'folder') {
+
+        // Delete on server in background
+        await api.delete(`/api/documents/${itemToDeleteCopy.id}`);
+      } else if (itemToDeleteCopy.type === 'folder') {
         // Show notification immediately for instant feedback
         showSuccess('1 folder has been deleted');
 
-        await api.delete(`/api/folders/${itemToDelete.id}`);
+        await api.delete(`/api/folders/${itemToDeleteCopy.id}`);
         // Navigate back after deletion
         navigate(-1);
       }
     } catch (error) {
       console.error('Error deleting:', error);
-      alert(`Failed to delete ${itemToDelete.type}`);
-    } finally {
-      setShowDeleteModal(false);
-      setItemToDelete(null);
+      // Refresh to restore correct state on error
+      setRefreshTrigger(prev => prev + 1);
     }
   };
 
@@ -1147,31 +1167,17 @@ const CategoryDetail = () => {
                 <>
                   {/* Delete Button */}
                   <button
-                    onClick={async () => {
+                    onClick={() => {
                       if (selectedDocuments.size === 0) return;
-                      if (!window.confirm(`Delete ${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's' : ''}?`)) return;
 
-                      try {
-                        const deleteCount = selectedDocuments.size;
-                        await Promise.all(
-                          Array.from(selectedDocuments).map(docId =>
-                            deleteDocument(docId)
-                          )
-                        );
-
-                        // Refresh documents
-                        await refreshAll();
-
-                        // Clear selection and exit select mode
-                        clearSelection();
-                        toggleSelectMode();
-
-                        // Show success message
-                        showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
-                      } catch (error) {
-                        console.error('Error deleting documents:', error);
-                        alert('Failed to delete documents');
-                      }
+                      // Set up bulk delete info and show modal
+                      setItemToDelete({
+                        type: 'bulk-documents',
+                        ids: Array.from(selectedDocuments),
+                        count: selectedDocuments.size,
+                        name: `${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's' : ''}`
+                      });
+                      setShowDeleteModal(true);
                     }}
                     disabled={selectedDocuments.size === 0}
                     style={{
