@@ -151,7 +151,7 @@ class PineconeService {
     queryEmbedding: number[],
     userId: string,
     topK: number = 5,
-    minSimilarity: number = 0.5,
+    minSimilarity: number = 0.3, // Lowered from 0.5 to 0.3 for better recall
     attachedDocumentId?: string,
     folderId?: string
   ): Promise<Array<{
@@ -248,6 +248,59 @@ class PineconeService {
       console.error('❌ [Pinecone] Search failed:', error);
       return [];
     }
+  }
+
+  /**
+   * Unified query method for RAG service
+   * Wrapper around searchSimilarChunks for backward compatibility
+   */
+  async query(
+    embedding: number[],
+    options: {
+      userId: string;
+      topK?: number;
+      minSimilarity?: number;
+      documentId?: string;
+      folderId?: string;
+    }
+  ): Promise<Array<{
+    documentId: string;
+    content: string;
+    filename: string;
+    similarity: number;
+    chunkIndex: number;
+    metadata: any;
+  }>> {
+    console.log(`🔍 [Pinecone.query] Wrapper called for userId: ${options.userId.substring(0, 8)}...`);
+
+    // Call the actual search method
+    const results = await this.searchSimilarChunks(
+      embedding,
+      options.userId,
+      options.topK || 10,
+      options.minSimilarity || 0.5,
+      options.documentId,
+      options.folderId
+    );
+
+    console.log(`✅ [Pinecone.query] Returning ${results.length} results with filenames`);
+
+    // Transform results to match expected format
+    return results.map(result => ({
+      documentId: result.documentId,
+      content: result.content,
+      filename: result.document.filename,  // ✅ Extract filename
+      similarity: result.similarity,
+      chunkIndex: result.chunkIndex,
+      metadata: {
+        ...result.metadata,
+        // ✅ Ensure filename is in metadata
+        filename: result.document.filename,
+        mimeType: result.document.mimeType,
+        createdAt: result.document.createdAt,
+        documentId: result.documentId,
+      }
+    }));
   }
 
   /**

@@ -9,6 +9,7 @@ router.use(authenticateToken);
 
 // RAG query endpoints
 router.post('/query', ragController.queryWithRAG);
+router.post('/query/stream', ragController.queryWithRAGStreaming); // SSE streaming endpoint
 router.post('/follow-up', ragController.answerFollowUp);
 router.get('/context/:contextId', ragController.getContext);
 
