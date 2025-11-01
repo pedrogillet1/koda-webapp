@@ -944,12 +944,18 @@ class RAGService {
       }
     }
 
+    // Get the final response with finish reason
+    const finalResponse = await streamResult.response;
+    const finishReason = finalResponse.candidates?.[0]?.finishReason;
+    console.log(`   Finish Reason: ${finishReason}`);
+
     const responseTime = Date.now() - startTime;
     const avgConfidence = finalSources.reduce((sum, s) => sum + s.similarity, 0) / finalSources.length;
 
     console.log(`✅ STREAMING COMPLETE (${responseTime}ms)`);
     console.log(`   Chunks: ${chunkCount}`);
-    console.log(`   Length: ${rawAnswer.length} characters`);
+    console.log(`   Raw Length: ${rawAnswer.length} characters`);
+    console.log(`   Saving to DB: ${rawAnswer.substring(0, 100)}...`);
     console.log(`   Sources: ${finalSources.length} documents`);
     console.log(`   Avg Confidence: ${(avgConfidence * 100).toFixed(1)}%`);
 
@@ -977,8 +983,10 @@ class RAGService {
       query
     );
 
+    // Use RAW answer for streaming (frontend already shows raw content)
+    // This prevents truncation when loading from database after refresh
     const response: RAGResponse = {
-      answer: formattedAnswer,
+      answer: rawAnswer, // ✅ Save raw answer, not formatted
       sources: finalSources,
       contextId: `rag_stream_${Date.now()}`,
       intent: intent.intent,
