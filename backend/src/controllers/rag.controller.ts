@@ -1,16 +1,12 @@
 import { Request, Response } from 'express';
 import ragService from '../services/rag.service';
 import prisma from '../config/database';
-import { generateConversationName, shouldGenerateName } from '../services/conversationNaming.service';
 import { getIO } from '../services/websocket.service';
-import queryClassifier, { QueryType } from '../services/queryClassifier.service';
-import templateResponseService from '../services/templateResponse.service';
-import metadataQueryService from '../services/metadataQuery.service';
-import fileManagementIntentService, { FileManagementIntent } from '../services/fileManagementIntent.service';
 import navigationService from '../services/navigation.service';
-import intentClassifier from '../services/intentClassification.service';
+import intentService from '../services/intent.service';
 import { Intent } from '../types/intent.types';
 import fileActionsService from '../services/fileActions.service';
+import { generateConversationTitle } from '../services/gemini.service';
 
 /**
  * RAG Controller
@@ -29,12 +25,17 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const { query, conversationId, researchMode = false, attachedFile, documentId } = req.body;
+    const { query, conversationId, answerLength = 'medium', attachedFile, documentId } = req.body;
+
+    // Validate answerLength parameter
+    const validLengths = ['short', 'medium', 'summary', 'long'];
+    const finalAnswerLength = validLengths.includes(answerLength) ? answerLength : 'medium';
 
     // CRITICAL FIX: Clear documentId if it's explicitly null/undefined to prevent sticky attachment
     const cleanDocumentId = documentId || undefined;
     console.log(`📎 [ATTACHMENT DEBUG] documentId from request: ${documentId}, cleaned: ${cleanDocumentId}`);
     console.log(`📎 [ATTACHMENT DEBUG] attachedFile from request:`, attachedFile);
+    console.log(`📏 [ANSWER LENGTH] ${finalAnswerLength}`);
 
     if (!query || !conversationId) {
       res.status(400).json({ error: 'Query and conversationId are required' });
@@ -44,23 +45,24 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     // ========================================
     // INTENT CLASSIFICATION (New Brain - Ordered Pattern Matching)
     // ========================================
-    const intentResult = intentClassifier.classify(query);
+    const intentResult = intentService.detectIntent(query);
     console.log(`🎯 [INTENT] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
     console.log(`📝 [ENTITIES]`, intentResult.entities);
 
+    // TODO: Gemini fallback classifier removed - using pattern matching only
     // Only fallback to Gemini AI classifier if confidence is very low
-    let fileIntent = null;
-    if (intentResult.confidence < 0.80 && intentResult.intent === Intent.GENERAL_QA) {
-      try {
-        fileIntent = await fileManagementIntentService.classifyIntent(query, userId);
-        if (fileIntent) {
-          console.log(`🧠 [GEMINI FALLBACK] Intent: ${fileIntent.intent} (confidence: ${fileIntent.confidence})`);
-        }
-      } catch (error) {
-        console.log(`⚠️ [GEMINI FALLBACK] Failed, using pattern result`);
-        fileIntent = null;
-      }
-    }
+    // let fileIntent = null;
+    // if (intentResult.confidence < 0.80 && intentResult.intent === Intent.GENERAL_QA) {
+    //   try {
+    //     fileIntent = await fileManagementIntentService.classifyIntent(query, userId);
+    //     if (fileIntent) {
+    //       console.log(`🧠 [GEMINI FALLBACK] Intent: ${fileIntent.intent} (confidence: ${fileIntent.confidence})`);
+    //     }
+    //   } catch (error) {
+    //     console.log(`⚠️ [GEMINI FALLBACK] Failed, using pattern result`);
+    //     fileIntent = null;
+    //   }
+    // }
 
     // ========================================
     // INTENT HANDLERS (New Brain - Proper Execution)
@@ -223,7 +225,16 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     if (intentResult.intent === Intent.LIST_FILES) {
       console.log(`📋 [LIST] Listing files`);
 
-      const filesList = await metadataQueryService.listAllFiles(userId);
+      // TODO: Metadata query service removed - use direct database query
+      const documents = await prisma.document.findMany({
+        where: { userId, status: 'completed' },
+        select: { filename: true },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      const filesListAnswer = documents.length > 0
+        ? `You have ${documents.length} files:\n${documents.map((d, i) => `${i + 1}. ${d.filename}`).join('\n')}`
+        : 'You have no files uploaded yet.';
 
       const userMessage = await prisma.message.create({
         data: { conversationId, role: 'user', content: query }
@@ -233,7 +244,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         data: {
           conversationId,
           role: 'assistant',
-          content: filesList.answer
+          content: filesListAnswer
         }
       });
 
@@ -244,7 +255,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       return res.json({
         success: true,
-        answer: filesList.answer,
+        answer: filesListAnswer,
         sources: [],
         expandedQuery: [],
         contextId: 'list-query',
@@ -440,8 +451,10 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     }
 
     // ========================================
-    // GEMINI FALLBACK HANDLERS (OLD SYSTEM)
+    // GEMINI FALLBACK HANDLERS (OLD SYSTEM) - DISABLED
     // ========================================
+    // TODO: fileIntent system disabled - these handlers need to be refactored or removed
+    /*
     // Handle FIND_DOCUMENT - Use navigation service (NOT RAG!)
     if (fileIntent && fileIntent.intent === FileManagementIntent.FIND_DOCUMENT && fileIntent.entities.documentName) {
       console.log(`📍 [NAV] Finding document: "${fileIntent.entities.documentName}"`);
@@ -537,10 +550,15 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         });
       }
     }
+    */
 
+    /*
     // ========================================
     // QUERY CLASSIFICATION & SMART ROUTING
     // ========================================
+    // TODO: Temporarily disabled - queryClassifier service doesn't exist
+    // All queries now go directly to RAG pipeline
+
     // Classify query to determine routing strategy
     const classification = await queryClassifier.classify(query, userId);
     console.log(`🎯 Query classified as: ${classification.type} (confidence: ${classification.confidence})`);
@@ -625,7 +643,13 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     // Handle SIMPLE_METADATA - fast database query (no RAG/LLM needed)
     if (classification.type === QueryType.SIMPLE_METADATA) {
       console.log(`🗄️  Handling metadata query directly`);
-      const metadataResult = await metadataQueryService.handleQuery(query, userId, classification.metadata);
+
+      // TODO: Metadata query service removed - stub response
+      const metadataResult = {
+        answer: 'Metadata queries are currently handled through the RAG system.',
+        sources: [],
+        actions: []
+      };
 
       if (metadataResult.answer) {
         const userMessage = await prisma.message.create({
@@ -662,6 +686,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         });
       }
     }
+    */
 
     // ========================================
     // COMPLEX_RAG - Full RAG pipeline
@@ -694,13 +719,12 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       },
     });
 
-    // Generate RAG answer with conversation history
+    // Generate RAG answer with answer length control
     const result = await ragService.generateAnswer(
       userId,
       query,
       conversationId,
-      researchMode,
-      conversationHistory,
+      finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
       cleanDocumentId
     );
 
@@ -712,10 +736,10 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         content: result.answer,
         metadata: JSON.stringify({
           ragSources: result.sources,
-          expandedQuery: result.expandedQuery,
           contextId: result.contextId,
-          researchMode,
-          actions: result.actions || []
+          intent: result.intent,
+          confidence: result.confidence,
+          answerLength: finalAnswerLength
         }),
       },
     });
@@ -741,13 +765,15 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       });
       console.log(`🔍 [AUTO-NAMING] Current title: "${conversation?.title}"`);
 
-      const shouldGenerate = shouldGenerateName(1, conversation?.title || '');
-      console.log(`🔍 [AUTO-NAMING] shouldGenerateName result: ${shouldGenerate}`);
+      // Determine if we should generate a name (only for "New Chat" or empty titles)
+      const currentTitle = conversation?.title || '';
+      const shouldGenerate = currentTitle === '' || currentTitle === 'New Chat';
+      console.log(`🔍 [AUTO-NAMING] shouldGenerateName result: ${shouldGenerate} (title: "${currentTitle}")`);
 
       if (conversation && shouldGenerate) {
         console.log(`🚀 [AUTO-NAMING] Starting name generation for query: "${query}"`);
         // Generate name asynchronously without blocking the response
-        generateConversationName(query)
+        generateConversationTitle(query)
           .then(async (generatedTitle) => {
             console.log(`✅ [AUTO-NAMING] Generated title: "${generatedTitle}"`);
             // Update the conversation title
@@ -829,30 +855,182 @@ export const answerFollowUp = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const { query, conversationId, previousContextId } = req.body;
+    const { query, conversationId, answerLength = 'medium', documentId } = req.body;
 
-    if (!query || !conversationId || !previousContextId) {
-      res.status(400).json({ error: 'Query, conversationId, and previousContextId are required' });
+    if (!query || !conversationId) {
+      res.status(400).json({ error: 'Query and conversationId are required' });
       return;
     }
 
-    const result = await ragService.answerFollowUp(
+    // Validate answerLength parameter
+    const validLengths = ['short', 'medium', 'summary', 'long'];
+    const finalAnswerLength = validLengths.includes(answerLength) ? answerLength : 'medium';
+
+    // Follow-ups are handled by the main generateAnswer method
+    const result = await ragService.generateAnswer(
       userId,
       query,
       conversationId,
-      previousContextId
+      finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
+      documentId
     );
 
     res.json({
       success: true,
       answer: result.answer,
       sources: result.sources,
-      expandedQuery: result.expandedQuery,
       contextId: result.contextId,
-      actions: result.actions || []
+      intent: result.intent,
+      confidence: result.confidence
     });
   } catch (error: any) {
     console.error('Error in RAG follow-up:', error);
     res.status(500).json({ error: error.message || 'Failed to answer follow-up' });
+  }
+};
+
+/**
+ * POST /api/rag/query/stream
+ * Generate an answer using RAG with SSE streaming
+ */
+export const queryWithRAGStreaming = async (req: Request, res: Response): Promise<void> => {
+  console.time('⚡ RAG Streaming Response Time');
+
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { query, conversationId, answerLength = 'medium', documentId } = req.body;
+
+    if (!query || !conversationId) {
+      res.status(400).json({ error: 'Query and conversationId are required' });
+      return;
+    }
+
+    // Validate answerLength parameter
+    const validLengths = ['short', 'medium', 'summary', 'long'];
+    const finalAnswerLength = validLengths.includes(answerLength) ? answerLength : 'medium';
+
+    // Set up SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+
+    // Send initial connection confirmation
+    res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+
+    // Save user message to database
+    const userMessage = await prisma.message.create({
+      data: {
+        conversationId,
+        role: 'user',
+        content: query,
+        metadata: documentId ? JSON.stringify({ documentId }) : null,
+      },
+    });
+
+    // Generate streaming RAG answer
+    const result = await ragService.generateAnswerStreaming(
+      userId,
+      query,
+      conversationId,
+      finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
+      documentId,
+      (chunk: string) => {
+        // Stream each chunk to client
+        res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
+      }
+    );
+
+    // Save assistant message to database with RAG metadata
+    const assistantMessage = await prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: result.answer,
+        metadata: JSON.stringify({
+          ragSources: result.sources,
+          contextId: result.contextId,
+          intent: result.intent,
+          confidence: result.confidence,
+          answerLength: finalAnswerLength
+        }),
+      },
+    });
+
+    // Update conversation timestamp
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    // Auto-generate conversation title (non-blocking)
+    const messageCount = await prisma.message.count({
+      where: { conversationId }
+    });
+
+    if (messageCount === 2) {
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { title: true }
+      });
+
+      const currentTitle = conversation?.title || '';
+      const shouldGenerate = currentTitle === '' || currentTitle === 'New Chat';
+
+      if (conversation && shouldGenerate) {
+        generateConversationTitle(query)
+          .then(async (generatedTitle) => {
+            await prisma.conversation.update({
+              where: { id: conversationId },
+              data: { title: generatedTitle }
+            });
+
+            try {
+              const io = getIO();
+              io.to(`user:${userId}`).emit('conversation:updated', {
+                conversationId,
+                title: generatedTitle,
+                updatedAt: new Date()
+              });
+            } catch (wsError) {
+              console.warn('⚠️  WebSocket not available for title update');
+            }
+          })
+          .catch((error) => {
+            console.error('❌ Failed to generate conversation title:', error);
+          });
+      }
+    }
+
+    // Send completion signal with metadata AND formatted answer
+    res.write(`data: ${JSON.stringify({
+      type: 'done',
+      formattedAnswer: result.answer, // ✅ Include formatted answer with bold
+      userMessageId: userMessage.id,
+      assistantMessageId: assistantMessage.id,
+      sources: result.sources,
+      contextId: result.contextId,
+      intent: result.intent,
+      confidence: result.confidence,
+      actions: result.actions || [],
+      uiUpdate: result.uiUpdate,
+      conversationId
+    })}\n\n`);
+
+    res.end();
+    console.timeEnd('⚡ RAG Streaming Response Time');
+
+  } catch (error: any) {
+    console.error('❌ Error in RAG streaming:', error);
+    res.write(`data: ${JSON.stringify({
+      type: 'error',
+      error: error.message || 'Failed to generate RAG answer'
+    })}\n\n`);
+    res.end();
   }
 };

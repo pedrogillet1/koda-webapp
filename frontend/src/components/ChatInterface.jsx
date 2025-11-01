@@ -351,25 +351,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     }, [isLoading]);
 
-    // Smart suggestion: Detect if user needs Research Mode
-    useEffect(() => {
-        if (researchMode || !message) {
-            setShowResearchSuggestion(false);
-            return;
-        }
+    // REMOVED: Research mode detection - popup disabled per user request
+    // useEffect(() => {
+    //     if (researchMode || !message) {
+    //         setShowResearchSuggestion(false);
+    //         return;
+    //     }
 
-        const researchKeywords = [
-            'latest', 'recent', 'current', 'today', 'now', 'news',
-            'stock', 'price', 'weather', 'what\'s happening',
-            'update', 'breaking', 'trending', 'live', 'real-time',
-            'currency', 'exchange rate', 'bitcoin', 'crypto',
-            'sports score', 'election', 'market', 'economic'
-        ];
+    //     const researchKeywords = [
+    //         'latest', 'recent', 'current', 'today', 'now', 'news',
+    //         'stock', 'price', 'weather', 'what\'s happening',
+    //         'update', 'breaking', 'trending', 'live', 'real-time',
+    //         'currency', 'exchange rate', 'bitcoin', 'crypto',
+    //         'sports score', 'election', 'market', 'economic'
+    //     ];
 
-        const messageLower = message.toLowerCase();
-        const needsWeb = researchKeywords.some(keyword => messageLower.includes(keyword));
-        setShowResearchSuggestion(needsWeb);
-    }, [message, researchMode]);
+    //     const messageLower = message.toLowerCase();
+    //     const needsWeb = researchKeywords.some(keyword => messageLower.includes(keyword));
+    //     setShowResearchSuggestion(needsWeb);
+    // }, [message, researchMode]);
 
     // Handle documentId from URL parameter (Ask Koda feature)
     useEffect(() => {
@@ -904,14 +904,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             // Route to RAG or regular chat based on question detection
             if (isQuestion) {
-                console.log('🔍 Using RAG for question:', messageText);
+                console.log('🔍 Using RAG with STREAMING for question:', messageText);
                 setCurrentStage({ stage: 'searching', message: researchMode ? 'Searching documents and web...' : 'Searching documents...' });
 
-                // Use RAG endpoint (with all Phase 1-4 improvements)
+                // Use RAG STREAMING endpoint for real-time responses
                 try {
                     const token = localStorage.getItem('accessToken');
                     const response = await fetch(
-                        `${process.env.REACT_APP_API_URL}/api/rag/query`,
+                        `${process.env.REACT_APP_API_URL}/api/rag/query/stream`,
                         {
                             method: 'POST',
                             headers: {
@@ -933,39 +933,99 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
 
-                    const data = await response.json();
+                    // Set up SSE reader
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let streamedContent = '';
+                    let metadata = null;
 
-                    console.log('✅ RAG Response:', data);
+                    console.log('🌊 Starting SSE stream...');
+                    setCurrentStage({ stage: 'generating', message: 'Generating answer...' });
 
-                    // Create assistant message with RAG metadata
-                    const assistantMessage = {
-                        id: data.assistantMessage.id,
-                        role: 'assistant',
-                        content: data.answer,
-                        createdAt: new Date().toISOString(),
-                        ragSources: data.sources || [],
-                        webSources: data.webSources || [],
-                        expandedQuery: data.expandedQuery,
-                        contextId: data.contextId,
-                        actions: data.actions || [],
-                    };
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) {
+                            console.log('✅ Stream finished');
+                            break;
+                        }
+
+                        // Decode chunk and add to buffer
+                        const decodedChunk = decoder.decode(value, { stream: true });
+                        buffer += decodedChunk;
+
+                        // Process complete SSE messages (delimited by \n\n)
+                        const messages = buffer.split('\n\n');
+                        buffer = messages.pop() || ''; // Keep incomplete message in buffer
+
+                        for (const message of messages) {
+                            if (message.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(message.slice(6));
+
+                                    if (data.type === 'connected') {
+                                        console.log('🔗 Connected to conversation:', data.conversationId);
+                                    } else if (data.type === 'content') {
+                                        // Stream content chunk
+                                        streamedContent += data.content;
+                                        setStreamingMessage(streamedContent);
+                                    } else if (data.type === 'done') {
+                                        console.log('✅ Stream complete, metadata received');
+                                        metadata = data;
+                                    } else if (data.type === 'error') {
+                                        console.error('❌ Stream error:', data.error);
+                                        throw new Error(data.error);
+                                    }
+                                } catch (parseError) {
+                                    console.error('Error parsing SSE message:', parseError);
+                                }
+                            }
+                        }
+                    }
 
                     setStreamingMessage('');
                     setIsLoading(false);
-                    setResearchMode(false); // ✅ AUTO-RESET: Research mode is one-time use
+                    setResearchMode(false);
 
-                    // Add messages to history
-                    setMessages((prev) => {
-                        const withoutOptimistic = prev.filter(m => !m.isOptimistic);
-                        // Use the real user message from the response (with metadata)
+                    // Create messages with streamed content
+                    if (metadata) {
                         const realUserMessage = {
-                            ...data.userMessage,
+                            id: metadata.userMessageId,
+                            role: 'user',
                             content: displayMessageText,
+                            createdAt: new Date().toISOString(),
                         };
-                        return [...withoutOptimistic, realUserMessage, assistantMessage];
-                    });
+
+                        const assistantMessage = {
+                            id: metadata.assistantMessageId,
+                            role: 'assistant',
+                            content: streamedContent, // Use streamed content (raw from Gemini)
+                            createdAt: new Date().toISOString(),
+                            ragSources: metadata.sources || [],
+                            webSources: [],
+                            expandedQuery: metadata.expandedQuery,
+                            contextId: metadata.contextId,
+                            actions: metadata.actions || [],
+                        };
+
+                        setMessages((prev) => {
+                            const withoutOptimistic = prev.filter(m => !m.isOptimistic);
+                            return [...withoutOptimistic, realUserMessage, assistantMessage];
+                        });
+
+                        // Handle UI updates (folder refresh, etc.)
+                        if (metadata.uiUpdate) {
+                            console.log('🔄 UI update requested:', metadata.uiUpdate.type);
+                            if (metadata.uiUpdate.type === 'refresh_folders' || metadata.uiUpdate.type === 'refresh_all') {
+                                // Trigger folder refresh if needed
+                                if (onConversationUpdate) {
+                                    onConversationUpdate();
+                                }
+                            }
+                        }
+                    }
                 } catch (error) {
-                    console.error('❌ Error querying RAG:', error);
+                    console.error('❌ Error in RAG streaming:', error);
                     setIsLoading(false);
                     setStreamingMessage('');
 
@@ -1880,8 +1940,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             {/* Message Input */}
             <div style={{padding: 20, background: 'white', borderTop: '1px solid #E6E6EC'}}>
-                {/* Smart Research Mode Suggestion */}
-                {showResearchSuggestion && !researchMode && (
+                {/* REMOVED: Research Mode Popup - disabled per user request */}
+                {/* {showResearchSuggestion && !researchMode && (
                     <div style={{
                         marginBottom: 12,
                         padding: 12,
@@ -1951,7 +2011,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             ✕
                         </button>
                     </div>
-                )}
+                )} */}
 
                 {/* File Attachments Preview */}
                 {(pendingFiles.length > 0 || uploadingFiles.length > 0) && (

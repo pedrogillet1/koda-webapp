@@ -154,8 +154,11 @@ class EmbeddingService {
         // ⚡ CRITICAL FIX: Use batchEmbedContents to send ALL texts in ONE API call
         const result = await model.batchEmbedContents({
           requests: batch.map(text => ({
-            content: { parts: [{ text }] },
-            taskType: options.taskType || 'RETRIEVAL_DOCUMENT',
+            content: {
+              role: 'user' as const,
+              parts: [{ text }]
+            },
+            taskType: (options.taskType || 'RETRIEVAL_DOCUMENT') as any,
           }))
         });
 
