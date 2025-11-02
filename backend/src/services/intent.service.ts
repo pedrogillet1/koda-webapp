@@ -40,6 +40,7 @@ export type MetadataQueryType =
   | 'file_count'        // "how many files", "file count"
   | 'folder_contents'   // "what's in folder X", "show me folder X"
   | 'list_all_files'    // "show me all files", "list all documents"
+  | 'list_folders'      // "which folders do i have", "list folders"
   | 'none';             // Not a metadata query
 
 export interface MetadataQueryResult {
@@ -170,10 +171,18 @@ class QueryIntentService {
     for (const pattern of locationPatterns) {
       const match = query.match(pattern);
       if (match) {
+        let extractedValue = match[1].trim();
+
+        // NEW: Clean up extracted filename
+        // Remove common articles and descriptors
+        extractedValue = extractedValue
+          .replace(/^(?:the|a|an)\s+/i, '')  // Remove "the", "a", "an" at start
+          .replace(/\s+(?:file|document|pdf|docx|xlsx|pptx)$/i, '');  // Remove file type at end
+
         return {
           isMetadataQuery: true,
           type: 'file_location',
-          extractedValue: match[1].trim(),
+          extractedValue: extractedValue,
           confidence: 0.95,
         };
       }
@@ -201,11 +210,18 @@ class QueryIntentService {
     // Pattern 3: Folder contents queries
     // "what is inside X folder", "show me X folder", "what files are in X"
     const folderContentPatterns = [
+      // Original patterns
       /what (?:is|are) (?:inside|in) (.+?) folder/i,
       /show me (?:the )?(.+?) folder/i,
       /what files are in (.+)/i,
       /contents of (.+?) folder/i,
       /list (?:files in |everything in )?(.+?) folder/i,
+
+      // NEW patterns for "which document/files are inside X"
+      /which (?:document|documents|file|files) (?:are|is) (?:inside|in) (.+)/i,
+      /which (?:document|documents|file|files) (?:are|is) (?:in|inside) (?:the )?(.+?) folder/i,
+      /what (?:document|documents) (?:are|is) in (.+)/i,
+      /what (?:document|documents) (?:are|is) inside (.+)/i,
     ];
 
     for (const pattern of folderContentPatterns) {
@@ -235,6 +251,28 @@ class QueryIntentService {
           isMetadataQuery: true,
           type: 'list_all_files',
           confidence: 0.90,
+        };
+      }
+    }
+
+    // Pattern 5: List folders queries (NEW)
+    // "which folders do i have", "what folders", "list all folders"
+    const listFoldersPatterns = [
+      /which folders (?:do i have|are there)/i,
+      /what folders (?:do i have|are there|exist)/i,
+      /list (?:all )?(?:my )?folders/i,
+      /show me (?:all )?(?:my )?folders/i,
+      /how many folders/i,
+      /what are the names of (?:the |my )?folders/i,
+      /what are (?:all )?(?:the |my )?folder names/i,
+    ];
+
+    for (const pattern of listFoldersPatterns) {
+      if (pattern.test(query)) {
+        return {
+          isMetadataQuery: true,
+          type: 'list_folders',
+          confidence: 0.95,
         };
       }
     }

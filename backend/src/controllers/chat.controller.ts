@@ -151,15 +151,20 @@ export const sendMessageStreaming = async (req: Request, res: Response) => {
     );
 
     // Send completion signal
-    res.write(`data: ${JSON.stringify({
+    const donePayload = {
       type: 'done',
       messageId: result.userMessage.id,
       assistantMessageId: result.assistantMessage.id,
       conversationId
-    })}\n\n`);
+    };
 
+    console.log(`📤 Sending 'done' event:`, donePayload);
+    res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
+
+    console.log(`🔌 Closing SSE connection with res.end()`);
     res.end();
     console.timeEnd('⚡ Total SSE Response Time');
+    console.log(`✅ SSE connection closed successfully`);
 
   } catch (error: any) {
     console.error('❌ Error in SSE streaming:', error);
@@ -273,11 +278,14 @@ export const clearSemanticCache = async (req: Request, res: Response) => {
   try {
     console.log('🗑️ Admin request to clear semantic cache from user:', req.user!.email);
 
-    // TODO: Semantic cache service removed - stub endpoint
+    // Clear all cache (embeddings, search results, answers)
+    const cacheService = await import('../services/cache.service');
+    await cacheService.default.clearAll();
+
     res.json({
       success: true,
-      message: `Semantic cache service is currently disabled`,
-      deletedKeys: 0,
+      message: `All cache cleared successfully`,
+      deletedKeys: 'all',
     });
   } catch (error: any) {
     console.error('❌ Error clearing semantic cache:', error);

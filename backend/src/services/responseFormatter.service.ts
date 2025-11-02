@@ -282,7 +282,7 @@ export class ResponseFormatterService {
     // First row is header
     const headers = rows[0];
     const markdownHeader = '| ' + headers.join(' | ') + ' |';
-    const markdownSeparator = '|' + headers.map(() => '---').join('|') + '|';
+    const markdownSeparator = '| ' + headers.map(() => '---').join(' | ') + ' |';
 
     // Rest are data rows
     const markdownRows = rows.slice(1).map(cols => {
@@ -559,45 +559,35 @@ EXAMPLE:
    * For comparison queries like "Compare X and Y"
    */
   private buildTablePrompt(): string {
-    return `FORMAT TYPE: TABLE
+    return `FORMAT TYPE: ADAPTIVE COMPARISON
 
-NOTE: Do NOT include "Referenced Documents:" in your response. The UI automatically displays document sources.
+Choose format based on complexity:
+• Simple (2-3 differences) → Bullet groupings
+• Complex (4+ aspects) → Markdown table
 
-STRUCTURE:
-[Brief introduction to the comparison]
+BULLET FORMAT:
+[1 sentence intro]
 
-Technical Documents:
-• [Document 1] — [Key characteristics]
-• [Document 2] — [Key characteristics]
+Category 1:
+• Item — Key characteristic
+• Item — Key characteristic
 
-Business Documents:
-• [Document 3] — [Key characteristics]
-• [Document 4] — [Key characteristics]
+[1 sentence closing]
 
-[Closing statement without emoji]
+TABLE FORMAT:
+[1 sentence intro]
+
+| Aspect | Doc A | Doc B |
+| --- | --- | --- |
+| Aspect 1 | Value | Value |
+| Aspect 2 | Value | Value |
+
+[1 sentence closing]
 
 RULES:
-• Use bullet points (•) for all items
-• Group items by category with headers
-• Use em dash (—) to separate name from description
-• NO emoji anywhere
-• Start directly with introduction (NO "Referenced Documents:" line)
-• Empty lines after each section (\n\n)
-• Headers use plain text (no special formatting)
-• Closing statement summarizes without emoji
-
-EXAMPLE:
-The documents can be categorized into technical and business categories based on their content and purpose.
-
-Technical Documents:
-• KODA Architecture.pdf — System design and technical specifications
-• API Documentation.docx — Endpoint references and integration guide
-
-Business Documents:
-• Business Plan V12.pdf — Revenue projections and market strategy
-• Financial Report Q1.xlsx — Actual performance and metrics
-
-This categorization helps organize documentation by intended audience and use case.`;
+• NO emoji
+• NO "Referenced Documents:" line
+• Keep introductions to 1 sentence maximum`;
   }
 
   /**

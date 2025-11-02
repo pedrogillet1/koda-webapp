@@ -133,6 +133,23 @@ class FileActionsService {
       }
     }
 
+    // DELETE FOLDER (check before DELETE FILE)
+    const deleteFolderPatterns = [
+      /delete\s+(?:the\s+)?folder\s+["']?([^"']+)["']?/i,
+      /remove\s+(?:the\s+)?folder\s+["']?([^"']+)["']?/i,
+      /trash\s+(?:the\s+)?folder\s+["']?([^"']+)["']?/i,
+    ];
+
+    for (const pattern of deleteFolderPatterns) {
+      const match = query.match(pattern);
+      if (match) {
+        return {
+          action: 'deleteFolder',
+          params: { folderName: match[1].trim() }
+        };
+      }
+    }
+
     // DELETE FILE
     const deleteFilePatterns = [
       /delete\s+["']?([^"']+)["']?/i,
@@ -448,38 +465,66 @@ class FileActionsService {
       }
 
       case 'renameFile': {
-        // Find document by old filename
-        const document = await this.findDocumentByName(userId, params.oldFilename);
-        if (!document) {
-          return {
-            success: false,
-            message: `File "${params.oldFilename}" not found`,
-            error: 'DOCUMENT_NOT_FOUND'
-          };
+        // SMART DETECTION: Check if it's a folder first, then file
+        // This allows "rename pedro1 to pedro2" to work for both files and folders
+
+        // First, try to find a folder with this name
+        const folder = await this.findFolderByName(userId, params.oldFilename);
+        if (folder) {
+          // It's a folder - rename the folder
+          console.log(`   📁 Detected folder rename: ${params.oldFilename} → ${params.newFilename}`);
+          return await this.renameFolder(userId, folder.id, params.newFilename);
         }
 
-        return await this.renameFile({
-          userId,
-          documentId: document.id,
-          newFilename: params.newFilename
-        });
+        // Not a folder, try to find a file
+        const document = await this.findDocumentByName(userId, params.oldFilename);
+        if (document) {
+          // It's a file - rename the file
+          console.log(`   📄 Detected file rename: ${params.oldFilename} → ${params.newFilename}`);
+          return await this.renameFile({
+            userId,
+            documentId: document.id,
+            newFilename: params.newFilename
+          });
+        }
+
+        // Neither file nor folder found
+        return {
+          success: false,
+          message: `File or folder "${params.oldFilename}" not found`,
+          error: 'NOT_FOUND'
+        };
       }
 
       case 'deleteFile': {
-        // Find document by filename
-        const document = await this.findDocumentByName(userId, params.filename);
-        if (!document) {
-          return {
-            success: false,
-            message: `File "${params.filename}" not found`,
-            error: 'DOCUMENT_NOT_FOUND'
-          };
+        // SMART DETECTION: Check if it's a folder first, then file
+        // This allows "delete pedro1" to work for both files and folders
+
+        // First, try to find a folder with this name
+        const folder = await this.findFolderByName(userId, params.filename);
+        if (folder) {
+          // It's a folder - delete the folder
+          console.log(`   📁 Detected folder delete: ${params.filename}`);
+          return await this.deleteFolder(userId, folder.id);
         }
 
-        return await this.deleteFile({
-          userId,
-          documentId: document.id
-        });
+        // Not a folder, try to find a file
+        const document = await this.findDocumentByName(userId, params.filename);
+        if (document) {
+          // It's a file - delete the file
+          console.log(`   📄 Detected file delete: ${params.filename}`);
+          return await this.deleteFile({
+            userId,
+            documentId: document.id
+          });
+        }
+
+        // Neither file nor folder found
+        return {
+          success: false,
+          message: `File or folder "${params.filename}" not found`,
+          error: 'NOT_FOUND'
+        };
       }
 
       case 'renameFolder': {
@@ -494,6 +539,20 @@ class FileActionsService {
         }
 
         return await this.renameFolder(userId, folder.id, params.newFolderName);
+      }
+
+      case 'deleteFolder': {
+        // Find folder by name
+        const folder = await this.findFolderByName(userId, params.folderName);
+        if (!folder) {
+          return {
+            success: false,
+            message: `Folder "${params.folderName}" not found`,
+            error: 'FOLDER_NOT_FOUND'
+          };
+        }
+
+        return await this.deleteFolder(userId, folder.id);
       }
 
       default:
@@ -536,6 +595,62 @@ class FileActionsService {
       return {
         success: false,
         message: 'Failed to rename folder',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Delete a folder and all its contents
+   */
+  async deleteFolder(userId: string, folderId: string): Promise<FileActionResult> {
+    try {
+      const folder = await prisma.folder.findFirst({
+        where: { id: folderId, userId },
+        include: {
+          _count: {
+            select: {
+              documents: true,
+            }
+          }
+        }
+      });
+
+      if (!folder) {
+        return {
+          success: false,
+          message: 'Folder not found',
+          error: 'FOLDER_NOT_FOUND'
+        };
+      }
+
+      // Soft delete all documents in the folder
+      await prisma.document.updateMany({
+        where: {
+          folderId: folderId,
+          userId: userId
+        },
+        data: { status: 'deleted' }
+      });
+
+      // Delete the folder
+      await prisma.folder.delete({
+        where: { id: folderId }
+      });
+
+      const documentCount = folder._count.documents;
+      const fileText = documentCount === 1 ? 'file' : 'files';
+
+      return {
+        success: true,
+        message: `Deleted folder "${folder.name}" and ${documentCount} ${fileText}`,
+        data: { folderId, deletedFiles: documentCount }
+      };
+    } catch (error: any) {
+      console.error('❌ Delete folder failed:', error);
+      return {
+        success: false,
+        message: 'Failed to delete folder',
         error: error.message
       };
     }
