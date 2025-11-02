@@ -251,13 +251,13 @@ class QueryIntentService {
 
     for (const { pattern, action } of comparePatterns) {
       if (pattern.test(queryLower)) {
-        // Detect document type from query
-        let documentType = null;
-        if (/presentation/i.test(queryLower)) {
+        // Detect document type from query (check for plural forms too)
+        let documentType: string | undefined = undefined;
+        if (/presentations?|pptx?|powerpoint|slides?/i.test(queryLower)) {
           documentType = 'presentation';
-        } else if (/spreadsheet|excel/i.test(queryLower)) {
+        } else if (/spreadsheets?|excel|xlsx?/i.test(queryLower)) {
           documentType = 'spreadsheet';
-        } else if (/word|document/i.test(queryLower)) {
+        } else if (/documents?|docx?|word|pdfs?/i.test(queryLower)) {
           documentType = 'document';
         }
 
@@ -267,7 +267,7 @@ class QueryIntentService {
           reasoning: 'Query is asking to compare information across documents',
           suggestedAction: action,
           entities: {
-            documentType  // Add document type to entities
+            documentType  // Will be undefined if not detected (not null)
           }
         };
       }

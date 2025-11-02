@@ -1445,7 +1445,7 @@ Provide a comprehensive and accurate answer based on the document content follow
       .map((result, index) => `[Source ${index + 1}]: ${result.content}`)
       .join('\n\n');
 
-    const finalSources: RAGSource[] = highConfidenceResults.map((result, index) => ({
+    let finalSources: RAGSource[] = highConfidenceResults.map((result, index) => ({
       documentId: result.documentId,
       documentName: result.document?.filename || result.metadata?.filename || 'Unknown',
       chunkIndex: result.chunkIndex,
@@ -1454,6 +1454,21 @@ Provide a comprehensive and accurate answer based on the document content follow
       metadata: result.metadata,
       location: result.metadata?.page || result.metadata?.slideNumber || result.metadata?.cellRef
     }));
+
+    // Deduplicate sources by document (keep highest scoring chunk per document)
+    const seenDocs = new Set<string>();
+    const uniqueSources = finalSources.filter(s => {
+      if (seenDocs.has(s.documentId)) return false;
+      seenDocs.add(s.documentId);
+      return true;
+    });
+
+    // For COMPARISON queries: limit to 2 sources (since comparing 2 documents)
+    // For other queries: limit to 5 sources
+    const sourceLimit = intent.intent === 'compare' ? 2 : 5;
+    finalSources = uniqueSources.slice(0, sourceLimit);
+
+    console.log(`   📋 Sources: ${highConfidenceResults.length} chunks → ${uniqueSources.length} unique docs → ${finalSources.length} final sources`);
 
     // STEP 4: BUILD PROMPT WITH INTENT-SPECIFIC AND FORMAT-SPECIFIC INSTRUCTIONS
     const intentSystemPrompt = this.buildIntentSystemPrompt(queryIntent, isMetadataQuery, formatClassification.formatType);

@@ -31,18 +31,24 @@ export class ResponseFormatterService {
     sources: any[],
     query?: string
   ): Promise<string> {
+    let formatted = rawAnswer;
+
     // CRITICAL FIX: Detect and fix list line breaks
-    const bulletCount = (rawAnswer.match(/•/g) || []).length;
+    const bulletCount = (formatted.match(/•/g) || []).length;
 
     if (bulletCount >= 2) {
       // This is a list - fix line breaks
       console.log(`📝 [ResponseFormatter] Detected list with ${bulletCount} bullets - fixing line breaks`);
-      const fixed = this.fixListLineBreaks(rawAnswer);
-      return fixed;
+      formatted = this.fixListLineBreaks(formatted);
     }
 
-    // Not a list - return as is
-    return rawAnswer;
+    // CRITICAL FIX: Remove text after "Next actions:" section
+    if (formatted.includes('Next actions:')) {
+      console.log(`📝 [ResponseFormatter] Removing text after "Next actions:" section`);
+      formatted = this.removeTextAfterNextActions(formatted);
+    }
+
+    return formatted;
   }
 
   /**
@@ -74,6 +80,48 @@ export class ResponseFormatterService {
     fixed = fixed.replace(/\n +•/g, '\n•');
 
     return fixed;
+  }
+
+  /**
+   * Remove any text that appears after the "Next actions:" section
+   *
+   * Problem: AI sometimes adds extra commentary after the bullet points
+   * Example:
+   *   Next actions:
+   *   • Action 1
+   *   • Action 2
+   *
+   *   This is extra text we want to remove.
+   *
+   * Solution: Find "Next actions:", keep bullets, remove everything after
+   */
+  removeTextAfterNextActions(text: string): string {
+    // Find the "Next actions:" section
+    const nextActionsIndex = text.indexOf('Next actions:');
+    if (nextActionsIndex === -1) {
+      return text; // No "Next actions:" found
+    }
+
+    // Get text after "Next actions:"
+    const afterNextActions = text.substring(nextActionsIndex);
+
+    // Find all bullet points after "Next actions:"
+    const bulletMatches = afterNextActions.match(/•[^\n]+/g);
+
+    if (!bulletMatches || bulletMatches.length === 0) {
+      return text; // No bullets found, return as is
+    }
+
+    // Find the position of the last bullet point
+    const lastBullet = bulletMatches[bulletMatches.length - 1];
+    const lastBulletIndex = afterNextActions.lastIndexOf(lastBullet);
+    const endOfLastBullet = lastBulletIndex + lastBullet.length;
+
+    // Construct final text: everything before "Next actions:" + "Next actions:" + bullets only
+    const beforeNextActions = text.substring(0, nextActionsIndex);
+    const nextActionsSection = afterNextActions.substring(0, endOfLastBullet);
+
+    return beforeNextActions + nextActionsSection;
   }
 
   /**
