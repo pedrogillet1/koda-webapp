@@ -33,6 +33,12 @@ export class ResponseFormatterService {
   ): Promise<string> {
     let formatted = rawAnswer;
 
+    // CRITICAL FIX: Convert ASCII tables to Markdown tables
+    if (this.hasASCIITable(formatted)) {
+      console.log(`📝 [ResponseFormatter] Converting ASCII table to Markdown`);
+      formatted = this.convertASCIITableToMarkdown(formatted);
+    }
+
     // CRITICAL FIX: Detect and fix list line breaks
     const bulletCount = (formatted.match(/•/g) || []).length;
 
@@ -122,6 +128,47 @@ export class ResponseFormatterService {
     const nextActionsSection = afterNextActions.substring(0, endOfLastBullet);
 
     return beforeNextActions + nextActionsSection;
+  }
+
+  /**
+   * Detect if text contains ASCII table (with ────── characters)
+   */
+  hasASCIITable(text: string): boolean {
+    return /────+/.test(text);
+  }
+
+  /**
+   * Convert ASCII tables to Markdown tables
+   * Handles tables like:
+   *   Aspect          Column1         Column2
+   *   ────────────────────────────────────────
+   *   Row1            Data            Data
+   */
+  convertASCIITableToMarkdown(text: string): string {
+    // Pattern to match ASCII tables
+    const asciiTablePattern = /(.*?)\n[─\-]+\n((?:.*\n?)*?)(?=\n\n|$)/g;
+
+    return text.replace(asciiTablePattern, (match, headerLine, bodyLines) => {
+      // Split header into columns (by multiple spaces)
+      const headers = headerLine.trim().split(/\s{2,}/);
+
+      if (headers.length < 2) {
+        return match; // Not a valid table, return as-is
+      }
+
+      // Build Markdown header
+      const markdownHeader = '| ' + headers.join(' | ') + ' |';
+      const markdownSeparator = '|' + headers.map(() => '---').join('|') + '|';
+
+      // Process body rows
+      const rows = bodyLines.trim().split('\n').filter(line => line.trim());
+      const markdownRows = rows.map(row => {
+        const cols = row.trim().split(/\s{2,}/);
+        return '| ' + cols.join(' | ') + ' |';
+      });
+
+      return [markdownHeader, markdownSeparator, ...markdownRows].join('\n');
+    });
   }
 
   /**
