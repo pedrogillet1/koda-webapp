@@ -148,6 +148,13 @@ class QueryIntentService {
       { pattern: /what (?:files|documents) (?:do i have|are there)/i, action: 'List user files' },
       { pattern: /(?:do i have|have i got) (?:any )?(?:files|documents)/i, action: 'List user files' },
       { pattern: /(?:which|what) (?:files|documents|pdfs?|docx?|excel|powerpoint)/i, action: 'List specific file types' },
+
+      // NEW: Detect "what is inside [folder name]" or "what files are in [folder name]"
+      { pattern: /what(?:'s| is) (?:inside|in) (?:the )?([a-zA-Z0-9_-]+) folder/i, action: 'List folder contents' },
+      { pattern: /what (?:files|documents) (?:are )?(?:inside|in) (?:the )?([a-zA-Z0-9_-]+) folder/i, action: 'List folder contents' },
+      { pattern: /(?:show|list) (?:me )?(?:files|documents|contents) (?:in|inside) (?:the )?([a-zA-Z0-9_-]+) folder/i, action: 'List folder contents' },
+      { pattern: /(?:files|documents|contents) (?:inside|in) (?:the )?([a-zA-Z0-9_-]+) folder/i, action: 'List folder contents' },
+
       // Pattern for "what's inside the folder" WITHOUT folder name - should ask which folder
       { pattern: /^what(?:'s| is) (?:inside|in) (?:the )?folder\??$/i, action: 'Ask which folder' },
       { pattern: /what(?:'s| is) (?:inside|in) (?:category|folder|the category|the folder) /i, action: 'List folder contents' },
@@ -158,12 +165,16 @@ class QueryIntentService {
 
     for (const { pattern, action } of listPatterns) {
       if (pattern.test(queryLower)) {
+        // Extract folder name if present (from new patterns)
+        const folderMatch = queryLower.match(/(?:inside|in) (?:the )?([a-zA-Z0-9_-]+) folder/i);
+        const folderName = folderMatch ? folderMatch[1] : null;
+
         return {
           intent: 'list',
           confidence: 0.95,
           reasoning: 'Query is requesting a list of files, categories, or items',
           suggestedAction: action,
-          entities: {}
+          entities: { folderName }  // Include folder name in entities
         };
       }
     }
