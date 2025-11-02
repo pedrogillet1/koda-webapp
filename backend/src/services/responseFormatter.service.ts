@@ -33,13 +33,25 @@ export class ResponseFormatterService {
   ): Promise<string> {
     let formatted = rawAnswer;
 
-    // CRITICAL FIX: Convert ASCII tables to Markdown tables
+    // CRITICAL FIX 1: Remove all emojis (user requirement)
+    if (this.hasEmojis(formatted)) {
+      console.log(`📝 [ResponseFormatter] Removing emojis from response`);
+      formatted = this.removeEmojis(formatted);
+    }
+
+    // CRITICAL FIX 2: Convert ASCII tables to Markdown tables
     if (this.hasASCIITable(formatted)) {
       console.log(`📝 [ResponseFormatter] Converting ASCII table to Markdown`);
       formatted = this.convertASCIITableToMarkdown(formatted);
     }
 
-    // CRITICAL FIX: Detect and fix list line breaks
+    // CRITICAL FIX 3: Detect and convert plain text "tables" (text with multiple spaces)
+    if (this.hasPlainTextTable(formatted)) {
+      console.log(`📝 [ResponseFormatter] Converting plain text table to Markdown`);
+      formatted = this.convertPlainTextTableToMarkdown(formatted);
+    }
+
+    // CRITICAL FIX 4: Detect and fix list line breaks
     const bulletCount = (formatted.match(/•/g) || []).length;
 
     if (bulletCount >= 2) {
@@ -48,11 +60,26 @@ export class ResponseFormatterService {
       formatted = this.fixListLineBreaks(formatted);
     }
 
-    // CRITICAL FIX: Remove text after "Next actions:" section
+    // CRITICAL FIX 5: Remove text after "Next actions:" section
     if (formatted.includes('Next actions:')) {
       console.log(`📝 [ResponseFormatter] Removing text after "Next actions:" section`);
       formatted = this.removeTextAfterNextActions(formatted);
     }
+
+    // CRITICAL FIX 6: Remove paragraphs after bullet points (user requirement)
+    if (bulletCount >= 2) {
+      console.log(`📝 [ResponseFormatter] Removing paragraphs after bullet points`);
+      formatted = this.removeParagraphsAfterBullets(formatted);
+    }
+
+    // CRITICAL FIX 7: Enforce max 2-line intro (user requirement)
+    if (bulletCount >= 2) {
+      console.log(`📝 [ResponseFormatter] Enforcing max 2-line intro`);
+      formatted = this.enforceMaxTwoLineIntro(formatted);
+    }
+
+    // CRITICAL FIX 8: Clean up excessive whitespace (final polish)
+    formatted = this.cleanWhitespace(formatted);
 
     return formatted;
   }
@@ -169,6 +196,231 @@ export class ResponseFormatterService {
 
       return [markdownHeader, markdownSeparator, ...markdownRows].join('\n');
     });
+  }
+
+  /**
+   * Detect if text contains plain text table (columns separated by multiple spaces)
+   * Example:
+   *   Aspect    English Version    Portuguese Version
+   *   Language    English    Portuguese (Brazilian)
+   */
+  hasPlainTextTable(text: string): boolean {
+    // Look for lines with multiple columns separated by 2+ spaces
+    // Must have at least 2 consecutive lines with same pattern
+    const lines = text.split('\n');
+    let consecutiveTableLines = 0;
+
+    for (const line of lines) {
+      // Check if line has 2+ columns separated by multiple spaces
+      const columns = line.trim().split(/\s{2,}/);
+      if (columns.length >= 2 && line.includes('  ')) {
+        consecutiveTableLines++;
+        if (consecutiveTableLines >= 2) {
+          return true;
+        }
+      } else {
+        consecutiveTableLines = 0; // Reset if not a table line
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Convert plain text tables to Markdown tables
+   * Handles tables like:
+   *   Aspect    English Version    Portuguese Version
+   *   Language    English    Portuguese (Brazilian)
+   *   Focus    Technical    Business
+   */
+  convertPlainTextTableToMarkdown(text: string): string {
+    const lines = text.split('\n');
+    const result: string[] = [];
+    const tableLines: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const columns = line.trim().split(/\s{2,}/);
+
+      // If this looks like a table row (2+ columns with multiple spaces)
+      if (columns.length >= 2 && line.includes('  ')) {
+        tableLines.push(line);
+      } else {
+        // Not a table line - flush accumulated table lines
+        if (tableLines.length >= 2) {
+          // Convert accumulated table lines to Markdown
+          const markdownTable = this.convertPlainTextLinesToMarkdown(tableLines);
+          result.push(markdownTable);
+          tableLines.length = 0; // Clear
+        } else if (tableLines.length > 0) {
+          // Only 1 line - not a table, add as-is
+          result.push(...tableLines);
+          tableLines.length = 0;
+        }
+        result.push(line);
+      }
+    }
+
+    // Flush remaining table lines
+    if (tableLines.length >= 2) {
+      const markdownTable = this.convertPlainTextLinesToMarkdown(tableLines);
+      result.push(markdownTable);
+    } else if (tableLines.length > 0) {
+      result.push(...tableLines);
+    }
+
+    return result.join('\n');
+  }
+
+  /**
+   * Helper: Convert array of plain text table lines to Markdown table
+   */
+  private convertPlainTextLinesToMarkdown(lines: string[]): string {
+    // Parse all lines into columns
+    const rows = lines.map(line => line.trim().split(/\s{2,}/));
+
+    // First row is header
+    const headers = rows[0];
+    const markdownHeader = '| ' + headers.join(' | ') + ' |';
+    const markdownSeparator = '|' + headers.map(() => '---').join('|') + '|';
+
+    // Rest are data rows
+    const markdownRows = rows.slice(1).map(cols => {
+      return '| ' + cols.join(' | ') + ' |';
+    });
+
+    return [markdownHeader, markdownSeparator, ...markdownRows].join('\n');
+  }
+
+  /**
+   * Detect if text contains emojis
+   */
+  hasEmojis(text: string): boolean {
+    // Common emoji patterns
+    const emojiPattern = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F910}-\u{1F96B}\u{1F980}-\u{1F9E0}\u{2300}-\u{23FF}\u{2B50}\u{2705}\u{274C}\u{1F004}\u{1F170}-\u{1F251}]/u;
+    return emojiPattern.test(text);
+  }
+
+  /**
+   * Remove all emojis from text
+   *
+   * User requirement: NO emojis in responses (✅ ❌ 🔍 📁 📊 📄 🎯 ⚠️ etc.)
+   */
+  removeEmojis(text: string): string {
+    // Comprehensive emoji removal pattern
+    const emojiPattern = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F910}-\u{1F96B}\u{1F980}-\u{1F9E0}\u{2300}-\u{23FF}\u{2B50}\u{2705}\u{274C}\u{1F004}\u{1F170}-\u{1F251}]/gu;
+
+    // Remove emojis and clean up any extra spaces left behind
+    let cleaned = text.replace(emojiPattern, '');
+
+    // Clean up multiple spaces left by emoji removal
+    cleaned = cleaned.replace(/\s{2,}/g, ' ');
+
+    // Clean up space at start of lines
+    cleaned = cleaned.replace(/^\s+/gm, '');
+
+    return cleaned;
+  }
+
+  /**
+   * Remove paragraphs that come after bullet points
+   *
+   * User requirement: "THERE SHOULD NOT BE ANY TYPE OF PARAGRAPH EXPLANATION"
+   * Once bullets end, the response should STOP (except for "Next actions:" section)
+   *
+   * Examples to remove:
+   * • Bullet 1
+   * • Bullet 2
+   *
+   * This is an extra paragraph that should be removed.
+   *
+   * Another paragraph that should also be removed.
+   */
+  removeParagraphsAfterBullets(text: string): string {
+    // Strategy:
+    // 1. Find the last bullet point
+    // 2. Check if there's a "Next actions:" section
+    // 3. Remove any text between last bullet and "Next actions:" (or end of text)
+
+    // Find all bullet points
+    const bulletMatches = text.match(/•[^\n]+/g);
+
+    if (!bulletMatches || bulletMatches.length === 0) {
+      return text; // No bullets, return as-is
+    }
+
+    // Find the position of the last bullet
+    const lastBullet = bulletMatches[bulletMatches.length - 1];
+    const lastBulletIndex = text.lastIndexOf(lastBullet);
+    const endOfLastBullet = lastBulletIndex + lastBullet.length;
+
+    // Check if there's a "Next actions:" section
+    const nextActionsIndex = text.indexOf('Next actions:', endOfLastBullet);
+
+    if (nextActionsIndex !== -1) {
+      // There's a "Next actions:" section
+      // Remove text between last bullet and "Next actions:"
+      const beforeBullets = text.substring(0, endOfLastBullet);
+      const nextActionsSection = text.substring(nextActionsIndex);
+
+      // Check if there's significant text between last bullet and "Next actions:"
+      const textBetween = text.substring(endOfLastBullet, nextActionsIndex).trim();
+
+      if (textBetween.length > 0) {
+        // There's unwanted text - remove it
+        console.log(`📝 [ResponseFormatter] Removing ${textBetween.length} chars between bullets and "Next actions:"`);
+        return beforeBullets + '\n\n' + nextActionsSection;
+      }
+
+      return text; // No unwanted text
+    } else {
+      // No "Next actions:" section
+      // Remove any text after last bullet
+      const afterLastBullet = text.substring(endOfLastBullet).trim();
+
+      // Check if there's significant text after last bullet (ignoring whitespace)
+      if (afterLastBullet.length > 0) {
+        console.log(`📝 [ResponseFormatter] Removing ${afterLastBullet.length} chars after last bullet`);
+        return text.substring(0, endOfLastBullet);
+      }
+
+      return text; // No unwanted text
+    }
+  }
+
+  /**
+   * Enforce max 2-line intro before bullets
+   *
+   * User requirement: "the intro to the answer but it needs to have max 2 lines"
+   *
+   * Strategy:
+   * 1. Find first bullet point
+   * 2. Get text before first bullet (intro)
+   * 3. If intro is more than 2 lines, truncate to 2 lines
+   */
+  enforceMaxTwoLineIntro(text: string): string {
+    // Find first bullet point
+    const firstBulletMatch = text.match(/•/);
+
+    if (!firstBulletMatch) {
+      return text; // No bullets, return as-is
+    }
+
+    const firstBulletIndex = text.indexOf('•');
+    const intro = text.substring(0, firstBulletIndex).trim();
+    const bulletsAndRest = text.substring(firstBulletIndex);
+
+    // Split intro into lines
+    const introLines = intro.split('\n').filter(line => line.trim().length > 0);
+
+    // If intro is more than 2 lines, keep only first 2
+    if (introLines.length > 2) {
+      console.log(`📝 [ResponseFormatter] Truncating intro from ${introLines.length} lines to 2 lines`);
+      const truncatedIntro = introLines.slice(0, 2).join('\n');
+      return truncatedIntro + '\n\n' + bulletsAndRest;
+    }
+
+    return text; // Intro is already 2 lines or less
   }
 
   /**
@@ -424,6 +676,25 @@ EXAMPLE:
 • Financial
 • Legal
 • Personal`;
+  }
+
+  /**
+   * Clean up excessive whitespace (final polish)
+   *
+   * Removes:
+   * - More than 2 consecutive newlines
+   * - Trailing whitespace from lines
+   * - Leading/trailing whitespace from entire text
+   */
+  cleanWhitespace(text: string): string {
+    // Remove more than 2 consecutive newlines
+    let cleaned = text.replace(/\n{3,}/g, '\n\n');
+
+    // Remove trailing whitespace from lines
+    cleaned = cleaned.split('\n').map(line => line.trimEnd()).join('\n');
+
+    // Remove leading/trailing whitespace from entire text
+    return cleaned.trim();
   }
 }
 

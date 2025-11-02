@@ -1,20 +1,55 @@
 /**
  * Query Intent Detection Service
- * Detects the user's intent to provide appropriate response behavior
- * Based on Koda AI Behavioral Definition - Issue #4 Enhancement
  *
- * Intent Types:
- * - list: User wants a list of files, categories, or items
- * - locate: User wants to find where a specific file/document is stored
- * - summarize: User wants a summary of document(s)
- * - compare: User wants to compare information across documents
- * - extract: User wants specific data/facts extracted from documents
- * - navigation: User wants to navigate to a folder/category
- * - capability: User is asking about Koda's features
+ * NEW ARCHITECTURE (Psychological Goals):
+ * - Simplified 5-goal detection based on user psychology
+ * - Replaces 8-intent hardcoded system with adaptive approach
+ * - Use detectPsychologicalGoal() for new code
+ *
+ * OLD ARCHITECTURE (Intents):
+ * - Legacy 8-intent system kept for backwards compatibility
+ * - Use detectIntent() only for legacy code
+ *
+ * Psychological Goals:
+ * - fast_answer: Factual retrieval ("What is X?")
+ * - mastery: Instructional/How-to ("How do I...?")
+ * - clarity: Analytical/Comparison ("Compare X and Y")
+ * - insight: Interpretative/Judgment ("What are the key risks?")
+ * - control: Contextual/Search-Across ("Show me all files...")
  */
 
 import { Intent, IntentResult } from '../types/intent.types';
 
+// NEW: Psychological Goals (simplified 5-goal system)
+export type PsychologicalGoal =
+  | 'fast_answer'      // Factual retrieval
+  | 'mastery'          // How-to / instructional
+  | 'clarity'          // Comparison / analytical
+  | 'insight'          // Interpretative / judgment
+  | 'control';         // Search-across / comprehensive
+
+export interface PsychologicalGoalResult {
+  goal: PsychologicalGoal;
+  confidence: number;
+  reasoning: string;
+}
+
+// NEW: Metadata Query Detection (for database queries, not RAG)
+export type MetadataQueryType =
+  | 'file_location'     // "where is X", "where can I find X"
+  | 'file_count'        // "how many files", "file count"
+  | 'folder_contents'   // "what's in folder X", "show me folder X"
+  | 'list_all_files'    // "show me all files", "list all documents"
+  | 'none';             // Not a metadata query
+
+export interface MetadataQueryResult {
+  isMetadataQuery: boolean;
+  type: MetadataQueryType;
+  extractedValue?: string; // e.g., filename, folder name
+  confidence: number;
+}
+
+// OLD: Legacy intent system (deprecated)
 export type QueryIntent = 'list' | 'locate' | 'summarize' | 'compare' | 'extract' | 'navigation' | 'capability' | 'greeting';
 
 export interface IntentDetectionResult {
@@ -36,7 +71,219 @@ export interface IntentDetectionResult {
 
 class QueryIntentService {
   /**
-   * Detect the intent of a user query
+   * NEW: Detect psychological goal (simplified 5-goal system)
+   * Use this method for all new code
+   *
+   * This replaces the complex 8-intent system with a simple, flexible approach
+   * that focuses on what the user NEEDS, not rigid query patterns.
+   */
+  detectPsychologicalGoal(query: string): PsychologicalGoalResult {
+    const queryLower = query.toLowerCase().trim();
+
+    // 1. CONTROL: Search-across / comprehensive list queries
+    // User needs to see EVERYTHING to feel in control (no fear of missing something)
+    if (/^(show me all|list all|list every|find all|all|every|which files|which documents|what files|what documents)/i.test(query)) {
+      return {
+        goal: 'control',
+        confidence: 0.95,
+        reasoning: 'User wants comprehensive list to ensure nothing is missed',
+      };
+    }
+
+    // 2. CLARITY: Comparison / analytical queries
+    // User needs to understand differences and similarities
+    if (/compare|difference|vs|versus|how does .* differ|what's different|similar/i.test(query)) {
+      return {
+        goal: 'clarity',
+        confidence: 0.95,
+        reasoning: 'User wants clear comparison to understand differences',
+      };
+    }
+
+    // 3. MASTERY: How-to / instructional queries
+    // User needs step-by-step guidance to accomplish a task
+    if (/^how (do|to|can)/i.test(query)) {
+      return {
+        goal: 'mastery',
+        confidence: 0.95,
+        reasoning: 'User wants step-by-step instructions to accomplish task',
+      };
+    }
+
+    // 4. INSIGHT: Interpretative / judgment queries
+    // User needs YOUR analysis and judgment, not just facts
+    if (/what (is|are) the (main|key|primary|most important)|risk|should|recommend|important|strategy|plan|approach/i.test(query)) {
+      return {
+        goal: 'insight',
+        confidence: 0.90,
+        reasoning: 'User wants analysis and judgment, not just facts',
+      };
+    }
+
+    // 5. FAST ANSWER: Direct factual queries (DEFAULT)
+    // User needs quick, direct information with minimal friction
+    // This is the default because most queries are asking for specific facts
+    if (/^(what is|what's|when|where|who|which|what)\s/i.test(query)) {
+      return {
+        goal: 'fast_answer',
+        confidence: 0.85,
+        reasoning: 'User wants quick, direct factual answer',
+      };
+    }
+
+    // Fallback: If no pattern matches, default to fast_answer
+    // (most queries are asking for information)
+    return {
+      goal: 'fast_answer',
+      confidence: 0.70,
+      reasoning: 'Default to factual retrieval for unmatched queries',
+    };
+  }
+
+  /**
+   * NEW: Detect metadata query (database lookup, not RAG)
+   *
+   * Metadata queries ask about file locations, counts, or folder contents.
+   * These should NOT use RAG/Pinecone - they should query the database directly.
+   *
+   * This prevents hallucination where RAG returns wrong files because it's doing
+   * semantic search instead of exact metadata lookup.
+   *
+   * Examples:
+   * - "where is comprovante1" → file_location (query database for filename)
+   * - "how many files do I have" → file_count (query database for count)
+   * - "what files are in the pedro1 folder" → folder_contents (query database for folder)
+   */
+  detectMetadataQuery(query: string): MetadataQueryResult {
+    const queryLower = query.toLowerCase().trim();
+
+    // Pattern 1: File location queries
+    // "where is X", "where can I find X", "location of X"
+    const locationPatterns = [
+      /where is (.+)/i,
+      /where can i find (.+)/i,
+      /location of (.+)/i,
+      /find (.+) file/i,
+      /which folder (?:has|contains) (.+)/i,
+    ];
+
+    for (const pattern of locationPatterns) {
+      const match = query.match(pattern);
+      if (match) {
+        return {
+          isMetadataQuery: true,
+          type: 'file_location',
+          extractedValue: match[1].trim(),
+          confidence: 0.95,
+        };
+      }
+    }
+
+    // Pattern 2: File count queries
+    // "how many files", "file count", "total files"
+    const countPatterns = [
+      /how many (files|documents)/i,
+      /(file|document) count/i,
+      /total (files|documents)/i,
+      /number of (files|documents)/i,
+    ];
+
+    for (const pattern of countPatterns) {
+      if (pattern.test(query)) {
+        return {
+          isMetadataQuery: true,
+          type: 'file_count',
+          confidence: 0.95,
+        };
+      }
+    }
+
+    // Pattern 3: Folder contents queries
+    // "what is inside X folder", "show me X folder", "what files are in X"
+    const folderContentPatterns = [
+      /what (?:is|are) (?:inside|in) (.+?) folder/i,
+      /show me (?:the )?(.+?) folder/i,
+      /what files are in (.+)/i,
+      /contents of (.+?) folder/i,
+      /list (?:files in |everything in )?(.+?) folder/i,
+    ];
+
+    for (const pattern of folderContentPatterns) {
+      const match = query.match(pattern);
+      if (match) {
+        return {
+          isMetadataQuery: true,
+          type: 'folder_contents',
+          extractedValue: match[1].trim(),
+          confidence: 0.95,
+        };
+      }
+    }
+
+    // Pattern 4: List all files queries
+    // "show me all files", "list all documents"
+    const listAllPatterns = [
+      /show me all (files|documents)/i,
+      /list all (files|documents)/i,
+      /what files do i have/i,
+      /what documents do i have/i,
+    ];
+
+    for (const pattern of listAllPatterns) {
+      if (pattern.test(query)) {
+        return {
+          isMetadataQuery: true,
+          type: 'list_all_files',
+          confidence: 0.90,
+        };
+      }
+    }
+
+    // Not a metadata query - use RAG for content-based search
+    return {
+      isMetadataQuery: false,
+      type: 'none',
+      confidence: 0,
+    };
+  }
+
+  /**
+   * Map old intent to psychological goal
+   * Used for backwards compatibility and migration
+   */
+  mapIntentToGoal(intent: QueryIntent | Intent): PsychologicalGoal {
+    switch (intent) {
+      case 'extract':
+      case 'capability':
+        return 'fast_answer';
+
+      case 'how_to':
+        return 'mastery';
+
+      case 'compare':
+        return 'clarity';
+
+      case 'summarize':
+      case 'analyze':
+        return 'insight';
+
+      case 'list':
+      case 'locate':
+      case 'search_mentions':
+        return 'control';
+
+      case 'greeting':
+        return 'fast_answer'; // Greetings get fast, friendly responses
+
+      default:
+        return 'fast_answer';
+    }
+  }
+
+  /**
+   * DEPRECATED: Detect the intent of a user query
+   * This is the OLD method - kept for backwards compatibility only
+   * Use detectPsychologicalGoal() for new code
    */
   detectIntent(query: string): IntentDetectionResult {
     const queryLower = query.toLowerCase().trim();

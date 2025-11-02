@@ -234,7 +234,7 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
     data: {
       conversationId,
       role: 'assistant',
-      content: aiResponse,
+      content: aiResponse.text || 'Sorry, I could not generate a response.',
       createdAt: new Date(),
     },
   });

@@ -999,11 +999,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }
 
-                    setStreamingMessage('');
-                    setIsLoading(false);
-                    setResearchMode(false);
+                    // CRITICAL FIX: Queue message instead of immediately clearing streaming
+                    // Let the existing useEffect wait for animation to complete before processing
+                    // This ensures SSE streaming behaves the same as WebSocket streaming
+                    console.log('📬 SSE stream complete - queueing message to wait for animation');
 
-                    // Create messages with streamed content
                     if (metadata) {
                         const realUserMessage = {
                             id: metadata.userMessageId,
@@ -1024,10 +1024,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             actions: metadata.actions || [],
                         };
 
-                        setMessages((prev) => {
-                            const withoutOptimistic = prev.filter(m => !m.isOptimistic);
-                            return [...withoutOptimistic, realUserMessage, assistantMessage];
-                        });
+                        // Queue message - the useEffect will handle it when animation completes
+                        pendingMessageRef.current = {
+                            userMessage: realUserMessage,
+                            assistantMessage: assistantMessage
+                        };
 
                         // Handle UI updates (folder refresh, etc.)
                         if (metadata.uiUpdate) {
@@ -1040,6 +1041,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             }
                         }
                     }
+
+                    // Note: streamingMessage will be cleared by the useEffect when animation completes
+                    // Note: isLoading will be set to false by the useEffect when animation completes
+                    setResearchMode(false);
                 } catch (error) {
                     console.error('❌ Error in RAG streaming:', error);
                     setIsLoading(false);

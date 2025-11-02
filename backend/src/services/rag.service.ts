@@ -14,7 +14,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import prisma from '../config/database';
-import intentService from './intent.service';
+import intentService, { PsychologicalGoal, PsychologicalGoalResult } from './intent.service';
 import navigationService from './navigation.service';
 import { detectLanguage, createLanguageInstruction } from './languageDetection.service';
 import cacheService from './cache.service';
@@ -25,6 +25,7 @@ import responseFormatterService from './responseFormatter.service';
 import queryClassifierService, { ResponseStyle } from './queryClassifier.service';
 import queryIntentDetectorService, { QueryIntent } from './queryIntentDetector.service';
 import formatTypeClassifierService, { ResponseFormatType } from './formatTypeClassifier.service';
+import metadataService from './metadata.service';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -277,12 +278,24 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     console.log(`   ✅ Not an action - proceeding with query handling`);
 
-    // STEP 2: DETECT QUERY INTENT
-    const intent = intentService.detectIntent(query);
-    console.log(`🎯 Intent: ${intent.intent} (confidence: ${intent.confidence})`);
-    console.log(`💡 Reasoning: ${intent.reasoning}`);
+    // STEP 2: DETECT PSYCHOLOGICAL GOAL (NEW)
+    const goalResult = intentService.detectPsychologicalGoal(query);
+    console.log(`🎯 Psychological Goal: ${goalResult.goal} (confidence: ${(goalResult.confidence * 100).toFixed(1)}%)`);
+    console.log(`💡 Reasoning: ${goalResult.reasoning}`);
 
-    // STEP 2: ROUTE BASED ON INTENT
+    // STEP 2.5: CHECK IF METADATA QUERY (NEW - Prevents hallucination)
+    // Metadata queries should use DATABASE, not RAG/Pinecone
+    const metadataQueryResult = intentService.detectMetadataQuery(query);
+    if (metadataQueryResult.isMetadataQuery) {
+      console.log(`📊 METADATA QUERY DETECTED: ${metadataQueryResult.type}`);
+      console.log(`   Extracted value: ${metadataQueryResult.extractedValue || 'N/A'}`);
+      return await this.handleMetadataQuery(userId, query, metadataQueryResult);
+    }
+
+    // DEPRECATED: Old intent detection (kept for backwards compatibility)
+    const intent = intentService.detectIntent(query);
+
+    // STEP 3: ROUTE BASED ON INTENT
     if (intent.intent === 'greeting') {
       return await this.handleGreeting(userId, query);
     } else if (intent.intent === 'navigation' || intent.intent === 'locate') {
@@ -322,6 +335,78 @@ Provide a comprehensive and accurate answer based on the document content follow
       contextId: `greeting_${Date.now()}`,
       intent: 'greeting'
     };
+  }
+
+  /**
+   * Handle METADATA queries (database lookups, not RAG)
+   *
+   * These queries ask about file locations, counts, or folder contents.
+   * We use the database directly instead of RAG to prevent hallucination.
+   *
+   * Examples:
+   * - "where is comprovante1" → Query database for filename
+   * - "how many files do I have" → Count files in database
+   * - "what files are in pedro1 folder" → List folder contents from database
+   */
+  private async handleMetadataQuery(
+    userId: string,
+    query: string,
+    metadataResult: any
+  ): Promise<RAGResponse> {
+    console.log(`📊 METADATA QUERY HANDLER (Type: ${metadataResult.type})`);
+
+    let answer = '';
+    let data: any = null;
+
+    try {
+      switch (metadataResult.type) {
+        case 'file_location':
+          console.log(`   🔍 Finding file: "${metadataResult.extractedValue}"`);
+          data = await metadataService.findFileByName(userId, metadataResult.extractedValue);
+          answer = metadataService.formatMetadataResponse(query, data);
+          break;
+
+        case 'file_count':
+          console.log(`   📊 Counting files`);
+          data = await metadataService.getFileCount(userId);
+          answer = metadataService.formatMetadataResponse(query, data);
+          break;
+
+        case 'folder_contents':
+          console.log(`   📁 Getting folder contents: "${metadataResult.extractedValue}"`);
+          data = await metadataService.getFolderContents(userId, metadataResult.extractedValue);
+          answer = metadataService.formatMetadataResponse(query, data);
+          break;
+
+        case 'list_all_files':
+          console.log(`   📄 Listing all files`);
+          data = await metadataService.getAllFiles(userId, { take: 50 });
+          answer = `You have **${data.length} files** in your document library:\n\n`;
+          answer += data.map((file: any) => `• **${file.filename}**`).join('\n');
+          break;
+
+        default:
+          answer = "I couldn't understand the metadata query. Please try rephrasing.";
+      }
+
+      console.log(`   ✅ Metadata query handled successfully`);
+
+      return {
+        answer,
+        sources: [],
+        contextId: `metadata_${metadataResult.type}_${Date.now()}`,
+        intent: metadataResult.type,
+        confidence: metadataResult.confidence,
+      };
+    } catch (error) {
+      console.error(`❌ Error handling metadata query:`, error);
+      return {
+        answer: 'Sorry, I encountered an error while looking up that information. Please try again.',
+        sources: [],
+        contextId: `metadata_error_${Date.now()}`,
+        intent: metadataResult.type,
+      };
+    }
   }
 
   /**
@@ -546,7 +631,13 @@ Provide a comprehensive and accurate answer based on the document content follow
       return cached;
     }
 
-    // Get intent for prompt selection
+    // NEW: Detect psychological goal for prompt selection
+    const goalResult = intentService.detectPsychologicalGoal(query);
+    console.log(`\n🎯 PSYCHOLOGICAL GOAL DETECTION...`);
+    console.log(`   Goal: ${goalResult.goal} (confidence: ${(goalResult.confidence * 100).toFixed(1)}%)`);
+    console.log(`   Reasoning: ${goalResult.reasoning}`);
+
+    // DEPRECATED: Old intent detection (kept for backwards compatibility)
     const intent = intentService.detectIntent(query);
 
     // QUERY CLASSIFIER: Detect query type and appropriate response style
@@ -596,9 +687,19 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     // STEP 1: DETECT QUERY INTENT (Simple approach)
     const queryIntent = queryIntentDetectorService.detectIntent(query);
-    const isMetadataQuery = queryIntentDetectorService.isMetadataQuery(query);
+
+    // STEP 1.1: CHECK FOR METADATA QUERY (NEW - Uses database instead of RAG)
+    const metadataQueryResult = intentService.detectMetadataQuery(query);
+    const isMetadataQuery = metadataQueryResult.isMetadataQuery;
     console.log(`   🎯 Query Intent: ${queryIntent}`);
     console.log(`   📋 Is Metadata Query: ${isMetadataQuery}`);
+
+    // If metadata query detected, handle it with database lookup (NOT RAG)
+    if (isMetadataQuery) {
+      console.log(`📊 METADATA QUERY DETECTED: ${metadataQueryResult.type}`);
+      console.log(`   Extracted value: ${metadataQueryResult.extractedValue || 'N/A'}`);
+      return await this.handleMetadataQuery(userId, query, metadataQueryResult);
+    }
 
     // STEP 1.5: DETECT RESPONSE FORMAT TYPE (ChatGPT Format Analysis)
     const formatClassification = formatTypeClassifierService.classify(query);
@@ -841,20 +942,14 @@ Provide a comprehensive and accurate answer based on the document content follow
       })
       .join('\n\n---\n\n');
 
-    // Phase 3: Use system prompts service with answer length control + Query Intent
-    console.log(`🤖 GENERATING ANSWER...`);
-    console.log(`   Intent: ${intent.intent}`);
-    console.log(`   Query Intent: ${queryIntent}`);
+    // NEW: Use psychological goal-based adaptive prompt
+    console.log(`🤖 GENERATING ANSWER (ADAPTIVE PROMPT SYSTEM)...`);
+    console.log(`   Psychological Goal: ${goalResult.goal}`);
     console.log(`   Answer Length: ${effectiveAnswerLength} (Query Type: ${classification.type})`);
 
-    // Build intent-specific and format-specific system prompt
-    const intentSystemPrompt = this.buildIntentSystemPrompt(queryIntent, isMetadataQuery, formatClassification.formatType);
-
-    const promptConfig = systemPromptsService.getPromptConfig(intent.intent, effectiveAnswerLength);
-    let fullPrompt = systemPromptsService.buildPrompt(intent.intent, query, context, effectiveAnswerLength);
-
-    // Prepend intent-specific instructions to the prompt
-    fullPrompt = `${intentSystemPrompt}\n\n${fullPrompt}`;
+    // Build psychological goal-based system prompt (NEW ARCHITECTURE)
+    const promptConfig = systemPromptsService.getPromptConfigForGoal(goalResult.goal, effectiveAnswerLength);
+    const fullPrompt = systemPromptsService.buildPromptForGoal(goalResult.goal, query, context, effectiveAnswerLength);
 
     // Get query-specific temperature and max tokens from classifier
     const classifierMaxTokens = queryClassifierService.getMaxTokens(classification.style);
@@ -1196,9 +1291,27 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     // DETECT QUERY INTENT (Simple approach)
     const queryIntent = queryIntentDetectorService.detectIntent(query);
-    const isMetadataQuery = queryIntentDetectorService.isMetadataQuery(query);
+
+    // CHECK FOR METADATA QUERY (NEW - Uses database instead of RAG)
+    const metadataQueryResult = intentService.detectMetadataQuery(query);
+    const isMetadataQuery = metadataQueryResult.isMetadataQuery;
     console.log(`   🎯 Query Intent: ${queryIntent}`);
     console.log(`   📋 Is Metadata Query: ${isMetadataQuery}`);
+
+    // If metadata query detected, handle it with database lookup (NOT RAG)
+    if (isMetadataQuery) {
+      console.log(`📊 METADATA QUERY DETECTED IN STREAMING: ${metadataQueryResult.type}`);
+      console.log(`   Extracted value: ${metadataQueryResult.extractedValue || 'N/A'}`);
+
+      const metadataResult = await this.handleMetadataQuery(userId, query, metadataQueryResult);
+
+      // Send the result as a streaming chunk
+      if (onChunk) {
+        onChunk(metadataResult.answer);
+      }
+
+      return metadataResult;
+    }
 
     // DETECT RESPONSE FORMAT TYPE (ChatGPT Format Analysis)
     const formatClassification = formatTypeClassifierService.classify(query);
@@ -1295,7 +1408,7 @@ Provide a comprehensive and accurate answer based on the document content follow
     const effectiveThreshold = queryIntent === QueryIntent.LIST ? 0.35 : CONFIDENCE_THRESHOLD;
     console.log(`   📊 Using confidence threshold: ${effectiveThreshold} (Query Intent: ${queryIntent})`);
 
-    const highConfidenceResults = searchResults.filter(r => r.similarity >= effectiveThreshold);
+    let highConfidenceResults = searchResults.filter(r => r.similarity >= effectiveThreshold);
 
     if (highConfidenceResults.length === 0) {
       console.log(`   ⚠️  No high-confidence results (threshold: ${effectiveThreshold})`);
@@ -1495,25 +1608,35 @@ Provide a comprehensive and accurate answer based on the document content follow
     });
 
     // Use generateContentStream for real-time streaming
-    const streamResult = await model.generateContentStream(fullPrompt);
     let rawAnswer = '';
     let chunkCount = 0;
+    let finishReason: string | undefined;
 
     console.log(`⚡ STREAMING STARTED...`);
 
-    // Buffer chunks (don't send to client yet - formatting happens after)
-    for await (const chunk of streamResult.stream) {
-      const chunkText = chunk.text();
-      if (chunkText) {
-        rawAnswer += chunkText;
-        chunkCount++;
-        // DON'T send chunk yet - buffer it for formatting
-      }
-    }
+    try {
+      // Generate stream
+      const result = await model.generateContentStream(fullPrompt);
 
-    // Get the final response with finish reason
-    const finalResponse = await streamResult.response;
-    const finishReason = finalResponse.candidates?.[0]?.finishReason;
+      // Buffer chunks (don't send to client yet - formatting happens after)
+      for await (const chunk of result.stream) {
+        const chunkText = chunk.text();
+        if (chunkText) {
+          rawAnswer += chunkText;
+          chunkCount++;
+          // DON'T send chunk yet - buffer it for formatting
+        }
+      }
+
+      // Get the final response with finish reason
+      const finalResponse = await result.response;
+      finishReason = finalResponse.candidates?.[0]?.finishReason;
+    } catch (streamError: any) {
+      console.error(`❌ STREAMING ERROR:`, streamError);
+      console.error(`   Error message: ${streamError.message}`);
+      console.error(`   Error stack:`, streamError.stack);
+      throw new Error(`Streaming failed: ${streamError.message}`);
+    }
 
     // CRITICAL: Log finish reason prominently to detect truncation
     console.log(`\n🏁 GEMINI FINISH REASON: ${finishReason}`);
