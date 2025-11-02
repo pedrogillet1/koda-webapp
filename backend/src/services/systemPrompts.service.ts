@@ -227,7 +227,7 @@ class SystemPromptsService {
 - Use clear topic sentences for each paragraph
 - Aim for 150-200 words total minimum
 - Cover the topic comprehensively - do NOT provide brief 1-2 sentence answers`,
-          maxTokens: 3000, // Increased for Gemini-style formatting with multiple sections
+          maxTokens: 3500, // Increased to prevent mid-sentence truncation
         };
 
       case 'summary':
@@ -236,7 +236,7 @@ class SystemPromptsService {
 - Provide comprehensive overview
 - Use bullet points and sections for organization
 - Focus on main points with supporting details`,
-          maxTokens: 2000, // Increased for multi-section responses
+          maxTokens: 3000, // Increased to prevent mid-sentence truncation
         };
 
       case 'long':
@@ -246,7 +246,7 @@ class SystemPromptsService {
 - Include supporting details and context
 - Use well-structured format with clear sections
 - Cover all relevant aspects comprehensively`,
-          maxTokens: 4000, // Increased for extensive multi-section responses
+          maxTokens: 4096, // Increased to max safe limit to prevent truncation
         };
 
       default:

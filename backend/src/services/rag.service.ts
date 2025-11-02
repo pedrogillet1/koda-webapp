@@ -874,6 +874,18 @@ Provide a comprehensive and accurate answer based on the document content follow
     const result = await model.generateContent(fullPrompt);
     const rawAnswer = result.response.text();
 
+    // Get finish reason for truncation detection
+    const finishReason = result.response.candidates?.[0]?.finishReason;
+
+    // COMPLETION DETECTION: Check if response was truncated
+    const isTruncated = this.detectTruncation(rawAnswer, finishReason);
+    if (isTruncated.truncated) {
+      console.warn(`⚠️ TRUNCATED RESPONSE DETECTED`);
+      console.warn(`   Reason: ${isTruncated.reason}`);
+      console.warn(`   Last 100 chars: "${rawAnswer.slice(-100)}"`);
+      console.warn(`   Suggestion: Increase maxOutputTokens or use shorter answer length`);
+    }
+
     const responseTime = Date.now() - startTime;
 
     // Calculate average confidence
@@ -1489,6 +1501,15 @@ Provide a comprehensive and accurate answer based on the document content follow
     const finishReason = finalResponse.candidates?.[0]?.finishReason;
     console.log(`   Finish Reason: ${finishReason}`);
 
+    // COMPLETION DETECTION: Check if response was truncated
+    const isTruncated = this.detectTruncation(rawAnswer, finishReason);
+    if (isTruncated.truncated) {
+      console.warn(`⚠️ TRUNCATED RESPONSE DETECTED`);
+      console.warn(`   Reason: ${isTruncated.reason}`);
+      console.warn(`   Last 100 chars: "${rawAnswer.slice(-100)}"`);
+      console.warn(`   Suggestion: Increase maxOutputTokens or use shorter answer length`);
+    }
+
     const responseTime = Date.now() - startTime;
     const avgConfidence = finalSources.reduce((sum, s) => sum + s.similarity, 0) / finalSources.length;
 
@@ -1573,6 +1594,71 @@ Provide a comprehensive and accurate answer based on the document content follow
     };
 
     return typeMap[ext] || `${ext} Files`;
+  }
+
+  /**
+   * Detect if a response was truncated mid-sentence
+   * Returns: { truncated: boolean, reason: string }
+   */
+  private detectTruncation(
+    text: string,
+    finishReason?: string
+  ): { truncated: boolean; reason: string } {
+    // Check 1: Finish reason indicates truncation
+    if (finishReason === 'MAX_TOKENS' || finishReason === 'LENGTH') {
+      return {
+        truncated: true,
+        reason: `Gemini finish reason: ${finishReason}`
+      };
+    }
+
+    // Check 2: Text ends with incomplete markdown formatting
+    const incompleteMarkdownPatterns = [
+      /\*\*[^*]+$/,        // Ends with "**Text" (unclosed bold)
+      /\*[^*]+$/,          // Ends with "*Text" (unclosed italic)
+      /\[[^\]]+$/,         // Ends with "[Text" (unclosed link/reference)
+      /`[^`]+$/,           // Ends with "`Text" (unclosed code)
+      /#{1,6}\s+\w+$/,     // Ends with "## Head" (incomplete heading)
+    ];
+
+    for (const pattern of incompleteMarkdownPatterns) {
+      if (pattern.test(text.trim())) {
+        return {
+          truncated: true,
+          reason: 'Incomplete markdown formatting detected'
+        };
+      }
+    }
+
+    // Check 3: Text doesn't end with proper sentence terminator
+    const trimmed = text.trim();
+    const lastChar = trimmed[trimmed.length - 1];
+    const properEndings = ['.', '!', '?', ':', ')', ']', '"', '`'];
+
+    // Allow responses ending with "Next actions:" section
+    const endsWithNextActions = /Next actions:\s*$/i.test(trimmed);
+
+    if (!properEndings.includes(lastChar) && !endsWithNextActions) {
+      // Exception: Lists ending with bullet points are OK
+      const endsWithBulletPoint = /•\s+[^•]+$/.test(trimmed);
+      if (!endsWithBulletPoint) {
+        return {
+          truncated: true,
+          reason: `Ends with '${lastChar}' instead of proper terminator`
+        };
+      }
+    }
+
+    // Check 4: Response is suspiciously short (< 20 chars) unless it's a direct answer
+    if (trimmed.length < 20 && !trimmed.startsWith('Document:')) {
+      return {
+        truncated: true,
+        reason: 'Response suspiciously short (< 20 characters)'
+      };
+    }
+
+    // No truncation detected
+    return { truncated: false, reason: '' };
   }
 }
 
