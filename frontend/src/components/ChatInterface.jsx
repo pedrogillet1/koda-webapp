@@ -57,6 +57,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const justCreatedConversationId = useRef(null);
     const abortControllerRef = useRef(null);
     const manuallyRemovedDocumentRef = useRef(false);
+    const pendingMessageRef = useRef(null); // Queue final message data until animation completes
 
     // Use streaming hook for the current AI response (5ms = 200 chars/sec for fast smooth streaming)
     const { displayedText, isStreaming } = useStreamingText(streamingMessage, 5);
@@ -180,35 +181,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }
 
-                    // Stop loading and clear streaming message
-                    setIsLoading(false);
-                    setStreamingMessage('');
-
-                    // Add permanent messages immediately (streaming already happened in real-time)
-                    setMessages((prev) => {
-                        // Triple-check if message already exists in the array
-                        const assistantExists = prev.some(msg => msg.id === messageId);
-
-                        if (assistantExists) {
-                            console.log('⚠️ Message already exists in state, skipping:', messageId);
-                            return prev;
-                        }
-
-                        console.log('✅ Replacing optimistic user message with real one + adding assistant message');
-                        console.log('Current message count:', prev.length);
-
-                        // Replace optimistic user message with real one, then add assistant message
-                        // Filter out optimistic messages AND check for duplicate IDs
-                        const withoutOptimistic = prev.filter(m => {
-                            // Remove optimistic messages
-                            if (m.isOptimistic) return false;
-                            // Remove any existing messages with the same ID as the new ones
-                            if (m.id === data.userMessage?.id || m.id === data.assistantMessage?.id) return false;
-                            return true;
-                        });
-                        return [...withoutOptimistic, data.userMessage, data.assistantMessage];
-                    });
-                    console.log('=== MESSAGE PROCESSING COMPLETE ===');
+                    // CRITICAL FIX: Queue message instead of immediately clearing streaming
+                    // Let the useEffect wait for animation to complete before processing
+                    console.log('📬 Queueing message to wait for streaming animation to complete');
+                    pendingMessageRef.current = {
+                        userMessage: data.userMessage,
+                        assistantMessage: data.assistantMessage
+                    };
+                    console.log('=== MESSAGE QUEUED - WAITING FOR ANIMATION ===');
                 });
 
             // Listen for message chunks (real-time streaming)
@@ -301,6 +281,42 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             }
         };
     }, [currentConversation]);
+
+    // CRITICAL FIX: Wait for streaming animation to complete before adding final message
+    // This prevents the animation from being cut off mid-sentence
+    useEffect(() => {
+        if (!isStreaming && pendingMessageRef.current) {
+            console.log('✅ Streaming animation completed - processing pending message');
+            const pending = pendingMessageRef.current;
+            pendingMessageRef.current = null;
+
+            // Clear streaming message
+            setStreamingMessage('');
+            setIsLoading(false);
+
+            // Add final messages to history
+            setMessages((prev) => {
+                // Triple-check if message already exists in the array
+                const assistantExists = prev.some(msg => msg.id === pending.assistantMessage.id);
+
+                if (assistantExists) {
+                    console.log('⚠️ Message already exists in state, skipping:', pending.assistantMessage.id);
+                    return prev;
+                }
+
+                console.log('✅ Replacing optimistic user message with real one + adding assistant message');
+                console.log('Current message count:', prev.length);
+
+                // Replace optimistic user message with real one, then add assistant message
+                const withoutOptimistic = prev.filter(m => {
+                    if (m.isOptimistic) return false;
+                    if (m.id === pending.userMessage?.id || m.id === pending.assistantMessage?.id) return false;
+                    return true;
+                });
+                return [...withoutOptimistic, pending.userMessage, pending.assistantMessage];
+            });
+        }
+    }, [isStreaming]);
 
     useEffect(() => {
         // Scroll to bottom when new messages arrive

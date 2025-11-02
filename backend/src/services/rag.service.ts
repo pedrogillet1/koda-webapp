@@ -1514,11 +1514,24 @@ Provide a comprehensive and accurate answer based on the document content follow
     // Get the final response with finish reason
     const finalResponse = await streamResult.response;
     const finishReason = finalResponse.candidates?.[0]?.finishReason;
-    console.log(`   Finish Reason: ${finishReason}`);
+
+    // CRITICAL: Log finish reason prominently to detect truncation
+    console.log(`\n🏁 GEMINI FINISH REASON: ${finishReason}`);
+    console.log(`   maxOutputTokens: ${Math.min(promptConfig.maxTokens, classifierMaxTokens)}`);
+    console.log(`   Response Length: ${rawAnswer.length} characters`);
+
+    if (finishReason === 'MAX_TOKENS') {
+      console.error(`\n🚨 RESPONSE TRUNCATED DUE TO TOKEN LIMIT 🚨`);
+      console.error(`   The AI response was cut off mid-sentence because it hit the maxOutputTokens limit`);
+      console.error(`   Last 150 chars: "${rawAnswer.slice(-150)}"`);
+      console.error(`   Solution: Increase maxOutputTokens in systemPrompts.service.ts`);
+      console.error(`   Current limit: ${Math.min(promptConfig.maxTokens, classifierMaxTokens)} tokens\n`);
+    }
 
     // COMPLETION DETECTION: Check if response was truncated
     const isTruncated = this.detectTruncation(rawAnswer, finishReason);
-    if (isTruncated.truncated) {
+    if (isTruncated.truncated && finishReason !== 'MAX_TOKENS') {
+      // Only log if not already logged above
       console.warn(`⚠️ TRUNCATED RESPONSE DETECTED`);
       console.warn(`   Reason: ${isTruncated.reason}`);
       console.warn(`   Last 100 chars: "${rawAnswer.slice(-100)}"`);
