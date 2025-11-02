@@ -750,22 +750,82 @@ const Documents = () => {
                             Documents
                           </div>
                           {filteredDocuments.map((doc) => {
-                            const getFileIcon = (filename) => {
-                              // Add null/undefined check
-                              if (!filename) return docIcon;
+                            const getFileIcon = (doc) => {
+                              // Prioritize MIME type over file extension (more reliable for encrypted filenames)
+                              const mimeType = doc?.mimeType || '';
+                              const filename = doc?.filename || '';
 
-                              const ext = filename.toLowerCase();
-                              if (ext.match(/\.(pdf)$/)) return pdfIcon;
-                              if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-                              if (ext.match(/\.(png)$/)) return pngIcon;
-                              if (ext.match(/\.(doc|docx)$/)) return docIcon;
-                              if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
-                              if (ext.match(/\.(txt)$/)) return txtIcon;
-                              if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
-                              if (ext.match(/\.(mov)$/)) return movIcon;
-                              if (ext.match(/\.(mp4)$/)) return mp4Icon;
-                              if (ext.match(/\.(mp3)$/)) return mp3Icon;
-                              return docIcon; // Default icon
+                              // DEBUG: Log MIME type and filename for video files
+                              if (mimeType.startsWith('video/') || filename.match(/\.(mov|mp4)$/i)) {
+                                console.log('🎬 Video file detected:', { filename, mimeType });
+                              }
+
+                              // ========== VIDEO FILES ==========
+                              // QuickTime videos (.mov) - MUST check before generic video check
+                              if (mimeType === 'video/quicktime') {
+                                console.log('✅ Returning movIcon for:', filename);
+                                return movIcon; // Blue MOV icon
+                              }
+
+                              // MP4 videos - specific check only
+                              if (mimeType === 'video/mp4') {
+                                console.log('✅ Returning mp4Icon for:', filename);
+                                return mp4Icon; // Pink MP4 icon
+                              }
+
+                              // Other video types - use generic video icon (mp4)
+                              if (mimeType.startsWith('video/')) {
+                                console.log('⚠️  Generic video type, returning mp4Icon for:', filename, mimeType);
+                                return mp4Icon;
+                              }
+
+                              // ========== AUDIO FILES ==========
+                              if (mimeType.startsWith('audio/') || mimeType === 'audio/mpeg' || mimeType === 'audio/mp3') {
+                                return mp3Icon;
+                              }
+
+                              // ========== DOCUMENT FILES ==========
+                              if (mimeType === 'application/pdf') return pdfIcon;
+                              if (mimeType.includes('word') || mimeType.includes('msword')) return docIcon;
+                              if (mimeType.includes('sheet') || mimeType.includes('excel')) return xlsIcon;
+                              if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return pptxIcon;
+                              if (mimeType === 'text/plain' || mimeType === 'text/csv') return txtIcon;
+
+                              // ========== IMAGE FILES ==========
+                              if (mimeType.startsWith('image/')) {
+                                if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return jpgIcon;
+                                if (mimeType.includes('png')) return pngIcon;
+                                return pngIcon; // Default for other images
+                              }
+
+                              // ========== FALLBACK: Extension-based check ==========
+                              // (For files where MIME type is not set or is generic)
+                              if (filename) {
+                                const ext = filename.toLowerCase();
+                                // Documents
+                                if (ext.match(/\.(pdf)$/)) return pdfIcon;
+                                if (ext.match(/\.(doc|docx)$/)) return docIcon;
+                                if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
+                                if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
+                                if (ext.match(/\.(txt)$/)) return txtIcon;
+
+                                // Images
+                                if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
+                                if (ext.match(/\.(png)$/)) return pngIcon;
+
+                                // Videos
+                                if (ext.match(/\.(mov)$/)) return movIcon;
+                                if (ext.match(/\.(mp4)$/)) return mp4Icon;
+
+                                // Audio
+                                if (ext.match(/\.(mp3|wav|aac|m4a)$/)) return mp3Icon;
+
+                                // Adobe Premiere Pro / Video editing files use generic file icon
+                                // .prproj, .pek, .cfa - let them fall through to default
+                              }
+
+                              // Final fallback - for unknown/binary files (including .prproj, .pek, .cfa)
+                              return txtIcon;
                             };
 
                             return (
@@ -788,11 +848,12 @@ const Documents = () => {
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
                                 <img
-                                  src={getFileIcon(doc.filename)}
+                                  src={getFileIcon(doc)}
                                   alt="File icon"
                                   style={{
                                     width: 40,
                                     height: 40,
+                                    aspectRatio: '1/1',
                                     imageRendering: '-webkit-optimize-contrast',
                                     objectFit: 'contain',
                                     shapeRendering: 'geometricPrecision'
@@ -1175,22 +1236,82 @@ const Documents = () => {
               {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).length > 0 ? (
                 <div style={{display: 'flex', flexDirection: 'column', gap: 16, flex: 1, overflowY: 'auto', minHeight: 0}}>
                   {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).map((doc) => {
-                    const getFileIcon = (filename) => {
-                      // Add null/undefined check
-                      if (!filename) return docIcon;
+                    const getFileIcon = (doc) => {
+                      // Prioritize MIME type over file extension (more reliable for encrypted filenames)
+                      const mimeType = doc?.mimeType || '';
+                      const filename = doc?.filename || '';
 
-                      const ext = filename.toLowerCase();
-                      if (ext.match(/\.(pdf)$/)) return pdfIcon;
-                      if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-                      if (ext.match(/\.(png)$/)) return pngIcon;
-                      if (ext.match(/\.(doc|docx)$/)) return docIcon;
-                      if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
-                      if (ext.match(/\.(txt)$/)) return txtIcon;
-                      if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
-                      if (ext.match(/\.(mov)$/)) return movIcon;
-                      if (ext.match(/\.(mp4)$/)) return mp4Icon;
-                      if (ext.match(/\.(mp3)$/)) return mp3Icon;
-                      return docIcon; // Default icon
+                      // DEBUG: Log MIME type and filename for video files
+                      if (mimeType.startsWith('video/') || filename.match(/\.(mov|mp4)$/i)) {
+                        console.log('🎬 Video file detected (Recently Added):', { filename, mimeType });
+                      }
+
+                      // ========== VIDEO FILES ==========
+                      // QuickTime videos (.mov) - MUST check before generic video check
+                      if (mimeType === 'video/quicktime') {
+                        console.log('✅ Returning movIcon for (Recently Added):', filename);
+                        return movIcon; // Blue MOV icon
+                      }
+
+                      // MP4 videos - specific check only
+                      if (mimeType === 'video/mp4') {
+                        console.log('✅ Returning mp4Icon for (Recently Added):', filename);
+                        return mp4Icon; // Pink MP4 icon
+                      }
+
+                      // Other video types - use generic video icon (mp4)
+                      if (mimeType.startsWith('video/')) {
+                        console.log('⚠️  Generic video type, returning mp4Icon for (Recently Added):', filename, mimeType);
+                        return mp4Icon;
+                      }
+
+                      // ========== AUDIO FILES ==========
+                      if (mimeType.startsWith('audio/') || mimeType === 'audio/mpeg' || mimeType === 'audio/mp3') {
+                        return mp3Icon;
+                      }
+
+                      // ========== DOCUMENT FILES ==========
+                      if (mimeType === 'application/pdf') return pdfIcon;
+                      if (mimeType.includes('word') || mimeType.includes('msword')) return docIcon;
+                      if (mimeType.includes('sheet') || mimeType.includes('excel')) return xlsIcon;
+                      if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return pptxIcon;
+                      if (mimeType === 'text/plain' || mimeType === 'text/csv') return txtIcon;
+
+                      // ========== IMAGE FILES ==========
+                      if (mimeType.startsWith('image/')) {
+                        if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return jpgIcon;
+                        if (mimeType.includes('png')) return pngIcon;
+                        return pngIcon; // Default for other images
+                      }
+
+                      // ========== FALLBACK: Extension-based check ==========
+                      // (For files where MIME type is not set or is generic)
+                      if (filename) {
+                        const ext = filename.toLowerCase();
+                        // Documents
+                        if (ext.match(/\.(pdf)$/)) return pdfIcon;
+                        if (ext.match(/\.(doc|docx)$/)) return docIcon;
+                        if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
+                        if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
+                        if (ext.match(/\.(txt)$/)) return txtIcon;
+
+                        // Images
+                        if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
+                        if (ext.match(/\.(png)$/)) return pngIcon;
+
+                        // Videos
+                        if (ext.match(/\.(mov)$/)) return movIcon;
+                        if (ext.match(/\.(mp4)$/)) return mp4Icon;
+
+                        // Audio
+                        if (ext.match(/\.(mp3|wav|aac|m4a)$/)) return mp3Icon;
+
+                        // Adobe Premiere Pro / Video editing files use generic file icon
+                        // .prproj, .pek, .cfa - let them fall through to default
+                      }
+
+                      // Final fallback - for unknown/binary files (including .prproj, .pek, .cfa)
+                      return txtIcon;
                     };
 
                     const formatBytes = (bytes) => {
@@ -1229,11 +1350,12 @@ const Documents = () => {
                         onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
                       >
                         <img
-                          src={getFileIcon(doc.filename)}
+                          src={getFileIcon(doc)}
                           alt="File icon"
                           style={{
                             width: 40,
                             height: 40,
+                            aspectRatio: '1/1',
                             imageRendering: '-webkit-optimize-contrast',
                             objectFit: 'contain',
                             shapeRendering: 'geometricPrecision'

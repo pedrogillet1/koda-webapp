@@ -431,7 +431,7 @@ if (documentQueue && redisConnection) {
           port: config.REDIS_PORT,
           password: config.REDIS_PASSWORD || undefined,
         },
-        concurrency: 1, // CRITICAL FIX: Reduced from 5 to 1 to prevent race conditions
+        concurrency: 5, // Process 5 documents simultaneously for 5x throughput
       }
     );
 

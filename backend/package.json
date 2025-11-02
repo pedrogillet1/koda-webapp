@@ -11,6 +11,7 @@
     "regenerate-markdown": "ts-node src/scripts/regenerateMarkdown.ts",
     "reprocess-powerpoints": "ts-node scripts/reprocess-powerpoints.ts",
     "setup-cors": "ts-node src/scripts/setup-cors.ts",
+    "fix-filenames": "ts-node scripts/fix-corrupt-filenames.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
@@ -30,6 +31,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
     "@cantoo/pdf-lib": "^2.5.3",
+    "@google-cloud/speech": "^7.2.1",
     "@google-cloud/storage": "^7.17.1",
     "@google-cloud/vision": "^5.3.4",
     "@google/generative-ai": "^0.24.1",

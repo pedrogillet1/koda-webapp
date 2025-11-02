@@ -985,8 +985,8 @@ model ExcelCell {
 
 // ==================== Advanced Features: Session-Based Document Analysis ====================
 
-// Session model - For temporary document analysis before saving
-model Session {
+// AnalysisSession model - For temporary document analysis before saving
+model AnalysisSession {
   id             String   @id @default(uuid())
   userId         String
   sessionType    String   @default("document_analysis") // document_analysis, comparison, research
@@ -1007,7 +1007,7 @@ model Session {
   @@index([userId])
   @@index([status])
   @@index([expiresAt])
-  @@map("sessions")
+  @@map("analysis_sessions")
 }
 
 // Session Document model - Temporary documents in a session
@@ -1035,7 +1035,7 @@ model SessionDocument {
   processedAt    DateTime?
 
   // Relations
-  session        Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session        AnalysisSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([userId])

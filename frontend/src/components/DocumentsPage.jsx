@@ -32,6 +32,9 @@ import jpgIcon from '../assets/jpg-icon.svg';
 import pngIcon from '../assets/png-icon.svg';
 import pptxIcon from '../assets/pptx.svg';
 import folderIcon from '../assets/folder_icon.svg';
+import movIcon from '../assets/mov.svg';
+import mp4Icon from '../assets/mp4.svg';
+import mp3Icon from '../assets/mp3.svg';
 import CategoryIcon from './CategoryIcon';
 
 const DocumentsPage = () => {
@@ -879,17 +882,74 @@ const DocumentsPage = () => {
 
                   // Otherwise render document
                   const doc = item;
-                  const getFileIcon = (filename) => {
-                    if (!filename) return docIcon;
-                    const ext = filename.toLowerCase();
-                    if (ext.match(/\.(pdf)$/)) return pdfIcon;
-                    if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-                    if (ext.match(/\.(png)$/)) return pngIcon;
-                    if (ext.match(/\.(doc|docx)$/)) return docIcon;
-                    if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
-                    if (ext.match(/\.(txt)$/)) return txtIcon;
-                    if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
-                    return docIcon;
+                  const getFileIcon = (doc) => {
+                    // Prioritize MIME type over file extension (more reliable for encrypted filenames)
+                    const mimeType = doc?.mimeType || '';
+                    const filename = doc?.filename || '';
+
+                    // ========== VIDEO FILES ==========
+                    // QuickTime videos (.mov) - MUST check before generic video check
+                    if (mimeType === 'video/quicktime') {
+                      return movIcon; // Blue MOV icon
+                    }
+
+                    // MP4 videos - specific check only
+                    if (mimeType === 'video/mp4') {
+                      return mp4Icon; // Pink MP4 icon
+                    }
+
+                    // Other video types - use generic video icon (mp4)
+                    if (mimeType.startsWith('video/')) {
+                      return mp4Icon;
+                    }
+
+                    // ========== AUDIO FILES ==========
+                    if (mimeType.startsWith('audio/') || mimeType === 'audio/mpeg' || mimeType === 'audio/mp3') {
+                      return mp3Icon;
+                    }
+
+                    // ========== DOCUMENT FILES ==========
+                    if (mimeType === 'application/pdf') return pdfIcon;
+                    if (mimeType.includes('word') || mimeType.includes('msword')) return docIcon;
+                    if (mimeType.includes('sheet') || mimeType.includes('excel')) return xlsIcon;
+                    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return pptxIcon;
+                    if (mimeType === 'text/plain' || mimeType === 'text/csv') return txtIcon;
+
+                    // ========== IMAGE FILES ==========
+                    if (mimeType.startsWith('image/')) {
+                      if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return jpgIcon;
+                      if (mimeType.includes('png')) return pngIcon;
+                      return pngIcon; // Default for other images
+                    }
+
+                    // ========== FALLBACK: Extension-based check ==========
+                    // (For files where MIME type is not set or is generic)
+                    if (filename) {
+                      const ext = filename.toLowerCase();
+                      // Documents
+                      if (ext.match(/\.(pdf)$/)) return pdfIcon;
+                      if (ext.match(/\.(doc|docx)$/)) return docIcon;
+                      if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
+                      if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
+                      if (ext.match(/\.(txt)$/)) return txtIcon;
+
+                      // Images
+                      if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
+                      if (ext.match(/\.(png)$/)) return pngIcon;
+
+                      // Videos
+                      if (ext.match(/\.(mov)$/)) return movIcon;
+                      if (ext.match(/\.(mp4)$/)) return mp4Icon;
+
+                      // Audio
+                      if (ext.match(/\.(mp3|wav|aac|m4a)$/)) return mp3Icon;
+
+                      // Adobe Premiere Pro / Video editing files use generic file icon
+                      // .prproj, .pek, .cfa - let them fall through to default
+                    }
+
+                    // Final fallback - for unknown/binary files (including .prproj, .pek, .cfa)
+                    return txtIcon;
                   };
 
                   const formatBytes = (bytes) => {
@@ -955,11 +1015,12 @@ const DocumentsPage = () => {
                       }}
                     >
                       <img
-                        src={getFileIcon(doc.filename)}
+                        src={getFileIcon(doc)}
                         alt="File icon"
                         style={{
                           width: 40,
                           height: 40,
+                          aspectRatio: '1/1',
                           imageRendering: '-webkit-optimize-contrast',
                           objectFit: 'contain',
                           shapeRendering: 'geometricPrecision'

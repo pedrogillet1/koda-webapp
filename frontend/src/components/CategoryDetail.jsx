@@ -29,6 +29,9 @@ import xlsIcon from '../assets/xls.svg';
 import jpgIcon from '../assets/jpg-icon.svg';
 import pngIcon from '../assets/png-icon.svg';
 import pptxIcon from '../assets/pptx.svg';
+import movIcon from '../assets/mov.svg';
+import mp4Icon from '../assets/mp4.svg';
+import mp3Icon from '../assets/mp3.svg';
 
 // Document Thumbnail Component
 const DocumentThumbnail = ({ documentId, filename, width = 80, height = 80 }) => {
@@ -54,7 +57,7 @@ const DocumentThumbnail = ({ documentId, filename, width = 80, height = 80 }) =>
 
   // Get file icon as fallback
   const getFileIcon = (filename) => {
-    if (!filename) return pdfIcon;
+    if (!filename) return txtIcon;
     const ext = filename.toLowerCase();
     if (ext.match(/\.(pdf)$/)) return pdfIcon;
     if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
@@ -63,7 +66,10 @@ const DocumentThumbnail = ({ documentId, filename, width = 80, height = 80 }) =>
     if (ext.match(/\.(txt)$/)) return txtIcon;
     if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
     if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
-    return pdfIcon;
+    if (ext.match(/\.(mov)$/)) return movIcon;
+    if (ext.match(/\.(mp4)$/)) return mp4Icon;
+    if (ext.match(/\.(mp3|wav|aac|m4a)$/)) return mp3Icon;
+    return txtIcon;
   };
 
   if (loading) {
@@ -400,17 +406,58 @@ const CategoryDetail = () => {
   };
 
   // Get file icon
-  const getFileIcon = (filename) => {
-    if (!filename) return docIcon;
-    const ext = filename.toLowerCase();
-    if (ext.match(/\.(pdf)$/)) return pdfIcon;
-    if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-    if (ext.match(/\.(png)$/)) return pngIcon;
-    if (ext.match(/\.(doc|docx)$/)) return docIcon;
-    if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
-    if (ext.match(/\.(txt)$/)) return txtIcon;
-    if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
-    return docIcon;
+  const getFileIcon = (doc) => {
+    // Prioritize MIME type over file extension
+    const mimeType = doc?.mimeType || '';
+    const filename = doc?.filename || '';
+
+    // ========== VIDEO FILES ==========
+    if (mimeType === 'video/quicktime') {
+      return movIcon; // Blue MOV icon
+    }
+    if (mimeType === 'video/mp4') {
+      return mp4Icon; // Pink MP4 icon
+    }
+    if (mimeType.startsWith('video/')) {
+      return mp4Icon;
+    }
+
+    // ========== AUDIO FILES ==========
+    if (mimeType.startsWith('audio/') || mimeType === 'audio/mpeg' || mimeType === 'audio/mp3') {
+      return mp3Icon;
+    }
+
+    // ========== DOCUMENT FILES ==========
+    if (mimeType === 'application/pdf') return pdfIcon;
+    if (mimeType.includes('word') || mimeType.includes('msword')) return docIcon;
+    if (mimeType.includes('sheet') || mimeType.includes('excel')) return xlsIcon;
+    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return pptxIcon;
+    if (mimeType === 'text/plain' || mimeType === 'text/csv') return txtIcon;
+
+    // ========== IMAGE FILES ==========
+    if (mimeType.startsWith('image/')) {
+      if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return jpgIcon;
+      if (mimeType.includes('png')) return pngIcon;
+      return pngIcon;
+    }
+
+    // ========== FALLBACK: Extension-based check ==========
+    if (filename) {
+      const ext = filename.toLowerCase();
+      if (ext.match(/\.(pdf)$/)) return pdfIcon;
+      if (ext.match(/\.(doc|docx)$/)) return docIcon;
+      if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
+      if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
+      if (ext.match(/\.(txt)$/)) return txtIcon;
+      if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
+      if (ext.match(/\.(png)$/)) return pngIcon;
+      if (ext.match(/\.(mov)$/)) return movIcon;
+      if (ext.match(/\.(mp4)$/)) return mp4Icon;
+      if (ext.match(/\.(mp3|wav|aac|m4a)$/)) return mp3Icon;
+      // Adobe Premiere Pro files (.prproj, .pek, .cfa) fall through to default
+    }
+
+    return txtIcon; // Default to generic file icon
   };
 
   // Format time
@@ -2021,22 +2068,13 @@ const CategoryDetail = () => {
                           zIndex: 1
                         }}>
                           <img
-                            src={(() => {
-                              if (!doc.filename) return pdfIcon;
-                              const ext = doc.filename.toLowerCase();
-                              if (ext.match(/\.(pdf)$/)) return pdfIcon;
-                              if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-                              if (ext.match(/\.(png)$/)) return pngIcon;
-                              if (ext.match(/\.(doc|docx)$/)) return docIcon;
-                              if (ext.match(/\.(txt)$/)) return txtIcon;
-                              if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
-                              return pdfIcon;
-                            })()}
+                            src={getFileIcon(doc)}
                             alt="file icon"
                             style={{
                               width: 120,
                               height: 120,
-                              objectFit: 'contain'
+                              objectFit: 'contain',
+                              aspectRatio: '1/1'
                             }}
                           />
                         </div>
@@ -2403,19 +2441,9 @@ const CategoryDetail = () => {
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <img
-                                  src={(() => {
-                                    if (!doc.filename) return pdfIcon;
-                                    const ext = doc.filename.toLowerCase();
-                                    if (ext.match(/\.(pdf)$/)) return pdfIcon;
-                                    if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-                                    if (ext.match(/\.(png)$/)) return pngIcon;
-                                    if (ext.match(/\.(doc|docx)$/)) return docIcon;
-                                    if (ext.match(/\.(txt)$/)) return txtIcon;
-                                    if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
-                                    return pdfIcon;
-                                  })()}
+                                  src={getFileIcon(doc)}
                                   alt="file icon"
-                                  style={{ width: 24, height: 24, objectFit: 'contain' }}
+                                  style={{ width: 24, height: 24, objectFit: 'contain', aspectRatio: '1/1' }}
                                 />
                                 {renamingDocId === doc.id ? (
                                   <input

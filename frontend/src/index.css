@@ -292,3 +292,13 @@ code {
   background-color: #fbbf24 !important;
   font-weight: 600 !important;
 }
+
+/* Spinning animation for processing indicators */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

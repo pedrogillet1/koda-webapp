@@ -1590,8 +1590,38 @@ export const listDocuments = async (
     prisma.document.count({ where }),
   ]);
 
+  // 🔍 DEBUG: Log document filenames to verify correct data
+  if (documents.length > 0) {
+    console.log('\n📄 [LIST DOCUMENTS] Sample document fields:');
+    console.log(`   Document ID: ${documents[0].id}`);
+    console.log(`   filename: "${documents[0].filename}"`);
+    console.log(`   encryptedFilename: "${documents[0].encryptedFilename}"`);
+    console.log(`   mimeType: "${documents[0].mimeType}"`);
+  }
+
+  // ✅ SAFETY CHECK: Ensure we're not accidentally returning encryptedFilename as filename
+  // Map documents to explicitly set the correct fields
+  const sanitizedDocuments = documents.map(doc => {
+    // Check if filename looks like an encrypted filename (contains UUID pattern)
+    const looksEncrypted = doc.filename.includes('/') ||
+                          /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/.test(doc.filename);
+
+    if (looksEncrypted) {
+      console.warn(`⚠️  [CORRUPT DATA] Document ${doc.id} has encrypted filename in filename field!`);
+      console.warn(`   Current filename: "${doc.filename}"`);
+      console.warn(`   This should be the original filename, not the storage path!`);
+    }
+
+    return {
+      ...doc,
+      // Ensure we're using the original filename, NOT the encrypted one
+      filename: doc.filename,
+      encryptedFilename: doc.encryptedFilename,
+    };
+  });
+
   return {
-    documents,
+    documents: sanitizedDocuments,
     pagination: {
       page,
       limit,

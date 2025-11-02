@@ -102,8 +102,8 @@ class VectorEmbeddingService {
 
       console.log(`📦 [Batch Embedding] Cache hits: ${texts.length - uncachedTexts.length}/${texts.length}`);
 
-      // Generate embeddings for uncached texts in parallel (batches of 5)
-      const BATCH_SIZE = 5;
+      // ⚡ PERFORMANCE FIX: Use Gemini batch API to process all texts in ONE API call
+      const BATCH_SIZE = 100; // Gemini max batch size
       // Use text-embedding-004 - Google's latest multilingual embedding model
       const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
       const uncachedEmbeddings: number[][] = [];
@@ -111,14 +111,22 @@ class VectorEmbeddingService {
       for (let i = 0; i < uncachedTexts.length; i += BATCH_SIZE) {
         const batch = uncachedTexts.slice(i, Math.min(i + BATCH_SIZE, uncachedTexts.length));
 
-        // Process batch in parallel
-        const batchResults = await Promise.all(
-          batch.map(async (text) => {
-            const result = await model.embedContent(text);
-            return result.embedding.values;
-          })
-        );
+        console.log(`   🔮 Generating batch embeddings for ${batch.length} chunks in ONE API call...`);
+        const batchStartTime = Date.now();
 
+        // ⚡ CRITICAL FIX: Use batchEmbedContents to send ALL texts in ONE API call
+        const result = await model.batchEmbedContents({
+          requests: batch.map(text => ({
+            content: {
+              role: 'user' as const,
+              parts: [{ text }]
+            },
+            taskType: 'RETRIEVAL_DOCUMENT' as any,
+          }))
+        });
+
+        // Extract embeddings from batch result
+        const batchResults = result.embeddings.map(e => e.values);
         uncachedEmbeddings.push(...batchResults);
 
         // Cache the new embeddings
@@ -128,7 +136,8 @@ class VectorEmbeddingService {
           })
         );
 
-        console.log(`   ✅ Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(uncachedTexts.length / BATCH_SIZE)} completed`);
+        const batchDuration = ((Date.now() - batchStartTime) / 1000).toFixed(1);
+        console.log(`   ✅ Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(uncachedTexts.length / BATCH_SIZE)} completed in ${batchDuration}s`);
       }
 
       // Merge cached and newly generated embeddings
