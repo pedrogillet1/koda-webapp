@@ -240,12 +240,24 @@ class QueryIntentService {
 
     for (const { pattern, action } of comparePatterns) {
       if (pattern.test(queryLower)) {
+        // Detect document type from query
+        let documentType = null;
+        if (/presentation/i.test(queryLower)) {
+          documentType = 'presentation';
+        } else if (/spreadsheet|excel/i.test(queryLower)) {
+          documentType = 'spreadsheet';
+        } else if (/word|document/i.test(queryLower)) {
+          documentType = 'document';
+        }
+
         return {
           intent: 'compare',
           confidence: 0.95,
           reasoning: 'Query is asking to compare information across documents',
           suggestedAction: action,
-          entities: {}
+          entities: {
+            documentType  // Add document type to entities
+          }
         };
       }
     }

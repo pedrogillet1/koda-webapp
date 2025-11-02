@@ -113,19 +113,84 @@ FOR EXCEL/SPREADSHEET DATA:
 
 ${formatPrompt}`;
     } else if (queryIntent === QueryIntent.COMPARISON) {
-      // For comparison queries, ALWAYS use TABLE format
-      const formatPrompt = responseFormatterService.buildFormatPrompt(ResponseFormatType.TABLE);
+      // For comparison queries, use enhanced table format with explicit 2-document limit
       return `CRITICAL INSTRUCTIONS FOR COMPARISON QUERIES:
 
-The user wants to COMPARE two or more items.
+The user wants to COMPARE exactly TWO documents.
 
-YOU MUST USE THE TABLE FORMAT BELOW:
-- Group items by category with headers
-- Use bullet points (•) for each item
-- Use em dash (—) to separate name from description
-- NO emoji anywhere
+YOUR RESPONSE MUST USE THIS EXACT STRUCTURE:
 
-${formatPrompt}`;
+Documents compared:
+• [Document 1 name with extension]
+• [Document 2 name with extension]
+
+Comparison summary:
+
+Aspect          Document 1              Document 2
+────────────────────────────────────────────────────────
+Language        [value]                 [value]
+Content         [value]                 [value]
+Purpose         [value]                 [value]
+Audience        [value]                 [value]
+[Other aspect]  [value]                 [value]
+
+✅ Core finding: [One clear sentence stating the main difference or similarity]
+
+Next actions:
+[Specific suggestion based on comparison]
+
+CRITICAL RULES:
+• List EXACTLY the 2 documents being compared (no others)
+• Use table format with aligned columns (use spaces for alignment)
+• Maximum 5-7 comparison rows (pick most important aspects)
+• If documents are TRANSLATIONS of each other, state that clearly
+• If documents are IDENTICAL, say so explicitly
+• If documents have SAME CONTENT but different formats, mention it
+• ONE sentence closing with ✅
+• NO long paragraphs - only table and concise summary
+• NO emoji except the single ✅ in core finding
+
+TRANSLATION DETECTION:
+If documents have same name but different language extensions (e.g., "Koda Presentation English" vs "Koda Presentation Port"), they are likely TRANSLATIONS.
+
+EXAMPLE 1 (Translations):
+Documents compared:
+• Koda Presentation English (1).pptx
+• Koda Presentation Port Final.pptx
+
+Comparison summary:
+
+Aspect          English Version         Portuguese Version
+────────────────────────────────────────────────────────
+Language        English                 Portuguese (Brazilian)
+Content         Original presentation   Direct translation
+Slide Count     15 slides               15 slides
+Audience        International market    Brazilian market
+
+✅ Core finding: These are the SAME presentation in different languages - the Portuguese version is a direct translation with identical content and structure.
+
+Next actions:
+Would you like me to extract specific slides from either presentation or compare these to the Koda Business Plan?
+
+EXAMPLE 2 (Different Documents):
+Documents compared:
+• Koda Business Plan V12 (1).pdf
+• Koda_AI_Testing_Suite_30_Questions.docx
+
+Comparison summary:
+
+Aspect          Business Plan           Testing Suite
+────────────────────────────────────────────────────────
+Purpose         Strategy & financials   Quality assurance tests
+Content Type    Revenue projections     Test scenarios & QA
+Primary Focus   Market & growth         Product validation
+Audience        Investors & executives  Developers & QA team
+Detail Level    High-level overview     Technical specifics
+
+✅ Core finding: The Business Plan defines WHAT Koda will achieve (strategy, revenue, market), while the Testing Suite defines HOW to verify it works (functional tests, AI accuracy).
+
+Next actions:
+Would you like me to extract revenue projections from the Business Plan or review specific test scenarios from the Testing Suite?`;
     } else {
       // SUMMARY - use format-specific prompt (FEATURE_LIST, STRUCTURED_LIST, etc.)
       const formatPrompt = responseFormatterService.buildFormatPrompt(formatType);
@@ -1236,6 +1301,59 @@ Provide a comprehensive and accurate answer based on the document content follow
     }
 
     console.log(`   ✅ Found ${highConfidenceResults.length} high-confidence chunks`);
+
+    // FOR COMPARISON QUERIES: Filter by document type and limit to 2 documents
+    if (intent.intent === 'compare' && intent.entities?.documentType) {
+      console.log(`🔍 COMPARISON QUERY - Filtering by document type: ${intent.entities.documentType}`);
+
+      // Map document type to file extensions
+      const extensionMap: Record<string, string[]> = {
+        'presentation': ['.pptx', '.ppt'],
+        'spreadsheet': ['.xlsx', '.xls'],
+        'document': ['.docx', '.doc', '.pdf'],
+      };
+
+      const allowedExtensions = extensionMap[intent.entities.documentType] || [];
+
+      // Filter retrieved results by extension
+      const beforeCount = highConfidenceResults.length;
+      highConfidenceResults = highConfidenceResults.filter(result => {
+        const filename = result.document?.filename || result.metadata?.filename || '';
+        return allowedExtensions.some(ext => filename.toLowerCase().endsWith(ext));
+      });
+
+      console.log(`   Filtered from ${beforeCount} to ${highConfidenceResults.length} documents by extension`);
+    }
+
+    // FOR COMPARISON QUERIES: Limit to 2 documents
+    if (intent.intent === 'compare') {
+      // Get unique documents (deduplicate chunks)
+      const uniqueDocs = new Map<string, any>();
+
+      highConfidenceResults.forEach(result => {
+        const docId = result.documentId;
+        if (!uniqueDocs.has(docId)) {
+          uniqueDocs.set(docId, result);
+        }
+      });
+
+      console.log(`   Found ${uniqueDocs.size} unique documents`);
+
+      // If more than 2 documents, take top 2 by similarity
+      if (uniqueDocs.size > 2) {
+        const sortedDocs = Array.from(uniqueDocs.values())
+          .sort((a, b) => b.similarity - a.similarity)  // Sort by similarity descending
+          .slice(0, 2);  // Take top 2
+
+        // Rebuild highConfidenceResults with only top 2 docs
+        const topDocIds = new Set(sortedDocs.map(d => d.documentId));
+        highConfidenceResults = highConfidenceResults.filter(r => topDocIds.has(r.documentId));
+
+        console.log(`   Limited to 2 documents for comparison`);
+      } else if (uniqueDocs.size < 2) {
+        console.warn(`   ⚠️ Only ${uniqueDocs.size} document(s) found for comparison (need at least 2)`);
+      }
+    }
 
     // Extract document names from results
     const documentNames = highConfidenceResults.map(r =>
