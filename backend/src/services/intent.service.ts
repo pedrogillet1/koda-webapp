@@ -13,13 +13,25 @@
  * - capability: User is asking about Koda's features
  */
 
+import { Intent, IntentResult } from '../types/intent.types';
+
 export type QueryIntent = 'list' | 'locate' | 'summarize' | 'compare' | 'extract' | 'navigation' | 'capability' | 'greeting';
 
 export interface IntentDetectionResult {
-  intent: QueryIntent;
+  intent: QueryIntent | Intent;
   confidence: number;
   reasoning: string;
   suggestedAction: string;
+  entities: {
+    documentName?: string;
+    folderName?: string;
+    targetName?: string;
+    searchQuery?: string;
+    cellReference?: string;
+    sheetName?: string;
+    compareTargets?: string[];
+    renamePattern?: string;
+  };
 }
 
 class QueryIntentService {
@@ -46,7 +58,8 @@ class QueryIntentService {
           intent: 'greeting',
           confidence: 0.99,
           reasoning: 'User is greeting or having casual conversation',
-          suggestedAction: 'Respond naturally with a friendly greeting'
+          suggestedAction: 'Respond naturally with a friendly greeting',
+          entities: {}
         };
       }
     }
@@ -71,7 +84,8 @@ class QueryIntentService {
             intent: 'capability',
             confidence: 0.98,
             reasoning: 'Query is asking about KODA system capabilities',
-            suggestedAction: 'Search for KODA documentation in documents'
+            suggestedAction: 'Search for KODA documentation in documents',
+            entities: {}
           };
         }
       }
@@ -123,7 +137,8 @@ class QueryIntentService {
         intent: 'extract',
         confidence: 0.95,
         reasoning: 'Query is asking for files based on document content (semantic search needed)',
-        suggestedAction: 'Use RAG semantic search to find relevant documents'
+        suggestedAction: 'Use RAG semantic search to find relevant documents',
+        entities: {}
       };
     }
 
@@ -147,7 +162,8 @@ class QueryIntentService {
           intent: 'list',
           confidence: 0.95,
           reasoning: 'Query is requesting a list of files, categories, or items',
-          suggestedAction: action
+          suggestedAction: action,
+          entities: {}
         };
       }
     }
@@ -157,8 +173,9 @@ class QueryIntentService {
       { pattern: /where is (?:the |my )?(?:file|document|folder)/i, action: 'Locate file or folder' },
       { pattern: /find (?:the location of|where is) (?:the |my )?(?:file|document)/i, action: 'Find file location' },
       { pattern: /show me (?:where|the location of)/i, action: 'Show file/folder location' },
-      { pattern: /(?:what folder|which category|what location).*(?:is|contains)/i, action: 'Identify storage location' },
+      { pattern: /(?:what folder|which folder|which category|what location).*(?:is|contains|stored)/i, action: 'Identify storage location' },
       { pattern: /locate (?:the |my )?(?:file|document)/i, action: 'Locate document' },
+      { pattern: /in (?:what|which) (?:folder|category)/i, action: 'Find file location' },
     ];
 
     for (const { pattern, action } of locatePatterns) {
@@ -167,7 +184,8 @@ class QueryIntentService {
           intent: 'locate',
           confidence: 0.95,
           reasoning: 'Query is asking to locate or find where a file/document is stored',
-          suggestedAction: action
+          suggestedAction: action,
+          entities: {}
         };
       }
     }
@@ -184,7 +202,8 @@ class QueryIntentService {
           intent: 'navigation',
           confidence: 0.95,
           reasoning: 'Query is asking to navigate to or open a folder/category',
-          suggestedAction: action
+          suggestedAction: action,
+          entities: {}
         };
       }
     }
@@ -204,7 +223,8 @@ class QueryIntentService {
           intent: 'summarize',
           confidence: 0.95,
           reasoning: 'Query is asking for a summary or overview of document(s)',
-          suggestedAction: action
+          suggestedAction: action,
+          entities: {}
         };
       }
     }
@@ -224,7 +244,8 @@ class QueryIntentService {
           intent: 'compare',
           confidence: 0.95,
           reasoning: 'Query is asking to compare information across documents',
-          suggestedAction: action
+          suggestedAction: action,
+          entities: {}
         };
       }
     }
@@ -245,7 +266,8 @@ class QueryIntentService {
           intent: 'extract',
           confidence: 0.90,
           reasoning: 'Query is asking to extract specific data or facts from documents',
-          suggestedAction: action
+          suggestedAction: action,
+          entities: {}
         };
       }
     }
@@ -256,7 +278,8 @@ class QueryIntentService {
       intent: 'extract',
       confidence: 0.75,
       reasoning: 'Query appears to be asking for information from document content',
-      suggestedAction: 'Use RAG to retrieve and extract relevant content'
+      suggestedAction: 'Use RAG to retrieve and extract relevant content',
+      entities: {}
     };
   }
 

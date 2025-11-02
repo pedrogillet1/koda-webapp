@@ -10,15 +10,17 @@ import folderRoutes from './routes/folder.routes';
 import tagRoutes from './routes/tag.routes';
 import userRoutes from './routes/user.routes';
 import chatRoutes from './routes/chat.routes';
+import sessionRoutes from './routes/session.routes';
 import notificationRoutes from './routes/notification.routes';
 import ragRoutes from './routes/rag.routes';
 import securityRoutes from './routes/security.routes';
 import rbacRoutes from './routes/rbac.routes';
-import dataProtectionRoutes from './routes/dataProtection.routes';
-import documentGenerationRoutes from './routes/documentGeneration.routes';
-import documentEditingRoutes from './routes/documentEditing.routes';
-import chatDocumentAnalysisRoutes from './routes/chatDocumentAnalysis.routes';
-import chatDocumentRoutes from './routes/chatDocument.routes';
+// TODO: Temporarily disabled routes with deleted service dependencies
+// import dataProtectionRoutes from './routes/dataProtection.routes';
+// import documentGenerationRoutes from './routes/documentGeneration.routes';
+// import documentEditingRoutes from './routes/documentEditing.routes';
+// import chatDocumentAnalysisRoutes from './routes/chatDocumentAnalysis.routes';
+// import chatDocumentRoutes from './routes/chatDocument.routes';
 import { apiLimiter } from './middleware/rateLimit.middleware';
 import { errorHandler } from './middleware/error.middleware';
 import { auditLog } from './middleware/auditLog.middleware';
@@ -176,20 +178,24 @@ app.get('/health', (req: Request, res: Response) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
-app.use('/api/documents', documentGenerationRoutes); // Advanced: Document generation and comparison
-app.use('/api/documents', documentEditingRoutes); // Advanced: AI-powered document editing
+// TODO: Temporarily disabled routes with deleted service dependencies
+// app.use('/api/documents', documentGenerationRoutes); // Advanced: Document generation and comparison
+// app.use('/api/documents', documentEditingRoutes); // Advanced: AI-powered document editing
 // app.use('/api/documents', documentSearchRoutes); // Entity search routes
 app.use('/api/folders', folderRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/chat', chatRoutes);
-app.use('/api/chat', chatDocumentAnalysisRoutes); // Advanced: Chat-based document analysis (temporary documents)
-app.use('/api/chat-documents', chatDocumentRoutes); // Chat document generation and export (PDF/DOCX/MD)
+app.use('/api/sessions', sessionRoutes); // Session-based multi-document analysis
+// TODO: Temporarily disabled route with deleted service dependencies
+// app.use('/api/chat', chatDocumentAnalysisRoutes); // Advanced: Chat-based document analysis (temporary documents)
+// app.use('/api/chat-documents', chatDocumentRoutes); // Chat document generation and export (PDF/DOCX/MD)
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/rag', ragRoutes);
 app.use('/api/security', securityRoutes); // Security monitoring endpoints
 app.use('/api/rbac', rbacRoutes); // RBAC and access control endpoints
-app.use('/api/data-protection', dataProtectionRoutes); // Data protection and privacy endpoints
+// TODO: Temporarily disabled route with deleted service dependencies
+// app.use('/api/data-protection', dataProtectionRoutes); // Data protection and privacy endpoints
 
 // 404 handler
 app.use((req: Request, res: Response) => {

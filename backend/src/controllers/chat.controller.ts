@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import * as chatService from '../services/chat.service';
+import chatService from '../services/chat.service';
 import { transcribeAudioWithWhisper } from '../services/gemini.service';
 import { emitToUser } from '../services/websocket.service';
 import prisma from '../config/database';
@@ -62,7 +62,7 @@ export const sendMessage = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     let { conversationId } = req.params;
-    const { content, attachedDocumentId } = req.body;
+    const { content, attachedDocumentId, answerLength } = req.body; // Phase 4D: Added answerLength
 
     if (!content || typeof content !== 'string') {
       res.status(400).json({ error: 'Message content is required' });
@@ -84,6 +84,7 @@ export const sendMessage = async (req: Request, res: Response) => {
       conversationId,
       content,
       attachedDocumentId,
+      answerLength, // Phase 4D: Pass answer length to chat service
     });
 
     // Include conversation ID in response for frontend to track
@@ -332,58 +333,10 @@ export const sendAdaptiveMessage = async (req: Request, res: Response) => {
       console.log('🆕 Created new conversation for adaptive message:', conversationId);
     }
 
-    // Generate adaptive response
-    const adaptiveResult = await adaptiveAIService.generateResponse(content, userId);
-
-    // Save user message
-    const userMessage = await prisma.message.create({
-      data: {
-        conversationId,
-        role: 'user',
-        content,
-      },
-    });
-
-    // Save assistant message
-    const assistantMessage = await prisma.message.create({
-      data: {
-        conversationId,
-        role: 'assistant',
-        content: adaptiveResult.answer,
-        metadata: JSON.stringify({
-          queryType: adaptiveResult.type,
-          confidence: adaptiveResult.confidence,
-          responseTime: adaptiveResult.responseTime,
-        }),
-      },
-    });
-
-    // Update conversation title if it's "New Chat"
-    const conversation = await chatService.getConversation(conversationId, userId);
-    if (conversation.title === 'New Chat' && conversation.messages.length <= 2) {
-      const { generateConversationTitle } = await import('../services/gemini.service');
-      const newTitle = await generateConversationTitle(content, adaptiveResult.answer);
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: { title: newTitle, updatedAt: new Date() },
-      });
-    } else {
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: { updatedAt: new Date() },
-      });
-    }
-
-    console.timeEnd('⚡ Adaptive Response Time');
-
-    res.json({
-      userMessage,
-      assistantMessage,
-      conversationId,
-      queryType: adaptiveResult.type,
-      confidence: adaptiveResult.confidence,
-      followUp: adaptiveResult.followUp,
-      responseTime: adaptiveResult.responseTime,
+    // TODO: Adaptive AI service removed - stub endpoint
+    res.status(501).json({
+      error: 'Adaptive messaging not implemented',
+      message: 'This feature is currently disabled. Please use the standard chat endpoints.'
     });
   } catch (error: any) {
     console.error('❌ Error in adaptive message:', error);
@@ -427,73 +380,12 @@ export const sendAdaptiveMessageStreaming = async (req: Request, res: Response) 
     // Send initial connection confirmation
     res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
 
-    // Save user message
-    const userMessage = await prisma.message.create({
-      data: {
-        conversationId,
-        role: 'user',
-        content,
-      },
-    });
-
-    // Generate hybrid streaming response (combines document + general knowledge)
-    const adaptiveResult = await hybridAIService.generateStreamingResponse(
-      content,
-      userId,
-      (chunk: string) => {
-        // Stream each chunk to client
-        res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
-      },
-      { attachedDocumentId } // Pass attached document ID
-    );
-
-    // Save assistant message
-    const assistantMessage = await prisma.message.create({
-      data: {
-        conversationId,
-        role: 'assistant',
-        content: adaptiveResult.answer,
-        metadata: JSON.stringify({
-          intent: adaptiveResult.intent.intent,
-          intentConfidence: adaptiveResult.intent.confidence,
-          intentReasoning: adaptiveResult.intent.reasoning,
-          responseTime: adaptiveResult.responseTime,
-          sourcesCount: adaptiveResult.sources?.length || 0,
-        }),
-      },
-    });
-
-    // Update conversation title if needed
-    const conversation = await chatService.getConversation(conversationId, userId);
-    if (conversation.title === 'New Chat' && conversation.messages.length <= 2) {
-      const { generateConversationTitle } = await import('../services/gemini.service');
-      const newTitle = await generateConversationTitle(content, adaptiveResult.answer);
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: { title: newTitle, updatedAt: new Date() },
-      });
-    } else {
-      await prisma.conversation.update({
-        where: { id: conversationId },
-        data: { updatedAt: new Date() },
-      });
-    }
-
-    // Send completion signal with metadata
-    res.write(
-      `data: ${JSON.stringify({
-        type: 'done',
-        messageId: userMessage.id,
-        assistantMessageId: assistantMessage.id,
-        conversationId,
-        intent: adaptiveResult.intent.intent,
-        intentConfidence: adaptiveResult.intent.confidence,
-        intentReasoning: adaptiveResult.intent.reasoning,
-        responseTime: adaptiveResult.responseTime,
-        sourcesCount: adaptiveResult.sources?.length || 0,
-        documents: adaptiveResult.documents || [], // Include document metadata for frontend display
-      })}\n\n`
-    );
+    // TODO: Hybrid AI service removed - stub endpoint
+    res.write(`data: ${JSON.stringify({
+      type: 'error',
+      error: 'Adaptive streaming not implemented',
+      message: 'This feature is currently disabled. Please use the standard SSE streaming endpoint.'
+    })}\n\n`);
 
     res.end();
     console.timeEnd('⚡ Adaptive Streaming Response Time');

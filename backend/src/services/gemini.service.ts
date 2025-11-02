@@ -930,30 +930,13 @@ export const sendMessageToGemini = async (
       systemPrompt += createLanguageInstruction(detectedLanguage);
     }
 
-    // Use optimized context manager to maximize token usage
-    const optimizedContext = contextManager.buildOptimizedContext({
-      systemPrompt,
-      documentContext: documentContext || '',
-      conversationHistory,
-      maxContextTokens: 128000, // gpt-4o-mini max context
-      maxOutputTokens: 16000, // gpt-4o-mini max output
-    });
-
-    // Log token usage for monitoring
-    console.log('📊 Token optimization:', {
-      systemPrompt: optimizedContext.tokenUsage.systemPrompt,
-      documentContext: optimizedContext.tokenUsage.documentContext,
-      conversationHistory: optimizedContext.tokenUsage.conversationHistory,
-      total: optimizedContext.tokenUsage.total,
-      utilization: `${optimizedContext.tokenUsage.utilizationPercentage}%`,
-    });
-
-    // Add current user message to optimized messages
+    // Build messages array with system prompt, document context, conversation history
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      ...optimizedContext.messages.map((msg) => ({
-        role: msg.role as 'system' | 'user' | 'assistant',
-        content: msg.content,
-      })),
+      {
+        role: 'system' as const,
+        content: systemPrompt + (documentContext ? `\n\n**DOCUMENT CONTEXT:**\n${documentContext}` : ''),
+      },
+      ...conversationHistory,
       {
         role: 'user' as const,
         content: message,
