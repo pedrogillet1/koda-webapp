@@ -10,6 +10,7 @@ export enum QueryIntent {
   SUMMARY = 'summary',     // User wants content summary
   FACTUAL = 'factual',     // User wants specific fact
   COMPARISON = 'comparison', // User wants comparison
+  FILE_TYPES = 'file_types', // User wants to know file types/formats
 }
 
 export class QueryIntentDetectorService {
@@ -19,6 +20,22 @@ export class QueryIntentDetectorService {
    */
   detectIntent(query: string): QueryIntent {
     const queryLower = query.toLowerCase().trim();
+
+    // File types patterns - user wants to know file formats/types (CHECK FIRST!)
+    const fileTypePatterns = [
+      /what (types?|kinds?|formats?) of (files?|documents?)/i,
+      /what file (types?|formats?|extensions?)/i,
+      /list (all )?(file )?types/i,
+      /show me (all )?(file )?types/i,
+      /what (files?|documents?) types/i,
+    ];
+
+    for (const pattern of fileTypePatterns) {
+      if (pattern.test(query)) {
+        console.log(`   📁 Intent: FILE_TYPES (pattern matched: ${pattern})`);
+        return QueryIntent.FILE_TYPES;
+      }
+    }
 
     // List patterns - user wants filenames
     const listPatterns = [

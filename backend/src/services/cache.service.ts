@@ -50,7 +50,7 @@ class CacheService {
   /**
    * Generate cache key from multiple arguments
    */
-  private generateKey(prefix: string, ...args: any[]): string {
+  generateKey(prefix: string, ...args: any[]): string {
     const dataString = args.map(arg =>
       typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
     ).join('|');
@@ -297,6 +297,37 @@ class CacheService {
         memory: 'Unknown',
         hitRate: 0
       };
+    }
+  }
+
+  /**
+   * Generic get method for any cache key
+   */
+  async get<T>(key: string, options?: { ttl?: number; useMemory?: boolean; useRedis?: boolean }): Promise<T | null> {
+    try {
+      const cached = await this.redis.get(key);
+      if (cached) {
+        console.log(`✅ Cache hit for key: ${key.substring(0, 50)}...`);
+        return JSON.parse(cached);
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting cached value:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Generic set method for any cache key
+   */
+  async set<T>(key: string, value: T, options?: { ttl?: number; useMemory?: boolean; useRedis?: boolean }): Promise<void> {
+    try {
+      const ttl = options?.ttl || this.DEFAULT_TTL;
+      await this.redis.setex(key, ttl, JSON.stringify(value));
+      console.log(`💾 Cached value for key: ${key.substring(0, 50)}... (TTL: ${ttl}s)`);
+    } catch (error) {
+      console.error('Error caching value:', error);
+      // Don't throw - caching failures should not break the app
     }
   }
 

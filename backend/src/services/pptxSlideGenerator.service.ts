@@ -55,7 +55,8 @@ export class PPTXSlideGeneratorService {
   async checkLibreOffice(): Promise<{ installed: boolean; version?: string; path?: string; message: string }> {
     try {
       // Try to find LibreOffice
-      const { stdout } = await execAsync(`"${this.libreOfficePath}" --version`, {
+      // IMPORTANT: Use --headless to prevent LibreOffice window from appearing
+      const { stdout } = await execAsync(`"${this.libreOfficePath}" --headless --version`, {
         timeout: 10000
       });
 
@@ -75,7 +76,8 @@ export class PPTXSlideGeneratorService {
         'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe'
       ]) {
         try {
-          const { stdout } = await execAsync(`"${altPath}" --version`, { timeout: 10000 });
+          // IMPORTANT: Use --headless to prevent LibreOffice window from appearing
+          const { stdout } = await execAsync(`"${altPath}" --headless --version`, { timeout: 10000 });
           this.libreOfficePath = altPath;
           console.log(`✅ [PPTX Slide Generator] LibreOffice found at: ${altPath}`);
           return {

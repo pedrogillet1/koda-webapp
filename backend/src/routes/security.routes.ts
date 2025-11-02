@@ -14,7 +14,8 @@ import bruteForceProtection from '../services/bruteForceProtection.service';
 import { getIPFilterStats, blacklistIP, removeFromBlacklist, whitelistIP } from '../middleware/ipFilter.middleware';
 import auditLogService from '../services/auditLog.service';
 import securityDashboardService from '../services/securityDashboard.service';
-import dataRetentionService from '../services/dataRetention.service';
+// TODO: Data retention service removed
+// import dataRetentionService from '../services/dataRetention.service';
 
 const router = Router();
 
@@ -615,7 +616,11 @@ router.get('/data-retention/stats', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const stats = await dataRetentionService.getRetentionStats();
+    // TODO: Data retention service removed - stub response
+    const stats = {
+      message: 'Data retention service currently disabled',
+      policies: []
+    };
 
     return res.json(stats);
   } catch (error) {
@@ -640,17 +645,14 @@ router.post('/data-retention/cleanup', async (req: Request, res: Response) => {
 
     const { dataType } = req.body;
 
-    let results;
-    if (dataType) {
-      // Cleanup specific data type
-      results = [await dataRetentionService.cleanupDataType(dataType)];
-    } else {
-      // Cleanup all data types
-      results = await dataRetentionService.runAllCleanupTasks();
-    }
+    // TODO: Data retention service removed - stub response
+    const results = [{
+      message: 'Data retention service currently disabled',
+      cleaned: 0
+    }];
 
     return res.json({
-      message: 'Data retention cleanup completed',
+      message: 'Data retention cleanup currently disabled',
       results,
     });
   } catch (error) {
@@ -673,7 +675,8 @@ router.get('/data-retention/policies', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const policies = dataRetentionService.getAllPolicies();
+    // TODO: Data retention service removed - stub response
+    const policies = [];
 
     return res.json({ policies });
   } catch (error) {

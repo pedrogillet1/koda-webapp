@@ -6,11 +6,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
-import { SpeechClient } from '@google-cloud/speech';
-import { config } from '../config/env';
-
-// Use require for pdf-parse to avoid ESM/CommonJS issues
-const pdfParse = require('pdf-parse').pdf;
+import { PDFParse } from 'pdf-parse';
 
 export interface ExtractionResult {
   text: string;
@@ -133,7 +129,8 @@ const postProcessOCRText = (text: string): string => {
  */
 export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResult> => {
   try {
-    const data: any = await pdfParse(buffer);
+    const parser = new PDFParse({ data: buffer });
+    const data = await parser.getText();
 
     // If no text found, might be a scanned PDF - use OCR
     if (!data.text || data.text.trim().length === 0) {
@@ -146,7 +143,7 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
       return {
         text: cleanedText,
         confidence: ocrResult.confidence,
-        pageCount: data.numpages,
+        pageCount: data.total,
         wordCount: cleanedText.split(/\s+/).filter((w: any) => w.length > 0).length,
         language: ocrResult.language,
       };
@@ -157,7 +154,7 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
 
     return {
       text: cleanedText,
-      pageCount: data.numpages,
+      pageCount: data.total,
       wordCount: cleanedText.split(/\s+/).filter((w: any) => w.length > 0).length,
       confidence: 1.0, // Native text extraction has 100% confidence
     };
@@ -723,173 +720,6 @@ export const extractTextAdvanced = async (
 };
 
 /**
- * Extract text from video/audio files using Google Speech-to-Text
- * @param buffer - Video/audio file buffer
- * @param mimeType - MIME type of the media file
- * @returns Transcribed text and metadata
- */
-export const extractTextFromVideoAudio = async (
-  buffer: Buffer,
-  mimeType: string
-): Promise<ExtractionResult> => {
-  try {
-    console.log(`🎬 Transcribing ${mimeType} file (${buffer.length} bytes)...`);
-
-    // Initialize Speech-to-Text client
-    const speechClient = new SpeechClient();
-
-    // Determine audio encoding based on MIME type
-    let encoding: any = 'LINEAR16'; // Default
-    let sampleRateHertz = 16000;
-
-    if (mimeType === 'audio/mp3' || mimeType === 'audio/mpeg') {
-      encoding = 'MP3';
-      sampleRateHertz = 44100;
-    } else if (mimeType === 'video/mp4' || mimeType === 'video/quicktime') {
-      // For videos, we'll extract audio as LINEAR16
-      encoding = 'LINEAR16';
-      sampleRateHertz = 16000;
-    }
-
-    // Save buffer to temporary file (required for long audio recognition)
-    const tempDir = os.tmpdir();
-    const tempFilename = `audio-${crypto.randomBytes(16).toString('hex')}`;
-    const tempPath = path.join(tempDir, tempFilename);
-
-    try {
-      fs.writeFileSync(tempPath, buffer);
-      console.log(`   💾 Saved to temp file: ${tempPath}`);
-
-      // For files larger than 10MB or longer than 1 minute, use long-running recognition
-      const useLongRunning = buffer.length > 10 * 1024 * 1024;
-
-      if (useLongRunning) {
-        console.log('   🕐 Using long-running recognition (large file)...');
-
-        // Upload to GCS and use asynchronous recognition
-        // For now, we'll use synchronous with chunking as a fallback
-        const request = {
-          audio: {
-            content: buffer.toString('base64'),
-          },
-          config: {
-            encoding,
-            sampleRateHertz,
-            languageCode: 'en-US',
-            alternativeLanguageCodes: ['pt-BR', 'es-ES', 'fr-FR', 'de-DE'],
-            enableAutomaticPunctuation: true,
-            enableWordTimeOffsets: false,
-            model: 'default',
-          },
-        };
-
-        const [operation] = await speechClient.longRunningRecognize(request);
-        console.log('   ⏳ Waiting for transcription to complete...');
-        const [response] = await operation.promise();
-
-        // Combine all transcription results
-        let fullTranscript = '';
-        let totalConfidence = 0;
-        let resultCount = 0;
-
-        if (response.results) {
-          for (const result of response.results) {
-            if (result.alternatives && result.alternatives[0]) {
-              fullTranscript += result.alternatives[0].transcript + ' ';
-              totalConfidence += result.alternatives[0].confidence || 0;
-              resultCount++;
-            }
-          }
-        }
-
-        const avgConfidence = resultCount > 0 ? (totalConfidence / resultCount) * 100 : 0;
-
-        console.log(`✅ Transcription complete: ${fullTranscript.length} characters (confidence: ${avgConfidence.toFixed(1)}%)`);
-
-        return {
-          text: fullTranscript.trim(),
-          confidence: avgConfidence,
-          wordCount: fullTranscript.split(/\s+/).filter(w => w.length > 0).length,
-          language: 'en-US',
-        };
-
-      } else {
-        console.log('   ⚡ Using synchronous recognition (small file)...');
-
-        const request = {
-          audio: {
-            content: buffer.toString('base64'),
-          },
-          config: {
-            encoding,
-            sampleRateHertz,
-            languageCode: 'en-US',
-            alternativeLanguageCodes: ['pt-BR', 'es-ES', 'fr-FR', 'de-DE'],
-            enableAutomaticPunctuation: true,
-            enableWordTimeOffsets: false,
-            model: 'default',
-          },
-        };
-
-        const [response] = await speechClient.recognize(request);
-
-        // Combine all transcription results
-        let fullTranscript = '';
-        let totalConfidence = 0;
-        let resultCount = 0;
-
-        if (response.results) {
-          for (const result of response.results) {
-            if (result.alternatives && result.alternatives[0]) {
-              fullTranscript += result.alternatives[0].transcript + ' ';
-              totalConfidence += result.alternatives[0].confidence || 0;
-              resultCount++;
-            }
-          }
-        }
-
-        const avgConfidence = resultCount > 0 ? (totalConfidence / resultCount) * 100 : 0;
-
-        console.log(`✅ Transcription complete: ${fullTranscript.length} characters (confidence: ${avgConfidence.toFixed(1)}%)`);
-
-        return {
-          text: fullTranscript.trim(),
-          confidence: avgConfidence,
-          wordCount: fullTranscript.split(/\s+/).filter(w => w.length > 0).length,
-          language: 'en-US',
-        };
-      }
-
-    } finally {
-      // Clean up temporary file
-      try {
-        if (fs.existsSync(tempPath)) {
-          fs.unlinkSync(tempPath);
-          console.log(`   🗑️ Cleaned up temp file`);
-        }
-      } catch (cleanupError) {
-        console.warn('   ⚠️ Failed to clean up temp file:', cleanupError);
-      }
-    }
-
-  } catch (error: any) {
-    console.error('❌ Error transcribing video/audio:', error);
-
-    // Check for API key issues
-    if (error.message?.includes('API key') || error.message?.includes('authentication')) {
-      throw new Error('Speech-to-Text API authentication failed. Please configure GOOGLE_APPLICATION_CREDENTIALS.');
-    }
-
-    // Check for quota issues
-    if (error.message?.includes('quota') || error.message?.includes('rate limit')) {
-      throw new Error('Speech-to-Text API quota exceeded. Please try again later.');
-    }
-
-    throw new Error(`Failed to transcribe video/audio: ${error.message || 'Unknown error'}`);
-  }
-};
-
-/**
  * Main text extraction function - automatically detects document type
  * @param buffer - File buffer
  * @param mimeType - MIME type of the document
@@ -947,12 +777,6 @@ export const extractText = async (
       case 'image/tiff':
       case 'image/bmp':
         return await extractTextFromImage(buffer);
-
-      case 'video/quicktime':
-      case 'video/mp4':
-      case 'audio/mpeg':
-      case 'audio/mp3':
-        return await extractTextFromVideoAudio(buffer, mimeType);
 
       default:
         throw new Error(`Unsupported document type: ${mimeType}`);

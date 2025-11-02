@@ -14,7 +14,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import prisma from '../config/database';
-import intentService from './intent.service';
+import intentService, { PsychologicalGoal, PsychologicalGoalResult } from './intent.service';
 import navigationService from './navigation.service';
 import { detectLanguage, createLanguageInstruction } from './languageDetection.service';
 import cacheService from './cache.service';
@@ -25,6 +25,7 @@ import responseFormatterService from './responseFormatter.service';
 import queryClassifierService, { ResponseStyle } from './queryClassifier.service';
 import queryIntentDetectorService, { QueryIntent } from './queryIntentDetector.service';
 import formatTypeClassifierService, { ResponseFormatType } from './formatTypeClassifier.service';
+import metadataService from './metadata.service';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -104,15 +105,93 @@ Remember: Your response = bullets only. No intro. No summary. No explanation. Ju
 
 The user wants a SPECIFIC FACT or DATA POINT, not a summary.
 
+FOR EXCEL/SPREADSHEET DATA:
+- Look for cell coordinates (e.g., "B5: $1,200,000" or "Cell A10: Revenue")
+- Look for table data (e.g., "Month: January, Revenue: $450,000")
+- Pay attention to sheet names and row numbers
+- If multiple values exist, cite the specific cell/sheet location
+- Include formulas if they provide context
+
 ${formatPrompt}`;
     } else if (queryIntent === QueryIntent.COMPARISON) {
-      // For comparison queries, use TABLE format or format-specific prompt
-      const formatPrompt = responseFormatterService.buildFormatPrompt(formatType);
+      // For comparison queries, use enhanced table format with explicit 2-document limit
       return `CRITICAL INSTRUCTIONS FOR COMPARISON QUERIES:
 
-The user wants to COMPARE two or more items.
+The user wants to COMPARE exactly TWO documents.
 
-${formatPrompt}`;
+YOUR RESPONSE MUST USE THIS EXACT STRUCTURE:
+
+Documents compared:
+• [Document 1 name with extension]
+• [Document 2 name with extension]
+
+Comparison summary:
+
+Aspect          Document 1              Document 2
+────────────────────────────────────────────────────────
+Language        [value]                 [value]
+Content         [value]                 [value]
+Purpose         [value]                 [value]
+Audience        [value]                 [value]
+[Other aspect]  [value]                 [value]
+
+✅ Core finding: [One clear sentence stating the main difference or similarity]
+
+Next actions:
+[Specific suggestion based on comparison]
+
+CRITICAL RULES:
+• List EXACTLY the 2 documents being compared (no others)
+• Use table format with aligned columns (use spaces for alignment)
+• Maximum 5-7 comparison rows (pick most important aspects)
+• If documents are TRANSLATIONS of each other, state that clearly
+• If documents are IDENTICAL, say so explicitly
+• If documents have SAME CONTENT but different formats, mention it
+• ONE sentence closing with ✅
+• NO long paragraphs - only table and concise summary
+• NO emoji except the single ✅ in core finding
+
+TRANSLATION DETECTION:
+If documents have same name but different language extensions (e.g., "Koda Presentation English" vs "Koda Presentation Port"), they are likely TRANSLATIONS.
+
+EXAMPLE 1 (Translations):
+Documents compared:
+• Koda Presentation English (1).pptx
+• Koda Presentation Port Final.pptx
+
+Comparison summary:
+
+Aspect          English Version         Portuguese Version
+────────────────────────────────────────────────────────
+Language        English                 Portuguese (Brazilian)
+Content         Original presentation   Direct translation
+Slide Count     15 slides               15 slides
+Audience        International market    Brazilian market
+
+✅ Core finding: These are the SAME presentation in different languages - the Portuguese version is a direct translation with identical content and structure.
+
+Next actions:
+Would you like me to extract specific slides from either presentation or compare these to the Koda Business Plan?
+
+EXAMPLE 2 (Different Documents):
+Documents compared:
+• Koda Business Plan V12 (1).pdf
+• Koda_AI_Testing_Suite_30_Questions.docx
+
+Comparison summary:
+
+Aspect          Business Plan           Testing Suite
+────────────────────────────────────────────────────────
+Purpose         Strategy & financials   Quality assurance tests
+Content Type    Revenue projections     Test scenarios & QA
+Primary Focus   Market & growth         Product validation
+Audience        Investors & executives  Developers & QA team
+Detail Level    High-level overview     Technical specifics
+
+✅ Core finding: The Business Plan defines WHAT Koda will achieve (strategy, revenue, market), while the Testing Suite defines HOW to verify it works (functional tests, AI accuracy).
+
+Next actions:
+Would you like me to extract revenue projections from the Business Plan or review specific test scenarios from the Testing Suite?`;
     } else {
       // SUMMARY - use format-specific prompt (FEATURE_LIST, STRUCTURED_LIST, etc.)
       const formatPrompt = responseFormatterService.buildFormatPrompt(formatType);
@@ -199,12 +278,24 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     console.log(`   ✅ Not an action - proceeding with query handling`);
 
-    // STEP 2: DETECT QUERY INTENT
-    const intent = intentService.detectIntent(query);
-    console.log(`🎯 Intent: ${intent.intent} (confidence: ${intent.confidence})`);
-    console.log(`💡 Reasoning: ${intent.reasoning}`);
+    // STEP 2: DETECT PSYCHOLOGICAL GOAL (NEW)
+    const goalResult = intentService.detectPsychologicalGoal(query);
+    console.log(`🎯 Psychological Goal: ${goalResult.goal} (confidence: ${(goalResult.confidence * 100).toFixed(1)}%)`);
+    console.log(`💡 Reasoning: ${goalResult.reasoning}`);
 
-    // STEP 2: ROUTE BASED ON INTENT
+    // STEP 2.5: CHECK IF METADATA QUERY (NEW - Prevents hallucination)
+    // Metadata queries should use DATABASE, not RAG/Pinecone
+    const metadataQueryResult = intentService.detectMetadataQuery(query);
+    if (metadataQueryResult.isMetadataQuery) {
+      console.log(`📊 METADATA QUERY DETECTED: ${metadataQueryResult.type}`);
+      console.log(`   Extracted value: ${metadataQueryResult.extractedValue || 'N/A'}`);
+      return await this.handleMetadataQuery(userId, query, metadataQueryResult);
+    }
+
+    // DEPRECATED: Old intent detection (kept for backwards compatibility)
+    const intent = intentService.detectIntent(query);
+
+    // STEP 3: ROUTE BASED ON INTENT
     if (intent.intent === 'greeting') {
       return await this.handleGreeting(userId, query);
     } else if (intent.intent === 'navigation' || intent.intent === 'locate') {
@@ -244,6 +335,78 @@ Provide a comprehensive and accurate answer based on the document content follow
       contextId: `greeting_${Date.now()}`,
       intent: 'greeting'
     };
+  }
+
+  /**
+   * Handle METADATA queries (database lookups, not RAG)
+   *
+   * These queries ask about file locations, counts, or folder contents.
+   * We use the database directly instead of RAG to prevent hallucination.
+   *
+   * Examples:
+   * - "where is comprovante1" → Query database for filename
+   * - "how many files do I have" → Count files in database
+   * - "what files are in pedro1 folder" → List folder contents from database
+   */
+  private async handleMetadataQuery(
+    userId: string,
+    query: string,
+    metadataResult: any
+  ): Promise<RAGResponse> {
+    console.log(`📊 METADATA QUERY HANDLER (Type: ${metadataResult.type})`);
+
+    let answer = '';
+    let data: any = null;
+
+    try {
+      switch (metadataResult.type) {
+        case 'file_location':
+          console.log(`   🔍 Finding file: "${metadataResult.extractedValue}"`);
+          data = await metadataService.findFileByName(userId, metadataResult.extractedValue);
+          answer = metadataService.formatMetadataResponse(query, data);
+          break;
+
+        case 'file_count':
+          console.log(`   📊 Counting files`);
+          data = await metadataService.getFileCount(userId);
+          answer = metadataService.formatMetadataResponse(query, data);
+          break;
+
+        case 'folder_contents':
+          console.log(`   📁 Getting folder contents: "${metadataResult.extractedValue}"`);
+          data = await metadataService.getFolderContents(userId, metadataResult.extractedValue);
+          answer = metadataService.formatMetadataResponse(query, data);
+          break;
+
+        case 'list_all_files':
+          console.log(`   📄 Listing all files`);
+          data = await metadataService.getAllFiles(userId, { take: 50 });
+          answer = `You have **${data.length} files** in your document library:\n\n`;
+          answer += data.map((file: any) => `• **${file.filename}**`).join('\n');
+          break;
+
+        default:
+          answer = "I couldn't understand the metadata query. Please try rephrasing.";
+      }
+
+      console.log(`   ✅ Metadata query handled successfully`);
+
+      return {
+        answer,
+        sources: [],
+        contextId: `metadata_${metadataResult.type}_${Date.now()}`,
+        intent: metadataResult.type,
+        confidence: metadataResult.confidence,
+      };
+    } catch (error) {
+      console.error(`❌ Error handling metadata query:`, error);
+      return {
+        answer: 'Sorry, I encountered an error while looking up that information. Please try again.',
+        sources: [],
+        contextId: `metadata_error_${Date.now()}`,
+        intent: metadataResult.type,
+      };
+    }
   }
 
   /**
@@ -468,7 +631,13 @@ Provide a comprehensive and accurate answer based on the document content follow
       return cached;
     }
 
-    // Get intent for prompt selection
+    // NEW: Detect psychological goal for prompt selection
+    const goalResult = intentService.detectPsychologicalGoal(query);
+    console.log(`\n🎯 PSYCHOLOGICAL GOAL DETECTION...`);
+    console.log(`   Goal: ${goalResult.goal} (confidence: ${(goalResult.confidence * 100).toFixed(1)}%)`);
+    console.log(`   Reasoning: ${goalResult.reasoning}`);
+
+    // DEPRECATED: Old intent detection (kept for backwards compatibility)
     const intent = intentService.detectIntent(query);
 
     // QUERY CLASSIFIER: Detect query type and appropriate response style
@@ -518,14 +687,78 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     // STEP 1: DETECT QUERY INTENT (Simple approach)
     const queryIntent = queryIntentDetectorService.detectIntent(query);
-    const isMetadataQuery = queryIntentDetectorService.isMetadataQuery(query);
+
+    // STEP 1.1: CHECK FOR METADATA QUERY (NEW - Uses database instead of RAG)
+    const metadataQueryResult = intentService.detectMetadataQuery(query);
+    const isMetadataQuery = metadataQueryResult.isMetadataQuery;
     console.log(`   🎯 Query Intent: ${queryIntent}`);
     console.log(`   📋 Is Metadata Query: ${isMetadataQuery}`);
+
+    // If metadata query detected, handle it with database lookup (NOT RAG)
+    if (isMetadataQuery) {
+      console.log(`📊 METADATA QUERY DETECTED: ${metadataQueryResult.type}`);
+      console.log(`   Extracted value: ${metadataQueryResult.extractedValue || 'N/A'}`);
+      return await this.handleMetadataQuery(userId, query, metadataQueryResult);
+    }
 
     // STEP 1.5: DETECT RESPONSE FORMAT TYPE (ChatGPT Format Analysis)
     const formatClassification = formatTypeClassifierService.classify(query);
     console.log(`   📝 Format Type: ${formatClassification.formatType}`);
     console.log(`   💭 Reason: ${formatClassification.reason}`);
+
+    // FOR FILE TYPES QUERIES: Query database directly for file types (BEFORE Pinecone search)
+    if (queryIntent === QueryIntent.FILE_TYPES) {
+      console.log(`📁 FILE TYPES QUERY DETECTED - Querying database for file extensions`);
+
+      // Query all user documents directly from database
+      const documents = await prisma.document.findMany({
+        where: { userId, status: 'completed' },
+        select: { filename: true }
+      });
+
+      console.log(`   Found ${documents.length} total documents`);
+
+      // Group by file type
+      const typeGroups: Record<string, string[]> = {};
+
+      documents.forEach(doc => {
+        const ext = doc.filename.split('.').pop()?.toUpperCase() || 'UNKNOWN';
+        const fileType = this.mapExtensionToType(ext);
+
+        if (!typeGroups[fileType]) {
+          typeGroups[fileType] = [];
+        }
+
+        // Store filename without extension
+        const nameWithoutExt = doc.filename.replace(/\.[^/.]+$/, '');
+        typeGroups[fileType].push(nameWithoutExt);
+      });
+
+      // Build response
+      let response = 'File types detected:\n\n';
+
+      const sortedTypes = Object.entries(typeGroups).sort((a, b) => b[1].length - a[1].length);
+
+      sortedTypes.forEach(([type, files]) => {
+        const fileList = files.slice(0, 3).join(', ');
+        const moreCount = files.length > 3 ? ` (and ${files.length - 3} more)` : '';
+        response += `${type} (${files.length}): ${fileList}${moreCount}\n`;
+      });
+
+      response += '\nNext actions:\nYou can filter these by format, preview them, or group by content type (financial, legal, identity, etc.).';
+
+      const responseTime = Date.now() - startTime;
+      console.log(`✅ FILE TYPES FORMATTED (${responseTime}ms)`);
+      console.log(`   Types: ${Object.keys(typeGroups).length}`);
+
+      return {
+        answer: response,
+        sources: [],
+        contextId: `file_types_${Date.now()}`,
+        intent: intent.intent,
+        confidence: 1.0
+      };
+    }
 
     // STEP 2: SIMPLE RETRIEVAL (Standard Pinecone search)
     console.log(`\n🔍 RETRIEVING DOCUMENTS...`);
@@ -652,15 +885,38 @@ Provide a comprehensive and accurate answer based on the document content follow
       const uniqueNames = [...new Set(documentNames)];
       console.log(`   Found ${uniqueNames.length} unique documents (${documentNames.length} total chunks)`);
 
-      // Format as bullet list with double line breaks for proper markdown rendering
-      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n\n');
+      // Generate contextual opening statement based on query
+      const queryLower = query.toLowerCase();
+      let openingStatement = '';
+      if (queryLower.includes('related to') || queryLower.includes('about')) {
+        const topic = query.match(/(?:related to|about)\s+(.+?)(?:\?|$)/i)?.[1] || 'this topic';
+        openingStatement = `Documents containing information about "${topic.trim()}":`;
+      } else if (queryLower.includes('portuguese') || queryLower.includes('language')) {
+        openingStatement = `Detected Portuguese-language documents:`;
+      } else {
+        openingStatement = `Found ${uniqueNames.length} relevant document${uniqueNames.length > 1 ? 's' : ''}:`;
+      }
+
+      // Format as bullet list with single line breaks
+      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n');
+
+      // Generate contextual "Next actions" suggestion
+      let nextActions = 'Next actions:\nWould you like me to summarize the content across these documents or focus on a specific one?';
+      if (queryLower.includes('koda')) {
+        nextActions = 'Next actions:\nWould you like me to summarize Koda\'s product vision across these documents or highlight key differences between them?';
+      } else if (queryLower.includes('portuguese')) {
+        nextActions = 'Next actions:\nTranslate or summarize these documents in English if needed.';
+      }
+
+      // Build complete response with opening, list, and next actions
+      const formattedResponse = `${openingStatement}\n${bulletList}\n\n${nextActions}`;
 
       const responseTime = Date.now() - startTime;
       console.log(`✅ LIST FORMATTED (${responseTime}ms)`);
       console.log(`   Documents: ${uniqueNames.length}`);
 
       const response: RAGResponse = {
-        answer: bulletList,
+        answer: formattedResponse,
         sources: finalSources,
         contextId: `rag_list_${Date.now()}`,
         intent: intent.intent,
@@ -686,20 +942,14 @@ Provide a comprehensive and accurate answer based on the document content follow
       })
       .join('\n\n---\n\n');
 
-    // Phase 3: Use system prompts service with answer length control + Query Intent
-    console.log(`🤖 GENERATING ANSWER...`);
-    console.log(`   Intent: ${intent.intent}`);
-    console.log(`   Query Intent: ${queryIntent}`);
+    // NEW: Use psychological goal-based adaptive prompt
+    console.log(`🤖 GENERATING ANSWER (ADAPTIVE PROMPT SYSTEM)...`);
+    console.log(`   Psychological Goal: ${goalResult.goal}`);
     console.log(`   Answer Length: ${effectiveAnswerLength} (Query Type: ${classification.type})`);
 
-    // Build intent-specific and format-specific system prompt
-    const intentSystemPrompt = this.buildIntentSystemPrompt(queryIntent, isMetadataQuery, formatClassification.formatType);
-
-    const promptConfig = systemPromptsService.getPromptConfig(intent.intent, effectiveAnswerLength);
-    let fullPrompt = systemPromptsService.buildPrompt(intent.intent, query, context, effectiveAnswerLength);
-
-    // Prepend intent-specific instructions to the prompt
-    fullPrompt = `${intentSystemPrompt}\n\n${fullPrompt}`;
+    // Build psychological goal-based system prompt (NEW ARCHITECTURE)
+    const promptConfig = systemPromptsService.getPromptConfigForGoal(goalResult.goal, effectiveAnswerLength);
+    const fullPrompt = systemPromptsService.buildPromptForGoal(goalResult.goal, query, context, effectiveAnswerLength);
 
     // Get query-specific temperature and max tokens from classifier
     const classifierMaxTokens = queryClassifierService.getMaxTokens(classification.style);
@@ -718,6 +968,18 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     const result = await model.generateContent(fullPrompt);
     const rawAnswer = result.response.text();
+
+    // Get finish reason for truncation detection
+    const finishReason = result.response.candidates?.[0]?.finishReason;
+
+    // COMPLETION DETECTION: Check if response was truncated
+    const isTruncated = this.detectTruncation(rawAnswer, finishReason);
+    if (isTruncated.truncated) {
+      console.warn(`⚠️ TRUNCATED RESPONSE DETECTED`);
+      console.warn(`   Reason: ${isTruncated.reason}`);
+      console.warn(`   Last 100 chars: "${rawAnswer.slice(-100)}"`);
+      console.warn(`   Suggestion: Increase maxOutputTokens or use shorter answer length`);
+    }
 
     const responseTime = Date.now() - startTime;
 
@@ -1029,14 +1291,91 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     // DETECT QUERY INTENT (Simple approach)
     const queryIntent = queryIntentDetectorService.detectIntent(query);
-    const isMetadataQuery = queryIntentDetectorService.isMetadataQuery(query);
+
+    // CHECK FOR METADATA QUERY (NEW - Uses database instead of RAG)
+    const metadataQueryResult = intentService.detectMetadataQuery(query);
+    const isMetadataQuery = metadataQueryResult.isMetadataQuery;
     console.log(`   🎯 Query Intent: ${queryIntent}`);
     console.log(`   📋 Is Metadata Query: ${isMetadataQuery}`);
+
+    // If metadata query detected, handle it with database lookup (NOT RAG)
+    if (isMetadataQuery) {
+      console.log(`📊 METADATA QUERY DETECTED IN STREAMING: ${metadataQueryResult.type}`);
+      console.log(`   Extracted value: ${metadataQueryResult.extractedValue || 'N/A'}`);
+
+      const metadataResult = await this.handleMetadataQuery(userId, query, metadataQueryResult);
+
+      // Send the result as a streaming chunk
+      if (onChunk) {
+        onChunk(metadataResult.answer);
+      }
+
+      return metadataResult;
+    }
 
     // DETECT RESPONSE FORMAT TYPE (ChatGPT Format Analysis)
     const formatClassification = formatTypeClassifierService.classify(query);
     console.log(`   📝 Format Type: ${formatClassification.formatType}`);
     console.log(`   💭 Reason: ${formatClassification.reason}`);
+
+    // FOR FILE TYPES QUERIES: Query database directly for file types (BEFORE Pinecone search)
+    if (queryIntent === QueryIntent.FILE_TYPES) {
+      console.log(`📁 FILE TYPES QUERY DETECTED - Querying database for file extensions`);
+
+      // Query all user documents directly from database
+      const documents = await prisma.document.findMany({
+        where: { userId, status: 'completed' },
+        select: { filename: true }
+      });
+
+      console.log(`   Found ${documents.length} total documents`);
+
+      // Group by file type
+      const typeGroups: Record<string, string[]> = {};
+
+      documents.forEach(doc => {
+        const ext = doc.filename.split('.').pop()?.toUpperCase() || 'UNKNOWN';
+        const fileType = this.mapExtensionToType(ext);
+
+        if (!typeGroups[fileType]) {
+          typeGroups[fileType] = [];
+        }
+
+        // Store filename without extension
+        const nameWithoutExt = doc.filename.replace(/\.[^/.]+$/, '');
+        typeGroups[fileType].push(nameWithoutExt);
+      });
+
+      // Build response
+      let response = 'File types detected:\n\n';
+
+      const sortedTypes = Object.entries(typeGroups).sort((a, b) => b[1].length - a[1].length);
+
+      sortedTypes.forEach(([type, files]) => {
+        const fileList = files.slice(0, 3).join(', ');
+        const moreCount = files.length > 3 ? ` (and ${files.length - 3} more)` : '';
+        response += `${type} (${files.length}): ${fileList}${moreCount}\n`;
+      });
+
+      response += '\nNext actions:\nYou can filter these by format, preview them, or group by content type (financial, legal, identity, etc.).';
+
+      const responseTime = Date.now() - startTime;
+      console.log(`✅ FILE TYPES FORMATTED (${responseTime}ms)`);
+      console.log(`   Types: ${Object.keys(typeGroups).length}`);
+
+      // Send response as chunk
+      if (onChunk) {
+        onChunk(response);
+      }
+
+      return {
+        answer: response,
+        sources: [],
+        contextId: `file_types_${Date.now()}`,
+        intent: intent.intent,
+        confidence: 1.0
+      };
+    }
 
     // STEP 3: RETRIEVE DOCUMENTS
     console.log(`\n📚 RETRIEVING DOCUMENTS...`);
@@ -1069,7 +1408,7 @@ Provide a comprehensive and accurate answer based on the document content follow
     const effectiveThreshold = queryIntent === QueryIntent.LIST ? 0.35 : CONFIDENCE_THRESHOLD;
     console.log(`   📊 Using confidence threshold: ${effectiveThreshold} (Query Intent: ${queryIntent})`);
 
-    const highConfidenceResults = searchResults.filter(r => r.similarity >= effectiveThreshold);
+    let highConfidenceResults = searchResults.filter(r => r.similarity >= effectiveThreshold);
 
     if (highConfidenceResults.length === 0) {
       console.log(`   ⚠️  No high-confidence results (threshold: ${effectiveThreshold})`);
@@ -1088,6 +1427,59 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     console.log(`   ✅ Found ${highConfidenceResults.length} high-confidence chunks`);
 
+    // FOR COMPARISON QUERIES: Filter by document type and limit to 2 documents
+    if (intent.intent === 'compare' && intent.entities?.documentType) {
+      console.log(`🔍 COMPARISON QUERY - Filtering by document type: ${intent.entities.documentType}`);
+
+      // Map document type to file extensions
+      const extensionMap: Record<string, string[]> = {
+        'presentation': ['.pptx', '.ppt'],
+        'spreadsheet': ['.xlsx', '.xls'],
+        'document': ['.docx', '.doc', '.pdf'],
+      };
+
+      const allowedExtensions = extensionMap[intent.entities.documentType] || [];
+
+      // Filter retrieved results by extension
+      const beforeCount = highConfidenceResults.length;
+      highConfidenceResults = highConfidenceResults.filter(result => {
+        const filename = result.document?.filename || result.metadata?.filename || '';
+        return allowedExtensions.some(ext => filename.toLowerCase().endsWith(ext));
+      });
+
+      console.log(`   Filtered from ${beforeCount} to ${highConfidenceResults.length} documents by extension`);
+    }
+
+    // FOR COMPARISON QUERIES: Limit to 2 documents
+    if (intent.intent === 'compare') {
+      // Get unique documents (deduplicate chunks)
+      const uniqueDocs = new Map<string, any>();
+
+      highConfidenceResults.forEach(result => {
+        const docId = result.documentId;
+        if (!uniqueDocs.has(docId)) {
+          uniqueDocs.set(docId, result);
+        }
+      });
+
+      console.log(`   Found ${uniqueDocs.size} unique documents`);
+
+      // If more than 2 documents, take top 2 by similarity
+      if (uniqueDocs.size > 2) {
+        const sortedDocs = Array.from(uniqueDocs.values())
+          .sort((a, b) => b.similarity - a.similarity)  // Sort by similarity descending
+          .slice(0, 2);  // Take top 2
+
+        // Rebuild highConfidenceResults with only top 2 docs
+        const topDocIds = new Set(sortedDocs.map(d => d.documentId));
+        highConfidenceResults = highConfidenceResults.filter(r => topDocIds.has(r.documentId));
+
+        console.log(`   Limited to 2 documents for comparison`);
+      } else if (uniqueDocs.size < 2) {
+        console.warn(`   ⚠️ Only ${uniqueDocs.size} document(s) found for comparison (need at least 2)`);
+      }
+    }
+
     // Extract document names from results
     const documentNames = highConfidenceResults.map(r =>
       r.document?.filename || r.metadata?.filename || 'Unknown'
@@ -1101,12 +1493,35 @@ Provide a comprehensive and accurate answer based on the document content follow
       const uniqueNames = [...new Set(documentNames)];
       console.log(`   Found ${uniqueNames.length} unique documents (${documentNames.length} total chunks)`);
 
-      // Format as bullet list with double line breaks for proper markdown rendering
-      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n\n');
+      // Generate contextual opening statement based on query
+      const queryLower = query.toLowerCase();
+      let openingStatement = '';
+      if (queryLower.includes('related to') || queryLower.includes('about')) {
+        const topic = query.match(/(?:related to|about)\s+(.+?)(?:\?|$)/i)?.[1] || 'this topic';
+        openingStatement = `Documents containing information about "${topic.trim()}":`;
+      } else if (queryLower.includes('portuguese') || queryLower.includes('language')) {
+        openingStatement = `Detected Portuguese-language documents:`;
+      } else {
+        openingStatement = `Found ${uniqueNames.length} relevant document${uniqueNames.length > 1 ? 's' : ''}:`;
+      }
+
+      // Format as bullet list with single line breaks
+      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n');
+
+      // Generate contextual "Next actions" suggestion
+      let nextActions = 'Next actions:\nWould you like me to summarize the content across these documents or focus on a specific one?';
+      if (queryLower.includes('koda')) {
+        nextActions = 'Next actions:\nWould you like me to summarize Koda\'s product vision across these documents or highlight key differences between them?';
+      } else if (queryLower.includes('portuguese')) {
+        nextActions = 'Next actions:\nTranslate or summarize these documents in English if needed.';
+      }
+
+      // Build complete response with opening, list, and next actions
+      const formattedResponse = `${openingStatement}\n${bulletList}\n\n${nextActions}`;
 
       // Send formatted list directly
       if (onChunk) {
-        onChunk(bulletList);
+        onChunk(formattedResponse);
       }
 
       // Build sources for metadata
@@ -1130,7 +1545,7 @@ Provide a comprehensive and accurate answer based on the document content follow
       console.log(`   Documents: ${uniqueNames.length}`);
 
       return {
-        answer: bulletList,
+        answer: formattedResponse,
         sources: finalSources,
         contextId: `rag_list_${Date.now()}`,
         intent: intent.intent,
@@ -1143,7 +1558,7 @@ Provide a comprehensive and accurate answer based on the document content follow
       .map((result, index) => `[Source ${index + 1}]: ${result.content}`)
       .join('\n\n');
 
-    const finalSources: RAGSource[] = highConfidenceResults.map((result, index) => ({
+    let finalSources: RAGSource[] = highConfidenceResults.map((result, index) => ({
       documentId: result.documentId,
       documentName: result.document?.filename || result.metadata?.filename || 'Unknown',
       chunkIndex: result.chunkIndex,
@@ -1152,6 +1567,21 @@ Provide a comprehensive and accurate answer based on the document content follow
       metadata: result.metadata,
       location: result.metadata?.page || result.metadata?.slideNumber || result.metadata?.cellRef
     }));
+
+    // Deduplicate sources by document (keep highest scoring chunk per document)
+    const seenDocs = new Set<string>();
+    const uniqueSources = finalSources.filter(s => {
+      if (seenDocs.has(s.documentId)) return false;
+      seenDocs.add(s.documentId);
+      return true;
+    });
+
+    // For COMPARISON queries: limit to 2 sources (since comparing 2 documents)
+    // For other queries: limit to 5 sources
+    const sourceLimit = intent.intent === 'compare' ? 2 : 5;
+    finalSources = uniqueSources.slice(0, sourceLimit);
+
+    console.log(`   📋 Sources: ${highConfidenceResults.length} chunks → ${uniqueSources.length} unique docs → ${finalSources.length} final sources`);
 
     // STEP 4: BUILD PROMPT WITH INTENT-SPECIFIC AND FORMAT-SPECIFIC INSTRUCTIONS
     const intentSystemPrompt = this.buildIntentSystemPrompt(queryIntent, isMetadataQuery, formatClassification.formatType);
@@ -1178,30 +1608,58 @@ Provide a comprehensive and accurate answer based on the document content follow
     });
 
     // Use generateContentStream for real-time streaming
-    const streamResult = await model.generateContentStream(fullPrompt);
     let rawAnswer = '';
     let chunkCount = 0;
+    let finishReason: string | undefined;
 
     console.log(`⚡ STREAMING STARTED...`);
 
-    // Stream chunks as they arrive
-    for await (const chunk of streamResult.stream) {
-      const chunkText = chunk.text();
-      if (chunkText) {
-        rawAnswer += chunkText;
-        chunkCount++;
+    try {
+      // Generate stream
+      const result = await model.generateContentStream(fullPrompt);
 
-        // Send raw chunk to client (formatting happens at the end)
-        if (onChunk) {
-          onChunk(chunkText);
+      // Buffer chunks (don't send to client yet - formatting happens after)
+      for await (const chunk of result.stream) {
+        const chunkText = chunk.text();
+        if (chunkText) {
+          rawAnswer += chunkText;
+          chunkCount++;
+          // DON'T send chunk yet - buffer it for formatting
         }
       }
+
+      // Get the final response with finish reason
+      const finalResponse = await result.response;
+      finishReason = finalResponse.candidates?.[0]?.finishReason;
+    } catch (streamError: any) {
+      console.error(`❌ STREAMING ERROR:`, streamError);
+      console.error(`   Error message: ${streamError.message}`);
+      console.error(`   Error stack:`, streamError.stack);
+      throw new Error(`Streaming failed: ${streamError.message}`);
     }
 
-    // Get the final response with finish reason
-    const finalResponse = await streamResult.response;
-    const finishReason = finalResponse.candidates?.[0]?.finishReason;
-    console.log(`   Finish Reason: ${finishReason}`);
+    // CRITICAL: Log finish reason prominently to detect truncation
+    console.log(`\n🏁 GEMINI FINISH REASON: ${finishReason}`);
+    console.log(`   maxOutputTokens: ${Math.min(promptConfig.maxTokens, classifierMaxTokens)}`);
+    console.log(`   Response Length: ${rawAnswer.length} characters`);
+
+    if (finishReason === 'MAX_TOKENS') {
+      console.error(`\n🚨 RESPONSE TRUNCATED DUE TO TOKEN LIMIT 🚨`);
+      console.error(`   The AI response was cut off mid-sentence because it hit the maxOutputTokens limit`);
+      console.error(`   Last 150 chars: "${rawAnswer.slice(-150)}"`);
+      console.error(`   Solution: Increase maxOutputTokens in systemPrompts.service.ts`);
+      console.error(`   Current limit: ${Math.min(promptConfig.maxTokens, classifierMaxTokens)} tokens\n`);
+    }
+
+    // COMPLETION DETECTION: Check if response was truncated
+    const isTruncated = this.detectTruncation(rawAnswer, finishReason);
+    if (isTruncated.truncated && finishReason !== 'MAX_TOKENS') {
+      // Only log if not already logged above
+      console.warn(`⚠️ TRUNCATED RESPONSE DETECTED`);
+      console.warn(`   Reason: ${isTruncated.reason}`);
+      console.warn(`   Last 100 chars: "${rawAnswer.slice(-100)}"`);
+      console.warn(`   Suggestion: Increase maxOutputTokens or use shorter answer length`);
+    }
 
     const responseTime = Date.now() - startTime;
     const avgConfidence = finalSources.reduce((sum, s) => sum + s.similarity, 0) / finalSources.length;
@@ -1213,7 +1671,7 @@ Provide a comprehensive and accurate answer based on the document content follow
     console.log(`   Sources: ${finalSources.length} documents`);
     console.log(`   Avg Confidence: ${(avgConfidence * 100).toFixed(1)}%`);
 
-    // Format the complete response (for database storage and metadata)
+    // Format the complete response (for both client and database)
     const formatterContext = {
       queryLength: query.length,
       documentCount: finalSources.length,
@@ -1237,10 +1695,18 @@ Provide a comprehensive and accurate answer based on the document content follow
       query
     );
 
-    // Use RAW answer for streaming (frontend already shows raw content)
-    // This prevents truncation when loading from database after refresh
+    console.log(`✅ RESPONSE FORMATTED`);
+    console.log(`   Original length: ${rawAnswer.length} characters`);
+    console.log(`   Formatted length: ${formattedAnswer.length} characters`);
+
+    // Send formatted response to client as single chunk
+    if (onChunk) {
+      onChunk(formattedAnswer);
+    }
+
+    // Save formatted answer to database (prevents truncation on refresh)
     const response: RAGResponse = {
-      answer: rawAnswer, // ✅ Save raw answer, not formatted
+      answer: formattedAnswer, // ✅ Save formatted answer
       sources: finalSources,
       contextId: `rag_stream_${Date.now()}`,
       intent: intent.intent,
@@ -1256,6 +1722,94 @@ Provide a comprehensive and accurate answer based on the document content follow
     });
 
     return response;
+  }
+
+  /**
+   * Map file extension to user-friendly type name
+   */
+  private mapExtensionToType(ext: string): string {
+    const typeMap: Record<string, string> = {
+      'PDF': 'PDFs',
+      'DOCX': 'Word Documents',
+      'DOC': 'Word Documents',
+      'XLSX': 'Excel Spreadsheets',
+      'XLS': 'Excel Spreadsheets',
+      'PPTX': 'PowerPoint Presentations',
+      'PPT': 'PowerPoint Presentations',
+      'PNG': 'Images',
+      'JPG': 'Images',
+      'JPEG': 'Images',
+      'GIF': 'Images',
+      'TXT': 'Text Files',
+      'CSV': 'CSV Files',
+    };
+
+    return typeMap[ext] || `${ext} Files`;
+  }
+
+  /**
+   * Detect if a response was truncated mid-sentence
+   * Returns: { truncated: boolean, reason: string }
+   */
+  private detectTruncation(
+    text: string,
+    finishReason?: string
+  ): { truncated: boolean; reason: string } {
+    // Check 1: Finish reason indicates truncation
+    if (finishReason === 'MAX_TOKENS' || finishReason === 'LENGTH') {
+      return {
+        truncated: true,
+        reason: `Gemini finish reason: ${finishReason}`
+      };
+    }
+
+    // Check 2: Text ends with incomplete markdown formatting
+    const incompleteMarkdownPatterns = [
+      /\*\*[^*]+$/,        // Ends with "**Text" (unclosed bold)
+      /\*[^*]+$/,          // Ends with "*Text" (unclosed italic)
+      /\[[^\]]+$/,         // Ends with "[Text" (unclosed link/reference)
+      /`[^`]+$/,           // Ends with "`Text" (unclosed code)
+      /#{1,6}\s+\w+$/,     // Ends with "## Head" (incomplete heading)
+    ];
+
+    for (const pattern of incompleteMarkdownPatterns) {
+      if (pattern.test(text.trim())) {
+        return {
+          truncated: true,
+          reason: 'Incomplete markdown formatting detected'
+        };
+      }
+    }
+
+    // Check 3: Text doesn't end with proper sentence terminator
+    const trimmed = text.trim();
+    const lastChar = trimmed[trimmed.length - 1];
+    const properEndings = ['.', '!', '?', ':', ')', ']', '"', '`'];
+
+    // Allow responses ending with "Next actions:" section
+    const endsWithNextActions = /Next actions:\s*$/i.test(trimmed);
+
+    if (!properEndings.includes(lastChar) && !endsWithNextActions) {
+      // Exception: Lists ending with bullet points are OK
+      const endsWithBulletPoint = /•\s+[^•]+$/.test(trimmed);
+      if (!endsWithBulletPoint) {
+        return {
+          truncated: true,
+          reason: `Ends with '${lastChar}' instead of proper terminator`
+        };
+      }
+    }
+
+    // Check 4: Response is suspiciously short (< 20 chars) unless it's a direct answer
+    if (trimmed.length < 20 && !trimmed.startsWith('Document:')) {
+      return {
+        truncated: true,
+        reason: 'Response suspiciously short (< 20 characters)'
+      };
+    }
+
+    // No truncation detected
+    return { truncated: false, reason: '' };
   }
 }
 

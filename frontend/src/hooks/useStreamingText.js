@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react';
  * @param {number} speed - Speed in milliseconds per character (default: 8ms for fast smooth effect)
  * @returns {object} - { displayedText, isStreaming }
  */
-const useStreamingText = (fullText, speed = 8) => {
+const useStreamingText = (fullText, speed = 2) => {
   const [displayedText, setDisplayedText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const displayedLengthRef = useRef(0);

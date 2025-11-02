@@ -99,6 +99,11 @@ class ChatActionsService {
       /^what do i have/i,
       /^show me my (folders|files|documents)/i,
       /^what (folders|files|documents) do i have/i,
+
+      // NEW: Detect folder content queries
+      /what(?:'s| is) (?:inside|in) (?:the )?([a-zA-Z0-9_-]+) folder/i,
+      /what (?:files|documents) (?:are )?(?:inside|in) (?:the )?([a-zA-Z0-9_-]+) folder/i,
+      /(?:show|list) (?:me )?(?:files|documents|contents) (?:in|inside) (?:the )?([a-zA-Z0-9_-]+) folder/i,
     ];
     return patterns.some(p => p.test(message));
   }
@@ -162,6 +167,97 @@ class ChatActionsService {
   private async handleListAction(userId: string, message: string): Promise<ActionResult> {
     console.log(`📋 [ChatActions] Handling list action: "${message}"`);
 
+    // NEW: Check if asking for folder contents (specific folder)
+    const folderContentMatch = message.match(/(?:inside|in) (?:the )?([a-zA-Z0-9_-]+) folder/i);
+
+    if (folderContentMatch) {
+      const folderName = folderContentMatch[1];
+      console.log(`   Looking for contents of folder: "${folderName}"`);
+
+      // Find all folders for user (we'll filter case-insensitively in JavaScript)
+      const folders = await prisma.folder.findMany({
+        where: { userId },
+        include: {
+          documents: {
+            where: { status: { not: 'deleted' } },
+            select: {
+              id: true,
+              filename: true,
+              fileSize: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+          subfolders: {
+            select: {
+              id: true,
+              name: true,
+              _count: {
+                select: { documents: true },
+              },
+            },
+          },
+        },
+      });
+
+      // Case-insensitive search for folder
+      const folder = folders.find(f => f.name.toLowerCase() === folderName.toLowerCase());
+
+      if (!folder) {
+        return {
+          isAction: true,
+          actionType: 'list_folder_contents',
+          result: null,
+          response: `❌ Folder "${folderName}" not found.\n\nYou can see all your folders by asking "what folders do I have?"`,
+        };
+      }
+
+      // Build response
+      const parts: string[] = [];
+
+      // List subfolders
+      if (folder.subfolders.length > 0) {
+        const subfolderList = folder.subfolders
+          .map(sf => {
+            const count = sf._count.documents;
+            const countStr = count > 0 ? ` (${count} file${count !== 1 ? 's' : ''})` : ' (empty)';
+            return `  📁 ${sf.name}${countStr}`;
+          })
+          .join('\n');
+        parts.push(`**Subfolders:**\n${subfolderList}`);
+      }
+
+      // List documents
+      if (folder.documents.length > 0) {
+        const docList = folder.documents
+          .map((d, i) => {
+            const size = (d.fileSize / 1024).toFixed(1);
+            return `  ${i + 1}. ${d.filename} (${size} KB)`;
+          })
+          .join('\n');
+        parts.push(`**Files:**\n${docList}`);
+      }
+
+      if (parts.length === 0) {
+        return {
+          isAction: true,
+          actionType: 'list_folder_contents',
+          result: folder,
+          response: `📁 **Folder "${folder.name}" is empty.**\n\nYou can upload files to this folder or create subfolders.`,
+        };
+      }
+
+      const response = `📁 **Contents of folder "${folder.name}":**\n\n${parts.join('\n\n')}`;
+
+      return {
+        isAction: true,
+        actionType: 'list_folder_contents',
+        result: folder,
+        response,
+      };
+    }
+
+    // Original: List all folders
     if (message.match(/folder/i)) {
       const folders = await prisma.folder.findMany({
         where: { userId, parentFolderId: null },

@@ -22,8 +22,8 @@ interface ResponseContext {
 export class ResponseFormatterService {
 
   /**
-   * Main entry point - Format KODA response (legacy compatibility)
-   * This is kept for backward compatibility with existing code
+   * Main entry point - Format KODA response with post-processing
+   * CRITICAL FIX: Gemini ignores line break instructions, so we fix output after generation
    */
   async formatResponse(
     rawAnswer: string,
@@ -31,9 +31,396 @@ export class ResponseFormatterService {
     sources: any[],
     query?: string
   ): Promise<string> {
-    // For now, just return the raw answer without formatting
-    // The formatting is now handled via buildFormatPrompt in the system prompt
-    return rawAnswer;
+    let formatted = rawAnswer;
+
+    // CRITICAL FIX 1: Remove all emojis (user requirement)
+    if (this.hasEmojis(formatted)) {
+      console.log(`📝 [ResponseFormatter] Removing emojis from response`);
+      formatted = this.removeEmojis(formatted);
+    }
+
+    // CRITICAL FIX 2: Convert ASCII tables to Markdown tables
+    if (this.hasASCIITable(formatted)) {
+      console.log(`📝 [ResponseFormatter] Converting ASCII table to Markdown`);
+      formatted = this.convertASCIITableToMarkdown(formatted);
+    }
+
+    // CRITICAL FIX 3: Detect and convert plain text "tables" (text with multiple spaces)
+    if (this.hasPlainTextTable(formatted)) {
+      console.log(`📝 [ResponseFormatter] Converting plain text table to Markdown`);
+      formatted = this.convertPlainTextTableToMarkdown(formatted);
+    }
+
+    // CRITICAL FIX 4: Detect and fix list line breaks
+    const bulletCount = (formatted.match(/•/g) || []).length;
+
+    if (bulletCount >= 2) {
+      // This is a list - fix line breaks
+      console.log(`📝 [ResponseFormatter] Detected list with ${bulletCount} bullets - fixing line breaks`);
+      formatted = this.fixListLineBreaks(formatted);
+    }
+
+    // CRITICAL FIX 5: Remove text after "Next actions:" section
+    if (formatted.includes('Next actions:')) {
+      console.log(`📝 [ResponseFormatter] Removing text after "Next actions:" section`);
+      formatted = this.removeTextAfterNextActions(formatted);
+    }
+
+    // CRITICAL FIX 6: Remove paragraphs after bullet points (user requirement)
+    if (bulletCount >= 2) {
+      console.log(`📝 [ResponseFormatter] Removing paragraphs after bullet points`);
+      formatted = this.removeParagraphsAfterBullets(formatted);
+    }
+
+    // CRITICAL FIX 7: Enforce max 2-line intro (user requirement)
+    if (bulletCount >= 2) {
+      console.log(`📝 [ResponseFormatter] Enforcing max 2-line intro`);
+      formatted = this.enforceMaxTwoLineIntro(formatted);
+    }
+
+    // CRITICAL FIX 8: Clean up excessive whitespace (final polish)
+    formatted = this.cleanWhitespace(formatted);
+
+    return formatted;
+  }
+
+  /**
+   * Fix line breaks in AI-generated lists
+   * Handles cases where AI puts multiple bullets on one line
+   *
+   * Why this is needed: LLMs sometimes ignore formatting instructions.
+   * Gemini may generate "• Item1 • Item2 • Item3" even when told to use line breaks.
+   * This post-processor fixes the output regardless of what the AI generates.
+   */
+  fixListLineBreaks(text: string): string {
+    // Pattern 1: "• Item1 • Item2 • Item3" → "• Item1\n• Item2\n• Item3"
+    let fixed = text.replace(/ • /g, '\n• ');
+
+    // Pattern 2: "•Item1 •Item2" (no space after bullet) → "•Item1\n•Item2"
+    fixed = fixed.replace(/ •/g, '\n•');
+
+    // Pattern 3: Multiple spaces before bullets
+    fixed = fixed.replace(/  +•/g, '\n•');
+
+    // Pattern 4: Ensure no double newlines before bullets
+    fixed = fixed.replace(/\n\n+•/g, '\n•');
+
+    // Pattern 5: Ensure bullets start on new lines (except first one)
+    // "Text content • Item" → "Text content\n• Item"
+    fixed = fixed.replace(/([^\n])( •)/g, '$1\n•');
+
+    // Pattern 6: Fix bullets at start of line with extra space
+    fixed = fixed.replace(/\n +•/g, '\n•');
+
+    return fixed;
+  }
+
+  /**
+   * Remove any text that appears after the "Next actions:" section
+   *
+   * Problem: AI sometimes adds extra commentary after the bullet points
+   * Example:
+   *   Next actions:
+   *   • Action 1
+   *   • Action 2
+   *
+   *   This is extra text we want to remove.
+   *
+   * Solution: Find "Next actions:", keep bullets, remove everything after
+   */
+  removeTextAfterNextActions(text: string): string {
+    // Find the "Next actions:" section
+    const nextActionsIndex = text.indexOf('Next actions:');
+    if (nextActionsIndex === -1) {
+      return text; // No "Next actions:" found
+    }
+
+    // Get text after "Next actions:"
+    const afterNextActions = text.substring(nextActionsIndex);
+
+    // Find all bullet points after "Next actions:"
+    const bulletMatches = afterNextActions.match(/•[^\n]+/g);
+
+    if (!bulletMatches || bulletMatches.length === 0) {
+      return text; // No bullets found, return as is
+    }
+
+    // Find the position of the last bullet point
+    const lastBullet = bulletMatches[bulletMatches.length - 1];
+    const lastBulletIndex = afterNextActions.lastIndexOf(lastBullet);
+    const endOfLastBullet = lastBulletIndex + lastBullet.length;
+
+    // Construct final text: everything before "Next actions:" + "Next actions:" + bullets only
+    const beforeNextActions = text.substring(0, nextActionsIndex);
+    const nextActionsSection = afterNextActions.substring(0, endOfLastBullet);
+
+    return beforeNextActions + nextActionsSection;
+  }
+
+  /**
+   * Detect if text contains ASCII table (with ────── characters)
+   */
+  hasASCIITable(text: string): boolean {
+    return /────+/.test(text);
+  }
+
+  /**
+   * Convert ASCII tables to Markdown tables
+   * Handles tables like:
+   *   Aspect          Column1         Column2
+   *   ────────────────────────────────────────
+   *   Row1            Data            Data
+   */
+  convertASCIITableToMarkdown(text: string): string {
+    // Pattern to match ASCII tables
+    const asciiTablePattern = /(.*?)\n[─\-]+\n((?:.*\n?)*?)(?=\n\n|$)/g;
+
+    return text.replace(asciiTablePattern, (match, headerLine, bodyLines) => {
+      // Split header into columns (by multiple spaces)
+      const headers = headerLine.trim().split(/\s{2,}/);
+
+      if (headers.length < 2) {
+        return match; // Not a valid table, return as-is
+      }
+
+      // Build Markdown header
+      const markdownHeader = '| ' + headers.join(' | ') + ' |';
+      const markdownSeparator = '|' + headers.map(() => '---').join('|') + '|';
+
+      // Process body rows
+      const rows = bodyLines.trim().split('\n').filter(line => line.trim());
+      const markdownRows = rows.map(row => {
+        const cols = row.trim().split(/\s{2,}/);
+        return '| ' + cols.join(' | ') + ' |';
+      });
+
+      return [markdownHeader, markdownSeparator, ...markdownRows].join('\n');
+    });
+  }
+
+  /**
+   * Detect if text contains plain text table (columns separated by multiple spaces)
+   * Example:
+   *   Aspect    English Version    Portuguese Version
+   *   Language    English    Portuguese (Brazilian)
+   */
+  hasPlainTextTable(text: string): boolean {
+    // Look for lines with multiple columns separated by 2+ spaces
+    // Must have at least 2 consecutive lines with same pattern
+    const lines = text.split('\n');
+    let consecutiveTableLines = 0;
+
+    for (const line of lines) {
+      // Check if line has 2+ columns separated by multiple spaces
+      const columns = line.trim().split(/\s{2,}/);
+      if (columns.length >= 2 && line.includes('  ')) {
+        consecutiveTableLines++;
+        if (consecutiveTableLines >= 2) {
+          return true;
+        }
+      } else {
+        consecutiveTableLines = 0; // Reset if not a table line
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Convert plain text tables to Markdown tables
+   * Handles tables like:
+   *   Aspect    English Version    Portuguese Version
+   *   Language    English    Portuguese (Brazilian)
+   *   Focus    Technical    Business
+   */
+  convertPlainTextTableToMarkdown(text: string): string {
+    const lines = text.split('\n');
+    const result: string[] = [];
+    const tableLines: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const columns = line.trim().split(/\s{2,}/);
+
+      // If this looks like a table row (2+ columns with multiple spaces)
+      if (columns.length >= 2 && line.includes('  ')) {
+        tableLines.push(line);
+      } else {
+        // Not a table line - flush accumulated table lines
+        if (tableLines.length >= 2) {
+          // Convert accumulated table lines to Markdown
+          const markdownTable = this.convertPlainTextLinesToMarkdown(tableLines);
+          result.push(markdownTable);
+          tableLines.length = 0; // Clear
+        } else if (tableLines.length > 0) {
+          // Only 1 line - not a table, add as-is
+          result.push(...tableLines);
+          tableLines.length = 0;
+        }
+        result.push(line);
+      }
+    }
+
+    // Flush remaining table lines
+    if (tableLines.length >= 2) {
+      const markdownTable = this.convertPlainTextLinesToMarkdown(tableLines);
+      result.push(markdownTable);
+    } else if (tableLines.length > 0) {
+      result.push(...tableLines);
+    }
+
+    return result.join('\n');
+  }
+
+  /**
+   * Helper: Convert array of plain text table lines to Markdown table
+   */
+  private convertPlainTextLinesToMarkdown(lines: string[]): string {
+    // Parse all lines into columns
+    const rows = lines.map(line => line.trim().split(/\s{2,}/));
+
+    // First row is header
+    const headers = rows[0];
+    const markdownHeader = '| ' + headers.join(' | ') + ' |';
+    const markdownSeparator = '|' + headers.map(() => '---').join('|') + '|';
+
+    // Rest are data rows
+    const markdownRows = rows.slice(1).map(cols => {
+      return '| ' + cols.join(' | ') + ' |';
+    });
+
+    return [markdownHeader, markdownSeparator, ...markdownRows].join('\n');
+  }
+
+  /**
+   * Detect if text contains emojis
+   */
+  hasEmojis(text: string): boolean {
+    // Common emoji patterns
+    const emojiPattern = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F910}-\u{1F96B}\u{1F980}-\u{1F9E0}\u{2300}-\u{23FF}\u{2B50}\u{2705}\u{274C}\u{1F004}\u{1F170}-\u{1F251}]/u;
+    return emojiPattern.test(text);
+  }
+
+  /**
+   * Remove all emojis from text
+   *
+   * User requirement: NO emojis in responses (✅ ❌ 🔍 📁 📊 📄 🎯 ⚠️ etc.)
+   */
+  removeEmojis(text: string): string {
+    // Comprehensive emoji removal pattern
+    const emojiPattern = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F910}-\u{1F96B}\u{1F980}-\u{1F9E0}\u{2300}-\u{23FF}\u{2B50}\u{2705}\u{274C}\u{1F004}\u{1F170}-\u{1F251}]/gu;
+
+    // Remove emojis and clean up any extra spaces left behind
+    let cleaned = text.replace(emojiPattern, '');
+
+    // Clean up multiple spaces left by emoji removal
+    cleaned = cleaned.replace(/\s{2,}/g, ' ');
+
+    // Clean up space at start of lines
+    cleaned = cleaned.replace(/^\s+/gm, '');
+
+    return cleaned;
+  }
+
+  /**
+   * Remove paragraphs that come after bullet points
+   *
+   * User requirement: "THERE SHOULD NOT BE ANY TYPE OF PARAGRAPH EXPLANATION"
+   * Once bullets end, the response should STOP (except for "Next actions:" section)
+   *
+   * Examples to remove:
+   * • Bullet 1
+   * • Bullet 2
+   *
+   * This is an extra paragraph that should be removed.
+   *
+   * Another paragraph that should also be removed.
+   */
+  removeParagraphsAfterBullets(text: string): string {
+    // Strategy:
+    // 1. Find the last bullet point
+    // 2. Check if there's a "Next actions:" section
+    // 3. Remove any text between last bullet and "Next actions:" (or end of text)
+
+    // Find all bullet points
+    const bulletMatches = text.match(/•[^\n]+/g);
+
+    if (!bulletMatches || bulletMatches.length === 0) {
+      return text; // No bullets, return as-is
+    }
+
+    // Find the position of the last bullet
+    const lastBullet = bulletMatches[bulletMatches.length - 1];
+    const lastBulletIndex = text.lastIndexOf(lastBullet);
+    const endOfLastBullet = lastBulletIndex + lastBullet.length;
+
+    // Check if there's a "Next actions:" section
+    const nextActionsIndex = text.indexOf('Next actions:', endOfLastBullet);
+
+    if (nextActionsIndex !== -1) {
+      // There's a "Next actions:" section
+      // Remove text between last bullet and "Next actions:"
+      const beforeBullets = text.substring(0, endOfLastBullet);
+      const nextActionsSection = text.substring(nextActionsIndex);
+
+      // Check if there's significant text between last bullet and "Next actions:"
+      const textBetween = text.substring(endOfLastBullet, nextActionsIndex).trim();
+
+      if (textBetween.length > 0) {
+        // There's unwanted text - remove it
+        console.log(`📝 [ResponseFormatter] Removing ${textBetween.length} chars between bullets and "Next actions:"`);
+        return beforeBullets + '\n\n' + nextActionsSection;
+      }
+
+      return text; // No unwanted text
+    } else {
+      // No "Next actions:" section
+      // Remove any text after last bullet
+      const afterLastBullet = text.substring(endOfLastBullet).trim();
+
+      // Check if there's significant text after last bullet (ignoring whitespace)
+      if (afterLastBullet.length > 0) {
+        console.log(`📝 [ResponseFormatter] Removing ${afterLastBullet.length} chars after last bullet`);
+        return text.substring(0, endOfLastBullet);
+      }
+
+      return text; // No unwanted text
+    }
+  }
+
+  /**
+   * Enforce max 2-line intro before bullets
+   *
+   * User requirement: "the intro to the answer but it needs to have max 2 lines"
+   *
+   * Strategy:
+   * 1. Find first bullet point
+   * 2. Get text before first bullet (intro)
+   * 3. If intro is more than 2 lines, truncate to 2 lines
+   */
+  enforceMaxTwoLineIntro(text: string): string {
+    // Find first bullet point
+    const firstBulletMatch = text.match(/•/);
+
+    if (!firstBulletMatch) {
+      return text; // No bullets, return as-is
+    }
+
+    const firstBulletIndex = text.indexOf('•');
+    const intro = text.substring(0, firstBulletIndex).trim();
+    const bulletsAndRest = text.substring(firstBulletIndex);
+
+    // Split intro into lines
+    const introLines = intro.split('\n').filter(line => line.trim().length > 0);
+
+    // If intro is more than 2 lines, keep only first 2
+    if (introLines.length > 2) {
+      console.log(`📝 [ResponseFormatter] Truncating intro from ${introLines.length} lines to 2 lines`);
+      const truncatedIntro = introLines.slice(0, 2).join('\n');
+      return truncatedIntro + '\n\n' + bulletsAndRest;
+    }
+
+    return text; // Intro is already 2 lines or less
   }
 
   /**
@@ -65,9 +452,9 @@ export class ResponseFormatterService {
   private buildFeatureListPrompt(): string {
     return `FORMAT TYPE: FEATURE LIST
 
-STRUCTURE:
-Referenced Documents: [Document1.pdf], [Document2.xlsx]
+NOTE: Do NOT include "Referenced Documents:" in your response. The UI automatically displays document sources.
 
+STRUCTURE:
 [Opening statement with key insight]
 
 • [Feature/point 1 with specific details]
@@ -80,16 +467,13 @@ Referenced Documents: [Document1.pdf], [Document2.xlsx]
 RULES:
 • Use bullet points (•) for all list items
 • NO emoji anywhere in the response
-• Start with "Referenced Documents:" listing source files
-• Empty line after document references (\n\n)
+• Start directly with opening statement (NO "Referenced Documents:" line)
 • Opening statement provides context
 • Each bullet point is specific and detailed
 • Empty line before closing statement (\n\n)
 • Closing statement summarizes without emoji
 
 EXAMPLE:
-Referenced Documents: Koda Business Plan V12.pdf
-
 The business plan projects aggressive revenue growth over three years, scaling from initial market entry to enterprise dominance.
 
 • Year 1 targets 280 users generating $670,800 in revenue
@@ -108,9 +492,9 @@ These projections are based on a tiered pricing model and 95% retention rate.`;
   private buildStructuredListPrompt(): string {
     return `FORMAT TYPE: STRUCTURED LIST
 
-STRUCTURE:
-Referenced Documents: [Document1.pdf]
+NOTE: Do NOT include "Referenced Documents:" in your response. The UI automatically displays document sources.
 
+STRUCTURE:
 [Brief introduction]
 
 • [Item 1] — [Description with details]
@@ -124,15 +508,13 @@ RULES:
 • Use bullet points (•) for all items
 • Use em dash (—) not hyphen (-) to separate item from description
 • NO emoji anywhere
-• Start with "Referenced Documents:" if applicable
+• Start directly with brief introduction (NO "Referenced Documents:" line)
 • Brief introduction sets context
 • Each bullet has item name followed by em dash and description
 • Empty line before closing statement (\n\n)
 • Closing statement wraps up without emoji
 
 EXAMPLE:
-Referenced Documents: KODA Technical Specifications.pdf
-
 KODA offers comprehensive document intelligence capabilities designed for enterprise workflows.
 
 • Semantic Search — Natural language queries to find relevant documents based on meaning, not just keywords
@@ -179,9 +561,9 @@ EXAMPLE:
   private buildTablePrompt(): string {
     return `FORMAT TYPE: TABLE
 
-STRUCTURE:
-Referenced Documents: [Document1.pdf], [Document2.pdf]
+NOTE: Do NOT include "Referenced Documents:" in your response. The UI automatically displays document sources.
 
+STRUCTURE:
 [Brief introduction to the comparison]
 
 Technical Documents:
@@ -199,14 +581,12 @@ RULES:
 • Group items by category with headers
 • Use em dash (—) to separate name from description
 • NO emoji anywhere
-• Start with "Referenced Documents:"
+• Start directly with introduction (NO "Referenced Documents:" line)
 • Empty lines after each section (\n\n)
 • Headers use plain text (no special formatting)
 • Closing statement summarizes without emoji
 
 EXAMPLE:
-Referenced Documents: Various KODA documents
-
 The documents can be categorized into technical and business categories based on their content and purpose.
 
 Technical Documents:
@@ -227,7 +607,11 @@ This categorization helps organize documentation by intended audience and use ca
   private buildDirectAnswerPrompt(): string {
     return `FORMAT TYPE: DIRECT ANSWER
 
+NOTE: Do NOT include "Referenced Documents:" in your response. The UI automatically displays document sources.
+
 STRUCTURE:
+Document: [filename]
+Answer:
 [Direct answer to the question]
 
 • [Supporting detail 1]
@@ -235,20 +619,33 @@ STRUCTURE:
 • [Supporting detail 3]
 
 RULES:
-• First line is the direct answer (no bullets)
+• Start with "Document: [filename]" on first line
+• Second line is "Answer:" label
+• Direct answer comes after "Answer:" (no bullets)
 • Supporting details use bullet points (•)
 • NO emoji anywhere
-• NO document references unless from multiple sources
-• Keep answer concise (1-2 sentences max for opening)
+• Keep answer concise (1-2 sentences max)
 • 2-4 bullet points with supporting details
+• For Excel data: Include cell references and sheet names
 • NO closing statement for factual queries
 
-EXAMPLE:
+EXAMPLE (PDF):
+Document: Passport.pdf
+Answer:
 The expiration date is March 15, 2025.
 
-• Found in Passport.pdf, page 2
+• Found on page 2
 • Issued on March 16, 2015 in Lisbon
-• Valid for 10 years from issue date`;
+• Valid for 10 years from issue date
+
+EXAMPLE (Excel):
+Document: Financial Report Q1.xlsx
+Answer:
+The total revenue for January 2025 is $1,245,000.
+
+• Located in Sheet 2 'Revenue', Cell B5
+• This is a 12.5% increase from December 2024
+• Formula used: =SUM(B2:B4)`;
   }
 
   /**
@@ -280,6 +677,26 @@ EXAMPLE:
 • Legal
 • Personal`;
   }
+
+  /**
+   * Clean up excessive whitespace (final polish)
+   *
+   * Removes:
+   * - More than 2 consecutive newlines
+   * - Trailing whitespace from lines
+   * - Leading/trailing whitespace from entire text
+   */
+  cleanWhitespace(text: string): string {
+    // Remove more than 2 consecutive newlines
+    let cleaned = text.replace(/\n{3,}/g, '\n\n');
+
+    // Remove trailing whitespace from lines
+    cleaned = cleaned.split('\n').map(line => line.trimEnd()).join('\n');
+
+    // Remove leading/trailing whitespace from entire text
+    return cleaned.trim();
+  }
 }
 
 export default new ResponseFormatterService();
+

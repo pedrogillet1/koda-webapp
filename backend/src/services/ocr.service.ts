@@ -5,16 +5,16 @@
  * Enables KODA to extract text from image-based documents
  */
 
-import vision from '@google-cloud/vision';
+import vision, { ImageAnnotatorClient } from '@google-cloud/vision';
 import { convert } from 'pdf-poppler';
 import sharp from 'sharp';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import pdfParse from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 
 class OCRService {
-  private client: vision.ImageAnnotatorClient | null = null;
+  private client: ImageAnnotatorClient | null = null;
   private isInitialized = false;
 
   constructor() {
@@ -34,7 +34,7 @@ class OCRService {
         return;
       }
 
-      this.client = new vision.ImageAnnotatorClient({
+      this.client = new ImageAnnotatorClient({
         keyFilename: keyPath,
       });
 
@@ -65,7 +65,8 @@ class OCRService {
 
       // Try to extract text using pdf-parse
       const dataBuffer = await fs.readFile(pdfPath);
-      const pdfData = await pdfParse(dataBuffer);
+      const parser = new PDFParse({ data: dataBuffer });
+      const pdfData = await parser.getText();
 
       const extractedText = pdfData.text.trim();
       const wordCount = extractedText.split(/\s+/).filter(w => w.length > 0).length;

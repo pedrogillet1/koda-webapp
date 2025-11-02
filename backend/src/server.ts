@@ -254,17 +254,11 @@ httpServer.listen(portConfig.httpsPort, () => {
   // Start reminder scheduler
   startReminderScheduler();
 
-  // Start stuck document detector (runs every 5 minutes)
-  (async () => {
-    const { startStuckDocumentDetector } = await import('./jobs/stuckDocumentDetector');
-    startStuckDocumentDetector();
-  })();
-
   // ═══════════════════════════════════════════════════════════════
   // START BACKGROUND DOCUMENT PROCESSOR
   // ═══════════════════════════════════════════════════════════════
-  // Process pending documents every 5 seconds
-  const PROCESSING_INTERVAL = 5000; // 5 seconds
+  // Process pending documents every 30 seconds
+  const PROCESSING_INTERVAL = 30000; // 30 seconds
   let isProcessing = false;
 
   async function processPendingDocuments() {
@@ -280,7 +274,7 @@ httpServer.listen(portConfig.httpsPort, () => {
       const pendingDocs = await prisma.document.findMany({
         where: { status: 'pending' },
         orderBy: { createdAt: 'asc' },
-        take: 20, // Process 20 at a time
+        take: 5, // Process 5 at a time
       });
 
       if (pendingDocs.length > 0) {
@@ -378,5 +372,6 @@ if (redirectServer && portConfig.httpPort) {
 
 
 
+ 
  
 

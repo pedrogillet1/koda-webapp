@@ -196,14 +196,15 @@ export class QueryClassifierService {
 
   /**
    * Get word count guidance for response style
+   * UPDATED: All answers must be in bullet format with max 2-line intro
    */
   getWordCountGuidance(style: ResponseStyle): string {
     const guidance: Record<ResponseStyle, string> = {
-      [ResponseStyle.ULTRA_CONCISE]: 'Respond in 1-10 words maximum. Just the answer, nothing else.',
-      [ResponseStyle.CONCISE]: 'Respond in 1-2 sentences (20-40 words maximum).',
-      [ResponseStyle.MODERATE]: 'Respond in 1 paragraph (50-100 words).',
-      [ResponseStyle.DETAILED]: 'Respond in 2-4 paragraphs (100-300 words).',
-      [ResponseStyle.STRUCTURED]: 'Respond with structured sections using numbered lists or headers.',
+      [ResponseStyle.ULTRA_CONCISE]: 'Use bullets. Brief intro (max 2 lines) + 2-4 bullets with key info.',
+      [ResponseStyle.CONCISE]: 'Use bullets. Brief intro (max 2 lines) + 3-6 bullets with details.',
+      [ResponseStyle.MODERATE]: 'Use bullets. Brief intro (max 2 lines) + comprehensive bullet list.',
+      [ResponseStyle.DETAILED]: 'Use bullets. Brief intro (max 2 lines) + detailed bullet list with all info.',
+      [ResponseStyle.STRUCTURED]: 'Use bullets or tables. Brief intro (max 2 lines) + structured bullet sections.',
     };
 
     return guidance[style];
@@ -211,14 +212,15 @@ export class QueryClassifierService {
 
   /**
    * Get max tokens for response style
+   * UPDATED: Increased limits to allow bullet-point formatting (all answers must be bullets)
    */
   getMaxTokens(style: ResponseStyle): number {
     const tokenLimits: Record<ResponseStyle, number> = {
-      [ResponseStyle.ULTRA_CONCISE]: 50,
-      [ResponseStyle.CONCISE]: 100,
-      [ResponseStyle.MODERATE]: 200,
-      [ResponseStyle.DETAILED]: 500,
-      [ResponseStyle.STRUCTURED]: 600,
+      [ResponseStyle.ULTRA_CONCISE]: 800,     // Allow bullets for short answers
+      [ResponseStyle.CONCISE]: 1500,          // Allow bullets for concise answers
+      [ResponseStyle.MODERATE]: 3000,         // Comprehensive bullet answers
+      [ResponseStyle.DETAILED]: 4000,         // Long detailed bullet answers
+      [ResponseStyle.STRUCTURED]: 4000,       // Full structured responses with tables
     };
 
     return tokenLimits[style];
