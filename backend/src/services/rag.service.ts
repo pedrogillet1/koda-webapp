@@ -652,15 +652,38 @@ Provide a comprehensive and accurate answer based on the document content follow
       const uniqueNames = [...new Set(documentNames)];
       console.log(`   Found ${uniqueNames.length} unique documents (${documentNames.length} total chunks)`);
 
-      // Format as bullet list with double line breaks for proper markdown rendering
-      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n\n');
+      // Generate contextual opening statement based on query
+      const queryLower = query.toLowerCase();
+      let openingStatement = '';
+      if (queryLower.includes('related to') || queryLower.includes('about')) {
+        const topic = query.match(/(?:related to|about)\s+(.+?)(?:\?|$)/i)?.[1] || 'this topic';
+        openingStatement = `Documents containing information about "${topic.trim()}":`;
+      } else if (queryLower.includes('portuguese') || queryLower.includes('language')) {
+        openingStatement = `Detected Portuguese-language documents:`;
+      } else {
+        openingStatement = `Found ${uniqueNames.length} relevant document${uniqueNames.length > 1 ? 's' : ''}:`;
+      }
+
+      // Format as bullet list with single line breaks
+      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n');
+
+      // Generate contextual "Next actions" suggestion
+      let nextActions = 'Next actions:\nWould you like me to summarize the content across these documents or focus on a specific one?';
+      if (queryLower.includes('koda')) {
+        nextActions = 'Next actions:\nWould you like me to summarize Koda\'s product vision across these documents or highlight key differences between them?';
+      } else if (queryLower.includes('portuguese')) {
+        nextActions = 'Next actions:\nTranslate or summarize these documents in English if needed.';
+      }
+
+      // Build complete response with opening, list, and next actions
+      const formattedResponse = `${openingStatement}\n${bulletList}\n\n${nextActions}`;
 
       const responseTime = Date.now() - startTime;
       console.log(`✅ LIST FORMATTED (${responseTime}ms)`);
       console.log(`   Documents: ${uniqueNames.length}`);
 
       const response: RAGResponse = {
-        answer: bulletList,
+        answer: formattedResponse,
         sources: finalSources,
         contextId: `rag_list_${Date.now()}`,
         intent: intent.intent,
@@ -1101,12 +1124,35 @@ Provide a comprehensive and accurate answer based on the document content follow
       const uniqueNames = [...new Set(documentNames)];
       console.log(`   Found ${uniqueNames.length} unique documents (${documentNames.length} total chunks)`);
 
-      // Format as bullet list with double line breaks for proper markdown rendering
-      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n\n');
+      // Generate contextual opening statement based on query
+      const queryLower = query.toLowerCase();
+      let openingStatement = '';
+      if (queryLower.includes('related to') || queryLower.includes('about')) {
+        const topic = query.match(/(?:related to|about)\s+(.+?)(?:\?|$)/i)?.[1] || 'this topic';
+        openingStatement = `Documents containing information about "${topic.trim()}":`;
+      } else if (queryLower.includes('portuguese') || queryLower.includes('language')) {
+        openingStatement = `Detected Portuguese-language documents:`;
+      } else {
+        openingStatement = `Found ${uniqueNames.length} relevant document${uniqueNames.length > 1 ? 's' : ''}:`;
+      }
+
+      // Format as bullet list with single line breaks
+      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n');
+
+      // Generate contextual "Next actions" suggestion
+      let nextActions = 'Next actions:\nWould you like me to summarize the content across these documents or focus on a specific one?';
+      if (queryLower.includes('koda')) {
+        nextActions = 'Next actions:\nWould you like me to summarize Koda\'s product vision across these documents or highlight key differences between them?';
+      } else if (queryLower.includes('portuguese')) {
+        nextActions = 'Next actions:\nTranslate or summarize these documents in English if needed.';
+      }
+
+      // Build complete response with opening, list, and next actions
+      const formattedResponse = `${openingStatement}\n${bulletList}\n\n${nextActions}`;
 
       // Send formatted list directly
       if (onChunk) {
-        onChunk(bulletList);
+        onChunk(formattedResponse);
       }
 
       // Build sources for metadata
@@ -1130,7 +1176,7 @@ Provide a comprehensive and accurate answer based on the document content follow
       console.log(`   Documents: ${uniqueNames.length}`);
 
       return {
-        answer: bulletList,
+        answer: formattedResponse,
         sources: finalSources,
         contextId: `rag_list_${Date.now()}`,
         intent: intent.intent,

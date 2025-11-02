@@ -22,8 +22,8 @@ interface ResponseContext {
 export class ResponseFormatterService {
 
   /**
-   * Main entry point - Format KODA response (legacy compatibility)
-   * This is kept for backward compatibility with existing code
+   * Main entry point - Format KODA response with post-processing
+   * CRITICAL FIX: Gemini ignores line break instructions, so we fix output after generation
    */
   async formatResponse(
     rawAnswer: string,
@@ -31,9 +31,42 @@ export class ResponseFormatterService {
     sources: any[],
     query?: string
   ): Promise<string> {
-    // For now, just return the raw answer without formatting
-    // The formatting is now handled via buildFormatPrompt in the system prompt
+    // CRITICAL FIX: Detect and fix list line breaks
+    const bulletCount = (rawAnswer.match(/•/g) || []).length;
+
+    if (bulletCount >= 2) {
+      // This is a list - fix line breaks
+      console.log(`📝 [ResponseFormatter] Detected list with ${bulletCount} bullets - fixing line breaks`);
+      const fixed = this.fixListLineBreaks(rawAnswer);
+      return fixed;
+    }
+
+    // Not a list - return as is
     return rawAnswer;
+  }
+
+  /**
+   * Fix line breaks in AI-generated lists
+   * Handles cases where AI puts multiple bullets on one line
+   *
+   * Why this is needed: LLMs sometimes ignore formatting instructions.
+   * Gemini may generate "• Item1 • Item2 • Item3" even when told to use line breaks.
+   * This post-processor fixes the output regardless of what the AI generates.
+   */
+  fixListLineBreaks(text: string): string {
+    // Pattern 1: "• Item1 • Item2 • Item3" → "• Item1\n• Item2\n• Item3"
+    let fixed = text.replace(/ • /g, '\n• ');
+
+    // Pattern 2: "•Item1 •Item2" (no space after bullet) → "•Item1\n•Item2"
+    fixed = fixed.replace(/ •/g, '\n•');
+
+    // Pattern 3: Multiple spaces before bullets
+    fixed = fixed.replace(/  +•/g, '\n•');
+
+    // Pattern 4: Ensure no double newlines
+    fixed = fixed.replace(/\n\n+•/g, '\n•');
+
+    return fixed;
   }
 
   /**
@@ -65,9 +98,9 @@ export class ResponseFormatterService {
   private buildFeatureListPrompt(): string {
     return `FORMAT TYPE: FEATURE LIST
 
-STRUCTURE:
-Referenced Documents: [Document1.pdf], [Document2.xlsx]
+NOTE: Do NOT include "Referenced Documents:" in your response. The UI automatically displays document sources.
 
+STRUCTURE:
 [Opening statement with key insight]
 
 • [Feature/point 1 with specific details]
@@ -80,16 +113,13 @@ Referenced Documents: [Document1.pdf], [Document2.xlsx]
 RULES:
 • Use bullet points (•) for all list items
 • NO emoji anywhere in the response
-• Start with "Referenced Documents:" listing source files
-• Empty line after document references (\n\n)
+• Start directly with opening statement (NO "Referenced Documents:" line)
 • Opening statement provides context
 • Each bullet point is specific and detailed
 • Empty line before closing statement (\n\n)
 • Closing statement summarizes without emoji
 
 EXAMPLE:
-Referenced Documents: Koda Business Plan V12.pdf
-
 The business plan projects aggressive revenue growth over three years, scaling from initial market entry to enterprise dominance.
 
 • Year 1 targets 280 users generating $670,800 in revenue
@@ -108,9 +138,9 @@ These projections are based on a tiered pricing model and 95% retention rate.`;
   private buildStructuredListPrompt(): string {
     return `FORMAT TYPE: STRUCTURED LIST
 
-STRUCTURE:
-Referenced Documents: [Document1.pdf]
+NOTE: Do NOT include "Referenced Documents:" in your response. The UI automatically displays document sources.
 
+STRUCTURE:
 [Brief introduction]
 
 • [Item 1] — [Description with details]
@@ -124,15 +154,13 @@ RULES:
 • Use bullet points (•) for all items
 • Use em dash (—) not hyphen (-) to separate item from description
 • NO emoji anywhere
-• Start with "Referenced Documents:" if applicable
+• Start directly with brief introduction (NO "Referenced Documents:" line)
 • Brief introduction sets context
 • Each bullet has item name followed by em dash and description
 • Empty line before closing statement (\n\n)
 • Closing statement wraps up without emoji
 
 EXAMPLE:
-Referenced Documents: KODA Technical Specifications.pdf
-
 KODA offers comprehensive document intelligence capabilities designed for enterprise workflows.
 
 • Semantic Search — Natural language queries to find relevant documents based on meaning, not just keywords
@@ -179,9 +207,9 @@ EXAMPLE:
   private buildTablePrompt(): string {
     return `FORMAT TYPE: TABLE
 
-STRUCTURE:
-Referenced Documents: [Document1.pdf], [Document2.pdf]
+NOTE: Do NOT include "Referenced Documents:" in your response. The UI automatically displays document sources.
 
+STRUCTURE:
 [Brief introduction to the comparison]
 
 Technical Documents:
@@ -199,14 +227,12 @@ RULES:
 • Group items by category with headers
 • Use em dash (—) to separate name from description
 • NO emoji anywhere
-• Start with "Referenced Documents:"
+• Start directly with introduction (NO "Referenced Documents:" line)
 • Empty lines after each section (\n\n)
 • Headers use plain text (no special formatting)
 • Closing statement summarizes without emoji
 
 EXAMPLE:
-Referenced Documents: Various KODA documents
-
 The documents can be categorized into technical and business categories based on their content and purpose.
 
 Technical Documents:
@@ -227,7 +253,11 @@ This categorization helps organize documentation by intended audience and use ca
   private buildDirectAnswerPrompt(): string {
     return `FORMAT TYPE: DIRECT ANSWER
 
+NOTE: Do NOT include "Referenced Documents:" in your response. The UI automatically displays document sources.
+
 STRUCTURE:
+Document: [filename]
+Answer:
 [Direct answer to the question]
 
 • [Supporting detail 1]
@@ -235,18 +265,21 @@ STRUCTURE:
 • [Supporting detail 3]
 
 RULES:
-• First line is the direct answer (no bullets)
+• Start with "Document: [filename]" on first line
+• Second line is "Answer:" label
+• Direct answer comes after "Answer:" (no bullets)
 • Supporting details use bullet points (•)
 • NO emoji anywhere
-• NO document references unless from multiple sources
-• Keep answer concise (1-2 sentences max for opening)
+• Keep answer concise (1-2 sentences max)
 • 2-4 bullet points with supporting details
 • NO closing statement for factual queries
 
 EXAMPLE:
+Document: Passport.pdf
+Answer:
 The expiration date is March 15, 2025.
 
-• Found in Passport.pdf, page 2
+• Found on page 2
 • Issued on March 16, 2015 in Lisbon
 • Valid for 10 years from issue date`;
   }
@@ -283,3 +316,4 @@ EXAMPLE:
 }
 
 export default new ResponseFormatterService();
+
