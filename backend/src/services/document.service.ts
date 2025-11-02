@@ -218,8 +218,53 @@ export async function processDocumentInBackground(
   userId: string,
   thumbnailUrl: string | null
 ) {
+  const PROCESSING_TIMEOUT = 180000; // 3 minutes max per document
+
   try {
     console.log(`📄 Processing document in background: ${filename}`);
+
+    // Wrap entire processing in a timeout
+    await Promise.race([
+      processDocumentWithTimeout(documentId, fileBuffer, filename, mimeType, userId, thumbnailUrl),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Processing timeout after ${PROCESSING_TIMEOUT / 1000} seconds`)), PROCESSING_TIMEOUT)
+      )
+    ]);
+
+  } catch (error: any) {
+    console.error('❌ Error processing document:', error);
+
+    // ALWAYS update status to failed, even if database update fails
+    try {
+      await prisma.document.update({
+        where: { id: documentId },
+        data: {
+          status: 'failed',
+          updatedAt: new Date() // Ensure timestamp is updated
+        },
+      });
+      console.log(`✅ Status updated to 'failed' for ${filename}`);
+    } catch (updateError) {
+      console.error('❌ CRITICAL: Failed to update document status:', updateError);
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * Internal function with comprehensive error handling at each step
+ */
+async function processDocumentWithTimeout(
+  documentId: string,
+  fileBuffer: Buffer,
+  filename: string,
+  mimeType: string,
+  userId: string,
+  thumbnailUrl: string | null
+) {
+  try {
+    console.log(`🔄 Starting document processing pipeline for: ${filename}`);
 
     // Extract text based on file type
     let extractedText = '';
@@ -424,6 +469,65 @@ export async function processDocumentInBackground(
       console.log(`✅ Markdown generated (${markdownContent.length} characters)`);
     } catch (error) {
       console.warn('⚠️ Markdown conversion failed (non-critical):', error);
+    }
+
+    // PRE-GENERATE PDF FOR DOCX FILES (so viewing is instant)
+    const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (isDocx) {
+      console.log('📄 Pre-generating PDF preview for DOCX...');
+      try {
+        const { convertDocxToPdf } = await import('./docx-converter.service');
+        const { Storage } = await import('@google-cloud/storage');
+
+        const storage = new Storage({
+          keyFilename: process.env.GCS_KEY_FILE,
+          projectId: process.env.GCS_PROJECT_ID,
+        });
+
+        // Get the encrypted filename from the document
+        const doc = await prisma.document.findUnique({
+          where: { id: documentId },
+          select: { encryptedFilename: true }
+        });
+
+        if (!doc) {
+          throw new Error('Document not found');
+        }
+
+        const pdfKey = `${doc.encryptedFilename}.pdf`;
+        const bucket = storage.bucket(process.env.GCS_BUCKET_NAME!);
+        const pdfFile = bucket.file(pdfKey);
+
+        // Check if PDF already exists
+        const [pdfExists] = await pdfFile.exists();
+
+        if (!pdfExists) {
+          // Save DOCX to temp file
+          const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
+          fs.writeFileSync(tempDocxPath, fileBuffer);
+
+          // Convert to PDF
+          const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
+
+          if (conversion.success && conversion.pdfPath) {
+            // Upload PDF to GCS
+            const pdfBuffer = fs.readFileSync(conversion.pdfPath);
+            await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
+
+            console.log('✅ PDF preview pre-generated:', pdfKey);
+
+            // Clean up temp files
+            fs.unlinkSync(tempDocxPath);
+            fs.unlinkSync(conversion.pdfPath);
+          } else {
+            console.warn('⚠️ PDF preview generation failed (non-critical):', conversion.error);
+          }
+        } else {
+          console.log('✅ PDF preview already exists');
+        }
+      } catch (error: any) {
+        console.warn('⚠️ PDF preview generation failed (non-critical):', error.message);
+      }
     }
 
     // AUTO-CATEGORIZATION DISABLED: Documents now stay in "Recently Added" by default
@@ -670,7 +774,10 @@ export async function processDocumentInBackground(
     // Update document status to completed (only if verification passed)
     await prisma.document.update({
       where: { id: documentId },
-      data: { status: 'completed' },
+      data: {
+        status: 'completed',
+        updatedAt: new Date()
+      },
     });
 
     // Invalidate cache for this user after successful processing
@@ -678,13 +785,25 @@ export async function processDocumentInBackground(
     console.log(`🗑️ Invalidated cache for user ${userId} after document upload`);
 
     console.log(`✅ Document processing completed: ${filename}`);
-  } catch (error) {
-    console.error('❌ Error processing document:', error);
-    // Update status to failed
-    await prisma.document.update({
-      where: { id: documentId },
-      data: { status: 'failed' },
-    });
+
+  } catch (error: any) {
+    // This catch block should never be reached due to outer try-catch,
+    // but kept as a safety net
+    console.error('❌ CRITICAL: Unhandled error in processDocumentWithTimeout:', error);
+
+    try {
+      await prisma.document.update({
+        where: { id: documentId },
+        data: {
+          status: 'failed',
+          updatedAt: new Date()
+        },
+      });
+    } catch (updateError) {
+      console.error('❌ CRITICAL: Failed to update status in inner catch:', updateError);
+    }
+
+    throw error;
   }
 }
 
@@ -2017,7 +2136,7 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
       // Download DOCX from GCS
       const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
       console.log(`⬇️  Downloading DOCX from GCS: ${document.encryptedFilename}`);
-      const docxBuffer = await downloadFile(document.encryptedFilename);
+      let docxBuffer = await downloadFile(document.encryptedFilename);
 
       // ✅ Validate that the downloaded buffer is not empty
       if (!docxBuffer || docxBuffer.length === 0) {
@@ -2025,6 +2144,14 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
       }
 
       console.log(`✅ Downloaded ${docxBuffer.length} bytes`);
+
+      // 🔓 DECRYPT FILE if encrypted
+      if (document.isEncrypted) {
+        console.log('🔓 Decrypting file...');
+        const encryptionService = await import('./encryption.service');
+        docxBuffer = encryptionService.default.decryptFile(docxBuffer, `document-${userId}`);
+        console.log(`✅ File decrypted successfully (${docxBuffer.length} bytes)`);
+      }
 
       // ✅ Validate DOCX file format (check ZIP signature)
       // DOCX files are ZIP archives, so they should start with 'PK' (0x50, 0x4B)

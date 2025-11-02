@@ -318,9 +318,9 @@ const DocumentViewer = () => {
             console.log('🔍 Requesting DOCX preview for document:', documentId);
 
             try {
-              // Short timeout since PDF should be pre-generated during upload
+              // Timeout increased to 60 seconds to allow for DOCX-to-PDF conversion
               const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('DOCX preview timeout')), 10000)
+                setTimeout(() => reject(new Error('DOCX preview timeout')), 60000)
               );
 
               const previewResponse = await Promise.race([

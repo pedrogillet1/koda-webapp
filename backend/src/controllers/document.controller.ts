@@ -183,7 +183,7 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
       return;
     }
 
-    const { folderId, fileHashes, filenames } = req.body;
+    const { folderId, fileHashes, filenames, relativePaths } = req.body;
 
     // Parse fileHashes if sent as JSON string
     const parsedFileHashes = typeof fileHashes === 'string' ? JSON.parse(fileHashes) : fileHashes;
@@ -196,10 +196,16 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
     // Parse filenames if sent as JSON string
     const parsedFilenames = filenames ? JSON.parse(filenames) : null;
 
+    // Parse relativePaths if sent as JSON string (for folder uploads)
+    const parsedRelativePaths = relativePaths ? (typeof relativePaths === 'string' ? JSON.parse(relativePaths) : relativePaths) : null;
+
     const uploadPromises = files.map((file, index) => {
       // Use filename from request body (properly encoded from frontend) or fallback to multer's filename
       // Normalize to NFC form to handle special characters like ç correctly
       const filename = (parsedFilenames && parsedFilenames[index] ? parsedFilenames[index] : file.originalname).normalize('NFC');
+
+      // Get relativePath for this file (used for folder structure preservation)
+      const relativePath = parsedRelativePaths && parsedRelativePaths[index] ? parsedRelativePaths[index] : undefined;
 
       return documentService.uploadDocument({
         userId: req.user!.id,
@@ -208,6 +214,7 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
         mimeType: file.mimetype,
         folderId: folderId || undefined,
         fileHash: parsedFileHashes[index],
+        relativePath: relativePath,
       });
     });
 

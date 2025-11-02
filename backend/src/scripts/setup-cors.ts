@@ -19,7 +19,7 @@ async function setupCORS() {
     // CORS configuration
     const corsConfiguration = [
       {
-        origin: ['https://koda-frontend.ngrok.app', 'http://localhost:3000'],
+        origin: ['https://koda-frontend.ngrok.app', 'http://localhost:3000', 'http://localhost:3001'],
         method: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE'],
         responseHeader: [
           'Content-Type',
@@ -41,6 +41,7 @@ async function setupCORS() {
     console.log('Allowed origins:');
     console.log('  - https://koda-frontend.ngrok.app');
     console.log('  - http://localhost:3000');
+    console.log('  - http://localhost:3001');
     console.log('\nAllowed methods: GET, HEAD, PUT, POST, DELETE');
 
     process.exit(0);

@@ -254,6 +254,12 @@ httpServer.listen(portConfig.httpsPort, () => {
   // Start reminder scheduler
   startReminderScheduler();
 
+  // Start stuck document detector (runs every 5 minutes)
+  (async () => {
+    const { startStuckDocumentDetector } = await import('./jobs/stuckDocumentDetector');
+    startStuckDocumentDetector();
+  })();
+
   // ═══════════════════════════════════════════════════════════════
   // START BACKGROUND DOCUMENT PROCESSOR
   // ═══════════════════════════════════════════════════════════════

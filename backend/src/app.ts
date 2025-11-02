@@ -15,6 +15,7 @@ import notificationRoutes from './routes/notification.routes';
 import ragRoutes from './routes/rag.routes';
 // import securityRoutes from './routes/security.routes';
 import rbacRoutes from './routes/rbac.routes';
+import healthRoutes from './routes/health.routes';
 // TODO: Temporarily disabled routes with deleted service dependencies
 // import dataProtectionRoutes from './routes/dataProtection.routes';
 // import documentGenerationRoutes from './routes/documentGeneration.routes';
@@ -41,6 +42,7 @@ const corsOptions = {
     const allowedOrigins = [
       'https://koda-frontend.ngrok.app',
       'http://localhost:3000', // Development frontend
+      'http://localhost:3001', // Alternative development frontend port
       config.FRONTEND_URL
     ];
 
@@ -170,10 +172,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Initialize Passport
 app.use(passport.initialize());
 
-// Health check route
-app.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({ status: 'OK', message: 'Server is running' });
-});
+// Health check routes (both root and /api)
+app.use('/', healthRoutes); // Adds /health, /health/stuck-documents, /health/document-stats
+app.use('/api', healthRoutes); // Also available at /api/health/*
 
 // Routes
 app.use('/api/auth', authRoutes);

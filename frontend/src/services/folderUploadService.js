@@ -280,7 +280,7 @@ class FolderUploadService {
    * Upload a single file
    */
   async uploadSingleFile(fileObj, onProgress) {
-    const { file, fileName, folderId } = fileObj;
+    const { file, fileName, folderId, relativePath } = fileObj;
 
     try {
       console.log(`📤 Uploading "${fileName}" to folder ${folderId}...`);
@@ -295,6 +295,11 @@ class FolderUploadService {
 
       if (folderId) {
         formData.append('folderId', folderId);
+      }
+
+      // Include relativePath for backend fallback folder creation
+      if (relativePath) {
+        formData.append('relativePath', relativePath);
       }
 
       const response = await api.post('/api/documents/upload', formData, {

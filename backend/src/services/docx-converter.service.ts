@@ -1,7 +1,45 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import mammoth from 'mammoth';
-import puppeteer from 'puppeteer';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execPromise = promisify(exec);
+
+/**
+ * Find LibreOffice executable path based on operating system
+ */
+const findLibreOfficePath = (): string => {
+  const platform = process.platform;
+
+  if (platform === 'win32') {
+    // Windows - check common installation paths
+    const possiblePaths = [
+      'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
+      'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+      path.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'LibreOffice', 'program', 'soffice.exe'),
+      path.join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'LibreOffice', 'program', 'soffice.exe'),
+    ];
+
+    for (const possiblePath of possiblePaths) {
+      if (fs.existsSync(possiblePath)) {
+        console.log(`✅ Found LibreOffice at: ${possiblePath}`);
+        return `"${possiblePath}"`; // Quote the path for Windows
+      }
+    }
+
+    throw new Error('LibreOffice not found. Please install LibreOffice from https://www.libreoffice.org/download/');
+  } else if (platform === 'darwin') {
+    // macOS
+    const macPath = '/Applications/LibreOffice.app/Contents/MacOS/soffice';
+    if (fs.existsSync(macPath)) {
+      return macPath;
+    }
+    return 'soffice'; // Fallback to PATH
+  } else {
+    // Linux and others
+    return 'libreoffice';
+  }
+};
 
 interface ConversionResult {
   success: boolean;
@@ -10,135 +48,53 @@ interface ConversionResult {
 }
 
 /**
- * Convert DOCX file to PDF using Mammoth.js (DOCX -> HTML) and Puppeteer (HTML -> PDF)
- * No external dependencies required - fully self-contained
+ * Convert DOCX file to PDF using LibreOffice headless mode
+ * Requires LibreOffice to be installed on the system
  */
 export const convertDocxToPdf = async (
   docxPath: string,
   outputDir?: string
 ): Promise<ConversionResult> => {
-  let browser;
   try {
     // Use same directory if not specified
     if (!outputDir) {
       outputDir = path.dirname(docxPath);
     }
 
-    console.log(`📄 Converting ${path.basename(docxPath)} to PDF...`);
+    console.log(`📄 Converting ${path.basename(docxPath)} to PDF with LibreOffice...`);
 
-    // Step 1: Convert DOCX to HTML using Mammoth
-    console.log('Step 1: Converting DOCX to HTML with Mammoth...');
-    const docxBuffer = fs.readFileSync(docxPath);
-    const result = await mammoth.convertToHtml({ buffer: docxBuffer });
-    const html = result.value; // The generated HTML
-    const messages = result.messages; // Any messages (warnings, errors)
-
-    if (messages.length > 0) {
-      console.log('Mammoth conversion messages:', messages);
+    // Verify input file exists
+    if (!fs.existsSync(docxPath)) {
+      throw new Error(`Input file not found: ${docxPath}`);
     }
 
-    // Step 2: Wrap HTML in proper document structure with styling
-    const styledHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body {
-      font-family: 'Calibri', 'Arial', sans-serif;
-      font-size: 11pt;
-      line-height: 1.5;
-      margin: 1in;
-      color: #000;
-    }
-    p {
-      margin: 0 0 10pt 0;
-    }
-    h1, h2, h3, h4, h5, h6 {
-      margin-top: 12pt;
-      margin-bottom: 6pt;
-      font-weight: bold;
-    }
-    h1 { font-size: 16pt; }
-    h2 { font-size: 14pt; }
-    h3 { font-size: 12pt; }
-    table {
-      border-collapse: collapse;
-      margin: 10pt 0;
-    }
-    table td, table th {
-      border: 1px solid #000;
-      padding: 4pt 8pt;
-    }
-    img {
-      max-width: 100%;
-      height: auto;
-    }
-    ul, ol {
-      margin: 0 0 10pt 0;
-      padding-left: 30pt;
-    }
-    li {
-      margin-bottom: 5pt;
-    }
-  </style>
-</head>
-<body>
-  ${html}
-</body>
-</html>
-    `;
+    // Find LibreOffice executable
+    const libreOfficePath = findLibreOfficePath();
 
-    // Step 3: Convert HTML to PDF using Puppeteer
-    console.log('Step 2: Converting HTML to PDF with Puppeteer...');
+    // Use LibreOffice to convert DOCX to PDF
+    // --headless: run without GUI
+    // --convert-to pdf: convert to PDF format
+    // --outdir: specify output directory
+    const command = `${libreOfficePath} --headless --convert-to pdf --outdir "${outputDir}" "${docxPath}"`;
 
-    // Add timeout to prevent hanging on Mac systems
-    const launchTimeout = 30000; // 30 seconds
-    browser = await Promise.race([
-      puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process' // Helps on Mac
-        ],
-        timeout: launchTimeout
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Puppeteer launch timeout - browser failed to start')), launchTimeout)
-      )
-    ]);
+    console.log(`🔧 Executing: ${command}`);
 
-    const page = await browser.newPage();
-
-    // Set shorter timeout for content loading to prevent hanging
-    await page.setContent(styledHtml, {
-      waitUntil: 'networkidle0',
-      timeout: 15000 // 15 second timeout
+    // Execute LibreOffice with 60 second timeout
+    const { stdout, stderr } = await execPromise(command, {
+      timeout: 60000, // 60 seconds
+      maxBuffer: 1024 * 1024 * 10 // 10MB buffer
     });
 
-    // Determine output PDF path
+    if (stdout) {
+      console.log('LibreOffice output:', stdout);
+    }
+    if (stderr) {
+      console.warn('LibreOffice stderr:', stderr);
+    }
+
+    // Determine expected PDF path
     const fileName = path.basename(docxPath, path.extname(docxPath));
     const pdfPath = path.join(outputDir, `${fileName}.pdf`);
-
-    // Generate PDF with proper formatting
-    await page.pdf({
-      path: pdfPath,
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '1in',
-        right: '1in',
-        bottom: '1in',
-        left: '1in'
-      }
-    });
-
-    await browser.close();
 
     // Check if PDF was created
     if (!fs.existsSync(pdfPath)) {
@@ -153,15 +109,21 @@ export const convertDocxToPdf = async (
       pdfPath: pdfPath,
     };
   } catch (error: any) {
-    console.error('❌ DOCX to PDF conversion error:', error.message);
+    console.error('❌ LibreOffice DOCX to PDF conversion error:', error.message);
 
-    // Clean up browser if it was launched
-    if (browser) {
-      try {
-        await browser.close();
-      } catch (e) {
-        // Ignore cleanup errors
-      }
+    // Provide more helpful error messages
+    if (error.message.includes('ENOENT') || error.message.includes('not found')) {
+      return {
+        success: false,
+        error: 'LibreOffice is not installed or not in PATH. Please install LibreOffice.',
+      };
+    }
+
+    if (error.killed && error.signal === 'SIGTERM') {
+      return {
+        success: false,
+        error: 'LibreOffice conversion timeout (60 seconds exceeded)',
+      };
     }
 
     return {
@@ -172,10 +134,18 @@ export const convertDocxToPdf = async (
 };
 
 /**
- * Check if conversion dependencies are available
- * With Mammoth + Puppeteer, dependencies are bundled in node_modules
+ * Check if LibreOffice is installed and available
  */
 export const checkLibreOfficeInstalled = async (): Promise<boolean> => {
-  // Always return true since we're using bundled dependencies
-  return true;
+  try {
+    const libreOfficePath = findLibreOfficePath();
+    const { stdout } = await execPromise(`${libreOfficePath} --version`, {
+      timeout: 5000
+    });
+    console.log('✅ LibreOffice found:', stdout.trim());
+    return true;
+  } catch (error: any) {
+    console.error('❌ LibreOffice not found:', error.message);
+    return false;
+  }
 };
