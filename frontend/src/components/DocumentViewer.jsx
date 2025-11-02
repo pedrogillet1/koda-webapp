@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../services/api';
@@ -135,6 +135,10 @@ const DocumentViewer = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const zoomPresets = [50, 75, 100, 125, 150, 175, 200];
+
+  // Refs to track PDF pages for scroll position
+  const pageRefs = useRef({});
+  const documentContainerRef = useRef(null);
 
   // Handler for saving markdown edits
   const handleSaveMarkdown = async (docId, newMarkdownContent) => {
@@ -398,6 +402,41 @@ const DocumentViewer = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Track which page is currently visible using Intersection Observer
+  useEffect(() => {
+    if (!numPages || numPages === 0) return;
+
+    const observerOptions = {
+      root: documentContainerRef.current,
+      rootMargin: '-50% 0px -50% 0px', // Trigger when page crosses the center of viewport
+      threshold: 0
+    };
+
+    const observerCallback = (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const pageNum = parseInt(entry.target.getAttribute('data-page-number'), 10);
+          if (pageNum) {
+            setCurrentPage(pageNum);
+          }
+        }
+      });
+    };
+
+    const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+    // Observe all page elements
+    Object.values(pageRefs.current).forEach((pageElement) => {
+      if (pageElement) {
+        observer.observe(pageElement);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [numPages]);
 
   if (loading) {
     return (
@@ -667,7 +706,7 @@ const DocumentViewer = () => {
         </div>
 
         {/* Document Preview */}
-        <div style={{ width: '100%', flex: 1, padding: 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 20, display: 'flex', background: '#E5E5E5' }}>
+        <div ref={documentContainerRef} style={{ width: '100%', flex: 1, padding: 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 20, display: 'flex', background: '#E5E5E5' }}>
           {document ? (
             (() => {
               const fileType = getFileType(document.filename, document.mimeType);
@@ -753,31 +792,39 @@ const DocumentViewer = () => {
                           }
                         >
                           {Array.from(new Array(numPages), (el, index) => (
-                            <Page
+                            <div
                               key={`page_${index + 1}`}
-                              pageNumber={index + 1}
-                              width={900 * (zoom / 100)}
-                              scale={getOptimalPDFScale()}
-                              renderTextLayer={true}
-                              renderAnnotationLayer={true}
-                              loading={
-                                <div style={{
-                                  width: 900 * (zoom / 100),
-                                  height: 1200 * (zoom / 100),
-                                  background: 'white',
-                                  borderRadius: 8,
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  color: '#6C6B6E',
-                                  fontFamily: 'Plus Jakarta Sans'
-                                }}>
-                                  Loading page {index + 1}...
-                                </div>
-                              }
-                              onLoadSuccess={() => setCurrentPage(index + 1)}
-                            />
+                              ref={(el) => {
+                                if (el) {
+                                  pageRefs.current[index + 1] = el;
+                                }
+                              }}
+                              data-page-number={index + 1}
+                            >
+                              <Page
+                                pageNumber={index + 1}
+                                width={900 * (zoom / 100)}
+                                scale={getOptimalPDFScale()}
+                                renderTextLayer={true}
+                                renderAnnotationLayer={true}
+                                loading={
+                                  <div style={{
+                                    width: 900 * (zoom / 100),
+                                    height: 1200 * (zoom / 100),
+                                    background: 'white',
+                                    borderRadius: 8,
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#6C6B6E',
+                                    fontFamily: 'Plus Jakarta Sans'
+                                  }}>
+                                    Loading page {index + 1}...
+                                  </div>
+                                }
+                              />
+                            </div>
                           ))}
                         </Document>
                       </div>
@@ -853,31 +900,39 @@ const DocumentViewer = () => {
                         }
                       >
                         {Array.from(new Array(numPages), (el, index) => (
-                          <Page
+                          <div
                             key={`page_${index + 1}`}
-                            pageNumber={index + 1}
-                            width={900 * (zoom / 100)}
-                            scale={getOptimalPDFScale()}
-                            renderTextLayer={true}
-                            renderAnnotationLayer={true}
-                            loading={
-                              <div style={{
-                                width: 900 * (zoom / 100),
-                                height: 1200 * (zoom / 100),
-                                background: 'white',
-                                borderRadius: 8,
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#6C6B6E',
-                                fontFamily: 'Plus Jakarta Sans'
-                              }}>
-                                Loading page {index + 1}...
-                              </div>
-                            }
-                            onLoadSuccess={() => setCurrentPage(index + 1)}
-                          />
+                            ref={(el) => {
+                              if (el) {
+                                pageRefs.current[index + 1] = el;
+                              }
+                            }}
+                            data-page-number={index + 1}
+                          >
+                            <Page
+                              pageNumber={index + 1}
+                              width={900 * (zoom / 100)}
+                              scale={getOptimalPDFScale()}
+                              renderTextLayer={true}
+                              renderAnnotationLayer={true}
+                              loading={
+                                <div style={{
+                                  width: 900 * (zoom / 100),
+                                  height: 1200 * (zoom / 100),
+                                  background: 'white',
+                                  borderRadius: 8,
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#6C6B6E',
+                                  fontFamily: 'Plus Jakarta Sans'
+                                }}>
+                                  Loading page {index + 1}...
+                                </div>
+                              }
+                            />
+                          </div>
                         ))}
                       </Document>
                     </div>
