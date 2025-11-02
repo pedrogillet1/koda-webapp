@@ -304,6 +304,15 @@ export const onMessageAborted = (callback) => {
 };
 
 /**
+ * Listen for message complete event (streaming finished)
+ */
+export const onMessageComplete = (callback) => {
+  if (socket) {
+    socket.on('message-complete', callback);
+  }
+};
+
+/**
  * Remove message listeners
  */
 export const removeMessageListeners = () => {
@@ -314,6 +323,7 @@ export const removeMessageListeners = () => {
     socket.removeAllListeners('message-stage');  // ✅ Fixed event name to match server.ts
     socket.removeAllListeners('chat:message:aborted');
     socket.removeAllListeners('research:progress');
+    socket.removeAllListeners('message-complete');
   }
 };
 
@@ -410,6 +420,7 @@ export default {
   onMessageChunk,
   onMessageStage,
   onMessageAborted,
+  onMessageComplete,
   onResearchProgress,
   removeMessageListeners,
   queryWithRAG,

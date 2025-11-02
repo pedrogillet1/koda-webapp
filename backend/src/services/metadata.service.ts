@@ -46,42 +46,47 @@ export class MetadataService {
   async findFileByName(userId: string, filename: string): Promise<FileMetadata[]> {
     console.log(`🔍 [MetadataService] Searching for file: "${filename}" for user: ${userId}`);
 
-    // Search for files with partial match (case insensitive)
-    const files = await prisma.document.findMany({
-      where: {
-        userId,
-        status: { not: 'deleted' },
-        filename: {
-          contains: filename,
-          mode: 'insensitive',
-        },
-      },
-      include: {
-        folder: {
-          select: {
-            id: true,
-            name: true,
-            path: true,
+    try {
+      // Search for files with partial match (case insensitive)
+      const files = await prisma.document.findMany({
+        where: {
+          userId,
+          status: { not: 'deleted' },
+          filename: {
+            contains: filename,
           },
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+        include: {
+          folder: {
+            select: {
+              id: true,
+              name: true,
+              path: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
 
-    console.log(`📊 [MetadataService] Found ${files.length} matching files`);
+      console.log(`📊 [MetadataService] Found ${files.length} matching files`);
 
-    return files.map((file) => ({
-      id: file.id,
-      filename: file.filename,
-      folderId: file.folderId,
-      folderName: file.folder?.name || null,
-      folderPath: file.folder?.path || null,
-      mimeType: file.mimeType,
-      fileSize: file.fileSize,
-      createdAt: file.createdAt,
-    }));
+      return files.map((file) => ({
+        id: file.id,
+        filename: file.filename,
+        folderId: file.folderId,
+        folderName: file.folder?.name || null,
+        folderPath: file.folder?.path || null,
+        mimeType: file.mimeType,
+        fileSize: file.fileSize,
+        createdAt: file.createdAt,
+      }));
+    } catch (error) {
+      console.error(`❌ [MetadataService] Error finding file "${filename}":`, error);
+      console.error(`   Error details:`, error instanceof Error ? error.message : error);
+      throw error; // Re-throw so handleMetadataQuery can catch it
+    }
   }
 
   /**
@@ -115,7 +120,6 @@ export class MetadataService {
           status: { not: 'deleted' },
           mimeType: {
             contains: mimeType,
-            mode: 'insensitive',
           },
         },
       });
@@ -153,7 +157,6 @@ export class MetadataService {
         userId,
         name: {
           contains: folderName,
-          mode: 'insensitive',
         },
       },
     });
@@ -326,8 +329,13 @@ export class MetadataService {
       return `You have **${data} files** in your document library.`;
     }
 
-    // Folder contents query: "what's in folder X"
-    if (queryLower.includes('what is inside') || queryLower.includes('what files are in') || queryLower.includes('show me the contents')) {
+    // Folder contents query: "what's in folder X" / "which files are inside X"
+    if (queryLower.includes('what is inside') ||
+        queryLower.includes('what files are in') ||
+        queryLower.includes('which files are in') ||
+        queryLower.includes('which files are inside') ||
+        queryLower.includes('show me the contents') ||
+        queryLower.includes('files inside')) {
       if (!data) {
         return `I couldn't find that folder in your documents.`;
       }

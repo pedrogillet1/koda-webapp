@@ -26,6 +26,7 @@ import queryClassifierService, { ResponseStyle } from './queryClassifier.service
 import queryIntentDetectorService, { QueryIntent } from './queryIntentDetector.service';
 import formatTypeClassifierService, { ResponseFormatType } from './formatTypeClassifier.service';
 import metadataService from './metadata.service';
+import fileActionsService from './fileActions.service';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -385,6 +386,20 @@ Provide a comprehensive and accurate answer based on the document content follow
           answer += data.map((file: any) => `• **${file.filename}**`).join('\n');
           break;
 
+        case 'list_folders':
+          console.log(`   📁 Listing all folders`);
+          data = await metadataService.getAllFolders(userId);
+
+          if (data.length === 0) {
+            answer = "You don't have any folders yet.";
+          } else {
+            answer = `You have **${data.length} ${data.length === 1 ? 'folder' : 'folders'}**:\n\n`;
+            answer += data.map((folder: any) =>
+              `• **${folder.name}** (${folder.documentCount} ${folder.documentCount === 1 ? 'file' : 'files'})`
+            ).join('\n');
+          }
+          break;
+
         default:
           answer = "I couldn't understand the metadata query. Please try rephrasing.";
       }
@@ -400,6 +415,12 @@ Provide a comprehensive and accurate answer based on the document content follow
       };
     } catch (error) {
       console.error(`❌ Error handling metadata query:`, error);
+      console.error(`   Query: "${query}"`);
+      console.error(`   Type: ${metadataResult.type}`);
+      console.error(`   Extracted value: ${metadataResult.extractedValue || 'N/A'}`);
+      console.error(`   Error details:`, error instanceof Error ? error.message : error);
+      console.error(`   Stack trace:`, error instanceof Error ? error.stack : 'N/A');
+
       return {
         answer: 'Sorry, I encountered an error while looking up that information. Please try again.',
         sources: [],
@@ -407,6 +428,234 @@ Provide a comprehensive and accurate answer based on the document content follow
         intent: metadataResult.type,
       };
     }
+  }
+
+  /**
+   * Extract document name from query to filter sources
+   * Examples:
+   * - "what does koda business plan talk about" → "koda business plan"
+   * - "summarize the blueprint" → "blueprint"
+   * - "what is in comprovante1" → "comprovante1"
+   */
+  private extractDocumentNameFromQuery(query: string): string | null {
+    const patterns = [
+      // Comparison patterns (NEW - catches "similarities/differences between X")
+      /(?:similarities|differences|compare|comparison).*?(?:between|of) (?:the |both |all )?(.+?)(?:\s+(?:presentations?|documents?|files?|plans?))/i,
+      /(?:compare|comparison of) (?:the |both |all )?(.+?)(?:\s+(?:presentations?|documents?|files?|plans?))/i,
+
+      // Original patterns
+      /(?:what does|what is|summarize|tell me about|explain) (?:the )?(.+?)(?:\s+(?:talk about|say|document|file|about))/i,
+      /(?:in|from) (?:the )?(.+?)(?:\s+(?:document|file|pdf|docx|xlsx|pptx))/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = query.match(pattern);
+      if (match) {
+        let extracted = match[1].trim();
+
+        // Clean up extracted name
+        extracted = extracted
+          .replace(/^(?:the|a|an|both|all)\s+/i, '')  // Remove articles and quantifiers
+          .replace(/\s+(?:file|document)s?$/i, '');  // Remove "file(s)" or "document(s)" at end
+
+        return extracted;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Validate all filenames mentioned in response against database
+   * Prevents AI hallucination by removing references to non-existent files
+   */
+  private async validateFilenamesInResponse(answer: string, userId: string): Promise<string> {
+    // Extract all filenames from the response (files with extensions)
+    const filenamePattern = /([^\n•\-–]+?\.(pdf|xlsx|docx|pptx|txt|csv|jpg|png|gif|zip|rar|json|xml|html))/gi;
+    const matches = answer.match(filenamePattern);
+
+    if (!matches || matches.length === 0) {
+      console.log(`   ℹ️  No filenames detected in response`);
+      return answer;
+    }
+
+    // Clean up extracted filenames
+    const extractedFilenames = matches.map(m => m.trim());
+    const uniqueFilenames = [...new Set(extractedFilenames)];
+
+    console.log(`   📄 Found ${uniqueFilenames.length} unique filename(s) in response:`);
+    uniqueFilenames.forEach(f => console.log(`      - ${f}`));
+
+    // Query database to check which files exist
+    const existingFiles = await prisma.document.findMany({
+      where: {
+        userId,
+        status: { not: 'deleted' }
+      },
+      select: {
+        filename: true
+      }
+    });
+
+    const existingFilenames = new Set(existingFiles.map(f => f.filename));
+
+    // Find hallucinated filenames (mentioned but don't exist)
+    const hallucinatedFiles: string[] = [];
+    const validFiles: string[] = [];
+
+    for (const mentioned of uniqueFilenames) {
+      const exists = existingFilenames.has(mentioned);
+      if (exists) {
+        validFiles.push(mentioned);
+      } else {
+        hallucinatedFiles.push(mentioned);
+      }
+    }
+
+    if (hallucinatedFiles.length === 0) {
+      console.log(`   ✅ All ${validFiles.length} filename(s) validated - no hallucination detected`);
+      return answer;
+    }
+
+    // HALLUCINATION DETECTED - Remove hallucinated references
+    console.warn(`   ⚠️  HALLUCINATION DETECTED: ${hallucinatedFiles.length} non-existent file(s):`);
+    hallucinatedFiles.forEach(f => console.warn(`      ❌ ${f}`));
+
+    let cleanedAnswer = answer;
+
+    // Remove bullet points that mention hallucinated files
+    for (const fake of hallucinatedFiles) {
+      // Pattern: Remove the entire bullet point line containing the fake filename
+      const bulletPattern = new RegExp(`•[^•\n]*${this.escapeRegex(fake)}[^\n]*\n?`, 'gi');
+      cleanedAnswer = cleanedAnswer.replace(bulletPattern, '');
+    }
+
+    console.log(`   🧹 Removed hallucinated file references from response`);
+    console.log(`   ✅ Validated files: ${validFiles.length}`);
+    console.log(`   ❌ Removed files: ${hallucinatedFiles.length}`);
+
+    return cleanedAnswer;
+  }
+
+  /**
+   * Escape regex special characters
+   */
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * Extract file type from query
+   * Examples:
+   * - "similarities between both koda presentations" → "presentation"
+   * - "compare the PDFs" → "pdf"
+   * - "what do the business plans say" → "plan"
+   */
+  private extractFileTypeFromQuery(query: string): string | null {
+    const queryLower = query.toLowerCase();
+
+    // File type patterns (plural and singular)
+    const patterns: [RegExp, string][] = [
+      [/presentations?/i, 'presentation'],
+      [/pdfs?/i, 'pdf'],
+      [/plans?/i, 'plan'],
+      [/spreadsheets?|excels?/i, 'spreadsheet'],
+      [/documents?|docs?/i, 'document'],
+      [/slides?/i, 'slide'],
+    ];
+
+    for (const [pattern, type] of patterns) {
+      if (pattern.test(queryLower)) {
+        return type;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Map file type to MIME types
+   */
+  private getMimeTypeFilter(fileType: string): string[] {
+    const mimeMap: Record<string, string[]> = {
+      'presentation': ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint'],
+      'pdf': ['application/pdf'],
+      'plan': ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'], // Plans could be PDF or Word
+      'spreadsheet': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'],
+      'document': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'],
+      'slide': ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    };
+
+    return mimeMap[fileType] || [];
+  }
+
+  /**
+   * Validate that all source documentIds exist in database
+   * Filters out stale sources from Pinecone that reference deleted documents or wrong filenames
+   * ALSO DELETES orphaned vectors from Pinecone to prevent future queries from finding them
+   */
+  private async validateSourcesExist(sources: RAGSource[], userId: string): Promise<RAGSource[]> {
+    if (sources.length === 0) return sources;
+
+    // Extract all documentIds from sources
+    const documentIds = sources.map(s => s.documentId);
+
+    // Query database to check which documents exist AND get their actual filenames
+    const existingDocs = await prisma.document.findMany({
+      where: {
+        id: { in: documentIds },
+        userId,
+        status: { not: 'deleted' }
+      },
+      select: {
+        id: true,
+        filename: true
+      }
+    });
+
+    // Create map of documentId -> filename from database
+    const docIdToFilename = new Map(existingDocs.map(d => [d.id, d.filename]));
+
+    // Track orphaned document IDs for cleanup
+    const orphanedDocumentIds: string[] = [];
+
+    // Filter sources to only include existing documents with matching filenames
+    const validSources = sources.filter(s => {
+      const dbFilename = docIdToFilename.get(s.documentId);
+      if (!dbFilename) {
+        console.warn(`   ⚠️  Source references deleted document: ${s.documentId}`);
+        orphanedDocumentIds.push(s.documentId);
+        return false;
+      }
+
+      // CRITICAL: Also validate filename matches database
+      if (s.filename !== dbFilename) {
+        console.warn(`   ⚠️  Filename mismatch for ${s.documentId}: Pinecone="${s.filename}", DB="${dbFilename}"`);
+        // Update filename to match database
+        s.filename = dbFilename;
+      }
+
+      return true;
+    });
+
+    const removedCount = sources.length - validSources.length;
+
+    if (removedCount > 0) {
+      console.warn(`   ⚠️  Found ${removedCount} orphaned source(s) - cleaning up Pinecone...`);
+
+      // CRITICAL: Delete orphaned vectors from Pinecone to prevent this from happening again
+      const pineconeService = await import('./pinecone.service');
+      for (const orphanedId of orphanedDocumentIds) {
+        try {
+          await pineconeService.default.deleteDocumentEmbeddings(orphanedId);
+          console.log(`   🧹 Deleted orphaned vectors for document: ${orphanedId}`);
+        } catch (error) {
+          console.error(`   ❌ Failed to delete orphaned vectors for ${orphanedId}:`, error);
+        }
+      }
+    }
+
+    return validSources;
   }
 
   /**
@@ -688,6 +937,44 @@ Provide a comprehensive and accurate answer based on the document content follow
     // STEP 1: DETECT QUERY INTENT (Simple approach)
     const queryIntent = queryIntentDetectorService.detectIntent(query);
 
+    // STEP 0.5: CHECK FOR FILE ACTION (BEFORE metadata query)
+    console.log(`\n🔧 CHECKING FOR FILE ACTIONS...`);
+    const fileAction = fileActionsService.parseFileAction(query);
+
+    if (fileAction) {
+      console.log(`   ✅ File action detected: ${fileAction.action}`);
+      console.log(`   📋 Params:`, fileAction.params);
+
+      try {
+        const actionResult = await fileActionsService.executeAction(query, userId);
+
+        console.log(`   ${actionResult.success ? '✅' : '❌'} Action result: ${actionResult.message}`);
+
+        const detectedLang = detectLanguage(query);
+
+        return {
+          answer: actionResult.message,
+          sources: [],
+          contextId: `file_action_${Date.now()}`,
+          intent: `file_action_${fileAction.action}`,
+          confidence: actionResult.success ? 1.0 : 0.0
+        };
+      } catch (error) {
+        console.error(`❌ File action execution failed:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        return {
+          answer: `Failed to execute file action: ${errorMessage}`,
+          sources: [],
+          contextId: `file_action_error_${Date.now()}`,
+          intent: 'file_action_error',
+          confidence: 0.0
+        };
+      }
+    }
+
+    console.log(`   ℹ️  No file action detected - continuing with normal query processing`);
+
     // STEP 1.1: CHECK FOR METADATA QUERY (NEW - Uses database instead of RAG)
     const metadataQueryResult = intentService.detectMetadataQuery(query);
     const isMetadataQuery = metadataQueryResult.isMetadataQuery;
@@ -772,7 +1059,50 @@ Provide a comprehensive and accurate answer based on the document content follow
       }
     }
 
-    const topK = documentId ? 50 : 40;
+    // STEP 2.5: DETECT DOCUMENT-SPECIFIC QUERY
+    // If query mentions specific document name, filter to ONLY that document
+    let scopedDocumentId: string | undefined = documentId;
+
+    if (!documentId) {
+      const documentNameMatch = this.extractDocumentNameFromQuery(query);
+
+      if (documentNameMatch) {
+        console.log(`   🎯 Document-specific query detected: "${documentNameMatch}"`);
+
+        // ENHANCED: Also detect file type from query (presentations, PDFs, plans, etc.)
+        const fileTypeFilter = this.extractFileTypeFromQuery(query);
+        const mimeTypeFilter = fileTypeFilter ? this.getMimeTypeFilter(fileTypeFilter) : undefined;
+
+        if (fileTypeFilter) {
+          console.log(`   📎 File type filter detected: "${fileTypeFilter}" → MIME: ${mimeTypeFilter}`);
+        }
+
+        // Build where clause with optional MIME type filter
+        const whereClause: any = {
+          userId,
+          status: 'completed',
+          filename: {
+            contains: documentNameMatch,
+          },
+        };
+
+        if (mimeTypeFilter) {
+          whereClause.mimeType = { in: mimeTypeFilter };
+        }
+
+        // Find document by name (and optionally by type)
+        const matchedDoc = await prisma.document.findFirst({
+          where: whereClause,
+        });
+
+        if (matchedDoc) {
+          scopedDocumentId = matchedDoc.id;
+          console.log(`   ✅ Scoped to document: ${matchedDoc.filename} (${scopedDocumentId})`);
+        }
+      }
+    }
+
+    const topK = scopedDocumentId ? 50 : 40;
 
     // Generate embedding and search Pinecone
     const embeddingResult = await embeddingService.generateQueryEmbedding(query);
@@ -781,7 +1111,7 @@ Provide a comprehensive and accurate answer based on the document content follow
       userId,
       topK,
       0.3, // minSimilarity
-      documentId
+      scopedDocumentId  // ← Use scoped document if detected
     );
 
     console.log(`   Found ${retrievalResults.length} relevant chunks`);
@@ -874,7 +1204,12 @@ Provide a comprehensive and accurate answer based on the document content follow
     });
 
     // Limit to top sources
-    const finalSources = uniqueSources.slice(0, 5);
+    let finalSources = uniqueSources.slice(0, 5);
+
+    // ANTI-STALE-DATA: Validate all source documentIds exist in database
+    console.log(`🔍 VALIDATING SOURCES AGAINST DATABASE...`);
+    finalSources = await this.validateSourcesExist(finalSources, userId);
+    console.log(`   ✅ Validated: ${finalSources.length} sources confirmed to exist`);
 
     // FOR LIST QUERIES: Skip AI generation, format list directly
     if (queryIntent === QueryIntent.LIST && isMetadataQuery) {
@@ -1020,8 +1355,12 @@ Provide a comprehensive and accurate answer based on the document content follow
     console.log(`   Original length: ${rawAnswer.length} characters`);
     console.log(`   Formatted length: ${formattedAnswer.length} characters`);
 
+    // ANTI-HALLUCINATION: Validate all filenames mentioned in response
+    console.log(`🔍 VALIDATING FILENAMES IN RESPONSE...`);
+    const validatedAnswer = await this.validateFilenamesInResponse(formattedAnswer, userId);
+
     const response: RAGResponse = {
-      answer: formattedAnswer,
+      answer: validatedAnswer,
       sources: finalSources,
       contextId: `rag_${Date.now()}`,
       intent: intent.intent,

@@ -242,6 +242,42 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 };
                 setMessages((prev) => [...prev, stoppedMessage]);
             });
+
+            // Listen for message complete event (CRITICAL: ensures message appears after streaming)
+            chatService.onMessageComplete((data) => {
+                console.log('✅ Message streaming complete event received:', data.conversationId);
+                // Force processing of pending message immediately, even if animation is still running
+                // This prevents the "second query needs refresh" bug
+                setTimeout(() => {
+                    if (pendingMessageRef.current) {
+                        console.log('🚀 Force-processing pending message from message-complete event');
+                        const pending = pendingMessageRef.current;
+                        pendingMessageRef.current = null;
+
+                        // Clear streaming states
+                        setStreamingMessage('');
+                        setIsLoading(false);
+
+                        // Add final messages to history
+                        setMessages((prev) => {
+                            const assistantExists = prev.some(msg => msg.id === pending.assistantMessage.id);
+
+                            if (assistantExists) {
+                                console.log('⚠️ Message already exists, skipping:', pending.assistantMessage.id);
+                                return prev;
+                            }
+
+                            console.log('✅ Adding messages from message-complete handler');
+                            const withoutOptimistic = prev.filter(m => {
+                                if (m.isOptimistic) return false;
+                                if (m.id === pending.userMessage?.id || m.id === pending.assistantMessage?.id) return false;
+                                return true;
+                            });
+                            return [...withoutOptimistic, pending.userMessage, pending.assistantMessage];
+                        });
+                    }
+                }, 100); // Small delay to let final chunk arrive
+            });
         }
 
         return () => {

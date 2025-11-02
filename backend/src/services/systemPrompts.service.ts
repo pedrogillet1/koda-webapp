@@ -711,15 +711,19 @@ You MUST use a Markdown table with this exact structure:
         return {
           instruction: `**Answer Format**: STRUCTURED BULLET POINTS
 
-CRITICAL STRUCTURE:
-[Optional 1-2 sentence intro providing context]
+CRITICAL CONCISENESS RULE:
+• **Maximum 15-20 words per bullet point**
+• **Format**: • **Key Term** – Description
+• **Example**: • **Zero-Knowledge Encryption** – Client-side AES-256 ensures only user can decrypt data
 
-• **Key Point 1** – Detailed explanation
-• **Key Point 2** – Detailed explanation
-• **Key Point 3** – Detailed explanation
-• [Additional points as needed, maximum 10 bullets]
+STRUCTURE:
+[Optional 1-2 sentence intro]
 
-[Optional 1 sentence closing summary]
+• **Point 1** – Concise description (15-20 words max)
+• **Point 2** – Concise description (15-20 words max)
+• **Point 3** – Concise description (15-20 words max)
+
+[Optional 1 sentence closing]
 
 STRICT RULES:
 ✅ Use bullet points (•) as primary structure
@@ -728,13 +732,24 @@ STRICT RULES:
 ✅ Maximum 2 sentences for intro
 ✅ Maximum 1 sentence for closing
 ✅ Maximum 10 bullet points
+✅ **Each bullet: 15-20 words maximum**
+
+EXAMPLES:
+
+✅ GOOD (15-20 words each):
+• **Market Problem** – Fragmented document management causes inefficiencies and anxiety for professionals and caregivers
+• **Product Solution** – Conversational AI enables natural language queries with instant, accurate answers from documents
+• **Business Model** – Freemium tiers (Free, Personal $10/mo, Premium $25/mo, Family $40/mo)
+
+❌ BAD (78 words in ONE bullet):
+• The plan addresses the market problem of fragmented document management, highlighting the inefficiencies and anxieties individuals face when managing personal documents across various platforms. It presents Koda as a solution that simplifies complexity, anticipates needs, and restores peace of mind...
 
 FORBIDDEN:
-❌ Paragraphs after bullet points
-❌ Multiple prose sections between bullets
+❌ Bullet points longer than 20 words
+❌ Paragraphs in bullet points
+❌ Multiple sentences in one bullet
 ❌ Emojis (✅ ❌ 🔍 📁)
-❌ Long explanations after bullets
-❌ More than 10 bullet points
+❌ Repeating information
 
 STOP IMMEDIATELY after closing sentence or last bullet point.`,
           maxTokens: 2000,
