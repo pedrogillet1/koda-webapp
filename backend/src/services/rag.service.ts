@@ -652,8 +652,8 @@ Provide a comprehensive and accurate answer based on the document content follow
       const uniqueNames = [...new Set(documentNames)];
       console.log(`   Found ${uniqueNames.length} unique documents (${documentNames.length} total chunks)`);
 
-      // Format as bullet list with line breaks
-      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n');
+      // Format as bullet list with double line breaks for proper markdown rendering
+      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n\n');
 
       const responseTime = Date.now() - startTime;
       console.log(`✅ LIST FORMATTED (${responseTime}ms)`);
@@ -1101,8 +1101,8 @@ Provide a comprehensive and accurate answer based on the document content follow
       const uniqueNames = [...new Set(documentNames)];
       console.log(`   Found ${uniqueNames.length} unique documents (${documentNames.length} total chunks)`);
 
-      // Format as bullet list with line breaks
-      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n');
+      // Format as bullet list with double line breaks for proper markdown rendering
+      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n\n');
 
       // Send formatted list directly
       if (onChunk) {

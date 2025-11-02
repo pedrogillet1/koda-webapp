@@ -10,6 +10,7 @@
 
 import prisma from '../config/database';
 import { sendMessageToGemini, sendMessageToGeminiStreaming, generateConversationTitle } from './gemini.service';
+import ragService from './rag.service';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -312,13 +313,15 @@ export const sendMessageStreaming = async (
     content: msg.content,
   }));
 
-  // Generate AI response with streaming
-  console.log('🤖 Generating streaming AI response...');
+  // Generate AI response with streaming using RAG service
+  console.log('🤖 Generating streaming RAG response...');
   let fullResponse = '';
 
-  await sendMessageToGeminiStreaming(
+  const ragResult = await ragService.generateAnswerStreaming(
+    userId,
     content,
-    conversationHistory,
+    conversationId,
+    'medium', // Default answer length
     attachedDocumentId,
     (chunk: string) => {
       fullResponse += chunk;
