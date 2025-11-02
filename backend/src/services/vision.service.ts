@@ -1,6 +1,6 @@
 import vision from '@google-cloud/vision';
 import { config } from '../config/env';
-import { fromBuffer } from 'pdf2pic';
+import { pdfToPng } from 'pdf-to-png-converter';
 
 // Initialize Google Cloud Vision client
 const visionClient = new vision.ImageAnnotatorClient({
@@ -182,29 +182,28 @@ export const extractTextFromScannedPDF = async (pdfBuffer: Buffer): Promise<OCRR
   try {
     console.log('🔍 Converting PDF to images for OCR...');
 
-    const converter = fromBuffer(pdfBuffer, {
-      density: 200,
-      format: 'png',
-      width: 2000,
-      height: 2000,
+    // Convert PDF to PNG images (all pages)
+    // When outputFolder is not specified, it returns buffers by default
+    const pngPages = await pdfToPng(pdfBuffer, {
+      viewportScale: 2.0, // Higher quality for better OCR
     });
+
+    console.log(`  ✅ Converted ${pngPages.length} pages to images`);
 
     let allText = '';
     let totalConfidence = 0;
     let wordCount = 0;
 
-    // Process up to 10 pages
-    for (let pageNum = 1; pageNum <= 10; pageNum++) {
+    // Process each page (limit to 10 for cost control)
+    const pagesToProcess = pngPages.slice(0, 10);
+
+    for (let i = 0; i < pagesToProcess.length; i++) {
+      const pageNum = i + 1;
+      const page = pagesToProcess[i];
+
       try {
-        const pageImage = await converter(pageNum, { responseType: 'buffer' });
-
-        if (!pageImage || !pageImage.buffer) {
-          console.log(`  Reached end at page ${pageNum}`);
-          break;
-        }
-
         // OCR the image
-        const [result] = await visionClient.documentTextDetection(pageImage.buffer);
+        const [result] = await visionClient.documentTextDetection(page.content);
         const fullTextAnnotation = result.fullTextAnnotation;
 
         if (fullTextAnnotation && fullTextAnnotation.text) {
@@ -228,8 +227,8 @@ export const extractTextFromScannedPDF = async (pdfBuffer: Buffer): Promise<OCRR
 
         console.log(`  ✅ Page ${pageNum}: ${fullTextAnnotation?.text?.length || 0} chars`);
       } catch (pageError) {
-        console.log(`  ⚠️ Page ${pageNum} failed, stopping`);
-        break;
+        console.log(`  ⚠️ Page ${pageNum} failed:`, pageError);
+        // Continue with next page
       }
     }
 

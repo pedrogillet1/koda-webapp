@@ -272,16 +272,26 @@ RULES:
 • NO emoji anywhere
 • Keep answer concise (1-2 sentences max)
 • 2-4 bullet points with supporting details
+• For Excel data: Include cell references and sheet names
 • NO closing statement for factual queries
 
-EXAMPLE:
+EXAMPLE (PDF):
 Document: Passport.pdf
 Answer:
 The expiration date is March 15, 2025.
 
 • Found on page 2
 • Issued on March 16, 2015 in Lisbon
-• Valid for 10 years from issue date`;
+• Valid for 10 years from issue date
+
+EXAMPLE (Excel):
+Document: Financial Report Q1.xlsx
+Answer:
+The total revenue for January 2025 is $1,245,000.
+
+• Located in Sheet 2 'Revenue', Cell B5
+• This is a 12.5% increase from December 2024
+• Formula used: =SUM(B2:B4)`;
   }
 
   /**

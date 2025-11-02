@@ -46,30 +46,38 @@ export const registerUser = async ({ email, password }: RegisterInput) => {
   // Hash password
   const { hash, salt } = await hashPassword(password);
 
-  // Import pending user service
-  const pendingUserService = await import('./pendingUser.service');
-
-  // Create pending user with email code
-  const { pendingUser, emailCode } = await pendingUserService.createPendingUser({
-    email,
-    passwordHash: hash,
-    salt,
+  // TODO: Pending user service was removed during cleanup
+  // For now, create user directly without email verification (development mode)
+  const user = await prisma.user.create({
+    data: {
+      email: email.toLowerCase(),
+      passwordHash: hash,
+      salt,
+      isEmailVerified: true, // Skip verification for now
+    },
   });
 
-  // Send email verification code
-  try {
-    const emailService = await import('./email.service');
-    await emailService.sendVerificationEmail(email, emailCode);
-    console.log(`📧 Verification code sent to ${email}`);
-  } catch (error) {
-    console.error('Failed to send verification email:', error);
-    console.log(`📧 Would send verification code ${emailCode} to ${email}`);
-  }
+  console.log(`✅ User created directly: ${user.email}`);
+
+  // Generate tokens
+  const accessToken = generateAccessToken({ userId: user.id, email: user.email });
+  const refreshToken = generateRefreshToken({ userId: user.id, email: user.email });
+
+  // Store refresh token
+  const tokenHash = hashToken(refreshToken);
+  await prisma.refreshToken.create({
+    data: {
+      userId: user.id,
+      tokenHash,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+    },
+  });
 
   return {
-    message: 'Please check your email for verification code',
-    email: pendingUser.email,
-    requiresVerification: true,
+    user,
+    accessToken,
+    refreshToken,
+    message: 'User registered successfully',
   };
 };
 

@@ -15,4 +15,14 @@ export const emitFolderEvent = (userId: string, event: string, folderId?: string
   return true;
 };
 
+export const emitToUser = (userId: string, event: string, data: any) => {
+  // Stub: Would emit to specific user via WebSocket
+  return true;
+};
+
+export const getIO = () => {
+  // Stub: Would return socket.io instance
+  return null;
+};
+
 export default new WebSocketService();

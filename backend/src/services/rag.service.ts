@@ -104,13 +104,26 @@ Remember: Your response = bullets only. No intro. No summary. No explanation. Ju
 
 The user wants a SPECIFIC FACT or DATA POINT, not a summary.
 
+FOR EXCEL/SPREADSHEET DATA:
+- Look for cell coordinates (e.g., "B5: $1,200,000" or "Cell A10: Revenue")
+- Look for table data (e.g., "Month: January, Revenue: $450,000")
+- Pay attention to sheet names and row numbers
+- If multiple values exist, cite the specific cell/sheet location
+- Include formulas if they provide context
+
 ${formatPrompt}`;
     } else if (queryIntent === QueryIntent.COMPARISON) {
-      // For comparison queries, use TABLE format or format-specific prompt
-      const formatPrompt = responseFormatterService.buildFormatPrompt(formatType);
+      // For comparison queries, ALWAYS use TABLE format
+      const formatPrompt = responseFormatterService.buildFormatPrompt(ResponseFormatType.TABLE);
       return `CRITICAL INSTRUCTIONS FOR COMPARISON QUERIES:
 
 The user wants to COMPARE two or more items.
+
+YOU MUST USE THE TABLE FORMAT BELOW:
+- Group items by category with headers
+- Use bullet points (•) for each item
+- Use em dash (—) to separate name from description
+- NO emoji anywhere
 
 ${formatPrompt}`;
     } else {
@@ -642,6 +655,60 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     // Limit to top sources
     const finalSources = uniqueSources.slice(0, 5);
+
+    // FOR FILE TYPES QUERIES: Query database directly for file types
+    if (queryIntent === QueryIntent.FILE_TYPES) {
+      console.log(`📁 FILE TYPES QUERY DETECTED - Querying database for file extensions`);
+
+      // Query all user documents directly from database
+      const documents = await prisma.document.findMany({
+        where: { userId, status: 'completed' },
+        select: { filename: true }
+      });
+
+      console.log(`   Found ${documents.length} total documents`);
+
+      // Group by file type
+      const typeGroups: Record<string, string[]> = {};
+
+      documents.forEach(doc => {
+        const ext = doc.filename.split('.').pop()?.toUpperCase() || 'UNKNOWN';
+        const fileType = this.mapExtensionToType(ext);
+
+        if (!typeGroups[fileType]) {
+          typeGroups[fileType] = [];
+        }
+
+        // Store filename without extension
+        const nameWithoutExt = doc.filename.replace(/\.[^/.]+$/, '');
+        typeGroups[fileType].push(nameWithoutExt);
+      });
+
+      // Build response
+      let response = 'File types detected:\n\n';
+
+      const sortedTypes = Object.entries(typeGroups).sort((a, b) => b[1].length - a[1].length);
+
+      sortedTypes.forEach(([type, files]) => {
+        const fileList = files.slice(0, 3).join(', ');
+        const moreCount = files.length > 3 ? ` (and ${files.length - 3} more)` : '';
+        response += `${type} (${files.length}): ${fileList}${moreCount}\n`;
+      });
+
+      response += '\nNext actions:\nYou can filter these by format, preview them, or group by content type (financial, legal, identity, etc.).';
+
+      const responseTime = Date.now() - startTime;
+      console.log(`✅ FILE TYPES FORMATTED (${responseTime}ms)`);
+      console.log(`   Types: ${Object.keys(typeGroups).length}`);
+
+      return {
+        answer: response,
+        sources: [],
+        contextId: `file_types_${Date.now()}`,
+        intent: intent.intent,
+        confidence: 1.0
+      };
+    }
 
     // FOR LIST QUERIES: Skip AI generation, format list directly
     if (queryIntent === QueryIntent.LIST && isMetadataQuery) {
@@ -1302,6 +1369,29 @@ Provide a comprehensive and accurate answer based on the document content follow
     });
 
     return response;
+  }
+
+  /**
+   * Map file extension to user-friendly type name
+   */
+  private mapExtensionToType(ext: string): string {
+    const typeMap: Record<string, string> = {
+      'PDF': 'PDFs',
+      'DOCX': 'Word Documents',
+      'DOC': 'Word Documents',
+      'XLSX': 'Excel Spreadsheets',
+      'XLS': 'Excel Spreadsheets',
+      'PPTX': 'PowerPoint Presentations',
+      'PPT': 'PowerPoint Presentations',
+      'PNG': 'Images',
+      'JPG': 'Images',
+      'JPEG': 'Images',
+      'GIF': 'Images',
+      'TXT': 'Text Files',
+      'CSV': 'CSV Files',
+    };
+
+    return typeMap[ext] || `${ext} Files`;
   }
 }
 
