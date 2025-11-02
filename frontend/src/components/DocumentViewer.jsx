@@ -17,7 +17,6 @@ import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg'
 import { ReactComponent as PlusIcon } from '../assets/Plus.svg';
 import { ReactComponent as MinusIcon } from '../assets/Minus.svg';
 import { ReactComponent as StarIcon } from '../assets/Star.svg';
-import { ReactComponent as BorderRightIcon } from '../assets/border-right.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import folderIcon from '../assets/folder_icon.svg';
 import pdfIcon from '../assets/pdf-icon.svg';
@@ -616,7 +615,6 @@ const DocumentViewer = () => {
 
         {/* Toolbar */}
         <div style={{ alignSelf: 'stretch', paddingLeft: 20, paddingRight: 20, paddingTop: 16, paddingBottom: 16, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
-          <BorderRightIcon style={{ width: 20, height: 20 }} />
           <div style={{ color: '#323232', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px', wordWrap: 'break-word' }}>
             {(() => {
               const fileType = document ? getFileType(document.filename, document.mimeType) : 'unknown';
@@ -706,7 +704,7 @@ const DocumentViewer = () => {
         </div>
 
         {/* Document Preview */}
-        <div ref={documentContainerRef} style={{ width: '100%', flex: 1, padding: 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 20, display: 'flex', background: '#E5E5E5' }}>
+        <div ref={documentContainerRef} style={{ width: '100%', flex: 1, padding: 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', display: 'flex', background: '#E5E5E5' }}>
           {document ? (
             (() => {
               const fileType = getFileType(document.filename, document.mimeType);
@@ -800,6 +798,9 @@ const DocumentViewer = () => {
                                 }
                               }}
                               data-page-number={index + 1}
+                              style={{
+                                marginBottom: index < numPages - 1 ? '20px' : '0'
+                              }}
                             >
                               <Page
                                 pageNumber={index + 1}
@@ -908,6 +909,9 @@ const DocumentViewer = () => {
                               }
                             }}
                             data-page-number={index + 1}
+                            style={{
+                              marginBottom: index < numPages - 1 ? '20px' : '0'
+                            }}
                           >
                             <Page
                               pageNumber={index + 1}
