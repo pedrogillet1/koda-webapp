@@ -1176,7 +1176,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                     </div>
                                                     <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
                                                         <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
-                                                            <div className="markdown-content" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
+                                                            <div className="markdown-content" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
                                                                 <ReactMarkdown
                                                                     remarkPlugins={[remarkGfm]}
                                                                 >
@@ -1868,7 +1868,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             </div>
                                             <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
                                                 <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4, display: 'flex'}}>
-                                                    <div className="markdown-content streaming" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', whiteSpace: 'nowrap', overflow: 'auto'}}>
+                                                    <div className="markdown-content streaming" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word'}}>
                                                         <ReactMarkdown
                                                             remarkPlugins={[remarkGfm]}
                                                         >
