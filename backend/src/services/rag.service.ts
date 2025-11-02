@@ -1128,6 +1128,65 @@ Provide a comprehensive and accurate answer based on the document content follow
     console.log(`   📝 Format Type: ${formatClassification.formatType}`);
     console.log(`   💭 Reason: ${formatClassification.reason}`);
 
+    // FOR FILE TYPES QUERIES: Query database directly for file types (BEFORE Pinecone search)
+    if (queryIntent === QueryIntent.FILE_TYPES) {
+      console.log(`📁 FILE TYPES QUERY DETECTED - Querying database for file extensions`);
+
+      // Query all user documents directly from database
+      const documents = await prisma.document.findMany({
+        where: { userId, status: 'completed' },
+        select: { filename: true }
+      });
+
+      console.log(`   Found ${documents.length} total documents`);
+
+      // Group by file type
+      const typeGroups: Record<string, string[]> = {};
+
+      documents.forEach(doc => {
+        const ext = doc.filename.split('.').pop()?.toUpperCase() || 'UNKNOWN';
+        const fileType = this.mapExtensionToType(ext);
+
+        if (!typeGroups[fileType]) {
+          typeGroups[fileType] = [];
+        }
+
+        // Store filename without extension
+        const nameWithoutExt = doc.filename.replace(/\.[^/.]+$/, '');
+        typeGroups[fileType].push(nameWithoutExt);
+      });
+
+      // Build response
+      let response = 'File types detected:\n\n';
+
+      const sortedTypes = Object.entries(typeGroups).sort((a, b) => b[1].length - a[1].length);
+
+      sortedTypes.forEach(([type, files]) => {
+        const fileList = files.slice(0, 3).join(', ');
+        const moreCount = files.length > 3 ? ` (and ${files.length - 3} more)` : '';
+        response += `${type} (${files.length}): ${fileList}${moreCount}\n`;
+      });
+
+      response += '\nNext actions:\nYou can filter these by format, preview them, or group by content type (financial, legal, identity, etc.).';
+
+      const responseTime = Date.now() - startTime;
+      console.log(`✅ FILE TYPES FORMATTED (${responseTime}ms)`);
+      console.log(`   Types: ${Object.keys(typeGroups).length}`);
+
+      // Send response as chunk
+      if (onChunk) {
+        onChunk(response);
+      }
+
+      return {
+        answer: response,
+        sources: [],
+        contextId: `file_types_${Date.now()}`,
+        intent: intent.intent,
+        confidence: 1.0
+      };
+    }
+
     // STEP 3: RETRIEVE DOCUMENTS
     console.log(`\n📚 RETRIEVING DOCUMENTS...`);
     const embeddingResult = await embeddingService.generateQueryEmbedding(query);
@@ -1297,17 +1356,13 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     console.log(`⚡ STREAMING STARTED...`);
 
-    // Stream chunks as they arrive
+    // Buffer chunks (don't send to client yet - formatting happens after)
     for await (const chunk of streamResult.stream) {
       const chunkText = chunk.text();
       if (chunkText) {
         rawAnswer += chunkText;
         chunkCount++;
-
-        // Send raw chunk to client (formatting happens at the end)
-        if (onChunk) {
-          onChunk(chunkText);
-        }
+        // DON'T send chunk yet - buffer it for formatting
       }
     }
 
@@ -1326,7 +1381,7 @@ Provide a comprehensive and accurate answer based on the document content follow
     console.log(`   Sources: ${finalSources.length} documents`);
     console.log(`   Avg Confidence: ${(avgConfidence * 100).toFixed(1)}%`);
 
-    // Format the complete response (for database storage and metadata)
+    // Format the complete response (for both client and database)
     const formatterContext = {
       queryLength: query.length,
       documentCount: finalSources.length,
@@ -1350,10 +1405,18 @@ Provide a comprehensive and accurate answer based on the document content follow
       query
     );
 
-    // Use RAW answer for streaming (frontend already shows raw content)
-    // This prevents truncation when loading from database after refresh
+    console.log(`✅ RESPONSE FORMATTED`);
+    console.log(`   Original length: ${rawAnswer.length} characters`);
+    console.log(`   Formatted length: ${formattedAnswer.length} characters`);
+
+    // Send formatted response to client as single chunk
+    if (onChunk) {
+      onChunk(formattedAnswer);
+    }
+
+    // Save formatted answer to database (prevents truncation on refresh)
     const response: RAGResponse = {
-      answer: rawAnswer, // ✅ Save raw answer, not formatted
+      answer: formattedAnswer, // ✅ Save formatted answer
       sources: finalSources,
       contextId: `rag_stream_${Date.now()}`,
       intent: intent.intent,

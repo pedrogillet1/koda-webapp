@@ -63,8 +63,15 @@ export class ResponseFormatterService {
     // Pattern 3: Multiple spaces before bullets
     fixed = fixed.replace(/  +•/g, '\n•');
 
-    // Pattern 4: Ensure no double newlines
+    // Pattern 4: Ensure no double newlines before bullets
     fixed = fixed.replace(/\n\n+•/g, '\n•');
+
+    // Pattern 5: Ensure bullets start on new lines (except first one)
+    // "Text content • Item" → "Text content\n• Item"
+    fixed = fixed.replace(/([^\n])( •)/g, '$1\n•');
+
+    // Pattern 6: Fix bullets at start of line with extra space
+    fixed = fixed.replace(/\n +•/g, '\n•');
 
     return fixed;
   }
