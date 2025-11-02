@@ -64,6 +64,11 @@ export class QueryClassifierService {
         /^who (is|was)/i,
         /^where (is|was)/i,
         /^what (date|time)/i,
+        // Excel cell value queries
+        /cell\s+[a-z]\d+/i,  // Matches "cell C3", "cell B5", etc.
+        /\b[a-z]\d+\s+value/i,  // Matches "C3 value", "B5 value"
+        /value\s+of\s+[a-z]\d+/i,  // Matches "value of C3"
+        /what(?:'s| is)\s+in\s+cell\s+[a-z]\d+/i,  // Matches "what's in cell C3"
       ],
       list_enumeration: [
         /^(what|which|list) (documents|files)/i,

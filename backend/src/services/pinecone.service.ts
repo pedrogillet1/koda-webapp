@@ -316,15 +316,35 @@ class PineconeService {
     try {
       const index = this.pinecone!.index(this.indexName);
 
-      // CRITICAL FIX: Actually delete embeddings using metadata filter
-      // Pinecone supports deleteMany with metadata filters
       console.log(`🗑️ [Pinecone] Deleting all vectors for document: ${documentId}`);
 
-      await index.deleteMany({
-        filter: { documentId: { $eq: documentId } }
+      // Step 1: Query to find all vector IDs for this document
+      const dummyVector = new Array(768).fill(0);
+      const queryResponse = await index.query({
+        vector: dummyVector,
+        filter: { documentId: { $eq: documentId } },
+        topK: 10000, // Get all vectors (Pinecone max is 10k per query)
+        includeMetadata: false, // Don't need metadata, just IDs
       });
 
-      console.log(`✅ [Pinecone] Successfully deleted embeddings for document ${documentId}`);
+      const vectorIds = queryResponse.matches?.map(match => match.id) || [];
+
+      if (vectorIds.length === 0) {
+        console.log(`⚠️ [Pinecone] No vectors found for document ${documentId}`);
+        return;
+      }
+
+      console.log(`🔍 [Pinecone] Found ${vectorIds.length} vectors to delete`);
+
+      // Step 2: Delete vectors by ID in batches (Pinecone limit: 1000 per batch)
+      const BATCH_SIZE = 1000;
+      for (let i = 0; i < vectorIds.length; i += BATCH_SIZE) {
+        const batch = vectorIds.slice(i, Math.min(i + BATCH_SIZE, vectorIds.length));
+        await index.deleteMany(batch);
+        console.log(`🗑️ [Pinecone] Deleted batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(vectorIds.length / BATCH_SIZE)}`);
+      }
+
+      console.log(`✅ [Pinecone] Successfully deleted ${vectorIds.length} embeddings for document ${documentId}`);
 
     } catch (error: any) {
       console.error(`❌ [Pinecone] Failed to delete embeddings for document ${documentId}:`, error.message);
