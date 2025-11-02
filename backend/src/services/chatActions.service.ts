@@ -174,15 +174,9 @@ class ChatActionsService {
       const folderName = folderContentMatch[1];
       console.log(`   Looking for contents of folder: "${folderName}"`);
 
-      // Find the folder
-      const folder = await prisma.folder.findFirst({
-        where: {
-          userId,
-          name: {
-            equals: folderName,
-            mode: 'insensitive', // Case-insensitive search
-          },
-        },
+      // Find all folders for user (we'll filter case-insensitively in JavaScript)
+      const folders = await prisma.folder.findMany({
+        where: { userId },
         include: {
           documents: {
             where: { status: { not: 'deleted' } },
@@ -205,6 +199,9 @@ class ChatActionsService {
           },
         },
       });
+
+      // Case-insensitive search for folder
+      const folder = folders.find(f => f.name.toLowerCase() === folderName.toLowerCase());
 
       if (!folder) {
         return {
