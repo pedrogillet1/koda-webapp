@@ -1,11 +1,24 @@
 /**
  * System Prompts Service
- * Phase 3: Query Understanding & RAG
+ * Phase 3: Adaptive Prompt System
  *
- * Manages system prompts with answer length control and intent-based templates
+ * ARCHITECTURE CHANGE:
+ * - OLD: 8 intents → 6 system prompts → 6 format templates (hardcoded, rigid)
+ * - NEW: 5 psychological goals → 1 adaptive prompt (flexible, natural)
+ *
+ * This eliminates the need to edit 3 files for every new query type.
+ * The AI naturally adapts its response based on psychological user needs.
  */
 
 export type AnswerLength = 'short' | 'medium' | 'summary' | 'long';
+
+// 5 Psychological Goals (replaces 8 hardcoded intents)
+export type PsychologicalGoal =
+  | 'fast_answer'    // User wants quick factual data (passport number, date, cell value)
+  | 'mastery'        // User wants to learn HOW to do something (step-by-step guidance)
+  | 'clarity'        // User wants to COMPARE or understand differences
+  | 'insight'        // User wants JUDGMENT or recommendations (risks, decisions)
+  | 'control';       // User wants to SEARCH/FILTER (show me all files mentioning X)
 
 export interface PromptConfig {
   systemPrompt: string;
@@ -18,24 +31,123 @@ interface LengthConfiguration {
   maxTokens: number;
 }
 
+/**
+ * ADAPTIVE_SYSTEM_PROMPT
+ *
+ * Single universal prompt that replaces 12+ hardcoded templates.
+ * The AI naturally adapts based on query context and user psychological goals.
+ *
+ * This eliminates rigid format templates - responses feel natural like ChatGPT.
+ */
+const ADAPTIVE_SYSTEM_PROMPT = `You are KODA, an intelligent document assistant that helps users find, understand, and work with their documents.
+
+**Core Principles**:
+• Answer naturally based on what the user is actually trying to accomplish
+• Use **bold** generously for key terms, numbers, dates, names, and important concepts
+• Format responses to match the query complexity (simple query = simple answer, complex query = detailed answer)
+• Be conversational and helpful, not robotic or template-driven
+
+**Psychological Goals** (understand what the user wants):
+1. **Fast Answer**: User wants quick factual data → Give direct answer with key details
+   - Example: "What is my passport number?" → "Document: Passport.pdf\\nAnswer: AB123456\\n\\n• Found on page 2\\n• Issued 2015 in Lisbon"
+
+2. **Mastery**: User wants to learn HOW to do something → Give step-by-step guidance
+   - Example: "How do I renew this?" → Explain the process clearly with numbered steps
+
+3. **Clarity**: User wants to COMPARE or understand differences → Use comparison format
+   - Example: "Compare X and Y" → Use Markdown table comparing key aspects
+   - CRITICAL: Use ONLY Markdown tables (| Column |), NOT ASCII art (────)
+
+4. **Insight**: User wants JUDGMENT or recommendations → Provide analysis and suggestions
+   - Example: "What's the main risk?" → Analyze and recommend with "Next actions:" section
+
+5. **Control**: User wants to SEARCH/FILTER documents → List documents with context
+   - Example: "Show files mentioning NDA" → List each document with specific mentions
+
+**Formatting Guidelines**:
+• Use **markdown bold** extensively for emphasis (numbers, dates, names, key terms)
+• Use bullet points (•) for lists - ensure proper line breaks (\\n• Item)
+• For comparisons: Use Markdown tables with | separators, NOT ASCII art
+• For factual queries: Start with "Document: [filename]\\nAnswer: [direct answer]"
+• For insights: End with "Next actions:" section (2-3 bullets) and STOP immediately after
+• Keep paragraphs concise (2-4 sentences max)
+
+**CRITICAL RULES**:
+• Do NOT include "Referenced Documents:" line (UI handles this automatically)
+• Do NOT use ASCII art tables with ──── characters
+• Do NOT add text after "Next actions:" section
+• Do NOT make assumptions - only state facts from the documents
+• For PowerPoint slides: You may reference slide numbers when relevant
+• For Excel data: Include cell references and sheet names
+
+**Response Structure** (adapt based on query):
+- Simple factual query → Direct answer + 2-3 bullet points
+- Complex query → Intro paragraph + detailed bullets + closing
+- Comparison → Brief intro + Markdown table + "Next actions:"
+- How-to → Clear steps with context
+- Search → List each document with specific context
+
+Remember: Be natural and adaptive like ChatGPT, not rigid like a template system.`;
+
 class SystemPromptsService {
   /**
-   * Get complete prompt configuration for a given intent and answer length
+   * Get complete prompt configuration using ADAPTIVE_SYSTEM_PROMPT
+   *
+   * ARCHITECTURE CHANGE: Uses single adaptive prompt instead of 6 hardcoded templates
    */
   getPromptConfig(intent: string, answerLength: AnswerLength = 'medium'): PromptConfig {
-    const baseConfig = this.getBasePromptForIntent(intent);
     const lengthConfig = this.getLengthConfiguration(answerLength);
+    const temperature = this.getTemperatureForIntent(intent);
 
     return {
-      systemPrompt: `${baseConfig.systemPrompt}\n\n${lengthConfig.instruction}`,
+      systemPrompt: `${ADAPTIVE_SYSTEM_PROMPT}\n\n${lengthConfig.instruction}`,
       maxTokens: lengthConfig.maxTokens,
-      temperature: baseConfig.temperature,
+      temperature,
     };
   }
 
   /**
-   * Get base prompt configuration for specific intent type
+   * Get temperature based on psychological goal
    */
+  private getTemperatureForIntent(intent: string): number {
+    // Map old intents to psychological goals for temperature
+    switch (intent) {
+      case 'extract':
+      case 'cell_value':
+        return 0.1; // Fast Answer - very precise
+
+      case 'compare':
+        return 0.3; // Clarity - structured comparison
+
+      case 'summarize':
+        return 0.3; // Mastery - clear explanation
+
+      case 'search_mentions':
+        return 0.2; // Control - comprehensive listing
+
+      default:
+        return 0.4; // Insight/General - balanced creativity
+    }
+  }
+
+  /**
+   * DEPRECATED: getBasePromptForIntent
+   *
+   * This method is no longer used. It has been replaced by ADAPTIVE_SYSTEM_PROMPT.
+   *
+   * OLD APPROACH (removed):
+   * - 8 different intent types
+   * - 6 hardcoded system prompt templates
+   * - Required editing this file for every new query type
+   *
+   * NEW APPROACH:
+   * - 1 ADAPTIVE_SYSTEM_PROMPT
+   * - AI naturally adapts based on query context
+   * - Zero maintenance for new query types
+   *
+   * This method is kept temporarily for reference but is not called.
+   */
+  /* DEPRECATED - DO NOT USE
   private getBasePromptForIntent(intent: string): { systemPrompt: string; temperature: number } {
     switch (intent) {
       case 'summarize':
@@ -216,6 +328,7 @@ You MUST use a Markdown table with this exact structure:
         };
     }
   }
+  */ // END DEPRECATED
 
   /**
    * Get length configuration with instruction and token limits
