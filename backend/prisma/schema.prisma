@@ -212,9 +212,26 @@ model DocumentMetadata {
   ocrConfidence  Float?
   pageCount      Int? // Number of pages (for PDFs and multi-page documents)
   wordCount      Int? // Number of words in extracted text
+  characterCount Int? // Number of characters in extracted text
   thumbnailUrl   String?
   entities       String? // JSON string of extracted entities
   classification String? // invoice, contract, receipt, etc.
+  summary        String? // AI-generated 2-3 sentence summary for quick understanding
+
+  // File properties (Phase 3 Enhancement)
+  author            String? // Extracted from document properties
+  creationDate      DateTime? // From file metadata
+  modificationDate  DateTime? // From file metadata
+  language          String? // Detected language (en, pt, es, etc.)
+
+  // AI-generated metadata (Phase 3 Enhancement)
+  topics            String? // JSON array of main topics
+  keyEntities       String? // JSON array of people, companies, locations
+
+  // Content flags (Phase 3 Enhancement)
+  hasSignature      Boolean  @default(false)
+  hasTables         Boolean  @default(false)
+  hasImages         Boolean  @default(false)
 
   // Markdown conversion fields for deep linking
   markdownContent   String? // Full markdown text (for preview and editing)
@@ -964,4 +981,64 @@ model ExcelCell {
   @@unique([sheetId, rowIndex, colIndex])
   @@index([sheetId])
   @@map("excel_cells")
+}
+
+// ==================== Advanced Features: Session-Based Document Analysis ====================
+
+// Session model - For temporary document analysis before saving
+model Session {
+  id             String   @id @default(uuid())
+  userId         String
+  sessionType    String   @default("document_analysis") // document_analysis, comparison, research
+  status         String   @default("active") // active, completed, expired
+
+  // Session metadata
+  documentCount  Int      @default(0)
+  documentIds    String? // JSON array of document IDs in this session
+
+  // Timestamps
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime // Auto-expire after 24 hours
+  completedAt    DateTime?
+
+  // Relations
+  documents      SessionDocument[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// Session Document model - Temporary documents in a session
+model SessionDocument {
+  id             String   @id @default(uuid())
+  sessionId      String
+  userId         String
+
+  // Document info
+  filename       String
+  fileSize       Int
+  mimeType       String
+  fileType       String // pdf, docx, xlsx, etc.
+
+  // Processing status
+  status         String   @default("processing") // processing, completed, failed
+
+  // Extracted content (stored temporarily in Redis, metadata here for reference)
+  extractedText  String? // Could be stored in Redis instead
+  wordCount      Int?
+  pageCount      Int?
+
+  // Timestamps
+  uploadedAt     DateTime @default(now())
+  processedAt    DateTime?
+
+  // Relations
+  session        Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([userId])
+  @@index([status])
+  @@map("session_documents")
 }

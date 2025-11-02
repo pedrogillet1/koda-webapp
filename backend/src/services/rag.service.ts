@@ -2,10 +2,14 @@
  * RAG SERVICE - Phase 3: Query Understanding & RAG
  *
  * ENHANCEMENTS:
- * - Confidence gating (0.7 threshold)
+ * - Confidence gating (0.5 threshold)
  * - Mentions search for finding phrase occurrences across documents
  * - Answer length control via systemPrompts service
  * - Intent-based prompt templates
+ * - ✨ NEW: Query Classifier integration for ChatGPT-level precision
+ *   - Automatic query type detection (9 types)
+ *   - Response style mapping (ultra_concise → detailed)
+ *   - Query-specific temperature and token limits
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -18,6 +22,9 @@ import pineconeService from './pinecone.service';
 import embeddingService from './embedding.service';
 import systemPromptsService, { AnswerLength } from './systemPrompts.service';
 import responseFormatterService from './responseFormatter.service';
+import queryClassifierService, { ResponseStyle } from './queryClassifier.service';
+import queryIntentDetectorService, { QueryIntent } from './queryIntentDetector.service';
+import formatTypeClassifierService, { ResponseFormatType } from './formatTypeClassifier.service';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -46,6 +53,97 @@ interface RAGResponse {
 
 class RAGService {
   /**
+   * Build intent-specific and format-specific system prompt
+   * Combines query intent (LIST, FACTUAL, etc.) with format type (FEATURE_LIST, TABLE, etc.)
+   */
+  private buildIntentSystemPrompt(
+    queryIntent: QueryIntent,
+    isMetadataQuery: boolean,
+    formatType: ResponseFormatType
+  ): string {
+    if (queryIntent === QueryIntent.LIST) {
+      return `⚠️⚠️⚠️ CRITICAL SYSTEM OVERRIDE ⚠️⚠️⚠️
+
+TASK: Return ONLY filenames in bullet format. NOTHING ELSE.
+
+YOUR ENTIRE RESPONSE must be:
+• filename1.pdf
+• filename2.docx
+• filename3.xlsx
+
+DO NOT WRITE:
+- Summaries
+- Explanations
+- "Here is a summary:"
+- "Here are the documents:"
+- ANY text before the bullets
+- ANY text after the bullets
+
+STOP AFTER THE LAST BULLET POINT. Your response is complete.
+
+CORRECT (This is your ENTIRE response):
+• Koda Business Plan V12.pdf
+• Koda Presentation Port Final.pptx
+• koda_checklist.pdf
+
+WRONG (DO NOT DO THIS):
+• Koda Business Plan V12.pdf
+• Koda Presentation Port Final.pptx
+
+Here is a summary: [STOP! This is forbidden!]
+
+WRONG (DO NOT DO THIS):
+Here are the documents: [STOP! Start with bullets only!]
+• document.pdf
+
+Remember: Your response = bullets only. No intro. No summary. No explanation. Just bullets.`;
+    } else if (queryIntent === QueryIntent.FACTUAL) {
+      // For factual queries, use DIRECT_ANSWER format or format-specific prompt
+      const formatPrompt = responseFormatterService.buildFormatPrompt(formatType);
+      return `CRITICAL INSTRUCTIONS FOR FACTUAL QUERIES:
+
+The user wants a SPECIFIC FACT or DATA POINT, not a summary.
+
+${formatPrompt}`;
+    } else if (queryIntent === QueryIntent.COMPARISON) {
+      // For comparison queries, use TABLE format or format-specific prompt
+      const formatPrompt = responseFormatterService.buildFormatPrompt(formatType);
+      return `CRITICAL INSTRUCTIONS FOR COMPARISON QUERIES:
+
+The user wants to COMPARE two or more items.
+
+${formatPrompt}`;
+    } else {
+      // SUMMARY - use format-specific prompt (FEATURE_LIST, STRUCTURED_LIST, etc.)
+      const formatPrompt = responseFormatterService.buildFormatPrompt(formatType);
+      return `${formatPrompt}
+
+Provide a comprehensive and accurate answer based on the document content following the format above.`;
+    }
+  }
+
+  /**
+   * Map Query Classifier ResponseStyle to AnswerLength
+   */
+  private mapStyleToAnswerLength(style: ResponseStyle, explicitLength?: AnswerLength): AnswerLength {
+    // If user explicitly specified length, respect it
+    if (explicitLength && explicitLength !== 'medium') {
+      return explicitLength;
+    }
+
+    // Map classifier style to answer length
+    const styleMap: Record<ResponseStyle, AnswerLength> = {
+      [ResponseStyle.ULTRA_CONCISE]: 'ultra_brief',
+      [ResponseStyle.CONCISE]: 'brief',
+      [ResponseStyle.MODERATE]: 'medium',
+      [ResponseStyle.DETAILED]: 'detailed',
+      [ResponseStyle.STRUCTURED]: 'detailed',
+    };
+
+    return styleMap[style] || 'medium';
+  }
+
+  /**
    * Main entry point - handles ALL queries with smart routing
    */
   async generateAnswer(
@@ -70,8 +168,7 @@ class RAGService {
     if (actionResult.isAction) {
       console.log(`   ✅ Action detected: ${actionResult.actionType}`);
 
-      // Format chat action responses
-      const responseFormatterService = await import('./responseFormatter.service');
+      // Format chat action responses using the imported service
       const formatterContext = {
         queryLength: query.length,
         documentCount: 0,
@@ -82,7 +179,7 @@ class RAGService {
         hasSlides: false,
       };
 
-      const formattedResponse = await responseFormatterService.default.formatResponse(
+      const formattedResponse = await responseFormatterService.formatResponse(
         actionResult.response,
         formatterContext,
         [],
@@ -110,7 +207,8 @@ class RAGService {
     // STEP 2: ROUTE BASED ON INTENT
     if (intent.intent === 'greeting') {
       return await this.handleGreeting(userId, query);
-    } else if (intent.intent === 'navigation') {
+    } else if (intent.intent === 'navigation' || intent.intent === 'locate') {
+      // Both navigation and locate intents use the same handler to find files/folders
       return await this.handleNavigationQuery(userId, query);
     } else if (intent.intent === 'search_mentions') {
       // Phase 3: New mentions search handler
@@ -373,6 +471,17 @@ class RAGService {
     // Get intent for prompt selection
     const intent = intentService.detectIntent(query);
 
+    // QUERY CLASSIFIER: Detect query type and appropriate response style
+    console.log(`\n🎯 CLASSIFYING QUERY...`);
+    const classification = await queryClassifierService.classifyQuery(query);
+    console.log(`   Type: ${classification.type} (confidence: ${(classification.confidence * 100).toFixed(1)}%)`);
+    console.log(`   Style: ${classification.style}`);
+    console.log(`   Reasoning: ${classification.reasoning}`);
+
+    // Map classification style to effective answer length
+    const effectiveAnswerLength = this.mapStyleToAnswerLength(classification.style, answerLength);
+    console.log(`   Effective Answer Length: ${effectiveAnswerLength} (original: ${answerLength})`);
+
     // STEP 0: CHECK IF QUERY IS GENERAL KNOWLEDGE (before Pinecone search)
     console.log(`\n🧠 CHECKING QUERY TYPE...`);
     const isGeneralKnowledge = this.detectGeneralKnowledge(query);
@@ -407,36 +516,50 @@ class RAGService {
 
     console.log(`   📄 Document-specific question - searching user documents`);
 
-    // STEP 1: DETECT DOCUMENT-SPECIFIC QUERIES (Fuzzy Matching)
-    // If documentId not provided, try to detect from query
+    // STEP 1: DETECT QUERY INTENT (Simple approach)
+    const queryIntent = queryIntentDetectorService.detectIntent(query);
+    const isMetadataQuery = queryIntentDetectorService.isMetadataQuery(query);
+    console.log(`   🎯 Query Intent: ${queryIntent}`);
+    console.log(`   📋 Is Metadata Query: ${isMetadataQuery}`);
+
+    // STEP 1.5: DETECT RESPONSE FORMAT TYPE (ChatGPT Format Analysis)
+    const formatClassification = formatTypeClassifierService.classify(query);
+    console.log(`   📝 Format Type: ${formatClassification.formatType}`);
+    console.log(`   💭 Reason: ${formatClassification.reason}`);
+
+    // STEP 2: SIMPLE RETRIEVAL (Standard Pinecone search)
+    console.log(`\n🔍 RETRIEVING DOCUMENTS...`);
+
+    // Detect document from query if not provided (legacy fuzzy matching)
     if (!documentId) {
       const detectedDocId = await this.detectDocumentFromQuery(query, userId);
       if (detectedDocId) {
-        console.log(`   🎯 Auto-detected document reference in query - scoping to documentId: ${detectedDocId}`);
+        console.log(`   🎯 Auto-detected document reference - scoping to: ${detectedDocId}`);
         documentId = detectedDocId;
       }
     }
 
-    // Step 2: Generate query embedding (using specialized query embedding for better retrieval)
+    const topK = documentId ? 50 : 40;
+
+    // Generate embedding and search Pinecone
     const embeddingResult = await embeddingService.generateQueryEmbedding(query);
-
-    // Step 2: Retrieve relevant documents from Pinecone
-    console.log(`🔍 RETRIEVING DOCUMENTS...`);
-
-    const topK = documentId ? 50 : 40; // More chunks for single-doc queries
-
     const retrievalResults = await pineconeService.searchSimilarChunks(
-      embeddingResult.embedding, // Extract the array from the result object
+      embeddingResult.embedding,
       userId,
       topK,
-      0.3, // minSimilarity - Lowered for better recall
-      documentId // attachedDocumentId
+      0.3, // minSimilarity
+      documentId
     );
+
     console.log(`   Found ${retrievalResults.length} relevant chunks`);
 
     // Phase 3: CONFIDENCE GATING - Check if results meet minimum threshold
-    const highConfidenceResults = retrievalResults.filter(r => r.similarity >= CONFIDENCE_THRESHOLD);
-    console.log(`   📊 Confidence gating: ${highConfidenceResults.length}/${retrievalResults.length} chunks above ${CONFIDENCE_THRESHOLD} threshold`);
+    // Lower threshold for LIST queries (user just wants filenames, not content accuracy)
+    const effectiveThreshold = queryIntent === QueryIntent.LIST ? 0.35 : CONFIDENCE_THRESHOLD;
+    console.log(`   📊 Using confidence threshold: ${effectiveThreshold} (Query Intent: ${queryIntent})`);
+
+    const highConfidenceResults = retrievalResults.filter(r => r.similarity >= effectiveThreshold);
+    console.log(`   📊 Confidence gating: ${highConfidenceResults.length}/${retrievalResults.length} chunks above ${effectiveThreshold} threshold`);
 
     // If NO results above confidence threshold, return "I don't know" response
     if (highConfidenceResults.length === 0) {
@@ -520,6 +643,40 @@ class RAGService {
     // Limit to top sources
     const finalSources = uniqueSources.slice(0, 5);
 
+    // FOR LIST QUERIES: Skip AI generation, format list directly
+    if (queryIntent === QueryIntent.LIST && isMetadataQuery) {
+      console.log(`🎯 LIST QUERY DETECTED - Formatting list directly (bypassing AI)`);
+
+      // Extract unique document names
+      const documentNames = sources.map(s => s.documentName);
+      const uniqueNames = [...new Set(documentNames)];
+      console.log(`   Found ${uniqueNames.length} unique documents (${documentNames.length} total chunks)`);
+
+      // Format as bullet list with double line breaks for proper markdown rendering
+      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n\n');
+
+      const responseTime = Date.now() - startTime;
+      console.log(`✅ LIST FORMATTED (${responseTime}ms)`);
+      console.log(`   Documents: ${uniqueNames.length}`);
+
+      const response: RAGResponse = {
+        answer: bulletList,
+        sources: finalSources,
+        contextId: `rag_list_${Date.now()}`,
+        intent: intent.intent,
+        confidence: 1.0 // High confidence for direct list
+      };
+
+      // Cache the result
+      await cacheService.set(cacheKey, response, {
+        ttl: 3600,
+        useMemory: true,
+        useRedis: true,
+      });
+
+      return response;
+    }
+
     // Step 4: Build context from sources
     const context = sources
       .slice(0, 10) // Use top 10 chunks for context
@@ -529,20 +686,33 @@ class RAGService {
       })
       .join('\n\n---\n\n');
 
-    // Phase 3: Use system prompts service with answer length control
+    // Phase 3: Use system prompts service with answer length control + Query Intent
     console.log(`🤖 GENERATING ANSWER...`);
     console.log(`   Intent: ${intent.intent}`);
-    console.log(`   Answer Length: ${answerLength}`);
+    console.log(`   Query Intent: ${queryIntent}`);
+    console.log(`   Answer Length: ${effectiveAnswerLength} (Query Type: ${classification.type})`);
 
-    const promptConfig = systemPromptsService.getPromptConfig(intent.intent, answerLength);
-    const fullPrompt = systemPromptsService.buildPrompt(intent.intent, query, context, answerLength);
+    // Build intent-specific and format-specific system prompt
+    const intentSystemPrompt = this.buildIntentSystemPrompt(queryIntent, isMetadataQuery, formatClassification.formatType);
 
-    // Generate answer with intent-specific temperature and token limits
+    const promptConfig = systemPromptsService.getPromptConfig(intent.intent, effectiveAnswerLength);
+    let fullPrompt = systemPromptsService.buildPrompt(intent.intent, query, context, effectiveAnswerLength);
+
+    // Prepend intent-specific instructions to the prompt
+    fullPrompt = `${intentSystemPrompt}\n\n${fullPrompt}`;
+
+    // Get query-specific temperature and max tokens from classifier
+    const classifierMaxTokens = queryClassifierService.getMaxTokens(classification.style);
+    const classifierTemperature = queryClassifierService.getTemperature(classification.type);
+
+    console.log(`   🎛️  Classifier Settings: maxTokens=${classifierMaxTokens}, temperature=${classifierTemperature}`);
+
+    // Generate answer with query-specific temperature and token limits
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash-exp',
       generationConfig: {
-        maxOutputTokens: promptConfig.maxTokens,
-        temperature: promptConfig.temperature,
+        maxOutputTokens: Math.min(promptConfig.maxTokens, classifierMaxTokens), // Use stricter limit
+        temperature: classifierTemperature, // Use query-specific temperature
       }
     });
 
@@ -807,8 +977,7 @@ class RAGService {
     if (actionResult.isAction) {
       console.log(`   ✅ Action detected: ${actionResult.actionType}`);
 
-      // For actions, return immediately without streaming
-      const responseFormatterService = await import('./responseFormatter.service');
+      // For actions, return immediately without streaming using the imported service
       const formatterContext = {
         queryLength: query.length,
         documentCount: 0,
@@ -819,7 +988,7 @@ class RAGService {
         hasSlides: false,
       };
 
-      const formattedResponse = await responseFormatterService.default.formatResponse(
+      const formattedResponse = await responseFormatterService.formatResponse(
         actionResult.response,
         formatterContext,
         [],
@@ -846,6 +1015,28 @@ class RAGService {
     console.log(`\n🎯 DETECTING INTENT...`);
     const intent = await intentService.detectIntent(query);
     console.log(`   Intent: ${intent.intent} (confidence: ${(intent.confidence * 100).toFixed(1)}%)`);
+
+    // QUERY CLASSIFIER: Detect query type and appropriate response style
+    console.log(`\n🎯 CLASSIFYING QUERY...`);
+    const classification = await queryClassifierService.classifyQuery(query);
+    console.log(`   Type: ${classification.type} (confidence: ${(classification.confidence * 100).toFixed(1)}%)`);
+    console.log(`   Style: ${classification.style}`);
+    console.log(`   Reasoning: ${classification.reasoning}`);
+
+    // Map classification style to effective answer length
+    const effectiveAnswerLength = this.mapStyleToAnswerLength(classification.style, answerLength);
+    console.log(`   Effective Answer Length: ${effectiveAnswerLength} (original: ${answerLength})`);
+
+    // DETECT QUERY INTENT (Simple approach)
+    const queryIntent = queryIntentDetectorService.detectIntent(query);
+    const isMetadataQuery = queryIntentDetectorService.isMetadataQuery(query);
+    console.log(`   🎯 Query Intent: ${queryIntent}`);
+    console.log(`   📋 Is Metadata Query: ${isMetadataQuery}`);
+
+    // DETECT RESPONSE FORMAT TYPE (ChatGPT Format Analysis)
+    const formatClassification = formatTypeClassifierService.classify(query);
+    console.log(`   📝 Format Type: ${formatClassification.formatType}`);
+    console.log(`   💭 Reason: ${formatClassification.reason}`);
 
     // STEP 3: RETRIEVE DOCUMENTS
     console.log(`\n📚 RETRIEVING DOCUMENTS...`);
@@ -874,11 +1065,14 @@ class RAGService {
       };
     }
 
-    // Filter by confidence threshold
-    const highConfidenceResults = searchResults.filter(r => r.similarity >= CONFIDENCE_THRESHOLD);
+    // Filter by confidence threshold (lower for LIST queries)
+    const effectiveThreshold = queryIntent === QueryIntent.LIST ? 0.35 : CONFIDENCE_THRESHOLD;
+    console.log(`   📊 Using confidence threshold: ${effectiveThreshold} (Query Intent: ${queryIntent})`);
+
+    const highConfidenceResults = searchResults.filter(r => r.similarity >= effectiveThreshold);
 
     if (highConfidenceResults.length === 0) {
-      console.log(`   ⚠️  No high-confidence results (threshold: ${CONFIDENCE_THRESHOLD})`);
+      console.log(`   ⚠️  No high-confidence results (threshold: ${effectiveThreshold})`);
       const lowConfMessage = 'I could not find information relevant enough to answer your question confidently.';
       if (onChunk) {
         onChunk(lowConfMessage);
@@ -893,6 +1087,56 @@ class RAGService {
     }
 
     console.log(`   ✅ Found ${highConfidenceResults.length} high-confidence chunks`);
+
+    // Extract document names from results
+    const documentNames = highConfidenceResults.map(r =>
+      r.document?.filename || r.metadata?.filename || 'Unknown'
+    );
+
+    // FOR LIST QUERIES: Skip AI generation, format list directly
+    if (queryIntent === QueryIntent.LIST && isMetadataQuery) {
+      console.log(`🎯 LIST QUERY DETECTED - Formatting list directly (bypassing AI)`);
+
+      // Remove duplicates
+      const uniqueNames = [...new Set(documentNames)];
+      console.log(`   Found ${uniqueNames.length} unique documents (${documentNames.length} total chunks)`);
+
+      // Format as bullet list with double line breaks for proper markdown rendering
+      const bulletList = uniqueNames.map(name => `• ${name}`).join('\n\n');
+
+      // Send formatted list directly
+      if (onChunk) {
+        onChunk(bulletList);
+      }
+
+      // Build sources for metadata
+      const finalSources: RAGSource[] = highConfidenceResults
+        .filter((r, idx, self) =>
+          self.findIndex(s => s.documentId === r.documentId) === idx
+        )
+        .slice(0, 10)
+        .map(result => ({
+          documentId: result.documentId,
+          documentName: result.document?.filename || result.metadata?.filename || 'Unknown',
+          chunkIndex: result.chunkIndex,
+          content: result.content,
+          similarity: result.similarity,
+          metadata: result.metadata,
+          location: result.metadata?.page || result.metadata?.slideNumber || result.metadata?.cellRef
+        }));
+
+      const responseTime = Date.now() - startTime;
+      console.log(`✅ LIST FORMATTED (${responseTime}ms)`);
+      console.log(`   Documents: ${uniqueNames.length}`);
+
+      return {
+        answer: bulletList,
+        sources: finalSources,
+        contextId: `rag_list_${Date.now()}`,
+        intent: intent.intent,
+        confidence: 1.0 // High confidence for direct list
+      };
+    }
 
     // Build context from chunks
     const context = highConfidenceResults
@@ -909,17 +1153,27 @@ class RAGService {
       location: result.metadata?.page || result.metadata?.slideNumber || result.metadata?.cellRef
     }));
 
-    // STEP 4: BUILD PROMPT
-    const promptConfig = systemPromptsService.getPromptConfig(intent.intent, answerLength);
-    const fullPrompt = systemPromptsService.buildPrompt(intent.intent, query, context, answerLength);
+    // STEP 4: BUILD PROMPT WITH INTENT-SPECIFIC AND FORMAT-SPECIFIC INSTRUCTIONS
+    const intentSystemPrompt = this.buildIntentSystemPrompt(queryIntent, isMetadataQuery, formatClassification.formatType);
+    const promptConfig = systemPromptsService.getPromptConfig(intent.intent, effectiveAnswerLength);
+    let fullPrompt = systemPromptsService.buildPrompt(intent.intent, query, context, effectiveAnswerLength);
+
+    // Prepend intent-specific instructions
+    fullPrompt = `${intentSystemPrompt}\n\n${fullPrompt}`;
+
+    // Get query-specific temperature and max tokens from classifier
+    const classifierMaxTokens = queryClassifierService.getMaxTokens(classification.style);
+    const classifierTemperature = queryClassifierService.getTemperature(classification.type);
+
+    console.log(`   🎛️  Classifier Settings: maxTokens=${classifierMaxTokens}, temperature=${classifierTemperature}`);
 
     // STEP 5: GENERATE STREAMING ANSWER
     console.log(`\n🤖 GENERATING STREAMING ANSWER...`);
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash-exp',
       generationConfig: {
-        maxOutputTokens: promptConfig.maxTokens,
-        temperature: promptConfig.temperature,
+        maxOutputTokens: Math.min(promptConfig.maxTokens, classifierMaxTokens), // Use stricter limit
+        temperature: classifierTemperature, // Use query-specific temperature
       }
     });
 
@@ -944,12 +1198,18 @@ class RAGService {
       }
     }
 
+    // Get the final response with finish reason
+    const finalResponse = await streamResult.response;
+    const finishReason = finalResponse.candidates?.[0]?.finishReason;
+    console.log(`   Finish Reason: ${finishReason}`);
+
     const responseTime = Date.now() - startTime;
     const avgConfidence = finalSources.reduce((sum, s) => sum + s.similarity, 0) / finalSources.length;
 
     console.log(`✅ STREAMING COMPLETE (${responseTime}ms)`);
     console.log(`   Chunks: ${chunkCount}`);
-    console.log(`   Length: ${rawAnswer.length} characters`);
+    console.log(`   Raw Length: ${rawAnswer.length} characters`);
+    console.log(`   Saving to DB: ${rawAnswer.substring(0, 100)}...`);
     console.log(`   Sources: ${finalSources.length} documents`);
     console.log(`   Avg Confidence: ${(avgConfidence * 100).toFixed(1)}%`);
 
@@ -977,8 +1237,10 @@ class RAGService {
       query
     );
 
+    // Use RAW answer for streaming (frontend already shows raw content)
+    // This prevents truncation when loading from database after refresh
     const response: RAGResponse = {
-      answer: formattedAnswer,
+      answer: rawAnswer, // ✅ Save raw answer, not formatted
       sources: finalSources,
       contextId: `rag_stream_${Date.now()}`,
       intent: intent.intent,

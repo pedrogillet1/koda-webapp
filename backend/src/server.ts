@@ -1,3 +1,4 @@
+// KODA Backend Server
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import app from './app';
@@ -127,25 +128,9 @@ io.on('connection', (socket) => {
         message: 'Thinking...'
       });
 
-      console.log('🔄 Calling RAG service with all fixes applied...');
+      console.log('🔄 Calling RAG service...');
       const ragService = await import('./services/rag.service');
       const { default: prisma } = await import('./config/database');
-
-      // Get conversation history for context
-      const conversationHistory = await prisma.message.findMany({
-        where: { conversationId },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: {
-          role: true,
-          content: true,
-          metadata: true,
-          createdAt: true
-        }
-      });
-
-      // Reverse to get chronological order
-      conversationHistory.reverse();
 
       // Save user message first
       const userMessage = await prisma.message.create({
@@ -157,13 +142,13 @@ io.on('connection', (socket) => {
         },
       });
 
-      // Use RAG service with all fixes (greeting, locate, folder search, etc.)
+      // Use RAG service with correct signature
       const result = await ragService.default.generateAnswer(
         authenticatedUserId,
         data.content,
         conversationId,
-        false, // researchMode
-        conversationHistory
+        'medium', // answerLength
+        data.attachedDocumentId // documentId
       );
 
       // Save assistant message with RAG metadata
@@ -198,6 +183,11 @@ io.on('connection', (socket) => {
         });
       }
 
+      // Signal streaming complete
+      io.to(`conversation:${conversationId}`).emit('message-complete', {
+        conversationId: conversationId
+      });
+
       // Update result to match expected format
       const formattedResult = {
         userMessage,
@@ -205,7 +195,8 @@ io.on('connection', (socket) => {
         sources: result.sources,
         expandedQuery: result.expandedQuery,
         contextId: result.contextId,
-        actions: result.actions || []
+        actions: result.actions || [],
+        uiUpdate: result.uiUpdate // Include UI update instructions from chat actions
       };
 
       console.log('✅ RAG service completed, emitting new-message event');
@@ -218,8 +209,18 @@ io.on('connection', (socket) => {
         sources: formattedResult.sources,
         expandedQuery: formattedResult.expandedQuery,
         contextId: formattedResult.contextId,
-        actions: formattedResult.actions
+        actions: formattedResult.actions,
+        uiUpdate: formattedResult.uiUpdate // Notify frontend to refresh folders/documents
       });
+
+      // If there's a UI update, emit a separate event for immediate action
+      if (result.uiUpdate) {
+        console.log(`📢 Emitting UI update event: ${result.uiUpdate.type}`);
+        io.to(`conversation:${conversationId}`).emit('ui-update', {
+          type: result.uiUpdate.type,
+          data: result.uiUpdate.data
+        });
+      }
 
       console.log('✅ new-message event emitted successfully');
     } catch (error: any) {
@@ -369,3 +370,6 @@ if (redirectServer && portConfig.httpPort) {
 
 
 
+
+
+ 
