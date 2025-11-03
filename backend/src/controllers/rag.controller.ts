@@ -1011,11 +1011,13 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     }
 
     // Send completion signal with metadata AND formatted answer
+    const userMetadata = userMessage.metadata ? JSON.parse(userMessage.metadata as string) : {};
     res.write(`data: ${JSON.stringify({
       type: 'done',
       formattedAnswer: result.answer, // ✅ Include formatted answer with bold
       userMessageId: userMessage.id,
       assistantMessageId: assistantMessage.id,
+      attachedFiles: userMetadata.attachedFiles || [], // ✅ Include attachedFiles from user message
       sources: result.sources,
       contextId: result.contextId,
       intent: result.intent,

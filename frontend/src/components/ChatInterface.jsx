@@ -186,8 +186,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     // CRITICAL FIX: Queue message instead of immediately clearing streaming
                     // Let the useEffect wait for animation to complete before processing
                     console.log('📬 Queueing message to wait for streaming animation to complete');
+
+                    // ✅ FIX: Preserve attachedFiles from optimistic message (WebSocket path)
+                    const optimisticUserMsg = messages.find(m => m.isOptimistic && m.role === 'user');
+                    const userMessageWithAttachments = {
+                        ...data.userMessage,
+                        attachedFiles: optimisticUserMsg?.attachedFiles || data.userMessage?.attachedFiles || []
+                    };
+
                     pendingMessageRef.current = {
-                        userMessage: data.userMessage,
+                        userMessage: userMessageWithAttachments,
                         assistantMessage: data.assistantMessage
                     };
                     console.log('=== MESSAGE QUEUED - WAITING FOR ANIMATION ===');
@@ -812,6 +820,50 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     };
 
+    const waitForDocumentProcessing = async (documentId, maxWaitTime = 30000) => {
+        const startTime = Date.now();
+        const pollInterval = 1000; // Check every second
+
+        console.log(`⏳ Waiting for document ${documentId} to finish processing...`);
+
+        while (Date.now() - startTime < maxWaitTime) {
+            try {
+                const token = localStorage.getItem('accessToken');
+                const response = await fetch(
+                    `${process.env.REACT_APP_API_URL}/api/documents/${documentId}/status`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log(`📊 Document ${documentId} status: ${data.status}`);
+
+                    if (data.status === 'completed') {
+                        console.log(`✅ Document ${documentId} processing complete!`);
+                        return true;
+                    }
+
+                    if (data.status === 'failed') {
+                        console.error(`❌ Document ${documentId} processing failed`);
+                        return false;
+                    }
+                }
+            } catch (error) {
+                console.warn(`⚠️ Error checking document status:`, error);
+            }
+
+            // Wait 1 second before checking again
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+
+        console.warn(`⏰ Timeout waiting for document ${documentId} to process`);
+        return false;
+    };
+
     const uploadMultipleFiles = async (files) => {
         if (!files || files.length === 0) {
             console.log('❌ No files to upload');
@@ -894,66 +946,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     };
 
-    const waitForDocumentProcessing = async (documentIds, maxWaitTime = 30000) => {
-        console.log(`⏳ Waiting for ${documentIds.length} document(s) to be processed...`);
-        const startTime = Date.now();
-        const pollInterval = 1000; // Check every 1 second
-
-        const token = localStorage.getItem('accessToken');
-
-        while (Date.now() - startTime < maxWaitTime) {
-            try {
-                // Check status of all documents
-                const statusChecks = await Promise.all(
-                    documentIds.map(async (docId) => {
-                        const response = await fetch(
-                            `${process.env.REACT_APP_API_URL}/api/documents/${docId}/status`,
-                            {
-                                headers: {
-                                    'Authorization': `Bearer ${token}`
-                                }
-                            }
-                        );
-
-                        if (!response.ok) {
-                            console.error(`Failed to check status for ${docId}`);
-                            return { id: docId, status: 'error' };
-                        }
-
-                        const data = await response.json();
-                        console.log(`📄 Document ${data.filename}: ${data.status}`);
-                        return data;
-                    })
-                );
-
-                // Check if all documents are completed
-                const allCompleted = statusChecks.every(doc => doc.status === 'completed');
-
-                if (allCompleted) {
-                    console.log(`✅ All documents processed successfully!`);
-                    return { success: true, documents: statusChecks };
-                }
-
-                // Check if any failed
-                const anyFailed = statusChecks.some(doc => doc.status === 'failed' || doc.status === 'error');
-                if (anyFailed) {
-                    console.error(`❌ Some documents failed to process`);
-                    return { success: false, documents: statusChecks, error: 'Processing failed' };
-                }
-
-                // Wait before next check
-                await new Promise(resolve => setTimeout(resolve, pollInterval));
-
-            } catch (error) {
-                console.error('Error checking document status:', error);
-            }
-        }
-
-        // Timeout
-        console.warn(`⏱️ Timeout waiting for document processing (${maxWaitTime}ms)`);
-        return { success: false, error: 'Processing timeout' };
-    };
-
     const handleSendMessage = async () => {
         const isUploadingFiles = uploadingFiles.length > 0;
         if ((!message.trim() && pendingFiles.length === 0 && !attachedDocument) || isLoading || isUploadingFiles) return;
@@ -1011,29 +1003,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         if (filesToUpload.length > 0) {
             uploadedDocuments = await uploadMultipleFiles(filesToUpload);
 
-            // ✨ NEW: Wait for document processing to complete
+            // ✅ Wait for all uploaded documents to finish processing
             if (uploadedDocuments.length > 0) {
-                setCurrentStage({ stage: 'processing', message: 'Processing document...' });
-
-                const documentIds = uploadedDocuments.map(doc => doc.id);
-                const processingResult = await waitForDocumentProcessing(documentIds);
-
-                if (!processingResult.success) {
-                    console.error('❌ Document processing failed or timed out');
-                    setIsLoading(false);
-
-                    // Show error message
-                    const errorMessage = {
-                        id: `error-${Date.now()}`,
-                        role: 'assistant',
-                        content: '⚠️ The document is still being processed. Please wait a moment and try again.',
-                        createdAt: new Date().toISOString(),
-                    };
-                    setMessages((prev) => [...prev, errorMessage]);
-                    return;
-                }
-
-                console.log('✅ Documents ready for querying');
+                console.log(`⏳ Waiting for ${uploadedDocuments.length} document(s) to finish processing...`);
+                const processingPromises = uploadedDocuments.map(doc =>
+                    waitForDocumentProcessing(doc.id)
+                );
+                await Promise.all(processingPromises);
+                console.log(`✅ All documents processed and ready for querying!`);
             }
 
             // If no message text was provided, add a default message
@@ -1166,15 +1143,18 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     console.log('📬 SSE stream complete - queueing message to wait for animation');
 
                     if (metadata) {
-                        // ✅ FIX: Preserve attachedFiles from optimistic message
-                        const optimisticUserMsg = messages.find(m => m.isOptimistic && m.role === 'user');
+                        // ✅ FIX: Use attachedFiles from backend response (already saved in DB)
+                        console.log('📎 [ATTACH DEBUG] SSE: metadata.attachedFiles:', metadata.attachedFiles);
+
                         const realUserMessage = {
                             id: metadata.userMessageId,
                             role: 'user',
                             content: displayMessageText,
                             createdAt: new Date().toISOString(),
-                            attachedFiles: optimisticUserMsg?.attachedFiles || [],
+                            attachedFiles: metadata.attachedFiles || [], // ✅ Use attachedFiles from backend
                         };
+
+                        console.log('📎 [ATTACH DEBUG] SSE: Created real message with attachedFiles:', realUserMessage.attachedFiles);
 
                         const assistantMessage = {
                             id: metadata.assistantMessageId,
