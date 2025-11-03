@@ -1025,6 +1025,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             // Use the document that was already uploaded (from URL parameter)
             uploadedDocuments = [{ id: documentToAttach.id }];
 
+            // ✅ Wait for the attached document to finish processing (same as uploaded files)
+            console.log(`⏳ Waiting for attached document "${documentToAttach.name}" to finish processing...`);
+            await waitForDocumentProcessing(documentToAttach.id);
+            console.log(`✅ Attached document processed and ready for querying!`);
+
+            // ✅ Clear the attached document banner after processing
+            setAttachedDocument(null);
+
             // If no message text was provided, add a default message
             if (!messageText.trim()) {
                 messageText = `I'd like to ask about this document: "${documentToAttach.name}". Please analyze it and tell me what's in it.`;

@@ -347,14 +347,6 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       });
 
       console.log(`✅ [DOC:${documentId}] Metadata saved successfully`);
-
-      // Update document status to completed
-      await tx.document.update({
-        where: { id: documentId },
-        data: { status: 'completed' },
-      });
-
-      console.log(`✅ [DOC:${documentId}] Status updated to completed`);
     });
 
     // Step 7: Generate vector embeddings for RAG search
@@ -374,6 +366,14 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       // Don't fail the entire job if embedding generation fails
       console.error(`❌ [DOC:${documentId}] Embedding generation failed (non-critical):`, embeddingError);
     }
+
+    // ✅ CRITICAL FIX: Update status to 'completed' AFTER embeddings are stored
+    // This prevents race condition where frontend queries before Pinecone has the data
+    await prisma.document.update({
+      where: { id: documentId },
+      data: { status: 'completed' },
+    });
+    console.log(`✅ [DOC:${documentId}] Status updated to completed (after embeddings stored)`);
 
     await job.updateProgress(100);
     emitProcessingUpdate(userId, documentId, {
