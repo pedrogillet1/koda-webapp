@@ -318,6 +318,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             // Clear streaming message and reset stage when switching conversations
             setStreamingMessage('');
             setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+
+            // ✅ FIX: Clear attached document when switching conversations
+            setAttachedDocument(null);
+            setPendingFiles([]);
+            manuallyRemovedDocumentRef.current = false; // Reset manual removal flag
+        } else {
+            // ✅ FIX: Also clear when going to empty state (no conversation)
+            setAttachedDocument(null);
+            setPendingFiles([]);
+            manuallyRemovedDocumentRef.current = false;
         }
 
         return () => {
@@ -482,7 +492,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             fetchDocumentInfo();
         }
-    }, [location.search, attachedDocument]);
+    }, [location.search]); // ✅ FIX: Removed attachedDocument dependency to prevent re-triggering
 
     // Simulate upload progress animation
     useEffect(() => {
@@ -1029,9 +1039,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             console.log(`⏳ Waiting for attached document "${documentToAttach.name}" to finish processing...`);
             await waitForDocumentProcessing(documentToAttach.id);
             console.log(`✅ Attached document processed and ready for querying!`);
-
-            // ✅ Clear the attached document banner after processing
-            setAttachedDocument(null);
 
             // If no message text was provided, add a default message
             if (!messageText.trim()) {
