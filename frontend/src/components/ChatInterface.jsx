@@ -50,6 +50,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [expandedSources, setExpandedSources] = useState({});
     const [researchProgress, setResearchProgress] = useState(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState({}); // Track progress for each file
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
     const inputRef = useRef(null);
@@ -58,6 +59,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const abortControllerRef = useRef(null);
     const manuallyRemovedDocumentRef = useRef(false);
     const pendingMessageRef = useRef(null); // Queue final message data until animation completes
+    const dragCounterRef = useRef(0); // Track drag enter/leave for nested elements
 
     // Use streaming hook for the current AI response (5ms = 200 chars/sec for fast smooth streaming)
     const { displayedText, isStreaming } = useStreamingText(streamingMessage, 5);
@@ -474,6 +476,38 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     }, [location.search, attachedDocument]);
 
+    // Simulate upload progress animation
+    useEffect(() => {
+        if (uploadingFiles.length > 0) {
+            // Initialize progress for each file
+            const initialProgress = {};
+            uploadingFiles.forEach((_, index) => {
+                initialProgress[index] = 0;
+            });
+            setUploadProgress(initialProgress);
+
+            // Animate progress from 0 to 90% over 3 seconds
+            const interval = setInterval(() => {
+                setUploadProgress(prev => {
+                    const updated = { ...prev };
+                    let allComplete = true;
+                    uploadingFiles.forEach((_, index) => {
+                        if (updated[index] < 90) {
+                            updated[index] = Math.min(90, (updated[index] || 0) + 3);
+                            allComplete = false;
+                        }
+                    });
+                    return updated;
+                });
+            }, 100);
+
+            return () => clearInterval(interval);
+        } else {
+            // Clear progress when no files uploading
+            setUploadProgress({});
+        }
+    }, [uploadingFiles.length]);
+
     const loadConversation = async (conversationId) => {
         try {
             const conversation = await chatService.getConversation(conversationId);
@@ -577,11 +611,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     };
 
-    // Drag and drop handlers
+    // Drag and drop handlers with counter for nested elements
     const handleDragEnter = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        setIsDraggingOver(true);
+        dragCounterRef.current++;
+        // Only show overlay for external file drags, not internal element drags
+        const hasFiles = e.dataTransfer.types.includes('Files');
+        if (hasFiles && e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+            setIsDraggingOver(true);
+        }
     };
 
     const handleDragOver = (e) => {
@@ -593,8 +632,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const handleDragLeave = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        // Only set to false if leaving the container itself, not child elements
-        if (e.currentTarget === e.target) {
+        dragCounterRef.current--;
+        if (dragCounterRef.current === 0) {
             setIsDraggingOver(false);
         }
     };
@@ -602,6 +641,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const handleDrop = (e) => {
         e.preventDefault();
         e.stopPropagation();
+        dragCounterRef.current = 0;
         setIsDraggingOver(false);
 
         const files = Array.from(e.dataTransfer.files);
@@ -854,6 +894,66 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     };
 
+    const waitForDocumentProcessing = async (documentIds, maxWaitTime = 30000) => {
+        console.log(`⏳ Waiting for ${documentIds.length} document(s) to be processed...`);
+        const startTime = Date.now();
+        const pollInterval = 1000; // Check every 1 second
+
+        const token = localStorage.getItem('accessToken');
+
+        while (Date.now() - startTime < maxWaitTime) {
+            try {
+                // Check status of all documents
+                const statusChecks = await Promise.all(
+                    documentIds.map(async (docId) => {
+                        const response = await fetch(
+                            `${process.env.REACT_APP_API_URL}/api/documents/${docId}/status`,
+                            {
+                                headers: {
+                                    'Authorization': `Bearer ${token}`
+                                }
+                            }
+                        );
+
+                        if (!response.ok) {
+                            console.error(`Failed to check status for ${docId}`);
+                            return { id: docId, status: 'error' };
+                        }
+
+                        const data = await response.json();
+                        console.log(`📄 Document ${data.filename}: ${data.status}`);
+                        return data;
+                    })
+                );
+
+                // Check if all documents are completed
+                const allCompleted = statusChecks.every(doc => doc.status === 'completed');
+
+                if (allCompleted) {
+                    console.log(`✅ All documents processed successfully!`);
+                    return { success: true, documents: statusChecks };
+                }
+
+                // Check if any failed
+                const anyFailed = statusChecks.some(doc => doc.status === 'failed' || doc.status === 'error');
+                if (anyFailed) {
+                    console.error(`❌ Some documents failed to process`);
+                    return { success: false, documents: statusChecks, error: 'Processing failed' };
+                }
+
+                // Wait before next check
+                await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+            } catch (error) {
+                console.error('Error checking document status:', error);
+            }
+        }
+
+        // Timeout
+        console.warn(`⏱️ Timeout waiting for document processing (${maxWaitTime}ms)`);
+        return { success: false, error: 'Processing timeout' };
+    };
+
     const handleSendMessage = async () => {
         const isUploadingFiles = uploadingFiles.length > 0;
         if ((!message.trim() && pendingFiles.length === 0 && !attachedDocument) || isLoading || isUploadingFiles) return;
@@ -910,6 +1010,31 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         let uploadedDocuments = [];
         if (filesToUpload.length > 0) {
             uploadedDocuments = await uploadMultipleFiles(filesToUpload);
+
+            // ✨ NEW: Wait for document processing to complete
+            if (uploadedDocuments.length > 0) {
+                setCurrentStage({ stage: 'processing', message: 'Processing document...' });
+
+                const documentIds = uploadedDocuments.map(doc => doc.id);
+                const processingResult = await waitForDocumentProcessing(documentIds);
+
+                if (!processingResult.success) {
+                    console.error('❌ Document processing failed or timed out');
+                    setIsLoading(false);
+
+                    // Show error message
+                    const errorMessage = {
+                        id: `error-${Date.now()}`,
+                        role: 'assistant',
+                        content: '⚠️ The document is still being processed. Please wait a moment and try again.',
+                        createdAt: new Date().toISOString(),
+                    };
+                    setMessages((prev) => [...prev, errorMessage]);
+                    return;
+                }
+
+                console.log('✅ Documents ready for querying');
+            }
 
             // If no message text was provided, add a default message
             if (uploadedDocuments.length > 0 && !messageText.trim()) {
@@ -1041,11 +1166,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     console.log('📬 SSE stream complete - queueing message to wait for animation');
 
                     if (metadata) {
+                        // ✅ FIX: Preserve attachedFiles from optimistic message
+                        const optimisticUserMsg = messages.find(m => m.isOptimistic && m.role === 'user');
                         const realUserMessage = {
                             id: metadata.userMessageId,
                             role: 'user',
                             content: displayMessageText,
                             createdAt: new Date().toISOString(),
+                            attachedFiles: optimisticUserMsg?.attachedFiles || [],
                         };
 
                         const assistantMessage = {
@@ -1177,25 +1305,59 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        backgroundColor: 'rgba(79, 70, 229, 0.05)',
-                        border: '3px dashed #4F46E5',
-                        borderRadius: 12,
+                        backgroundColor: 'rgba(41, 41, 43, 0.85)',
+                        borderRadius: 20,
                         display: 'flex',
+                        flexDirection: 'column',
                         justifyContent: 'center',
                         alignItems: 'center',
+                        gap: 24,
                         zIndex: 1000,
                         pointerEvents: 'none',
                     }}>
+                        {/* White circular icon with upload arrow */}
                         <div style={{
-                            background: 'white',
-                            padding: '24px 32px',
-                            borderRadius: 12,
-                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                            textAlign: 'center',
+                            width: 120,
+                            height: 120,
+                            borderRadius: '50%',
+                            backgroundColor: 'white',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center'
                         }}>
-                            <div style={{fontSize: 48, marginBottom: 12}}>📎</div>
-                            <div style={{fontSize: 18, fontWeight: '600', color: '#4F46E5', marginBottom: 4}}>Drop files here</div>
-                            <div style={{fontSize: 14, color: '#6B7280'}}>Release to attach files to your message</div>
+                            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#1C1C1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                                <polyline points="7 9 12 4 17 9" />
+                                <line x1="12" y1="4" x2="12" y2="16" />
+                            </svg>
+                        </div>
+                        <div style={{
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: 8,
+                            display: 'flex'
+                        }}>
+                            <div style={{
+                                textAlign: 'center',
+                                color: 'white',
+                                fontSize: 20,
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontWeight: '600',
+                                lineHeight: '30px'
+                            }}>
+                                Drop files here to upload
+                            </div>
+                            <div style={{
+                                textAlign: 'center',
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                fontSize: 15,
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontWeight: '400',
+                                lineHeight: '22.5px'
+                            }}>
+                                Release to open upload modal
+                            </div>
                         </div>
                     </div>
                 )}
@@ -1824,67 +1986,35 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
                                                     {attachedFiles.map((attachedFile, fileIndex) => (
                                                         <div key={fileIndex} style={{
-                                                            padding: 12,
-                                                            background: '#FFFFFF',
-                                                            border: '1px solid #E6E6EC',
-                                                            borderRadius: 12,
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             gap: 12,
-                                                            minWidth: 280,
+                                                            padding: '12px 16px',
+                                                            background: '#F3F4F6',
+                                                            borderRadius: 8,
+                                                            border: '1px solid #E5E7EB',
                                                         }}>
-                                                            {/* File icon */}
-                                                            <div style={{
-                                                                width: 40,
-                                                                height: 40,
-                                                                background: '#F5F5F5',
-                                                                borderRadius: 8,
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                fontSize: 20,
-                                                                flexShrink: 0,
-                                                            }}>
-                                                                {(() => {
-                                                                    const ext = attachedFile.name.split('.').pop()?.toLowerCase() || '';
-                                                                    const iconMap = {
-                                                                        'pdf': '📕',
-                                                                        'doc': '📘',
-                                                                        'docx': '📘',
-                                                                        'xls': '📗',
-                                                                        'xlsx': '📗',
-                                                                        'ppt': '📙',
-                                                                        'pptx': '📙',
-                                                                        'txt': '📄',
-                                                                        'jpg': '🖼️',
-                                                                        'jpeg': '🖼️',
-                                                                        'png': '🖼️',
-                                                                        'gif': '🖼️',
-                                                                        'zip': '📦',
-                                                                        'rar': '📦',
-                                                                    };
-                                                                    return iconMap[ext] || '📄';
-                                                                })()}
-                                                            </div>
-
-                                                            {/* File info */}
+                                                            <img
+                                                                src={getFileIcon(attachedFile.name)}
+                                                                alt="File icon"
+                                                                style={{
+                                                                    width: 24,
+                                                                    height: 24,
+                                                                    imageRendering: '-webkit-optimize-contrast',
+                                                                    objectFit: 'contain',
+                                                                    shapeRendering: 'geometricPrecision'
+                                                                }}
+                                                            />
                                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                                 <div style={{
                                                                     fontSize: 14,
-                                                                    fontWeight: '600',
-                                                                    color: '#32302C',
+                                                                    fontWeight: '500',
+                                                                    color: '#111827',
                                                                     whiteSpace: 'nowrap',
                                                                     overflow: 'hidden',
                                                                     textOverflow: 'ellipsis',
                                                                 }}>
                                                                     {attachedFile.name}
-                                                                </div>
-                                                                <div style={{
-                                                                    fontSize: 12,
-                                                                    color: '#8E8E93',
-                                                                    marginTop: 2,
-                                                                }}>
-                                                                    {attachedFile.type || 'File'}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1997,80 +2127,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             {/* Message Input */}
             <div style={{padding: 20, background: 'white', borderTop: '1px solid #E6E6EC'}}>
-                {/* REMOVED: Research Mode Popup - disabled per user request */}
-                {/* {showResearchSuggestion && !researchMode && (
-                    <div style={{
-                        marginBottom: 12,
-                        padding: 12,
-                        background: '#181818',
-                        borderRadius: 12,
-                        border: '1px solid #323232',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        animation: 'slideIn 0.3s ease-out'
-                    }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink: 0}}>
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M12 16v-4"/>
-                            <path d="M12 8h.01"/>
-                        </svg>
-                        <div style={{flex: 1}}>
-                            <div style={{fontSize: 14, fontWeight: '600', color: 'white', marginBottom: 2}}>
-                                Enable Research Mode?
-                            </div>
-                            <div style={{fontSize: 12, color: 'rgba(255,255,255,0.7)'}}>
-                                Your question looks like it needs current web information
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => {
-                                setResearchMode(true);
-                                setShowResearchSuggestion(false);
-                            }}
-                            style={{
-                                padding: '8px 16px',
-                                background: 'white',
-                                color: '#181818',
-                                border: 'none',
-                                borderRadius: 8,
-                                cursor: 'pointer',
-                                fontSize: 14,
-                                fontWeight: '600',
-                                transition: 'all 0.2s',
-                                flexShrink: 0
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                        >
-                            Enable
-                        </button>
-                        <button
-                            onClick={() => setShowResearchSuggestion(false)}
-                            style={{
-                                padding: 6,
-                                background: 'rgba(255,255,255,0.1)',
-                                border: 'none',
-                                borderRadius: 6,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'rgba(255,255,255,0.7)',
-                                fontSize: 16,
-                                flexShrink: 0,
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                            title="Dismiss"
-                        >
-                            ✕
-                        </button>
-                    </div>
-                )} */}
-
-                {/* File Attachments Preview */}
+                {/* File Attachments Preview - trigger recompile */}
                 {(pendingFiles.length > 0 || uploadingFiles.length > 0) && (
                     <div style={{marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
                         {/* Pending files */}
@@ -2079,7 +2136,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             const previewUrl = isImage ? URL.createObjectURL(file) : null;
 
                             return (
-                            <div key={`pending-${index}`} style={{padding: 12, background: '#F5F5F5', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
+                                <div key={`pending-${index}`} style={{padding: 12, background: '#F5F5F5', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
                                 <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0}}>
                                     {isImage ? (
                                         <img
@@ -2118,64 +2175,75 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 >
                                     ✕
                                 </button>
-                            </div>
+                                </div>
                             );
                         })}
 
                         {/* Uploading files */}
                         {uploadingFiles.map((file, index) => {
-                            const isImage = isImageFile(file);
-                            const previewUrl = isImage ? URL.createObjectURL(file) : null;
-
+                            const progress = uploadProgress[index] || 0;
                             return (
-                            <div key={`uploading-${index}`} style={{padding: 12, background: '#EFF6FF', borderRadius: 12, border: '1px solid #3B82F6', display: 'flex', alignItems: 'center', gap: 12}}>
-                                <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0}}>
-                                    {isImage ? (
-                                        <img
-                                            src={previewUrl}
-                                            alt="Image preview"
-                                            style={{
-                                                width: 40,
-                                                height: 40,
-                                                objectFit: 'cover',
-                                                borderRadius: 6,
-                                                opacity: 0.5
-                                            }}
-                                        />
-                                    ) : (
+                                <div key={`uploading-${index}`} style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 12,
+                                    padding: '16px 20px',
+                                    background: 'white',
+                                    borderRadius: 12,
+                                    marginBottom: 8,
+                                    border: '1px solid #E6E6EC'
+                                }}>
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 16
+                                    }}>
                                         <img
                                             src={getFileIcon(file.name)}
                                             alt="File icon"
                                             style={{
                                                 width: 40,
                                                 height: 40,
+                                                flexShrink: 0,
                                                 imageRendering: '-webkit-optimize-contrast',
                                                 objectFit: 'contain',
-                                                shapeRendering: 'geometricPrecision',
-                                                opacity: 0.5
+                                                shapeRendering: 'geometricPrecision'
                                             }}
                                         />
-                                    )}
+                                        <div style={{flex: 1}}>
+                                            <div style={{
+                                                fontSize: 16,
+                                                fontWeight: '600',
+                                                color: '#1A1A1A',
+                                                marginBottom: 4
+                                            }}>
+                                                {file.name}
+                                            </div>
+                                            <div style={{
+                                                fontSize: 14,
+                                                color: '#8E8E93'
+                                            }}>
+                                                Uploading to cloud...
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* Progress Bar - matching upload page style */}
                                     <div style={{
-                                        position: 'absolute',
-                                        top: '50%',
-                                        left: '50%',
-                                        transform: 'translate(-50%, -50%)',
-                                        width: 20,
-                                        height: 20,
-                                        border: '3px solid #E6E6EC',
-                                        borderTop: '3px solid #3B82F6',
-                                        borderRadius: '50%',
-                                        animation: 'spin 1s linear infinite'
-                                    }} />
-                                </div>
-                                <div style={{flex: 1}}>
-                                    <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>{file.name}</div>
-                                    <div style={{fontSize: 12, color: '#3B82F6'}}>
-                                        Uploading...
+                                        width: '100%',
+                                        height: 6,
+                                        background: '#E5E7EB',
+                                        borderRadius: 3,
+                                        overflow: 'hidden'
+                                    }}>
+                                        <div style={{
+                                            height: '100%',
+                                            width: `${progress}%`,
+                                            background: 'linear-gradient(90deg, #3B82F6 0%, #2563EB 100%)',
+                                            borderRadius: 3,
+                                            transition: 'width 0.3s ease-out'
+                                        }} />
                                     </div>
                                 </div>
-                            </div>
                             );
                         })}
                     </div>

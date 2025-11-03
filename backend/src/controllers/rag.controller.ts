@@ -903,7 +903,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       return;
     }
 
-    const { query, conversationId, answerLength = 'medium', documentId } = req.body;
+    const { query, conversationId, answerLength = 'medium', documentId, attachedFiles } = req.body;
 
     if (!query || !conversationId) {
       res.status(400).json({ error: 'Query and conversationId are required' });
@@ -929,7 +929,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         conversationId,
         role: 'user',
         content: query,
-        metadata: documentId ? JSON.stringify({ documentId }) : null,
+        metadata: documentId ? JSON.stringify({
+          documentId,
+          attachedFiles: attachedFiles || []
+        }) : null,
       },
     });
 

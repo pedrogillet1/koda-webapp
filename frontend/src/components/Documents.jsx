@@ -414,7 +414,9 @@ const Documents = () => {
   const handlePageDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDraggingOver(true);
+    // Only show upload overlay for external file drags, not internal document drags
+    const hasFiles = e.dataTransfer.types.includes('Files');
+    setIsDraggingOver(hasFiles);
   };
 
   const handlePageDragLeave = (e) => {
