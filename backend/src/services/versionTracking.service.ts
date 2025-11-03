@@ -224,8 +224,7 @@ class VersionTrackingService {
       where: {
         userId,
         filename: {
-          contains: documentName,
-          mode: 'insensitive'
+          contains: documentName
         },
         status: 'completed'
       },
@@ -402,8 +401,7 @@ class VersionTrackingService {
       where: {
         userId,
         filename: {
-          contains: documentName,
-          mode: 'insensitive'
+          contains: documentName
         },
         status: 'completed'
       },

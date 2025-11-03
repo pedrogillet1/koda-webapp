@@ -389,6 +389,26 @@ export class ResponseFormatterService {
   }
 
   /**
+   * Enforce bullet point format
+   * Converts paragraphs to bullets when appropriate
+   */
+  enforceBulletFormat(text: string): string {
+    // If response has no bullets but has multiple sentences, convert to bullets
+    if (!text.includes('•') && text.includes('.')) {
+      const sentences = text.split(/\.\s+/).filter(s => s.trim().length > 10);
+
+      if (sentences.length >= 3) {
+        // Convert to bullet format
+        const intro = sentences[0] + '.';
+        const bullets = sentences.slice(1).map(s => `• ${s.trim()}`).join('\n');
+        return `${intro}\n\n${bullets}`;
+      }
+    }
+
+    return text;
+  }
+
+  /**
    * Enforce max 2-line intro before bullets
    *
    * User requirement: "the intro to the answer but it needs to have max 2 lines"

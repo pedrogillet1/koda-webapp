@@ -20,10 +20,7 @@ class LocationQueryHandler {
     let documents = await prisma.document.findMany({
       where: {
         userId: userId,
-        OR: [
-          { filename: { contains: documentName, mode: 'insensitive' } },
-          { originalName: { contains: documentName, mode: 'insensitive' } }
-        ]
+        filename: { contains: documentName }
       },
       include: {
         category: {

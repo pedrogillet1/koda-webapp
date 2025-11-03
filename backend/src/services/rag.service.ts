@@ -369,8 +369,7 @@ Provide a comprehensive and accurate answer based on the document content follow
             where: {
               userId,
               filename: {
-                contains: metadataResult.extractedValue,
-                mode: 'insensitive'
+                contains: metadataResult.extractedValue
               },
               status: { not: 'deleted' }
             },
@@ -2699,14 +2698,14 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
     }
 
     const responseTime = Date.now() - startTime;
-    const avgConfidence = finalSources.reduce((sum, s) => sum + s.similarity, 0) / finalSources.length;
+    const finalAvgConfidence = finalSources.reduce((sum, s) => sum + s.similarity, 0) / finalSources.length;
 
     console.log(`✅ STREAMING COMPLETE (${responseTime}ms)`);
     console.log(`   Chunks: ${chunkCount}`);
     console.log(`   Raw Length: ${rawAnswer.length} characters`);
     console.log(`   Saving to DB: ${rawAnswer.substring(0, 100)}...`);
     console.log(`   Sources: ${finalSources.length} documents`);
-    console.log(`   Avg Confidence: ${(avgConfidence * 100).toFixed(1)}%`);
+    console.log(`   Avg Confidence: ${(finalAvgConfidence * 100).toFixed(1)}%`);
 
     // Format the complete response (for both client and database)
     const formatterContext = {
@@ -2742,7 +2741,7 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
       formattedAnswer,
       query,
       finalSources,
-      avgConfidence
+      finalAvgConfidence
     );
     console.log(`   Confidence: ${validation.confidence}`);
     console.log(`   Should show: ${validation.shouldShow}`);
@@ -2787,7 +2786,7 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
       sources: finalSources,
       contextId: `rag_stream_${Date.now()}`,
       intent: intent.intent,
-      confidence: avgConfidence
+      confidence: finalAvgConfidence
     };
 
     // Cache the result

@@ -313,6 +313,45 @@ export const sendMessageStreaming = async (
     content: msg.content,
   }));
 
+  // ✅ FIX #2: Check for file actions FIRST (before RAG)
+  const fileActionResult = await handleFileActionsIfNeeded(
+    userId,
+    content,
+    conversationId,
+    undefined // attachedFiles not yet implemented in frontend
+  );
+
+  if (fileActionResult) {
+    // This was a file action - send result and return
+    const actionMessage = fileActionResult.message;
+    const fullResponse = actionMessage;
+    onChunk(actionMessage);
+
+    // Create assistant message
+    const assistantMessage = await prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: fullResponse,
+        createdAt: new Date(),
+      },
+    });
+
+    console.log('✅ File action completed:', fileActionResult.action);
+
+    // Update conversation timestamp
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    return {
+      userMessage,
+      assistantMessage,
+    };
+  }
+
+  // Not a file action - continue with normal RAG
   // Generate AI response with streaming using RAG service
   console.log('🤖 Generating streaming RAG response...');
   let fullResponse = '';
@@ -331,12 +370,23 @@ export const sendMessageStreaming = async (
 
   console.log(`✅ Streaming complete. Total response length: ${fullResponse.length} chars`);
 
-  // Create assistant message with full response
+  // ✅ FIX #1: Append document sources to response
+  if (ragResult.sources && ragResult.sources.length > 0) {
+    console.log(`📎 Appending ${ragResult.sources.length} document sources to response`);
+
+    const sourcesText = formatDocumentSources(ragResult.sources, attachedDocumentId);
+    fullResponse += '\n\n' + sourcesText;
+
+    // Send sources to client as final chunk
+    onChunk('\n\n' + sourcesText);
+  }
+
+  // Create assistant message with full response (including sources)
   const assistantMessage = await prisma.message.create({
     data: {
       conversationId,
       role: 'assistant',
-      content: fullResponse,
+      content: fullResponse, // Now includes sources
       createdAt: new Date(),
     },
   });
@@ -438,6 +488,127 @@ export const regenerateConversationTitles = async (userId: string) => {
     regenerated,
     failed,
   };
+};
+
+// ============================================================================
+// HELPER METHODS
+// ============================================================================
+
+/**
+ * Handle file actions if the message is a command
+ * Returns result if action was executed, null if not a file action
+ */
+const handleFileActionsIfNeeded = async (
+  userId: string,
+  message: string,
+  conversationId: string,
+  attachedFiles?: any[]
+): Promise<{ action: string; message: string } | null> => {
+
+  const intentService = require('./intent.service').default;
+  const fileActionsService = require('./fileActions.service').default;
+
+  // Detect intent
+  const intentResult = intentService.detectIntent(message);
+  console.log(`🎯 [Intent Detection] ${intentResult.intent}`);
+
+  // Check for folder creation patterns
+  const createFolderPatterns = [
+    /create\s+(?:a\s+)?(?:new\s+)?folder\s+(?:named\s+|called\s+)?["']?([^"']+)["']?/i,
+    /make\s+(?:a\s+)?(?:new\s+)?folder\s+(?:named\s+|called\s+)?["']?([^"']+)["']?/i,
+    /new\s+folder\s+["']?([^"']+)["']?/i,
+  ];
+
+  let folderName = null;
+  for (const pattern of createFolderPatterns) {
+    const match = message.match(pattern);
+    if (match) {
+      folderName = match[1].trim();
+      break;
+    }
+  }
+
+  // ========================================
+  // CREATE FOLDER + UPLOAD ATTACHMENTS
+  // ========================================
+  if (folderName) {
+    console.log(`📁 [Action] Creating folder: "${folderName}"`);
+
+    // Step 1: Create folder
+    const folderResult = await fileActionsService.createFolder({
+      userId,
+      folderName
+    });
+
+    if (!folderResult.success) {
+      return {
+        action: 'create_folder',
+        message: `❌ Failed to create folder: ${folderResult.error || folderResult.message}`
+      };
+    }
+
+    const folderId = folderResult.data.folder.id;
+    console.log(`✅ Folder created: ${folderId}`);
+
+    // Step 2: Upload attachments if any (this will be handled by frontend in future)
+    // For now, just return success message about folder creation
+
+    return {
+      action: 'create_folder',
+      message: `✅ Created folder **"${folderName}"**`
+    };
+  }
+
+  // Not a file action - return null to continue with RAG
+  return null;
+};
+
+/**
+ * Format document sources for display
+ * Returns formatted string like:
+ *
+ * ---
+ * **Document Sources (3)**
+ *
+ * • **Business Plan.pdf** (page 5)
+ * • **Financial Report.xlsx** (Sheet 1)
+ * • **Contract.docx** (page 2)
+ */
+const formatDocumentSources = (sources: any[], attachedDocId?: string): string => {
+  if (!sources || sources.length === 0) {
+    return '';
+  }
+
+  // Remove duplicates (same documentId)
+  const uniqueSources = Array.from(
+    new Map(sources.map(s => [s.documentId, s])).values()
+  );
+
+  const lines = [
+    '---',
+    `**Document Sources (${uniqueSources.length})**`,
+    ''
+  ];
+
+  for (const source of uniqueSources) {
+    let line = `• **${source.documentName}**`;
+
+    // Mark attached document
+    if (source.documentId === attachedDocId) {
+      line += ' *(attached)*';
+    }
+
+    // Add location if available
+    if (source.location) {
+      line += ` (${source.location})`;
+    } else if (source.metadata?.page) {
+      line += ` (page ${source.metadata.page})`;
+    }
+
+    lines.push(line);
+  }
+
+  return lines.join('\n');
 };
 
 // ============================================================================
