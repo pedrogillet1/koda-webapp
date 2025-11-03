@@ -303,28 +303,38 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         console.log('📌 justCreatedConversationId:', justCreatedConversationId.current);
 
         if (currentConversation?.id) {
-            // Skip loading if we just created this conversation
-            // We already have the messages locally from the REST API response
+            // Check if this is a new conversation we just created for sending a message
             if (justCreatedConversationId.current === currentConversation.id) {
                 console.log('⏭️ Skipping loadConversation - just created this conversation with messages locally');
-                justCreatedConversationId.current = null; // Reset flag
+                justCreatedConversationId.current = null; // Reset the flag
+                // CRITICAL: DO NOT clear attachments here, as we need them for the message being sent.
             } else {
-                console.log('🔃 Loading conversation from server...');
-                loadConversation(currentConversation.id);
+                // Additional check: Don't reload if we have optimistic messages (messages being sent)
+                const hasOptimisticMessages = messages.some(msg => msg.isOptimistic);
+                if (hasOptimisticMessages) {
+                    console.log('⏭️ Skipping loadConversation - optimistic messages in progress');
+                } else {
+                    // This block runs when the user MANUALLY clicks a different conversation.
+                    console.log('🔃 Loading conversation from server...');
+                    loadConversation(currentConversation.id);
+
+                    // ✅ FIX: Only clear attachments when the user manually switches to a different chat.
+                    console.log('🧹 Clearing attachments - user switched to a different conversation');
+                    setAttachedDocument(null);
+                    setPendingFiles([]);
+                    manuallyRemovedDocumentRef.current = false;
+                }
             }
 
             console.log('📡 Joining conversation room:', currentConversation.id);
             chatService.joinConversation(currentConversation.id);
-            // Clear streaming message and reset stage when switching conversations
             setStreamingMessage('');
             setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
 
-            // ✅ FIX: Clear attached document when switching conversations
-            setAttachedDocument(null);
-            setPendingFiles([]);
-            manuallyRemovedDocumentRef.current = false; // Reset manual removal flag
         } else {
-            // ✅ FIX: Also clear when going to empty state (no conversation)
+            // This block runs when the user clicks "New Chat", resulting in currentConversation being null.
+            // ✅ FIX: This is a safe place to clear attachments.
+            console.log('🧹 Clearing attachments - new chat started');
             setAttachedDocument(null);
             setPendingFiles([]);
             manuallyRemovedDocumentRef.current = false;
@@ -336,6 +346,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 chatService.leaveConversation(currentConversation.id);
             }
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentConversation]);
 
     // CRITICAL FIX: Wait for streaming animation to complete before adding final message
@@ -542,27 +553,42 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 if (msg.id && !seenIds.has(msg.id)) {
                     seenIds.add(msg.id);
 
-                    // Parse RAG sources from metadata if present
-                    if (msg.metadata && msg.role === 'assistant') {
+                    // Parse metadata for both user and assistant messages
+                    if (msg.metadata) {
                         try {
                             const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
-                            if (metadata.ragSources) {
-                                msg.ragSources = metadata.ragSources;
+
+                            // Parse assistant metadata
+                            if (msg.role === 'assistant') {
+                                if (metadata.ragSources) {
+                                    msg.ragSources = metadata.ragSources;
+                                }
+                                if (metadata.webSources) {
+                                    msg.webSources = metadata.webSources;
+                                }
+                                if (metadata.expandedQuery) {
+                                    msg.expandedQuery = metadata.expandedQuery;
+                                }
+                                if (metadata.actions) {
+                                    msg.actions = metadata.actions;
+                                }
+                                if (metadata.contextId) {
+                                    msg.contextId = metadata.contextId;
+                                }
                             }
-                            if (metadata.webSources) {
-                                msg.webSources = metadata.webSources;
-                            }
-                            if (metadata.expandedQuery) {
-                                msg.expandedQuery = metadata.expandedQuery;
-                            }
-                            if (metadata.actions) {
-                                msg.actions = metadata.actions;
-                            }
-                            if (metadata.contextId) {
-                                msg.contextId = metadata.contextId;
+
+                            // Parse user metadata (attachedFiles)
+                            if (msg.role === 'user') {
+                                if (metadata.attachedFiles) {
+                                    msg.attachedFiles = metadata.attachedFiles;
+                                    console.log('📎 [ATTACH DEBUG] loadConversation: Parsed attachedFiles from user message:', msg.attachedFiles);
+                                }
+                                if (metadata.documentId) {
+                                    msg.documentId = metadata.documentId;
+                                }
                             }
                         } catch (e) {
-                            console.error('Error parsing RAG metadata:', e);
+                            console.error('Error parsing message metadata:', e);
                         }
                     }
 
@@ -970,7 +996,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         // Clear input and pending files immediately for better UX
         setMessage('');
         setPendingFiles([]);  // Clear pending files
-        setAttachedDocument(null);
+        // ✅ FIX: DON'T clear attachedDocument here - wait until after request is sent
 
         // Store original message text for UI display (files will be shown visually, not as text)
         const displayMessageText = messageText || '';
@@ -1204,10 +1230,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     // Note: streamingMessage will be cleared by the useEffect when animation completes
                     // Note: isLoading will be set to false by the useEffect when animation completes
                     setResearchMode(false);
+
+                    // ✅ FIX: Clear attached document AFTER successful request
+                    setAttachedDocument(null);
                 } catch (error) {
                     console.error('❌ Error in RAG streaming:', error);
                     setIsLoading(false);
                     setStreamingMessage('');
+
+                    // ✅ FIX: Clear attached document even on error
+                    setAttachedDocument(null);
 
                     // Add error message
                     const errorMessage = {
@@ -1254,6 +1286,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         } catch (error) {
             console.error('❌ Error sending message:', error);
             setIsLoading(false);
+
+            // ✅ FIX: Clear attached document even on error
+            setAttachedDocument(null);
+
             // Keep the user message visible even on error
             // Add an error message from the assistant
             const errorMessage = {
