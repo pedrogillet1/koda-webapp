@@ -11,6 +11,7 @@
 
 import prisma from '../config/database';
 import { Document, Folder } from '@prisma/client';
+import { llmIntentDetectorService } from './llmIntentDetector.service';
 
 export interface FileActionResult {
   success: boolean;
@@ -45,129 +46,53 @@ export interface DeleteFileParams {
 
 class FileActionsService {
   /**
-   * Parse natural language file action query
+   * Parse natural language file action query using LLM
+   * Replaces rigid regex patterns with flexible AI understanding
    */
-  parseFileAction(query: string): {
+  async parseFileAction(query: string): Promise<{
     action: string;
     params: Record<string, string>;
-  } | null {
-    const queryLower = query.toLowerCase().trim();
+  } | null> {
+    try {
+      // Use LLM to detect intent
+      const intentResult = await llmIntentDetectorService.detectIntent(query);
 
-    // RENAME FOLDER (check this first, before generic rename)
-    const renameFolderPatterns = [
-      /rename\s+(?:the\s+)?folder\s+["']?([^"']+)["']?\s+to\s+["']?([^"']+)["']?/i,
-      /change\s+folder\s+["']?([^"']+)["']?\s+to\s+["']?([^"']+)["']?/i,
-    ];
+      // Map LLM intent to file actions
+      const fileActionIntents = [
+        'list_files',
+        'search_files',
+        'file_location',
+        'rename_file',
+        'delete_file'
+      ];
 
-    for (const pattern of renameFolderPatterns) {
-      const match = query.match(pattern);
-      if (match) {
-        return {
-          action: 'renameFolder',
-          params: {
-            oldFolderName: match[1].trim(),
-            newFolderName: match[2].trim()
-          }
-        };
+      // Only process if it's a file action intent with high confidence
+      if (!fileActionIntents.includes(intentResult.intent) || intentResult.confidence < 0.7) {
+        return null;
       }
-    }
 
-    // CREATE FOLDER
-    const createFolderPatterns = [
-      /create\s+(?:a\s+)?(?:new\s+)?folder\s+(?:named\s+|called\s+)?["']?([^"']+)["']?/i,
-      /make\s+(?:a\s+)?(?:new\s+)?folder\s+(?:named\s+|called\s+)?["']?([^"']+)["']?/i,
-      /new\s+folder\s+["']?([^"']+)["']?/i,
-    ];
+      // Map LLM intent to our action names
+      const actionMapping: Record<string, string> = {
+        'list_files': 'listFiles',
+        'search_files': 'searchFiles',
+        'file_location': 'fileLocation',
+        'rename_file': 'renameFile',
+        'delete_file': 'deleteFile'
+      };
 
-    for (const pattern of createFolderPatterns) {
-      const match = query.match(pattern);
-      if (match) {
-        return {
-          action: 'createFolder',
-          params: { folderName: match[1].trim() }
-        };
+      const action = actionMapping[intentResult.intent];
+      if (!action) {
+        return null;
       }
+
+      return {
+        action,
+        params: intentResult.parameters
+      };
+    } catch (error) {
+      console.error('❌ Error parsing file action with LLM:', error);
+      return null;
     }
-
-    // MOVE FILE
-    const moveFilePatterns = [
-      /move\s+["']?([^"']+)["']?\s+to\s+["']?([^"']+)["']?/i,
-      /put\s+["']?([^"']+)["']?\s+in\s+["']?([^"']+)["']?/i,
-      /transfer\s+["']?([^"']+)["']?\s+to\s+["']?([^"']+)["']?/i,
-    ];
-
-    for (const pattern of moveFilePatterns) {
-      const match = query.match(pattern);
-      if (match) {
-        let targetFolder = match[2].trim();
-
-        // Strip descriptor words like "folder" or "category" from the end
-        targetFolder = targetFolder.replace(/\s+(folder|category)$/i, '');
-
-        return {
-          action: 'moveFile',
-          params: {
-            filename: match[1].trim(),
-            targetFolder: targetFolder
-          }
-        };
-      }
-    }
-
-    // RENAME FILE
-    const renameFilePatterns = [
-      /rename\s+["']?([^"']+)["']?\s+to\s+["']?([^"']+)["']?/i,
-      /change\s+(?:the\s+)?name\s+of\s+["']?([^"']+)["']?\s+to\s+["']?([^"']+)["']?/i,
-    ];
-
-    for (const pattern of renameFilePatterns) {
-      const match = query.match(pattern);
-      if (match) {
-        return {
-          action: 'renameFile',
-          params: {
-            oldFilename: match[1].trim(),
-            newFilename: match[2].trim()
-          }
-        };
-      }
-    }
-
-    // DELETE FOLDER (check before DELETE FILE)
-    const deleteFolderPatterns = [
-      /delete\s+(?:the\s+)?folder\s+["']?([^"']+)["']?/i,
-      /remove\s+(?:the\s+)?folder\s+["']?([^"']+)["']?/i,
-      /trash\s+(?:the\s+)?folder\s+["']?([^"']+)["']?/i,
-    ];
-
-    for (const pattern of deleteFolderPatterns) {
-      const match = query.match(pattern);
-      if (match) {
-        return {
-          action: 'deleteFolder',
-          params: { folderName: match[1].trim() }
-        };
-      }
-    }
-
-    // DELETE FILE
-    const deleteFilePatterns = [
-      /delete\s+["']?([^"']+)["']?/i,
-      /remove\s+["']?([^"']+)["']?/i,
-      /trash\s+["']?([^"']+)["']?/i,
-    ];
-
-    for (const pattern of deleteFilePatterns) {
-      const match = query.match(pattern);
-      if (match) {
-        return {
-          action: 'deleteFile',
-          params: { filename: match[1].trim() }
-        };
-      }
-    }
-
-    return null;
   }
 
   /**
@@ -415,8 +340,8 @@ class FileActionsService {
    * Execute file action from natural language query
    */
   async executeAction(query: string, userId: string): Promise<FileActionResult> {
-    // Parse the query
-    const parsed = this.parseFileAction(query);
+    // Parse the query using LLM
+    const parsed = await this.parseFileAction(query);
 
     if (!parsed) {
       return {

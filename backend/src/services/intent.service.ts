@@ -432,7 +432,8 @@ class QueryIntentService {
       { pattern: /(?:list|show|display) (?:all )?(?:files|documents|categories|folders)/i, action: 'List files/categories' },
       { pattern: /what (?:files|documents) (?:do i have|are there)/i, action: 'List user files' },
       { pattern: /(?:do i have|have i got) (?:any )?(?:files|documents)/i, action: 'List user files' },
-      { pattern: /(?:which|what) (?:files|documents|pdfs?|docx?|excel|powerpoint)/i, action: 'List specific file types' },
+      { pattern: /(?:which|what|why) (?:type|types|kind|kinds) (?:of )?(?:files|documents)/i, action: 'List file types' },
+      { pattern: /(?:which|what|why) (?:files|documents|pdfs?|docx?|excel|powerpoint)/i, action: 'List specific file types' },
 
       // NEW: Detect "what is inside [folder name]" or "what files are in [folder name]"
       { pattern: /what(?:'s| is) (?:inside|in) (?:the )?([a-zA-Z0-9_-]+) folder/i, action: 'List folder contents' },

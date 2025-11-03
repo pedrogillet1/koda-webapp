@@ -10,6 +10,7 @@ import markdownConversionService from './markdownConversion.service';
 import cacheService from './cache.service';
 import encryptionService from './encryption.service';
 import pptxProcessorService from './pptxProcessor.service';
+import nerService from './ner.service';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -770,6 +771,35 @@ async function processDocumentWithTimeout(
     }
 
     console.log(`✅ Verification passed: Found ${verification.vectorCount} vectors in Pinecone`);
+
+    // 🔍 PHASE 3 WEEK 9-10: Extract entities and auto-tag document
+    console.log('🔍 Step 8: Extracting entities and auto-tagging...');
+    try {
+      if (extractedText && extractedText.trim().length > 0) {
+        // Extract entities using NER
+        const nerResult = await nerService.extractEntities(extractedText, filename);
+
+        // Store entities in database
+        if (nerResult.entities.length > 0) {
+          await nerService.storeEntities(documentId, nerResult.entities);
+        }
+
+        // Auto-tag document based on entities and content
+        await nerService.autoTagDocument(
+          userId,
+          documentId,
+          nerResult.entities,
+          nerResult.suggestedTags
+        );
+
+        console.log(`✅ Entity extraction complete: ${nerResult.entities.length} entities, ${nerResult.suggestedTags.length} tags`);
+      } else {
+        console.log(`⚠️ Skipping NER: No extracted text available`);
+      }
+    } catch (nerError: any) {
+      // NER is not critical - log error but continue
+      console.warn(`⚠️ NER extraction failed (non-critical):`, nerError.message);
+    }
 
     // Update document status to completed (only if verification passed)
     await prisma.document.update({

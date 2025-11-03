@@ -25,15 +25,27 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const { query, conversationId, answerLength = 'medium', attachedFile, documentId } = req.body;
+    const { query, conversationId, answerLength = 'medium', attachedFile, documentId, attachedDocuments = [] } = req.body;
 
     // Validate answerLength parameter
     const validLengths = ['short', 'medium', 'summary', 'long'];
     const finalAnswerLength = validLengths.includes(answerLength) ? answerLength : 'medium';
 
-    // CRITICAL FIX: Clear documentId if it's explicitly null/undefined to prevent sticky attachment
-    const cleanDocumentId = documentId || undefined;
-    console.log(`📎 [ATTACHMENT DEBUG] documentId from request: ${documentId}, cleaned: ${cleanDocumentId}`);
+    // MULTI-ATTACHMENT SUPPORT: Convert attachedDocuments array to single documentId (backwards compatible)
+    // Frontend sends attachedDocuments[], backend currently handles single documentId
+    // TODO: Future enhancement - support multiple document filtering in Pinecone
+    let cleanDocumentId: string | undefined = documentId || undefined;
+
+    if (!cleanDocumentId && attachedDocuments.length > 0) {
+      // If attachedDocuments array is provided, use the first one
+      cleanDocumentId = attachedDocuments[0].id || attachedDocuments[0];
+      console.log(`📎 [MULTI-ATTACHMENT] Converted attachedDocuments[${attachedDocuments.length}] to documentId: ${cleanDocumentId}`);
+    } else if (cleanDocumentId === null) {
+      // Explicitly null means clear attachment
+      cleanDocumentId = undefined;
+    }
+
+    console.log(`📎 [ATTACHMENT DEBUG] documentId from request: ${documentId}, attachedDocuments: ${attachedDocuments.length}, final: ${cleanDocumentId}`);
     console.log(`📎 [ATTACHMENT DEBUG] attachedFile from request:`, attachedFile);
     console.log(`📏 [ANSWER LENGTH] ${finalAnswerLength}`);
 
@@ -903,12 +915,28 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       return;
     }
 
-    const { query, conversationId, answerLength = 'medium', documentId } = req.body;
+    const { query, conversationId, answerLength = 'medium', documentId, attachedFiles, attachedDocuments = [] } = req.body;
 
     if (!query || !conversationId) {
       res.status(400).json({ error: 'Query and conversationId are required' });
       return;
     }
+
+    // MULTI-ATTACHMENT SUPPORT: Handle both attachedFiles and attachedDocuments formats
+    // Frontend may send either format depending on the component
+    const attachedArray = attachedDocuments.length > 0 ? attachedDocuments : attachedFiles || [];
+    const attachedDocIds = attachedArray.map((file: any) => file.id || file).filter(Boolean);
+    console.log('📎 [ATTACHED FILES] Received:', attachedDocIds);
+
+    // Use first attached document ID if available, otherwise use documentId
+    let effectiveDocumentId = attachedDocIds.length > 0 ? attachedDocIds[0] : documentId;
+
+    // Explicitly null means clear attachment
+    if (effectiveDocumentId === null) {
+      effectiveDocumentId = undefined;
+    }
+
+    console.log(`📎 [STREAMING ATTACHMENT DEBUG] documentId: ${documentId}, attachedDocs: ${attachedDocIds.length}, final: ${effectiveDocumentId}`);
 
     // Validate answerLength parameter
     const validLengths = ['short', 'medium', 'summary', 'long'];
@@ -939,7 +967,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       query,
       conversationId,
       finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
-      documentId,
+      effectiveDocumentId,
       (chunk: string) => {
         // Stream each chunk to client
         res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);

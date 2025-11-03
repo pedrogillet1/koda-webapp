@@ -39,7 +39,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [streamingMessage, setStreamingMessage] = useState('');
     const [pendingFiles, setPendingFiles] = useState([]);      // Files attached but not yet sent
     const [uploadingFiles, setUploadingFiles] = useState([]);  // Files currently being uploaded
-    const [attachedDocument, setAttachedDocument] = useState(null);
+    const [attachedDocuments, setAttachedDocuments] = useState([]);
     const [showNotification, setShowNotification] = useState(false);
     const [notificationType, setNotificationType] = useState('success');
     const [uploadedCount, setUploadedCount] = useState(0);
@@ -64,18 +64,29 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     // Helper function to get file icon based on extension
     const getFileIcon = (filename) => {
-        if (!filename) return docIcon;
+        console.log('🎨 Getting icon for filename:', filename);
+        if (!filename) {
+            console.log('⚠️ No filename provided, using default docIcon');
+            return docIcon;
+        }
         const ext = filename.toLowerCase();
+        console.log('🔍 File extension:', ext);
+
         if (ext.match(/\.(pdf)$/)) return pdfIcon;
         if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
         if (ext.match(/\.(png)$/)) return pngIcon;
         if (ext.match(/\.(doc|docx)$/)) return docIcon;
         if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
         if (ext.match(/\.(txt)$/)) return txtIcon;
-        if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
+        if (ext.match(/\.(ppt|pptx)$/)) {
+            console.log('✅ Matched PowerPoint, returning pptxIcon');
+            return pptxIcon;
+        }
         if (ext.match(/\.(mov)$/)) return movIcon;
         if (ext.match(/\.(mp4)$/)) return mp4Icon;
         if (ext.match(/\.(mp3)$/)) return mp3Icon;
+
+        console.log('⚠️ No match found, using default docIcon');
         return docIcon; // Default icon
     };
 
@@ -92,6 +103,41 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             return ext.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|tif)$/);
         }
         return false;
+    };
+
+    // Custom link component for document navigation
+    const DocumentLink = ({ href, children }) => {
+        // Check if this is a document link (starts with #doc-)
+        if (href && href.startsWith('#doc-')) {
+            const documentId = href.replace('#doc-', '');
+
+            return (
+                <a
+                    href="#"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        navigate(`/document/${documentId}`);
+                    }}
+                    style={{
+                        color: '#3B82F6',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontWeight: '600'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.target.style.color = '#2563EB';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.target.style.color = '#3B82F6';
+                    }}
+                >
+                    {children}
+                </a>
+            );
+        }
+
+        // Regular link
+        return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
     };
 
     // Scroll to bottom function
@@ -434,7 +480,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             return;
         }
 
-        if (documentId && !attachedDocument) {
+        if (documentId && attachedDocuments.length === 0) {
             console.log('📎 Document ID found in URL:', documentId);
 
             // Fetch document info
@@ -452,16 +498,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         console.log('✅ Document loaded:', data);
 
                         // Create a File-like object to set as attached document
-                        setAttachedDocument({
+                        setAttachedDocuments([{
                             id: data.documentId,
                             name: data.filename,
                             type: 'application/pdf', // Default type since it's not in status response
                             size: 0 // Size not available in status response
-                        });
+                        }]);
 
                         // Remove documentId from URL to avoid re-attaching on refresh
-                        const newUrl = window.location.pathname;
-                        window.history.replaceState({}, '', newUrl);
+                        navigate(window.location.pathname, { replace: true });
                     } else {
                         console.error('❌ Failed to fetch document:', response.status);
                     }
@@ -472,7 +517,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             fetchDocumentInfo();
         }
-    }, [location.search, attachedDocument]);
+    }, [location.search]);
 
     const loadConversation = async (conversationId) => {
         try {
@@ -562,17 +607,18 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         } else {
             // Remove all attachments
             setPendingFiles([]);
-            setAttachedDocument(null);
+            setAttachedDocuments([]);
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
             // Clear documentId from URL if present
             const searchParams = new URLSearchParams(location.search);
             if (searchParams.has('documentId')) {
+                console.log('🧹 Clearing documentId from URL');
                 searchParams.delete('documentId');
                 const newSearch = searchParams.toString();
-                const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
-                window.history.replaceState({}, '', newUrl);
+                const newPath = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
+                navigate(newPath, { replace: true });
             }
         }
     };
@@ -856,11 +902,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     const handleSendMessage = async () => {
         const isUploadingFiles = uploadingFiles.length > 0;
-        if ((!message.trim() && pendingFiles.length === 0 && !attachedDocument) || isLoading || isUploadingFiles) return;
+        if ((!message.trim() && pendingFiles.length === 0 && attachedDocuments.length === 0) || isLoading || isUploadingFiles) return;
 
         let messageText = message;
         const filesToUpload = [...pendingFiles]; // Store reference before clearing
-        const documentToAttach = attachedDocument; // Store reference before clearing
+        const documentsToAttach = [...attachedDocuments]; // Store reference before clearing
 
         console.log(`📤 handleSendMessage: Preparing to send with ${filesToUpload.length} file(s)`);
         console.log(`📤 Files to upload:`, filesToUpload.map(f => f.name).join(', '));
@@ -868,7 +914,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         // Clear input and pending files immediately for better UX
         setMessage('');
         setPendingFiles([]);  // Clear pending files
-        setAttachedDocument(null);
+        // DON'T clear attachedDocument - keep it visible during streaming
 
         // Store original message text for UI display (files will be shown visually, not as text)
         const displayMessageText = messageText || '';
@@ -889,7 +935,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             createdAt: new Date().toISOString(),
             isOptimistic: true,
             attachedFiles: filesToUpload.length > 0 ? filesToUpload.map(f => ({ name: f.name, type: f.type })) :
-                          documentToAttach ? [{ name: documentToAttach.name, type: documentToAttach.type }] : [],
+                          documentsToAttach.length > 0 ? documentsToAttach.map(doc => ({ id: doc.id, name: doc.name })) : [],
         };
         setMessages((prev) => {
             // Check if this exact message was just added (prevent double-send)
@@ -919,13 +965,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     messageText = `I just uploaded ${uploadedDocuments.length} files. Please analyze them and tell me what's in them.`;
                 }
             }
-        } else if (documentToAttach) {
-            // Use the document that was already uploaded (from URL parameter)
-            uploadedDocuments = [{ id: documentToAttach.id }];
+        } else if (documentsToAttach.length > 0) {
+            // Use the documents that were already uploaded (from URL parameter)
+            uploadedDocuments = documentsToAttach.map(doc => ({ id: doc.id }));
 
             // If no message text was provided, add a default message
             if (!messageText.trim()) {
-                messageText = `I'd like to ask about this document: "${documentToAttach.name}". Please analyze it and tell me what's in it.`;
+                const docNames = documentsToAttach.map(d => d.name).join(', ');
+                messageText = `I'd like to ask about ${documentsToAttach.length > 1 ? 'these documents' : 'this document'}: "${docNames}". Please analyze ${documentsToAttach.length > 1 ? 'them' : 'it'} and tell me what's in ${documentsToAttach.length > 1 ? 'them' : 'it'}.`;
             }
         }
 
@@ -974,9 +1021,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 conversationId,
                                 query: messageText,
                                 researchMode,
-                                attachedFiles: filesToUpload.length > 0 ? filesToUpload.map(f => ({ name: f.name, type: f.type })) :
-                                             documentToAttach ? [{ name: documentToAttach.name, type: documentToAttach.type }] : [],
-                                documentId: uploadedDocument?.id,
+                                // Send both formats for compatibility
+                                attachedFiles: filesToUpload.length > 0
+                                    ? filesToUpload.map(f => ({ name: f.name, type: f.type }))
+                                    : documentsToAttach.map(doc => ({
+                                        id: doc.id,
+                                        name: doc.name,
+                                        type: doc.type
+                                    })),
+                                attachedDocuments: documentsToAttach.map(doc => ({
+                                    id: doc.id,
+                                    name: doc.name,
+                                    type: doc.type
+                                })),
+                                // Explicitly null when no document (prevents sticky attachment)
+                                documentId: uploadedDocument?.id || null,
                             }),
                         }
                     );
@@ -993,7 +1052,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     let metadata = null;
 
                     console.log('🌊 Starting SSE stream...');
-                    setCurrentStage({ stage: 'generating', message: 'Generating answer...' });
+                    // Use varied, natural messages instead of robotic "Generating answer"
+                    const thinkingMessages = ['Thinking...', 'Analyzing...', 'Processing...', 'Understanding...', 'Working on it...'];
+                    const randomMessage = thinkingMessages[Math.floor(Math.random() * thinkingMessages.length)];
+                    setCurrentStage({ stage: 'generating', message: randomMessage });
 
                     while (true) {
                         const { value, done } = await reader.read();
@@ -1236,6 +1298,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             <div className="markdown-content" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
                                                                 <ReactMarkdown
                                                                     remarkPlugins={[remarkGfm]}
+                                                                    components={{ a: DocumentLink }}
                                                                 >
                                                                     {msg.content}
                                                                 </ReactMarkdown>
@@ -1602,27 +1665,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 const filename = metadata.result.filename || '';
                                                                 const extension = filename.split('.').pop()?.toLowerCase() || '';
 
-                                                                // File type icon mapping
-                                                                const getFileIcon = (ext) => {
-                                                                    const iconMap = {
-                                                                        'pdf': '📕',
-                                                                        'doc': '📘',
-                                                                        'docx': '📘',
-                                                                        'xls': '📗',
-                                                                        'xlsx': '📗',
-                                                                        'ppt': '📙',
-                                                                        'pptx': '📙',
-                                                                        'txt': '📄',
-                                                                        'jpg': '🖼️',
-                                                                        'jpeg': '🖼️',
-                                                                        'png': '🖼️',
-                                                                        'gif': '🖼️',
-                                                                        'zip': '📦',
-                                                                        'rar': '📦',
-                                                                    };
-                                                                    return iconMap[ext] || '📄';
-                                                                };
-
                                                                 const handleDownload = async () => {
                                                                     try {
                                                                         const token = localStorage.getItem('accessToken');
@@ -1660,18 +1702,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                             alignItems: 'center',
                                                                             gap: 12,
                                                                         }}>
-                                                                            <div style={{
-                                                                                width: 40,
-                                                                                height: 40,
-                                                                                background: '#181818',
-                                                                                borderRadius: 8,
-                                                                                display: 'flex',
-                                                                                alignItems: 'center',
-                                                                                justifyContent: 'center',
-                                                                                fontSize: 20,
-                                                                            }}>
-                                                                                {getFileIcon(extension)}
-                                                                            </div>
+                                                                            <img
+                                                                                src={getFileIcon(filename)}
+                                                                                alt="File icon"
+                                                                                style={{
+                                                                                    width: 40,
+                                                                                    height: 40,
+                                                                                    objectFit: 'contain',
+                                                                                    flexShrink: 0
+                                                                                }}
+                                                                            />
                                                                             <div style={{flex: 1}}>
                                                                                 <div style={{
                                                                                     fontSize: 14,
@@ -1928,6 +1968,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                     <div className="markdown-content streaming" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word'}}>
                                                         <ReactMarkdown
                                                             remarkPlugins={[remarkGfm]}
+                                                            components={{ a: DocumentLink }}
                                                         >
                                                             {displayedText}
                                                         </ReactMarkdown>
@@ -1979,14 +2020,38 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             </div>
                         )}
 
-                        {/* Loading Indicator - show when waiting for response OR when response arrived but streaming hasn't started yet */}
-                        {(isLoading || (streamingMessage && !displayedText)) && (
+                        {/* Loading Indicator - show ONLY when waiting for response, hide once streaming starts */}
+                        {(isLoading && !displayedText) && (
                             <div style={{marginBottom: 16, display: 'flex', justifyContent: 'flex-start'}}>
                                 <div style={{padding: '12px 16px', borderRadius: 12, background: '#F5F5F5', color: '#32302C', display: 'flex', flexDirection: 'column', gap: 8}}>
                                     <div style={{color: '#6B7280', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '500'}}>
                                         {currentStage.message}
                                     </div>
-                                    <span className="typing-indicator">●●●</span>
+                                    <div style={{display: 'flex', gap: '6px', alignItems: 'center', height: '20px'}}>
+                                        <div style={{
+                                            width: '8px',
+                                            height: '8px',
+                                            borderRadius: '50%',
+                                            backgroundColor: '#666',
+                                            animation: 'bounce-dot 1.4s infinite ease-in-out both',
+                                            animationDelay: '-0.32s'
+                                        }}></div>
+                                        <div style={{
+                                            width: '8px',
+                                            height: '8px',
+                                            borderRadius: '50%',
+                                            backgroundColor: '#666',
+                                            animation: 'bounce-dot 1.4s infinite ease-in-out both',
+                                            animationDelay: '-0.16s'
+                                        }}></div>
+                                        <div style={{
+                                            width: '8px',
+                                            height: '8px',
+                                            borderRadius: '50%',
+                                            backgroundColor: '#666',
+                                            animation: 'bounce-dot 1.4s infinite ease-in-out both'
+                                        }}></div>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -2181,11 +2246,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     </div>
                 )}
 
-                {/* Document Attachment Banner (from URL parameter) */}
-                {attachedDocument && (
+                {/* Document Attachments Banner */}
+                {attachedDocuments.length > 0 && (
                     <div style={{marginBottom: 12, padding: 12, background: 'white', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
                         <img
-                            src={getFileIcon(attachedDocument.name)}
+                            src={getFileIcon(attachedDocuments[0].name)}
                             alt="File icon"
                             style={{
                                 width: 40,
@@ -2197,13 +2262,23 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             }}
                         />
                         <div style={{flex: 1}}>
-                            <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>{attachedDocument.name}</div>
+                            <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>
+                                {attachedDocuments.length === 1
+                                    ? attachedDocuments[0].name
+                                    : `${attachedDocuments.length} documents attached`}
+                            </div>
                             <div style={{fontSize: 12, color: '#8E8E93'}}>
-                                Ready to answer questions about this document
+                                {attachedDocuments.length === 1
+                                    ? 'Ready to answer questions about this document'
+                                    : 'Ready to compare and analyze these documents'}
                             </div>
                         </div>
                         <button
-                            onClick={handleRemoveAttachment}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleRemoveAttachment();
+                            }}
                             style={{width: 32, height: 32, background: '#F5F5F5', border: '1px solid #E6E6EC', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#8E8E93', transition: 'all 0.2s'}}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.background = '#E6E6EC';
@@ -2307,14 +2382,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     ) : (
                         <button
                             type="submit"
-                            disabled={!message.trim() && pendingFiles.length === 0 && !attachedDocument}
+                            disabled={!message.trim() && pendingFiles.length === 0 && attachedDocuments.length === 0}
                             style={{
                                 width: 40,
                                 height: 40,
-                                background: (message.trim() || pendingFiles.length > 0 || attachedDocument) ? '#171717' : '#ccc',
+                                background: (message.trim() || pendingFiles.length > 0 || attachedDocuments.length > 0) ? '#171717' : '#ccc',
                                 borderRadius: '50%',
                                 border: 'none',
-                                cursor: (message.trim() || pendingFiles.length > 0 || attachedDocument) ? 'pointer' : 'not-allowed',
+                                cursor: (message.trim() || pendingFiles.length > 0 || attachedDocuments.length > 0) ? 'pointer' : 'not-allowed',
                                 display: 'flex',
                                 justifyContent: 'center',
                                 alignItems: 'center',

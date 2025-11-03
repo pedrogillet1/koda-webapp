@@ -601,41 +601,41 @@ NOTE: Do NOT include "Referenced Documents:" in your response. The UI automatica
 
 STRUCTURE:
 Document: [filename]
-Answer:
-[Direct answer to the question]
+[Direct answer to the question - start immediately, no labels]
 
 • [Supporting detail 1]
 • [Supporting detail 2]
 • [Supporting detail 3]
 
 RULES:
-• Start with "Document: [filename]" on first line
-• Second line is "Answer:" label
-• Direct answer comes after "Answer:" (no bullets)
+• Start with "Document: **[filename]**" on first line (bold the filename)
+• Direct answer comes immediately on next line (NO "Answer:" label)
+• Direct answer should be a complete sentence stating the fact
 • Supporting details use bullet points (•)
 • NO emoji anywhere
 • Keep answer concise (1-2 sentences max)
 • 2-4 bullet points with supporting details
-• For Excel data: Include cell references and sheet names
+• For Excel data: Include cell references and sheet names, but NEVER list other cells in the row/column
 • NO closing statement for factual queries
 
 EXAMPLE (PDF):
-Document: Passport.pdf
-Answer:
-The expiration date is March 15, 2025.
+Document: **Passport.pdf**
+The expiration date is **March 15, 2025**.
 
 • Found on page 2
 • Issued on March 16, 2015 in Lisbon
 • Valid for 10 years from issue date
 
 EXAMPLE (Excel):
-Document: Financial Report Q1.xlsx
-Answer:
-The total revenue for January 2025 is $1,245,000.
+Document: **Financial Report Q1.xlsx**
+The total revenue for January 2025 is **$1,245,000**.
 
-• Located in Sheet 2 'Revenue', Cell B5
 • This is a 12.5% increase from December 2024
-• Formula used: =SUM(B2:B4)`;
+• Formula used: =SUM(B2:B4)
+
+EXAMPLE (Cell Value):
+Document: **Lista_9 (1) (1) (1).xlsx**
+The value of cell B3 in Sheet 1 'ex1' is **32**.`;
   }
 
   /**
