@@ -23,6 +23,7 @@ import mp4Icon from '../assets/mp4.svg';
 import mp3Icon from '../assets/mp3.svg';
 import GeneratedDocumentCard from './GeneratedDocumentCard';
 import DocumentCard from './DocumentCard';
+import DocumentPreviewModal from './DocumentPreviewModal';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
 let globalSocketInitialized = false;
@@ -48,6 +49,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [researchMode, setResearchMode] = useState(false);
     const [showResearchSuggestion, setShowResearchSuggestion] = useState(false);
     const [expandedSources, setExpandedSources] = useState({});
+    const [previewDocument, setPreviewDocument] = useState(null);
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
     const [researchProgress, setResearchProgress] = useState(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
     const [uploadProgress, setUploadProgress] = useState({}); // Track progress for each file
@@ -998,6 +1001,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         setPendingFiles([]);  // Clear pending files
         // ✅ FIX: DON'T clear attachedDocument here - wait until after request is sent
 
+        // Hide the attachment banner immediately
+        setAttachedDocument(null);
+
         // Store original message text for UI display (files will be shown visually, not as text)
         const displayMessageText = messageText || '';
 
@@ -1016,8 +1022,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             content: displayMessageText,
             createdAt: new Date().toISOString(),
             isOptimistic: true,
-            attachedFiles: filesToUpload.length > 0 ? filesToUpload.map(f => ({ name: f.name, type: f.type })) :
-                          documentToAttach ? [{ name: documentToAttach.name, type: documentToAttach.type }] : [],
+            attachedFiles: filesToUpload.length > 0
+                ? filesToUpload.map(f => ({ name: f.name, type: f.type, documentId: uploadedDocument?.id }))
+                : documentToAttach
+                    ? [{ name: documentToAttach.name, type: documentToAttach.type, documentId: documentToAttach.id }]
+                    : [],
         };
         setMessages((prev) => {
             // Check if this exact message was just added (prevent double-send)
@@ -1117,9 +1126,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 conversationId,
                                 query: messageText,
                                 researchMode,
-                                attachedFiles: filesToUpload.length > 0 ? filesToUpload.map(f => ({ name: f.name, type: f.type })) :
-                                             documentToAttach ? [{ name: documentToAttach.name, type: documentToAttach.type }] : [],
-                                documentId: uploadedDocument?.id,
+                                attachedFiles: filesToUpload.length > 0
+                                    ? filesToUpload.map(f => ({ name: f.name, type: f.type, documentId: uploadedDocument?.id }))
+                                    : documentToAttach
+                                        ? [{ name: documentToAttach.name, type: documentToAttach.type, documentId: documentToAttach.id }]
+                                        : [],
+                                documentId: uploadedDocument?.id || documentToAttach?.id,
                             }),
                         }
                     );
@@ -1346,7 +1358,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         zIndex: 1000,
                         pointerEvents: 'none',
                     }}>
-                        {/* White circular icon with upload arrow */}
+                        {/* White circular icon with upload arrow - unified monochrome animation */}
                         <div style={{
                             width: 120,
                             height: 120,
@@ -1354,7 +1366,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             backgroundColor: 'white',
                             display: 'flex',
                             justifyContent: 'center',
-                            alignItems: 'center'
+                            alignItems: 'center',
+                            opacity: isDraggingOver ? 1.0 : 0.75,
+                            transform: isDraggingOver ? 'scale(1.08)' : 'scale(1.0)',
+                            boxShadow: isDraggingOver ? '0 0 24px rgba(255, 255, 255, 0.12)' : 'none',
+                            transition: 'opacity 250ms ease-out, transform 250ms ease-out, box-shadow 250ms ease-out'
                         }}>
                             <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#1C1C1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
@@ -1375,7 +1391,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 fontSize: 20,
                                 fontFamily: 'Plus Jakarta Sans',
                                 fontWeight: '600',
-                                lineHeight: '30px'
+                                lineHeight: '30px',
+                                opacity: isDraggingOver ? 1.0 : 0.6,
+                                transition: 'opacity 250ms ease-out'
                             }}>
                                 Drop files here to upload
                             </div>
@@ -1385,7 +1403,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 fontSize: 15,
                                 fontFamily: 'Plus Jakarta Sans',
                                 fontWeight: '400',
-                                lineHeight: '22.5px'
+                                lineHeight: '22.5px',
+                                opacity: isDraggingOver ? 0.8 : 0.4,
+                                transition: 'opacity 250ms ease-out'
                             }}>
                                 Release to open upload modal
                             </div>
@@ -2016,15 +2036,52 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             return attachedFiles.length > 0 ? (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
                                                     {attachedFiles.map((attachedFile, fileIndex) => (
-                                                        <div key={fileIndex} style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: 12,
-                                                            padding: '12px 16px',
-                                                            background: '#F3F4F6',
-                                                            borderRadius: 8,
-                                                            border: '1px solid #E5E7EB',
-                                                        }}>
+                                                        <div
+                                                            key={fileIndex}
+                                                            onClick={() => {
+                                                                // Open preview modal with document info
+                                                                const docId = msg.documentId || attachedFile.id || attachedFile.documentId;
+                                                                console.log('📄 Opening preview for:', {
+                                                                    documentId: docId,
+                                                                    filename: attachedFile.name,
+                                                                    msgDocId: msg.documentId,
+                                                                    fileId: attachedFile.id,
+                                                                    fileDocId: attachedFile.documentId
+                                                                });
+
+                                                                if (!docId) {
+                                                                    console.error('❌ No document ID found');
+                                                                    return;
+                                                                }
+
+                                                                setPreviewDocument({
+                                                                    id: docId,
+                                                                    filename: attachedFile.name,
+                                                                    mimeType: attachedFile.type,
+                                                                    pageCount: attachedFile.pageCount || 1
+                                                                });
+                                                                setShowPreviewModal(true);
+                                                            }}
+                                                            style={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: 12,
+                                                                padding: '12px 16px',
+                                                                background: '#F3F4F6',
+                                                                borderRadius: 8,
+                                                                border: '1px solid #E5E7EB',
+                                                                cursor: 'pointer',
+                                                                transition: 'all 200ms ease-out'
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                e.currentTarget.style.background = '#E5E7EB';
+                                                                e.currentTarget.style.borderColor = '#D1D5DB';
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                e.currentTarget.style.background = '#F3F4F6';
+                                                                e.currentTarget.style.borderColor = '#E5E7EB';
+                                                            }}
+                                                        >
                                                             <img
                                                                 src={getFileIcon(attachedFile.name)}
                                                                 alt="File icon"
@@ -2140,8 +2197,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             </div>
                         )}
 
-                        {/* Loading Indicator - show when waiting for response OR when response arrived but streaming hasn't started yet */}
-                        {(isLoading || (streamingMessage && !displayedText)) && (
+                        {/* Loading Indicator - only show when waiting for response BEFORE streaming starts */}
+                        {(isLoading && !streamingMessage) && (
                             <div style={{marginBottom: 16, display: 'flex', justifyContent: 'flex-start'}}>
                                 <div style={{padding: '12px 16px', borderRadius: 12, background: '#F5F5F5', color: '#32302C', display: 'flex', flexDirection: 'column', gap: 8}}>
                                     <div style={{color: '#6B7280', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '500'}}>
@@ -2215,6 +2272,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             const progress = uploadProgress[index] || 0;
                             return (
                                 <div key={`uploading-${index}`} style={{
+                                    position: 'relative',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     gap: 12,
@@ -2222,12 +2280,52 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     background: 'white',
                                     borderRadius: 12,
                                     marginBottom: 8,
-                                    border: '1px solid #E6E6EC'
+                                    border: '1px solid #E6E6EC',
+                                    overflow: 'hidden'
                                 }}>
+                                    {/* Gray overlay progress - matching Upload Hub style */}
+                                    <div style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        left: 0,
+                                        top: 0,
+                                        position: 'absolute',
+                                        pointerEvents: 'none'
+                                    }}>
+                                        <div style={{
+                                            width: `${progress}%`,
+                                            height: '100%',
+                                            left: 0,
+                                            top: 0,
+                                            position: 'absolute',
+                                            background: 'rgba(169, 169, 169, 0.12)',
+                                            transition: 'width 0.3s ease-in-out',
+                                            opacity: progress >= 100 ? 0 : 1,
+                                            transitionProperty: progress >= 100 ? 'width 0.3s ease-in-out, opacity 400ms ease-out' : 'width 0.3s ease-in-out'
+                                        }} />
+                                    </div>
+
+                                    {/* Upload percentage counter */}
+                                    <div style={{
+                                        position: 'absolute',
+                                        bottom: 12,
+                                        right: 16,
+                                        fontSize: 13,
+                                        fontWeight: '500',
+                                        color: '#6C6C6C',
+                                        zIndex: 2,
+                                        opacity: progress < 100 ? 1 : 0,
+                                        transition: 'opacity 0.3s ease-out'
+                                    }}>
+                                        {Math.round(progress)}%
+                                    </div>
+
                                     <div style={{
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: 16
+                                        gap: 16,
+                                        position: 'relative',
+                                        zIndex: 1
                                     }}>
                                         <img
                                             src={getFileIcon(file.name)}
@@ -2241,38 +2339,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 shapeRendering: 'geometricPrecision'
                                             }}
                                         />
-                                        <div style={{flex: 1}}>
+                                        <div style={{flex: 1, overflow: 'hidden'}}>
                                             <div style={{
                                                 fontSize: 16,
-                                                fontWeight: '600',
+                                                fontWeight: '500',
                                                 color: '#1A1A1A',
-                                                marginBottom: 4
+                                                marginBottom: 4,
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis'
                                             }}>
                                                 {file.name}
                                             </div>
                                             <div style={{
-                                                fontSize: 14,
-                                                color: '#8E8E93'
+                                                fontSize: 13,
+                                                color: '#A0A0A0'
                                             }}>
                                                 Uploading to cloud...
                                             </div>
                                         </div>
-                                    </div>
-                                    {/* Progress Bar - matching upload page style */}
-                                    <div style={{
-                                        width: '100%',
-                                        height: 6,
-                                        background: '#E5E7EB',
-                                        borderRadius: 3,
-                                        overflow: 'hidden'
-                                    }}>
-                                        <div style={{
-                                            height: '100%',
-                                            width: `${progress}%`,
-                                            background: 'linear-gradient(90deg, #3B82F6 0%, #2563EB 100%)',
-                                            borderRadius: 3,
-                                            transition: 'width 0.3s ease-out'
-                                        }} />
                                     </div>
                                 </div>
                             );
@@ -2521,6 +2606,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     </div>
                 </div>
             )}
+
+            {/* Document Preview Modal */}
+            <DocumentPreviewModal
+                isOpen={showPreviewModal}
+                onClose={() => {
+                    setShowPreviewModal(false);
+                    setPreviewDocument(null);
+                }}
+                document={previewDocument}
+            />
         </div>
     );
 };

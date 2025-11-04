@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
+import CategoryIcon from './CategoryIcon';
 import api from '../services/api';
 
 const AddToCategoryModal = ({
@@ -264,13 +265,7 @@ const AddToCategoryModal = ({
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: 'center'
                   }}>
-                    <span style={{
-                      fontSize: 24,
-                      lineHeight: 1,
-                      display: 'block'
-                    }}>
-                      {category.emoji || '📁'}
-                    </span>
+                    <CategoryIcon emoji={category.emoji || '__FOLDER_SVG__'} style={{fontSize: 24}} />
                   </div>
 
                   {/* Category name */}

@@ -26,7 +26,24 @@ const CategoryIcon = ({ emoji, style = {}, className = '' }) => {
     );
   }
 
-  return <span className={className} style={style}>{emoji || '📁'}</span>;
+  // If no emoji provided, default to folder SVG
+  if (!emoji) {
+    return (
+      <img
+        src={folderIcon}
+        alt="Folder"
+        className={className}
+        style={{
+          width: '1em',
+          height: '1em',
+          objectFit: 'contain',
+          ...style
+        }}
+      />
+    );
+  }
+
+  return <span className={className} style={style}>{emoji}</span>;
 };
 
 export default CategoryIcon;

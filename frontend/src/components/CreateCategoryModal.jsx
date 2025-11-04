@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
+import CategoryIcon from './CategoryIcon';
+import folderIcon from '../assets/folder_icon.svg';
 import pdfIcon from '../assets/pdf-icon.svg';
 import docIcon from '../assets/doc-icon.svg';
 import txtIcon from '../assets/txt-icon.svg';
@@ -12,7 +14,7 @@ import api from '../services/api';
 
 const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocuments = [] }) => {
   const [categoryName, setCategoryName] = useState('');
-  const [selectedEmoji, setSelectedEmoji] = useState('📁');
+  const [selectedEmoji, setSelectedEmoji] = useState('__FOLDER_SVG__');
   const [documents, setDocuments] = useState([]);
   const [selectedDocuments, setSelectedDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,8 +24,10 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
   const [showAllEmojis, setShowAllEmojis] = useState(false);
 
   const emojis = [
+    // Default folder icon (folder_icon.svg)
+    '__FOLDER_SVG__',
     // Common & Popular
-    '📁', '📄', '📋', '📝', '📌', '📎', '🔖', '📚',
+    '📄', '📋', '📝', '📌', '📎', '🔖', '📚',
     // Work & Business
     '💼', '📊', '📈', '📉', '💰', '💵', '💳', '🏢', '🏦', '📞',
     // Travel & Places
@@ -354,7 +358,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
                   }
                 }}
               >
-                {emoji}
+                <CategoryIcon emoji={emoji} style={{fontSize: 20}} />
               </button>
             ))}
           </div>

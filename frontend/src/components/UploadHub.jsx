@@ -1901,7 +1901,7 @@ const UploadHub = () => {
 
                       <p style={{
                         fontSize: 13,
-                        color: isError ? '#EF4444' : '#6B7280',
+                        color: isError ? '#EF4444' : (f.status === 'uploading' ? '#A0A0A0' : '#6B7280'),
                         margin: f.status === 'uploading' ? '0 0 8px 0' : 0,
                         fontFamily: 'Plus Jakarta Sans'
                       }}>
@@ -1911,7 +1911,7 @@ const UploadHub = () => {
                           f.status === 'pending' ? (
                             `${f.fileCount} file${f.fileCount !== 1 ? 's' : ''} • ${formatFileSize(f.totalSize)} • ${f.category || 'Uncategorized'}`
                           ) : f.status === 'uploading' ? (
-                            `Uploading ${f.fileCount} file${f.fileCount !== 1 ? 's' : ''}... ${progressWidth}%`
+                            'Uploading to cloud...'
                           ) : (
                             `${f.fileCount} file${f.fileCount !== 1 ? 's' : ''} • ${formatFileSize(f.totalSize)} • ${f.category || 'Uncategorized'}`
                           )
@@ -1920,32 +1920,51 @@ const UploadHub = () => {
                         ) : f.status === 'completed' ? (
                           `${formatFileSize(f.file.size)} • ${f.category || 'Uncategorized'}`
                         ) : (
-                          f.processingStage || `${formatFileSize(f.file.size)} - ${progressWidth}% uploaded`
+                          f.processingStage || 'Uploading to cloud...'
                         )}
                       </p>
 
                       {/* Progress Bar - Only show during upload */}
                       {f.status === 'uploading' && (
-                        <div style={{
-                          width: '100%',
-                          height: '100%',
-                          left: 0,
-                          top: 0,
-                          position: 'absolute',
-                          pointerEvents: 'none'
-                        }}>
+                        <>
                           <div style={{
-                            width: `${progressWidth}%`,
+                            width: '100%',
                             height: '100%',
                             left: 0,
                             top: 0,
                             position: 'absolute',
-                            background: 'rgba(169, 169, 169, 0.12)',
-                            borderTopLeftRadius: 8,
-                            borderBottomLeftRadius: 8,
-                            transition: 'width 0.3s ease-out'
-                          }} />
-                        </div>
+                            pointerEvents: 'none'
+                          }}>
+                            <div style={{
+                              width: `${progressWidth}%`,
+                              height: '100%',
+                              left: 0,
+                              top: 0,
+                              position: 'absolute',
+                              background: 'rgba(169, 169, 169, 0.12)',
+                              borderTopLeftRadius: 8,
+                              borderBottomLeftRadius: 8,
+                              transition: 'width 0.3s ease-in-out',
+                              opacity: progressWidth >= 100 ? 0 : 1,
+                              transitionProperty: progressWidth >= 100 ? 'width 0.3s ease-in-out, opacity 400ms ease-out' : 'width 0.3s ease-in-out'
+                            }} />
+                          </div>
+
+                          {/* Upload percentage counter */}
+                          <div style={{
+                            position: 'absolute',
+                            bottom: 12,
+                            right: 16,
+                            fontSize: 13,
+                            fontWeight: '500',
+                            color: '#6C6C6C',
+                            zIndex: 2,
+                            opacity: progressWidth < 100 ? 1 : 0,
+                            transition: 'opacity 0.3s ease-out'
+                          }}>
+                            {Math.round(progressWidth)}%
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>

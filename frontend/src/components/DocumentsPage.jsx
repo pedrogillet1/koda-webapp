@@ -128,7 +128,7 @@ const DocumentsPage = () => {
         return {
           id: folder.id,
           name: folder.name,
-          emoji: folder.emoji || '📁',
+          emoji: folder.emoji || '__FOLDER_SVG__',
           fileCount,
           folderCount: folder._count?.subfolders || 0,
           count: fileCount

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
-import { ReactComponent as EditIcon } from '../assets/Edit4.svg';
 import { ReactComponent as TrashIcon } from '../assets/Trash can.svg';
+import { ReactComponent as PencilIcon } from '../assets/pencil-ai.svg';
+import { ReactComponent as ExpandIcon } from '../assets/expand.svg';
 import * as chatService from '../services/chatService';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 
@@ -11,6 +12,8 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     const [hoveredConversation, setHoveredConversation] = useState(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
+    const [isExpanded, setIsExpanded] = useState(true);
+    const [showSearchModal, setShowSearchModal] = useState(false);
 
     useEffect(() => {
         loadConversations();
@@ -153,30 +156,384 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
 
     const groupedConversations = groupConversationsByDate();
 
-    return (
-        <div style={{width: 314, height: '100%', padding: 20, background: 'white', borderRight: '1px solid #E6E6EC', display: 'flex', flexDirection: 'column', gap: 20}}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Chat</div>
-                <div
-                    onClick={handleNewChat}
-                    style={{width: 44, height: 44, padding: 8, background: '#171717', borderRadius: 14, display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer'}}
-                >
-                    <EditIcon style={{width: 24, height: 24, color: 'white'}} />
+    // Add custom scrollbar styles
+    const scrollbarStyles = `
+        .chat-history-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-history-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-history-scrollbar::-webkit-scrollbar-thumb {
+            background: #E6E6EC;
+            border-radius: 4px;
+            transition: background 200ms ease-in-out;
+        }
+
+        .chat-history-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #D0D0D6;
+        }
+
+        .chat-history-scrollbar::-webkit-scrollbar-thumb:active {
+            background: #B8B8C0;
+        }
+    `;
+
+    // SearchModal Component
+    const SearchModal = () => (
+        <div
+            style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.5)',
+                display: showSearchModal ? 'flex' : 'none',
+                justifyContent: 'center',
+                alignItems: 'flex-start',
+                paddingTop: '10vh',
+                zIndex: 1000,
+            }}
+            onClick={() => setShowSearchModal(false)}
+        >
+            <div
+                style={{
+                    width: 600,
+                    maxHeight: '80vh',
+                    background: 'white',
+                    borderRadius: 16,
+                    boxShadow: '0 4px 24px rgba(0, 0, 0, 0.15)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Search Header */}
+                <div style={{
+                    padding: '20px 20px 16px',
+                    borderBottom: '1px solid #E6E6EC',
+                }}>
+                    <div style={{position: 'relative'}}>
+                        <input
+                            type="text"
+                            placeholder="Search chats..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            autoFocus
+                            style={{
+                                width: '100%',
+                                height: 44,
+                                padding: '10px 40px 10px 40px',
+                                background: '#F5F5F5',
+                                borderRadius: 100,
+                                border: '1px solid #E6E6EC',
+                                outline: 'none',
+                                fontSize: 14,
+                                fontFamily: 'Plus Jakarta Sans',
+                            }}
+                        />
+                        <SearchIcon style={{
+                            width: 20,
+                            height: 20,
+                            color: '#32302C',
+                            position: 'absolute',
+                            left: 12,
+                            top: 12
+                        }} />
+                        <div
+                            onClick={() => setShowSearchModal(false)}
+                            style={{
+                                position: 'absolute',
+                                right: 12,
+                                top: 10,
+                                width: 24,
+                                height: 24,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                borderRadius: 4,
+                                transition: 'background 200ms ease-in-out',
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M13 1L1 13M1 1L13 13" stroke="#6C6B6E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                {/* New Chat Button */}
+                <div style={{padding: '16px 20px', borderBottom: '1px solid #E6E6EC'}}>
+                    <button
+                        onClick={() => {
+                            handleNewChat();
+                            setShowSearchModal(false);
+                        }}
+                        style={{
+                            width: '100%',
+                            height: 40,
+                            padding: '8px 12px',
+                            background: '#F5F5F5',
+                            border: '1px solid #E0E0E0',
+                            borderRadius: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            cursor: 'pointer',
+                            transition: 'background 200ms ease-in-out',
+                            fontFamily: 'Plus Jakarta Sans',
+                            fontSize: 13,
+                            fontWeight: '500',
+                            color: '#1A1A1A'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#EAEAEA'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                    >
+                        <PencilIcon style={{width: 16, height: 16}} />
+                        <span>New chat</span>
+                    </button>
+                </div>
+
+                {/* Conversations List */}
+                <div className="chat-history-scrollbar" style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: '16px 20px',
+                }}>
+                    {Object.entries(groupedConversations).map(([day, list]) => {
+                        if (list.length === 0) return null;
+
+                        return (
+                            <div key={day} style={{marginBottom: 20}}>
+                                <div style={{
+                                    color: '#32302C',
+                                    fontSize: 12,
+                                    fontFamily: 'Plus Jakarta Sans',
+                                    fontWeight: '700',
+                                    textTransform: 'uppercase',
+                                    marginBottom: 12
+                                }}>
+                                    {day}
+                                </div>
+                                <div>
+                                    {list.map((convo) => (
+                                        <div
+                                            key={convo.id}
+                                            onClick={() => {
+                                                onSelectConversation?.(convo);
+                                                setShowSearchModal(false);
+                                            }}
+                                            style={{
+                                                padding: '12px 14px',
+                                                background: currentConversation?.id === convo.id ? '#F5F5F5' : 'transparent',
+                                                borderRadius: 12,
+                                                color: currentConversation?.id === convo.id ? '#32302C' : '#6C6B6E',
+                                                fontSize: 14,
+                                                fontFamily: 'Plus Jakarta Sans',
+                                                fontWeight: '600',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                                transition: 'background 200ms ease-in-out',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (currentConversation?.id !== convo.id) {
+                                                    e.currentTarget.style.background = '#F5F5F5';
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (currentConversation?.id !== convo.id) {
+                                                    e.currentTarget.style.background = 'transparent';
+                                                }
+                                            }}
+                                        >
+                                            <div style={{
+                                                flex: 1,
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap'
+                                            }}>
+                                                {convo.title || 'New Chat'}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {conversations.length === 0 && (
+                        <div style={{
+                            textAlign: 'center',
+                            color: '#6C6B6E',
+                            fontSize: 14,
+                            marginTop: 20
+                        }}>
+                            No conversations yet. Start a new chat!
+                        </div>
+                    )}
                 </div>
             </div>
+        </div>
+    );
 
-            <div style={{position: 'relative'}}>
-                <input
-                    type="text"
-                    placeholder="Search for conversation..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{width: '100%', height: 44, padding: '10px 12px 10px 40px', background: '#F5F5F5', borderRadius: 100, border: '1px solid #E6E6EC', outline: 'none', fontSize: 14}}
-                />
-                <SearchIcon style={{width: 20, height: 20, color: '#32302C', position: 'absolute', left: 12, top: 12}} />
+    return (
+        <>
+            {/* Inject custom scrollbar styles */}
+            <style>{scrollbarStyles}</style>
+
+            <div style={{
+                width: isExpanded ? 314 : 64,
+                height: '100%',
+                padding: 20,
+                background: 'white',
+                borderRight: '1px solid #E6E6EC',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 20,
+                transition: 'width 300ms ease-in-out',
+                overflow: 'hidden'
+            }}>
+            {/* Collapsed sidebar icons */}
+            {!isExpanded && (
+                <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12}}>
+                    {/* Expand Button */}
+                    <div
+                        onClick={() => setIsExpanded(true)}
+                        style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 12,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            transition: 'background 200ms ease-in-out'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        <ExpandIcon style={{width: 20, height: 20}} />
+                    </div>
+
+                    {/* New Chat Icon */}
+                    <div
+                        onClick={handleNewChat}
+                        style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 12,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            transition: 'background 200ms ease-in-out'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        <PencilIcon style={{width: 20, height: 20}} />
+                    </div>
+
+                    {/* Search Icon */}
+                    <div
+                        onClick={() => setShowSearchModal(true)}
+                        style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 12,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            transition: 'background 200ms ease-in-out'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        <SearchIcon style={{width: 20, height: 20}} />
+                    </div>
+                </div>
+            )}
+
+            {/* Expanded sidebar header */}
+            {isExpanded && (
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Chat</div>
+                {/* Collapse Button */}
+                <div
+                    onClick={() => setIsExpanded(false)}
+                    style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 12,
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        transition: 'background 200ms ease-in-out',
+                        background: 'transparent',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                    <ExpandIcon style={{width: 20, height: 20, transform: 'rotate(180deg)'}} />
+                </div>
             </div>
+            )}
 
-            <div style={{flex: '1 1 0', overflowY: 'auto'}}>
+            {isExpanded && (
+                <>
+                    {/* New Chat Button */}
+                    <button
+                        onClick={handleNewChat}
+                        style={{
+                            width: '100%',
+                            height: 40,
+                            padding: '8px 12px',
+                            background: '#F5F5F5',
+                            border: '1px solid #E0E0E0',
+                            borderRadius: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            cursor: 'pointer',
+                            transition: 'background 200ms ease-in-out',
+                            fontFamily: 'Plus Jakarta Sans',
+                            fontSize: 13,
+                            fontWeight: '500',
+                            color: '#1A1A1A'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#EAEAEA'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                    >
+                        <PencilIcon style={{width: 16, height: 16}} />
+                        <span>New Chat</span>
+                    </button>
+
+                    <div style={{position: 'relative'}}>
+                        <input
+                            type="text"
+                            placeholder="Search for conversation..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{width: '100%', height: 44, padding: '10px 12px 10px 40px', background: '#F5F5F5', borderRadius: 100, border: '1px solid #E6E6EC', outline: 'none', fontSize: 14}}
+                        />
+                        <SearchIcon style={{width: 20, height: 20, color: '#32302C', position: 'absolute', left: 12, top: 12}} />
+                    </div>
+                </>
+            )}
+
+            {isExpanded && (
+            <div className="chat-history-scrollbar" style={{flex: '1 1 0', overflowY: 'auto'}}>
                 {Object.entries(groupedConversations).map(([day, list]) => {
                     if (list.length === 0) return null;
 
@@ -243,8 +600,9 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                     </div>
                 )}
             </div>
+            )}
 
-            {conversations.length > 0 && (
+            {isExpanded && conversations.length > 0 && (
                 <div
                     onClick={handleDeleteAll}
                     style={{paddingTop: 12, borderTop: '1px solid #E6E6EC', textAlign: 'center', color: '#D92D20', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', cursor: 'pointer'}}
@@ -262,7 +620,11 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                 onConfirm={handleConfirmDelete}
                 itemName={itemToDelete?.type === 'all' ? 'all conversations' : itemToDelete?.name}
             />
-        </div>
+
+            {/* Search Modal */}
+            <SearchModal />
+            </div>
+        </>
     );
 };
 
