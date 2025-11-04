@@ -519,6 +519,38 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     }, [location.search]);
 
+    // Simulate upload progress animation
+    useEffect(() => {
+        if (uploadingFiles.length > 0) {
+            // Initialize progress for each file
+            const initialProgress = {};
+            uploadingFiles.forEach((_, index) => {
+                initialProgress[index] = 0;
+            });
+            setUploadProgress(initialProgress);
+
+            // Animate progress from 0 to 90% over 3 seconds
+            const interval = setInterval(() => {
+                setUploadProgress(prev => {
+                    const updated = { ...prev };
+                    let allComplete = true;
+                    uploadingFiles.forEach((_, index) => {
+                        if (updated[index] < 90) {
+                            updated[index] = Math.min(90, (updated[index] || 0) + 3);
+                            allComplete = false;
+                        }
+                    });
+                    return updated;
+                });
+            }, 100);
+
+            return () => clearInterval(interval);
+        } else {
+            // Clear progress when no files uploading
+            setUploadProgress({});
+        }
+    }, [uploadingFiles.length]);
+
     const loadConversation = async (conversationId) => {
         try {
             const conversation = await chatService.getConversation(conversationId);
