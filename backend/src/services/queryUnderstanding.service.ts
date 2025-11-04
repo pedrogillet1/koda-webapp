@@ -296,8 +296,11 @@ class QueryUnderstandingService {
     // Get all user documents
     const documents = await prisma.document.findMany({
       where: { userId, status: { not: 'deleted' } },
-      select: { filename: true },
+      select: { id: true, filename: true },
     });
+
+    console.log(`   🔍 [extractDocumentNames] Found ${documents.length} documents in DB`);
+    console.log(`   📄 [extractDocumentNames] Document filenames: ${documents.map(d => d.filename).join(', ')}`);
 
     const documentNames: string[] = [];
     const queryLower = query.toLowerCase();
@@ -307,24 +310,91 @@ class QueryUnderstandingService {
       const filenameLower = doc.filename.toLowerCase();
       const filenameWithoutExt = filenameLower.replace(/\.(pdf|docx?|xlsx?|pptx?|txt|csv)$/i, '');
 
-      // Check if query mentions this document
+      // Check if query mentions this document exactly
       if (queryLower.includes(filenameLower) || queryLower.includes(filenameWithoutExt)) {
         documentNames.push(doc.filename);
         continue;
       }
 
-      // Check for partial matches (e.g., "pedro 1" matches "pedro1.pdf")
-      const queryWords = queryLower.split(/\s+/);
-      const filenameWords = filenameWithoutExt.split(/[_\-\s]+/);
+      // IMPROVED FUZZY MATCHING: Handle spaces, abbreviations, partial names
+      const queryWords = queryLower.split(/\s+/).filter(w => w.length > 1); // Ignore single chars
+      const filenameWords = filenameWithoutExt.split(/[_\-\s\.]+/).filter(w => w.length > 1);
 
-      // If all query words appear in filename, consider it a match
-      const allWordsMatch = queryWords.every(qw => filenameWords.some(fw => fw.includes(qw) || qw.includes(fw)));
-      if (allWordsMatch && queryWords.length >= 2) {
+      // Also check filename without ANY spaces/punctuation for better matching
+      const queryNoSpaces = queryLower.replace(/[\s\-_\.]+/g, '');
+      const filenameNoSpaces = filenameWithoutExt.replace(/[\s\-_\.]+/g, '');
+
+      // STRATEGY 1: Check if query (without spaces) is contained in filename (without spaces)
+      // Example: "pedro1" in query matches "pedro1" in filename
+      if (queryNoSpaces.length >= 3 && filenameNoSpaces.includes(queryNoSpaces)) {
+        documentNames.push(doc.filename);
+        continue;
+      }
+
+      // STRATEGY 2: Check if filename (without spaces) is contained in query (without spaces)
+      // Example: "pedro1" in filename matches "pedro1" in query
+      if (filenameNoSpaces.length >= 3 && queryNoSpaces.includes(filenameNoSpaces)) {
+        documentNames.push(doc.filename);
+        continue;
+      }
+
+      // STRATEGY 3: Word-by-word matching with fuzzy distance
+      let matchScore = 0;
+      for (const qw of queryWords) {
+        for (const fw of filenameWords) {
+          // Exact substring match
+          if (fw.includes(qw) || qw.includes(fw)) {
+            matchScore++;
+            break;
+          }
+          // Fuzzy match (max 2 character edits)
+          if (this.levenshteinDistance(qw, fw) <= 2) {
+            matchScore++;
+            break;
+          }
+        }
+      }
+
+      // Consider it a match if at least 40% of query words match filename words
+      // (lowered from 50% to be more lenient)
+      if (matchScore >= Math.ceil(queryWords.length * 0.4) && queryWords.length > 0) {
         documentNames.push(doc.filename);
       }
     }
 
+    console.log(`   📝 [extractDocumentNames] Query: "${query}" -> Found: ${documentNames.length} documents: [${documentNames.join(', ')}]`);
     return [...new Set(documentNames)]; // Remove duplicates
+  }
+
+  /**
+   * Calculate Levenshtein distance between two strings (for fuzzy matching)
+   */
+  private levenshteinDistance(str1: string, str2: string): number {
+    const matrix: number[][] = [];
+
+    for (let i = 0; i <= str2.length; i++) {
+      matrix[i] = [i];
+    }
+
+    for (let j = 0; j <= str1.length; j++) {
+      matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= str2.length; i++) {
+      for (let j = 1; j <= str1.length; j++) {
+        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+
+    return matrix[str2.length][str1.length];
   }
 
   /**
@@ -442,13 +512,13 @@ class QueryUnderstandingService {
         return 0.9; // Don't delete unless very confident
 
       case QueryIntent.CONTENT_COMPARISON:
-        return 0.8; // Comparisons require high confidence
+        return 0.3; // Comparisons should be lenient - proceed even with few results
 
       case QueryIntent.CONTENT_ANALYSIS:
-        return 0.75; // Analysis requires good content
+        return 0.4; // Analysis should be lenient
 
       default:
-        return 0.7; // Standard threshold
+        return 0.5; // Standard threshold - much more lenient
     }
   }
 }

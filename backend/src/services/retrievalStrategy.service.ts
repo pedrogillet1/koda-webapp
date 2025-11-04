@@ -136,8 +136,8 @@ class RetrievalStrategyService {
     const documentNames = understanding.entities.documentNames;
 
     if (documentNames.length === 0) {
-      console.log('⚠️  [RetrievalStrategy] Multi-document requested but no document names extracted');
-      return this.retrievePrecision(userId, query, understanding);
+      console.log('⚠️  [RetrievalStrategy] Multi-document requested but no document names extracted - using RECALL strategy to get more results');
+      return this.retrieveRecall(userId, query, understanding);
     }
 
     console.log(`🔍 [RetrievalStrategy] Multi-document retrieval for: ${documentNames.join(', ')}`);

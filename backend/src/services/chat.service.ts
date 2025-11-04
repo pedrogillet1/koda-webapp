@@ -225,16 +225,31 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
     content: msg.content,
   }));
 
-  // Generate AI response
-  console.log('🤖 Generating AI response...');
-  const aiResponse = await sendMessageToGemini(content, conversationHistory, attachedDocumentId);
+  // ✅ FIX: Use RAG service instead of calling Gemini directly
+  console.log('🤖 Generating RAG response...');
+  const ragResult = await ragService.generateAnswer(
+    userId,
+    content,
+    conversationId,
+    params.answerLength || 'medium',
+    attachedDocumentId
+  );
+
+  let fullResponse = ragResult.answer || 'Sorry, I could not generate a response.';
+
+  // Append document sources if available
+  if (ragResult.sources && ragResult.sources.length > 0) {
+    console.log(`📎 Appending ${ragResult.sources.length} document sources to response`);
+    const sourcesText = formatDocumentSources(ragResult.sources, attachedDocumentId);
+    fullResponse += '\n\n' + sourcesText;
+  }
 
   // Create assistant message
   const assistantMessage = await prisma.message.create({
     data: {
       conversationId,
       role: 'assistant',
-      content: aiResponse.text || 'Sorry, I could not generate a response.',
+      content: fullResponse,
       createdAt: new Date(),
     },
   });
