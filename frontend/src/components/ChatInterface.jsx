@@ -2025,7 +2025,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         )}
 
                         {/* Loading Indicator - show ONLY when waiting for response, hide once streaming starts */}
-                        {(isLoading && !displayedText) && (
+                        {(isLoading && !streamingMessage && !displayedText) && (
                             <div style={{marginBottom: 16, display: 'flex', justifyContent: 'flex-start'}}>
                                 <div style={{padding: '12px 16px', borderRadius: 12, background: '#F5F5F5', color: '#32302C', display: 'flex', flexDirection: 'column', gap: 8}}>
                                     <div style={{color: '#6B7280', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '500'}}>
