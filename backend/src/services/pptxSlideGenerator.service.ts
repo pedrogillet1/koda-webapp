@@ -146,10 +146,10 @@ export class PPTXSlideGeneratorService {
       console.log(`📄 [PPTX Slide Generator] Converting PPTX to PDF...`);
       console.time('PPTX → PDF conversion');
 
-      // Standard PDF conversion - fonts will be embedded automatically
+      // Use Impress PDF Export filter to preserve PowerPoint design, layout, colors, and images
       // Use --headless --invisible --nologo --norestore to prevent any windows from appearing
       await execAsync(
-        `"${this.libreOfficePath}" --headless --invisible --nologo --norestore --convert-to pdf --outdir "${tempDir}" "${pptxFilePath}"`,
+        `"${this.libreOfficePath}" --headless --invisible --nologo --norestore --convert-to pdf:impress_pdf_Export --outdir "${tempDir}" "${pptxFilePath}"`,
         {
           timeout: 120000, // 2 minute timeout
           maxBuffer: 50 * 1024 * 1024 // 50MB buffer
