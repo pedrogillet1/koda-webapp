@@ -352,11 +352,10 @@ async function processDocumentWithTimeout(
         // Clean up temp file
         fs.unlinkSync(tempFilePath);
       } catch (pptxError: any) {
-        console.warn('⚠️ Python PPTX extraction failed, falling back to basic extraction');
-        console.warn('Error:', pptxError.message);
-        // Fall back to basic text extraction
-        const result = await textExtractionService.extractText(fileBuffer, mimeType);
-        extractedText = result.text;
+        console.error('❌ CRITICAL: Python PPTX extraction failed. This document will be marked as failed.');
+        console.error('   └── Error:', pptxError.message);
+        // Re-throw the error to be caught by the main try-catch block, which will set the document status to 'failed'
+        throw new Error(`PowerPoint processing failed: ${pptxError.message}`);
       }
     }
     // Check if it's an image type that needs OCR via Gemini Vision
@@ -1081,11 +1080,10 @@ async function processDocumentAsync(
         // Clean up temp file
         fs.unlinkSync(tempFilePath);
       } catch (pptxError: any) {
-        console.warn('⚠️ Python PPTX extraction failed, falling back to basic extraction');
-        console.warn('Error:', pptxError.message);
-        // Fall back to basic text extraction
-        const result = await textExtractionService.extractText(fileBuffer, mimeType);
-        extractedText = result.text;
+        console.error('❌ CRITICAL: Python PPTX extraction failed. This document will be marked as failed.');
+        console.error('   └── Error:', pptxError.message);
+        // Re-throw the error to be caught by the main try-catch block, which will set the document status to 'failed'
+        throw new Error(`PowerPoint processing failed: ${pptxError.message}`);
       }
     }
     // Check if it's an image type that needs OCR via OpenAI Vision

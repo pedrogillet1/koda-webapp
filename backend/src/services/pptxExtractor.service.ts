@@ -97,19 +97,20 @@ export class PPTXExtractorService {
       };
 
     } catch (error: any) {
-      console.error('❌ [PPTX Extractor] Error:', error.message);
+      const errorMessage = error.stderr || error.message;
+      console.error('❌ [PPTX Extractor] Error:', errorMessage);
 
       // Check if it's a Python dependency issue
-      if (error.message.includes('python-pptx')) {
+      if (errorMessage.includes('ModuleNotFoundError')) {
         return {
           success: false,
-          error: 'Python dependency "python-pptx" not installed. Run: pip install python-pptx'
+          error: `Python dependency missing. Details: ${errorMessage}`
         };
       }
 
       return {
         success: false,
-        error: error.message
+        error: `Python script failed with exit code ${error.code}: ${errorMessage}`
       };
     }
   }
