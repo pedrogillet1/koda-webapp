@@ -1508,10 +1508,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // Send completion signal with metadata AND formatted answer
     res.write(`data: ${JSON.stringify({
       type: 'done',
-      formattedAnswer: result.answer, // ✅ Include formatted answer with bold
+      formattedAnswer: cleanedAnswer, // ✅ Send post-processed answer (next steps limited)
       userMessageId: userMessage.id,
       assistantMessageId: assistantMessage.id,
-      sources: result.sources,
+      sources: filteredSources, // ✅ Send deduplicated/filtered sources
       contextId: result.contextId,
       intent: result.intent,
       confidence: result.confidence,
