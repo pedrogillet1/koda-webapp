@@ -19,6 +19,7 @@ interface ExcelChunk {
     sheetNumber: number;
     rowNumber: number;
     cells: string[];
+    emptyCells?: string[];
     chunkIndex: number;
     sourceType: string;
     tableHeaders?: string[];
@@ -111,19 +112,18 @@ class ExcelProcessorService {
         const cell = sheet[cellAddress];
         const cellValue = sheetValues[cellAddress];
 
-        if (cellValue && cellValue.v !== undefined && cellValue.v !== null && cellValue.v !== '') {
-          const cellData: CellData = {
-            cell: cellAddress,
-            value: this.formatCellValue(cellValue.v)
-          };
+        // Include all cells within the range, even empty ones
+        const cellData: CellData = {
+          cell: cellAddress,
+          value: this.formatCellValue(cellValue?.v ?? '')
+        };
 
-          // Check if cell has a formula
-          if (cell && cell.f) {
-            cellData.formula = cell.f;
-          }
-
-          rowCells.push(cellData);
+        // Check if cell has a formula
+        if (cell && cell.f) {
+          cellData.formula = cell.f;
         }
+
+        rowCells.push(cellData);
       }
 
       // Create chunk for this row if it has data
@@ -132,8 +132,12 @@ class ExcelProcessorService {
           if (cellData.formula) {
             return `${cellData.cell}: ${cellData.value} (formula: =${cellData.formula})`;
           }
+          // Don't include empty cells in chunk text to reduce noise
+          if (cellData.value === '[empty]') {
+            return null;
+          }
           return `${cellData.cell}: ${cellData.value}`;
-        });
+        }).filter(Boolean); // Remove null entries
 
         const rowText = cellTexts.join(' | ');
 
@@ -144,6 +148,7 @@ class ExcelProcessorService {
             sheetNumber,
             rowNumber: rowNum + 1,
             cells: rowCells.map(c => c.cell),
+            emptyCells: rowCells.filter(c => c.value === '[empty]').map(c => c.cell),
             chunkIndex: chunkIndex++,
             sourceType: 'excel'
           }
@@ -230,8 +235,8 @@ class ExcelProcessorService {
    * Format cell value for display
    */
   private formatCellValue(value: any): string {
-    if (value === null || value === undefined) {
-      return '';
+    if (value === null || value === undefined || value === '') {
+      return '[empty]';
     }
 
     if (typeof value === 'number') {

@@ -63,7 +63,7 @@ export class QueryIntentDetectorService {
       /^which (documents?|files?)/i,
       /^what (documents?|files?) (do i have|are|contain)/i,
       /^find (all|the)?\s*(documents?|files?)/i,
-      /documents?\s+(about|related to|regarding|concerning)/i, // "documents about X", "documents related to X"
+      /(?:all|my|the)\s+documents?\s+(about|related to|regarding|concerning)/i, // "all documents about X", "my documents related to X"
       /all.*documents?.*mention/i, // "all documents that mention X"
     ];
 

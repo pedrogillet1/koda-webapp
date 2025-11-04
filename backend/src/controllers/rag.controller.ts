@@ -4,6 +4,8 @@ import prisma from '../config/database';
 import { getIO } from '../services/websocket.service';
 import navigationService from '../services/navigation.service';
 import intentService from '../services/intent.service';
+import { llmIntentDetectorService } from '../services/llmIntentDetector.service'; // ✅ FIX #1: LLM Intent Detection
+import responsePostProcessor from '../services/responsePostProcessor.service'; // ✅ FIX #4: Response Post-Processor
 import { Intent } from '../types/intent.types';
 import fileActionsService from '../services/fileActions.service';
 import { generateConversationTitle } from '../services/gemini.service';
@@ -25,15 +27,27 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const { query, conversationId, answerLength = 'medium', attachedFile, documentId } = req.body;
+    const { query, conversationId, answerLength = 'medium', attachedFile, documentId, attachedDocuments = [] } = req.body;
 
     // Validate answerLength parameter
     const validLengths = ['short', 'medium', 'summary', 'long'];
     const finalAnswerLength = validLengths.includes(answerLength) ? answerLength : 'medium';
 
-    // CRITICAL FIX: Clear documentId if it's explicitly null/undefined to prevent sticky attachment
-    const cleanDocumentId = documentId || undefined;
-    console.log(`📎 [ATTACHMENT DEBUG] documentId from request: ${documentId}, cleaned: ${cleanDocumentId}`);
+    // MULTI-ATTACHMENT SUPPORT: Convert attachedDocuments array to single documentId (backwards compatible)
+    // Frontend sends attachedDocuments[], backend currently handles single documentId
+    // TODO: Future enhancement - support multiple document filtering in Pinecone
+    let cleanDocumentId: string | undefined = documentId || undefined;
+
+    if (!cleanDocumentId && attachedDocuments.length > 0) {
+      // If attachedDocuments array is provided, use the first one
+      cleanDocumentId = attachedDocuments[0].id || attachedDocuments[0];
+      console.log(`📎 [MULTI-ATTACHMENT] Converted attachedDocuments[${attachedDocuments.length}] to documentId: ${cleanDocumentId}`);
+    } else if (cleanDocumentId === null) {
+      // Explicitly null means clear attachment
+      cleanDocumentId = undefined;
+    }
+
+    console.log(`📎 [ATTACHMENT DEBUG] documentId from request: ${documentId}, attachedDocuments: ${attachedDocuments.length}, final: ${cleanDocumentId}`);
     console.log(`📎 [ATTACHMENT DEBUG] attachedFile from request:`, attachedFile);
     console.log(`📏 [ANSWER LENGTH] ${finalAnswerLength}`);
 
@@ -43,11 +57,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     }
 
     // ========================================
-    // INTENT CLASSIFICATION (New Brain - Ordered Pattern Matching)
+    // INTENT CLASSIFICATION (✅ FIX #1: LLM-based for flexibility)
     // ========================================
-    const intentResult = intentService.detectIntent(query);
-    console.log(`🎯 [INTENT] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
-    console.log(`📝 [ENTITIES]`, intentResult.entities);
+    const intentResult = await llmIntentDetectorService.detectIntent(query);
+    console.log(`🎯 [LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
+    console.log(`📝 [ENTITIES]`, intentResult.parameters);
 
     // TODO: Gemini fallback classifier removed - using pattern matching only
     // Only fallback to Gemini AI classifier if confidence is very low
@@ -903,10 +917,342 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       return;
     }
 
-    const { query, conversationId, answerLength = 'medium', documentId, attachedFiles } = req.body;
+    const { query, conversationId, answerLength = 'medium', documentId, attachedFiles, attachedDocuments = [] } = req.body;
 
     if (!query || !conversationId) {
       res.status(400).json({ error: 'Query and conversationId are required' });
+      return;
+    }
+
+    // MULTI-ATTACHMENT SUPPORT: Handle both attachedFiles and attachedDocuments formats
+    // Frontend may send either format depending on the component
+    const attachedArray = attachedDocuments.length > 0 ? attachedDocuments : attachedFiles || [];
+    const attachedDocIds = attachedArray.map((file: any) => file.id || file).filter(Boolean);
+    console.log('📎 [ATTACHED FILES] Received:', attachedDocIds);
+
+    // Use first attached document ID if available, otherwise use documentId
+    let effectiveDocumentId = attachedDocIds.length > 0 ? attachedDocIds[0] : documentId;
+
+    // Explicitly null means clear attachment
+    if (effectiveDocumentId === null) {
+      effectiveDocumentId = undefined;
+    }
+
+    console.log(`📎 [STREAMING ATTACHMENT DEBUG] documentId: ${documentId}, attachedDocs: ${attachedDocIds.length}, final: ${effectiveDocumentId}`);
+
+    // ========================================
+    // ✅ FIX #1: INTENT CLASSIFICATION
+    // ========================================
+    const intentResult = await llmIntentDetectorService.detectIntent(query);
+    console.log(`🎯 [STREAMING LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
+    console.log(`📝 [STREAMING Entities]`, intentResult.parameters);
+
+    // ========================================
+    // ✅ FIX #1: FILE ACTION HANDLERS
+    // ========================================
+
+    // CREATE_FOLDER
+    if (intentResult.intent === 'create_folder' && intentResult.parameters.folderName) {
+      console.log(`📁 [STREAMING ACTION] Creating folder: "${intentResult.parameters.folderName}"`);
+
+      const result = await fileActionsService.createFolder(
+        intentResult.parameters.folderName,
+        userId
+      );
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query },
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: result.message,
+          metadata: JSON.stringify({
+            actionType: 'create_folder',
+            success: result.success,
+            data: result.data
+          })
+        },
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      });
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        type: 'done',
+        userMessage,
+        assistantMessage,
+        sources: []
+      })}\n\n`);
+      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
+      return;
+    }
+
+    // MOVE_FILES
+    if (intentResult.intent === 'move_files' && intentResult.parameters.filename && intentResult.parameters.targetFolder) {
+      console.log(`📁 [STREAMING ACTION] Moving file: "${intentResult.parameters.filename}" to "${intentResult.parameters.targetFolder}"`);
+
+      const result = await fileActionsService.moveFile(
+        userId,
+        intentResult.parameters.filename,
+        intentResult.parameters.targetFolder
+      );
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query },
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: result.message,
+          metadata: JSON.stringify({
+            actionType: 'move_file',
+            success: result.success
+          })
+        },
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      });
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        type: 'done',
+        userMessage,
+        assistantMessage,
+        sources: []
+      })}\n\n`);
+      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
+      return;
+    }
+
+    // RENAME_FILE
+    if (intentResult.intent === 'rename_file' && intentResult.parameters.oldName && intentResult.parameters.newName) {
+      console.log(`📁 [STREAMING ACTION] Renaming: "${intentResult.parameters.oldName}" to "${intentResult.parameters.newName}"`);
+
+      const result = await fileActionsService.renameFile({
+        userId,
+        oldFilename: intentResult.parameters.oldName,
+        newFilename: intentResult.parameters.newName
+      });
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query },
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: result.message,
+          metadata: JSON.stringify({
+            actionType: 'rename_file',
+            success: result.success
+          })
+        },
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      });
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        type: 'done',
+        userMessage,
+        assistantMessage,
+        sources: []
+      })}\n\n`);
+      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
+      return;
+    }
+
+    // DELETE_FILE
+    if (intentResult.intent === 'delete_file' && intentResult.parameters.filename) {
+      console.log(`📁 [STREAMING ACTION] Deleting: "${intentResult.parameters.filename}"`);
+
+      const result = await fileActionsService.deleteFile({
+        userId,
+        filename: intentResult.parameters.filename
+      });
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query },
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: result.message,
+          metadata: JSON.stringify({
+            actionType: 'delete_file',
+            success: result.success
+          })
+        },
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      });
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        type: 'done',
+        userMessage,
+        assistantMessage,
+        sources: []
+      })}\n\n`);
+      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
+      return;
+    }
+
+    // FILE_LOCATION
+    if (intentResult.intent === 'file_location' && intentResult.parameters.filename) {
+      console.log(`📍 [STREAMING] Finding: "${intentResult.parameters.filename}"`);
+
+      const systemMetadataService = require('../services/systemMetadata.service').default;
+      const fileLocation = await systemMetadataService.findFileLocation(userId, intentResult.parameters.filename);
+
+      let responseMessage: string;
+      if (fileLocation) {
+        responseMessage = `📍 **${fileLocation.filename}** is stored in:\n\n${fileLocation.location}`;
+      } else {
+        responseMessage = `❌ I couldn't find a file named "${intentResult.parameters.filename}" in your library.`;
+      }
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query },
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: responseMessage,
+          metadata: JSON.stringify({
+            actionType: 'file_location',
+            fileLocation
+          })
+        },
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      });
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: responseMessage })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        type: 'done',
+        userMessage,
+        assistantMessage,
+        sources: []
+      })}\n\n`);
+      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
+      return;
+    }
+
+    // LIST_FILES
+    if (intentResult.intent === 'list_files') {
+      console.log(`📋 [STREAMING] Listing files`);
+
+      const documents = await prisma.document.findMany({
+        where: { userId, status: { not: 'deleted' } },
+        select: { filename: true, folderId: true },
+        orderBy: { createdAt: 'desc' },
+        take: 50
+      });
+
+      let responseMessage: string;
+      if (documents.length > 0) {
+        responseMessage = `📄 **You have ${documents.length} documents:**\n\n${documents.map((d, i) => `${i + 1}. ${d.filename}`).join('\n')}`;
+      } else {
+        responseMessage = '📄 You don\'t have any documents yet. Upload some files to get started!';
+      }
+
+      const userMessage = await prisma.message.create({
+        data: { conversationId, role: 'user', content: query }
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: responseMessage,
+          metadata: JSON.stringify({
+            actionType: 'list_files',
+            fileCount: documents.length
+          })
+        }
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() }
+      });
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: responseMessage })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        type: 'done',
+        userMessage,
+        assistantMessage,
+        sources: []
+      })}\n\n`);
+      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
       return;
     }
 
@@ -929,10 +1275,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         conversationId,
         role: 'user',
         content: query,
-        metadata: documentId ? JSON.stringify({
-          documentId,
-          attachedFiles: attachedFiles || []
-        }) : null,
+        metadata: documentId ? JSON.stringify({ documentId }) : null,
       },
     });
 
@@ -942,19 +1285,54 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       query,
       conversationId,
       finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
-      documentId,
+      effectiveDocumentId,
       (chunk: string) => {
         // Stream each chunk to client
         res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
       }
     );
 
+    // ========================================
+    // ✅ FIX #4: POST-PROCESS RESPONSE
+    // ========================================
+    let cleanedAnswer = result.answer;
+
+    // Remove warning messages
+    cleanedAnswer = cleanedAnswer.replace(/⚠️\s*Note:.*?(?=\n\n|\n[A-Z]|$)/gs, '');
+    cleanedAnswer = cleanedAnswer.replace(/⚠️.*?(?=\n\n|\n[A-Z]|$)/gs, '');
+
+    // Remove duplicate "Next steps" sections
+    const nextStepsMatches = cleanedAnswer.match(/Next steps?:/gi);
+    if (nextStepsMatches && nextStepsMatches.length > 1) {
+      const firstIndex = cleanedAnswer.search(/Next steps?:/i);
+      const secondIndex = cleanedAnswer.slice(firstIndex + 1).search(/Next steps?:/i);
+      if (secondIndex > -1) {
+        cleanedAnswer = cleanedAnswer.substring(0, firstIndex + secondIndex + 1).trim();
+      }
+    }
+
+    // Ensure space between paragraph and bullet points
+    cleanedAnswer = cleanedAnswer.replace(/([.!?])\n(•)/g, '$1\n\n$2');
+
+    // Limit "Next steps" to 1 bullet point
+    const nextStepsRegex = /(Next steps?:)\n((?:•.*\n?)+)/i;
+    const nextStepsMatch = cleanedAnswer.match(nextStepsRegex);
+    if (nextStepsMatch) {
+      const bullets = nextStepsMatch[2].match(/•[^\n]+/g);
+      if (bullets && bullets.length > 1) {
+        const singleBullet = bullets[0];
+        cleanedAnswer = cleanedAnswer.replace(nextStepsMatch[0], `${nextStepsMatch[1]}\n${singleBullet}`);
+      }
+    }
+
+    console.log('✅ [POST-PROCESSING] Applied response formatting');
+
     // Save assistant message to database with RAG metadata
     const assistantMessage = await prisma.message.create({
       data: {
         conversationId,
         role: 'assistant',
-        content: result.answer,
+        content: cleanedAnswer,
         metadata: JSON.stringify({
           ragSources: result.sources,
           contextId: result.contextId,
@@ -1011,13 +1389,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     }
 
     // Send completion signal with metadata AND formatted answer
-    const userMetadata = userMessage.metadata ? JSON.parse(userMessage.metadata as string) : {};
     res.write(`data: ${JSON.stringify({
       type: 'done',
       formattedAnswer: result.answer, // ✅ Include formatted answer with bold
       userMessageId: userMessage.id,
       assistantMessageId: assistantMessage.id,
-      attachedFiles: userMetadata.attachedFiles || [], // ✅ Include attachedFiles from user message
       sources: result.sources,
       contextId: result.contextId,
       intent: result.intent,

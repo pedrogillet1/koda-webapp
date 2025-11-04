@@ -207,6 +207,25 @@ class QueryIntentService {
       }
     }
 
+    // Pattern 2.5: File type queries (NEW - Fix #3)
+    // "what file types", "what types of files", "file formats"
+    const fileTypePatterns = [
+      /what (?:file )?types?/i,
+      /what (?:types? of |kinds? of )?(?:files|documents)/i,
+      /(?:file|document) (?:types?|formats?|extensions?)/i,
+      /which (?:file|document) (?:types?|formats?)/i,
+    ];
+
+    for (const pattern of fileTypePatterns) {
+      if (pattern.test(query)) {
+        return {
+          isMetadataQuery: true,
+          type: 'file_type_query',
+          confidence: 0.95,
+        };
+      }
+    }
+
     // Pattern 3: Folder contents queries
     // "what is inside X folder", "show me X folder", "what files are in X"
     const folderContentPatterns = [
@@ -432,7 +451,8 @@ class QueryIntentService {
       { pattern: /(?:list|show|display) (?:all )?(?:files|documents|categories|folders)/i, action: 'List files/categories' },
       { pattern: /what (?:files|documents) (?:do i have|are there)/i, action: 'List user files' },
       { pattern: /(?:do i have|have i got) (?:any )?(?:files|documents)/i, action: 'List user files' },
-      { pattern: /(?:which|what) (?:files|documents|pdfs?|docx?|excel|powerpoint)/i, action: 'List specific file types' },
+      { pattern: /(?:which|what|why) (?:type|types|kind|kinds) (?:of )?(?:files|documents)/i, action: 'List file types' },
+      { pattern: /(?:which|what|why) (?:files|documents|pdfs?|docx?|excel|powerpoint)/i, action: 'List specific file types' },
 
       // NEW: Detect "what is inside [folder name]" or "what files are in [folder name]"
       { pattern: /what(?:'s| is) (?:inside|in) (?:the )?([a-zA-Z0-9_-]+) folder/i, action: 'List folder contents' },

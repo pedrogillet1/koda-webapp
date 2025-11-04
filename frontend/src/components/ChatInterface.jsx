@@ -23,7 +23,6 @@ import mp4Icon from '../assets/mp4.svg';
 import mp3Icon from '../assets/mp3.svg';
 import GeneratedDocumentCard from './GeneratedDocumentCard';
 import DocumentCard from './DocumentCard';
-import DocumentPreviewModal from './DocumentPreviewModal';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
 let globalSocketInitialized = false;
@@ -40,7 +39,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [streamingMessage, setStreamingMessage] = useState('');
     const [pendingFiles, setPendingFiles] = useState([]);      // Files attached but not yet sent
     const [uploadingFiles, setUploadingFiles] = useState([]);  // Files currently being uploaded
-    const [attachedDocument, setAttachedDocument] = useState(null);
+    const [attachedDocuments, setAttachedDocuments] = useState([]);
     const [showNotification, setShowNotification] = useState(false);
     const [notificationType, setNotificationType] = useState('success');
     const [uploadedCount, setUploadedCount] = useState(0);
@@ -49,11 +48,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [researchMode, setResearchMode] = useState(false);
     const [showResearchSuggestion, setShowResearchSuggestion] = useState(false);
     const [expandedSources, setExpandedSources] = useState({});
-    const [previewDocument, setPreviewDocument] = useState(null);
-    const [showPreviewModal, setShowPreviewModal] = useState(false);
     const [researchProgress, setResearchProgress] = useState(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState({}); // Track progress for each file
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
     const inputRef = useRef(null);
@@ -62,25 +58,35 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const abortControllerRef = useRef(null);
     const manuallyRemovedDocumentRef = useRef(false);
     const pendingMessageRef = useRef(null); // Queue final message data until animation completes
-    const dragCounterRef = useRef(0); // Track drag enter/leave for nested elements
 
     // Use streaming hook for the current AI response (5ms = 200 chars/sec for fast smooth streaming)
     const { displayedText, isStreaming } = useStreamingText(streamingMessage, 5);
 
     // Helper function to get file icon based on extension
     const getFileIcon = (filename) => {
-        if (!filename) return docIcon;
+        console.log('🎨 Getting icon for filename:', filename);
+        if (!filename) {
+            console.log('⚠️ No filename provided, using default docIcon');
+            return docIcon;
+        }
         const ext = filename.toLowerCase();
+        console.log('🔍 File extension:', ext);
+
         if (ext.match(/\.(pdf)$/)) return pdfIcon;
         if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
         if (ext.match(/\.(png)$/)) return pngIcon;
         if (ext.match(/\.(doc|docx)$/)) return docIcon;
         if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
         if (ext.match(/\.(txt)$/)) return txtIcon;
-        if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
+        if (ext.match(/\.(ppt|pptx)$/)) {
+            console.log('✅ Matched PowerPoint, returning pptxIcon');
+            return pptxIcon;
+        }
         if (ext.match(/\.(mov)$/)) return movIcon;
         if (ext.match(/\.(mp4)$/)) return mp4Icon;
         if (ext.match(/\.(mp3)$/)) return mp3Icon;
+
+        console.log('⚠️ No match found, using default docIcon');
         return docIcon; // Default icon
     };
 
@@ -97,6 +103,41 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             return ext.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|tif)$/);
         }
         return false;
+    };
+
+    // Custom link component for document navigation
+    const DocumentLink = ({ href, children }) => {
+        // Check if this is a document link (starts with #doc-)
+        if (href && href.startsWith('#doc-')) {
+            const documentId = href.replace('#doc-', '');
+
+            return (
+                <a
+                    href="#"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        navigate(`/document/${documentId}`);
+                    }}
+                    style={{
+                        color: '#3B82F6',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontWeight: '600'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.target.style.color = '#2563EB';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.target.style.color = '#3B82F6';
+                    }}
+                >
+                    {children}
+                </a>
+            );
+        }
+
+        // Regular link
+        return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
     };
 
     // Scroll to bottom function
@@ -189,16 +230,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     // CRITICAL FIX: Queue message instead of immediately clearing streaming
                     // Let the useEffect wait for animation to complete before processing
                     console.log('📬 Queueing message to wait for streaming animation to complete');
-
-                    // ✅ FIX: Preserve attachedFiles from optimistic message (WebSocket path)
-                    const optimisticUserMsg = messages.find(m => m.isOptimistic && m.role === 'user');
-                    const userMessageWithAttachments = {
-                        ...data.userMessage,
-                        attachedFiles: optimisticUserMsg?.attachedFiles || data.userMessage?.attachedFiles || []
-                    };
-
                     pendingMessageRef.current = {
-                        userMessage: userMessageWithAttachments,
+                        userMessage: data.userMessage,
                         assistantMessage: data.assistantMessage
                     };
                     console.log('=== MESSAGE QUEUED - WAITING FOR ANIMATION ===');
@@ -306,41 +339,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         console.log('📌 justCreatedConversationId:', justCreatedConversationId.current);
 
         if (currentConversation?.id) {
-            // Check if this is a new conversation we just created for sending a message
+            // Skip loading if we just created this conversation
+            // We already have the messages locally from the REST API response
             if (justCreatedConversationId.current === currentConversation.id) {
                 console.log('⏭️ Skipping loadConversation - just created this conversation with messages locally');
-                justCreatedConversationId.current = null; // Reset the flag
-                // CRITICAL: DO NOT clear attachments here, as we need them for the message being sent.
+                justCreatedConversationId.current = null; // Reset flag
             } else {
-                // Additional check: Don't reload if we have optimistic messages (messages being sent)
-                const hasOptimisticMessages = messages.some(msg => msg.isOptimistic);
-                if (hasOptimisticMessages) {
-                    console.log('⏭️ Skipping loadConversation - optimistic messages in progress');
-                } else {
-                    // This block runs when the user MANUALLY clicks a different conversation.
-                    console.log('🔃 Loading conversation from server...');
-                    loadConversation(currentConversation.id);
-
-                    // ✅ FIX: Only clear attachments when the user manually switches to a different chat.
-                    console.log('🧹 Clearing attachments - user switched to a different conversation');
-                    setAttachedDocument(null);
-                    setPendingFiles([]);
-                    manuallyRemovedDocumentRef.current = false;
-                }
+                console.log('🔃 Loading conversation from server...');
+                loadConversation(currentConversation.id);
             }
 
             console.log('📡 Joining conversation room:', currentConversation.id);
             chatService.joinConversation(currentConversation.id);
+            // Clear streaming message and reset stage when switching conversations
             setStreamingMessage('');
             setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
-
-        } else {
-            // This block runs when the user clicks "New Chat", resulting in currentConversation being null.
-            // ✅ FIX: This is a safe place to clear attachments.
-            console.log('🧹 Clearing attachments - new chat started');
-            setAttachedDocument(null);
-            setPendingFiles([]);
-            manuallyRemovedDocumentRef.current = false;
         }
 
         return () => {
@@ -349,7 +362,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 chatService.leaveConversation(currentConversation.id);
             }
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentConversation]);
 
     // CRITICAL FIX: Wait for streaming animation to complete before adding final message
@@ -468,7 +480,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             return;
         }
 
-        if (documentId && !attachedDocument) {
+        if (documentId && attachedDocuments.length === 0) {
             console.log('📎 Document ID found in URL:', documentId);
 
             // Fetch document info
@@ -486,16 +498,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         console.log('✅ Document loaded:', data);
 
                         // Create a File-like object to set as attached document
-                        setAttachedDocument({
+                        setAttachedDocuments([{
                             id: data.documentId,
                             name: data.filename,
                             type: 'application/pdf', // Default type since it's not in status response
                             size: 0 // Size not available in status response
-                        });
+                        }]);
 
                         // Remove documentId from URL to avoid re-attaching on refresh
-                        const newUrl = window.location.pathname;
-                        window.history.replaceState({}, '', newUrl);
+                        navigate(window.location.pathname, { replace: true });
                     } else {
                         console.error('❌ Failed to fetch document:', response.status);
                     }
@@ -506,39 +517,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             fetchDocumentInfo();
         }
-    }, [location.search]); // ✅ FIX: Removed attachedDocument dependency to prevent re-triggering
-
-    // Simulate upload progress animation
-    useEffect(() => {
-        if (uploadingFiles.length > 0) {
-            // Initialize progress for each file
-            const initialProgress = {};
-            uploadingFiles.forEach((_, index) => {
-                initialProgress[index] = 0;
-            });
-            setUploadProgress(initialProgress);
-
-            // Animate progress from 0 to 90% over 3 seconds
-            const interval = setInterval(() => {
-                setUploadProgress(prev => {
-                    const updated = { ...prev };
-                    let allComplete = true;
-                    uploadingFiles.forEach((_, index) => {
-                        if (updated[index] < 90) {
-                            updated[index] = Math.min(90, (updated[index] || 0) + 3);
-                            allComplete = false;
-                        }
-                    });
-                    return updated;
-                });
-            }, 100);
-
-            return () => clearInterval(interval);
-        } else {
-            // Clear progress when no files uploading
-            setUploadProgress({});
-        }
-    }, [uploadingFiles.length]);
+    }, [location.search]);
 
     const loadConversation = async (conversationId) => {
         try {
@@ -556,42 +535,27 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 if (msg.id && !seenIds.has(msg.id)) {
                     seenIds.add(msg.id);
 
-                    // Parse metadata for both user and assistant messages
-                    if (msg.metadata) {
+                    // Parse RAG sources from metadata if present
+                    if (msg.metadata && msg.role === 'assistant') {
                         try {
                             const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
-
-                            // Parse assistant metadata
-                            if (msg.role === 'assistant') {
-                                if (metadata.ragSources) {
-                                    msg.ragSources = metadata.ragSources;
-                                }
-                                if (metadata.webSources) {
-                                    msg.webSources = metadata.webSources;
-                                }
-                                if (metadata.expandedQuery) {
-                                    msg.expandedQuery = metadata.expandedQuery;
-                                }
-                                if (metadata.actions) {
-                                    msg.actions = metadata.actions;
-                                }
-                                if (metadata.contextId) {
-                                    msg.contextId = metadata.contextId;
-                                }
+                            if (metadata.ragSources) {
+                                msg.ragSources = metadata.ragSources;
                             }
-
-                            // Parse user metadata (attachedFiles)
-                            if (msg.role === 'user') {
-                                if (metadata.attachedFiles) {
-                                    msg.attachedFiles = metadata.attachedFiles;
-                                    console.log('📎 [ATTACH DEBUG] loadConversation: Parsed attachedFiles from user message:', msg.attachedFiles);
-                                }
-                                if (metadata.documentId) {
-                                    msg.documentId = metadata.documentId;
-                                }
+                            if (metadata.webSources) {
+                                msg.webSources = metadata.webSources;
+                            }
+                            if (metadata.expandedQuery) {
+                                msg.expandedQuery = metadata.expandedQuery;
+                            }
+                            if (metadata.actions) {
+                                msg.actions = metadata.actions;
+                            }
+                            if (metadata.contextId) {
+                                msg.contextId = metadata.contextId;
                             }
                         } catch (e) {
-                            console.error('Error parsing message metadata:', e);
+                            console.error('Error parsing RAG metadata:', e);
                         }
                     }
 
@@ -643,31 +607,27 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         } else {
             // Remove all attachments
             setPendingFiles([]);
-            setAttachedDocument(null);
+            setAttachedDocuments([]);
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
             // Clear documentId from URL if present
             const searchParams = new URLSearchParams(location.search);
             if (searchParams.has('documentId')) {
+                console.log('🧹 Clearing documentId from URL');
                 searchParams.delete('documentId');
                 const newSearch = searchParams.toString();
-                const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
-                window.history.replaceState({}, '', newUrl);
+                const newPath = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
+                navigate(newPath, { replace: true });
             }
         }
     };
 
-    // Drag and drop handlers with counter for nested elements
+    // Drag and drop handlers
     const handleDragEnter = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        dragCounterRef.current++;
-        // Only show overlay for external file drags, not internal element drags
-        const hasFiles = e.dataTransfer.types.includes('Files');
-        if (hasFiles && e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-            setIsDraggingOver(true);
-        }
+        setIsDraggingOver(true);
     };
 
     const handleDragOver = (e) => {
@@ -679,8 +639,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const handleDragLeave = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        dragCounterRef.current--;
-        if (dragCounterRef.current === 0) {
+        // Only set to false if leaving the container itself, not child elements
+        if (e.currentTarget === e.target) {
             setIsDraggingOver(false);
         }
     };
@@ -688,7 +648,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const handleDrop = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        dragCounterRef.current = 0;
         setIsDraggingOver(false);
 
         const files = Array.from(e.dataTransfer.files);
@@ -859,50 +818,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     };
 
-    const waitForDocumentProcessing = async (documentId, maxWaitTime = 30000) => {
-        const startTime = Date.now();
-        const pollInterval = 1000; // Check every second
-
-        console.log(`⏳ Waiting for document ${documentId} to finish processing...`);
-
-        while (Date.now() - startTime < maxWaitTime) {
-            try {
-                const token = localStorage.getItem('accessToken');
-                const response = await fetch(
-                    `${process.env.REACT_APP_API_URL}/api/documents/${documentId}/status`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    }
-                );
-
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log(`📊 Document ${documentId} status: ${data.status}`);
-
-                    if (data.status === 'completed') {
-                        console.log(`✅ Document ${documentId} processing complete!`);
-                        return true;
-                    }
-
-                    if (data.status === 'failed') {
-                        console.error(`❌ Document ${documentId} processing failed`);
-                        return false;
-                    }
-                }
-            } catch (error) {
-                console.warn(`⚠️ Error checking document status:`, error);
-            }
-
-            // Wait 1 second before checking again
-            await new Promise(resolve => setTimeout(resolve, pollInterval));
-        }
-
-        console.warn(`⏰ Timeout waiting for document ${documentId} to process`);
-        return false;
-    };
-
     const uploadMultipleFiles = async (files) => {
         if (!files || files.length === 0) {
             console.log('❌ No files to upload');
@@ -963,6 +878,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             // Clear uploading state - files are uploaded successfully
             setUploadingFiles([]);
 
+            // ✅ FIX #2: Clear pending files AFTER successful upload
+            setPendingFiles([]);
+
             // Show success notification (same as UniversalUploadModal)
             setUploadedCount(data.documents.length);
             setNotificationType('success');
@@ -972,8 +890,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             return data.documents;
         } catch (error) {
             console.error('❌ Error uploading files:', error);
-            // On error, move files back to pending
-            setPendingFiles(prev => [...prev, ...files]);
+            // On error, keep files in pending so user can retry
+            // Don't move them back - they're still in pendingFiles
             setUploadingFiles([]);
 
             // Show error notification (same as UniversalUploadModal)
@@ -987,22 +905,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     const handleSendMessage = async () => {
         const isUploadingFiles = uploadingFiles.length > 0;
-        if ((!message.trim() && pendingFiles.length === 0 && !attachedDocument) || isLoading || isUploadingFiles) return;
+        if ((!message.trim() && pendingFiles.length === 0 && attachedDocuments.length === 0) || isLoading || isUploadingFiles) return;
 
         let messageText = message;
         const filesToUpload = [...pendingFiles]; // Store reference before clearing
-        const documentToAttach = attachedDocument; // Store reference before clearing
+        const documentsToAttach = [...attachedDocuments]; // Store reference before clearing
 
         console.log(`📤 handleSendMessage: Preparing to send with ${filesToUpload.length} file(s)`);
         console.log(`📤 Files to upload:`, filesToUpload.map(f => f.name).join(', '));
 
-        // Clear input and pending files immediately for better UX
+        // Clear input immediately
         setMessage('');
-        setPendingFiles([]);  // Clear pending files
-        // ✅ FIX: DON'T clear attachedDocument here - wait until after request is sent
-
-        // Hide the attachment banner immediately
-        setAttachedDocument(null);
+        // DON'T clear pendingFiles yet - keep them visible during upload
+        // They will be cleared after successful upload in uploadMultipleFiles()
+        // DON'T clear attachedDocument - keep it visible during streaming
 
         // Store original message text for UI display (files will be shown visually, not as text)
         const displayMessageText = messageText || '';
@@ -1022,11 +938,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             content: displayMessageText,
             createdAt: new Date().toISOString(),
             isOptimistic: true,
-            attachedFiles: filesToUpload.length > 0
-                ? filesToUpload.map(f => ({ name: f.name, type: f.type, documentId: uploadedDocument?.id }))
-                : documentToAttach
-                    ? [{ name: documentToAttach.name, type: documentToAttach.type, documentId: documentToAttach.id }]
-                    : [],
+            attachedFiles: filesToUpload.length > 0 ? filesToUpload.map(f => ({ name: f.name, type: f.type })) :
+                          documentsToAttach.length > 0 ? documentsToAttach.map(doc => ({ id: doc.id, name: doc.name })) : [],
         };
         setMessages((prev) => {
             // Check if this exact message was just added (prevent double-send)
@@ -1048,16 +961,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         if (filesToUpload.length > 0) {
             uploadedDocuments = await uploadMultipleFiles(filesToUpload);
 
-            // ✅ Wait for all uploaded documents to finish processing
-            if (uploadedDocuments.length > 0) {
-                console.log(`⏳ Waiting for ${uploadedDocuments.length} document(s) to finish processing...`);
-                const processingPromises = uploadedDocuments.map(doc =>
-                    waitForDocumentProcessing(doc.id)
-                );
-                await Promise.all(processingPromises);
-                console.log(`✅ All documents processed and ready for querying!`);
-            }
-
             // If no message text was provided, add a default message
             if (uploadedDocuments.length > 0 && !messageText.trim()) {
                 if (uploadedDocuments.length === 1) {
@@ -1066,18 +969,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     messageText = `I just uploaded ${uploadedDocuments.length} files. Please analyze them and tell me what's in them.`;
                 }
             }
-        } else if (documentToAttach) {
-            // Use the document that was already uploaded (from URL parameter)
-            uploadedDocuments = [{ id: documentToAttach.id }];
-
-            // ✅ Wait for the attached document to finish processing (same as uploaded files)
-            console.log(`⏳ Waiting for attached document "${documentToAttach.name}" to finish processing...`);
-            await waitForDocumentProcessing(documentToAttach.id);
-            console.log(`✅ Attached document processed and ready for querying!`);
+        } else if (documentsToAttach.length > 0) {
+            // Use the documents that were already uploaded (from URL parameter)
+            uploadedDocuments = documentsToAttach.map(doc => ({ id: doc.id }));
 
             // If no message text was provided, add a default message
             if (!messageText.trim()) {
-                messageText = `I'd like to ask about this document: "${documentToAttach.name}". Please analyze it and tell me what's in it.`;
+                const docNames = documentsToAttach.map(d => d.name).join(', ');
+                messageText = `I'd like to ask about ${documentsToAttach.length > 1 ? 'these documents' : 'this document'}: "${docNames}". Please analyze ${documentsToAttach.length > 1 ? 'them' : 'it'} and tell me what's in ${documentsToAttach.length > 1 ? 'them' : 'it'}.`;
             }
         }
 
@@ -1126,12 +1025,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 conversationId,
                                 query: messageText,
                                 researchMode,
+                                // Send both formats for compatibility
                                 attachedFiles: filesToUpload.length > 0
-                                    ? filesToUpload.map(f => ({ name: f.name, type: f.type, documentId: uploadedDocument?.id }))
-                                    : documentToAttach
-                                        ? [{ name: documentToAttach.name, type: documentToAttach.type, documentId: documentToAttach.id }]
-                                        : [],
-                                documentId: uploadedDocument?.id || documentToAttach?.id,
+                                    ? filesToUpload.map(f => ({ name: f.name, type: f.type }))
+                                    : documentsToAttach.map(doc => ({
+                                        id: doc.id,
+                                        name: doc.name,
+                                        type: doc.type
+                                    })),
+                                attachedDocuments: documentsToAttach.map(doc => ({
+                                    id: doc.id,
+                                    name: doc.name,
+                                    type: doc.type
+                                })),
+                                // Explicitly null when no document (prevents sticky attachment)
+                                documentId: uploadedDocument?.id || null,
                             }),
                         }
                     );
@@ -1148,7 +1056,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     let metadata = null;
 
                     console.log('🌊 Starting SSE stream...');
-                    setCurrentStage({ stage: 'generating', message: 'Generating answer...' });
+                    // Use varied, natural messages instead of robotic "Generating answer"
+                    const thinkingMessages = ['Thinking...', 'Analyzing...', 'Processing...', 'Understanding...', 'Working on it...'];
+                    const randomMessage = thinkingMessages[Math.floor(Math.random() * thinkingMessages.length)];
+                    setCurrentStage({ stage: 'generating', message: randomMessage });
 
                     while (true) {
                         const { value, done } = await reader.read();
@@ -1196,18 +1107,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     console.log('📬 SSE stream complete - queueing message to wait for animation');
 
                     if (metadata) {
-                        // ✅ FIX: Use attachedFiles from backend response (already saved in DB)
-                        console.log('📎 [ATTACH DEBUG] SSE: metadata.attachedFiles:', metadata.attachedFiles);
-
                         const realUserMessage = {
                             id: metadata.userMessageId,
                             role: 'user',
                             content: displayMessageText,
                             createdAt: new Date().toISOString(),
-                            attachedFiles: metadata.attachedFiles || [], // ✅ Use attachedFiles from backend
                         };
-
-                        console.log('📎 [ATTACH DEBUG] SSE: Created real message with attachedFiles:', realUserMessage.attachedFiles);
 
                         const assistantMessage = {
                             id: metadata.assistantMessageId,
@@ -1242,16 +1147,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     // Note: streamingMessage will be cleared by the useEffect when animation completes
                     // Note: isLoading will be set to false by the useEffect when animation completes
                     setResearchMode(false);
-
-                    // ✅ FIX: Clear attached document AFTER successful request
-                    setAttachedDocument(null);
                 } catch (error) {
                     console.error('❌ Error in RAG streaming:', error);
                     setIsLoading(false);
                     setStreamingMessage('');
-
-                    // ✅ FIX: Clear attached document even on error
-                    setAttachedDocument(null);
 
                     // Add error message
                     const errorMessage = {
@@ -1298,10 +1197,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         } catch (error) {
             console.error('❌ Error sending message:', error);
             setIsLoading(false);
-
-            // ✅ FIX: Clear attached document even on error
-            setAttachedDocument(null);
-
             // Keep the user message visible even on error
             // Add an error message from the assistant
             const errorMessage = {
@@ -1348,67 +1243,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        backgroundColor: 'rgba(41, 41, 43, 0.85)',
-                        borderRadius: 20,
+                        backgroundColor: 'rgba(79, 70, 229, 0.05)',
+                        border: '3px dashed #4F46E5',
+                        borderRadius: 12,
                         display: 'flex',
-                        flexDirection: 'column',
                         justifyContent: 'center',
                         alignItems: 'center',
-                        gap: 24,
                         zIndex: 1000,
                         pointerEvents: 'none',
                     }}>
-                        {/* White circular icon with upload arrow - unified monochrome animation */}
                         <div style={{
-                            width: 120,
-                            height: 120,
-                            borderRadius: '50%',
-                            backgroundColor: 'white',
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            opacity: isDraggingOver ? 1.0 : 0.75,
-                            transform: isDraggingOver ? 'scale(1.08)' : 'scale(1.0)',
-                            boxShadow: isDraggingOver ? '0 0 24px rgba(255, 255, 255, 0.12)' : 'none',
-                            transition: 'opacity 250ms ease-out, transform 250ms ease-out, box-shadow 250ms ease-out'
+                            background: 'white',
+                            padding: '24px 32px',
+                            borderRadius: 12,
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                            textAlign: 'center',
                         }}>
-                            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#1C1C1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-                                <polyline points="7 9 12 4 17 9" />
-                                <line x1="12" y1="4" x2="12" y2="16" />
-                            </svg>
-                        </div>
-                        <div style={{
-                            flexDirection: 'column',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            gap: 8,
-                            display: 'flex'
-                        }}>
-                            <div style={{
-                                textAlign: 'center',
-                                color: 'white',
-                                fontSize: 20,
-                                fontFamily: 'Plus Jakarta Sans',
-                                fontWeight: '600',
-                                lineHeight: '30px',
-                                opacity: isDraggingOver ? 1.0 : 0.6,
-                                transition: 'opacity 250ms ease-out'
-                            }}>
-                                Drop files here to upload
-                            </div>
-                            <div style={{
-                                textAlign: 'center',
-                                color: 'rgba(255, 255, 255, 0.7)',
-                                fontSize: 15,
-                                fontFamily: 'Plus Jakarta Sans',
-                                fontWeight: '400',
-                                lineHeight: '22.5px',
-                                opacity: isDraggingOver ? 0.8 : 0.4,
-                                transition: 'opacity 250ms ease-out'
-                            }}>
-                                Release to open upload modal
-                            </div>
+                            <div style={{fontSize: 48, marginBottom: 12}}>📎</div>
+                            <div style={{fontSize: 18, fontWeight: '600', color: '#4F46E5', marginBottom: 4}}>Drop files here</div>
+                            <div style={{fontSize: 14, color: '#6B7280'}}>Release to attach files to your message</div>
                         </div>
                     </div>
                 )}
@@ -1449,6 +1302,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             <div className="markdown-content" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
                                                                 <ReactMarkdown
                                                                     remarkPlugins={[remarkGfm]}
+                                                                    components={{ a: DocumentLink }}
                                                                 >
                                                                     {msg.content}
                                                                 </ReactMarkdown>
@@ -1815,27 +1669,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 const filename = metadata.result.filename || '';
                                                                 const extension = filename.split('.').pop()?.toLowerCase() || '';
 
-                                                                // File type icon mapping
-                                                                const getFileIcon = (ext) => {
-                                                                    const iconMap = {
-                                                                        'pdf': '📕',
-                                                                        'doc': '📘',
-                                                                        'docx': '📘',
-                                                                        'xls': '📗',
-                                                                        'xlsx': '📗',
-                                                                        'ppt': '📙',
-                                                                        'pptx': '📙',
-                                                                        'txt': '📄',
-                                                                        'jpg': '🖼️',
-                                                                        'jpeg': '🖼️',
-                                                                        'png': '🖼️',
-                                                                        'gif': '🖼️',
-                                                                        'zip': '📦',
-                                                                        'rar': '📦',
-                                                                    };
-                                                                    return iconMap[ext] || '📄';
-                                                                };
-
                                                                 const handleDownload = async () => {
                                                                     try {
                                                                         const token = localStorage.getItem('accessToken');
@@ -1873,18 +1706,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                             alignItems: 'center',
                                                                             gap: 12,
                                                                         }}>
-                                                                            <div style={{
-                                                                                width: 40,
-                                                                                height: 40,
-                                                                                background: '#181818',
-                                                                                borderRadius: 8,
-                                                                                display: 'flex',
-                                                                                alignItems: 'center',
-                                                                                justifyContent: 'center',
-                                                                                fontSize: 20,
-                                                                            }}>
-                                                                                {getFileIcon(extension)}
-                                                                            </div>
+                                                                            <img
+                                                                                src={getFileIcon(filename)}
+                                                                                alt="File icon"
+                                                                                style={{
+                                                                                    width: 40,
+                                                                                    height: 40,
+                                                                                    objectFit: 'contain',
+                                                                                    flexShrink: 0
+                                                                                }}
+                                                                            />
                                                                             <div style={{flex: 1}}>
                                                                                 <div style={{
                                                                                     fontSize: 14,
@@ -2036,73 +1867,68 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             return attachedFiles.length > 0 ? (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
                                                     {attachedFiles.map((attachedFile, fileIndex) => (
-                                                        <div
-                                                            key={fileIndex}
-                                                            onClick={() => {
-                                                                // Open preview modal with document info
-                                                                const docId = msg.documentId || attachedFile.id || attachedFile.documentId;
-                                                                console.log('📄 Opening preview for:', {
-                                                                    documentId: docId,
-                                                                    filename: attachedFile.name,
-                                                                    msgDocId: msg.documentId,
-                                                                    fileId: attachedFile.id,
-                                                                    fileDocId: attachedFile.documentId
-                                                                });
-
-                                                                if (!docId) {
-                                                                    console.error('❌ No document ID found');
-                                                                    return;
-                                                                }
-
-                                                                setPreviewDocument({
-                                                                    id: docId,
-                                                                    filename: attachedFile.name,
-                                                                    mimeType: attachedFile.type,
-                                                                    pageCount: attachedFile.pageCount || 1
-                                                                });
-                                                                setShowPreviewModal(true);
-                                                            }}
-                                                            style={{
+                                                        <div key={fileIndex} style={{
+                                                            padding: 12,
+                                                            background: '#FFFFFF',
+                                                            border: '1px solid #E6E6EC',
+                                                            borderRadius: 12,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 12,
+                                                            minWidth: 280,
+                                                        }}>
+                                                            {/* File icon */}
+                                                            <div style={{
+                                                                width: 40,
+                                                                height: 40,
+                                                                background: '#F5F5F5',
+                                                                borderRadius: 8,
                                                                 display: 'flex',
                                                                 alignItems: 'center',
-                                                                gap: 12,
-                                                                padding: '12px 16px',
-                                                                background: '#F3F4F6',
-                                                                borderRadius: 8,
-                                                                border: '1px solid #E5E7EB',
-                                                                cursor: 'pointer',
-                                                                transition: 'all 200ms ease-out'
-                                                            }}
-                                                            onMouseEnter={(e) => {
-                                                                e.currentTarget.style.background = '#E5E7EB';
-                                                                e.currentTarget.style.borderColor = '#D1D5DB';
-                                                            }}
-                                                            onMouseLeave={(e) => {
-                                                                e.currentTarget.style.background = '#F3F4F6';
-                                                                e.currentTarget.style.borderColor = '#E5E7EB';
-                                                            }}
-                                                        >
-                                                            <img
-                                                                src={getFileIcon(attachedFile.name)}
-                                                                alt="File icon"
-                                                                style={{
-                                                                    width: 24,
-                                                                    height: 24,
-                                                                    imageRendering: '-webkit-optimize-contrast',
-                                                                    objectFit: 'contain',
-                                                                    shapeRendering: 'geometricPrecision'
-                                                                }}
-                                                            />
+                                                                justifyContent: 'center',
+                                                                fontSize: 20,
+                                                                flexShrink: 0,
+                                                            }}>
+                                                                {(() => {
+                                                                    const ext = attachedFile.name.split('.').pop()?.toLowerCase() || '';
+                                                                    const iconMap = {
+                                                                        'pdf': '📕',
+                                                                        'doc': '📘',
+                                                                        'docx': '📘',
+                                                                        'xls': '📗',
+                                                                        'xlsx': '📗',
+                                                                        'ppt': '📙',
+                                                                        'pptx': '📙',
+                                                                        'txt': '📄',
+                                                                        'jpg': '🖼️',
+                                                                        'jpeg': '🖼️',
+                                                                        'png': '🖼️',
+                                                                        'gif': '🖼️',
+                                                                        'zip': '📦',
+                                                                        'rar': '📦',
+                                                                    };
+                                                                    return iconMap[ext] || '📄';
+                                                                })()}
+                                                            </div>
+
+                                                            {/* File info */}
                                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                                 <div style={{
                                                                     fontSize: 14,
-                                                                    fontWeight: '500',
-                                                                    color: '#111827',
+                                                                    fontWeight: '600',
+                                                                    color: '#32302C',
                                                                     whiteSpace: 'nowrap',
                                                                     overflow: 'hidden',
                                                                     textOverflow: 'ellipsis',
                                                                 }}>
                                                                     {attachedFile.name}
+                                                                </div>
+                                                                <div style={{
+                                                                    fontSize: 12,
+                                                                    color: '#8E8E93',
+                                                                    marginTop: 2,
+                                                                }}>
+                                                                    {attachedFile.type || 'File'}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -2146,6 +1972,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                     <div className="markdown-content streaming" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word'}}>
                                                         <ReactMarkdown
                                                             remarkPlugins={[remarkGfm]}
+                                                            components={{ a: DocumentLink }}
                                                         >
                                                             {displayedText}
                                                         </ReactMarkdown>
@@ -2197,14 +2024,38 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             </div>
                         )}
 
-                        {/* Loading Indicator - only show when waiting for response BEFORE streaming starts */}
-                        {(isLoading && !streamingMessage) && (
+                        {/* Loading Indicator - show ONLY when waiting for response, hide once streaming starts */}
+                        {(isLoading && !displayedText) && (
                             <div style={{marginBottom: 16, display: 'flex', justifyContent: 'flex-start'}}>
                                 <div style={{padding: '12px 16px', borderRadius: 12, background: '#F5F5F5', color: '#32302C', display: 'flex', flexDirection: 'column', gap: 8}}>
                                     <div style={{color: '#6B7280', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '500'}}>
                                         {currentStage.message}
                                     </div>
-                                    <span className="typing-indicator">●●●</span>
+                                    <div style={{display: 'flex', gap: '6px', alignItems: 'center', height: '20px'}}>
+                                        <div style={{
+                                            width: '8px',
+                                            height: '8px',
+                                            borderRadius: '50%',
+                                            backgroundColor: '#666',
+                                            animation: 'bounce-dot 1.4s infinite ease-in-out both',
+                                            animationDelay: '-0.32s'
+                                        }}></div>
+                                        <div style={{
+                                            width: '8px',
+                                            height: '8px',
+                                            borderRadius: '50%',
+                                            backgroundColor: '#666',
+                                            animation: 'bounce-dot 1.4s infinite ease-in-out both',
+                                            animationDelay: '-0.16s'
+                                        }}></div>
+                                        <div style={{
+                                            width: '8px',
+                                            height: '8px',
+                                            borderRadius: '50%',
+                                            backgroundColor: '#666',
+                                            animation: 'bounce-dot 1.4s infinite ease-in-out both'
+                                        }}></div>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -2215,7 +2066,80 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             {/* Message Input */}
             <div style={{padding: 20, background: 'white', borderTop: '1px solid #E6E6EC'}}>
-                {/* File Attachments Preview - trigger recompile */}
+                {/* REMOVED: Research Mode Popup - disabled per user request */}
+                {/* {showResearchSuggestion && !researchMode && (
+                    <div style={{
+                        marginBottom: 12,
+                        padding: 12,
+                        background: '#181818',
+                        borderRadius: 12,
+                        border: '1px solid #323232',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        animation: 'slideIn 0.3s ease-out'
+                    }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink: 0}}>
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 16v-4"/>
+                            <path d="M12 8h.01"/>
+                        </svg>
+                        <div style={{flex: 1}}>
+                            <div style={{fontSize: 14, fontWeight: '600', color: 'white', marginBottom: 2}}>
+                                Enable Research Mode?
+                            </div>
+                            <div style={{fontSize: 12, color: 'rgba(255,255,255,0.7)'}}>
+                                Your question looks like it needs current web information
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setResearchMode(true);
+                                setShowResearchSuggestion(false);
+                            }}
+                            style={{
+                                padding: '8px 16px',
+                                background: 'white',
+                                color: '#181818',
+                                border: 'none',
+                                borderRadius: 8,
+                                cursor: 'pointer',
+                                fontSize: 14,
+                                fontWeight: '600',
+                                transition: 'all 0.2s',
+                                flexShrink: 0
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                        >
+                            Enable
+                        </button>
+                        <button
+                            onClick={() => setShowResearchSuggestion(false)}
+                            style={{
+                                padding: 6,
+                                background: 'rgba(255,255,255,0.1)',
+                                border: 'none',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'rgba(255,255,255,0.7)',
+                                fontSize: 16,
+                                flexShrink: 0,
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                            title="Dismiss"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                )} */}
+
+                {/* File Attachments Preview */}
                 {(pendingFiles.length > 0 || uploadingFiles.length > 0) && (
                     <div style={{marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
                         {/* Pending files */}
@@ -2224,7 +2148,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             const previewUrl = isImage ? URL.createObjectURL(file) : null;
 
                             return (
-                                <div key={`pending-${index}`} style={{padding: 12, background: '#F5F5F5', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
+                            <div key={`pending-${index}`} style={{padding: 12, background: '#F5F5F5', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
                                 <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0}}>
                                     {isImage ? (
                                         <img
@@ -2263,113 +2187,74 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 >
                                     ✕
                                 </button>
-                                </div>
+                            </div>
                             );
                         })}
 
                         {/* Uploading files */}
                         {uploadingFiles.map((file, index) => {
-                            const progress = uploadProgress[index] || 0;
+                            const isImage = isImageFile(file);
+                            const previewUrl = isImage ? URL.createObjectURL(file) : null;
+
                             return (
-                                <div key={`uploading-${index}`} style={{
-                                    position: 'relative',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 12,
-                                    padding: '16px 20px',
-                                    background: 'white',
-                                    borderRadius: 12,
-                                    marginBottom: 8,
-                                    border: '1px solid #E6E6EC',
-                                    overflow: 'hidden'
-                                }}>
-                                    {/* Gray overlay progress - matching Upload Hub style */}
-                                    <div style={{
-                                        width: '100%',
-                                        height: '100%',
-                                        left: 0,
-                                        top: 0,
-                                        position: 'absolute',
-                                        pointerEvents: 'none'
-                                    }}>
-                                        <div style={{
-                                            width: `${progress}%`,
-                                            height: '100%',
-                                            left: 0,
-                                            top: 0,
-                                            position: 'absolute',
-                                            background: 'rgba(169, 169, 169, 0.12)',
-                                            transition: 'width 0.3s ease-in-out',
-                                            opacity: progress >= 100 ? 0 : 1,
-                                            transitionProperty: progress >= 100 ? 'width 0.3s ease-in-out, opacity 400ms ease-out' : 'width 0.3s ease-in-out'
-                                        }} />
-                                    </div>
-
-                                    {/* Upload percentage counter */}
-                                    <div style={{
-                                        position: 'absolute',
-                                        bottom: 12,
-                                        right: 16,
-                                        fontSize: 13,
-                                        fontWeight: '500',
-                                        color: '#6C6C6C',
-                                        zIndex: 2,
-                                        opacity: progress < 100 ? 1 : 0,
-                                        transition: 'opacity 0.3s ease-out'
-                                    }}>
-                                        {Math.round(progress)}%
-                                    </div>
-
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 16,
-                                        position: 'relative',
-                                        zIndex: 1
-                                    }}>
+                            <div key={`uploading-${index}`} style={{padding: 12, background: '#EFF6FF', borderRadius: 12, border: '1px solid #3B82F6', display: 'flex', alignItems: 'center', gap: 12}}>
+                                <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0}}>
+                                    {isImage ? (
+                                        <img
+                                            src={previewUrl}
+                                            alt="Image preview"
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                objectFit: 'cover',
+                                                borderRadius: 6,
+                                                opacity: 0.5
+                                            }}
+                                        />
+                                    ) : (
                                         <img
                                             src={getFileIcon(file.name)}
                                             alt="File icon"
                                             style={{
                                                 width: 40,
                                                 height: 40,
-                                                flexShrink: 0,
                                                 imageRendering: '-webkit-optimize-contrast',
                                                 objectFit: 'contain',
-                                                shapeRendering: 'geometricPrecision'
+                                                shapeRendering: 'geometricPrecision',
+                                                opacity: 0.5
                                             }}
                                         />
-                                        <div style={{flex: 1, overflow: 'hidden'}}>
-                                            <div style={{
-                                                fontSize: 16,
-                                                fontWeight: '500',
-                                                color: '#1A1A1A',
-                                                marginBottom: 4,
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis'
-                                            }}>
-                                                {file.name}
-                                            </div>
-                                            <div style={{
-                                                fontSize: 13,
-                                                color: '#A0A0A0'
-                                            }}>
-                                                Uploading to cloud...
-                                            </div>
-                                        </div>
+                                    )}
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '50%',
+                                        left: '50%',
+                                        transform: 'translate(-50%, -50%)',
+                                        width: 20,
+                                        height: 20,
+                                        border: '3px solid #E6E6EC',
+                                        borderTop: '3px solid #3B82F6',
+                                        borderRadius: '50%',
+                                        animation: 'spin 1s linear infinite'
+                                    }} />
+                                </div>
+                                <div style={{flex: 1}}>
+                                    <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>{file.name}</div>
+                                    <div style={{fontSize: 12, color: '#3B82F6'}}>
+                                        Uploading...
                                     </div>
                                 </div>
+                            </div>
                             );
                         })}
                     </div>
                 )}
 
-                {/* Document Attachment Banner (from URL parameter) */}
-                {attachedDocument && (
+                {/* Document Attachments Banner */}
+                {attachedDocuments.length > 0 && (
                     <div style={{marginBottom: 12, padding: 12, background: 'white', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
                         <img
-                            src={getFileIcon(attachedDocument.name)}
+                            src={getFileIcon(attachedDocuments[0].name)}
                             alt="File icon"
                             style={{
                                 width: 40,
@@ -2381,13 +2266,23 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             }}
                         />
                         <div style={{flex: 1}}>
-                            <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>{attachedDocument.name}</div>
+                            <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>
+                                {attachedDocuments.length === 1
+                                    ? attachedDocuments[0].name
+                                    : `${attachedDocuments.length} documents attached`}
+                            </div>
                             <div style={{fontSize: 12, color: '#8E8E93'}}>
-                                Ready to answer questions about this document
+                                {attachedDocuments.length === 1
+                                    ? 'Ready to answer questions about this document'
+                                    : 'Ready to compare and analyze these documents'}
                             </div>
                         </div>
                         <button
-                            onClick={handleRemoveAttachment}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleRemoveAttachment();
+                            }}
                             style={{width: 32, height: 32, background: '#F5F5F5', border: '1px solid #E6E6EC', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#8E8E93', transition: 'all 0.2s'}}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.background = '#E6E6EC';
@@ -2491,14 +2386,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     ) : (
                         <button
                             type="submit"
-                            disabled={!message.trim() && pendingFiles.length === 0 && !attachedDocument}
+                            disabled={!message.trim() && pendingFiles.length === 0 && attachedDocuments.length === 0}
                             style={{
                                 width: 40,
                                 height: 40,
-                                background: (message.trim() || pendingFiles.length > 0 || attachedDocument) ? '#171717' : '#ccc',
+                                background: (message.trim() || pendingFiles.length > 0 || attachedDocuments.length > 0) ? '#171717' : '#ccc',
                                 borderRadius: '50%',
                                 border: 'none',
-                                cursor: (message.trim() || pendingFiles.length > 0 || attachedDocument) ? 'pointer' : 'not-allowed',
+                                cursor: (message.trim() || pendingFiles.length > 0 || attachedDocuments.length > 0) ? 'pointer' : 'not-allowed',
                                 display: 'flex',
                                 justifyContent: 'center',
                                 alignItems: 'center',
@@ -2606,16 +2501,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     </div>
                 </div>
             )}
-
-            {/* Document Preview Modal */}
-            <DocumentPreviewModal
-                isOpen={showPreviewModal}
-                onClose={() => {
-                    setShowPreviewModal(false);
-                    setPreviewDocument(null);
-                }}
-                document={previewDocument}
-            />
         </div>
     );
 };

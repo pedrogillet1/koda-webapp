@@ -20,7 +20,7 @@ class FolderContentsHandler {
     let folder = await prisma.folder.findFirst({
       where: {
         userId: userId,
-        name: { equals: folderOrCategoryName, mode: 'insensitive' }
+        name: { equals: folderOrCategoryName }
       },
       include: {
         category: {
@@ -68,7 +68,7 @@ class FolderContentsHandler {
       category = await prisma.category.findFirst({
         where: {
           userId: userId,
-          name: { equals: folderOrCategoryName, mode: 'insensitive' }
+          name: { equals: folderOrCategoryName }
         }
       });
 

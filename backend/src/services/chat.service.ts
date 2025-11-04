@@ -313,6 +313,45 @@ export const sendMessageStreaming = async (
     content: msg.content,
   }));
 
+  // ✅ FIX #2: Check for file actions FIRST (before RAG)
+  const fileActionResult = await handleFileActionsIfNeeded(
+    userId,
+    content,
+    conversationId,
+    undefined // attachedFiles not yet implemented in frontend
+  );
+
+  if (fileActionResult) {
+    // This was a file action - send result and return
+    const actionMessage = fileActionResult.message;
+    const fullResponse = actionMessage;
+    onChunk(actionMessage);
+
+    // Create assistant message
+    const assistantMessage = await prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: fullResponse,
+        createdAt: new Date(),
+      },
+    });
+
+    console.log('✅ File action completed:', fileActionResult.action);
+
+    // Update conversation timestamp
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    return {
+      userMessage,
+      assistantMessage,
+    };
+  }
+
+  // Not a file action - continue with normal RAG
   // Generate AI response with streaming using RAG service
   console.log('🤖 Generating streaming RAG response...');
   let fullResponse = '';
@@ -331,12 +370,23 @@ export const sendMessageStreaming = async (
 
   console.log(`✅ Streaming complete. Total response length: ${fullResponse.length} chars`);
 
-  // Create assistant message with full response
+  // ✅ FIX #1: Append document sources to response
+  if (ragResult.sources && ragResult.sources.length > 0) {
+    console.log(`📎 Appending ${ragResult.sources.length} document sources to response`);
+
+    const sourcesText = formatDocumentSources(ragResult.sources, attachedDocumentId);
+    fullResponse += '\n\n' + sourcesText;
+
+    // Send sources to client as final chunk
+    onChunk('\n\n' + sourcesText);
+  }
+
+  // Create assistant message with full response (including sources)
   const assistantMessage = await prisma.message.create({
     data: {
       conversationId,
       role: 'assistant',
-      content: fullResponse,
+      content: fullResponse, // Now includes sources
       createdAt: new Date(),
     },
   });
@@ -438,6 +488,287 @@ export const regenerateConversationTitles = async (userId: string) => {
     regenerated,
     failed,
   };
+};
+
+// ============================================================================
+// HELPER METHODS
+// ============================================================================
+
+/**
+ * Handle file actions if the message is a command
+ * Returns result if action was executed, null if not a file action
+ *
+ * UPDATED: Now uses LLM-based intent detection for flexible understanding
+ * Supports: CREATE_FOLDER, UPLOAD_FILE, RENAME_FILE, DELETE_FILE, MOVE_FILE
+ */
+const handleFileActionsIfNeeded = async (
+  userId: string,
+  message: string,
+  conversationId: string,
+  attachedFiles?: any[]
+): Promise<{ action: string; message: string } | null> => {
+
+  const { llmIntentDetectorService } = require('./llmIntentDetector.service');
+  const fileActionsService = require('./fileActions.service').default;
+
+  // ========================================
+  // Use LLM for flexible intent detection
+  // ========================================
+  const intentResult = await llmIntentDetectorService.detectIntent(message);
+
+  console.log(`🎯 [LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
+  console.log(`📝 [Entities]`, intentResult.parameters);
+
+  // Only process file actions with high confidence
+  const fileActionIntents = ['create_folder', 'list_files', 'search_files', 'file_location', 'rename_file', 'delete_file', 'move_files'];
+
+  // Check if this is a file action intent
+  if (!fileActionIntents.includes(intentResult.intent) && intentResult.confidence < 0.7) {
+    // Not a file action - return null to continue with RAG
+    return null;
+  }
+
+  // ========================================
+  // CREATE FOLDER
+  // ========================================
+  // Check for folder creation using LLM parameters or fallback patterns
+  const createFolderPatterns = [
+    /create\s+(?:a\s+)?(?:new\s+)?folder\s+(?:named\s+|called\s+)?["']?([^"']+)["']?/i,
+    /make\s+(?:a\s+)?(?:new\s+)?folder\s+(?:named\s+|called\s+)?["']?([^"']+)["']?/i,
+    /new\s+folder\s+["']?([^"']+)["']?/i,
+  ];
+
+  let folderName = intentResult.parameters?.folderName || null;
+
+  // Fallback to regex if LLM didn't extract folder name
+  if (!folderName) {
+    for (const pattern of createFolderPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        folderName = match[1].trim();
+        break;
+      }
+    }
+  }
+
+  if (folderName) {
+    console.log(`📁 [Action] Creating folder: "${folderName}"`);
+
+    // Create folder
+    const folderResult = await fileActionsService.createFolder({
+      userId,
+      folderName
+    });
+
+    if (!folderResult.success) {
+      return {
+        action: 'create_folder',
+        message: `❌ Failed to create folder: ${folderResult.error || folderResult.message}`
+      };
+    }
+
+    const folderId = folderResult.data.folder.id;
+    console.log(`✅ Folder created: ${folderId}`);
+
+    // If files attached, upload them to the new folder
+    if (attachedFiles && attachedFiles.length > 0) {
+      const uploadService = require('./upload.service').default;
+      const uploadedFiles = [];
+
+      for (const file of attachedFiles) {
+        try {
+          const uploadResult = await uploadService.uploadFile(file, userId, folderId);
+          uploadedFiles.push(uploadResult.filename);
+        } catch (error) {
+          console.error(`❌ Failed to upload ${file.name}:`, error);
+        }
+      }
+
+      const fileList = uploadedFiles.map(f => `• ${f}`).join('\n');
+      return {
+        action: 'create_folder_with_files',
+        message: `✅ Created folder **"${folderName}"** and added **${uploadedFiles.length} file(s)**:\n\n${fileList}`
+      };
+    }
+
+    return {
+      action: 'create_folder',
+      message: `✅ Created folder **"${folderName}"**`
+    };
+  }
+
+  // ========================================
+  // UPLOAD FILE
+  // ========================================
+  // Check for file upload to folder patterns
+  const uploadPatterns = [
+    /(?:upload|save|store|put|add|move)\s+(?:this|these|the)?\s*(?:file|files|document|documents)?\s+(?:to|in|into)\s+(?:the\s+)?["']?([^"']+)["']?\s*(?:folder)?/i,
+  ];
+
+  let targetFolder = intentResult.parameters?.targetFolder || null;
+
+  if (!targetFolder) {
+    for (const pattern of uploadPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        targetFolder = match[1].trim();
+        break;
+      }
+    }
+  }
+
+  if (targetFolder) {
+    console.log(`📤 [Action] Uploading files to: "${targetFolder}"`);
+
+    // Find folder by name
+    const folder = await prisma.folder.findFirst({
+      where: {
+        name: {
+          contains: targetFolder,
+          mode: 'insensitive'
+        },
+        userId
+      }
+    });
+
+    if (!folder) {
+      return {
+        action: 'upload_file',
+        message: `❌ Folder "${targetFolder}" not found. Please create it first or check the name.`
+      };
+    }
+
+    if (!attachedFiles || attachedFiles.length === 0) {
+      return {
+        action: 'upload_file',
+        message: `❌ No files attached. Please attach files to upload.`
+      };
+    }
+
+    const uploadService = require('./upload.service').default;
+    const uploadedFiles = [];
+
+    for (const file of attachedFiles) {
+      try {
+        const uploadResult = await uploadService.uploadFile(file, userId, folder.id);
+        uploadedFiles.push(uploadResult.filename);
+      } catch (error) {
+        console.error(`❌ Failed to upload ${file.name}:`, error);
+      }
+    }
+
+    const fileList = uploadedFiles.map(f => `• ${f}`).join('\n');
+    return {
+      action: 'upload_file',
+      message: `✅ Uploaded **${uploadedFiles.length} file(s)** to folder **"${targetFolder}"**:\n\n${fileList}`
+    };
+  }
+
+  // ========================================
+  // RENAME FILE
+  // ========================================
+  if (intentResult.intent === 'rename_file' &&
+      intentResult.parameters?.oldName &&
+      intentResult.parameters?.newName) {
+
+    console.log(`✏️ [Action] Renaming: "${intentResult.parameters.oldName}" → "${intentResult.parameters.newName}"`);
+
+    const result = await fileActionsService.executeAction(message, userId);
+
+    return {
+      action: 'rename_file',
+      message: result.message
+    };
+  }
+
+  // ========================================
+  // DELETE FILE
+  // ========================================
+  if (intentResult.intent === 'delete_file' && intentResult.parameters?.filename) {
+    console.log(`🗑️ [Action] Deleting: "${intentResult.parameters.filename}"`);
+
+    const result = await fileActionsService.executeAction(message, userId);
+
+    return {
+      action: 'delete_file',
+      message: result.message
+    };
+  }
+
+  // ========================================
+  // MOVE FILE
+  // ========================================
+  const movePatterns = [
+    /move\s+["']?([^"']+?)["']?\s+to\s+["']?([^"']+?)["']?(?:\s+folder)?/i,
+  ];
+
+  for (const pattern of movePatterns) {
+    const match = message.match(pattern);
+    if (match) {
+      const filename = match[1].trim();
+      const targetFolder = match[2].trim();
+
+      console.log(`📦 [Action] Moving: "${filename}" → "${targetFolder}"`);
+
+      const result = await fileActionsService.executeAction(message, userId);
+
+      return {
+        action: 'move_file',
+        message: result.message
+      };
+    }
+  }
+
+  // Not a file action - return null to continue with RAG
+  return null;
+};
+
+/**
+ * Format document sources for display
+ * Returns formatted string like:
+ *
+ * ---
+ * **Document Sources (3)**
+ *
+ * • **Business Plan.pdf** (page 5)
+ * • **Financial Report.xlsx** (Sheet 1)
+ * • **Contract.docx** (page 2)
+ */
+const formatDocumentSources = (sources: any[], attachedDocId?: string): string => {
+  if (!sources || sources.length === 0) {
+    return '';
+  }
+
+  // Remove duplicates (same documentId)
+  const uniqueSources = Array.from(
+    new Map(sources.map(s => [s.documentId, s])).values()
+  );
+
+  const lines = [
+    '---',
+    `**Document Sources (${uniqueSources.length})**`,
+    ''
+  ];
+
+  for (const source of uniqueSources) {
+    let line = `• **${source.documentName}**`;
+
+    // Mark attached document
+    if (source.documentId === attachedDocId) {
+      line += ' *(attached)*';
+    }
+
+    // Add location if available
+    if (source.location) {
+      line += ` (${source.location})`;
+    } else if (source.metadata?.page) {
+      line += ` (page ${source.metadata.page})`;
+    }
+
+    lines.push(line);
+  }
+
+  return lines.join('\n');
 };
 
 // ============================================================================

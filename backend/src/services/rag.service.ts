@@ -16,7 +16,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import prisma from '../config/database';
 import intentService, { PsychologicalGoal, PsychologicalGoalResult } from './intent.service';
 import navigationService from './navigation.service';
-import { detectLanguage, createLanguageInstruction } from './languageDetection.service';
+import { detectLanguage, createLanguageInstruction, isGreeting, getLocalizedGreeting, getLocalizedError } from './languageDetection.service';
 import cacheService from './cache.service';
 import pineconeService from './pinecone.service';
 import embeddingService from './embedding.service';
@@ -27,6 +27,11 @@ import queryIntentDetectorService, { QueryIntent } from './queryIntentDetector.s
 import formatTypeClassifierService, { ResponseFormatType } from './formatTypeClassifier.service';
 import metadataService from './metadata.service';
 import fileActionsService from './fileActions.service';
+import validationService from './validation.service';
+import errorHandlerService from './errorHandler.service';
+import proactiveSuggestionsService from './proactiveSuggestions.service';
+import synthesisService from './synthesis.service';
+import versionTrackingService from './versionTracking.service';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -312,23 +317,18 @@ Provide a comprehensive and accurate answer based on the document content follow
   }
 
   /**
-   * Handle GREETING queries
+   * Handle GREETING queries - Multilingual Support
+   * Detects language and responds in the user's language
    */
   private async handleGreeting(userId: string, query: string): Promise<RAGResponse> {
-    console.log(`👋 GREETING HANDLER`);
+    console.log(`👋 GREETING HANDLER (Multilingual)`);
 
-    const queryLower = query.toLowerCase().trim();
-    let response = '';
+    // Detect language from the greeting
+    const language = detectLanguage(query);
+    console.log(`   Detected language: ${language}`);
 
-    if (/^(hi|hello|hey)/i.test(queryLower)) {
-      response = "Hello! I'm KODA, your document intelligence assistant. How can I help you today?";
-    } else if (/how are you/i.test(queryLower)) {
-      response = "I'm doing great, thanks for asking! I'm here to help you with your documents. What would you like to know?";
-    } else if (/thanks|thank you/i.test(queryLower)) {
-      response = "You're welcome! Let me know if you need anything else.";
-    } else {
-      response = "Hello! How can I assist you with your documents today?";
-    }
+    // Get localized greeting response
+    const response = getLocalizedGreeting(language);
 
     return {
       answer: response,
@@ -356,27 +356,78 @@ Provide a comprehensive and accurate answer based on the document content follow
   ): Promise<RAGResponse> {
     console.log(`📊 METADATA QUERY HANDLER (Type: ${metadataResult.type})`);
 
+    // ✅ FIX #3: Use new systemMetadata service for reliable database queries
+    const systemMetadataService = require('./systemMetadata.service').default;
+
     let answer = '';
     let data: any = null;
 
     try {
       switch (metadataResult.type) {
         case 'file_location':
-          console.log(`   🔍 Finding file: "${metadataResult.extractedValue}"`);
-          data = await metadataService.findFileByName(userId, metadataResult.extractedValue);
-          answer = metadataService.formatMetadataResponse(query, data);
+          console.log(`   🔍 Finding file location: "${metadataResult.extractedValue}"`);
+
+          // Use systemMetadata service for reliable file location lookup
+          const fileLocation = await systemMetadataService.findFileLocation(
+            userId,
+            metadataResult.extractedValue
+          );
+
+          if (!fileLocation) {
+            answer = `I couldn't find a file matching "${metadataResult.extractedValue}". Please check the filename and try again.`;
+          } else {
+            answer = `📄 **${fileLocation.filename}** is stored in **${fileLocation.location}**.`;
+          }
+          break;
+
+        case 'file_type_query':
+          console.log(`   📊 Getting file types`);
+
+          // Use systemMetadata service to get file types
+          const fileTypes = await systemMetadataService.getFileTypes(userId);
+
+          if (fileTypes.length === 0) {
+            answer = "You don't have any files uploaded yet.";
+          } else {
+            answer = `You have uploaded **${fileTypes.length}** different file types:\n\n`;
+            fileTypes.forEach((type) => {
+              answer += `• **${type.friendlyName}**: ${type.count} ${type.count === 1 ? 'file' : 'files'}\n`;
+            });
+          }
           break;
 
         case 'file_count':
           console.log(`   📊 Counting files`);
-          data = await metadataService.getFileCount(userId);
-          answer = metadataService.formatMetadataResponse(query, data);
+
+          // Check if asking about root or total
+          const isRootQuery = /root|main|root directory/i.test(query);
+
+          if (isRootQuery) {
+            const rootCount = await systemMetadataService.countRootFiles(userId);
+            answer = `You have **${rootCount}** ${rootCount === 1 ? 'file' : 'files'} in the root directory.`;
+          } else {
+            const totalCount = await systemMetadataService.countTotalFiles(userId);
+            answer = `You have **${totalCount}** ${totalCount === 1 ? 'file' : 'files'} in total.`;
+          }
           break;
 
         case 'folder_contents':
           console.log(`   📁 Getting folder contents: "${metadataResult.extractedValue}"`);
-          data = await metadataService.getFolderContents(userId, metadataResult.extractedValue);
-          answer = metadataService.formatMetadataResponse(query, data);
+
+          // Use systemMetadata service for folder contents
+          const filesInFolder = await systemMetadataService.getFilesInFolder(
+            userId,
+            metadataResult.extractedValue
+          );
+
+          if (filesInFolder.length === 0) {
+            answer = `The folder "${metadataResult.extractedValue}" is empty or doesn't exist.`;
+          } else {
+            answer = `**Folder "${metadataResult.extractedValue}"** contains **${filesInFolder.length}** ${filesInFolder.length === 1 ? 'file' : 'files'}:\n\n`;
+            filesInFolder.forEach((file: any) => {
+              answer += `• ${file.filename}\n`;
+            });
+          }
           break;
 
         case 'list_all_files':
@@ -388,15 +439,17 @@ Provide a comprehensive and accurate answer based on the document content follow
 
         case 'list_folders':
           console.log(`   📁 Listing all folders`);
-          data = await metadataService.getAllFolders(userId);
 
-          if (data.length === 0) {
+          // Use systemMetadata service for folder list
+          const folders = await systemMetadataService.getFolders(userId);
+
+          if (folders.length === 0) {
             answer = "You don't have any folders yet.";
           } else {
-            answer = `You have **${data.length} ${data.length === 1 ? 'folder' : 'folders'}**:\n\n`;
-            answer += data.map((folder: any) =>
-              `• **${folder.name}** (${folder.documentCount} ${folder.documentCount === 1 ? 'file' : 'files'})`
-            ).join('\n');
+            answer = `You have **${folders.length}** ${folders.length === 1 ? 'folder' : 'folders'}:\n\n`;
+            folders.forEach((folder: any) => {
+              answer += `• **${folder.name}**: ${folder._count.documents} ${folder._count.documents === 1 ? 'file' : 'files'}\n`;
+            });
           }
           break;
 
@@ -702,6 +755,151 @@ Provide a comprehensive and accurate answer based on the document content follow
   }
 
   /**
+   * Phase 2 Week 7-8: Handle TEMPORAL queries (version tracking, time-based queries)
+   */
+  private async handleTemporalQuery(
+    userId: string,
+    query: string,
+    temporalIntent: any,
+    conversationId: string
+  ): Promise<RAGResponse> {
+    console.log(`⏰ TEMPORAL QUERY HANDLER - Type: ${temporalIntent.queryType}`);
+
+    try {
+      switch (temporalIntent.queryType) {
+        case 'latest': {
+          // Get latest version of document
+          if (!temporalIntent.documentName) {
+            return {
+              answer: "Please specify which document you want the latest version of.",
+              sources: [],
+              contextId: `temporal_latest_${Date.now()}`,
+              intent: 'temporal_latest'
+            };
+          }
+
+          const latestVersion = await versionTrackingService.getLatestVersion(
+            userId,
+            temporalIntent.documentName
+          );
+
+          if (!latestVersion) {
+            return {
+              answer: `I couldn't find a document matching "${temporalIntent.documentName}".`,
+              sources: [],
+              contextId: `temporal_latest_${Date.now()}`,
+              intent: 'temporal_latest',
+              confidence: 0
+            };
+          }
+
+          return {
+            answer: `The latest version of **${latestVersion.filename}** was last updated on ${latestVersion.updatedAt.toLocaleDateString()}.`,
+            sources: [],
+            contextId: `temporal_latest_${Date.now()}`,
+            intent: 'temporal_latest',
+            confidence: 1.0
+          };
+        }
+
+        case 'history': {
+          // Get version history
+          const docName = temporalIntent.documentName || '';
+          const document = await versionTrackingService.findDocumentByName(userId, docName);
+
+          if (!document) {
+            return {
+              answer: `I couldn't find a document matching "${docName}".`,
+              sources: [],
+              contextId: `temporal_history_${Date.now()}`,
+              intent: 'temporal_history',
+              confidence: 0
+            };
+          }
+
+          const versions = await versionTrackingService.getVersionHistory(userId, document.id);
+
+          if (versions.length <= 1) {
+            return {
+              answer: `**${document.filename}** has no previous versions.`,
+              sources: [],
+              contextId: `temporal_history_${Date.now()}`,
+              intent: 'temporal_history',
+              confidence: 1.0
+            };
+          }
+
+          let answer = `**Version History for ${document.filename}:**\n\n`;
+          versions.forEach(v => {
+            answer += `• Version ${v.version}${v.isLatest ? ' (Latest)' : ''} - Updated: ${v.updatedAt.toLocaleDateString()}\n`;
+          });
+
+          return {
+            answer,
+            sources: [],
+            contextId: `temporal_history_${Date.now()}`,
+            intent: 'temporal_history',
+            confidence: 1.0
+          };
+        }
+
+        case 'changes_since': {
+          // Get documents changed since date
+          if (!temporalIntent.timeReference) {
+            return {
+              answer: "Please specify a date or time period (e.g., 'since last week', 'after January 15').",
+              sources: [],
+              contextId: `temporal_changes_${Date.now()}`,
+              intent: 'temporal_changes'
+            };
+          }
+
+          const changedDocs = await versionTrackingService.getDocumentsChangedSince(
+            userId,
+            temporalIntent.timeReference
+          );
+
+          if (changedDocs.length === 0) {
+            return {
+              answer: `No documents were changed since ${temporalIntent.timeReference.toLocaleDateString()}.`,
+              sources: [],
+              contextId: `temporal_changes_${Date.now()}`,
+              intent: 'temporal_changes',
+              confidence: 1.0
+            };
+          }
+
+          let answer = `**Documents changed since ${temporalIntent.timeReference.toLocaleDateString()}:**\n\n`;
+          changedDocs.forEach(doc => {
+            answer += `• **${doc.filename}** - Updated: ${doc.updatedAt.toLocaleDateString()}\n`;
+          });
+
+          return {
+            answer,
+            sources: [],
+            contextId: `temporal_changes_${Date.now()}`,
+            intent: 'temporal_changes',
+            confidence: 1.0
+          };
+        }
+
+        default:
+          // Fall back to normal query processing
+          return await this.handleContentQuery(userId, query, conversationId, 'medium');
+      }
+    } catch (error) {
+      console.error(`❌ Error handling temporal query:`, error);
+      return {
+        answer: "I encountered an error processing your version history query. Please try rephrasing your question.",
+        sources: [],
+        contextId: `temporal_error_${Date.now()}`,
+        intent: 'temporal_error',
+        confidence: 0
+      };
+    }
+  }
+
+  /**
    * Phase 3: Handle MENTIONS SEARCH queries
    * Find all documents that contain a specific phrase or keyword
    * Returns document names with surrounding context
@@ -900,6 +1098,17 @@ Provide a comprehensive and accurate answer based on the document content follow
     const effectiveAnswerLength = this.mapStyleToAnswerLength(classification.style, answerLength);
     console.log(`   Effective Answer Length: ${effectiveAnswerLength} (original: ${answerLength})`);
 
+    // PHASE 2 WEEK 7-8: DETECT TEMPORAL QUERY INTENT
+    console.log(`\n⏰ CHECKING FOR TEMPORAL INTENT...`);
+    const temporalIntent = versionTrackingService.detectTemporalIntent(query);
+
+    if (temporalIntent.isTemporalQuery) {
+      console.log(`   ✅ Temporal query detected: ${temporalIntent.queryType}`);
+      return await this.handleTemporalQuery(userId, query, temporalIntent, conversationId);
+    }
+
+    console.log(`   ℹ️  Not a temporal query - proceeding with normal processing`);
+
     // STEP 0: CHECK IF QUERY IS GENERAL KNOWLEDGE (before Pinecone search)
     console.log(`\n🧠 CHECKING QUERY TYPE...`);
     const isGeneralKnowledge = this.detectGeneralKnowledge(query);
@@ -907,7 +1116,69 @@ Provide a comprehensive and accurate answer based on the document content follow
     if (isGeneralKnowledge) {
       console.log(`   🌍 General knowledge question detected - answering from AI knowledge`);
 
-      // Generate answer using Gemini without document context
+      const detectedLang = detectLanguage(query);
+
+      // Check if it's a self-awareness question (about KODA's capabilities)
+      const isSelfAwareness = /what (can|do) you do|what are (your|you) (capabilities|features)|how (can|do) you (help|assist)|tell me about (yourself|you|koda)|what kind of (assistant|ai)/i.test(query);
+
+      if (isSelfAwareness) {
+        console.log(`   🤖 Self-awareness question - responding with KODA capabilities`);
+
+        const kodaDescription: Record<string, string> = {
+          en: `I'm KODA, your intelligent document assistant. I can help you with:
+
+- **Document Q&A**: Ask questions about your uploaded documents and get accurate answers
+- **File Management**: Find, locate, rename, and organize your files
+- **Content Analysis**: Summarize documents, extract key information, and compare files
+- **Multi-format Support**: Work with PDFs, Word docs, Excel sheets, PowerPoints, and more
+- **Smart Search**: Find information across all your documents instantly
+- **General Knowledge**: Answer general questions beyond your documents
+
+I use advanced AI to understand your questions in natural language and provide helpful, accurate responses.`,
+
+          pt: `Sou KODA, sua assistente inteligente de documentos. Posso ajudá-lo com:
+
+- **Perguntas sobre Documentos**: Faça perguntas sobre seus documentos e obtenha respostas precisas
+- **Gerenciamento de Arquivos**: Encontre, localize, renomeie e organize seus arquivos
+- **Análise de Conteúdo**: Resuma documentos, extraia informações e compare arquivos
+- **Suporte Multi-formato**: Trabalhe com PDFs, Word, Excel, PowerPoint e muito mais
+- **Busca Inteligente**: Encontre informações em todos os seus documentos instantaneamente
+- **Conhecimento Geral**: Responda perguntas gerais além dos seus documentos
+
+Uso IA avançada para entender suas perguntas em linguagem natural e fornecer respostas úteis e precisas.`,
+
+          es: `Soy KODA, tu asistente inteligente de documentos. Puedo ayudarte con:
+
+- **Preguntas sobre Documentos**: Haz preguntas sobre tus documentos y obtén respuestas precisas
+- **Gestión de Archivos**: Encuentra, localiza, renombra y organiza tus archivos
+- **Análisis de Contenido**: Resume documentos, extrae información y compara archivos
+- **Soporte Multi-formato**: Trabaja con PDFs, Word, Excel, PowerPoint y más
+- **Búsqueda Inteligente**: Encuentra información en todos tus documentos al instante
+- **Conocimiento General**: Responde preguntas generales más allá de tus documentos
+
+Uso IA avanzada para entender tus preguntas en lenguaje natural y proporcionar respuestas útiles y precisas.`,
+
+          fr: `Je suis KODA, votre assistante intelligente de documents. Je peux vous aider avec:
+
+- **Questions sur Documents**: Posez des questions sur vos documents et obtenez des réponses précises
+- **Gestion de Fichiers**: Trouvez, localisez, renommez et organisez vos fichiers
+- **Analyse de Contenu**: Résumez documents, extrayez informations et comparez fichiers
+- **Support Multi-format**: Travaillez avec PDFs, Word, Excel, PowerPoint et plus
+- **Recherche Intelligente**: Trouvez informations dans tous vos documents instantanément
+- **Connaissances Générales**: Répondez questions générales au-delà de vos documents
+
+J'utilise l'IA avancée pour comprendre vos questions en langage naturel et fournir des réponses utiles et précises.`
+        };
+
+        return {
+          answer: kodaDescription[detectedLang] || kodaDescription.en,
+          sources: [],
+          contextId: `self_awareness_${Date.now()}`,
+          intent: 'self_awareness',
+        };
+      }
+
+      // General knowledge or current information question
       const model = genAI.getGenerativeModel({
         model: 'gemini-2.0-flash-exp',
         generationConfig: {
@@ -916,10 +1187,17 @@ Provide a comprehensive and accurate answer based on the document content follow
         }
       });
 
-      const detectedLang = detectLanguage(query);
+      // Add current date context for time-related questions
+      const currentDate = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
       const generalPrompt = detectedLang === 'pt'
-        ? `Responda de forma concisa e precisa: ${query}`
-        : `Answer concisely and accurately: ${query}`;
+        ? `Data atual: ${currentDate}. Responda de forma concisa e precisa: ${query}`
+        : `Current date: ${currentDate}. Answer concisely and accurately: ${query}`;
 
       const result = await model.generateContent(generalPrompt);
       const answer = result.response.text();
@@ -1029,10 +1307,10 @@ Provide a comprehensive and accurate answer based on the document content follow
       sortedTypes.forEach(([type, files]) => {
         const fileList = files.slice(0, 3).join(', ');
         const moreCount = files.length > 3 ? ` (and ${files.length - 3} more)` : '';
-        response += `${type} (${files.length}): ${fileList}${moreCount}\n`;
+        response += `• **${type} (${files.length})**: ${fileList}${moreCount}\n`;
       });
 
-      response += '\nNext actions:\nYou can filter these by format, preview them, or group by content type (financial, legal, identity, etc.).';
+      response += '\n**Next actions:**\nYou can filter these by format, preview them, or group by content type (financial, legal, identity, etc.).';
 
       const responseTime = Date.now() - startTime;
       console.log(`✅ FILE TYPES FORMATTED (${responseTime}ms)`);
@@ -1211,6 +1489,106 @@ Provide a comprehensive and accurate answer based on the document content follow
     finalSources = await this.validateSourcesExist(finalSources, userId);
     console.log(`   ✅ Validated: ${finalSources.length} sources confirmed to exist`);
 
+    // Calculate average confidence early (needed for synthesis returns)
+    const avgConfidence = finalSources.length > 0
+      ? finalSources.reduce((sum, s) => sum + s.similarity, 0) / finalSources.length
+      : 0;
+
+    // PHASE 2 WEEK 5-6: DETECT MULTI-DOCUMENT SYNTHESIS INTENT
+    const uniqueDocumentIds = [...new Set(sources.map(s => s.documentId))];
+    const requiresSynthesis = synthesisService.detectSynthesisIntent(query, uniqueDocumentIds.length);
+
+    if (requiresSynthesis && uniqueDocumentIds.length >= 2) {
+      console.log(`🔄 SYNTHESIS DETECTED - Multi-document analysis required`);
+      console.log(`   Documents involved: ${uniqueDocumentIds.length}`);
+
+      // Prepare documents for synthesis
+      const documentsForSynthesis = sources.slice(0, 20).map(s => ({
+        documentId: s.documentId,
+        documentName: s.documentName,
+        content: s.content,
+        metadata: s.metadata
+      }));
+
+      // Determine synthesis type based on query patterns
+      const queryLower = query.toLowerCase();
+      let synthesisResult;
+
+      if (queryLower.includes('compare') || queryLower.includes('difference') || queryLower.includes('similar')) {
+        console.log(`   📊 Running COMPARISON analysis...`);
+        const comparison = await synthesisService.compareDocuments(
+          documentsForSynthesis.map(d => ({
+            documentName: d.documentName,
+            content: d.content
+          }))
+        );
+
+        // Format comparison results
+        let answer = `**Document Comparison:**\n\n`;
+        answer += `**Similarities:**\n${comparison.similarities.map(s => `• ${s}`).join('\n')}\n\n`;
+        answer += `**Differences:**\n${comparison.differences.map(d => `• ${d}`).join('\n')}\n\n`;
+        answer += `**Summary:**\n${comparison.summary}`;
+
+        return {
+          answer,
+          sources: finalSources,
+          contextId: `synthesis_comparison_${Date.now()}`,
+          intent: 'synthesis_comparison',
+          confidence: avgConfidence
+        };
+      } else if (queryLower.includes('trend') || queryLower.includes('change') || queryLower.includes('over time')) {
+        console.log(`   📈 Running TREND analysis...`);
+        const trends = await synthesisService.analyzeTrends(
+          documentsForSynthesis.map(d => ({
+            documentName: d.documentName,
+            content: d.content,
+            metadata: d.metadata
+          }))
+        );
+
+        // Format trend results
+        let answer = `**Trend Analysis:**\n\n`;
+        answer += `**Trends Identified:**\n${trends.trends.map(t => `• ${t}`).join('\n')}\n\n`;
+        answer += `**Changes Detected:**\n${trends.changes.map(c => `• ${c}`).join('\n')}\n\n`;
+        answer += `**Summary:**\n${trends.summary}`;
+
+        return {
+          answer,
+          sources: finalSources,
+          contextId: `synthesis_trends_${Date.now()}`,
+          intent: 'synthesis_trends',
+          confidence: avgConfidence
+        };
+      } else {
+        console.log(`   🔄 Running FULL synthesis analysis...`);
+        synthesisResult = await synthesisService.synthesizeAcrossDocuments(
+          query,
+          documentsForSynthesis
+        );
+
+        // Format synthesis results
+        let answer = `${synthesisResult.synthesis}\n\n`;
+
+        if (synthesisResult.patterns.length > 0) {
+          answer += `**Patterns Identified:**\n${synthesisResult.patterns.map(p => `• ${p}`).join('\n')}\n\n`;
+        }
+
+        if (synthesisResult.insights.length > 0) {
+          answer += `**Key Insights:**\n${synthesisResult.insights.map(i => `• ${i}`).join('\n')}\n\n`;
+        }
+
+        answer += `**Sources:**\n${synthesisResult.sources.map(s => `• ${s.documentName}`).join('\n')}`;
+
+        return {
+          answer,
+          sources: finalSources,
+          contextId: `synthesis_${Date.now()}`,
+          intent: 'synthesis',
+          confidence: avgConfidence
+        };
+      }
+    }
+
     // FOR LIST QUERIES: Skip AI generation, format list directly
     if (queryIntent === QueryIntent.LIST && isMetadataQuery) {
       console.log(`🎯 LIST QUERY DETECTED - Formatting list directly (bypassing AI)`);
@@ -1277,6 +1655,53 @@ Provide a comprehensive and accurate answer based on the document content follow
       })
       .join('\n\n---\n\n');
 
+    // STEP 4.5: RETRIEVE CONVERSATION HISTORY
+    console.log(`\n💬 RETRIEVING CONVERSATION HISTORY...`);
+    let conversationHistoryMessages: Array<{ role: string; content: string }> = [];
+
+    if (conversationId) {
+      try {
+        const previousMessages = await prisma.message.findMany({
+          where: { conversationId },
+          orderBy: { createdAt: 'asc' },
+          take: 10, // Last 10 messages for context (5 exchanges)
+        });
+
+        conversationHistoryMessages = previousMessages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        }));
+
+        console.log(`   Found ${conversationHistoryMessages.length} previous messages`);
+      } catch (error) {
+        console.error(`   ❌ Error retrieving conversation history:`, error);
+        // Continue without history if retrieval fails
+      }
+    } else {
+      console.log(`   No conversation ID provided - skipping history`);
+    }
+
+    // STEP 4.6: GET ATTACHED DOCUMENT INFO (if documentId provided)
+    let attachedDocumentInfo: { documentId: string; documentName: string } | undefined = undefined;
+    if (documentId) {
+      try {
+        const attachedDoc = await prisma.document.findUnique({
+          where: { id: documentId },
+          select: { id: true, filename: true }
+        });
+
+        if (attachedDoc) {
+          attachedDocumentInfo = {
+            documentId: attachedDoc.id,
+            documentName: attachedDoc.filename
+          };
+          console.log(`   📎 Attached document info: "${attachedDoc.filename}"`);
+        }
+      } catch (error) {
+        console.warn(`   ⚠️  Failed to fetch attached document info:`, error);
+      }
+    }
+
     // NEW: Use psychological goal-based adaptive prompt
     console.log(`🤖 GENERATING ANSWER (ADAPTIVE PROMPT SYSTEM)...`);
     console.log(`   Psychological Goal: ${goalResult.goal}`);
@@ -1284,7 +1709,14 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     // Build psychological goal-based system prompt (NEW ARCHITECTURE)
     const promptConfig = systemPromptsService.getPromptConfigForGoal(goalResult.goal, effectiveAnswerLength);
-    const fullPrompt = systemPromptsService.buildPromptForGoal(goalResult.goal, query, context, effectiveAnswerLength);
+    const fullPrompt = systemPromptsService.buildPromptForGoal(
+      goalResult.goal,
+      query,
+      context,
+      effectiveAnswerLength,
+      conversationHistoryMessages,  // ← Pass conversation history
+      attachedDocumentInfo  // ← NEW: Pass attached document info
+    );
 
     // Get query-specific temperature and max tokens from classifier
     const classifierMaxTokens = queryClassifierService.getMaxTokens(classification.style);
@@ -1317,9 +1749,6 @@ Provide a comprehensive and accurate answer based on the document content follow
     }
 
     const responseTime = Date.now() - startTime;
-
-    // Calculate average confidence
-    const avgConfidence = finalSources.reduce((sum, s) => sum + s.similarity, 0) / finalSources.length;
 
     console.log(`✅ RAW ANSWER GENERATED (${responseTime}ms)`);
     console.log(`   Length: ${rawAnswer.length} characters`);
@@ -1359,8 +1788,48 @@ Provide a comprehensive and accurate answer based on the document content follow
     console.log(`🔍 VALIDATING FILENAMES IN RESPONSE...`);
     const validatedAnswer = await this.validateFilenamesInResponse(formattedAnswer, userId);
 
+    // PHASE 1 WEEK 2: Validate answer quality
+    console.log(`✅ VALIDATING ANSWER QUALITY...`);
+    const validation = validationService.validateAnswer(
+      validatedAnswer,
+      query,
+      finalSources,
+      avgConfidence
+    );
+    console.log(`   Confidence: ${validation.confidence}`);
+    console.log(`   Should show: ${validation.shouldShow}`);
+    if (validation.issues.length > 0) {
+      console.log(`   Issues: ${validation.issues.join(', ')}`);
+    }
+
+    // Build final answer with validation and enhancements
+    let finalAnswer = validatedAnswer;
+    if (!validation.shouldShow) {
+      // Low quality answer - show fallback message
+      console.log(`   ⚠️ Answer quality below threshold - showing fallback`);
+      finalAnswer = validationService.generateFallbackMessage(validation, query);
+    } else {
+      // Add confidence indicator if needed (medium/low confidence)
+      if (validation.confidence !== 'high') {
+        console.log(`   ⚠️ Adding confidence indicator for ${validation.confidence} confidence`);
+        finalAnswer = validationService.addConfidenceIndicator(finalAnswer, validation.confidence);
+      }
+
+      // PHASE 1 WEEK 4: Add proactive suggestions
+      console.log(`💡 GENERATING PROACTIVE SUGGESTIONS...`);
+      const suggestions = proactiveSuggestionsService.generateAndFormat(
+        query,
+        finalSources,
+        intent.intent
+      );
+      if (suggestions) {
+        console.log(`   Added ${proactiveSuggestionsService.generateSuggestions(query, finalSources, intent.intent).length} suggestions`);
+        finalAnswer += suggestions;
+      }
+    }
+
     const response: RAGResponse = {
-      answer: validatedAnswer,
+      answer: finalAnswer,
       sources: finalSources,
       contextId: `rag_${Date.now()}`,
       intent: intent.intent,
@@ -1411,6 +1880,7 @@ Provide a comprehensive and accurate answer based on the document content follow
 
   /**
    * Detect if query is general knowledge vs. document-specific
+   * Enhanced with self-awareness and broader world knowledge
    */
   private detectGeneralKnowledge(query: string): boolean {
     const lowerQuery = query.toLowerCase();
@@ -1421,7 +1891,8 @@ Provide a comprehensive and accurate answer based on the document content follow
       /according to (the|my) (document|file)/i,
       /from (the|my) (document|file|spreadsheet|presentation)/i,
       /in (the|my) (spreadsheet|excel|powerpoint|pdf)/i,
-      /(koda|blueprint|icp|budget|presentation)/i,  // User's specific document names
+      /what (files|documents) (do i have|are|contain)/i,
+      /list (my|all) (files|documents)/i,
     ];
 
     // First check if it's explicitly document-specific
@@ -1431,28 +1902,62 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     // General knowledge indicators
     const generalKnowledgePatterns = [
+      // Self-awareness questions (about KODA's capabilities)
+      /what (can|do) you do/i,
+      /what are (your|you) (capabilities|features)/i,
+      /how (can|do) you (help|assist)/i,
+      /what (is|are) (your|you) (purpose|function)/i,
+      /tell me about (yourself|you|koda)/i,
+      /what kind of (assistant|ai) are you/i,
+
+      // Current information (date, time, version)
+      /what (is|'s) (the|today's|todays) (date|time|day)/i,
+      /what (year|month|day) is it/i,
+      /current (date|time|year)/i,
+
       // Geography
       /what is the capital of/i,
       /where is .* located/i,
       /which country/i,
+      /population of/i,
 
-      // Science
-      /what is .* in physics/i,
-      /what is .* in chemistry/i,
+      // Science & Technology
+      /what is .* in (physics|chemistry|biology)/i,
       /how does .* work/i,
+      /what causes/i,
+      /scientific (explanation|definition)/i,
 
       // History
       /when did .* happen/i,
-      /who invented/i,
+      /who (invented|discovered|created)/i,
       /in what year/i,
+      /historical (event|fact)/i,
 
-      // Math
-      /what is \d+ \+ \d+/i,
+      // Math & Calculations
+      /what is \d+ [\+\-\*\/] \d+/i,
       /calculate/i,
+      /solve this (equation|problem)/i,
 
-      // General definitions
+      // General definitions & concepts
       /what does .* mean$/i,
       /define [a-z\s]+$/i,
+      /explain (the concept of|what is)/i,
+      /difference between .* and/i,
+
+      // Famous people & entities
+      /who (is|was)/i,
+      /biography of/i,
+      /known for/i,
+
+      // Programming & Tech (general)
+      /how to (code|program|develop)/i,
+      /what is (python|javascript|typescript|react|node)/i,
+      /programming (language|concept)/i,
+
+      // Business & Economics (general)
+      /what is (gdp|inflation|stock market)/i,
+      /economic (principle|theory)/i,
+      /business (concept|strategy)/i,
     ];
 
     // Check if it matches general knowledge patterns
@@ -1693,10 +2198,10 @@ Provide a comprehensive and accurate answer based on the document content follow
       sortedTypes.forEach(([type, files]) => {
         const fileList = files.slice(0, 3).join(', ');
         const moreCount = files.length > 3 ? ` (and ${files.length - 3} more)` : '';
-        response += `${type} (${files.length}): ${fileList}${moreCount}\n`;
+        response += `• **${type} (${files.length})**: ${fileList}${moreCount}\n`;
       });
 
-      response += '\nNext actions:\nYou can filter these by format, preview them, or group by content type (financial, legal, identity, etc.).';
+      response += '\n**Next actions:**\nYou can filter these by format, preview them, or group by content type (financial, legal, identity, etc.).';
 
       const responseTime = Date.now() - startTime;
       console.log(`✅ FILE TYPES FORMATTED (${responseTime}ms)`);
@@ -1714,6 +2219,32 @@ Provide a comprehensive and accurate answer based on the document content follow
         intent: intent.intent,
         confidence: 1.0
       };
+    }
+
+    // STEP 2.5: RETRIEVE CONVERSATION HISTORY
+    console.log(`\n💬 RETRIEVING CONVERSATION HISTORY...`);
+    let conversationHistoryMessages: Array<{ role: string; content: string }> = [];
+
+    if (conversationId) {
+      try {
+        const previousMessages = await prisma.message.findMany({
+          where: { conversationId },
+          orderBy: { createdAt: 'asc' },
+          take: 10, // Last 10 messages for context (5 exchanges)
+        });
+
+        conversationHistoryMessages = previousMessages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        }));
+
+        console.log(`   Found ${conversationHistoryMessages.length} previous messages`);
+      } catch (error) {
+        console.error(`   ❌ Error retrieving conversation history:`, error);
+        // Continue without history if retrieval fails
+      }
+    } else {
+      console.log(`   No conversation ID provided - skipping history`);
     }
 
     // STEP 3: RETRIEVE DOCUMENTS
@@ -1892,6 +2423,149 @@ Provide a comprehensive and accurate answer based on the document content follow
       };
     }
 
+    // PHASE 2 WEEK 5-6: DETECT MULTI-DOCUMENT SYNTHESIS INTENT (STREAMING)
+    const sources = highConfidenceResults;
+    const uniqueDocumentIds = [...new Set(sources.map(s => s.documentId))];
+    const avgConfidence = sources.length > 0
+      ? sources.reduce((sum, s) => sum + s.similarity, 0) / sources.length
+      : 0;
+    const requiresSynthesis = synthesisService.detectSynthesisIntent(query, uniqueDocumentIds.length);
+
+    if (requiresSynthesis && uniqueDocumentIds.length >= 2) {
+      console.log(`🔄 SYNTHESIS DETECTED (STREAMING) - Multi-document analysis required`);
+      console.log(`   Documents involved: ${uniqueDocumentIds.length}`);
+
+      // Prepare documents for synthesis
+      const documentsForSynthesis = sources.slice(0, 20).map(s => ({
+        documentId: s.documentId,
+        documentName: s.document?.filename || s.metadata?.filename || 'Unknown',
+        content: s.content,
+        metadata: s.metadata
+      }));
+
+      // Determine synthesis type based on query patterns
+      const queryLower = query.toLowerCase();
+
+      if (queryLower.includes('compare') || queryLower.includes('difference') || queryLower.includes('similar')) {
+        console.log(`   📊 Running COMPARISON analysis (STREAMING)...`);
+        const comparison = await synthesisService.compareDocuments(
+          documentsForSynthesis.map(d => ({
+            documentName: d.documentName,
+            content: d.content
+          }))
+        );
+
+        // Format comparison results
+        let answer = `**Document Comparison:**\n\n`;
+        answer += `**Similarities:**\n${comparison.similarities.map(s => `• ${s}`).join('\n')}\n\n`;
+        answer += `**Differences:**\n${comparison.differences.map(d => `• ${d}`).join('\n')}\n\n`;
+        answer += `**Summary:**\n${comparison.summary}`;
+
+        // Stream the complete answer
+        if (onChunk) {
+          onChunk(answer);
+        }
+
+        const finalSources = documentsForSynthesis.map(d => ({
+          documentId: d.documentId,
+          documentName: d.documentName,
+          chunkIndex: 0,
+          content: d.content,
+          similarity: 1.0,
+          metadata: d.metadata,
+          location: undefined
+        }));
+
+        return {
+          answer,
+          sources: finalSources,
+          contextId: `synthesis_comparison_stream_${Date.now()}`,
+          intent: 'synthesis_comparison',
+          confidence: avgConfidence
+        };
+      } else if (queryLower.includes('trend') || queryLower.includes('change') || queryLower.includes('over time')) {
+        console.log(`   📈 Running TREND analysis (STREAMING)...`);
+        const trends = await synthesisService.analyzeTrends(
+          documentsForSynthesis.map(d => ({
+            documentName: d.documentName,
+            content: d.content,
+            metadata: d.metadata
+          }))
+        );
+
+        // Format trend results
+        let answer = `**Trend Analysis:**\n\n`;
+        answer += `**Trends Identified:**\n${trends.trends.map(t => `• ${t}`).join('\n')}\n\n`;
+        answer += `**Changes Detected:**\n${trends.changes.map(c => `• ${c}`).join('\n')}\n\n`;
+        answer += `**Summary:**\n${trends.summary}`;
+
+        // Stream the complete answer
+        if (onChunk) {
+          onChunk(answer);
+        }
+
+        const finalSources = documentsForSynthesis.map(d => ({
+          documentId: d.documentId,
+          documentName: d.documentName,
+          chunkIndex: 0,
+          content: d.content,
+          similarity: 1.0,
+          metadata: d.metadata,
+          location: undefined
+        }));
+
+        return {
+          answer,
+          sources: finalSources,
+          contextId: `synthesis_trends_stream_${Date.now()}`,
+          intent: 'synthesis_trends',
+          confidence: avgConfidence
+        };
+      } else {
+        console.log(`   🔄 Running FULL synthesis analysis (STREAMING)...`);
+        const synthesisResult = await synthesisService.synthesizeAcrossDocuments(
+          query,
+          documentsForSynthesis
+        );
+
+        // Format synthesis results
+        let answer = `${synthesisResult.synthesis}\n\n`;
+
+        if (synthesisResult.patterns.length > 0) {
+          answer += `**Patterns Identified:**\n${synthesisResult.patterns.map(p => `• ${p}`).join('\n')}\n\n`;
+        }
+
+        if (synthesisResult.insights.length > 0) {
+          answer += `**Key Insights:**\n${synthesisResult.insights.map(i => `• ${i}`).join('\n')}\n\n`;
+        }
+
+        answer += `**Sources:**\n${synthesisResult.sources.map(s => `• ${s.documentName}`).join('\n')}`;
+
+        // Stream the complete answer
+        if (onChunk) {
+          onChunk(answer);
+        }
+
+        const finalSources = documentsForSynthesis.map(d => ({
+          documentId: d.documentId,
+          documentName: d.documentName,
+          chunkIndex: 0,
+          content: d.content,
+          similarity: 1.0,
+          metadata: d.metadata,
+          location: undefined
+        }));
+
+        return {
+          answer,
+          sources: finalSources,
+          contextId: `synthesis_stream_${Date.now()}`,
+          intent: 'synthesis',
+          confidence: avgConfidence
+        };
+      }
+    }
+
     // Build context from chunks
     const context = highConfidenceResults
       .map((result, index) => `[Source ${index + 1}]: ${result.content}`)
@@ -1922,13 +2596,39 @@ Provide a comprehensive and accurate answer based on the document content follow
 
     console.log(`   📋 Sources: ${highConfidenceResults.length} chunks → ${uniqueSources.length} unique docs → ${finalSources.length} final sources`);
 
-    // STEP 4: BUILD PROMPT WITH INTENT-SPECIFIC AND FORMAT-SPECIFIC INSTRUCTIONS
-    const intentSystemPrompt = this.buildIntentSystemPrompt(queryIntent, isMetadataQuery, formatClassification.formatType);
-    const promptConfig = systemPromptsService.getPromptConfig(intent.intent, effectiveAnswerLength);
-    let fullPrompt = systemPromptsService.buildPrompt(intent.intent, query, context, effectiveAnswerLength);
+    // STEP 3.5: GET ATTACHED DOCUMENT INFO (if documentId provided)
+    let attachedDocumentInfo: { documentId: string; documentName: string } | undefined = undefined;
+    if (documentId) {
+      try {
+        const attachedDoc = await prisma.document.findUnique({
+          where: { id: documentId },
+          select: { id: true, filename: true }
+        });
 
-    // Prepend intent-specific instructions
-    fullPrompt = `${intentSystemPrompt}\n\n${fullPrompt}`;
+        if (attachedDoc) {
+          attachedDocumentInfo = {
+            documentId: attachedDoc.id,
+            documentName: attachedDoc.filename
+          };
+          console.log(`   📎 Attached document info: "${attachedDoc.filename}"`);
+        }
+      } catch (error) {
+        console.warn(`   ⚠️  Failed to fetch attached document info:`, error);
+      }
+    }
+
+    // STEP 4: BUILD PROMPT WITH CONVERSATION HISTORY AND PSYCHOLOGICAL GOAL
+    // Use psychological goal-based adaptive prompt system
+    const goalResult = intentService.detectPsychologicalGoal(query);
+    const promptConfig = systemPromptsService.getPromptConfigForGoal(goalResult.goal, effectiveAnswerLength);
+    const fullPrompt = systemPromptsService.buildPromptForGoal(
+      goalResult.goal,
+      query,
+      context,
+      effectiveAnswerLength,
+      conversationHistoryMessages,  // ← Pass conversation history
+      attachedDocumentInfo  // ← NEW: Pass attached document info
+    );
 
     // Get query-specific temperature and max tokens from classifier
     const classifierMaxTokens = queryClassifierService.getMaxTokens(classification.style);
@@ -2001,14 +2701,14 @@ Provide a comprehensive and accurate answer based on the document content follow
     }
 
     const responseTime = Date.now() - startTime;
-    const avgConfidence = finalSources.reduce((sum, s) => sum + s.similarity, 0) / finalSources.length;
+    const finalAvgConfidence = finalSources.reduce((sum, s) => sum + s.similarity, 0) / finalSources.length;
 
     console.log(`✅ STREAMING COMPLETE (${responseTime}ms)`);
     console.log(`   Chunks: ${chunkCount}`);
     console.log(`   Raw Length: ${rawAnswer.length} characters`);
     console.log(`   Saving to DB: ${rawAnswer.substring(0, 100)}...`);
     console.log(`   Sources: ${finalSources.length} documents`);
-    console.log(`   Avg Confidence: ${(avgConfidence * 100).toFixed(1)}%`);
+    console.log(`   Avg Confidence: ${(finalAvgConfidence * 100).toFixed(1)}%`);
 
     // Format the complete response (for both client and database)
     const formatterContext = {
@@ -2038,18 +2738,63 @@ Provide a comprehensive and accurate answer based on the document content follow
     console.log(`   Original length: ${rawAnswer.length} characters`);
     console.log(`   Formatted length: ${formattedAnswer.length} characters`);
 
-    // Send formatted response to client as single chunk
-    if (onChunk) {
-      onChunk(formattedAnswer);
+    // PHASE 1 WEEK 2: Validate answer quality (STREAMING)
+    console.log(`✅ VALIDATING ANSWER QUALITY (STREAMING)...`);
+    const validation = validationService.validateAnswer(
+      formattedAnswer,
+      query,
+      finalSources,
+      finalAvgConfidence
+    );
+    console.log(`   Confidence: ${validation.confidence}`);
+    console.log(`   Should show: ${validation.shouldShow}`);
+    if (validation.issues.length > 0) {
+      console.log(`   Issues: ${validation.issues.join(', ')}`);
     }
 
-    // Save formatted answer to database (prevents truncation on refresh)
+    // Build final answer with validation and enhancements
+    let finalAnswer = formattedAnswer;
+    if (!validation.shouldShow) {
+      // Low quality answer - show fallback message
+      console.log(`   ⚠️ Answer quality below threshold - showing fallback`);
+      finalAnswer = validationService.generateFallbackMessage(validation, query);
+    } else {
+      // Add confidence indicator if needed (medium/low confidence)
+      if (validation.confidence !== 'high') {
+        console.log(`   ⚠️ Adding confidence indicator for ${validation.confidence} confidence`);
+        finalAnswer = validationService.addConfidenceIndicator(finalAnswer, validation.confidence);
+      }
+
+      // PHASE 1 WEEK 4: Add proactive suggestions (STREAMING)
+      console.log(`💡 GENERATING PROACTIVE SUGGESTIONS (STREAMING)...`);
+      const suggestions = proactiveSuggestionsService.generateAndFormat(
+        query,
+        finalSources,
+        intent.intent
+      );
+      if (suggestions) {
+        console.log(`   Added ${proactiveSuggestionsService.generateSuggestions(query, finalSources, intent.intent).length} suggestions`);
+        finalAnswer += suggestions;
+      }
+    }
+
+    // ✅ FIX #4: Apply response post-processing for consistent formatting
+    const responsePostProcessor = require('./responsePostProcessor.service').default;
+    finalAnswer = responsePostProcessor.fullProcess(finalAnswer, intent.intent, finalSources);
+    console.log(`   ✅ Applied response post-processing`);
+
+    // Send final enhanced answer to client as single chunk
+    if (onChunk) {
+      onChunk(finalAnswer);
+    }
+
+    // Save final enhanced answer to database (prevents truncation on refresh)
     const response: RAGResponse = {
-      answer: formattedAnswer, // ✅ Save formatted answer
+      answer: finalAnswer, // ✅ Save enhanced answer with validation and suggestions
       sources: finalSources,
       contextId: `rag_stream_${Date.now()}`,
       intent: intent.intent,
-      confidence: avgConfidence
+      confidence: finalAvgConfidence
     };
 
     // Cache the result
