@@ -1256,6 +1256,13 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       return;
     }
 
+    // ========================================
+    // ✅ FIX #8: FALLBACK TO RAG
+    // ========================================
+    // If no file action matched above, fall through to RAG query
+    // This handles: rag_query, greeting, metadata_query, and unknown intents
+    console.log(`📚 [FALLBACK] Falling through to RAG query for intent: ${intentResult.intent}`);
+
     // Validate answerLength parameter
     const validLengths = ['short', 'medium', 'summary', 'long'];
     const finalAnswerLength = validLengths.includes(answerLength) ? answerLength : 'medium';
@@ -1314,6 +1321,9 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // Ensure space between paragraph and bullet points
     cleanedAnswer = cleanedAnswer.replace(/([.!?])\n(•)/g, '$1\n\n$2');
 
+    // ✅ FIX #1: Remove excessive blank lines between bullet points
+    cleanedAnswer = cleanedAnswer.replace(/•([^\n]+)\n\n+(?=•)/g, '•$1\n');
+
     // Limit "Next steps" to 1 bullet point
     const nextStepsRegex = /(Next steps?:)\n((?:•.*\n?)+)/i;
     const nextStepsMatch = cleanedAnswer.match(nextStepsRegex);
@@ -1327,6 +1337,31 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
     console.log('✅ [POST-PROCESSING] Applied response formatting');
 
+    // ✅ FIX #2: Deduplicate sources by documentId
+    const uniqueSources = result.sources ?
+      Array.from(new Map(result.sources.map((src: any) => [src.documentId, src])).values())
+      : [];
+    console.log(`✅ [DEDUPLICATION] ${result.sources?.length || 0} sources → ${uniqueSources.length} unique sources`);
+
+    // ✅ FIX #7: Filter sources for query-specific documents
+    let filteredSources = uniqueSources;
+    const lowerQuery = query.toLowerCase();
+
+    // Check if query mentions a specific filename
+    const mentionedFile = uniqueSources.find((src: any) => {
+      const filename = src.filename?.toLowerCase() || '';
+      const cleanFilename = filename.replace(/\.(pdf|docx?|xlsx?|pptx?|txt|csv)$/i, '');
+      return lowerQuery.includes(cleanFilename) || lowerQuery.includes(filename);
+    });
+
+    if (mentionedFile) {
+      // Filter to only show the mentioned document
+      filteredSources = [mentionedFile];
+      console.log(`✅ [SOURCE FILTERING] Query mentions "${mentionedFile.filename}", filtered to 1 source`);
+    } else {
+      filteredSources = uniqueSources;
+    }
+
     // Save assistant message to database with RAG metadata
     const assistantMessage = await prisma.message.create({
       data: {
@@ -1334,7 +1369,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         role: 'assistant',
         content: cleanedAnswer,
         metadata: JSON.stringify({
-          ragSources: result.sources,
+          ragSources: filteredSources,
           contextId: result.contextId,
           intent: result.intent,
           confidence: result.confidence,
