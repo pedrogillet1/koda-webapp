@@ -2728,13 +2728,17 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
       // Generate stream
       const result = await model.generateContentStream(fullPrompt);
 
-      // Buffer chunks (don't send to client yet - formatting happens after)
+      // ✅ FIX #2: Stream chunks in REAL-TIME as Gemini generates them
       for await (const chunk of result.stream) {
         const chunkText = chunk.text();
         if (chunkText) {
           rawAnswer += chunkText;
           chunkCount++;
-          // DON'T send chunk yet - buffer it for formatting
+
+          // ✅ Send chunk immediately to client for real-time streaming
+          if (onChunk) {
+            onChunk(chunkText);
+          }
         }
       }
 
