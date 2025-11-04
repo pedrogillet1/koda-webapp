@@ -497,6 +497,9 @@ export const regenerateConversationTitles = async (userId: string) => {
 /**
  * Handle file actions if the message is a command
  * Returns result if action was executed, null if not a file action
+ *
+ * UPDATED: Now uses LLM-based intent detection for flexible understanding
+ * Supports: CREATE_FOLDER, UPLOAD_FILE, RENAME_FILE, DELETE_FILE, MOVE_FILE
  */
 const handleFileActionsIfNeeded = async (
   userId: string,
@@ -505,36 +508,53 @@ const handleFileActionsIfNeeded = async (
   attachedFiles?: any[]
 ): Promise<{ action: string; message: string } | null> => {
 
-  const intentService = require('./intent.service').default;
+  const { llmIntentDetectorService } = require('./llmIntentDetector.service');
   const fileActionsService = require('./fileActions.service').default;
 
-  // Detect intent
-  const intentResult = intentService.detectIntent(message);
-  console.log(`🎯 [Intent Detection] ${intentResult.intent}`);
+  // ========================================
+  // Use LLM for flexible intent detection
+  // ========================================
+  const intentResult = await llmIntentDetectorService.detectIntent(message);
 
-  // Check for folder creation patterns
+  console.log(`🎯 [LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
+  console.log(`📝 [Entities]`, intentResult.parameters);
+
+  // Only process file actions with high confidence
+  const fileActionIntents = ['create_folder', 'list_files', 'search_files', 'file_location', 'rename_file', 'delete_file', 'move_files'];
+
+  // Check if this is a file action intent
+  if (!fileActionIntents.includes(intentResult.intent) && intentResult.confidence < 0.7) {
+    // Not a file action - return null to continue with RAG
+    return null;
+  }
+
+  // ========================================
+  // CREATE FOLDER
+  // ========================================
+  // Check for folder creation using LLM parameters or fallback patterns
   const createFolderPatterns = [
     /create\s+(?:a\s+)?(?:new\s+)?folder\s+(?:named\s+|called\s+)?["']?([^"']+)["']?/i,
     /make\s+(?:a\s+)?(?:new\s+)?folder\s+(?:named\s+|called\s+)?["']?([^"']+)["']?/i,
     /new\s+folder\s+["']?([^"']+)["']?/i,
   ];
 
-  let folderName = null;
-  for (const pattern of createFolderPatterns) {
-    const match = message.match(pattern);
-    if (match) {
-      folderName = match[1].trim();
-      break;
+  let folderName = intentResult.parameters?.folderName || null;
+
+  // Fallback to regex if LLM didn't extract folder name
+  if (!folderName) {
+    for (const pattern of createFolderPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        folderName = match[1].trim();
+        break;
+      }
     }
   }
 
-  // ========================================
-  // CREATE FOLDER + UPLOAD ATTACHMENTS
-  // ========================================
   if (folderName) {
     console.log(`📁 [Action] Creating folder: "${folderName}"`);
 
-    // Step 1: Create folder
+    // Create folder
     const folderResult = await fileActionsService.createFolder({
       userId,
       folderName
@@ -550,13 +570,153 @@ const handleFileActionsIfNeeded = async (
     const folderId = folderResult.data.folder.id;
     console.log(`✅ Folder created: ${folderId}`);
 
-    // Step 2: Upload attachments if any (this will be handled by frontend in future)
-    // For now, just return success message about folder creation
+    // If files attached, upload them to the new folder
+    if (attachedFiles && attachedFiles.length > 0) {
+      const uploadService = require('./upload.service').default;
+      const uploadedFiles = [];
+
+      for (const file of attachedFiles) {
+        try {
+          const uploadResult = await uploadService.uploadFile(file, userId, folderId);
+          uploadedFiles.push(uploadResult.filename);
+        } catch (error) {
+          console.error(`❌ Failed to upload ${file.name}:`, error);
+        }
+      }
+
+      const fileList = uploadedFiles.map(f => `• ${f}`).join('\n');
+      return {
+        action: 'create_folder_with_files',
+        message: `✅ Created folder **"${folderName}"** and added **${uploadedFiles.length} file(s)**:\n\n${fileList}`
+      };
+    }
 
     return {
       action: 'create_folder',
       message: `✅ Created folder **"${folderName}"**`
     };
+  }
+
+  // ========================================
+  // UPLOAD FILE
+  // ========================================
+  // Check for file upload to folder patterns
+  const uploadPatterns = [
+    /(?:upload|save|store|put|add|move)\s+(?:this|these|the)?\s*(?:file|files|document|documents)?\s+(?:to|in|into)\s+(?:the\s+)?["']?([^"']+)["']?\s*(?:folder)?/i,
+  ];
+
+  let targetFolder = intentResult.parameters?.targetFolder || null;
+
+  if (!targetFolder) {
+    for (const pattern of uploadPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        targetFolder = match[1].trim();
+        break;
+      }
+    }
+  }
+
+  if (targetFolder) {
+    console.log(`📤 [Action] Uploading files to: "${targetFolder}"`);
+
+    // Find folder by name
+    const folder = await prisma.folder.findFirst({
+      where: {
+        name: {
+          contains: targetFolder,
+          mode: 'insensitive'
+        },
+        userId
+      }
+    });
+
+    if (!folder) {
+      return {
+        action: 'upload_file',
+        message: `❌ Folder "${targetFolder}" not found. Please create it first or check the name.`
+      };
+    }
+
+    if (!attachedFiles || attachedFiles.length === 0) {
+      return {
+        action: 'upload_file',
+        message: `❌ No files attached. Please attach files to upload.`
+      };
+    }
+
+    const uploadService = require('./upload.service').default;
+    const uploadedFiles = [];
+
+    for (const file of attachedFiles) {
+      try {
+        const uploadResult = await uploadService.uploadFile(file, userId, folder.id);
+        uploadedFiles.push(uploadResult.filename);
+      } catch (error) {
+        console.error(`❌ Failed to upload ${file.name}:`, error);
+      }
+    }
+
+    const fileList = uploadedFiles.map(f => `• ${f}`).join('\n');
+    return {
+      action: 'upload_file',
+      message: `✅ Uploaded **${uploadedFiles.length} file(s)** to folder **"${targetFolder}"**:\n\n${fileList}`
+    };
+  }
+
+  // ========================================
+  // RENAME FILE
+  // ========================================
+  if (intentResult.intent === 'rename_file' &&
+      intentResult.parameters?.oldName &&
+      intentResult.parameters?.newName) {
+
+    console.log(`✏️ [Action] Renaming: "${intentResult.parameters.oldName}" → "${intentResult.parameters.newName}"`);
+
+    const result = await fileActionsService.executeAction(message, userId);
+
+    return {
+      action: 'rename_file',
+      message: result.message
+    };
+  }
+
+  // ========================================
+  // DELETE FILE
+  // ========================================
+  if (intentResult.intent === 'delete_file' && intentResult.parameters?.filename) {
+    console.log(`🗑️ [Action] Deleting: "${intentResult.parameters.filename}"`);
+
+    const result = await fileActionsService.executeAction(message, userId);
+
+    return {
+      action: 'delete_file',
+      message: result.message
+    };
+  }
+
+  // ========================================
+  // MOVE FILE
+  // ========================================
+  const movePatterns = [
+    /move\s+["']?([^"']+?)["']?\s+to\s+["']?([^"']+?)["']?(?:\s+folder)?/i,
+  ];
+
+  for (const pattern of movePatterns) {
+    const match = message.match(pattern);
+    if (match) {
+      const filename = match[1].trim();
+      const targetFolder = match[2].trim();
+
+      console.log(`📦 [Action] Moving: "${filename}" → "${targetFolder}"`);
+
+      const result = await fileActionsService.executeAction(message, userId);
+
+      return {
+        action: 'move_file',
+        message: result.message
+      };
+    }
   }
 
   // Not a file action - return null to continue with RAG

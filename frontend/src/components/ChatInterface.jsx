@@ -878,6 +878,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             // Clear uploading state - files are uploaded successfully
             setUploadingFiles([]);
 
+            // ✅ FIX #2: Clear pending files AFTER successful upload
+            setPendingFiles([]);
+
             // Show success notification (same as UniversalUploadModal)
             setUploadedCount(data.documents.length);
             setNotificationType('success');
@@ -887,8 +890,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             return data.documents;
         } catch (error) {
             console.error('❌ Error uploading files:', error);
-            // On error, move files back to pending
-            setPendingFiles(prev => [...prev, ...files]);
+            // On error, keep files in pending so user can retry
+            // Don't move them back - they're still in pendingFiles
             setUploadingFiles([]);
 
             // Show error notification (same as UniversalUploadModal)
@@ -911,9 +914,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         console.log(`📤 handleSendMessage: Preparing to send with ${filesToUpload.length} file(s)`);
         console.log(`📤 Files to upload:`, filesToUpload.map(f => f.name).join(', '));
 
-        // Clear input and pending files immediately for better UX
+        // Clear input immediately
         setMessage('');
-        setPendingFiles([]);  // Clear pending files
+        // DON'T clear pendingFiles yet - keep them visible during upload
+        // They will be cleared after successful upload in uploadMultipleFiles()
         // DON'T clear attachedDocument - keep it visible during streaming
 
         // Store original message text for UI display (files will be shown visually, not as text)

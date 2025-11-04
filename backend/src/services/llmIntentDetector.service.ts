@@ -40,28 +40,37 @@ class LLMIntentDetectorService {
 Analyze the following user query and determine the intent.
 
 **Available Intents:**
-1. **list_files** - User wants to see a list of files
-   - Examples: "show files", "list documents", "what files are there", "give me all pdfs", "show me the documents"
+1. **create_folder** - User wants to create a new folder
+   - Examples: "create folder X", "make folder called Y", "new folder Z", "create a folder named X"
+   - Extract: folderName
 
-2. **search_files** - User wants to find files by name/keyword
+2. **list_files** - User wants to see a list of files
+   - Examples: "show files", "list documents", "what files are there", "give me all pdfs", "show me the documents", "which documents i have"
+
+3. **search_files** - User wants to find files by name/keyword
    - Examples: "find document about X", "search for files containing Y", "locate files with Z in the name"
 
-3. **file_location** - User wants to know where a file is stored
+4. **file_location** - User wants to know where a file is stored
    - Examples: "where is document X", "what folder is Y in", "location of file Z", "where can I find X"
 
-4. **rename_file** - User wants to rename a file
-   - Examples: "rename X to Y", "change file name from X to Y", "call document X as Y instead"
+5. **move_files** - User wants to move files to a folder
+   - Examples: "move X to folder Y", "put document X in folder Y", "transfer X to Y folder"
+   - Extract: targetFolder, filename (optional)
 
-5. **delete_file** - User wants to delete a file
+6. **rename_file** - User wants to rename a file or folder
+   - Examples: "rename X to Y", "change file name from X to Y", "call document X as Y instead", "rename folder X to Y"
+   - Extract: oldName, newName
+
+7. **delete_file** - User wants to delete a file
    - Examples: "delete document X", "remove file Y", "erase Z", "get rid of X"
 
-6. **metadata_query** - User wants information about files (size, type, date, count)
-   - Examples: "how many files", "what's the size of X", "when was Y uploaded", "file count"
+8. **metadata_query** - User wants information about files (size, type, date, count)
+   - Examples: "how many files", "what's the size of X", "when was Y uploaded", "file count", "what types of documents"
 
-7. **rag_query** - User wants to ask questions about document content (default)
+9. **rag_query** - User wants to ask questions about document content (default)
    - Examples: "what does document X say about Y", "explain concept Z", "summarize X"
 
-8. **greeting** - User is greeting or making small talk
+10. **greeting** - User is greeting or making small talk
    - Examples: "hello", "hi", "how are you", "good morning", "olá", "hola"
 
 **User Query:** "${query}"
@@ -77,9 +86,12 @@ Analyze the following user query and determine the intent.
   "intent": "intent_name",
   "confidence": 0.95,
   "parameters": {
+    "folderName": "folder name",
     "filename": "example.pdf",
     "keyword": "search term",
-    "newName": "new_name.pdf"
+    "oldName": "old_name.pdf",
+    "newName": "new_name.pdf",
+    "targetFolder": "destination folder"
   }
 }
 

@@ -356,77 +356,78 @@ Provide a comprehensive and accurate answer based on the document content follow
   ): Promise<RAGResponse> {
     console.log(`📊 METADATA QUERY HANDLER (Type: ${metadataResult.type})`);
 
+    // ✅ FIX #3: Use new systemMetadata service for reliable database queries
+    const systemMetadataService = require('./systemMetadata.service').default;
+
     let answer = '';
     let data: any = null;
 
     try {
       switch (metadataResult.type) {
         case 'file_location':
-          console.log(`   🔍 Finding file with folder info: "${metadataResult.extractedValue}"`);
+          console.log(`   🔍 Finding file location: "${metadataResult.extractedValue}"`);
 
-          // Query file with folder information
-          const fileWithFolder = await prisma.document.findFirst({
-            where: {
-              userId,
-              filename: {
-                contains: metadataResult.extractedValue
-              },
-              status: { not: 'deleted' }
-            },
-            include: {
-              folder: {
-                select: {
-                  id: true,
-                  name: true,
-                  emoji: true,
-                  path: true
-                }
-              }
-            }
-          });
+          // Use systemMetadata service for reliable file location lookup
+          const fileLocation = await systemMetadataService.findFileLocation(
+            userId,
+            metadataResult.extractedValue
+          );
 
-          if (!fileWithFolder) {
+          if (!fileLocation) {
             answer = `I couldn't find a file matching "${metadataResult.extractedValue}". Please check the filename and try again.`;
           } else {
-            // Format file size for display
-            const formatFileSize = (bytes: number | null): string => {
-              if (!bytes) return 'Unknown size';
-              if (bytes < 1024) return `${bytes} B`;
-              if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-              if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-              return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-            };
+            answer = `📄 **${fileLocation.filename}** is stored in **${fileLocation.location}**.`;
+          }
+          break;
 
-            // Build comprehensive response with folder information
-            answer = `📄 **${fileWithFolder.filename}**\n\n`;
+        case 'file_type_query':
+          console.log(`   📊 Getting file types`);
 
-            // Location information
-            if (fileWithFolder.folder) {
-              const folderEmoji = fileWithFolder.folder.emoji || '📁';
-              answer += `**Location**: ${folderEmoji} ${fileWithFolder.folder.name}\n`;
-            } else {
-              answer += `**Location**: 📁 Root folder (no folder assigned)\n`;
-            }
+          // Use systemMetadata service to get file types
+          const fileTypes = await systemMetadataService.getFileTypes(userId);
 
-            // Additional file metadata
-            answer += `**File Size**: ${formatFileSize(fileWithFolder.fileSize)}\n`;
-            answer += `**File Type**: ${fileWithFolder.mimeType || 'Unknown'}\n`;
-            answer += `**Uploaded**: ${fileWithFolder.createdAt.toLocaleDateString()}\n`;
-
-            console.log(`   ✅ Found file "${fileWithFolder.filename}" in folder: ${fileWithFolder.folder?.name || 'Root'}`);
+          if (fileTypes.length === 0) {
+            answer = "You don't have any files uploaded yet.";
+          } else {
+            answer = `You have uploaded **${fileTypes.length}** different file types:\n\n`;
+            fileTypes.forEach((type) => {
+              answer += `• **${type.friendlyName}**: ${type.count} ${type.count === 1 ? 'file' : 'files'}\n`;
+            });
           }
           break;
 
         case 'file_count':
           console.log(`   📊 Counting files`);
-          data = await metadataService.getFileCount(userId);
-          answer = metadataService.formatMetadataResponse(query, data);
+
+          // Check if asking about root or total
+          const isRootQuery = /root|main|root directory/i.test(query);
+
+          if (isRootQuery) {
+            const rootCount = await systemMetadataService.countRootFiles(userId);
+            answer = `You have **${rootCount}** ${rootCount === 1 ? 'file' : 'files'} in the root directory.`;
+          } else {
+            const totalCount = await systemMetadataService.countTotalFiles(userId);
+            answer = `You have **${totalCount}** ${totalCount === 1 ? 'file' : 'files'} in total.`;
+          }
           break;
 
         case 'folder_contents':
           console.log(`   📁 Getting folder contents: "${metadataResult.extractedValue}"`);
-          data = await metadataService.getFolderContents(userId, metadataResult.extractedValue);
-          answer = metadataService.formatMetadataResponse(query, data);
+
+          // Use systemMetadata service for folder contents
+          const filesInFolder = await systemMetadataService.getFilesInFolder(
+            userId,
+            metadataResult.extractedValue
+          );
+
+          if (filesInFolder.length === 0) {
+            answer = `The folder "${metadataResult.extractedValue}" is empty or doesn't exist.`;
+          } else {
+            answer = `**Folder "${metadataResult.extractedValue}"** contains **${filesInFolder.length}** ${filesInFolder.length === 1 ? 'file' : 'files'}:\n\n`;
+            filesInFolder.forEach((file: any) => {
+              answer += `• ${file.filename}\n`;
+            });
+          }
           break;
 
         case 'list_all_files':
@@ -438,15 +439,17 @@ Provide a comprehensive and accurate answer based on the document content follow
 
         case 'list_folders':
           console.log(`   📁 Listing all folders`);
-          data = await metadataService.getAllFolders(userId);
 
-          if (data.length === 0) {
+          // Use systemMetadata service for folder list
+          const folders = await systemMetadataService.getFolders(userId);
+
+          if (folders.length === 0) {
             answer = "You don't have any folders yet.";
           } else {
-            answer = `You have **${data.length} ${data.length === 1 ? 'folder' : 'folders'}**:\n\n`;
-            answer += data.map((folder: any) =>
-              `• **${folder.name}** (${folder.documentCount} ${folder.documentCount === 1 ? 'file' : 'files'})`
-            ).join('\n');
+            answer = `You have **${folders.length}** ${folders.length === 1 ? 'folder' : 'folders'}:\n\n`;
+            folders.forEach((folder: any) => {
+              answer += `• **${folder.name}**: ${folder._count.documents} ${folder._count.documents === 1 ? 'file' : 'files'}\n`;
+            });
           }
           break;
 
@@ -2774,6 +2777,11 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
         finalAnswer += suggestions;
       }
     }
+
+    // ✅ FIX #4: Apply response post-processing for consistent formatting
+    const responsePostProcessor = require('./responsePostProcessor.service').default;
+    finalAnswer = responsePostProcessor.fullProcess(finalAnswer, intent.intent, finalSources);
+    console.log(`   ✅ Applied response post-processing`);
 
     // Send final enhanced answer to client as single chunk
     if (onChunk) {

@@ -4,6 +4,8 @@ import prisma from '../config/database';
 import { getIO } from '../services/websocket.service';
 import navigationService from '../services/navigation.service';
 import intentService from '../services/intent.service';
+import { llmIntentDetectorService } from '../services/llmIntentDetector.service'; // ✅ FIX #1: LLM Intent Detection
+import responsePostProcessor from '../services/responsePostProcessor.service'; // ✅ FIX #4: Response Post-Processor
 import { Intent } from '../types/intent.types';
 import fileActionsService from '../services/fileActions.service';
 import { generateConversationTitle } from '../services/gemini.service';
@@ -55,11 +57,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     }
 
     // ========================================
-    // INTENT CLASSIFICATION (New Brain - Ordered Pattern Matching)
+    // INTENT CLASSIFICATION (✅ FIX #1: LLM-based for flexibility)
     // ========================================
-    const intentResult = intentService.detectIntent(query);
-    console.log(`🎯 [INTENT] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
-    console.log(`📝 [ENTITIES]`, intentResult.entities);
+    const intentResult = await llmIntentDetectorService.detectIntent(query);
+    console.log(`🎯 [LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
+    console.log(`📝 [ENTITIES]`, intentResult.parameters);
 
     // TODO: Gemini fallback classifier removed - using pattern matching only
     // Only fallback to Gemini AI classifier if confidence is very low

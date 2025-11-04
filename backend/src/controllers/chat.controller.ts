@@ -355,6 +355,7 @@ export const sendAdaptiveMessage = async (req: Request, res: Response) => {
 /**
  * Send adaptive message with SSE streaming
  * Streams response in real-time with query type awareness
+ * ✅ FIX #1: Now uses LLM intent detection via chatService.sendMessageStreaming
  */
 export const sendAdaptiveMessageStreaming = async (req: Request, res: Response) => {
   console.time('⚡ Adaptive Streaming Response Time');
@@ -388,15 +389,37 @@ export const sendAdaptiveMessageStreaming = async (req: Request, res: Response) 
     // Send initial connection confirmation
     res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
 
-    // TODO: Hybrid AI service removed - stub endpoint
-    res.write(`data: ${JSON.stringify({
-      type: 'error',
-      error: 'Adaptive streaming not implemented',
-      message: 'This feature is currently disabled. Please use the standard SSE streaming endpoint.'
-    })}\n\n`);
+    // ✅ FIX #1: Call actual chat service with LLM intent detection
+    const result = await chatService.sendMessageStreaming(
+      {
+        userId,
+        conversationId,
+        content,
+        attachedDocumentId,
+      },
+      (chunk: string) => {
+        // Stream each chunk to client
+        res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
+      },
+      undefined // onStage callback
+    );
 
+    // Send completion signal
+    const donePayload = {
+      type: 'done',
+      messageId: result.userMessage.id,
+      assistantMessageId: result.assistantMessage.id,
+      conversationId
+    };
+
+    console.log(`📤 Sending 'done' event:`, donePayload);
+    res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
+
+    console.log(`🔌 Closing SSE connection with res.end()`);
     res.end();
     console.timeEnd('⚡ Adaptive Streaming Response Time');
+    console.log(`✅ SSE connection closed successfully`);
+
   } catch (error: any) {
     console.error('❌ Error in adaptive streaming:', error);
     res.write(

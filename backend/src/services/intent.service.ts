@@ -207,6 +207,25 @@ class QueryIntentService {
       }
     }
 
+    // Pattern 2.5: File type queries (NEW - Fix #3)
+    // "what file types", "what types of files", "file formats"
+    const fileTypePatterns = [
+      /what (?:file )?types?/i,
+      /what (?:types? of |kinds? of )?(?:files|documents)/i,
+      /(?:file|document) (?:types?|formats?|extensions?)/i,
+      /which (?:file|document) (?:types?|formats?)/i,
+    ];
+
+    for (const pattern of fileTypePatterns) {
+      if (pattern.test(query)) {
+        return {
+          isMetadataQuery: true,
+          type: 'file_type_query',
+          confidence: 0.95,
+        };
+      }
+    }
+
     // Pattern 3: Folder contents queries
     // "what is inside X folder", "show me X folder", "what files are in X"
     const folderContentPatterns = [
