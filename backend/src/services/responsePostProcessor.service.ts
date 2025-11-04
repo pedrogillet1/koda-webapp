@@ -33,17 +33,16 @@ class ResponsePostProcessorService {
   }
 
   /**
-   * Rule 1: Remove warning if we have enough sources
-   * Only show warning if < 2 sources (meaning very limited information)
+   * Rule 1: ALWAYS remove Gemini warnings (they're annoying and unnecessary)
+   * Users can see the sources list - they don't need a warning
    */
   private removeUnnecessaryWarning(text: string, sources: any[]): string {
-    // Only show warning if we have very few sources
-    if (sources.length >= 2) {
-      // Remove various warning patterns
-      text = text.replace(/⚠️\s*Note:\s*This answer is based on partial information from your documents\.\s*/gi, '');
-      text = text.replace(/⚠️\s*Warning:.*?(?:\n|$)/gi, '');
-      text = text.replace(/\*\*Note:\*\*\s*This answer is based on partial information.*?(?:\n|$)/gi, '');
-    }
+    // ✅ ALWAYS remove warnings regardless of source count
+    // Remove various warning patterns
+    text = text.replace(/⚠️\s*Note:\s*This answer is based on partial information from your documents\.\s*/gi, '');
+    text = text.replace(/⚠️\s*Note:\s*This answer is based on partial information\.\s*/gi, '');
+    text = text.replace(/⚠️\s*Warning:.*?(?:\n|$)/gi, '');
+    text = text.replace(/\*\*Note:\*\*\s*This answer is based on partial information.*?(?:\n|$)/gi, '');
     return text;
   }
 
@@ -69,8 +68,8 @@ class ResponsePostProcessorService {
    * Prevents overwhelming users with too many suggestions
    */
   private limitNextSteps(text: string): string {
-    // Find "Next steps:" section with multiple bullets
-    const nextStepsMatch = text.match(/Next steps?:\s*\n((?:(?:•|\*|-)[^\n]+\n?)+)/i);
+    // ✅ Match "Next steps:", "Next actions:", "Next step:", etc.
+    const nextStepsMatch = text.match(/(?:Next steps?|Next actions?):\s*\n((?:(?:•|\*|-)[^\n]+\n?)+)/i);
 
     if (nextStepsMatch) {
       const bullets = nextStepsMatch[1].match(/(?:•|\*|-)[^\n]+/g);
@@ -78,7 +77,9 @@ class ResponsePostProcessorService {
       if (bullets && bullets.length > 1) {
         // Keep only the first bullet
         const firstBullet = bullets[0];
-        text = text.replace(nextStepsMatch[0], `Next steps:\n${firstBullet}\n`);
+        // Preserve the original heading (Next steps/Next actions)
+        const heading = nextStepsMatch[0].split(':')[0];
+        text = text.replace(nextStepsMatch[0], `${heading}:\n${firstBullet}\n`);
       }
     }
 

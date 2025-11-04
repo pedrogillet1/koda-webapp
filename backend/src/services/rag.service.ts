@@ -2075,6 +2075,32 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
     console.log(`📏 Answer Length: ${answerLength}`);
     console.log(`═══════════════════════════════════════════════════════\n`);
 
+    // ========================================
+    // ✅ FIX #1: CHECK CACHE FOR STREAMING
+    // ========================================
+    const cacheKey = cacheService.generateKey(query, userId, { documentId, answerLength });
+    const cached = await cacheService.get<RAGResponse>(cacheKey, {
+      ttl: 3600,
+      useMemory: true,
+      useRedis: true,
+    });
+
+    if (cached) {
+      console.log(`💾 [CACHE HIT] Returning cached result (${Date.now() - startTime}ms)`);
+
+      // Stream the cached answer if onChunk is provided
+      if (onChunk && cached.answer) {
+        // Stream cached answer character by character for better UX
+        for (const char of cached.answer) {
+          onChunk(char);
+          await new Promise(resolve => setTimeout(resolve, 5)); // Fast streaming for cached results
+        }
+      }
+
+      // Return cached result (controller will send "done" signal)
+      return cached;
+    }
+
     // STEP 0: DETECT SIMPLE GREETINGS (before chat actions)
     const greetingPatterns = [
       /^(hi|hello|hey|oi|olá|hola|buenos días|bom dia|good morning|good afternoon|good evening)$/i,
@@ -2702,13 +2728,17 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
       // Generate stream
       const result = await model.generateContentStream(fullPrompt);
 
-      // Buffer chunks (don't send to client yet - formatting happens after)
+      // ✅ FIX #2: Stream chunks in REAL-TIME as Gemini generates them
       for await (const chunk of result.stream) {
         const chunkText = chunk.text();
         if (chunkText) {
           rawAnswer += chunkText;
           chunkCount++;
-          // DON'T send chunk yet - buffer it for formatting
+
+          // ✅ Send chunk immediately to client for real-time streaming
+          if (onChunk) {
+            onChunk(chunkText);
+          }
         }
       }
 
@@ -2842,8 +2872,7 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
       confidence: finalAvgConfidence
     };
 
-    // Cache the result
-    const cacheKey = `${query}:${documentId || 'all'}`;
+    // Cache the result (reuse cacheKey from beginning of function)
     await cacheService.set(cacheKey, response, {
       ttl: 3600,
       useMemory: true,

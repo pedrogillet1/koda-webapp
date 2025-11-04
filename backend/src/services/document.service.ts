@@ -937,9 +937,12 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
       try {
         const io = require('../server').io;
         if (io) {
-          io.to(userId).emit('document:failed', {
+          io.to(`user:${userId}`).emit('document-processing-update', {
             documentId: document.id,
             filename: filename,
+            status: 'failed',
+            stage: 'failed',
+            progress: 0,
             error: error.message || 'Processing failed'
           });
         }
@@ -1444,10 +1447,13 @@ async function processDocumentAsync(
     try {
       const io = require('../server').io;
       if (io) {
-        io.to(userId).emit('document:completed', {
+        io.to(`user:${userId}`).emit('document-processing-update', {
           documentId: documentId,
           filename: filename,
-          status: 'completed'
+          status: 'completed',
+          stage: 'completed',
+          progress: 100,
+          message: 'Processing completed successfully'
         });
       }
     } catch (wsError) {
@@ -1717,7 +1723,10 @@ export const listDocuments = async (
 ) => {
   const skip = (page - 1) * limit;
 
-  const where: any = { userId };
+  const where: any = {
+    userId,
+    status: { not: 'deleted' }  // ✅ FIX: Filter deleted documents
+  };
   if (folderId !== undefined) {
     where.folderId = folderId === 'root' ? null : folderId;
   }
@@ -2040,6 +2049,7 @@ export const getDocumentVersions = async (documentId: string, userId: string) =>
         { id: documentId },
         { parentVersionId: documentId },
       ],
+      status: { not: 'deleted' },  // ✅ FIX: Filter deleted documents
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -2275,7 +2285,7 @@ export const reindexAllDocuments = async (userId: string) => {
     const documents = await prisma.document.findMany({
       where: {
         userId,
-        status: 'completed'
+        status: 'completed'  // Already filtering by status='completed', no deleted documents
       },
       include: {
         metadata: true

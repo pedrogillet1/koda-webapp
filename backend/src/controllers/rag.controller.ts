@@ -1259,9 +1259,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       res.write(`data: ${JSON.stringify({ type: 'content', content: responseMessage })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'done',
-        userMessage,
-        assistantMessage,
-        sources: []
+        formattedAnswer: responseMessage,
+        userMessageId: userMessage.id,
+        assistantMessageId: assistantMessage.id,
+        sources: [],
+        conversationId
       })}\n\n`);
       res.end();
       console.timeEnd('⚡ RAG Streaming Response Time');
@@ -1321,9 +1323,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       res.write(`data: ${JSON.stringify({ type: 'content', content: responseMessage })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'done',
-        userMessage,
-        assistantMessage,
-        sources: []
+        formattedAnswer: responseMessage,
+        userMessageId: userMessage.id,
+        assistantMessageId: assistantMessage.id,
+        sources: [],
+        conversationId
       })}\n\n`);
       res.end();
       console.timeEnd('⚡ RAG Streaming Response Time');
@@ -1401,7 +1405,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Send done signal
       res.write(`data: ${JSON.stringify({
         type: 'done',
-        messageId: userMessage.id,
+        formattedAnswer: `❌ Error: ${errorMessage}`,
+        userMessageId: userMessage.id,
         assistantMessageId: assistantMessage.id,
         sources: [],
         conversationId
@@ -1508,10 +1513,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // Send completion signal with metadata AND formatted answer
     res.write(`data: ${JSON.stringify({
       type: 'done',
-      formattedAnswer: result.answer, // ✅ Include formatted answer with bold
+      formattedAnswer: cleanedAnswer, // ✅ Send post-processed answer (next steps limited)
       userMessageId: userMessage.id,
       assistantMessageId: assistantMessage.id,
-      sources: result.sources,
+      sources: filteredSources, // ✅ Send deduplicated/filtered sources
       contextId: result.contextId,
       intent: result.intent,
       confidence: result.confidence,

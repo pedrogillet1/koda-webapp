@@ -78,7 +78,10 @@ export class ResponseFormatterService {
       formatted = this.enforceMaxTwoLineIntro(formatted);
     }
 
-    // CRITICAL FIX 8: Clean up excessive whitespace (final polish)
+    // CRITICAL FIX 8: Format comparison responses
+    formatted = this.formatComparison(formatted);
+
+    // CRITICAL FIX 9: Clean up excessive whitespace (final polish)
     formatted = this.cleanWhitespace(formatted);
 
     return formatted;
@@ -686,6 +689,72 @@ EXAMPLE:
 • Financial
 • Legal
 • Personal`;
+  }
+
+  /**
+   * Detect if response is a comparison
+   */
+  private isComparison(text: string): boolean {
+    const comparisonKeywords = [
+      'compare', 'comparison', 'differ', 'difference',
+      'versus', 'vs', 'between', 'contrast'
+    ];
+
+    const lowerText = text.toLowerCase();
+    return comparisonKeywords.some(keyword => lowerText.includes(keyword));
+  }
+
+  /**
+   * Format comparison responses into clean tables
+   * ✅ FIX: Remove repetitive sections like duplicate "Main Findings", "Key Insights"
+   */
+  private formatComparison(text: string): string {
+    // Check if it's a comparison
+    if (!this.isComparison(text)) {
+      return text;
+    }
+
+    console.log(`📊 [COMPARISON] Formatting comparison response`);
+
+    let formatted = text;
+
+    // Remove duplicate "Main Findings" sections
+    const mainFindingsMatches = Array.from(text.matchAll(/Main Findings:[\s\S]*?(?=\n\n|$)/gi));
+    if (mainFindingsMatches.length > 1) {
+      // Keep only the first occurrence, remove the rest
+      for (let i = 1; i < mainFindingsMatches.length; i++) {
+        formatted = formatted.replace(mainFindingsMatches[i][0], '');
+      }
+    }
+
+    // Remove duplicate "Patterns Identified" sections
+    const patternsMatches = Array.from(text.matchAll(/Patterns Identified:[\s\S]*?(?=\n\n|$)/gi));
+    if (patternsMatches.length > 1) {
+      for (let i = 1; i < patternsMatches.length; i++) {
+        formatted = formatted.replace(patternsMatches[i][0], '');
+      }
+    }
+
+    // Remove duplicate "Key Insights" sections
+    const insightsMatches = Array.from(text.matchAll(/Key Insights:[\s\S]*?(?=\n\n|$)/gi));
+    if (insightsMatches.length > 1) {
+      for (let i = 1; i < insightsMatches.length; i++) {
+        formatted = formatted.replace(insightsMatches[i][0], '');
+      }
+    }
+
+    // Remove "Source Attribution" section (redundant with sources list)
+    formatted = formatted.replace(/Source Attribution:[\s\S]*?(?=\n\n|$)/gi, '');
+
+    // Remove "Answer to the User Question" section (redundant)
+    formatted = formatted.replace(/Answer to the User Question:[\s\S]*?(?=\n\n|$)/gi, '');
+
+    // Clean up excessive whitespace
+    formatted = formatted.replace(/\n{3,}/g, '\n\n');
+
+    console.log(`✅ [COMPARISON] Formatted comparison (${text.length} → ${formatted.length} chars)`);
+
+    return formatted.trim();
   }
 
   /**
