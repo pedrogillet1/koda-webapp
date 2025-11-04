@@ -16,6 +16,7 @@ import VerificationPending from './components/VerificationPending';
 import Upload from './components/Upload';
 import ForgotPassword from './components/ForgotPassword';
 import ForgotPasswordCode from './components/ForgotPasswordCode';
+import ForgotPasswordEmailSent from './components/ForgotPasswordEmailSent';
 import SetNewPassword from './components/SetNewPassword';
 import PasswordChanged from './components/PasswordChanged';
 import ChatScreen from './components/ChatScreen';
@@ -63,6 +64,7 @@ function App() {
             <Route path="/upload-hub" element={<ProtectedRoute><UploadHub /></ProtectedRoute>} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/forgot-password-code" element={<ForgotPasswordCode />} />
+            <Route path="/forgot-password-email-sent" element={<ForgotPasswordEmailSent />} />
             <Route path="/reset-password" element={<SetNewPassword />} />
             <Route path="/set-new-password" element={<SetNewPassword />} />
             <Route path="/password-changed" element={<PasswordChanged />} />

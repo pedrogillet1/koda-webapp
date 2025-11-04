@@ -1,0 +1,50 @@
+<svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+<foreignObject x="-2.60909" y="-2.60909" width="65.2182" height="65.2182"><div xmlns="http://www.w3.org/1999/xhtml" style="backdrop-filter:blur(1.3px);clip-path:url(#bgblur_1_241_260_clip_path);height:100%;width:100%"></div></foreignObject><g data-figma-bg-blur-radius="2.60909">
+<g clip-path="url(#clip0_241_260)">
+<rect width="60" height="60" rx="30" fill="#009DFF" fill-opacity="0.3"/>
+<g clip-path="url(#clip2_241_260)">
+<mask id="mask0_241_260" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="-215" y="-35" width="464" height="463">
+<rect width="462.032" height="462.032" transform="translate(-214.016 -35)" fill="url(#paint0_radial_241_260)"/>
+</mask>
+<g mask="url(#mask0_241_260)">
+<g clip-path="url(#clip3_241_260)">
+<g clip-path="url(#clip4_241_260)">
+<line x1="17.1604" y1="-35" x2="17.1604" y2="427.032" stroke="#009DFF" stroke-opacity="0.2" stroke-width="0.320856"/>
+<line x1="42.8284" y1="-35" x2="42.8284" y2="427.032" stroke="#009DFF" stroke-opacity="0.2" stroke-width="0.320856"/>
+</g>
+<g clip-path="url(#clip5_241_260)">
+<line x1="-291.021" y1="16.1765" x2="325.021" y2="16.1765" stroke="#009DFF" stroke-opacity="0.2" stroke-width="0.320856"/>
+<line x1="-291.021" y1="41.8449" x2="325.021" y2="41.8449" stroke="#009DFF" stroke-opacity="0.2" stroke-width="0.320856"/>
+</g>
+</g>
+</g>
+</g>
+<circle cx="30" cy="30" r="16" fill="#009DFF" fill-opacity="0.4"/>
+<rect x="18" y="18" width="24" height="24" rx="12" fill="#009DFF" fill-opacity="0.5"/>
+<path d="M36.339 30.6698C36.1306 32.6272 35.0216 34.4615 33.1863 35.521C30.1372 37.2815 26.2383 36.2368 24.4779 33.1876L24.2904 32.8629M23.6589 29.3302C23.8672 27.3728 24.9763 25.5385 26.8115 24.4789C29.8607 22.7185 33.7596 23.7632 35.52 26.8123L35.7075 27.1371M23.6191 34.5495L24.1682 32.5005L26.2172 33.0495M33.7811 26.9505L35.8301 27.4995L36.3791 25.4505" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<rect x="0.5" y="0.5" width="59" height="59" rx="29.5" stroke="#009DFF" stroke-opacity="0.1"/>
+</g>
+<defs>
+<clipPath id="bgblur_1_241_260_clip_path" transform="translate(2.60909 2.60909)"><rect width="60" height="60" rx="30"/>
+</clipPath><radialGradient id="paint0_radial_241_260" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(231.016 -5.50785e-05) rotate(90) scale(462.032 241.151)">
+<stop/>
+<stop offset="0.953125" stop-opacity="0"/>
+</radialGradient>
+<clipPath id="clip0_241_260">
+<rect width="60" height="60" rx="30" fill="white"/>
+</clipPath>
+<clipPath id="clip2_241_260">
+<rect width="180" height="135.08" fill="white" transform="translate(-73 -35)"/>
+</clipPath>
+<clipPath id="clip3_241_260">
+<rect width="616.043" height="462.032" fill="white" transform="translate(-291.021 -35)"/>
+</clipPath>
+<clipPath id="clip4_241_260">
+<rect width="616.043" height="462.032" fill="white" transform="translate(-291.021 -35)"/>
+</clipPath>
+<clipPath id="clip5_241_260">
+<rect width="616.043" height="462.032" fill="white" transform="translate(-291.021 -35)"/>
+</clipPath>
+</defs>
+</svg>

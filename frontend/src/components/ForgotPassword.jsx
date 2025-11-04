@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import backArrow from '../assets/arrow-narrow-left.svg';
 import mailIcon from '../assets/Mail.svg';
 import messageIcon from '../assets/message-3.svg';
+import PhoneInput from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
+import './PhoneNumber.css';
+import { isValidPhoneNumber } from 'react-phone-number-input';
 
 const ForgotPassword = () => {
     const navigate = useNavigate();
@@ -22,6 +26,11 @@ const ForgotPassword = () => {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(contactInfo)) {
                 setError('Please enter a valid email address');
+                return;
+            }
+        } else if (selectedOption === 'message') {
+            if (!isValidPhoneNumber(contactInfo)) {
+                setError('Please enter a valid phone number');
                 return;
             }
         }
@@ -48,11 +57,11 @@ const ForgotPassword = () => {
                 throw new Error(data.error || 'Failed to send reset code');
             }
 
-            // Navigate to code verification page
-            navigate('/forgot-password-code', {
+            // Navigate to email sent confirmation page
+            navigate('/forgot-password-email-sent', {
                 state: {
-                    contactInfo: contactInfo,
-                    method: selectedOption
+                    email: selectedOption === 'email' ? contactInfo : undefined,
+                    phoneNumber: selectedOption === 'message' ? contactInfo : undefined
                 }
             });
         } catch (error) {
@@ -98,17 +107,37 @@ const ForgotPassword = () => {
                             <label style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px'}}>
                                 {selectedOption === 'email' ? 'Email Address' : 'Phone Number'}
                             </label>
-                            <div style={{alignSelf: 'stretch', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', overflow: 'hidden', borderRadius: 14, outline: error ? '1px rgba(217, 45, 32, 0.40) solid' : '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'inline-flex'}}>
-                                <input
-                                    type={selectedOption === 'email' ? 'email' : 'tel'}
-                                    value={contactInfo}
-                                    onChange={(e) => {
-                                        setContactInfo(e.target.value);
-                                        setError('');
-                                    }}
-                                    placeholder={selectedOption === 'email' ? 'Enter your email' : 'Enter your phone number'}
-                                    style={{flex: '1 1 0', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '24px', background: 'transparent', border: 'none', outline: 'none', width: '100%'}}
-                                />
+                            <div style={{alignSelf: 'stretch', minHeight: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', overflow: selectedOption === 'message' ? 'visible' : 'hidden', borderRadius: 14, outline: error ? '1px rgba(217, 45, 32, 0.40) solid' : '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
+                                {selectedOption === 'email' ? (
+                                    <input
+                                        type="email"
+                                        value={contactInfo}
+                                        onChange={(e) => {
+                                            setContactInfo(e.target.value);
+                                            setError('');
+                                        }}
+                                        placeholder="Enter your email"
+                                        style={{flex: '1 1 0', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '24px', background: 'transparent', border: 'none', outline: 'none', width: '100%'}}
+                                    />
+                                ) : (
+                                    <PhoneInput
+                                        international
+                                        defaultCountry="US"
+                                        value={contactInfo}
+                                        onChange={(value) => {
+                                            setContactInfo(value || '');
+                                            setError('');
+                                        }}
+                                        placeholder="Enter phone number"
+                                        style={{
+                                            flex: '1 1 0',
+                                            width: '100%',
+                                            border: 'none',
+                                            background: 'transparent'
+                                        }}
+                                        className="custom-phone-input"
+                                    />
+                                )}
                             </div>
                             {error && (
                                 <div style={{color: '#D92D20', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px'}}>{error}</div>
