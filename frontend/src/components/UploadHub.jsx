@@ -10,6 +10,7 @@ import CreateFolderModal from './CreateFolderModal';
 import { useToast } from '../context/ToastContext';
 import { ReactComponent as SearchIcon} from '../assets/Search.svg';
 import { ReactComponent as CheckIcon} from '../assets/check.svg';
+import { ReactComponent as LogoutBlackIcon } from '../assets/Logout-black.svg';
 import LayeredFolderIcon from './LayeredFolderIcon';
 import api from '../services/api';
 import folderUploadService from '../services/folderUploadService';
@@ -87,6 +88,7 @@ const UploadHub = () => {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [itemToRename, setItemToRename] = useState(null);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -335,6 +337,64 @@ const UploadHub = () => {
     multiple: true,
     noClick: true,
   });
+
+  // Drag and drop overlay handlers
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Required to allow drop
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Check if we're leaving the drag container entirely
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+
+    // If mouse is outside the container bounds, hide overlay
+    if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
+      setIsDraggingOver(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    console.log(`📎 Drag-and-drop: ${files.length} file(s) dropped`);
+
+    if (files.length === 0) return;
+
+    // Filter Mac hidden files
+    const filteredFiles = filterMacHiddenFiles(files);
+
+    if (filteredFiles.length === 0) {
+      console.warn('⚠️ No valid files after filtering hidden files');
+      return;
+    }
+
+    // Add files to the upload queue
+    const pendingFiles = filteredFiles.map(file => ({
+      file,
+      status: 'pending',
+      progress: 0,
+      error: null,
+      category: 'Uncategorized',
+      path: file.path || file.name,
+      folderPath: file.path ? file.path.substring(0, file.path.lastIndexOf('/')) : null
+    }));
+    setUploadingFiles(prev => [...pendingFiles, ...prev]);
+  };
 
   const handleConfirmUpload = async () => {
     const pendingItems = uploadingFiles.filter(f => f.status === 'pending');
@@ -1476,13 +1536,20 @@ const UploadHub = () => {
       </div>
 
       {/* Main Upload Area */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'white',
-        height: '100vh'
-      }}>
+      <div
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'white',
+          height: '100vh',
+          position: 'relative'
+        }}
+      >
         {/* Header */}
         <div style={{
           display: 'flex',
@@ -2026,6 +2093,80 @@ const UploadHub = () => {
                 : `Confirm Upload`
               }
             </button>
+          </div>
+        )}
+
+        {/* Drag and Drop Overlay */}
+        {isDraggingOver && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(23, 23, 23, 0.95)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 20,
+              zIndex: 9999,
+              pointerEvents: 'none',
+              animation: 'fadeIn 0.2s ease-in'
+            }}
+          >
+            <style>
+              {`
+                @keyframes fadeIn {
+                  from { opacity: 0; }
+                  to { opacity: 1; }
+                }
+              `}
+            </style>
+            <div
+              style={{
+                width: 120,
+                height: 120,
+                background: 'white',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: isDraggingOver ? 1.0 : 0.75,
+                transform: isDraggingOver ? 'scale(1.08)' : 'scale(1.0)',
+                boxShadow: isDraggingOver ? '0 0 24px rgba(255, 255, 255, 0.12)' : 'none',
+                transition: 'opacity 250ms ease-out, transform 250ms ease-out, box-shadow 250ms ease-out'
+              }}
+            >
+              <LogoutBlackIcon style={{ width: 60, height: 60 }} />
+            </div>
+            <div
+              style={{
+                color: 'white',
+                fontSize: 32,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '700',
+                textAlign: 'center',
+                opacity: isDraggingOver ? 1.0 : 0.6,
+                transition: 'opacity 250ms ease-out'
+              }}
+            >
+              Drop files here to upload
+            </div>
+            <div
+              style={{
+                color: 'rgba(255, 255, 255, 0.7)',
+                fontSize: 18,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '500',
+                textAlign: 'center',
+                opacity: isDraggingOver ? 0.8 : 0.4,
+                transition: 'opacity 250ms ease-out'
+              }}
+            >
+              Release to open upload modal
+            </div>
           </div>
         )}
       </div>

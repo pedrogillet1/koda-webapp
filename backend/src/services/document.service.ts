@@ -83,17 +83,26 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   console.log(`🔐 Hash: ${fileHash}`);
   console.log(`═══════════════════════════════════════════════════════\n`);
 
-  // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded
+  // If relativePath is provided AND contains folders (has /), create nested folders
+  // Skip if it's just a filename without folder structure
+  let finalFolderId = folderId;
+  if (relativePath && relativePath.includes('/')) {
+    finalFolderId = await createFoldersFromPath(userId, relativePath, folderId || null);
+  }
+
+  // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded to the SAME folder
   const existingDoc = await prisma.document.findFirst({
     where: {
       userId,
       fileHash,
       status: 'completed',
+      // Allow same file in different folders
+      folderId: finalFolderId,
     },
   });
 
   if (existingDoc) {
-    console.log(`⚡ IDEMPOTENCY: File already uploaded (${existingDoc.filename})`);
+    console.log(`⚡ IDEMPOTENCY: File already uploaded in this folder (${existingDoc.filename})`);
     console.log(`  Skipping re-processing. Returning existing document.`);
 
     return await prisma.document.findUnique({
@@ -103,13 +112,6 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   }
 
   console.log('✅ New file detected, proceeding with upload...');
-
-  // If relativePath is provided AND contains folders (has /), create nested folders
-  // Skip if it's just a filename without folder structure
-  let finalFolderId = folderId;
-  if (relativePath && relativePath.includes('/')) {
-    finalFolderId = await createFoldersFromPath(userId, relativePath, folderId || null);
-  }
 
   // Generate unique encrypted filename
   const encryptedFilename = `${userId}/${crypto.randomUUID()}-${Date.now()}`;
@@ -350,11 +352,10 @@ async function processDocumentWithTimeout(
         // Clean up temp file
         fs.unlinkSync(tempFilePath);
       } catch (pptxError: any) {
-        console.warn('⚠️ Python PPTX extraction failed, falling back to basic extraction');
-        console.warn('Error:', pptxError.message);
-        // Fall back to basic text extraction
-        const result = await textExtractionService.extractText(fileBuffer, mimeType);
-        extractedText = result.text;
+        console.error('❌ CRITICAL: Python PPTX extraction failed. This document will be marked as failed.');
+        console.error('   └── Error:', pptxError.message);
+        // Re-throw the error to be caught by the main try-catch block, which will set the document status to 'failed'
+        throw new Error(`PowerPoint processing failed: ${pptxError.message}`);
       }
     }
     // Check if it's an image type that needs OCR via Gemini Vision
@@ -854,17 +855,19 @@ export interface CreateDocumentAfterUploadInput {
 export const createDocumentAfterUpload = async (input: CreateDocumentAfterUploadInput) => {
   const { userId, encryptedFilename, filename, mimeType, fileSize, fileHash, folderId, thumbnailData } = input;
 
-  // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded
+  // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded to the SAME folder
   const existingDoc = await prisma.document.findFirst({
     where: {
       userId,
       fileHash,
       status: 'completed',
+      // Allow same file in different folders
+      folderId: folderId,
     },
   });
 
   if (existingDoc) {
-    console.log(`⚡ IDEMPOTENCY: File already uploaded (${existingDoc.filename})`);
+    console.log(`⚡ IDEMPOTENCY: File already uploaded in this folder (${existingDoc.filename})`);
     console.log(`  Skipping re-processing. Returning existing document.`);
 
     return await prisma.document.findUnique({
@@ -1080,11 +1083,10 @@ async function processDocumentAsync(
         // Clean up temp file
         fs.unlinkSync(tempFilePath);
       } catch (pptxError: any) {
-        console.warn('⚠️ Python PPTX extraction failed, falling back to basic extraction');
-        console.warn('Error:', pptxError.message);
-        // Fall back to basic text extraction
-        const result = await textExtractionService.extractText(fileBuffer, mimeType);
-        extractedText = result.text;
+        console.error('❌ CRITICAL: Python PPTX extraction failed. This document will be marked as failed.');
+        console.error('   └── Error:', pptxError.message);
+        // Re-throw the error to be caught by the main try-catch block, which will set the document status to 'failed'
+        throw new Error(`PowerPoint processing failed: ${pptxError.message}`);
       }
     }
     // Check if it's an image type that needs OCR via OpenAI Vision
