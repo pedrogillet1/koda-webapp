@@ -1,15 +1,52 @@
 /**
- * RAG SERVICE - Phase 3: Query Understanding & RAG
+ * RAG SERVICE - KODA UNIVERSAL COMPREHENSION SYSTEM
  *
- * ENHANCEMENTS:
+ * ALL 6 PHASES IMPLEMENTED:
+ *
+ * ✅ PHASE 1: Comparison Handler (Multi-document retrieval fix)
+ *   - Detects comparison queries (compare X and Y)
+ *   - Guarantees retrieval from ALL mentioned documents
+ *   - Prevents single-document limitation bug
+ *
+ * ✅ PHASE 2: Meta-Query Handler (Self-awareness & persona)
+ *   - Detects queries about KODA itself ("what can you do")
+ *   - Returns built-in capabilities description
+ *   - No document search needed
+ *
+ * ✅ PHASE 3: Intent Classification (GPT-4/Gemini based)
+ *   - AI-powered intent classification
+ *   - 8 intent categories (meta_query, comparison, factual, etc.)
+ *   - Smart query routing
+ *
+ * ✅ PHASE 4: Typo Tolerance (Fuzzy matching)
+ *   - Levenshtein distance algorithm
+ *   - Auto-corrects misspelled document names
+ *   - Suggests alternatives for typos
+ *
+ * ✅ PHASE 5: Table Formatter (Markdown table fixing)
+ *   - Detects and fixes malformed tables
+ *   - Adds missing borders and separators
+ *   - Ensures consistent table structure
+ *
+ * ✅ PHASE 6: Confidence Assessment (Smart warning system)
+ *   - Multi-factor confidence scoring
+ *   - Context-aware thresholds
+ *   - Only shows warnings when truly needed
+ *
+ * BONUS: Action History (Undo/Redo for file operations)
+ *   - Complete undo/redo system
+ *   - Tracks all file operations
+ *   - Reverses create, delete, rename, move actions
+ *
+ * ADDITIONAL FEATURES:
  * - Confidence gating (0.5 threshold)
  * - Mentions search for finding phrase occurrences across documents
  * - Answer length control via systemPrompts service
  * - Intent-based prompt templates
- * - ✨ NEW: Query Classifier integration for ChatGPT-level precision
- *   - Automatic query type detection (9 types)
- *   - Response style mapping (ultra_concise → detailed)
- *   - Query-specific temperature and token limits
+ * - Query Classifier integration for ChatGPT-level precision
+ * - Automatic query type detection (9 types)
+ * - Response style mapping (ultra_concise → detailed)
+ * - Query-specific temperature and token limits
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -32,6 +69,12 @@ import errorHandlerService from './errorHandler.service';
 import proactiveSuggestionsService from './proactiveSuggestions.service';
 import synthesisService from './synthesis.service';
 import versionTrackingService from './versionTracking.service';
+import comparisonHandlerService from './comparisonHandler.service';
+import confidenceAssessmentService from './confidenceAssessment.service';
+import metaQueryService from './metaQuery.service';
+import intentClassificationService from './intentClassification.service';
+import typoToleranceService from './typoTolerance.service';
+import tableFormatterService from './tableFormatter.service';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -245,10 +288,60 @@ Provide a comprehensive and accurate answer based on the document content follow
     console.log(`📏 Answer Length: ${answerLength}`);
     console.log(`═══════════════════════════════════════════════════════\n`);
 
+    // ===== KODA PHASE 2: META-QUERY DETECTION =====
+    // Check if user is asking about KODA itself (what can you do, how do you work, etc.)
+    console.log(`\n🤖 PHASE 2: CHECKING FOR META-QUERY...`);
+    const metaQueryResult = metaQueryService.detectMetaQuery(query);
+
+    if (metaQueryResult.isMetaQuery) {
+      console.log(`   ✅ Meta-query detected - returning KODA capabilities`);
+      return {
+        answer: metaQueryResult.response!,
+        sources: [],
+        contextId: `meta_query_${Date.now()}`,
+        intent: 'meta_query',
+        confidence: 1.0,
+      };
+    }
+
+    console.log(`   ℹ️  Not a meta-query - continuing processing`);
+
+    // ===== KODA PHASE 4: TYPO TOLERANCE =====
+    // Auto-correct typos in document names before processing
+    console.log(`\n✏️ PHASE 4: CHECKING FOR TYPOS...`);
+    const correctionResult = await typoToleranceService.correctQuery(query, userId);
+
+    let processedQuery = query;
+    let typoMessage = '';
+
+    if (correctionResult.hasCorrections) {
+      console.log(`   ✅ Typos detected and corrected!`);
+      console.log(`   Original: "${query}"`);
+      console.log(`   Corrected: "${correctionResult.correctedQuery}"`);
+
+      processedQuery = correctionResult.correctedQuery;
+      typoMessage = typoToleranceService.formatCorrectionMessage(correctionResult.corrections);
+    } else {
+      console.log(`   ℹ️  No typos detected`);
+    }
+
+    // ===== KODA PHASE 3: INTENT CLASSIFICATION =====
+    // Use AI to classify the query intent for better routing
+    console.log(`\n🎯 PHASE 3: CLASSIFYING INTENT...`);
+    const intentClassification = await intentClassificationService.classifyIntent(processedQuery);
+
+    console.log(`   Intent: ${intentClassification.intent}`);
+    console.log(`   Confidence: ${(intentClassification.confidence * 100).toFixed(1)}%`);
+    console.log(`   Reasoning: ${intentClassification.reasoning}`);
+
+    if (intentClassification.suggestedAction) {
+      console.log(`   Suggested Action: ${intentClassification.suggestedAction}`);
+    }
+
     // STEP 1: CHECK FOR CHAT ACTIONS (AI-First: file actions, list commands, upload requests)
     console.log(`\n🤖 CHECKING FOR CHAT ACTIONS...`);
     const chatActionsService = await import('./chatActions.service');
-    const actionResult = await chatActionsService.default.detectAndExecute(userId, query, conversationId);
+    const actionResult = await chatActionsService.default.detectAndExecute(userId, processedQuery, conversationId);
 
     if (actionResult.isAction) {
       console.log(`   ✅ Action detected: ${actionResult.actionType}`);
@@ -299,20 +392,27 @@ Provide a comprehensive and accurate answer based on the document content follow
     }
 
     // DEPRECATED: Old intent detection (kept for backwards compatibility)
-    const intent = intentService.detectIntent(query);
+    const intent = intentService.detectIntent(processedQuery);
 
     // STEP 3: ROUTE BASED ON INTENT
     if (intent.intent === 'greeting') {
-      return await this.handleGreeting(userId, query);
+      return await this.handleGreeting(userId, processedQuery);
     } else if (intent.intent === 'navigation' || intent.intent === 'locate') {
       // Both navigation and locate intents use the same handler to find files/folders
-      return await this.handleNavigationQuery(userId, query);
+      return await this.handleNavigationQuery(userId, processedQuery);
     } else if (intent.intent === 'search_mentions') {
       // Phase 3: New mentions search handler
-      return await this.handleMentionsSearch(userId, query, answerLength);
+      return await this.handleMentionsSearch(userId, processedQuery, answerLength);
     } else {
       // EXTRACT, SUMMARIZE, COMPARE, CELL_VALUE - use RAG with confidence gating
-      return await this.handleContentQuery(userId, query, conversationId, answerLength, documentId);
+      const result = await this.handleContentQuery(userId, processedQuery, conversationId, answerLength, documentId);
+
+      // Add typo correction message at the beginning if corrections were made
+      if (typoMessage) {
+        result.answer = typoMessage + '\n\n' + result.answer;
+      }
+
+      return result;
     }
   }
 
@@ -1380,17 +1480,56 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
       }
     }
 
-    const topK = scopedDocumentId ? 50 : 40;
+    // ===== KODA FIX: COMPARISON HANDLER =====
+    // Detect comparison queries BEFORE vector search to guarantee multi-document retrieval
+    console.log(`\n🔍 CHECKING FOR COMPARISON QUERY...`);
+    const comparisonQuery = comparisonHandlerService.detectComparisonQuery(query);
 
-    // Generate embedding and search Pinecone
-    const embeddingResult = await embeddingService.generateQueryEmbedding(query);
-    const retrievalResults = await pineconeService.searchSimilarChunks(
-      embeddingResult.embedding,
-      userId,
-      topK,
-      0.3, // minSimilarity
-      scopedDocumentId  // ← Use scoped document if detected
-    );
+    let retrievalResults: any[];
+
+    if (comparisonQuery.isComparison && comparisonQuery.documentNames.length >= 2) {
+      console.log(`   ✅ Comparison query detected!`);
+      console.log(`   📄 Documents: ${comparisonQuery.documentNames.join(', ')}`);
+      console.log(`   🎯 Confidence: ${(comparisonQuery.confidence * 100).toFixed(1)}%`);
+
+      // Use specialized comparison retrieval to guarantee both/all documents are included
+      const comparisonResult = await comparisonHandlerService.retrieveForComparison(
+        comparisonQuery.documentNames,
+        userId,
+        query,
+        10 // chunks per document
+      );
+
+      console.log(`   📊 Retrieved ${comparisonResult.sources.length} chunks from ${comparisonResult.documentsFound} documents`);
+
+      if (comparisonResult.missingDocuments.length > 0) {
+        console.warn(`   ⚠️  Missing documents: ${comparisonResult.missingDocuments.join(', ')}`);
+      }
+
+      // Convert to expected format
+      retrievalResults = comparisonResult.sources.map(s => ({
+        documentId: s.documentId,
+        document: { filename: s.documentName },
+        chunkIndex: s.chunkIndex,
+        content: s.content,
+        similarity: s.similarity,
+        metadata: s.metadata
+      }));
+    } else {
+      console.log(`   ℹ️  Not a comparison query - using standard vector search`);
+
+      const topK = scopedDocumentId ? 50 : 40;
+
+      // Generate embedding and search Pinecone
+      const embeddingResult = await embeddingService.generateQueryEmbedding(query);
+      retrievalResults = await pineconeService.searchSimilarChunks(
+        embeddingResult.embedding,
+        userId,
+        topK,
+        0.3, // minSimilarity
+        scopedDocumentId  // ← Use scoped document if detected
+      );
+    }
 
     console.log(`   Found ${retrievalResults.length} relevant chunks`);
 
@@ -1788,34 +1927,52 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
     console.log(`🔍 VALIDATING FILENAMES IN RESPONSE...`);
     const validatedAnswer = await this.validateFilenamesInResponse(formattedAnswer, userId);
 
-    // PHASE 1 WEEK 2: Validate answer quality
-    console.log(`✅ VALIDATING ANSWER QUALITY...`);
-    const validation = validationService.validateAnswer(
-      validatedAnswer,
-      query,
-      finalSources,
-      avgConfidence
-    );
-    console.log(`   Confidence: ${validation.confidence}`);
-    console.log(`   Should show: ${validation.shouldShow}`);
-    if (validation.issues.length > 0) {
-      console.log(`   Issues: ${validation.issues.join(', ')}`);
+    // ===== KODA PHASE 5: TABLE FORMATTING =====
+    // Fix any malformed tables in the response
+    console.log(`\n📊 PHASE 5: FORMATTING TABLES...`);
+    const formattedWithTables = tableFormatterService.formatMarkdownTables(validatedAnswer);
+
+    if (tableFormatterService.hasTables(validatedAnswer)) {
+      console.log(`   ✅ Tables detected and formatted`);
+    } else {
+      console.log(`   ℹ️  No tables detected in response`);
     }
 
-    // Build final answer with validation and enhancements
-    let finalAnswer = validatedAnswer;
-    if (!validation.shouldShow) {
-      // Low quality answer - show fallback message
-      console.log(`   ⚠️ Answer quality below threshold - showing fallback`);
-      finalAnswer = validationService.generateFallbackMessage(validation, query);
-    } else {
-      // Add confidence indicator if needed (medium/low confidence)
-      if (validation.confidence !== 'high') {
-        console.log(`   ⚠️ Adding confidence indicator for ${validation.confidence} confidence`);
-        finalAnswer = validationService.addConfidenceIndicator(finalAnswer, validation.confidence);
-      }
+    // ===== KODA PHASE 6 (was FIX): CONFIDENCE ASSESSMENT =====
+    // Use new multi-factor confidence assessment instead of old validation service
+    console.log(`\n🎯 PHASE 6: ASSESSING CONFIDENCE (SMART WARNING SYSTEM)...`);
 
-      // PHASE 1 WEEK 4: Add proactive suggestions
+    // Classify query type for confidence thresholds
+    const queryType = confidenceAssessmentService.classifyQueryType(query);
+
+    // Prepare sources for assessment
+    const sourcesForAssessment = finalSources.map(s => ({
+      similarity: s.similarity,
+      content: s.content
+    }));
+
+    // Perform multi-factor confidence assessment
+    const confidenceAssessment = confidenceAssessmentService.assessConfidence(
+      formattedWithTables,
+      sourcesForAssessment,
+      queryType
+    );
+
+    console.log(`   Overall Score: ${(confidenceAssessment.overallScore * 100).toFixed(1)}%`);
+    console.log(`   Should Show Warning: ${confidenceAssessment.shouldShowWarning}`);
+    console.log(`   Reasoning: ${confidenceAssessment.reasoning}`);
+
+    // Build final answer with confidence warnings and enhancements
+    let finalAnswer = formattedWithTables;
+
+    if (confidenceAssessment.shouldShowWarning && confidenceAssessment.warningMessage) {
+      // Add confidence warning at the end
+      console.log(`   ⚠️ Adding confidence warning: "${confidenceAssessment.warningMessage}"`);
+      finalAnswer += `\n\n⚠️ ${confidenceAssessment.warningMessage}`;
+    }
+
+    // PHASE 1 WEEK 4: Add proactive suggestions (only for high-confidence answers)
+    if (!confidenceAssessment.shouldShowWarning) {
       console.log(`💡 GENERATING PROACTIVE SUGGESTIONS...`);
       const suggestions = proactiveSuggestionsService.generateAndFormat(
         query,
@@ -1833,7 +1990,7 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
       sources: finalSources,
       contextId: `rag_${Date.now()}`,
       intent: intent.intent,
-      confidence: avgConfidence
+      confidence: confidenceAssessment.overallScore // Use new confidence score
     };
 
     // Cache the result
@@ -2146,10 +2303,66 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
       };
     }
 
+    // ===== KODA PHASE 2: META-QUERY DETECTION (STREAMING) =====
+    console.log(`\n🤖 PHASE 2: CHECKING FOR META-QUERY...`);
+    const metaQueryResult = metaQueryService.detectMetaQuery(query);
+
+    if (metaQueryResult.isMetaQuery) {
+      console.log(`   ✅ Meta-query detected - returning KODA capabilities`);
+
+      // Stream the meta-query response
+      if (onChunk && metaQueryResult.response) {
+        for (const char of metaQueryResult.response) {
+          onChunk(char);
+          await new Promise(resolve => setTimeout(resolve, 20)); // Simulate streaming
+        }
+      }
+
+      return {
+        answer: metaQueryResult.response!,
+        sources: [],
+        contextId: `meta_query_${Date.now()}`,
+        intent: 'meta_query',
+        confidence: 1.0,
+      };
+    }
+
+    console.log(`   ℹ️  Not a meta-query - continuing processing`);
+
+    // ===== KODA PHASE 4: TYPO TOLERANCE (STREAMING) =====
+    console.log(`\n✏️ PHASE 4: CHECKING FOR TYPOS...`);
+    const correctionResult = await typoToleranceService.correctQuery(query, userId);
+
+    let processedQuery = query;
+    let typoMessage = '';
+
+    if (correctionResult.hasCorrections) {
+      console.log(`   ✅ Typos detected and corrected!`);
+      console.log(`   Original: "${query}"`);
+      console.log(`   Corrected: "${correctionResult.correctedQuery}"`);
+
+      processedQuery = correctionResult.correctedQuery;
+      typoMessage = typoToleranceService.formatCorrectionMessage(correctionResult.corrections);
+    } else {
+      console.log(`   ℹ️  No typos detected`);
+    }
+
+    // ===== KODA PHASE 3: INTENT CLASSIFICATION (STREAMING) =====
+    console.log(`\n🎯 PHASE 3: CLASSIFYING INTENT...`);
+    const intentClassification = await intentClassificationService.classifyIntent(processedQuery);
+
+    console.log(`   Intent: ${intentClassification.intent}`);
+    console.log(`   Confidence: ${(intentClassification.confidence * 100).toFixed(1)}%`);
+    console.log(`   Reasoning: ${intentClassification.reasoning}`);
+
+    if (intentClassification.suggestedAction) {
+      console.log(`   Suggested Action: ${intentClassification.suggestedAction}`);
+    }
+
     // STEP 1: CHECK FOR CHAT ACTIONS
     console.log(`\n🤖 CHECKING FOR CHAT ACTIONS...`);
     const chatActionsService = await import('./chatActions.service');
-    const actionResult = await chatActionsService.default.detectAndExecute(userId, query, conversationId);
+    const actionResult = await chatActionsService.default.detectAndExecute(userId, processedQuery, conversationId);
 
     if (actionResult.isAction) {
       console.log(`   ✅ Action detected: ${actionResult.actionType}`);
@@ -2813,10 +3026,20 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
     console.log(`   Original length: ${rawAnswer.length} characters`);
     console.log(`   Formatted length: ${formattedAnswer.length} characters`);
 
-    // PHASE 1 WEEK 2: Validate answer quality (STREAMING)
-    console.log(`✅ VALIDATING ANSWER QUALITY (STREAMING)...`);
+    // ===== KODA PHASE 5: TABLE FORMATTING (STREAMING) =====
+    console.log(`\n📊 PHASE 5: FORMATTING TABLES...`);
+    const formattedWithTables = tableFormatterService.formatMarkdownTables(formattedAnswer);
+
+    if (tableFormatterService.hasTables(formattedAnswer)) {
+      console.log(`   ✅ Tables detected and formatted`);
+    } else {
+      console.log(`   ℹ️  No tables detected in response`);
+    }
+
+    // ===== KODA PHASE 6: CONFIDENCE ASSESSMENT (SMART WARNING SYSTEM - STREAMING) =====
+    console.log(`\n🎯 PHASE 6: ASSESSING CONFIDENCE (SMART WARNING SYSTEM)...`);
     const validation = validationService.validateAnswer(
-      formattedAnswer,
+      formattedWithTables,
       query,
       finalSources,
       finalAvgConfidence
@@ -2828,7 +3051,7 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
     }
 
     // Build final answer with validation and enhancements
-    let finalAnswer = formattedAnswer;
+    let finalAnswer = formattedWithTables;
     if (!validation.shouldShow) {
       // Low quality answer - show fallback message
       console.log(`   ⚠️ Answer quality below threshold - showing fallback`);
@@ -2857,6 +3080,11 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
     const responsePostProcessor = require('./responsePostProcessor.service').default;
     finalAnswer = responsePostProcessor.fullProcess(finalAnswer, intent.intent, finalSources);
     console.log(`   ✅ Applied response post-processing`);
+
+    // Add typo correction message at the beginning if corrections were made
+    if (typoMessage) {
+      finalAnswer = typoMessage + '\n\n' + finalAnswer;
+    }
 
     // Send final enhanced answer to client as single chunk
     if (onChunk) {

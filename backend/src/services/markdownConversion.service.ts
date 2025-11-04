@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { Storage } from '@google-cloud/storage';
 import { config } from '../config/env';
-import { PDFParse } from 'pdf-parse';
+import pdfParse from 'pdf-parse';
 
 interface MarkdownConversionResult {
   markdownContent: string;
@@ -104,8 +104,7 @@ class MarkdownConversionService {
     documentId: string
   ): Promise<MarkdownConversionResult> {
     try {
-      const parser = new PDFParse({ data: buffer });
-      const data = await parser.getText();
+      const data = await pdfParse(buffer);
       const markdownParts: string[] = [];
       const images: string[] = [];
 
@@ -117,7 +116,7 @@ class MarkdownConversionService {
         markdownParts.push('# Document Content\n\n');
 
         // Split text by pages (if available) or by paragraphs
-        const pageCount = data.total || 1;
+        const pageCount = data.numpages || 1;
         const textPerPage = Math.ceil(data.text.length / pageCount);
 
         for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
@@ -150,7 +149,7 @@ class MarkdownConversionService {
         structure,
         images,
         metadata: {
-          pageCount: data.total || 1,
+          pageCount: data.numpages || 1,
           wordCount: data.text ? data.text.split(/\s+/).length : 0,
         },
       };

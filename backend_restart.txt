@@ -1,1 +1,3 @@
-restart-1762282353
+restart triggered at 2025-11-04 17:53:00
+Restart backend - Phase 2-5 streaming integration complete
+Streaming fix - restore original behavior

@@ -6,7 +6,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
-import { PDFParse } from 'pdf-parse';
+import pdfParse from 'pdf-parse';
 
 export interface ExtractionResult {
   text: string;
@@ -129,8 +129,7 @@ const postProcessOCRText = (text: string): string => {
  */
 export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResult> => {
   try {
-    const parser = new PDFParse({ data: buffer });
-    const data = await parser.getText();
+    const data = await pdfParse(buffer);
 
     // If no text found, might be a scanned PDF - use OCR
     if (!data.text || data.text.trim().length === 0) {
@@ -143,7 +142,7 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
       return {
         text: cleanedText,
         confidence: ocrResult.confidence,
-        pageCount: data.total,
+        pageCount: data.numpages,
         wordCount: cleanedText.split(/\s+/).filter((w: any) => w.length > 0).length,
         language: ocrResult.language,
       };
@@ -154,7 +153,7 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
 
     return {
       text: cleanedText,
-      pageCount: data.total,
+      pageCount: data.numpages,
       wordCount: cleanedText.split(/\s+/).filter((w: any) => w.length > 0).length,
       confidence: 1.0, // Native text extraction has 100% confidence
     };

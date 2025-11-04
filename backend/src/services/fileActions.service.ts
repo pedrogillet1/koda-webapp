@@ -150,7 +150,6 @@ class FileActionsService {
         folderId: true,
         encryptedFilename: true,
         mimeType: true,
-        classification: true,
         status: true,
         createdAt: true,
         updatedAt: true,
