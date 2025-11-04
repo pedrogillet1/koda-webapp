@@ -128,7 +128,7 @@ const DocumentsPage = () => {
         return {
           id: folder.id,
           name: folder.name,
-          emoji: folder.emoji || '📁',
+          emoji: folder.emoji || '__FOLDER_SVG__',
           fileCount,
           folderCount: folder._count?.subfolders || 0,
           count: fileCount
@@ -300,7 +300,9 @@ const DocumentsPage = () => {
   const handlePageDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDraggingOver(true);
+    // Only show upload overlay for external file drags, not internal document drags
+    const hasFiles = e.dataTransfer.types.includes('Files');
+    setIsDraggingOver(hasFiles);
   };
 
   const handlePageDragLeave = (e) => {

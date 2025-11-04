@@ -37,6 +37,26 @@ export class QueryIntentDetectorService {
       }
     }
 
+    // ✅ FIX: Check for SUMMARY patterns BEFORE LIST patterns
+    // This prevents "what is this document about" from being classified as LIST
+    // These patterns indicate the user wants CONTENT summary, not a list of filenames
+    const summaryPatterns = [
+      /what (is|are) (this|the|that) (document|file) (about|regarding|concerning)/i,
+      /what does (this|the|that) (document|file) (say|contain|include|cover)/i,
+      /summarize (this|the|that) (document|file)/i,
+      /explain (this|the|that) (document|file)/i,
+      /tell me about (this|the|that) (document|file)/i,
+      /describe (this|the|that) (document|file)/i,
+      /what('s| is) in (this|the|that) (document|file)/i,
+    ];
+
+    for (const pattern of summaryPatterns) {
+      if (pattern.test(query)) {
+        console.log(`   📝 Intent: SUMMARY (specific document content, pattern: ${pattern})`);
+        return QueryIntent.SUMMARY;
+      }
+    }
+
     // List patterns - user wants filenames
     const listPatterns = [
       /^(show me|list|display|give me)\s+(all|the)?\s*(documents?|files?)/i,
@@ -76,8 +96,8 @@ export class QueryIntentDetectorService {
       return QueryIntent.COMPARISON;
     }
 
-    // Default to summary
-    console.log(`   📝 Intent: SUMMARY (default)`);
+    // Default to summary - if no specific pattern matched, assume user wants content summary
+    console.log(`   📝 Intent: SUMMARY (default - no specific pattern matched)`);
     return QueryIntent.SUMMARY;
   }
 

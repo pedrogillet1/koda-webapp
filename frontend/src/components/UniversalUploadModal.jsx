@@ -734,26 +734,45 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
               >
                 {/* Progress bar - Only show during upload */}
                 {item.status === 'uploading' && (
-                  <div style={{
-                    width: '100%',
-                    height: '100%',
-                    left: 0,
-                    top: 0,
-                    position: 'absolute',
-                    pointerEvents: 'none'
-                  }}>
+                  <>
                     <div style={{
-                      width: `${item.progress}%`,
+                      width: '100%',
                       height: '100%',
                       left: 0,
                       top: 0,
                       position: 'absolute',
-                      background: 'rgba(169, 169, 169, 0.12)',
-                      borderTopLeftRadius: 18,
-                      borderBottomLeftRadius: 18,
-                      transition: 'width 0.3s ease-out'
-                    }} />
-                  </div>
+                      pointerEvents: 'none'
+                    }}>
+                      <div style={{
+                        width: `${item.progress}%`,
+                        height: '100%',
+                        left: 0,
+                        top: 0,
+                        position: 'absolute',
+                        background: 'rgba(169, 169, 169, 0.12)',
+                        borderTopLeftRadius: 18,
+                        borderBottomLeftRadius: 18,
+                        transition: 'width 0.3s ease-in-out',
+                        opacity: item.progress >= 100 ? 0 : 1,
+                        transitionProperty: item.progress >= 100 ? 'width 0.3s ease-in-out, opacity 400ms ease-out' : 'width 0.3s ease-in-out'
+                      }} />
+                    </div>
+
+                    {/* Upload percentage counter */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 12,
+                      right: 16,
+                      fontSize: 13,
+                      fontWeight: '500',
+                      color: '#6C6C6C',
+                      zIndex: 2,
+                      opacity: item.progress < 100 ? 1 : 0,
+                      transition: 'opacity 0.3s ease-out'
+                    }}>
+                      {Math.round(item.progress)}%
+                    </div>
+                  </>
                 )}
 
                 <div style={{
@@ -808,8 +827,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                     </div>
                     <div style={{
                       alignSelf: 'stretch',
-                      color: item.status === 'failed' ? '#EF4444' : '#6C6B6E',
-                      fontSize: 14,
+                      color: item.status === 'failed' ? '#EF4444' : (item.status === 'uploading' ? '#A0A0A0' : '#6C6B6E'),
+                      fontSize: 13,
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '500',
                       lineHeight: '15.40px'
@@ -821,7 +840,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                           : item.status === 'completed'
                           ? `${formatFileSize(item.totalSize)} • ${item.fileCount} file${item.fileCount > 1 ? 's' : ''} • 100% uploaded`
                           : item.status === 'uploading'
-                          ? item.processingStage || `${formatFileSize(item.totalSize)} • ${item.fileCount} file${item.fileCount > 1 ? 's' : ''} • ${item.progress}% uploaded`
+                          ? 'Uploading to cloud...'
                           : `${formatFileSize(item.totalSize)} • ${item.fileCount} file${item.fileCount > 1 ? 's' : ''} • ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
                       ) : (
                         // File status display
@@ -830,7 +849,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                           : item.status === 'completed'
                           ? `${formatFileSize(item.file.size)} • 100% uploaded`
                           : item.status === 'uploading'
-                          ? item.processingStage || `${formatFileSize(item.file.size)} • ${item.progress}% uploaded`
+                          ? 'Uploading to cloud...'
                           : `${formatFileSize(item.file.size)} • ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
                       )}
                     </div>

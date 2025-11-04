@@ -657,8 +657,26 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                         position: 'absolute',
                         background: 'rgba(169, 169, 169, 0.12)',
                         borderTopLeftRadius: 18,
-                        borderBottomLeftRadius: 18
+                        borderBottomLeftRadius: 18,
+                        transition: 'width 0.3s ease-in-out',
+                        opacity: progress >= 100 ? 0 : 1,
+                        transitionProperty: progress >= 100 ? 'width 0.3s ease-in-out, opacity 400ms ease-out' : 'width 0.3s ease-in-out'
                       }} />
+
+                      {/* Upload percentage counter */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: 12,
+                        right: 16,
+                        fontSize: 13,
+                        fontWeight: '500',
+                        color: '#6C6C6C',
+                        zIndex: 2,
+                        opacity: progress < 100 ? 1 : 0,
+                        transition: 'opacity 0.3s ease-out'
+                      }}>
+                        {Math.round(progress)}%
+                      </div>
 
                     <div style={{
                       flex: 1,
@@ -709,7 +727,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                             color: '#32302C',
                             fontSize: 16,
                             fontFamily: 'Plus Jakarta Sans',
-                            fontWeight: '600',
+                            fontWeight: '500',
                             lineHeight: '22.40px',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
@@ -719,13 +737,13 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                           </div>
                           <div style={{
                             alignSelf: 'stretch',
-                            color: '#6C6B6E',
-                            fontSize: 14,
+                            color: '#A0A0A0',
+                            fontSize: 13,
                             fontFamily: 'Plus Jakarta Sans',
                             fontWeight: '500',
                             lineHeight: '15.40px'
                           }}>
-                            {formatFileSize(file.size)} – {progress}% uploaded
+                            Uploading to cloud...
                           </div>
                         </div>
                       </div>
@@ -842,7 +860,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                             color: '#32302C',
                             fontSize: 16,
                             fontFamily: 'Plus Jakarta Sans',
-                            fontWeight: '600',
+                            fontWeight: '500',
                             lineHeight: '22.40px',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',

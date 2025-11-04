@@ -33,7 +33,7 @@ const Upload = () => {
         loadDocuments();
     }, []);
 
-    const { getRootProps, getInputProps, open } = useDropzone({
+    const { getRootProps, getInputProps, open, isDragActive } = useDropzone({
         onDrop: (acceptedFiles) => {
             onDrop(acceptedFiles);
             setIsModalOpen(true);
@@ -145,7 +145,15 @@ const Upload = () => {
                 <div style={{alignSelf: 'stretch', flex: '1 1 0', padding: 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 20, display: 'flex'}}>
                     <div {...getRootProps()} style={{alignSelf: 'stretch', flex: '1 1 0', paddingLeft: 40, paddingRight: 40, paddingTop: 60, paddingBottom: 60, background: '#F5F5F5', overflow: 'hidden', borderRadius: 20, border: '2px dashed rgba(108, 107, 110, 0.40)', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 32, display: 'flex', cursor: 'pointer'}}>
                         <input {...getInputProps()} />
-                        <div style={{width: 85.38, height: 80, position: 'relative'}}>
+                        <div style={{
+                            width: 85.38,
+                            height: 80,
+                            position: 'relative',
+                            opacity: isDragActive ? 1.0 : 0.75,
+                            transform: isDragActive ? 'scale(1.08)' : 'scale(1.0)',
+                            boxShadow: isDragActive ? '0 0 24px rgba(0, 0, 0, 0.12)' : 'none',
+                            transition: 'opacity 250ms ease-out, transform 250ms ease-out, box-shadow 250ms ease-out'
+                        }}>
                             <div style={{width: 72.95, height: 61.73, paddingTop: 9.62, paddingBottom: 7.22, paddingLeft: 3.78, paddingRight: 3.78, left: 6.21, top: 8.76, position: 'absolute', background: 'white', boxShadow: '0px 1.60px 1.60px 1.20px rgba(68, 68, 68, 0.16)', overflow: 'hidden', borderRadius: 4.13, border: '0.34px solid #EDEDED', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 1.60, display: 'flex'}}>
                                 <div style={{width: 64.40, height: 2.41, background: '#E2E2E0', borderRadius: 6.41}} />
                                 <div style={{width: 25.89, height: 2.41, background: '#E2E2E0', borderRadius: 6.41}} />
@@ -154,9 +162,28 @@ const Upload = () => {
                         </div>
                         <div style={{flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 4, display: 'flex'}}>
                             <div style={{alignSelf: 'stretch', justifyContent: 'center', alignItems: 'flex-start', gap: 6, display: 'flex'}}>
-                                <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '30px'}}>Upload Documents or Drag-n-drop</div>
+                                <div style={{
+                                    color: '#32302C',
+                                    fontSize: 20,
+                                    fontFamily: 'Plus Jakarta Sans',
+                                    fontWeight: '600',
+                                    textTransform: 'capitalize',
+                                    lineHeight: '30px',
+                                    opacity: isDragActive ? 1.0 : 0.6,
+                                    transition: 'opacity 250ms ease-out'
+                                }}>Upload Documents or Drag-n-drop</div>
                             </div>
-                            <div style={{width: 366, textAlign: 'center', color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload your first document           All file types supported (max 15MB)</div>
+                            <div style={{
+                                width: 366,
+                                textAlign: 'center',
+                                color: '#6C6B6E',
+                                fontSize: 16,
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontWeight: '500',
+                                lineHeight: '24px',
+                                opacity: isDragActive ? 0.8 : 0.4,
+                                transition: 'opacity 250ms ease-out'
+                            }}>Upload your first document           All file types supported (max 15MB)</div>
                         </div>
                         <div style={{width: 340, borderRadius: 12, justifyContent: 'center', alignItems: 'flex-start', gap: 8, display: 'flex'}}>
                             <div onClick={(e) => { e.stopPropagation(); open(); }} style={{width: 166, height: 52, borderRadius: 14, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex', cursor: 'pointer'}}>
@@ -317,9 +344,32 @@ const Upload = () => {
                                     cursor: 'pointer'
                                 }}>
                                     <input {...getInputProps()} />
-                                    <div style={{fontSize: 64, marginBottom: 16}}>📁</div>
-                                    <h3 style={{fontSize: 18, fontWeight: '600', color: '#111827', margin: '0 0 8px 0', fontFamily: 'Plus Jakarta Sans'}}>Upload Documents Or Drag-N-Drop</h3>
-                                    <p style={{fontSize: 14, color: '#6B7280', margin: '0 0 24px 0', lineHeight: 1.5, fontFamily: 'Plus Jakarta Sans'}}>Upload your first document<br/>All file types supported (max 15MB)</p>
+                                    <div style={{
+                                        fontSize: 64,
+                                        marginBottom: 16,
+                                        opacity: isDragActive ? 1.0 : 0.75,
+                                        transform: isDragActive ? 'scale(1.08)' : 'scale(1.0)',
+                                        filter: isDragActive ? 'drop-shadow(0 0 24px rgba(0, 0, 0, 0.12))' : 'none',
+                                        transition: 'opacity 250ms ease-out, transform 250ms ease-out, filter 250ms ease-out'
+                                    }}>📁</div>
+                                    <h3 style={{
+                                        fontSize: 18,
+                                        fontWeight: '600',
+                                        color: '#111827',
+                                        margin: '0 0 8px 0',
+                                        fontFamily: 'Plus Jakarta Sans',
+                                        opacity: isDragActive ? 1.0 : 0.6,
+                                        transition: 'opacity 250ms ease-out'
+                                    }}>Upload Documents Or Drag-N-Drop</h3>
+                                    <p style={{
+                                        fontSize: 14,
+                                        color: '#6B7280',
+                                        margin: '0 0 24px 0',
+                                        lineHeight: 1.5,
+                                        fontFamily: 'Plus Jakarta Sans',
+                                        opacity: isDragActive ? 0.8 : 0.4,
+                                        transition: 'opacity 250ms ease-out'
+                                    }}>Upload your first document<br/>All file types supported (max 15MB)</p>
                                     <button
                                         onClick={(e) => { e.stopPropagation(); open(); }}
                                         style={{

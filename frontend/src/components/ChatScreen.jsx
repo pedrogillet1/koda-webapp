@@ -45,8 +45,9 @@ const ChatScreen = () => {
         setCurrentConversation(conversation);
     };
 
-    const handleNewChat = (newConversation) => {
-        setCurrentConversation(newConversation);
+    const handleNewChat = () => {
+        // Clear current conversation to show blank new chat screen
+        setCurrentConversation(null);
     };
 
     const handleConversationUpdate = (updatedConversation) => {

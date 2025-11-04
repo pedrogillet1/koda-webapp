@@ -414,7 +414,9 @@ const Documents = () => {
   const handlePageDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDraggingOver(true);
+    // Only show upload overlay for external file drags, not internal document drags
+    const hasFiles = e.dataTransfer.types.includes('Files');
+    setIsDraggingOver(hasFiles);
   };
 
   const handlePageDragLeave = (e) => {
@@ -1596,17 +1598,12 @@ const Documents = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                animation: 'pulse 1.5s ease-in-out infinite'
+                opacity: isDraggingOver ? 1.0 : 0.75,
+                transform: isDraggingOver ? 'scale(1.08)' : 'scale(1.0)',
+                boxShadow: isDraggingOver ? '0 0 24px rgba(255, 255, 255, 0.12)' : 'none',
+                transition: 'opacity 250ms ease-out, transform 250ms ease-out, box-shadow 250ms ease-out'
               }}
             >
-              <style>
-                {`
-                  @keyframes pulse {
-                    0%, 100% { transform: scale(1); }
-                    50% { transform: scale(1.05); }
-                  }
-                `}
-              </style>
               <LogoutBlackIcon style={{ width: 60, height: 60 }} />
             </div>
             <div
@@ -1615,7 +1612,9 @@ const Documents = () => {
                 fontSize: 32,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700',
-                textAlign: 'center'
+                textAlign: 'center',
+                opacity: isDraggingOver ? 1.0 : 0.6,
+                transition: 'opacity 250ms ease-out'
               }}
             >
               Drop files here to upload
@@ -1626,7 +1625,9 @@ const Documents = () => {
                 fontSize: 18,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '500',
-                textAlign: 'center'
+                textAlign: 'center',
+                opacity: isDraggingOver ? 0.8 : 0.4,
+                transition: 'opacity 250ms ease-out'
               }}
             >
               Release to open upload modal

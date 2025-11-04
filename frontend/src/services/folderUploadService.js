@@ -181,7 +181,7 @@ class FolderUploadService {
       console.log(`📝 Creating new category with name: "${trimmedName}"`);
       const createResponse = await api.post('/api/folders', {
         name: trimmedName,
-        emoji: '📁'
+        emoji: null // Use null to allow default SVG icon
       });
 
       console.log(`✅ Created category with ID: ${createResponse.data.folder.id}`);
@@ -208,7 +208,7 @@ class FolderUploadService {
     try {
       const response = await api.post('/api/folders/bulk', {
         folderTree: subfolders,
-        defaultEmoji: '📁',
+        defaultEmoji: null, // Use null to allow default SVG icon
         parentFolderId: categoryId
       });
 
@@ -420,39 +420,54 @@ class FolderUploadService {
       onProgress({ stage: 'analyzing', message: 'Analyzing folder structure...' });
       const structure = this.analyzeFolderStructure(files);
 
-      let categoryId;
+      let categoryId; // This will be the final ID where files are placed
       let categoryName;
 
-      if (existingCategoryId) {
-        // SCENARIO: Uploading INTO an existing category/subfolder
-        // Create the uploaded folder as a SUBFOLDER of the existing location
-        console.log(`📂 Creating folder "${structure.rootFolderName}" inside existing category: ${existingCategoryId}`);
+      // **THE FIX STARTS HERE**
+
+      // SCENARIO 1: Uploading a folder to create a NEW ROOT CATEGORY.
+      if (!existingCategoryId) {
+        console.log(`📂 Creating NEW root category from folder: "${structure.rootFolderName}"`);
+        onProgress({ stage: 'category', message: `Creating category "${structure.rootFolderName}"...` });
+
+        // Use ensureCategory to get the ID of the new or existing root category.
+        // This becomes the direct parent for all files and subfolders.
+        categoryId = await this.ensureCategory(structure.rootFolderName);
+        categoryName = structure.rootFolderName;
+        console.log(`✅ Root category ID set to: ${categoryId}`);
+
+      // SCENARIO 2: Uploading a folder INTO an EXISTING CATEGORY.
+      } else {
+        console.log(`📂 Creating subfolder "${structure.rootFolderName}" inside existing category: ${existingCategoryId}`);
         onProgress({ stage: 'category', message: `Creating folder "${structure.rootFolderName}"...` });
 
+        // Create the uploaded folder as a SUBFOLDER of the existing location.
+        // The files will go into this new subfolder.
         try {
           const createResponse = await api.post('/api/folders', {
             name: structure.rootFolderName,
-            emoji: '📁',
+            emoji: null, // FIX for icon bug
             parentFolderId: existingCategoryId
           });
-          categoryId = createResponse.data.folder.id;
+          categoryId = createResponse.data.folder.id; // Files go into the new subfolder
           categoryName = structure.rootFolderName;
-          console.log(`✅ Created folder with ID: ${categoryId}`);
+          console.log(`✅ Created subfolder with ID: ${categoryId}`);
         } catch (error) {
-          console.error('❌ Error creating folder:', error);
+          console.error('❌ Error creating subfolder:', error);
           throw error;
         }
-      } else {
-        // SCENARIO: Creating NEW category from folder name (root level)
-        console.log(`📂 Creating new category from folder name: "${structure.rootFolderName}"`);
-        onProgress({ stage: 'category', message: `Setting up category "${structure.rootFolderName}"...` });
-        categoryId = await this.ensureCategory(structure.rootFolderName);
-        categoryName = structure.rootFolderName;
       }
 
-      // Step 3: Create subfolders
-      onProgress({ stage: 'subfolders', message: `Creating ${structure.subfolders.length} subfolders...` });
-      const folderMap = await this.createSubfolders(structure.subfolders, categoryId);
+      // **THE FIX ENDS HERE**
+
+      // Step 2: Create subfolders within the target `categoryId`
+      let folderMap = {};
+      if (structure.subfolders.length > 0) {
+        onProgress({ stage: 'subfolders', message: `Creating ${structure.subfolders.length} subfolders...` });
+        folderMap = await this.createSubfolders(structure.subfolders, categoryId);
+      } else {
+        console.log(`No subfolders to create`);
+      }
 
       // Step 4: Map files to folders
       onProgress({ stage: 'mapping', message: 'Mapping files to folders...' });
