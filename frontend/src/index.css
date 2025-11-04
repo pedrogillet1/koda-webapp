@@ -237,9 +237,9 @@ code {
 }
 
 .typing-indicator-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #666;
+  width: 12px;
+  height: 12px;
+  background-color: #000000;
   border-radius: 50%;
   display: inline-block;
   animation: bounce-dot 1.4s infinite ease-in-out both !important;
@@ -261,7 +261,7 @@ code {
 @keyframes bounce-dot {
   0%, 80%, 100% {
     transform: scale(0.8) translateY(0px);
-    opacity: 0.5;
+    opacity: 1;
   }
   40% {
     transform: scale(1.2) translateY(-10px);

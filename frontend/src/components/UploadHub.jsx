@@ -222,10 +222,19 @@ const UploadHub = () => {
   ];
 
   const calculateFileHash = async (file) => {
+    console.log(`🔐 [calculateFileHash] Hashing file: ${file.name}`);
+    console.log(`   File size: ${file.size} bytes`);
+    console.log(`   File type: ${file.type}`);
+    console.log(`   Last modified: ${file.lastModified}`);
+
     const buffer = await file.arrayBuffer();
+    console.log(`   Buffer size: ${buffer.byteLength} bytes`);
+
     const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    console.log(`   ✅ Calculated hash: ${hashHex}`);
     return hashHex;
   };
 
@@ -233,39 +242,77 @@ const UploadHub = () => {
    * Upload file directly to GCS using signed URL
    */
   const uploadFileDirectToGCS = async (file, fileHash, folderId, thumbnailBase64, onProgress) => {
-    // Step 1: Request signed upload URL from backend
-    const urlResponse = await api.post('/api/documents/upload-url', {
-      fileName: file.name,
-      fileType: file.type,
-      fileHash
-    });
+    try {
+      console.log('🚀 [uploadFileDirectToGCS] Starting upload process for:', file.name);
+      console.log('   File type:', file.type);
+      console.log('   File size:', file.size);
+      console.log('   File hash:', fileHash);
+      console.log('   Folder ID:', folderId);
 
-    const { uploadUrl, encryptedFilename, documentId } = urlResponse.data;
+      // Step 1: Request signed upload URL from backend
+      console.log('📡 [Step 1/3] Requesting signed upload URL from backend...');
+      const urlResponse = await api.post('/api/documents/upload-url', {
+        fileName: file.name,
+        fileType: file.type,
+        fileHash
+      });
 
-    // Step 2: Upload file directly to GCS (this is where the speed improvement happens!)
-    await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': file.type,
-      },
-      body: file
-    });
+      console.log('✅ [Step 1/3] Got upload URL response:', {
+        hasUploadUrl: !!urlResponse.data.uploadUrl,
+        hasEncryptedFilename: !!urlResponse.data.encryptedFilename,
+        documentId: urlResponse.data.documentId
+      });
 
-    // Update progress to show upload complete
-    if (onProgress) onProgress(90);
+      const { uploadUrl, encryptedFilename, documentId } = urlResponse.data;
 
-    // Step 3: Confirm upload with backend to create document record
-    const confirmResponse = await api.post(`/api/documents/${documentId}/confirm-upload`, {
-      encryptedFilename,
-      filename: file.name,
-      mimeType: file.type,
-      fileSize: file.size,
-      fileHash,
-      folderId: folderId || undefined,
-      thumbnailData: thumbnailBase64 || undefined
-    });
+      // Step 2: Upload file directly to GCS (this is where the speed improvement happens!)
+      console.log('📡 [Step 2/3] Uploading file directly to GCS...');
+      await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type,
+        },
+        body: file
+      });
 
-    return confirmResponse.data.document;
+      console.log('✅ [Step 2/3] File uploaded to GCS successfully');
+
+      // Update progress to show upload complete
+      if (onProgress) onProgress(90);
+
+      // Step 3: Confirm upload with backend to create document record
+      console.log('📡 [Step 3/3] Confirming upload with backend...');
+      console.log('   Calling:', `/api/documents/${documentId}/confirm-upload`);
+      console.log('   Payload:', {
+        encryptedFilename,
+        filename: file.name,
+        mimeType: file.type,
+        fileSize: file.size,
+        fileHash,
+        folderId: folderId || undefined,
+        hasThumbnail: !!thumbnailBase64
+      });
+
+      const confirmResponse = await api.post(`/api/documents/${documentId}/confirm-upload`, {
+        encryptedFilename,
+        filename: file.name,
+        mimeType: file.type,
+        fileSize: file.size,
+        fileHash,
+        folderId: folderId || undefined,
+        thumbnailData: thumbnailBase64 || undefined
+      });
+
+      console.log('✅ [Step 3/3] Upload confirmed! Document created:', confirmResponse.data.document?.id);
+
+      return confirmResponse.data.document;
+    } catch (error) {
+      console.error('❌ [uploadFileDirectToGCS] Error during upload:', error);
+      console.error('   Error message:', error.message);
+      console.error('   Error response:', error.response?.data);
+      console.error('   Error status:', error.response?.status);
+      throw error; // Re-throw to be handled by caller
+    }
   };
 
   const { getRootProps, getInputProps, open } = useDropzone({
