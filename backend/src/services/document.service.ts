@@ -934,9 +934,12 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
       try {
         const io = require('../server').io;
         if (io) {
-          io.to(userId).emit('document:failed', {
+          io.to(`user:${userId}`).emit('document-processing-update', {
             documentId: document.id,
             filename: filename,
+            status: 'failed',
+            stage: 'failed',
+            progress: 0,
             error: error.message || 'Processing failed'
           });
         }
@@ -1442,10 +1445,13 @@ async function processDocumentAsync(
     try {
       const io = require('../server').io;
       if (io) {
-        io.to(userId).emit('document:completed', {
+        io.to(`user:${userId}`).emit('document-processing-update', {
           documentId: documentId,
           filename: filename,
-          status: 'completed'
+          status: 'completed',
+          stage: 'completed',
+          progress: 100,
+          message: 'Processing completed successfully'
         });
       }
     } catch (wsError) {
