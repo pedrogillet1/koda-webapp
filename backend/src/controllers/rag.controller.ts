@@ -1286,18 +1286,51 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       },
     });
 
-    // Generate streaming RAG answer
-    const result = await ragService.generateAnswerStreaming(
-      userId,
-      query,
-      conversationId,
-      finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
-      effectiveDocumentId,
-      (chunk: string) => {
-        // Stream each chunk to client
-        res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
-      }
-    );
+    // Generate streaming RAG answer with error handling
+    let result;
+    try {
+      result = await ragService.generateAnswerStreaming(
+        userId,
+        query,
+        conversationId,
+        finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
+        effectiveDocumentId,
+        (chunk: string) => {
+          // Stream each chunk to client
+          res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
+        }
+      );
+    } catch (ragError: any) {
+      // ✅ FIX #2: Stream the error message so it appears immediately
+      const errorMessage = ragError.message || 'Failed to generate answer';
+
+      console.error('❌ RAG Streaming Error:', errorMessage);
+
+      // Stream error as content
+      res.write(`data: ${JSON.stringify({ type: 'content', content: `❌ Error: ${errorMessage}` })}\n\n`);
+
+      // Save error message to database
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: `❌ Error: ${errorMessage}`
+        }
+      });
+
+      // Send done signal
+      res.write(`data: ${JSON.stringify({
+        type: 'done',
+        messageId: userMessage.id,
+        assistantMessageId: assistantMessage.id,
+        sources: [],
+        conversationId
+      })}\n\n`);
+
+      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
+      return;
+    }
 
     // ========================================
     // ✅ FIX #4: POST-PROCESS RESPONSE
