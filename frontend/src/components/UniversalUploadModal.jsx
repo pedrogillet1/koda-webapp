@@ -322,8 +322,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
         setTimeout(() => setShowNotification(false), 5000);
       }
 
-      // Show error notification
-      if (totalFailureCount > 0) {
+      // Show error notification only if ALL uploads failed (no successes)
+      if (totalFailureCount > 0 && totalSuccessCount === 0) {
         setNotificationType('error');
         setShowNotification(true);
         setTimeout(() => setShowNotification(false), 5000);
