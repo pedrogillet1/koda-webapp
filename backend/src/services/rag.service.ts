@@ -2075,6 +2075,51 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
     console.log(`📏 Answer Length: ${answerLength}`);
     console.log(`═══════════════════════════════════════════════════════\n`);
 
+    // STEP 0: DETECT SIMPLE GREETINGS (before chat actions)
+    const greetingPatterns = [
+      /^(hi|hello|hey|oi|olá|hola|buenos días|bom dia|good morning|good afternoon|good evening)$/i,
+      /^(hi|hello|hey|oi|olá|hola)\s+(there|everyone|all)?$/i,
+      /^(how are you|como vai|como está|tudo bem|qué tal|cómo estás)\??$/i,
+      /^(oi|hi|hello|hey)\s+(tudo bem|how are you|cómo estás)\??$/i,
+    ];
+
+    const isGreeting = greetingPatterns.some(p => p.test(query.trim()));
+
+    if (isGreeting) {
+      console.log('👋 [RAG] Simple greeting detected - returning friendly response');
+
+      const greetingResponses = {
+        en: "Hello! I'm here to help you find information in your documents. What would you like to know?",
+        pt: "Olá! Tudo bem por aqui também! Como posso ajudar você hoje?",
+        es: "¡Hola! ¿Cómo puedo ayudarte con tus documentos hoy?"
+      };
+
+      // Pick response based on query language
+      let response = greetingResponses.en;
+      if (/oi|olá|tudo bem|bom dia/i.test(query)) {
+        response = greetingResponses.pt;  // Portuguese
+      } else if (/hola|qué tal|cómo estás|buenos días/i.test(query)) {
+        response = greetingResponses.es;  // Spanish
+      }
+
+      // Stream the greeting response
+      if (onChunk) {
+        for (const char of response) {
+          onChunk(char);
+          await new Promise(resolve => setTimeout(resolve, 20)); // Simulate streaming
+        }
+      }
+
+      // ✅ Return simple greeting without document info
+      return {
+        answer: response,
+        sources: [],
+        contextId: `greeting_${Date.now()}`,
+        intent: 'greeting',
+        confidence: 1.0,
+      };
+    }
+
     // STEP 1: CHECK FOR CHAT ACTIONS
     console.log(`\n🤖 CHECKING FOR CHAT ACTIONS...`);
     const chatActionsService = await import('./chatActions.service');
