@@ -89,8 +89,26 @@ class ChatActionsService {
 
   /**
    * Check if message is a file action
+   * ✅ FIX: Exclude semantic queries like "compare", "summarize", "analyze"
    */
   private isFileAction(message: string): boolean {
+    const lowerMessage = message.toLowerCase().trim();
+
+    // ✅ FIX: These are NOT file actions - they're semantic queries
+    const semanticVerbs = [
+      'compare', 'summarize', 'analyze', 'explain', 'describe',
+      'tell me about', 'what is', 'show me', 'find', 'search',
+      'list', 'how many', 'when', 'where', 'who', 'why', 'how'
+    ];
+
+    for (const verb of semanticVerbs) {
+      if (lowerMessage.startsWith(verb) || lowerMessage.includes(` ${verb} `)) {
+        console.log(`🔍 [INTENT] "${message}" is a SEMANTIC QUERY, not a file action`);
+        return false;  // ✅ NOT a file action
+      }
+    }
+
+    // Continue with existing file action detection...
     const patterns = [
       /^create (?:a |an |new )?(?:folder|pasta|directory)/i,
       /^make (?:a |an |new )?(?:folder|pasta)/i,

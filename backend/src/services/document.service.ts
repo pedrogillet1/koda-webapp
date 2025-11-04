@@ -1723,7 +1723,10 @@ export const listDocuments = async (
 ) => {
   const skip = (page - 1) * limit;
 
-  const where: any = { userId };
+  const where: any = {
+    userId,
+    status: { not: 'deleted' }  // ✅ FIX: Filter deleted documents
+  };
   if (folderId !== undefined) {
     where.folderId = folderId === 'root' ? null : folderId;
   }
@@ -2046,6 +2049,7 @@ export const getDocumentVersions = async (documentId: string, userId: string) =>
         { id: documentId },
         { parentVersionId: documentId },
       ],
+      status: { not: 'deleted' },  // ✅ FIX: Filter deleted documents
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -2281,7 +2285,7 @@ export const reindexAllDocuments = async (userId: string) => {
     const documents = await prisma.document.findMany({
       where: {
         userId,
-        status: 'completed'
+        status: 'completed'  // Already filtering by status='completed', no deleted documents
       },
       include: {
         metadata: true

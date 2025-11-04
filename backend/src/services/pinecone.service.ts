@@ -218,7 +218,7 @@ class PineconeService {
       console.timeEnd('⏱️ [Pinecone Search]');
 
       // Filter and format results with full metadata (NO PostgreSQL query!)
-      const results = queryResponse.matches
+      const preliminaryResults = queryResponse.matches
         .filter(match => {
           // Filter by similarity threshold
           if ((match.score || 0) < minSimilarity) return false;
@@ -241,9 +241,42 @@ class PineconeService {
           },
         }));
 
-      console.log(`✅ [Pinecone] Found ${results.length} results with full metadata (no PostgreSQL query!)`);
+      // ✅ FIX: Filter out deleted documents
+      const documentIds = [...new Set(preliminaryResults.map(r => r.documentId))];
 
-      return results;
+      if (documentIds.length > 0) {
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
+
+        try {
+          const validDocuments = await prisma.document.findMany({
+            where: {
+              id: { in: documentIds },
+              userId: userId,
+              status: { not: 'deleted' },  // ✅ Only include non-deleted documents
+            },
+            select: {
+              id: true,
+            },
+          });
+
+          const validDocumentIds = new Set(validDocuments.map(d => d.id));
+          const results = preliminaryResults.filter(r => validDocumentIds.has(r.documentId));
+
+          console.log(`🗑️ [PINECONE] Filtered deleted documents: ${preliminaryResults.length} → ${results.length}`);
+          console.log(`✅ [Pinecone] Found ${results.length} results with full metadata`);
+
+          await prisma.$disconnect();
+          return results;
+        } catch (error) {
+          console.error('❌ [Pinecone] Error filtering deleted documents:', error);
+          await prisma.$disconnect();
+          return preliminaryResults; // Fallback to unfiltered results
+        }
+      }
+
+      console.log(`✅ [Pinecone] Found ${preliminaryResults.length} results with full metadata (no PostgreSQL query!)`);
+      return preliminaryResults;
     } catch (error) {
       console.error('❌ [Pinecone] Search failed:', error);
       return [];

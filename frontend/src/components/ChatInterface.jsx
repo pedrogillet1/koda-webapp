@@ -33,7 +33,12 @@ let globalListenersAttached = false;
 const ChatInterface = ({ currentConversation, onConversationUpdate, onConversationCreated }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const [message, setMessage] = useState('');
+    // ✅ FIX: Persist draft message across screen changes
+    const [message, setMessage] = useState(() => {
+        // Load draft from localStorage on mount
+        const savedDraft = localStorage.getItem(`koda_draft_${currentConversation?.id || 'new'}`);
+        return savedDraft || '';
+    });
     const [messages, setMessages] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [user, setUser] = useState(null);
@@ -777,6 +782,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const handleVoiceTranscript = (transcript) => {
         // Set the transcript as the message input
         setMessage(transcript);
+        // ✅ FIX: Save voice transcript to localStorage
+        localStorage.setItem(`koda_draft_${currentConversation?.id || 'new'}`, transcript);
         // Optionally auto-focus the input
         setTimeout(() => {
             inputRef.current?.focus();
@@ -980,6 +987,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         // Clear input immediately
         setMessage('');
+        // ✅ FIX: Clear draft from localStorage when message is sent
+        localStorage.removeItem(`koda_draft_${currentConversation?.id || 'new'}`);
         // DON'T clear attachedDocuments or pendingFiles - they're needed for the API request
         // The banner will be hidden by checking isLoading state in the JSX
 
@@ -2376,7 +2385,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         type="text"
                         placeholder="Ask KODA anything..."
                         value={message}
-                        onChange={(e) => setMessage(e.target.value)}
+                        onChange={(e) => {
+                            const newValue = e.target.value;
+                            setMessage(newValue);
+                            // ✅ FIX: Save draft to localStorage
+                            localStorage.setItem(`koda_draft_${currentConversation?.id || 'new'}`, newValue);
+                        }}
                         onPaste={handlePaste}
                         onFocus={(e) => {
                             // Always allow focus, even if disabled

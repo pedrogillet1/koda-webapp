@@ -12,6 +12,7 @@
 import prisma from '../config/database';
 import { Document, Folder } from '@prisma/client';
 import { llmIntentDetectorService } from './llmIntentDetector.service';
+import { findBestMatch } from 'string-similarity';
 
 export interface FileActionResult {
   success: boolean;
@@ -107,6 +108,77 @@ class FileActionsService {
       console.error('❌ Error parsing file action with LLM:', error);
       return null;
     }
+  }
+
+  /**
+   * Find document by filename with fuzzy matching for typos
+   * @param filename - Filename to search for (may have typos)
+   * @param userId - User ID
+   * @returns Document if found, null otherwise
+   */
+  private async findDocumentWithFuzzyMatch(
+    filename: string,
+    userId: string
+  ): Promise<Document | null> {
+    // First try exact match
+    let document = await prisma.document.findFirst({
+      where: {
+        filename: filename,
+        userId: userId,
+        status: { not: 'deleted' },
+      },
+    });
+
+    if (document) {
+      console.log(`✅ [FUZZY] Exact match found: ${filename}`);
+      return document;
+    }
+
+    // If no exact match, try fuzzy matching
+    console.log(`🔍 [FUZZY] No exact match for "${filename}", trying fuzzy search...`);
+
+    // Get all user's documents
+    const allDocuments = await prisma.document.findMany({
+      where: {
+        userId: userId,
+        status: { not: 'deleted' },
+      },
+      select: {
+        id: true,
+        filename: true,
+        userId: true,
+        folderId: true,
+        encryptedFilename: true,
+        mimeType: true,
+        classification: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        parentVersionId: true,
+      },
+    });
+
+    if (allDocuments.length === 0) {
+      console.log(`❌ [FUZZY] No documents found for user`);
+      return null;
+    }
+
+    // Find best match using string similarity
+    const filenames = allDocuments.map(d => d.filename);
+    const matches = findBestMatch(filename, filenames);
+    const bestMatch = matches.bestMatch;
+
+    console.log(`🎯 [FUZZY] Best match: "${bestMatch.target}" (similarity: ${bestMatch.rating.toFixed(2)})`);
+
+    // If similarity is above threshold (0.6 = 60% similar), use it
+    if (bestMatch.rating >= 0.6) {
+      document = allDocuments.find(d => d.filename === bestMatch.target) || null;
+      console.log(`✅ [FUZZY] Using fuzzy match: "${filename}" → "${document?.filename}"`);
+      return document;
+    }
+
+    console.log(`❌ [FUZZY] No good match found (best similarity: ${bestMatch.rating.toFixed(2)})`);
+    return null;
   }
 
   /**
@@ -299,30 +371,11 @@ class FileActionsService {
   }
 
   /**
-   * Find document by filename
+   * Find document by filename with fuzzy matching
    */
   async findDocumentByName(userId: string, filename: string): Promise<Document | null> {
-    // Try exact match first (case-sensitive)
-    let document = await prisma.document.findFirst({
-      where: {
-        userId,
-        filename: filename,
-        status: { not: 'deleted' }
-      }
-    });
-
-    // If not found, try partial match
-    if (!document) {
-      document = await prisma.document.findFirst({
-        where: {
-          userId,
-          filename: { contains: filename },
-          status: { not: 'deleted' }
-        }
-      });
-    }
-
-    return document;
+    // ✅ FIX: Use fuzzy matching to handle typos
+    return await this.findDocumentWithFuzzyMatch(filename, userId);
   }
 
   /**
