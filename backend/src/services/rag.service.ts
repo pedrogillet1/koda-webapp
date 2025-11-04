@@ -287,6 +287,17 @@ Provide a comprehensive and accurate answer based on the document content follow
     answerLength: AnswerLength = 'medium',
     documentId?: string
   ): Promise<RAGResponse> {
+    // ===== FEATURE FLAG: USE NEW ARCHITECTURE =====
+    // If feature flag is enabled, route to new architecture
+    const useNewArchitecture = process.env.USE_NEW_ARCHITECTURE === 'true';
+
+    if (useNewArchitecture) {
+      console.log('🚀 [FEATURE FLAG] Using NEW ARCHITECTURE flow');
+      return this.generateAnswerNew(userId, query, conversationId, answerLength, documentId);
+    }
+
+    console.log('📌 [FEATURE FLAG] Using OLD ARCHITECTURE flow');
+
     const startTime = Date.now();
     console.log(`\n═══════════════════════════════════════════════════════`);
     console.log(`🔍 RAG QUERY: "${query}"`);
@@ -3202,6 +3213,314 @@ J'utilise l'IA avancée pour comprendre vos questions en langage naturel et four
 
     // No truncation detected
     return { truncated: false, reason: '' };
+  }
+
+  // ===== NEW ARCHITECTURE METHODS (PHASE 7) =====
+
+  /**
+   * NEW ARCHITECTURE: Generate answer using the redesigned flow
+   * This replaces the old generateAnswer method when USE_NEW_ARCHITECTURE=true
+   */
+  async generateAnswerNew(
+    userId: string,
+    query: string,
+    conversationId?: string,
+    answerLength: AnswerLength = 'concise',
+    documentId?: string
+  ): Promise<RAGResponse> {
+    console.log('\n🚀 ===== NEW ARCHITECTURE FLOW START =====');
+    console.log(`Query: "${query}"`);
+    console.log(`User ID: ${userId}`);
+
+    try {
+      // STEP 1: UNIFIED QUERY UNDERSTANDING
+      console.log('\n📋 STEP 1: Query Understanding...');
+      const understanding = await queryUnderstandingService.understand(query, userId);
+
+      console.log(`   Intent: ${understanding.intent} (${Math.round(understanding.confidence * 100)}% confidence)`);
+      console.log(`   Format: ${understanding.format}`);
+      console.log(`   Retrieval: ${understanding.retrievalStrategy} (${understanding.topK} chunks)`);
+      console.log(`   Handler: ${understanding.handler}`);
+      console.log(`   Entities: ${JSON.stringify(understanding.entities)}`);
+
+      // STEP 2: ROUTE TO APPROPRIATE HANDLER
+      console.log('\n🔀 STEP 2: Routing to handler...');
+
+      switch (understanding.handler) {
+        case 'meta':
+          return this.handleMetaQuery(query, understanding);
+
+        case 'file_action':
+          return this.handleFileAction(query, understanding, userId);
+
+        case 'metadata':
+          return this.handleMetadataQuery(query, understanding, userId);
+
+        case 'social':
+          return this.handleSocialQuery(query, understanding);
+
+        case 'content':
+          return this.handleContentQueryNew(query, understanding, userId, conversationId, answerLength, documentId);
+
+        default:
+          return this.handleContentQueryNew(query, understanding, userId, conversationId, answerLength, documentId);
+      }
+    } catch (error) {
+      console.error('❌ [NEW ARCHITECTURE] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle meta queries (about KODA itself)
+   */
+  private async handleMetaQuery(query: string, understanding: any): Promise<RAGResponse> {
+    console.log('🤖 Handling META query...');
+
+    const metaResponse = `# KODA - Your Intelligent Document Analysis Assistant
+
+## What I Can Do
+
+**📄 Document Analysis**
+- Upload and analyze documents (PDF, Word, Excel, PowerPoint, text files)
+- Extract information from multiple documents simultaneously
+- Compare documents side-by-side
+- Summarize key points and insights
+
+**🔍 Smart Search & Retrieval**
+- Semantic search across all your documents
+- Find specific facts, figures, and details
+- Track mentions of topics across documents
+- Fuzzy matching for typos in document names
+
+**💡 Intelligent Features**
+- Multi-language support (English, Spanish, French, German, etc.)
+- Automatic intent detection (I understand what you're asking)
+- Confidence-based responses (I tell you when I'm unsure)
+- Table formatting for comparisons
+- Context-aware answers
+
+**🗂️ File Management**
+- Create and organize folders
+- Rename, move, and delete files
+- Undo/redo file operations
+- Track document versions
+
+## How to Use Me
+
+Just ask me questions about your documents naturally:
+- "What does the Q3 report say about revenue?"
+- "Compare the 2023 and 2024 budgets"
+- "Summarize the key findings in the research paper"
+- "How many documents do I have?"
+- "List all files in the Reports folder"
+
+I'm designed to understand your intent and provide accurate, helpful answers!`;
+
+    return {
+      answer: metaResponse,
+      sources: [],
+      contextId: `meta-${Date.now()}`,
+      intent: understanding.intent,
+      confidence: 1.0,
+    };
+  }
+
+  /**
+   * Handle file actions (create, delete, rename, move, undo, redo)
+   */
+  private async handleFileAction(query: string, understanding: any, userId: string): Promise<RAGResponse> {
+    console.log('📁 Handling FILE ACTION query...');
+
+    // For now, return a helpful message - full file action integration will be added later
+    const response = `I understand you want to perform a file operation, but this feature requires additional implementation.
+
+**Your request:** ${query}
+**Detected action:** ${understanding.intent}
+
+To perform file operations, please use the file management UI for now.`;
+
+    return {
+      answer: response,
+      sources: [],
+      contextId: `file-action-${Date.now()}`,
+      intent: understanding.intent,
+      confidence: 0.9,
+    };
+  }
+
+  /**
+   * Handle metadata queries (count, list, search files)
+   */
+  private async handleMetadataQuery(query: string, understanding: any, userId: string): Promise<RAGResponse> {
+    console.log('📊 Handling METADATA query...');
+
+    // Get all documents for this user
+    const documents = await prisma.document.findMany({
+      where: { userId, status: { not: 'deleted' } },
+      select: {
+        id: true,
+        filename: true,
+        createdAt: true,
+        fileSize: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    let answer = '';
+
+    if (understanding.intent === 'metadata_count') {
+      answer = `You have **${documents.length}** document${documents.length !== 1 ? 's' : ''} in your library.`;
+    } else {
+      // metadata_search or list
+      answer = `# Your Documents (${documents.length} total)\n\n`;
+      for (const doc of documents) {
+        answer += `- ${doc.filename}\n`;
+      }
+    }
+
+    return {
+      answer,
+      sources: [],
+      contextId: `metadata-${Date.now()}`,
+      intent: understanding.intent,
+      confidence: 1.0,
+    };
+  }
+
+  /**
+   * Handle social queries (greetings, thanks, etc.)
+   */
+  private async handleSocialQuery(query: string, understanding: any): Promise<RAGResponse> {
+    console.log('👋 Handling SOCIAL query...');
+
+    const queryLower = query.toLowerCase().trim();
+    let response = '';
+
+    if (queryLower.startsWith('hello') || queryLower.startsWith('hi') || queryLower.startsWith('hey')) {
+      response = 'Hello! How can I help you with your documents today?';
+    } else if (queryLower.includes('thank')) {
+      response = "You're welcome! Let me know if you need anything else.";
+    } else if (queryLower.includes('bye') || queryLower.includes('goodbye')) {
+      response = 'Goodbye! Feel free to come back anytime you need help with your documents.';
+    } else {
+      response = 'How can I assist you with your documents?';
+    }
+
+    return {
+      answer: response,
+      sources: [],
+      contextId: `social-${Date.now()}`,
+      intent: understanding.intent,
+      confidence: 1.0,
+    };
+  }
+
+  /**
+   * Handle content queries (the main RAG flow)
+   */
+  private async handleContentQueryNew(
+    query: string,
+    understanding: any,
+    userId: string,
+    conversationId?: string,
+    answerLength: AnswerLength = 'concise',
+    documentId?: string
+  ): Promise<RAGResponse> {
+    console.log('📖 Handling CONTENT query...');
+
+    // STEP 3: INTENT-SPECIFIC RETRIEVAL
+    console.log('\n🔍 STEP 3: Retrieving content...');
+    const retrieval = await retrievalStrategyService.retrieve(understanding, userId, query);
+
+    console.log(`   Retrieved ${retrieval.totalChunks} chunks from ${retrieval.sources.length} document(s)`);
+    console.log(`   Coverage: ${Math.round(retrieval.coverage * 100)}%`);
+
+    // STEP 4: CONFIDENCE GATING
+    console.log('\n🎯 STEP 4: Assessing confidence...');
+    const assessment = await confidenceGateService.assess(understanding, retrieval);
+
+    console.log(`   Quality: ${assessment.quality}`);
+    console.log(`   Confidence: ${Math.round(assessment.confidence * 100)}%`);
+    console.log(`   Should proceed: ${assessment.shouldProceed}`);
+
+    // If confidence too low, refuse to generate
+    if (!assessment.shouldProceed) {
+      console.log('❌ STEP 4: Confidence too low - refusing to generate');
+      const refusalResponse = confidenceGateService.formatRefusalResponse(assessment);
+
+      return {
+        answer: refusalResponse,
+        sources: retrieval.chunks.map(chunk => ({
+          documentId: chunk.documentId,
+          documentName: chunk.documentName,
+          chunkIndex: chunk.chunkIndex,
+          content: chunk.content,
+          similarity: chunk.similarity,
+          metadata: chunk.metadata,
+        })),
+        contextId: `low-confidence-${Date.now()}`,
+        intent: understanding.intent,
+        confidence: assessment.confidence,
+      };
+    }
+
+    // STEP 5: FORMAT-AWARE PROMPT BUILDING
+    console.log('\n📝 STEP 5: Building prompt...');
+    const prompt = promptBuilderService.build(query, understanding, retrieval, assessment);
+
+    console.log(`   Temperature: ${prompt.temperature}`);
+    console.log(`   System prompt length: ${prompt.systemPrompt.length} chars`);
+    console.log(`   User prompt length: ${prompt.userPrompt.length} chars`);
+
+    // STEP 6: LLM GENERATION
+    console.log('\n🤖 STEP 6: Generating answer with LLM...');
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: prompt.systemPrompt + '\n\n' + prompt.userPrompt }],
+        },
+      ],
+      generationConfig: {
+        temperature: prompt.temperature,
+        maxOutputTokens: 2048,
+      },
+    });
+
+    let answer = result.response.text();
+
+    // Add medium confidence caveat if needed
+    if (assessment.quality === 'medium' && assessment.caveats) {
+      answer = confidenceGateService.formatCaveatPrefix(assessment) + answer;
+    }
+
+    // STEP 7: TABLE FORMATTING (if needed)
+    if (understanding.format === 'table' || answer.includes('|')) {
+      console.log('\n📊 STEP 7: Formatting tables...');
+      answer = tableFormatterService.formatMarkdownTables(answer);
+    }
+
+    console.log('\n✅ NEW ARCHITECTURE FLOW COMPLETE');
+    console.log(`   Final answer length: ${answer.length} chars`);
+
+    return {
+      answer,
+      sources: retrieval.chunks.map(chunk => ({
+        documentId: chunk.documentId,
+        documentName: chunk.documentName,
+        chunkIndex: chunk.chunkIndex,
+        content: chunk.content,
+        similarity: chunk.similarity,
+        metadata: chunk.metadata,
+      })),
+      contextId: `content-${Date.now()}`,
+      intent: understanding.intent,
+      confidence: assessment.confidence,
+    };
   }
 }
 
