@@ -2032,8 +2032,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         {currentStage.message}
                                     </div>
                                     <div style={{display: 'flex', gap: '6px', alignItems: 'center', height: '20px'}}>
-                                        <div className="typing-indicator-dot" style={{animationDelay: '-0.32s'}}></div>
-                                        <div className="typing-indicator-dot" style={{animationDelay: '-0.16s'}}></div>
+                                        <div className="typing-indicator-dot"></div>
+                                        <div className="typing-indicator-dot"></div>
                                         <div className="typing-indicator-dot"></div>
                                     </div>
                                 </div>

@@ -1296,6 +1296,12 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
         effectiveDocumentId,
         (chunk: string) => {
+          // ✅ FIX #10: Filter warnings during streaming (not after)
+          // Skip streaming warning chunks entirely
+          if (chunk.includes('⚠️') || chunk.includes('Note:') || chunk.includes('based on partial')) {
+            return; // Don't stream this chunk
+          }
+
           // Stream each chunk to client
           res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
         }
@@ -1335,52 +1341,9 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     // ✅ FIX #4: POST-PROCESS RESPONSE
     // ========================================
-    let cleanedAnswer = result.answer;
-
-    // Remove warning messages (make more robust)
-    cleanedAnswer = cleanedAnswer.replace(/⚠️\s*Note:.*?(?=\n|$)/gs, '');
-    cleanedAnswer = cleanedAnswer.replace(/⚠️.*?(?=\n|$)/gs, '');
-    // Remove standalone warning lines at the start
-    cleanedAnswer = cleanedAnswer.replace(/^⚠️[^\n]*\n+/gm, '');
-    console.log(`🧹 [WARNING REMOVAL] Cleaned warning notes`);
-
-    // Remove duplicate "Next steps" sections
-    const nextStepsMatches = cleanedAnswer.match(/Next steps?:/gi);
-    if (nextStepsMatches && nextStepsMatches.length > 1) {
-      const firstIndex = cleanedAnswer.search(/Next steps?:/i);
-      const secondIndex = cleanedAnswer.slice(firstIndex + 1).search(/Next steps?:/i);
-      if (secondIndex > -1) {
-        cleanedAnswer = cleanedAnswer.substring(0, firstIndex + secondIndex + 1).trim();
-      }
-    }
-
-    // Ensure space between paragraph and bullet points
-    cleanedAnswer = cleanedAnswer.replace(/([.!?])\n(•)/g, '$1\n\n$2');
-
-    // ✅ FIX #1: Remove excessive blank lines between bullet points
-    cleanedAnswer = cleanedAnswer.replace(/•([^\n]+)\n\n+(?=•)/g, '•$1\n');
-
-    // Limit "Next steps" to 1 bullet point
-    const nextStepsRegex = /(Next steps?:)\s*\n((?:•.*\n?)+)/i;
-    const nextStepsMatch = cleanedAnswer.match(nextStepsRegex);
-    console.log(`🔍 [NEXT STEPS DEBUG] Match found: ${!!nextStepsMatch}`);
-    if (nextStepsMatch) {
-      const bullets = nextStepsMatch[2].match(/•[^\n]+/g);
-      console.log(`🔍 [NEXT STEPS DEBUG] Bullets found: ${bullets?.length || 0}`);
-      if (bullets && bullets.length > 1) {
-        const singleBullet = bullets[0];
-        cleanedAnswer = cleanedAnswer.replace(nextStepsMatch[0], `${nextStepsMatch[1]}\n${singleBullet}`);
-        console.log(`✅ [NEXT STEPS] Limited from ${bullets.length} to 1 bullet`);
-      }
-    } else {
-      // Try alternative patterns
-      const altRegex = /(Next steps?:)[\s\S]*?(•[^\n]+)/i;
-      if (cleanedAnswer.match(altRegex)) {
-        console.log(`⚠️ [NEXT STEPS DEBUG] Alternative pattern matched, but original didn't`);
-      }
-    }
-
-    console.log('✅ [POST-PROCESSING] Applied response formatting');
+    // Use responsePostProcessor service for consistent formatting
+    let cleanedAnswer = responsePostProcessor.process(result.answer, result.sources || []);
+    console.log('✅ [POST-PROCESSING] Applied responsePostProcessor formatting (warnings, spacing, next steps limiting)');
 
     // ✅ FIX #2: Deduplicate sources by documentId
     const uniqueSources = result.sources ?

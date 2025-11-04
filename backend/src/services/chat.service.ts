@@ -624,8 +624,8 @@ const handleFileActionsIfNeeded = async (
     const folder = await prisma.folder.findFirst({
       where: {
         name: {
-          contains: targetFolder,
-          mode: 'insensitive'
+          contains: targetFolder
+          // Note: mode: 'insensitive' not supported with contains
         },
         userId
       }
