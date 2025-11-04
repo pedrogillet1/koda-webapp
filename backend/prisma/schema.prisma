@@ -46,6 +46,7 @@ model User {
   terminologyMaps   TerminologyMap[]
   sharedDocuments   DocumentShare[] @relation("SharedWith")
   ownedShares       DocumentShare[] @relation("Owner")
+  actionHistory     ActionHistory[]
 
   @@map("users")
 }
@@ -1041,4 +1042,29 @@ model SessionDocument {
   @@index([userId])
   @@index([status])
   @@map("session_documents")
+}
+
+// ==================== KODA FIX: Undo/Redo Action History ====================
+
+// Action History model for tracking file operations (undo/redo)
+model ActionHistory {
+  id           String   @id @default(uuid())
+  userId       String
+  actionType   String // create, delete, rename, move
+  targetPath   String // The file path affected
+  previousPath String? // For rename/move operations
+  fileContent  String? // For create/delete operations (to restore)
+  fileType     String? // File type/extension
+  canUndo      Boolean  @default(true)
+  canRedo      Boolean  @default(false)
+  timestamp    DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([canUndo])
+  @@index([canRedo])
+  @@index([timestamp])
+  @@map("action_history")
 }
