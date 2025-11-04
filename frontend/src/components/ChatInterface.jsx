@@ -2032,29 +2032,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         {currentStage.message}
                                     </div>
                                     <div style={{display: 'flex', gap: '6px', alignItems: 'center', height: '20px'}}>
-                                        <div style={{
-                                            width: '8px',
-                                            height: '8px',
-                                            borderRadius: '50%',
-                                            backgroundColor: '#666',
-                                            animation: 'bounce-dot 1.4s infinite ease-in-out both',
-                                            animationDelay: '-0.32s'
-                                        }}></div>
-                                        <div style={{
-                                            width: '8px',
-                                            height: '8px',
-                                            borderRadius: '50%',
-                                            backgroundColor: '#666',
-                                            animation: 'bounce-dot 1.4s infinite ease-in-out both',
-                                            animationDelay: '-0.16s'
-                                        }}></div>
-                                        <div style={{
-                                            width: '8px',
-                                            height: '8px',
-                                            borderRadius: '50%',
-                                            backgroundColor: '#666',
-                                            animation: 'bounce-dot 1.4s infinite ease-in-out both'
-                                        }}></div>
+                                        <div className="typing-indicator-dot" style={{animationDelay: '-0.32s'}}></div>
+                                        <div className="typing-indicator-dot" style={{animationDelay: '-0.16s'}}></div>
+                                        <div className="typing-indicator-dot"></div>
                                     </div>
                                 </div>
                             </div>

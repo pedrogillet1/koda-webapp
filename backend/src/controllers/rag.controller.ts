@@ -1304,9 +1304,12 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     let cleanedAnswer = result.answer;
 
-    // Remove warning messages
-    cleanedAnswer = cleanedAnswer.replace(/⚠️\s*Note:.*?(?=\n\n|\n[A-Z]|$)/gs, '');
-    cleanedAnswer = cleanedAnswer.replace(/⚠️.*?(?=\n\n|\n[A-Z]|$)/gs, '');
+    // Remove warning messages (make more robust)
+    cleanedAnswer = cleanedAnswer.replace(/⚠️\s*Note:.*?(?=\n|$)/gs, '');
+    cleanedAnswer = cleanedAnswer.replace(/⚠️.*?(?=\n|$)/gs, '');
+    // Remove standalone warning lines at the start
+    cleanedAnswer = cleanedAnswer.replace(/^⚠️[^\n]*\n+/gm, '');
+    console.log(`🧹 [WARNING REMOVAL] Cleaned warning notes`);
 
     // Remove duplicate "Next steps" sections
     const nextStepsMatches = cleanedAnswer.match(/Next steps?:/gi);
@@ -1325,13 +1328,22 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     cleanedAnswer = cleanedAnswer.replace(/•([^\n]+)\n\n+(?=•)/g, '•$1\n');
 
     // Limit "Next steps" to 1 bullet point
-    const nextStepsRegex = /(Next steps?:)\n((?:•.*\n?)+)/i;
+    const nextStepsRegex = /(Next steps?:)\s*\n((?:•.*\n?)+)/i;
     const nextStepsMatch = cleanedAnswer.match(nextStepsRegex);
+    console.log(`🔍 [NEXT STEPS DEBUG] Match found: ${!!nextStepsMatch}`);
     if (nextStepsMatch) {
       const bullets = nextStepsMatch[2].match(/•[^\n]+/g);
+      console.log(`🔍 [NEXT STEPS DEBUG] Bullets found: ${bullets?.length || 0}`);
       if (bullets && bullets.length > 1) {
         const singleBullet = bullets[0];
         cleanedAnswer = cleanedAnswer.replace(nextStepsMatch[0], `${nextStepsMatch[1]}\n${singleBullet}`);
+        console.log(`✅ [NEXT STEPS] Limited from ${bullets.length} to 1 bullet`);
+      }
+    } else {
+      // Try alternative patterns
+      const altRegex = /(Next steps?:)[\s\S]*?(•[^\n]+)/i;
+      if (cleanedAnswer.match(altRegex)) {
+        console.log(`⚠️ [NEXT STEPS DEBUG] Alternative pattern matched, but original didn't`);
       }
     }
 
