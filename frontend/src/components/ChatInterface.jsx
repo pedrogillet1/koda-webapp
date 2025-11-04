@@ -2098,36 +2098,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         )}
 
                         {/* Loading Indicator - show ONLY when waiting for response, hide once streaming starts */}
-                        {(isLoading && !displayedText) && (
+                        {(isLoading && !streamingMessage && !displayedText) && (
                             <div style={{marginBottom: 16, display: 'flex', justifyContent: 'flex-start'}}>
                                 <div style={{padding: '12px 16px', borderRadius: 12, background: '#F5F5F5', color: '#32302C', display: 'flex', flexDirection: 'column', gap: 8}}>
                                     <div style={{color: '#6B7280', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '500'}}>
                                         {currentStage.message}
                                     </div>
                                     <div style={{display: 'flex', gap: '6px', alignItems: 'center', height: '20px'}}>
-                                        <div style={{
-                                            width: '8px',
-                                            height: '8px',
-                                            borderRadius: '50%',
-                                            backgroundColor: '#666',
-                                            animation: 'bounce-dot 1.4s infinite ease-in-out both',
-                                            animationDelay: '-0.32s'
-                                        }}></div>
-                                        <div style={{
-                                            width: '8px',
-                                            height: '8px',
-                                            borderRadius: '50%',
-                                            backgroundColor: '#666',
-                                            animation: 'bounce-dot 1.4s infinite ease-in-out both',
-                                            animationDelay: '-0.16s'
-                                        }}></div>
-                                        <div style={{
-                                            width: '8px',
-                                            height: '8px',
-                                            borderRadius: '50%',
-                                            backgroundColor: '#666',
-                                            animation: 'bounce-dot 1.4s infinite ease-in-out both'
-                                        }}></div>
+                                        <div className="typing-indicator-dot"></div>
+                                        <div className="typing-indicator-dot"></div>
+                                        <div className="typing-indicator-dot"></div>
                                     </div>
                                 </div>
                             </div>

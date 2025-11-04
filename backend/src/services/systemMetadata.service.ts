@@ -41,13 +41,13 @@ class SystemMetadataService {
       .replace(/\.(pdf|docx?|xlsx?|pptx?|txt|csv|jpg|jpeg|png|gif)$/i, '')
       .trim();
 
-    // Try exact match first (case-insensitive)
+    // Try exact match first (contains is case-insensitive by default)
     let document = await prisma.document.findFirst({
       where: {
         userId,
         filename: {
-          contains: filename,
-          mode: 'insensitive'
+          contains: filename
+          // Note: mode: 'insensitive' not supported with contains
         },
         status: { not: 'deleted' }
       },
@@ -67,8 +67,8 @@ class SystemMetadataService {
         where: {
           userId,
           filename: {
-            contains: cleanedFilename,
-            mode: 'insensitive'
+            contains: cleanedFilename
+            // Note: mode: 'insensitive' not supported with contains
           },
           status: { not: 'deleted' }
         },
@@ -180,8 +180,8 @@ class SystemMetadataService {
       where: {
         userId,
         name: {
-          contains: folderName,
-          mode: 'insensitive'
+          contains: folderName
+          // Note: mode: 'insensitive' not supported with contains
         }
       }
     });

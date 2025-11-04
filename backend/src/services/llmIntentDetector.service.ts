@@ -59,7 +59,7 @@ Analyze the following user query and determine the intent.
 
 6. **rename_file** - User wants to rename a file or folder
    - Examples: "rename X to Y", "change file name from X to Y", "call document X as Y instead", "rename folder X to Y"
-   - Extract: oldName, newName
+   - Extract: oldFilename, newFilename
 
 7. **delete_file** - User wants to delete a file
    - Examples: "delete document X", "remove file Y", "erase Z", "get rid of X"
@@ -80,6 +80,10 @@ Analyze the following user query and determine the intent.
 - Determine the most likely intent
 - Extract relevant parameters (filenames, keywords, etc.)
 - Provide confidence score (0.0 to 1.0)
+- ✅ FIX #3: When extracting filenames, remove file extensions (.pdf, .docx, etc.) and normalize spaces/underscores/hyphens
+  Example: "move koda checklist to folder X" → extract filename as "koda" (will match "koda_checklist.pdf")
+- ✅ FIX #4: When extracting folder names, remove the word 'folder' from the extracted name
+  Example: "move X to koda12 folder" → extract targetFolder as "koda12" (not "koda12 folder")
 
 **Response Format:**
 {
@@ -89,8 +93,8 @@ Analyze the following user query and determine the intent.
     "folderName": "folder name",
     "filename": "example.pdf",
     "keyword": "search term",
-    "oldName": "old_name.pdf",
-    "newName": "new_name.pdf",
+    "oldFilename": "old_name.pdf",
+    "newFilename": "new_name.pdf",
     "targetFolder": "destination folder"
   }
 }

@@ -1330,6 +1330,13 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       return;
     }
 
+    // ========================================
+    // ✅ FIX #8: FALLBACK TO RAG
+    // ========================================
+    // If no file action matched above, fall through to RAG query
+    // This handles: rag_query, greeting, metadata_query, and unknown intents
+    console.log(`📚 [FALLBACK] Falling through to RAG query for intent: ${intentResult.intent}`);
+
     // Validate answerLength parameter
     const validLengths = ['short', 'medium', 'summary', 'long'];
     const finalAnswerLength = validLengths.includes(answerLength) ? answerLength : 'medium';
@@ -1353,53 +1360,89 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       },
     });
 
-    // Generate streaming RAG answer
-    const result = await ragService.generateAnswerStreaming(
-      userId,
-      query,
-      conversationId,
-      finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
-      effectiveDocumentId,
-      (chunk: string) => {
-        // Stream each chunk to client
-        res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
-      }
-    );
+    // Generate streaming RAG answer with error handling
+    let result;
+    try {
+      result = await ragService.generateAnswerStreaming(
+        userId,
+        query,
+        conversationId,
+        finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
+        effectiveDocumentId,
+        (chunk: string) => {
+          // ✅ FIX #10: Filter warnings during streaming (not after)
+          // Skip streaming warning chunks entirely
+          if (chunk.includes('⚠️') || chunk.includes('Note:') || chunk.includes('based on partial')) {
+            return; // Don't stream this chunk
+          }
+
+          // Stream each chunk to client
+          res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
+        }
+      );
+    } catch (ragError: any) {
+      // ✅ FIX #2: Stream the error message so it appears immediately
+      const errorMessage = ragError.message || 'Failed to generate answer';
+
+      console.error('❌ RAG Streaming Error:', errorMessage);
+
+      // Stream error as content
+      res.write(`data: ${JSON.stringify({ type: 'content', content: `❌ Error: ${errorMessage}` })}\n\n`);
+
+      // Save error message to database
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: `❌ Error: ${errorMessage}`
+        }
+      });
+
+      // Send done signal
+      res.write(`data: ${JSON.stringify({
+        type: 'done',
+        messageId: userMessage.id,
+        assistantMessageId: assistantMessage.id,
+        sources: [],
+        conversationId
+      })}\n\n`);
+
+      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
+      return;
+    }
 
     // ========================================
     // ✅ FIX #4: POST-PROCESS RESPONSE
     // ========================================
-    let cleanedAnswer = result.answer;
+    // Use responsePostProcessor service for consistent formatting
+    let cleanedAnswer = responsePostProcessor.process(result.answer, result.sources || []);
+    console.log('✅ [POST-PROCESSING] Applied responsePostProcessor formatting (warnings, spacing, next steps limiting)');
 
-    // Remove warning messages
-    cleanedAnswer = cleanedAnswer.replace(/⚠️\s*Note:.*?(?=\n\n|\n[A-Z]|$)/gs, '');
-    cleanedAnswer = cleanedAnswer.replace(/⚠️.*?(?=\n\n|\n[A-Z]|$)/gs, '');
+    // ✅ FIX #2: Deduplicate sources by documentId
+    const uniqueSources = result.sources ?
+      Array.from(new Map(result.sources.map((src: any) => [src.documentId, src])).values())
+      : [];
+    console.log(`✅ [DEDUPLICATION] ${result.sources?.length || 0} sources → ${uniqueSources.length} unique sources`);
 
-    // Remove duplicate "Next steps" sections
-    const nextStepsMatches = cleanedAnswer.match(/Next steps?:/gi);
-    if (nextStepsMatches && nextStepsMatches.length > 1) {
-      const firstIndex = cleanedAnswer.search(/Next steps?:/i);
-      const secondIndex = cleanedAnswer.slice(firstIndex + 1).search(/Next steps?:/i);
-      if (secondIndex > -1) {
-        cleanedAnswer = cleanedAnswer.substring(0, firstIndex + secondIndex + 1).trim();
-      }
+    // ✅ FIX #7: Filter sources for query-specific documents
+    let filteredSources = uniqueSources;
+    const lowerQuery = query.toLowerCase();
+
+    // Check if query mentions a specific filename
+    const mentionedFile = uniqueSources.find((src: any) => {
+      const filename = src.filename?.toLowerCase() || '';
+      const cleanFilename = filename.replace(/\.(pdf|docx?|xlsx?|pptx?|txt|csv)$/i, '');
+      return lowerQuery.includes(cleanFilename) || lowerQuery.includes(filename);
+    });
+
+    if (mentionedFile) {
+      // Filter to only show the mentioned document
+      filteredSources = [mentionedFile];
+      console.log(`✅ [SOURCE FILTERING] Query mentions "${mentionedFile.filename}", filtered to 1 source`);
+    } else {
+      filteredSources = uniqueSources;
     }
-
-    // Ensure space between paragraph and bullet points
-    cleanedAnswer = cleanedAnswer.replace(/([.!?])\n(•)/g, '$1\n\n$2');
-
-    // Limit "Next steps" to 1 bullet point
-    const nextStepsRegex = /(Next steps?:)\n((?:•.*\n?)+)/i;
-    const nextStepsMatch = cleanedAnswer.match(nextStepsRegex);
-    if (nextStepsMatch) {
-      const bullets = nextStepsMatch[2].match(/•[^\n]+/g);
-      if (bullets && bullets.length > 1) {
-        const singleBullet = bullets[0];
-        cleanedAnswer = cleanedAnswer.replace(nextStepsMatch[0], `${nextStepsMatch[1]}\n${singleBullet}`);
-      }
-    }
-
-    console.log('✅ [POST-PROCESSING] Applied response formatting');
 
     // Save assistant message to database with RAG metadata
     const assistantMessage = await prisma.message.create({
@@ -1408,7 +1451,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         role: 'assistant',
         content: cleanedAnswer,
         metadata: JSON.stringify({
-          ragSources: result.sources,
+          ragSources: filteredSources,
           contextId: result.contextId,
           intent: result.intent,
           confidence: result.confidence,

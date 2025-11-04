@@ -35,7 +35,16 @@ class ChatActionsService {
   ): Promise<ActionResult> {
     const lowerMessage = message.toLowerCase().trim();
 
-    // Check for file actions first
+    // ✅ FIX #4: Check for file LOCATION queries first (NOT actions)
+    if (this.isFileLocationQuery(lowerMessage)) {
+      console.log('📍 [ChatActions] File location query detected - passing to RAG');
+      return {
+        isAction: false,  // ✅ Not an action, let RAG handle it
+        response: '',
+      };
+    }
+
+    // Check for file actions
     if (this.isFileAction(lowerMessage)) {
       return await this.handleFileAction(userId, message, conversationId);
     }
@@ -59,6 +68,23 @@ class ChatActionsService {
       isAction: false,
       response: '',
     };
+  }
+
+  /**
+   * Check if message is a file location query (not an action)
+   * These should be handled by RAG, not file actions
+   */
+  private isFileLocationQuery(message: string): boolean {
+    const patterns = [
+      /where (?:is|can i find|are)/i,
+      /what (?:folder|location|directory) (?:is|contains)/i,
+      /find (?:the )?(?:file|document)/i,
+      /locate (?:the )?(?:file|document)/i,
+      /(?:onde|dónde) (?:está|fica|encontro)/i,  // Portuguese/Spanish
+      /which (?:folder|directory)/i,
+      /in which (?:folder|location)/i,
+    ];
+    return patterns.some(p => p.test(message));
   }
 
   /**
