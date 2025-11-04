@@ -56,9 +56,12 @@ class FileActionsService {
     try {
       // Use LLM to detect intent
       const intentResult = await llmIntentDetectorService.detectIntent(query);
+      console.log(`📊 [parseFileAction] Intent detected:`, intentResult);
 
       // Map LLM intent to file actions
       const fileActionIntents = [
+        'create_folder',
+        'move_files',
         'list_files',
         'search_files',
         'file_location',
@@ -67,12 +70,20 @@ class FileActionsService {
       ];
 
       // Only process if it's a file action intent with high confidence
-      if (!fileActionIntents.includes(intentResult.intent) || intentResult.confidence < 0.7) {
+      if (!fileActionIntents.includes(intentResult.intent)) {
+        console.log(`❌ [parseFileAction] Intent "${intentResult.intent}" not in fileActionIntents`);
+        return null;
+      }
+
+      if (intentResult.confidence < 0.7) {
+        console.log(`❌ [parseFileAction] Confidence ${intentResult.confidence} is below 0.7`);
         return null;
       }
 
       // Map LLM intent to our action names
       const actionMapping: Record<string, string> = {
+        'create_folder': 'createFolder',
+        'move_files': 'moveFile',
         'list_files': 'listFiles',
         'search_files': 'searchFiles',
         'file_location': 'fileLocation',
@@ -82,8 +93,11 @@ class FileActionsService {
 
       const action = actionMapping[intentResult.intent];
       if (!action) {
+        console.log(`❌ [parseFileAction] No action mapping for intent "${intentResult.intent}"`);
         return null;
       }
+
+      console.log(`✅ [parseFileAction] Mapped to action: "${action}" with params:`, intentResult.parameters);
 
       return {
         action,
