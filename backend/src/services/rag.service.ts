@@ -76,6 +76,12 @@ import intentClassificationService from './intentClassification.service';
 import typoToleranceService from './typoTolerance.service';
 import tableFormatterService from './tableFormatter.service';
 
+// ===== NEW ARCHITECTURE IMPORTS (PHASE 7) =====
+import queryUnderstandingService from './queryUnderstanding.service';
+import retrievalStrategyService from './retrievalStrategy.service';
+import confidenceGateService from './confidenceGate.service';
+import promptBuilderService from './promptBuilder.service';
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // Phase 3: Confidence threshold for quality gating
