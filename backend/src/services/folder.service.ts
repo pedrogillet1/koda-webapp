@@ -246,7 +246,7 @@ const checkIfDescendant = async (sourceFolderId: string, targetFolderId: string)
 export const bulkCreateFolders = async (
   userId: string,
   folderTree: Array<{ name: string; path: string; parentPath?: string | null; depth?: number }>,
-  defaultEmoji: string = '📁',
+  defaultEmoji: string | null = null, // Change default to null to allow SVG icon
   parentFolderId?: string
 ) => {
   const startTime = Date.now();

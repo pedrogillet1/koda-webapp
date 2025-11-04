@@ -97,14 +97,15 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
             if (itemToDelete.type === 'all') {
                 await chatService.deleteAllConversations();
                 setConversations([]);
-                onSelectConversation?.(null);
+                // Create a new chat after deleting all
+                onNewChat?.();
             } else if (itemToDelete.type === 'conversation') {
                 await chatService.deleteConversation(itemToDelete.id);
                 setConversations(conversations.filter(c => c.id !== itemToDelete.id));
 
-                // If deleting current conversation, clear selection
+                // If deleting current conversation, create a new chat
                 if (currentConversation?.id === itemToDelete.id) {
-                    onSelectConversation?.(null);
+                    onNewChat?.();
                 }
             }
         } catch (error) {

@@ -23,6 +23,7 @@ import mp4Icon from '../assets/mp4.svg';
 import mp3Icon from '../assets/mp3.svg';
 import GeneratedDocumentCard from './GeneratedDocumentCard';
 import DocumentCard from './DocumentCard';
+import DocumentPreviewModal from './DocumentPreviewModal';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
 let globalSocketInitialized = false;
@@ -39,6 +40,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [streamingMessage, setStreamingMessage] = useState('');
     const [pendingFiles, setPendingFiles] = useState([]);      // Files attached but not yet sent
     const [uploadingFiles, setUploadingFiles] = useState([]);  // Files currently being uploaded
+    const [uploadProgress, setUploadProgress] = useState({});  // Upload progress for each file
     const [attachedDocuments, setAttachedDocuments] = useState([]);
     const [showNotification, setShowNotification] = useState(false);
     const [notificationType, setNotificationType] = useState('success');
@@ -50,6 +52,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [expandedSources, setExpandedSources] = useState({});
     const [researchProgress, setResearchProgress] = useState(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
+    const [previewDocument, setPreviewDocument] = useState(null); // For document preview popup
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
     const inputRef = useRef(null);
@@ -314,12 +317,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             }
 
                             console.log('✅ Adding messages from message-complete handler');
+
+                            // Preserve attachedFiles from optimistic message
+                            const optimisticMessage = prev.find(m => m.isOptimistic && m.role === 'user');
+                            const userMessageWithFiles = {
+                                ...pending.userMessage,
+                                attachedFiles: optimisticMessage?.attachedFiles || pending.userMessage.attachedFiles || []
+                            };
+
                             const withoutOptimistic = prev.filter(m => {
                                 if (m.isOptimistic) return false;
                                 if (m.id === pending.userMessage?.id || m.id === pending.assistantMessage?.id) return false;
                                 return true;
                             });
-                            return [...withoutOptimistic, pending.userMessage, pending.assistantMessage];
+                            return [...withoutOptimistic, userMessageWithFiles, pending.assistantMessage];
                         });
                     }
                 }, 100); // Small delay to let final chunk arrive
@@ -354,6 +365,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             // Clear streaming message and reset stage when switching conversations
             setStreamingMessage('');
             setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+        } else {
+            // No conversation selected - clear messages to show blank new chat
+            console.log('🆕 No conversation - clearing messages for new chat');
+            setMessages([]);
+            setStreamingMessage('');
+            setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
         }
 
         return () => {
@@ -376,6 +393,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             setStreamingMessage('');
             setIsLoading(false);
 
+            // ✅ Clear attached documents AFTER AI finishes responding
+            // The documents are already rendered in the user message's attachedFiles, so they'll stay visible
+            // This clears the banner state so it doesn't reappear
+            console.log('🧹 Clearing attachedDocuments and pendingFiles after streaming completes');
+            setAttachedDocuments([]);
+            setPendingFiles([]);
+
             // Add final messages to history
             setMessages((prev) => {
                 // Triple-check if message already exists in the array
@@ -389,13 +413,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 console.log('✅ Replacing optimistic user message with real one + adding assistant message');
                 console.log('Current message count:', prev.length);
 
+                // Preserve attachedFiles from optimistic message
+                const optimisticMessage = prev.find(m => m.isOptimistic && m.role === 'user');
+                const userMessageWithFiles = {
+                    ...pending.userMessage,
+                    attachedFiles: optimisticMessage?.attachedFiles || pending.userMessage.attachedFiles || []
+                };
+
                 // Replace optimistic user message with real one, then add assistant message
                 const withoutOptimistic = prev.filter(m => {
                     if (m.isOptimistic) return false;
                     if (m.id === pending.userMessage?.id || m.id === pending.assistantMessage?.id) return false;
                     return true;
                 });
-                return [...withoutOptimistic, pending.userMessage, pending.assistantMessage];
+                return [...withoutOptimistic, userMessageWithFiles, pending.assistantMessage];
             });
         }
     }, [isStreaming]);
@@ -943,14 +974,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         const filesToUpload = [...pendingFiles]; // Store reference before clearing
         const documentsToAttach = [...attachedDocuments]; // Store reference before clearing
 
-        console.log(`📤 handleSendMessage: Preparing to send with ${filesToUpload.length} file(s)`);
+        console.log(`📤 handleSendMessage: Preparing to send with ${filesToUpload.length} file(s) and ${documentsToAttach.length} attached document(s)`);
         console.log(`📤 Files to upload:`, filesToUpload.map(f => f.name).join(', '));
+        console.log(`📤 Attached documents:`, documentsToAttach.map(d => `${d.name} (ID: ${d.id})`).join(', '));
 
         // Clear input immediately
         setMessage('');
-        // DON'T clear pendingFiles yet - keep them visible during upload
-        // They will be cleared after successful upload in uploadMultipleFiles()
-        // DON'T clear attachedDocument - keep it visible during streaming
+        // DON'T clear attachedDocuments or pendingFiles - they're needed for the API request
+        // The banner will be hidden by checking isLoading state in the JSX
 
         // Store original message text for UI display (files will be shown visually, not as text)
         const displayMessageText = messageText || '';
@@ -970,8 +1001,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             content: displayMessageText,
             createdAt: new Date().toISOString(),
             isOptimistic: true,
-            attachedFiles: filesToUpload.length > 0 ? filesToUpload.map(f => ({ name: f.name, type: f.type })) :
-                          documentsToAttach.length > 0 ? documentsToAttach.map(doc => ({ id: doc.id, name: doc.name })) : [],
+            attachedFiles: filesToUpload.length > 0
+                ? filesToUpload.map(f => ({ name: f.name, type: f.type }))
+                : documentsToAttach.length > 0
+                    ? documentsToAttach.map(doc => ({ id: doc.id, name: doc.name, type: doc.type }))
+                    : [],
         };
         setMessages((prev) => {
             // Check if this exact message was just added (prevent double-send)
@@ -1016,6 +1050,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         const uploadedDocument = uploadedDocuments.length > 0 ? uploadedDocuments[0] : null;
 
         console.log('📤 Sending message:', { messageText, hasConversation: !!currentConversation, hasUser: !!user, hasDocument: !!uploadedDocument });
+        console.log('📤 uploadedDocuments:', uploadedDocuments);
+        console.log('📤 uploadedDocument (first):', uploadedDocument);
+        console.log('📤 documentsToAttach:', documentsToAttach);
 
         // Scroll to bottom after adding user message
         setTimeout(scrollToBottom, 100);
@@ -1045,6 +1082,29 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 // Use RAG STREAMING endpoint for real-time responses
                 try {
                     const token = localStorage.getItem('accessToken');
+                    const requestBody = {
+                        conversationId,
+                        query: messageText,
+                        researchMode,
+                        // Send both formats for compatibility
+                        attachedFiles: filesToUpload.length > 0
+                            ? filesToUpload.map(f => ({ name: f.name, type: f.type }))
+                            : documentsToAttach.map(doc => ({
+                                id: doc.id,
+                                name: doc.name,
+                                type: doc.type
+                            })),
+                        attachedDocuments: documentsToAttach.map(doc => ({
+                            id: doc.id,
+                            name: doc.name,
+                            type: doc.type
+                        })),
+                        // Explicitly null when no document (prevents sticky attachment)
+                        documentId: uploadedDocument?.id || null,
+                    };
+
+                    console.log('📤 RAG REQUEST BODY:', JSON.stringify(requestBody, null, 2));
+
                     const response = await fetch(
                         `${process.env.REACT_APP_API_URL}/api/rag/query/stream`,
                         {
@@ -1053,26 +1113,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 'Content-Type': 'application/json',
                                 Authorization: `Bearer ${token}`,
                             },
-                            body: JSON.stringify({
-                                conversationId,
-                                query: messageText,
-                                researchMode,
-                                // Send both formats for compatibility
-                                attachedFiles: filesToUpload.length > 0
-                                    ? filesToUpload.map(f => ({ name: f.name, type: f.type }))
-                                    : documentsToAttach.map(doc => ({
-                                        id: doc.id,
-                                        name: doc.name,
-                                        type: doc.type
-                                    })),
-                                attachedDocuments: documentsToAttach.map(doc => ({
-                                    id: doc.id,
-                                    name: doc.name,
-                                    type: doc.type
-                                })),
-                                // Explicitly null when no document (prevents sticky attachment)
-                                documentId: uploadedDocument?.id || null,
-                            }),
+                            body: JSON.stringify(requestBody),
                         }
                     );
 
@@ -1899,49 +1940,56 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             return attachedFiles.length > 0 ? (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
                                                     {attachedFiles.map((attachedFile, fileIndex) => (
-                                                        <div key={fileIndex} style={{
-                                                            padding: 12,
-                                                            background: '#FFFFFF',
-                                                            border: '1px solid #E6E6EC',
-                                                            borderRadius: 12,
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: 12,
-                                                            minWidth: 280,
-                                                        }}>
-                                                            {/* File icon */}
-                                                            <div style={{
-                                                                width: 40,
-                                                                height: 40,
-                                                                background: '#F5F5F5',
-                                                                borderRadius: 8,
+                                                        <div
+                                                            key={fileIndex}
+                                                            onClick={() => {
+                                                                if (attachedFile.id) {
+                                                                    // DocumentPreviewModal expects 'filename' property
+                                                                    setPreviewDocument({
+                                                                        id: attachedFile.id,
+                                                                        filename: attachedFile.name,
+                                                                        mimeType: attachedFile.type
+                                                                    });
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                padding: 12,
+                                                                background: '#FFFFFF',
+                                                                border: '1px solid #E6E6EC',
+                                                                borderRadius: 12,
                                                                 display: 'flex',
                                                                 alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                fontSize: 20,
-                                                                flexShrink: 0,
-                                                            }}>
-                                                                {(() => {
-                                                                    const ext = attachedFile.name.split('.').pop()?.toLowerCase() || '';
-                                                                    const iconMap = {
-                                                                        'pdf': '📕',
-                                                                        'doc': '📘',
-                                                                        'docx': '📘',
-                                                                        'xls': '📗',
-                                                                        'xlsx': '📗',
-                                                                        'ppt': '📙',
-                                                                        'pptx': '📙',
-                                                                        'txt': '📄',
-                                                                        'jpg': '🖼️',
-                                                                        'jpeg': '🖼️',
-                                                                        'png': '🖼️',
-                                                                        'gif': '🖼️',
-                                                                        'zip': '📦',
-                                                                        'rar': '📦',
-                                                                    };
-                                                                    return iconMap[ext] || '📄';
-                                                                })()}
-                                                            </div>
+                                                                gap: 12,
+                                                                minWidth: 280,
+                                                                cursor: attachedFile.id ? 'pointer' : 'default',
+                                                                transition: 'all 0.2s',
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                if (attachedFile.id) {
+                                                                    e.currentTarget.style.background = '#F9F9F9';
+                                                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                                                }
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                if (attachedFile.id) {
+                                                                    e.currentTarget.style.background = '#FFFFFF';
+                                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                                }
+                                                            }}
+                                                        >
+                                                            {/* File icon - using proper getFileIcon function */}
+                                                            <img
+                                                                src={getFileIcon(attachedFile.name)}
+                                                                alt="File icon"
+                                                                style={{
+                                                                    width: 40,
+                                                                    height: 40,
+                                                                    imageRendering: '-webkit-optimize-contrast',
+                                                                    objectFit: 'contain',
+                                                                    shapeRendering: 'geometricPrecision',
+                                                                    flexShrink: 0,
+                                                                }}
+                                                            />
 
                                                             {/* File info */}
                                                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1954,13 +2002,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                     textOverflow: 'ellipsis',
                                                                 }}>
                                                                     {attachedFile.name}
-                                                                </div>
-                                                                <div style={{
-                                                                    fontSize: 12,
-                                                                    color: '#8E8E93',
-                                                                    marginTop: 2,
-                                                                }}>
-                                                                    {attachedFile.type || 'File'}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -2282,8 +2323,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     </div>
                 )}
 
-                {/* Document Attachments Banner */}
-                {attachedDocuments.length > 0 && (
+                {/* Document Attachments Banner - Hide when loading/streaming */}
+                {attachedDocuments.length > 0 && !isLoading && !isStreaming && (
                     <div style={{marginBottom: 12, padding: 12, background: 'white', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
                         <img
                             src={getFileIcon(attachedDocuments[0].name)}
@@ -2533,6 +2574,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     </div>
                 </div>
             )}
+
+            {/* Document Preview Modal */}
+            <DocumentPreviewModal
+                isOpen={!!previewDocument}
+                onClose={() => setPreviewDocument(null)}
+                document={previewDocument}
+            />
         </div>
     );
 };
