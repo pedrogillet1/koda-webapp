@@ -429,6 +429,73 @@ function isDocumentMentioned(queryLower: string, documentName: string): boolean 
   return matched;
 }
 
+/**
+ * Extract potential document names from query
+ * Examples:
+ * - "what is pedro1 about" → ["pedro1"]
+ * - "compare pedro1 and pedro2" → ["pedro1", "pedro2"]
+ * - "tell me about the marketing report" → ["marketing", "report"]
+ */
+function extractDocumentNames(query: string): string[] {
+  const words = query.toLowerCase()
+    .replace(/[^\w\s]/g, ' ')  // Remove punctuation
+    .split(/\s+/)
+    .filter(w => w.length > 2);  // Ignore short words like "is", "me"
+
+  // Remove common question words
+  const stopWords = new Set([
+    'what', 'tell', 'about', 'the', 'and', 'compare', 'between',
+    'show', 'find', 'get', 'give', 'how', 'why', 'when', 'where',
+    'can', 'you', 'please', 'summary', 'summarize', 'does', 'talk'
+  ]);
+
+  return words.filter(w => !stopWords.has(w));
+}
+
+/**
+ * Find documents matching potential names using fuzzy matching
+ */
+async function findDocumentsByName(
+  userId: string,
+  potentialNames: string[]
+): Promise<string[]> {
+  if (potentialNames.length === 0) return [];
+
+  console.log('🔍 [DOC SEARCH] Looking for documents matching:', potentialNames);
+
+  try {
+    // Get all user's documents from database
+    const allDocs = await prisma.document.findMany({
+      where: { userId, status: { not: 'deleted' } },
+      select: { id: true, filename: true },
+    });
+
+    console.log(`📄 [DOC SEARCH] Checking ${allDocs.length} documents`);
+
+    // Fuzzy match against potential names
+    const matchedDocIds: string[] = [];
+
+    for (const doc of allDocs) {
+      const docLower = doc.filename.toLowerCase();
+
+      for (const potentialName of potentialNames) {
+        // Check if document name contains the potential name
+        if (docLower.includes(potentialName) || potentialName.includes(docLower.replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv)$/i, ''))) {
+          matchedDocIds.push(doc.id);
+          console.log(`✅ [DOC SEARCH] Matched "${potentialName}" → "${doc.filename}"`);
+          break;
+        }
+      }
+    }
+
+    return matchedDocIds;
+
+  } catch (error) {
+    console.error('❌ [DOC SEARCH] Error:', error);
+    return [];
+  }
+}
+
 // ════════════════════════════════════════════════════════════════════════════════
 // COMPARISON HANDLER - GUARANTEE Multi-Document Retrieval
 // ════════════════════════════════════════════════════════════════════════════════
@@ -564,18 +631,55 @@ async function handleRegularQuery(
 
   // Build search filter
   const filter: any = { userId };
+
+  // ✅ NEW: Try to detect document names in query
+  let searchResults;
+
   if (attachedDocumentId) {
+    // Use attached document if provided
     filter.documentId = attachedDocumentId;
     console.log('📎 [REGULAR QUERY] Filtering by attached document:', attachedDocumentId);
-  }
 
-  // Search vector database
-  const searchResults = await pineconeIndex.query({
-    vector: queryEmbedding,
-    topK: 10,
-    filter,
-    includeMetadata: true,
-  });
+    searchResults = await pineconeIndex.query({
+      vector: queryEmbedding,
+      topK: 10,
+      filter,
+      includeMetadata: true,
+    });
+  } else {
+    // ✅ NEW: Try to find documents by name
+    const potentialNames = extractDocumentNames(query);
+    const matchedDocs = await findDocumentsByName(userId, potentialNames);
+
+    if (matchedDocs.length > 0) {
+      console.log(`✅ [REGULAR QUERY] Found ${matchedDocs.length} documents by name`);
+
+      // Search within matched documents
+      const allResults = [];
+
+      for (const docId of matchedDocs) {
+        const docFilter = { userId, documentId: docId };
+        const docResults = await pineconeIndex.query({
+          vector: queryEmbedding,
+          topK: 5,
+          filter: docFilter,
+          includeMetadata: true,
+        });
+        allResults.push(...(docResults.matches || []));
+      }
+
+      searchResults = { matches: allResults };
+    } else {
+      // Fall back to regular vector search
+      console.log('📊 [REGULAR QUERY] No document names detected, using vector search');
+      searchResults = await pineconeIndex.query({
+        vector: queryEmbedding,
+        topK: 10,
+        filter,
+        includeMetadata: true,
+      });
+    }
+  }
 
   console.log(`✅ [REGULAR QUERY] Found ${searchResults.matches?.length || 0} relevant chunks`);
 
@@ -586,6 +690,9 @@ async function handleRegularQuery(
       return `[Source: ${meta.documentName || 'Unknown'}, Page: ${meta.pageNumber || 'N/A'}]\n${meta.text || ''}`;
     })
     .join('\n\n---\n\n') || '';
+
+  console.log(`📝 [CONTEXT] Length: ${context.length} chars`);
+  console.log(`📝 [CONTEXT] Preview: ${context.substring(0, 200)}...`);
 
   // System prompt
   const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
@@ -625,16 +732,29 @@ async function streamLLMResponse(
   try {
     const result = await model.generateContentStream(fullPrompt);
 
+    // Step 1: Collect ALL chunks from Gemini (no streaming yet)
     for await (const chunk of result.stream) {
       const text = chunk.text();
       fullAnswer += text;
-      onChunk(text); // Send chunk immediately
     }
 
-    // Post-process the complete answer
+    console.log('✅ [COLLECT] Collected full answer:', fullAnswer.length, 'chars');
+
+    // Step 2: Apply post-processing to the COMPLETE answer
     const processed = postProcessAnswer(fullAnswer);
 
-    console.log('✅ [STREAMING] Complete. Total chars:', processed.length);
+    console.log('✅ [POST-PROCESS] After processing:', processed.length, 'chars');
+
+    // Step 3: Stream the processed answer word-by-word for smooth UX
+    const words = processed.split(' ');
+    for (let i = 0; i < words.length; i++) {
+      const word = i === words.length - 1 ? words[i] : words[i] + ' ';
+      onChunk(word);
+      // Small delay for smooth streaming effect (optional)
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    console.log('✅ [STREAMING] Complete');
 
   } catch (error: any) {
     console.error('❌ [STREAMING] Error:', error);
@@ -653,9 +773,12 @@ function postProcessAnswer(answer: string): string {
   processed = processed.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '');
   processed = processed.replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');
 
-  // Fix excessive blank lines - simple approach
-  // Replace 2+ newlines with single newline
-  processed = processed.replace(/\n\n+/g, '\n');
+  // Fix excessive blank lines - CRITICAL: Use \n\n\n+ to preserve paragraph breaks!
+  // Replace 3+ newlines (2+ blank lines) with 2 newlines (1 blank line)
+  processed = processed.replace(/\n\n\n+/g, '\n\n');
+
+  // Fix quadruple asterisks
+  processed = processed.replace(/\*\*\*\*/g, '**');
 
   // Fix "Next steps:" to "Next step:"
   processed = processed.replace(/Next steps:/gi, 'Next step:');

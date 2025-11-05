@@ -1365,25 +1365,28 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     });
 
     // Generate streaming RAG answer with error handling
-    let result;
+    let fullAnswer = '';
+    let result: any = { answer: '', sources: [], contextId: undefined };
     try {
-      result = await ragService.generateAnswerStreaming(
+      // ✅ FIX: Use NEW generateAnswerStream (hybrid RAG with document detection + post-processing)
+      await ragService.generateAnswerStream(
         userId,
         query,
         conversationId,
-        finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
-        effectiveDocumentId,
         (chunk: string) => {
-          // ✅ FIX #10: Filter warnings during streaming (not after)
-          // Skip streaming warning chunks entirely
-          if (chunk.includes('⚠️') || chunk.includes('Note:') || chunk.includes('based on partial')) {
-            return; // Don't stream this chunk
-          }
-
+          fullAnswer += chunk;
           // Stream each chunk to client
           res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
-        }
+        },
+        effectiveDocumentId
       );
+
+      // Set result for post-processing below
+      result = {
+        answer: fullAnswer,
+        sources: [],
+        contextId: undefined
+      };
     } catch (ragError: any) {
       // ✅ FIX #2: Stream the error message so it appears immediately
       const errorMessage = ragError.message || 'Failed to generate answer';

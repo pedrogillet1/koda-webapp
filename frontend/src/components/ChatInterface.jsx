@@ -235,14 +235,38 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }
 
-                    // CRITICAL FIX: Queue message instead of immediately clearing streaming
-                    // Let the useEffect wait for animation to complete before processing
-                    console.log('📬 Queueing message to wait for streaming animation to complete');
-                    pendingMessageRef.current = {
-                        userMessage: data.userMessage,
-                        assistantMessage: data.assistantMessage
-                    };
-                    console.log('=== MESSAGE QUEUED - WAITING FOR ANIMATION ===');
+                    // ✅ FIXED: Add messages immediately, don't queue
+                    console.log('📬 Adding message immediately');
+
+                    // Clear streaming states
+                    setStreamingMessage('');
+                    setIsLoading(false);
+
+                    // Add final messages to history immediately
+                    setMessages((prev) => {
+                        const assistantExists = prev.some(msg => msg.id === data.assistantMessage.id);
+
+                        if (assistantExists) {
+                            console.log('⚠️ Message already exists, skipping:', data.assistantMessage.id);
+                            return prev;
+                        }
+
+                        console.log('✅ Adding messages from new-message handler');
+
+                        // Preserve attachedFiles from optimistic message
+                        const optimisticMessage = prev.find(m => m.isOptimistic && m.role === 'user');
+                        const userMessageWithFiles = {
+                            ...data.userMessage,
+                            attachedFiles: optimisticMessage?.attachedFiles || data.userMessage.attachedFiles || []
+                        };
+
+                        const withoutOptimistic = prev.filter(m => {
+                            if (m.isOptimistic) return false;
+                            if (m.id === data.userMessage?.id || m.id === data.assistantMessage?.id) return false;
+                            return true;
+                        });
+                        return [...withoutOptimistic, userMessageWithFiles, data.assistantMessage];
+                    });
                 });
 
             // Listen for message chunks (real-time streaming)
@@ -297,48 +321,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 setMessages((prev) => [...prev, stoppedMessage]);
             });
 
-            // Listen for message complete event (CRITICAL: ensures message appears after streaming)
+            // Listen for message complete event (confirms streaming ended)
             chatService.onMessageComplete((data) => {
                 console.log('✅ Message streaming complete event received:', data.conversationId);
-                // Force processing of pending message immediately, even if animation is still running
-                // This prevents the "second query needs refresh" bug
-                setTimeout(() => {
-                    if (pendingMessageRef.current) {
-                        console.log('🚀 Force-processing pending message from message-complete event');
-                        const pending = pendingMessageRef.current;
-                        pendingMessageRef.current = null;
-
-                        // Clear streaming states
-                        setStreamingMessage('');
-                        setIsLoading(false);
-
-                        // Add final messages to history
-                        setMessages((prev) => {
-                            const assistantExists = prev.some(msg => msg.id === pending.assistantMessage.id);
-
-                            if (assistantExists) {
-                                console.log('⚠️ Message already exists, skipping:', pending.assistantMessage.id);
-                                return prev;
-                            }
-
-                            console.log('✅ Adding messages from message-complete handler');
-
-                            // Preserve attachedFiles from optimistic message
-                            const optimisticMessage = prev.find(m => m.isOptimistic && m.role === 'user');
-                            const userMessageWithFiles = {
-                                ...pending.userMessage,
-                                attachedFiles: optimisticMessage?.attachedFiles || pending.userMessage.attachedFiles || []
-                            };
-
-                            const withoutOptimistic = prev.filter(m => {
-                                if (m.isOptimistic) return false;
-                                if (m.id === pending.userMessage?.id || m.id === pending.assistantMessage?.id) return false;
-                                return true;
-                            });
-                            return [...withoutOptimistic, userMessageWithFiles, pending.assistantMessage];
-                        });
-                    }
-                }, 100); // Small delay to let final chunk arrive
+                // Just ensure streaming states are cleared
+                setStreamingMessage('');
+                setIsLoading(false);
             });
         }
 

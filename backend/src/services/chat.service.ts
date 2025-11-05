@@ -367,36 +367,28 @@ export const sendMessageStreaming = async (
   }
 
   // Not a file action - continue with normal RAG
-  // Generate AI response with streaming using RAG service
+  // Generate AI response with streaming using HYBRID RAG service
   console.log('🤖 Generating streaming RAG response...');
   let fullResponse = '';
 
-  const ragResult = await ragService.generateAnswerStreaming(
+  // Call hybrid RAG service with streaming
+  await ragService.generateAnswerStream(
     userId,
     content,
     conversationId,
-    'medium', // Default answer length
-    attachedDocumentId,
     (chunk: string) => {
       fullResponse += chunk;
       onChunk(chunk); // Send chunk to client
-    }
+    },
+    attachedDocumentId
   );
 
   console.log(`✅ Streaming complete. Total response length: ${fullResponse.length} chars`);
 
-  // ✅ FIX #1: Append document sources to response
-  if (ragResult.sources && ragResult.sources.length > 0) {
-    console.log(`📎 Appending ${ragResult.sources.length} document sources to response`);
+  // Note: Hybrid RAG includes sources inline within the response
+  // No need to append sources separately
 
-    const sourcesText = formatDocumentSources(ragResult.sources, attachedDocumentId);
-    fullResponse += '\n\n' + sourcesText;
-
-    // Send sources to client as final chunk
-    onChunk('\n\n' + sourcesText);
-  }
-
-  // Create assistant message with full response (including sources)
+  // Create assistant message with full response
   const assistantMessage = await prisma.message.create({
     data: {
       conversationId,

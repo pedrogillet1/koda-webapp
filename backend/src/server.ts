@@ -142,14 +142,32 @@ io.on('connection', (socket) => {
         },
       });
 
-      // Use RAG service with correct signature
-      const result = await ragService.default.generateAnswer(
+      // Use NEW Hybrid RAG service with streaming
+      let fullResponse = '';
+      const sources: any[] = [];
+
+      await ragService.generateAnswerStream(
         authenticatedUserId,
         data.content,
         conversationId,
-        'medium', // answerLength
-        data.attachedDocumentId // documentId
+        (chunk: string) => {
+          fullResponse += chunk;
+          // Emit each chunk in real-time
+          io.to(`conversation:${conversationId}`).emit('message-chunk', {
+            chunk,
+            conversationId: conversationId
+          });
+        },
+        data.attachedDocumentId // Use actual attached document ID (not answerLength!)
       );
+
+      const result = {
+        answer: fullResponse,
+        sources: sources,
+        expandedQuery: undefined,
+        contextId: undefined,
+        actions: []
+      };
 
       // Save assistant message with RAG metadata
       const assistantMessage = await prisma.message.create({
@@ -173,17 +191,7 @@ io.on('connection', (socket) => {
         data: { updatedAt: new Date() },
       });
 
-      // Emit the answer as chunks for streaming effect
-      const words = result.answer.split(' ');
-      for (let i = 0; i < words.length; i++) {
-        const chunk = (i === 0 ? '' : ' ') + words[i];
-        io.to(`conversation:${conversationId}`).emit('message-chunk', {
-          chunk,
-          conversationId: conversationId
-        });
-      }
-
-      // Signal streaming complete
+      // Signal streaming complete (chunks already sent in real-time above)
       io.to(`conversation:${conversationId}`).emit('message-complete', {
         conversationId: conversationId
       });
@@ -374,3 +382,4 @@ if (redirectServer && portConfig.httpPort) {
 
  
  
+
