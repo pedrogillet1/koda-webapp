@@ -962,8 +962,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // MULTI-ATTACHMENT SUPPORT: Handle both attachedFiles and attachedDocuments formats
     // Frontend may send either format depending on the component
     const attachedArray = attachedDocuments.length > 0 ? attachedDocuments : attachedFiles || [];
-    const attachedDocIds = attachedArray.map((file: any) => file.id || file).filter(Boolean);
-    console.log('📎 [ATTACHED FILES] Received:', attachedDocIds);
+    // ✅ FIX: Only extract IDs (strings), not full objects
+    const attachedDocIds = attachedArray
+      .map((file: any) => {
+        if (typeof file === 'string') return file; // Already an ID
+        if (file && file.id) return file.id; // Extract ID from object
+        return null; // Skip invalid entries
+      })
+      .filter(Boolean);
+    console.log('📎 [ATTACHED FILES] Received:', attachedArray);
+    console.log('📎 [ATTACHED DOCUMENT IDs] Extracted IDs:', attachedDocIds);
 
     // Use first attached document ID if available, otherwise use documentId
     let effectiveDocumentId = attachedDocIds.length > 0 ? attachedDocIds[0] : documentId;
