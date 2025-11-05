@@ -8,7 +8,7 @@ import hideIcon from '../assets/Hide.svg';
 
 const SignUp = () => {
   const navigate = useNavigate();
-  const { register, loginWithGoogle } = useAuth();
+  const { register, loginWithGoogle, setAuthState } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,9 +53,26 @@ const SignUp = () => {
     try {
       const response = await register({ name, email, password });
 
-      // New flow: navigate to authentication choice page
+      // Check which flow the backend is using
       if (response.requiresVerification) {
+        // Verification flow: navigate to authentication choice page
         navigate('/authentication', { state: { email: response.email } });
+      } else if (response.user && response.accessToken) {
+        // Direct creation flow: user is already created and logged in
+        // Store tokens in localStorage
+        localStorage.setItem('accessToken', response.accessToken);
+        localStorage.setItem('refreshToken', response.refreshToken);
+        localStorage.setItem('user', JSON.stringify(response.user));
+
+        // Set auth state
+        setAuthState(response.user);
+
+        console.log('✅ User registered and logged in successfully');
+        navigate('/home');
+      } else {
+        // Unknown response format
+        console.error('Unexpected response format:', response);
+        setError('Registration successful but unable to proceed. Please try logging in.');
       }
     } catch (error) {
       console.error('Registration error:', error);

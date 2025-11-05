@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import logo from '../assets/logo.png';
 import googleIcon from '../assets/Social icon 2.svg';
 import appleIcon from '../assets/Social icon.svg';
-import hideIcon from '../assets/Hide.svg';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -154,13 +153,30 @@ const Login = () => {
                   </div>
                   <div
                     onClick={() => setShowPassword(!showPassword)}
-                    style={{width: 20, height: 20, position: 'relative', cursor: 'pointer'}}>
+                    style={{
+                      width: 20,
+                      height: 20,
+                      position: 'relative',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#9CA3AF'
+                    }}>
                     {loginError.type === 'password' ? (
                       <div style={{width: 20, height: 20, position: 'relative', background: 'rgba(255, 255, 255, 0)', overflow: 'hidden'}}>
                           <div style={{width: 16.67, height: 16.67, left: 1.67, top: 1.67, position: 'absolute', outline: '1.67px #D92D20 solid', outlineOffset: '-0.83px'}} />
                       </div>
+                    ) : showPassword ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
                     ) : (
-                      <img src={hideIcon} alt="Show/Hide password" />
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </svg>
                     )}
                   </div>
                 </div>

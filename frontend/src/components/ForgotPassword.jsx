@@ -6,7 +6,7 @@ function ForgotPassword() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { maskedEmail, maskedPhone, hasPhone } = location.state || {};
+  const { maskedEmail, maskedPhone, hasPhone, canUseEmail = true, canUsePhone, hasUnverifiedPhone } = location.state || {};
 
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [error, setError] = useState('');
@@ -66,48 +66,46 @@ function ForgotPassword() {
 
   return (
     <div style={{
-      display: 'flex',
       width: '100vw',
       height: '100vh',
-      flexDirection: 'column',
-      background: '#FFF'
+      background: '#FFF',
+      position: 'relative'
     }}>
-      <div style={{ width: '100%', padding: '16px' }}>
-        <button
-          onClick={() => navigate('/recover-access')}
-          style={{
-            background: 'none',
-            border: 'none',
-            fontSize: '16px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            color: '#000',
-            padding: '8px 0'
-          }}
-        >
-          ← Back
-        </button>
-      </div>
+      {/* Back Button */}
+      <button
+        onClick={() => navigate('/recover-access')}
+        style={{
+          position: 'absolute',
+          top: '24px',
+          left: '24px',
+          background: 'none',
+          border: 'none',
+          fontSize: '16px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          color: '#000',
+          padding: 0
+        }}
+      >
+        ← Back
+      </button>
 
+      {/* Content Container */}
       <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        flex: 1,
-        justifyContent: 'center',
-        width: '100%'
+        width: '100%',
+        maxWidth: '400px',
+        margin: '0 auto',
+        padding: '0 24px',
+        boxSizing: 'border-box',
+        paddingTop: '140px'
       }}>
-        <div style={{
-          width: '100%',
-          maxWidth: '400px',
-          padding: '0 16px'
-        }}>
         <h1 style={{
           fontSize: '32px',
           fontWeight: '600',
-          marginBottom: '12px',
-          textAlign: 'center'
+          textAlign: 'center',
+          margin: 0,
+          marginBottom: '16px'
         }}>
           Forgot Password?
         </h1>
@@ -115,15 +113,18 @@ function ForgotPassword() {
         <p style={{
           fontSize: '16px',
           color: '#666',
-          marginBottom: '32px',
-          textAlign: 'center'
+          textAlign: 'center',
+          margin: 0,
+          marginBottom: '48px',
+          lineHeight: '1.5'
         }}>
           No worries, we'll send you a code via email or message
         </p>
 
         {/* Email Option */}
         <button
-          onClick={() => setSelectedMethod('email')}
+          onClick={() => canUseEmail && setSelectedMethod('email')}
+          disabled={!canUseEmail}
           style={{
             width: '100%',
             padding: '16px',
@@ -134,37 +135,40 @@ function ForgotPassword() {
             background: selectedMethod === 'email' ? '#F0F0F0' : '#FFF',
             border: selectedMethod === 'email' ? '2px solid #000' : '1px solid #E0E0E0',
             borderRadius: '8px',
-            cursor: 'pointer'
+            cursor: canUseEmail ? 'pointer' : 'not-allowed',
+            opacity: canUseEmail ? 1 : 0.5
           }}
         >
           <div style={{ width: '24px', height: '24px' }}>📧</div>
           <div style={{ flex: 1, textAlign: 'left' }}>
-            <div style={{ fontSize: '16px', fontWeight: '600', color: '#000', marginBottom: '4px' }}>
+            <div style={{ fontSize: '16px', fontWeight: '600', color: canUseEmail ? '#000' : '#999', marginBottom: '4px' }}>
               Send Via Email
             </div>
-            <div style={{ fontSize: '14px', color: '#666' }}>
-              {maskedEmail}
+            <div style={{ fontSize: '14px', color: canUseEmail ? '#666' : '#999' }}>
+              {canUseEmail ? maskedEmail : 'Email not verified'}
             </div>
           </div>
-          <div style={{
-            width: '20px',
-            height: '20px',
-            borderRadius: '50%',
-            border: '2px solid ' + (selectedMethod === 'email' ? '#000' : '#CCC'),
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            {selectedMethod === 'email' && (
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#000' }} />
-            )}
-          </div>
+          {canUseEmail && (
+            <div style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              border: '2px solid ' + (selectedMethod === 'email' ? '#000' : '#CCC'),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              {selectedMethod === 'email' && (
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#000' }} />
+              )}
+            </div>
+          )}
         </button>
 
         {/* Phone Option */}
         <button
-          onClick={() => hasPhone && setSelectedMethod('sms')}
-          disabled={!hasPhone}
+          onClick={() => canUsePhone && setSelectedMethod('sms')}
+          disabled={!canUsePhone}
           style={{
             width: '100%',
             padding: '16px',
@@ -175,20 +179,25 @@ function ForgotPassword() {
             background: selectedMethod === 'sms' ? '#F0F0F0' : '#FFF',
             border: selectedMethod === 'sms' ? '2px solid #000' : '1px solid #E0E0E0',
             borderRadius: '8px',
-            cursor: hasPhone ? 'pointer' : 'not-allowed',
-            opacity: hasPhone ? 1 : 0.5
+            cursor: canUsePhone ? 'pointer' : 'not-allowed',
+            opacity: canUsePhone ? 1 : 0.5
           }}
         >
           <div style={{ width: '24px', height: '24px' }}>💬</div>
           <div style={{ flex: 1, textAlign: 'left' }}>
-            <div style={{ fontSize: '16px', fontWeight: '600', color: hasPhone ? '#000' : '#999', marginBottom: '4px' }}>
+            <div style={{ fontSize: '16px', fontWeight: '600', color: canUsePhone ? '#000' : '#999', marginBottom: '4px' }}>
               Send Via Messages
             </div>
-            <div style={{ fontSize: '14px', color: hasPhone ? '#666' : '#999' }}>
-              {hasPhone ? maskedPhone : 'No phone number linked'}
+            <div style={{ fontSize: '14px', color: canUsePhone ? '#666' : '#999' }}>
+              {hasUnverifiedPhone ? (
+                <>
+                  <div>{maskedPhone}</div>
+                  <div style={{ fontSize: '12px', color: '#999', marginTop: '2px' }}>Number not verified</div>
+                </>
+              ) : canUsePhone ? maskedPhone : 'No phone number linked'}
             </div>
           </div>
-          {hasPhone && (
+          {canUsePhone && (
             <div style={{
               width: '20px',
               height: '20px',
@@ -225,19 +234,20 @@ function ForgotPassword() {
           disabled={!selectedMethod || loading}
           style={{
             width: '100%',
-            padding: '14px',
+            height: '52px',
+            padding: '14px 24px',
             fontSize: '16px',
             fontWeight: '600',
             color: '#FFF',
             background: (!selectedMethod || loading) ? '#666' : '#000',
             border: 'none',
             borderRadius: '8px',
-            cursor: (!selectedMethod || loading) ? 'not-allowed' : 'pointer'
+            cursor: (!selectedMethod || loading) ? 'not-allowed' : 'pointer',
+            boxSizing: 'border-box'
           }}
         >
           {loading ? 'Sending...' : 'Continue'}
         </button>
-        </div>
       </div>
     </div>
   );

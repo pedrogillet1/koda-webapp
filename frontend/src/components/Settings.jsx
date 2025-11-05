@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import LeftNav from './LeftNav';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import FeedbackModal from './FeedbackModal';
+import { useToast } from '../context/ToastContext';
 import { ReactComponent as DonutIcon } from '../assets/Donut.svg';
 import { ReactComponent as UserIcon } from '../assets/User.svg';
 import { ReactComponent as LayersIcon } from '../assets/Layers.svg';
@@ -35,6 +36,7 @@ import api from '../services/api';
 
 const Settings = () => {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
   const [activeSection, setActiveSection] = useState('general');
   const [documents, setDocuments] = useState([]);
   const [fileData, setFileData] = useState([]);
@@ -53,6 +55,9 @@ const Settings = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [showPhoneVerification, setShowPhoneVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
 
   // Notification preferences
   const [accountUpdates, setAccountUpdates] = useState(true);
@@ -249,30 +254,62 @@ const Settings = () => {
   };
 
   const handleSaveChanges = async () => {
+    setProfileError('');
+
     try {
       // Update user profile
-      await api.put('/api/users/profile', {
+      const response = await api.put('/api/users/profile', {
         firstName,
         lastName,
         phoneNumber,
         profileImage
       });
 
-      alert('Profile updated successfully!');
+      // Check if phone verification is needed
+      if (response.data.needsPhoneVerification) {
+        setShowPhoneVerification(true);
+        showSuccess('Verification code sent to your phone!');
+      } else {
+        showSuccess('Profile updated successfully!');
 
-      // Refresh user data
-      const response = await api.get('/api/auth/me');
-      const userData = response.data.user;
-      setUser(userData);
+        // Refresh user data
+        const userResponse = await api.get('/api/auth/me');
+        const userData = userResponse.data.user;
+        setUser(userData);
 
-      // Update form fields with the refreshed data
-      setFirstName(userData.firstName || '');
-      setLastName(userData.lastName || '');
-      setPhoneNumber(userData.phoneNumber || '');
-      setProfileImage(userData.profileImage || null);
+        // Update form fields with the refreshed data
+        setFirstName(userData.firstName || '');
+        setLastName(userData.lastName || '');
+        setPhoneNumber(userData.phoneNumber || '');
+        setProfileImage(userData.profileImage || null);
+      }
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('Failed to update profile. Please try again.');
+
+      // Check if it's a phone number already in use error
+      if (error.response?.data?.field === 'phoneNumber' && error.response?.data?.error) {
+        setProfileError(error.response.data.error);
+      } else {
+        showError('Failed to update profile. Please try again.');
+      }
+    }
+  };
+
+  const handleVerifyPhone = async () => {
+    try {
+      const response = await api.post('/api/users/verify-phone', {
+        code: verificationCode
+      });
+
+      showSuccess('Phone number verified successfully!');
+      setShowPhoneVerification(false);
+      setVerificationCode('');
+
+      // Update user with verified phone
+      setUser(response.data.user);
+    } catch (error) {
+      console.error('Error verifying phone:', error);
+      showError(error.response?.data?.error || 'Invalid verification code');
     }
   };
 
@@ -319,7 +356,7 @@ const Settings = () => {
 
       const response = await api.put('/api/users/change-password', requestBody);
 
-      alert(response.data.message || 'Password changed successfully!');
+      showSuccess(response.data.message || 'Password changed successfully!');
 
       // Clear password fields
       setCurrentPassword('');
@@ -328,7 +365,7 @@ const Settings = () => {
     } catch (error) {
       console.error('Error changing password:', error);
       const errorMessage = error.response?.data?.error || 'Failed to change password. Please try again.';
-      alert(errorMessage);
+      showError(errorMessage);
     }
   };
 
@@ -346,10 +383,10 @@ const Settings = () => {
       // Save to localStorage
       localStorage.setItem('notificationPreferences', JSON.stringify(preferences));
 
-      alert('Notification preferences saved successfully!');
+      showSuccess('Notification preferences saved successfully!');
     } catch (error) {
       console.error('Error saving notification preferences:', error);
-      alert('Failed to save notification preferences. Please try again.');
+      showError('Failed to save notification preferences. Please try again.');
     }
   };
 
@@ -378,10 +415,10 @@ const Settings = () => {
       setTotalStorage(0);
       setFileData([]);
 
-      alert('Cache cleared successfully');
+      showSuccess('Cache cleared successfully');
     } catch (error) {
       console.error('Error clearing cache:', error);
-      alert('Failed to clear cache');
+      showError('Failed to clear cache');
     } finally {
       setShowDeleteModal(false);
     }
@@ -967,15 +1004,23 @@ const Settings = () => {
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                 <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex' }}>
                   <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>Phone Number</div>
-                  <div style={{ alignSelf: 'stretch', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
+                  <div style={{ alignSelf: 'stretch', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, border: profileError ? '1px #DC2626 solid' : '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
                     <input
                       type="tel"
                       placeholder="+ 112 6280 1890"
                       value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      onChange={(e) => {
+                        setPhoneNumber(e.target.value);
+                        setProfileError('');
+                      }}
                       style={{ flex: '1 1 0', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '24px', border: 'none', outline: 'none', background: 'transparent' }}
                     />
                   </div>
+                  {profileError && (
+                    <div style={{ color: '#DC2626', background: '#FEE2E2', padding: '12px 16px', borderRadius: 8, fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', alignSelf: 'stretch' }}>
+                      {profileError}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1370,6 +1415,106 @@ const Settings = () => {
         isOpen={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
       />
+
+      {/* Phone Verification Modal */}
+      {showPhoneVerification && (
+        <>
+          {/* Dark Overlay */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 9998
+            }}
+          />
+
+          {/* Verification Modal */}
+          <div style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '400px',
+            background: 'white',
+            borderRadius: 16,
+            padding: 32,
+            zIndex: 9999,
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+          }}>
+            <h2 style={{ fontSize: 24, fontWeight: '600', marginBottom: 8, textAlign: 'center' }}>
+              Verify Your Phone
+            </h2>
+            <p style={{ fontSize: 14, color: '#666', marginBottom: 24, textAlign: 'center' }}>
+              Enter the verification code sent to {phoneNumber}
+            </p>
+
+            <input
+              type="text"
+              placeholder="Enter 6-digit code"
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+              maxLength={6}
+              style={{
+                width: '100%',
+                height: 52,
+                padding: '14px 16px',
+                fontSize: 16,
+                border: '1px solid #E0E0E0',
+                borderRadius: 8,
+                outline: 'none',
+                boxSizing: 'border-box',
+                marginBottom: 16,
+                textAlign: 'center',
+                letterSpacing: '4px',
+                fontSize: 24,
+                fontWeight: '600'
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={() => {
+                  setShowPhoneVerification(false);
+                  setVerificationCode('');
+                }}
+                style={{
+                  flex: 1,
+                  height: 52,
+                  background: '#F5F5F5',
+                  border: '1px solid #E0E0E0',
+                  borderRadius: 8,
+                  fontSize: 16,
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleVerifyPhone}
+                disabled={verificationCode.length !== 6}
+                style={{
+                  flex: 1,
+                  height: 52,
+                  background: verificationCode.length === 6 ? '#181818' : '#666',
+                  color: '#FFF',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: 16,
+                  fontWeight: '600',
+                  cursor: verificationCode.length === 6 ? 'pointer' : 'not-allowed'
+                }}
+              >
+                Verify
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

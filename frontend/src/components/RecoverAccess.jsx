@@ -38,7 +38,10 @@ function RecoverAccess() {
           state: {
             maskedEmail: response.data.maskedEmail,
             maskedPhone: response.data.maskedPhone,
-            hasPhone: response.data.hasPhone
+            hasPhone: response.data.hasPhone,
+            canUseEmail: response.data.canUseEmail,
+            canUsePhone: response.data.canUsePhone,
+            hasUnverifiedPhone: response.data.hasUnverifiedPhone
           }
         });
       }
@@ -65,48 +68,46 @@ function RecoverAccess() {
 
   return (
     <div style={{
-      display: 'flex',
       width: '100vw',
       height: '100vh',
-      flexDirection: 'column',
-      background: '#FFF'
+      background: '#FFF',
+      position: 'relative'
     }}>
-      <div style={{ width: '100%', padding: '16px' }}>
-        <button
-          onClick={() => navigate('/login')}
-          style={{
-            background: 'none',
-            border: 'none',
-            fontSize: '16px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            color: '#000',
-            padding: '8px 0'
-          }}
-        >
-          ← Back
-        </button>
-      </div>
+      {/* Back Button */}
+      <button
+        onClick={() => navigate('/login')}
+        style={{
+          position: 'absolute',
+          top: '24px',
+          left: '24px',
+          background: 'none',
+          border: 'none',
+          fontSize: '16px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          color: '#000',
+          padding: 0
+        }}
+      >
+        ← Back
+      </button>
 
+      {/* Content Container */}
       <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        flex: 1,
-        justifyContent: 'center',
-        width: '100%'
+        width: '100%',
+        maxWidth: '400px',
+        margin: '0 auto',
+        padding: '0 24px',
+        boxSizing: 'border-box',
+        paddingTop: '140px'
       }}>
-        <div style={{
-          width: '100%',
-          maxWidth: '400px',
-          padding: '0 16px'
-        }}>
         <h1 style={{
           fontSize: '32px',
           fontWeight: '600',
-          marginBottom: '12px',
-          textAlign: 'center'
+          textAlign: 'center',
+          margin: 0,
+          marginBottom: '16px'
         }}>
           Recover Access
         </h1>
@@ -114,13 +115,15 @@ function RecoverAccess() {
         <p style={{
           fontSize: '16px',
           color: '#666',
-          marginBottom: '32px',
-          textAlign: 'center'
+          textAlign: 'center',
+          margin: 0,
+          marginBottom: '48px',
+          lineHeight: '1.5'
         }}>
           Enter your email to recover your account
         </p>
 
-        <div style={{ width: '100%', marginBottom: '24px' }}>
+        <div style={{ width: '100%', marginBottom: '32px' }}>
           <label style={{
             display: 'block',
             fontSize: '14px',
@@ -138,12 +141,14 @@ function RecoverAccess() {
             onKeyPress={handleKeyPress}
             style={{
               width: '100%',
-              padding: '12px 16px',
+              height: '52px',
+              padding: '14px 16px',
               fontSize: '16px',
               border: '1px solid #E0E0E0',
               borderRadius: '8px',
               outline: 'none',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
+              backgroundColor: '#F9F9F9'
             }}
             disabled={loading}
           />
@@ -169,19 +174,20 @@ function RecoverAccess() {
           disabled={loading}
           style={{
             width: '100%',
-            padding: '14px',
+            height: '52px',
+            padding: '14px 24px',
             fontSize: '16px',
             fontWeight: '600',
             color: '#FFF',
             background: loading ? '#666' : '#000',
             border: 'none',
             borderRadius: '8px',
-            cursor: loading ? 'not-allowed' : 'pointer'
+            cursor: loading ? 'not-allowed' : 'pointer',
+            boxSizing: 'border-box'
           }}
         >
           {loading ? 'Please wait...' : 'Continue'}
         </button>
-        </div>
       </div>
     </div>
   );
