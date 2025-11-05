@@ -192,7 +192,8 @@ io.on('connection', (socket) => {
 
       // Signal streaming complete (chunks already sent in real-time above)
       io.to(`conversation:${conversationId}`).emit('message-complete', {
-        conversationId: conversationId
+        conversationId: conversationId,
+        sources: result.sources  // ✅ FIX: Include sources for frontend display
       });
 
       // Update result to match expected format

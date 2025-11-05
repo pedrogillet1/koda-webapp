@@ -633,18 +633,22 @@ async function streamLLMResponse(
   try {
     const result = await model.generateContentStream(fullPrompt);
 
-    // ✅ REAL STREAMING: Post-process and send each chunk immediately
+    // ✅ REAL STREAMING: Stream chunks in real-time with spacing fixes
     for await (const chunk of result.stream) {
       const text = chunk.text();
       fullAnswer += text;
 
-      // Post-process each chunk before sending
+      // Apply spacing fixes to each chunk
       const processedChunk = text
-        .replace(/\n\n\n+/g, '\n\n')  // Fix triple+ blank lines (keep single blank lines)
-        .replace(/\n\n([•●○■\-*])/g, '\n$1')  // ✅ FIX: Remove blank lines before bullets
-        .replace(/\*\*\*\*/g, '**')   // Fix quadruple asterisks
-        .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')  // Remove emojis
-        .replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');  // Remove specific emojis
+        // Remove blank lines before bullets
+        .replace(/\n\n([•\-\*])/g, '\n$1')
+        // Fix triple+ newlines to a single blank line
+        .replace(/\n\n\n+/g, '\n\n')
+        // Fix quadruple asterisks
+        .replace(/\*\*\*\*/g, '**')
+        // Remove emojis
+        .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')
+        .replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');
 
       onChunk(processedChunk);
     }

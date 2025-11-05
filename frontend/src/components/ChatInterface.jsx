@@ -330,7 +330,23 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             // Listen for message complete event (confirms streaming ended)
             chatService.onMessageComplete((data) => {
                 console.log('✅ Message streaming complete event received:', data.conversationId);
-                // Just ensure streaming states are cleared
+                console.log('📚 Sources received:', data.sources);
+
+                // ✅ FIX: Attach sources to the last assistant message
+                if (data.sources && data.sources.length > 0) {
+                    setMessages((prev) => {
+                        const lastMessage = prev[prev.length - 1];
+                        if (lastMessage && lastMessage.role === 'assistant') {
+                            return [
+                                ...prev.slice(0, -1),
+                                { ...lastMessage, ragSources: data.sources }
+                            ];
+                        }
+                        return prev;
+                    });
+                }
+
+                // Clear streaming states
                 setStreamingMessage('');
                 setIsLoading(false);
             });
