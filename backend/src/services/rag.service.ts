@@ -565,6 +565,7 @@ FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - DO NOT include inline citations (no parentheses with document names/pages in the text)
 - Be thorough but concise
 - NO emojis
+- End with ONE "**Next step:**" bullet only (always bold)
 
 User query: "${query}"`;
 
@@ -637,7 +638,7 @@ async function handleDocumentCounting(
     response = `You have **${count}** ${count === 1 ? 'document' : 'documents'} in total.`;
   }
 
-  response += '\n\nNext step:\n';
+  response += '\n\n**Next step:**\n';
   response += 'What would you like to know about these documents?';
 
   onChunk(response);
@@ -691,7 +692,7 @@ async function handleDocumentTypes(
 
   if (typeMap.size === 0) {
     response = "You don't have any documents uploaded yet.\n\n";
-    response += 'Next step:\n';
+    response += '**Next step:**\n';
     response += 'Upload some documents to get started!';
   } else {
     const sortedTypes = Array.from(typeMap.entries()).sort((a, b) => b[1].length - a[1].length);
@@ -703,7 +704,7 @@ async function handleDocumentTypes(
       response += '\n';
     });
 
-    response += '\nNext step:\n';
+    response += '\n**Next step:**\n';
     response += 'What would you like to know about these documents?';
   }
 
@@ -751,7 +752,7 @@ async function handleDocumentListing(
   let response = '';
   if (documents.length === 0) {
     response = "You don't have any documents uploaded yet.\n\n";
-    response += 'Next step:\n';
+    response += '**Next step:**\n';
     response += 'Upload some documents to get started!';
   } else {
     response = `You have **${documents.length}** ${documents.length === 1 ? 'document' : 'documents'}:\n\n`;
@@ -759,7 +760,7 @@ async function handleDocumentListing(
       response += `• ${doc.filename}\n`;
     });
 
-    response += '\nNext step:\n';
+    response += '\n**Next step:**\n';
     response += 'What would you like to know about these documents?';
   }
 
@@ -814,6 +815,7 @@ FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - Professional, friendly tone
 - Bold key features with **text**
 - NO emojis
+- End with ONE "**Next step:**" bullet only (always bold)
 
 User query: "${query}"
 
@@ -1013,6 +1015,7 @@ FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - Between bullet points: Use SINGLE newline only (no blank lines)
 - Before "Next step:" section: Use ONE blank line
 - NO emojis
+- End with ONE "**Next step:**" bullet only (always bold)
 
 User query: "${query}"`;
 
@@ -1090,8 +1093,8 @@ function postProcessAnswer(answer: string): string {
   // Fix quadruple asterisks
   processed = processed.replace(/\*\*\*\*/g, '**');
 
-  // Fix "Next steps:" to "Next step:"
-  processed = processed.replace(/Next steps:/gi, 'Next step:');
+  // Fix "Next steps:" or "Next step:" to bold "**Next step:**"
+  processed = processed.replace(/Next steps?:/gi, '**Next step:**');
 
   // Trim
   processed = processed.trim();
