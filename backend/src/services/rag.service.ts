@@ -535,6 +535,26 @@ The user wants to compare multiple documents. Here's the relevant content from e
 
 ${context}
 
+CROSS-DOCUMENT SYNTHESIS (Critical):
+- Don't just summarize each document independently
+- Merge insights into a unified conceptual framework
+- Build conceptual bridges between documents
+- Identify: Where do they overlap? Where do they diverge?
+- Reveal patterns only visible when viewed together
+- Synthesize insights from comparison, not just side-by-side summaries
+
+INFERENTIAL REASONING:
+- Explain HOW concepts in different documents relate to each other
+- Connect ideas causally across documents
+- Infer implicit relationships and dependencies
+- Example: If Doc A discusses "value" and Doc B discusses "trust", explain how value creation depends on trust
+
+CRITICAL EVALUATION & INSIGHTS (Required):
+After your comparison, include an "Implications" section that:
+- Explains what the comparison reveals about the broader context
+- Highlights practical implications of the differences/similarities
+- Provides actionable insights from the synthesis
+
 FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - Between bullet points: Use SINGLE newline only (no blank lines)
 - Before "Next step:" section: Use ONE blank line
@@ -813,6 +833,19 @@ async function handleRegularQuery(
 ): Promise<void> {
   console.log('📚 [REGULAR QUERY] Starting RAG pipeline');
 
+  // ✅ PSYCHOLOGICAL LAYER AUTO-ACTIVATION
+  // Check if query contains psychology-relevant keywords
+  const psychologyTriggers = ['perception', 'experience', 'motivation', 'trust', 'behavior',
+                               'value', 'satisfaction', 'loyalty', 'emotion', 'feeling',
+                               'customer', 'engagement', 'brand', 'relationship'];
+  const needsPsychology = psychologyTriggers.some(trigger =>
+    query.toLowerCase().includes(trigger)
+  );
+
+  if (needsPsychology) {
+    console.log('🧠 [PSYCHOLOGY LAYER] Detected psychology-relevant query, enriching context');
+  }
+
   // Generate query embedding
   const embeddingResult = await embeddingModel.embedContent(query);
   const queryEmbedding = embeddingResult.embedding.values;
@@ -884,6 +917,45 @@ async function handleRegularQuery(
     console.log('🐛 [DEBUG] First chunk sample:', JSON.stringify(searchResults.matches[0], null, 2));
   }
 
+  // ✅ PSYCHOLOGICAL LAYER ENRICHMENT
+  // If psychology-relevant, search for PSYCOLOGY.pdf concepts
+  if (needsPsychology) {
+    try {
+      // Find PSYCOLOGY.pdf document
+      const psychDoc = await prisma.document.findFirst({
+        where: {
+          userId,
+          filename: { contains: 'PSYCOLOGY', mode: 'insensitive' },
+          status: { not: 'deleted' }
+        },
+        select: { id: true, filename: true }
+      });
+
+      if (psychDoc) {
+        console.log('🧠 [PSYCHOLOGY LAYER] Found PSYCOLOGY.pdf, enriching context');
+
+        // Query relevant psychological concepts
+        const psychFilter = { userId, documentId: psychDoc.id };
+        const psychResults = await pineconeIndex.query({
+          vector: queryEmbedding,
+          topK: 3, // Get top 3 relevant psychology chunks
+          filter: psychFilter,
+          includeMetadata: true,
+        });
+
+        // Add psychology chunks to search results
+        if (psychResults.matches && psychResults.matches.length > 0) {
+          const filteredPsychMatches = await filterDeletedDocuments(psychResults.matches, userId);
+          searchResults.matches = [...(searchResults.matches || []), ...filteredPsychMatches];
+          console.log(`🧠 [PSYCHOLOGY LAYER] Added ${filteredPsychMatches.length} psychological concepts to context`);
+        }
+      }
+    } catch (error) {
+      console.error('⚠️ [PSYCHOLOGY LAYER] Error enriching with psychology:', error);
+      // Continue without psychological enrichment if error occurs
+    }
+  }
+
   // Build context
   const context = searchResults.matches
     ?.map((match: any) => {
@@ -916,6 +988,20 @@ RESPONSE RULES:
 - Bold key information with **text**
 - DO NOT include inline citations (no parentheses with document names/pages in the text)
 - If the content doesn't answer the question, say so honestly
+
+INFERENTIAL REASONING (Critical):
+- Don't just list facts - explain HOW concepts relate to each other
+- Connect ideas causally (e.g., "X leads to Y because...")
+- Infer implicit relationships between concepts
+- Example: When discussing "trust", connect it to "security and emotional attachment"
+- Synthesize information across multiple sources to reveal deeper patterns
+- Explain the practical implications and "why this matters"
+
+CRITICAL EVALUATION & INSIGHTS (Required):
+After your main answer, include an "Implications" section that:
+- Explains what this reveals about the broader context
+- Highlights practical implications for decision-making
+- Provides actionable insights, not just summaries
 
 FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - Between bullet points: Use SINGLE newline only (no blank lines)

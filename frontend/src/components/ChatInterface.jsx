@@ -2050,7 +2050,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         ))}
 
                         {/* Streaming Message - Only show if streamingMessage is not empty */}
-                        {streamingMessage && displayedText && (
+                        {streamingMessage && (
                             <div style={{marginBottom: 16, display: 'flex', justifyContent: 'flex-start'}}>
                                 <div style={{maxWidth: '70%', padding: 12, background: 'white', borderRadius: 18, border: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                     <div style={{overflow: 'hidden', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
