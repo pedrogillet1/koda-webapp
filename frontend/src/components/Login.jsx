@@ -181,7 +181,7 @@ const Login = () => {
               </div>
               <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '20px', wordWrap: 'break-word'}}>Remember for 30 days</div>
             </div>
-            <Link to="/forgot-password" style={{textDecoration: 'none'}}>
+            <Link to="/recover-access" style={{textDecoration: 'none'}}>
               <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex'}}>
                 <div style={{justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer'}}>
                   <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>Forgot Password?</div>

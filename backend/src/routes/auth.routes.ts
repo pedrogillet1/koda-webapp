@@ -37,9 +37,14 @@ router.post('/2fa/verify-login', twoFactorLimiter, twoFactorController.verify2FA
 router.post('/2fa/disable', authenticateToken, twoFactorController.disable2FA);
 router.get('/2fa/backup-codes', authenticateToken, twoFactorController.getBackupCodes);
 
-// Password reset routes
+// Password reset routes (CODE-BASED - OLD)
 router.post('/forgot-password', authLimiter, authController.requestPasswordReset);
 router.post('/verify-reset-code', authLimiter, authController.verifyPasswordResetCode);
 router.post('/reset-password', authLimiter, authController.resetPassword);
+
+// PASSWORD RECOVERY ROUTES (LINK-BASED - NEW)
+router.post('/forgot-password-init', authLimiter, authController.initiateForgotPasswordController);
+router.post('/send-reset-link', authLimiter, authController.sendResetLinkController);
+router.post('/reset-password-with-token', authLimiter, authController.resetPasswordWithTokenController);
 
 export default router;

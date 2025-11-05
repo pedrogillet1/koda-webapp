@@ -14,9 +14,11 @@ import VerifyEmail from './components/VerifyEmail';
 import PhoneNumberPending from './components/PhoneNumberPending';
 import VerificationPending from './components/VerificationPending';
 import Upload from './components/Upload';
+import RecoverAccess from './components/RecoverAccess';
 import ForgotPassword from './components/ForgotPassword';
 import ForgotPasswordCode from './components/ForgotPasswordCode';
 import ForgotPasswordEmailSent from './components/ForgotPasswordEmailSent';
+import ForgotPasswordVerification from './components/ForgotPasswordVerification';
 import SetNewPassword from './components/SetNewPassword';
 import PasswordChanged from './components/PasswordChanged';
 import ChatScreen from './components/ChatScreen';
@@ -62,12 +64,18 @@ function App() {
             <Route path="/verification" element={<Verification />} />
             <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
             <Route path="/upload-hub" element={<ProtectedRoute><UploadHub /></ProtectedRoute>} />
+
+            {/* PASSWORD RECOVERY FLOW (LINK-BASED - NEW) */}
+            <Route path="/recover-access" element={<RecoverAccess />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/forgot-password-verification" element={<ForgotPasswordVerification />} />
+            <Route path="/set-new-password" element={<SetNewPassword />} />
+            <Route path="/password-changed" element={<PasswordChanged />} />
+
+            {/* OLD PASSWORD RECOVERY (CODE-BASED - DEPRECATED) */}
             <Route path="/forgot-password-code" element={<ForgotPasswordCode />} />
             <Route path="/forgot-password-email-sent" element={<ForgotPasswordEmailSent />} />
             <Route path="/reset-password" element={<SetNewPassword />} />
-            <Route path="/set-new-password" element={<SetNewPassword />} />
-            <Route path="/password-changed" element={<PasswordChanged />} />
             <Route path="/chat" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />
             <Route path="/home" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
             <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
