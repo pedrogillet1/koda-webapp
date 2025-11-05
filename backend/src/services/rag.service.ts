@@ -95,6 +95,10 @@ export async function generateAnswerStream(
 async function detectFileAction(query: string): Promise<string | null> {
   const lower = query.toLowerCase().trim();
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STAGE 1: Regex Pattern Matching (Fast Path)
+  // ──────────────────────────────────────────────────────────────────────────────
+
   // Folder operations
   if (/(create|make|new|add).*folder/i.test(lower)) {
     return 'createFolder';
@@ -121,6 +125,38 @@ async function detectFileAction(query: string): Promise<string | null> {
   }
   if (/(move|relocate).*file/i.test(lower)) {
     return 'moveFile';
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STAGE 2: LLM Intent Detection (Fallback for natural queries)
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  try {
+    console.log('🤖 [FILE ACTION] No strict match, trying LLM intent detection...');
+
+    // Dynamic import to avoid circular dependency
+    const { llmIntentDetectorService } = await import('./llmIntentDetector.service');
+
+    const intentResult = await llmIntentDetectorService.detectIntent(query);
+    console.log('🤖 [FILE ACTION] LLM intent:', intentResult);
+
+    // Map LLM intents to file actions
+    const fileActionIntents: Record<string, string> = {
+      'create_folder': 'createFolder',
+      'move_files': 'moveFile',
+      'rename_file': 'renameFile',
+      'delete_file': 'deleteFile'
+    };
+
+    if (fileActionIntents[intentResult.intent] && intentResult.confidence > 0.7) {
+      const action = fileActionIntents[intentResult.intent];
+      console.log(`✅ [FILE ACTION] LLM detected: ${action}`);
+      return action;
+    }
+
+    console.log('❌ [FILE ACTION] LLM confidence too low or not a file action');
+  } catch (error) {
+    console.error('❌ [FILE ACTION] LLM intent detection failed:', error);
   }
 
   return null;
@@ -167,9 +203,8 @@ async function handleFileAction(
         if (result.success && result.data) {
           await actionHistoryService.recordAction(
             userId,
-            'folder',
             'create',
-            { folderId: result.data.id, folderName }
+            `/folders/${result.data.id}`
           );
         }
         break;
@@ -193,9 +228,9 @@ async function handleFileAction(
         if (result.success && oldName) {
           await actionHistoryService.recordAction(
             userId,
-            'folder',
             'rename',
-            { folderId, oldName, newName }
+            `/folders/${folderId}`,
+            { previousPath: `/folders/${folderId}` }
           );
         }
         break;
@@ -220,9 +255,8 @@ async function handleFileAction(
         if (result.success && folder) {
           await actionHistoryService.recordAction(
             userId,
-            'folder',
             'delete',
-            { folderId, folderData: folder }
+            `/folders/${folderId}`
           );
         }
         break;
@@ -250,9 +284,9 @@ async function handleFileAction(
         if (result.success && oldFilename) {
           await actionHistoryService.recordAction(
             userId,
-            'file',
             'rename',
-            { documentId, oldFilename, newFilename }
+            `/documents/${documentId}`,
+            { previousPath: `/documents/${documentId}` }
           );
         }
         break;
@@ -277,9 +311,8 @@ async function handleFileAction(
         if (result.success && doc) {
           await actionHistoryService.recordAction(
             userId,
-            'file',
             'delete',
-            { documentId, documentData: doc }
+            `/documents/${documentId}`
           );
         }
         break;
@@ -304,12 +337,12 @@ async function handleFileAction(
         });
 
         // Record action for undo
-        if (result.success) {
+        if (result.success && oldFolderId) {
           await actionHistoryService.recordAction(
             userId,
-            'file',
             'move',
-            { documentId, oldFolderId, newFolderId: targetFolderId }
+            `/documents/${documentId}`,
+            { previousPath: `/folders/${oldFolderId}/documents/${documentId}` }
           );
         }
         break;
@@ -442,14 +475,19 @@ function extractDocumentNames(query: string): string[] {
     .split(/\s+/)
     .filter(w => w.length > 2);  // Ignore short words like "is", "me"
 
-  // Remove common question words
+  console.log('🔍 [EXTRACT] All words:', words);
+
+  // Remove common question words AND file extensions
   const stopWords = new Set([
     'what', 'tell', 'about', 'the', 'and', 'compare', 'between',
     'show', 'find', 'get', 'give', 'how', 'why', 'when', 'where',
-    'can', 'you', 'please', 'summary', 'summarize', 'does', 'talk'
+    'can', 'you', 'please', 'summary', 'summarize', 'does', 'talk',
+    'pdf', 'doc', 'docx', 'txt', 'xlsx', 'xls', 'pptx', 'ppt', 'csv'
   ]);
 
-  return words.filter(w => !stopWords.has(w));
+  const result = words.filter(w => !stopWords.has(w));
+  console.log('🔍 [EXTRACT] After filtering stop words:', result);
+  return result;
 }
 
 /**
@@ -477,12 +515,21 @@ async function findDocumentsByName(
 
     for (const doc of allDocs) {
       const docLower = doc.filename.toLowerCase();
+      const docWithoutExt = docLower.replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv)$/i, '');
+
+      console.log(`📄 [DOC SEARCH] Checking document: "${doc.filename}" (lower: "${docLower}", without ext: "${docWithoutExt}")`);
 
       for (const potentialName of potentialNames) {
-        // Check if document name contains the potential name
-        if (docLower.includes(potentialName) || potentialName.includes(docLower.replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv)$/i, ''))) {
+        const match1 = docLower.includes(potentialName);
+        const match2 = potentialName.includes(docWithoutExt);
+        const match3 = docWithoutExt.includes(potentialName);
+
+        console.log(`  🔍 Testing "${potentialName}": docLower.includes="${match1}", potentialName.includes(docWithoutExt)="${match2}", docWithoutExt.includes="${match3}"`);
+
+        // Check if document name contains the potential name OR vice versa
+        if (match1 || match2 || match3) {
           matchedDocIds.push(doc.id);
-          console.log(`✅ [DOC SEARCH] Matched "${potentialName}" → "${doc.filename}"`);
+          console.log(`  ✅ [DOC SEARCH] MATCHED "${potentialName}" → "${doc.filename}"`);
           break;
         }
       }
@@ -732,29 +779,22 @@ async function streamLLMResponse(
   try {
     const result = await model.generateContentStream(fullPrompt);
 
-    // Step 1: Collect ALL chunks from Gemini (no streaming yet)
+    // ✅ REAL STREAMING: Post-process and send each chunk immediately
     for await (const chunk of result.stream) {
       const text = chunk.text();
       fullAnswer += text;
+
+      // Post-process each chunk before sending
+      const processedChunk = text
+        .replace(/\n\n\n+/g, '\n\n')  // Fix triple+ blank lines (keep single blank lines)
+        .replace(/\*\*\*\*/g, '**')   // Fix quadruple asterisks
+        .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')  // Remove emojis
+        .replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');  // Remove specific emojis
+
+      onChunk(processedChunk);
     }
 
-    console.log('✅ [COLLECT] Collected full answer:', fullAnswer.length, 'chars');
-
-    // Step 2: Apply post-processing to the COMPLETE answer
-    const processed = postProcessAnswer(fullAnswer);
-
-    console.log('✅ [POST-PROCESS] After processing:', processed.length, 'chars');
-
-    // Step 3: Stream the processed answer word-by-word for smooth UX
-    const words = processed.split(' ');
-    for (let i = 0; i < words.length; i++) {
-      const word = i === words.length - 1 ? words[i] : words[i] + ' ';
-      onChunk(word);
-      // Small delay for smooth streaming effect (optional)
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-
-    console.log('✅ [STREAMING] Complete');
+    console.log('✅ [STREAMING] Complete. Total chars:', fullAnswer.length);
 
   } catch (error: any) {
     console.error('❌ [STREAMING] Error:', error);
