@@ -688,10 +688,14 @@ async function streamLLMResponse(
 
       // Apply spacing fixes to each chunk
       const processedChunk = text
+        // Ensure one blank line before any bullet list
+        .replace(/(:)\n([•\-\*])/g, '$1\n\n$2')
         // Remove blank lines before bullets (•, -, or *)
         .replace(/\n\n([•\-\*])/g, '\n$1')
         // Collapse 3+ newlines into one blank line (2 \n)
         .replace(/\n\n\n+/g, '\n\n')
+        // Ensure one blank line before "Next step:"
+        .replace(/\n(?=Next step:)/g, '\n\n')
         // Fix quadruple asterisks
         .replace(/\*\*\*\*/g, '**')
         // Remove emojis
