@@ -1104,20 +1104,30 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         conversationId,
                         query: messageText,
                         researchMode,
-                        // Send both formats for compatibility
-                        attachedFiles: filesToUpload.length > 0
-                            ? filesToUpload.map(f => ({ name: f.name, type: f.type }))
+                        // ✅ FIX: Use uploadedDocuments (which have IDs) instead of filesToUpload
+                        attachedFiles: uploadedDocuments.length > 0
+                            ? uploadedDocuments.map(doc => ({
+                                id: doc.id,
+                                name: doc.filename || doc.name,
+                                type: doc.mimeType || doc.type
+                            }))
                             : documentsToAttach.map(doc => ({
                                 id: doc.id,
                                 name: doc.name,
                                 type: doc.type
                             })),
-                        attachedDocuments: documentsToAttach.map(doc => ({
-                            id: doc.id,
-                            name: doc.name,
-                            type: doc.type
-                        })),
-                        // Explicitly null when no document (prevents sticky attachment)
+                        attachedDocuments: uploadedDocuments.length > 0
+                            ? uploadedDocuments.map(doc => ({
+                                id: doc.id,
+                                name: doc.filename || doc.name,
+                                type: doc.mimeType || doc.type
+                            }))
+                            : documentsToAttach.map(doc => ({
+                                id: doc.id,
+                                name: doc.name,
+                                type: doc.type
+                            })),
+                        // ✅ FIX: Use uploadedDocument?.id which is extracted correctly
                         documentId: uploadedDocument?.id || null,
                     };
 
