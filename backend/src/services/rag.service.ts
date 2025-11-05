@@ -586,7 +586,8 @@ async function handleComparison(
   const context = allChunks
     .map((match: any) => {
       const meta = match.metadata || {};
-      return `[Document: ${meta.documentName || 'Unknown'}, Page: ${meta.pageNumber || 'N/A'}]\n${meta.text || ''}`;
+      // ✅ FIX: Use correct field names from Pinecone (content, filename, page)
+      return `[Document: ${meta.filename || 'Unknown'}, Page: ${meta.page || 'N/A'}]\n${meta.content || ''}`;
     })
     .join('\n\n---\n\n');
 
@@ -730,16 +731,23 @@ async function handleRegularQuery(
 
   console.log(`✅ [REGULAR QUERY] Found ${searchResults.matches?.length || 0} relevant chunks`);
 
+  // 🐛 DEBUG: Log first chunk to see what Pinecone is returning
+  if (searchResults.matches && searchResults.matches.length > 0) {
+    console.log('🐛 [DEBUG] First chunk sample:', JSON.stringify(searchResults.matches[0], null, 2));
+  }
+
   // Build context
   const context = searchResults.matches
     ?.map((match: any) => {
       const meta = match.metadata || {};
-      return `[Source: ${meta.documentName || 'Unknown'}, Page: ${meta.pageNumber || 'N/A'}]\n${meta.text || ''}`;
+      // ✅ FIX: Use correct field names from Pinecone (content, filename, page)
+      return `[Source: ${meta.filename || 'Unknown'}, Page: ${meta.page || 'N/A'}]\n${meta.content || ''}`;
     })
     .join('\n\n---\n\n') || '';
 
   console.log(`📝 [CONTEXT] Length: ${context.length} chars`);
   console.log(`📝 [CONTEXT] Preview: ${context.substring(0, 200)}...`);
+  console.log(`🐛 [DEBUG] Full context (first 500 chars): ${context.substring(0, 500)}`);
 
   // System prompt
   const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
