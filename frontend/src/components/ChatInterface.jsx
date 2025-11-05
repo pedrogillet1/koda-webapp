@@ -277,7 +277,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             // Listen for message chunks (real-time streaming)
             chatService.onMessageChunk((data) => {
-                console.log('📦 Received chunk:', data.chunk);
                 // Append chunk to streaming message
                 setStreamingMessage(prev => prev + data.chunk);
             });

@@ -48,8 +48,11 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 // ARCHITECTURE:
 // 1. File Actions - Natural detection (create/rename/delete/move folder/file)
 // 2. Comparisons - GUARANTEE multi-document retrieval
-// 3. Meta-Queries - Answer from knowledge, don't search
-// 4. Regular Queries - Standard RAG pipeline
+// 3. Document Counting - Count documents by type (how many PDFs, etc.)
+// 4. Document Types - Show file types breakdown
+// 5. Document Listing - List all user files
+// 6. Meta-Queries - Answer from knowledge, don't search
+// 7. Regular Queries - Standard RAG pipeline
 //
 // KEY FEATURES:
 // - Real streaming (not fake word-by-word)
@@ -112,7 +115,32 @@ export async function generateAnswerStream(
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
-  // STEP 3: Meta-Queries - Answer from Knowledge
+  // STEP 3: Document Counting - Count Documents by Type
+  // ──────────────────────────────────────────────────────────────────────────────
+  const countingCheck = isDocumentCountingQuery(query);
+  if (countingCheck.isCounting) {
+    console.log('🔢 [DOCUMENT COUNTING] Detected');
+    return await handleDocumentCounting(userId, countingCheck.fileType, onChunk);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 4: Document Types - Show File Types
+  // ──────────────────────────────────────────────────────────────────────────────
+  if (isDocumentTypesQuery(query)) {
+    console.log('📊 [DOCUMENT TYPES] Detected');
+    return await handleDocumentTypes(userId, onChunk);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 5: Document Listing - List All Files
+  // ──────────────────────────────────────────────────────────────────────────────
+  if (isDocumentListingQuery(query)) {
+    console.log('📋 [DOCUMENT LISTING] Detected');
+    return await handleDocumentListing(userId, onChunk);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 6: Meta-Queries - Answer from Knowledge
   // ──────────────────────────────────────────────────────────────────────────────
   if (isMetaQuery(query)) {
     console.log('💭 [META-QUERY] Detected');
@@ -121,7 +149,7 @@ export async function generateAnswerStream(
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
-  // STEP 4: Regular Queries - Standard RAG
+  // STEP 7: Regular Queries - Standard RAG
   // ──────────────────────────────────────────────────────────────────────────────
   console.log('📚 [REGULAR QUERY] Processing');
   return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId);
@@ -461,12 +489,44 @@ async function handleComparison(
     })
     .join('\n\n---\n\n');
 
-  // Build sources array from all chunks
-  const sources = allChunks.map((match: any) => ({
-    documentName: match.metadata?.filename || 'Unknown',
-    pageNumber: match.metadata?.page || 0,
-    score: match.score || 0
-  }));
+  // Build sources array - GUARANTEE all compared documents appear
+  // First, get unique documents from chunks
+  const chunksMap = new Map<string, any>();
+  allChunks.forEach((match: any) => {
+    const docName = match.metadata?.filename || 'Unknown';
+    if (!chunksMap.has(docName)) {
+      chunksMap.set(docName, match);
+    }
+  });
+
+  // Then, ensure ALL comparison documents are in sources (even if no chunks)
+  const sources: any[] = [];
+
+  // Add documents that had chunks
+  for (const [docName, match] of chunksMap.entries()) {
+    sources.push({
+      documentName: docName,
+      pageNumber: match.metadata?.page || 0,
+      score: match.score || 0
+    });
+  }
+
+  // Add any missing documents from the comparison list
+  for (const docId of comparison.documents) {
+    // Get document info from database
+    const doc = await prisma.document.findUnique({
+      where: { id: docId },
+      select: { filename: true }
+    });
+
+    if (doc && !sources.find(s => s.documentName === doc.filename)) {
+      sources.push({
+        documentName: doc.filename,
+        pageNumber: 0,
+        score: 0
+      });
+    }
+  }
 
   // Generate comparison answer
   const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
@@ -480,13 +540,215 @@ FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - Before "Next step:" section: Use ONE blank line
 - Compare the documents clearly and objectively
 - Bold key differences with **text**
-- Cite specific sources with document names and page numbers
+- DO NOT include inline citations (no parentheses with document names/pages in the text)
 - Be thorough but concise
 - NO emojis
 
 User query: "${query}"`;
 
   await streamLLMResponse(systemPrompt, '', onChunk);
+  return { sources };
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// DOCUMENT COUNTING DETECTION & HANDLER
+// ════════════════════════════════════════════════════════════════════════════════
+
+function isDocumentCountingQuery(query: string): { isCounting: boolean; fileType?: string } {
+  const lower = query.toLowerCase().trim();
+
+  const hasCountKeyword = lower.includes('how many') || lower.includes('count');
+  const hasDocKeyword = lower.includes('document') || lower.includes('file') ||
+                        lower.includes('pdf') || lower.includes('excel') ||
+                        lower.includes('xlsx') || lower.includes('docx') ||
+                        lower.includes('pptx') || lower.includes('image') ||
+                        lower.includes('png') || lower.includes('jpg');
+
+  if (!hasCountKeyword || !hasDocKeyword) {
+    return { isCounting: false };
+  }
+
+  // Extract file type if specified
+  let fileType: string | undefined;
+  if (lower.includes('pdf')) fileType = '.pdf';
+  else if (lower.includes('excel') || lower.includes('xlsx')) fileType = '.xlsx';
+  else if (lower.includes('word') || lower.includes('docx')) fileType = '.docx';
+  else if (lower.includes('powerpoint') || lower.includes('pptx')) fileType = '.pptx';
+  else if (lower.includes('image') || lower.includes('png')) fileType = '.png';
+  else if (lower.includes('jpg') || lower.includes('jpeg')) fileType = '.jpg';
+
+  return { isCounting: true, fileType };
+}
+
+async function handleDocumentCounting(
+  userId: string,
+  fileType: string | undefined,
+  onChunk: (chunk: string) => void
+): Promise<{ sources: any[] }> {
+  const whereClause: any = {
+    userId,
+    status: { not: 'deleted' },
+  };
+
+  if (fileType) {
+    whereClause.filename = { endsWith: fileType };
+  }
+
+  const count = await prisma.document.count({ where: whereClause });
+  const documents = await prisma.document.findMany({
+    where: whereClause,
+    select: { filename: true },
+  });
+
+  let response = '';
+  if (fileType) {
+    const typeName = fileType.replace('.', '').toUpperCase();
+    response = `You have **${count}** ${typeName} ${count === 1 ? 'file' : 'files'}.`;
+
+    if (count > 0) {
+      response += '\n\n';
+      documents.forEach(doc => {
+        response += `• ${doc.filename}\n`;
+      });
+    }
+  } else {
+    response = `You have **${count}** ${count === 1 ? 'document' : 'documents'} in total.`;
+  }
+
+  response += '\n\nNext step:\n';
+  response += 'What would you like to know about these documents?';
+
+  onChunk(response);
+
+  const sources = documents.map(doc => ({
+    documentName: doc.filename,
+    pageNumber: 0,
+    score: 1.0,
+  }));
+
+  return { sources };
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// DOCUMENT TYPES DETECTION & HANDLER
+// ════════════════════════════════════════════════════════════════════════════════
+
+function isDocumentTypesQuery(query: string): boolean {
+  const lower = query.toLowerCase().trim();
+
+  const hasTypeKeyword = lower.includes('what type') || lower.includes('what kind') ||
+                         lower.includes('which type') || lower.includes('file type');
+  const hasDocKeyword = lower.includes('document') || lower.includes('file');
+  const hasHaveKeyword = lower.includes('have') || lower.includes('got') || lower.includes('own');
+
+  return hasTypeKeyword && hasDocKeyword && hasHaveKeyword;
+}
+
+async function handleDocumentTypes(
+  userId: string,
+  onChunk: (chunk: string) => void
+): Promise<{ sources: any[] }> {
+  const documents = await prisma.document.findMany({
+    where: {
+      userId,
+      status: { not: 'deleted' },
+    },
+    select: { filename: true },
+  });
+
+  const typeMap = new Map<string, string[]>();
+  documents.forEach(doc => {
+    const ext = doc.filename.substring(doc.filename.lastIndexOf('.')).toLowerCase();
+    if (!typeMap.has(ext)) {
+      typeMap.set(ext, []);
+    }
+    typeMap.get(ext)!.push(doc.filename);
+  });
+
+  let response = 'Based on the files you uploaded, you have the following types of files:\n\n';
+
+  if (typeMap.size === 0) {
+    response = "You don't have any documents uploaded yet.\n\n";
+    response += 'Next step:\n';
+    response += 'Upload some documents to get started!';
+  } else {
+    const sortedTypes = Array.from(typeMap.entries()).sort((a, b) => b[1].length - a[1].length);
+
+    sortedTypes.forEach(([ext, files]) => {
+      const typeName = ext.replace('.', '').toUpperCase();
+      response += `• **${typeName}** (${files.length} ${files.length === 1 ? 'file' : 'files'}): `;
+      response += files.map(f => f).join(', ');
+      response += '\n';
+    });
+
+    response += '\nNext step:\n';
+    response += 'What would you like to know about these documents?';
+  }
+
+  onChunk(response);
+
+  const sources = documents.map(doc => ({
+    documentName: doc.filename,
+    pageNumber: 0,
+    score: 1.0,
+  }));
+
+  return { sources };
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// DOCUMENT LISTING DETECTION & HANDLER
+// ════════════════════════════════════════════════════════════════════════════════
+
+function isDocumentListingQuery(query: string): boolean {
+  const lower = query.toLowerCase().trim();
+
+  // Flexible keyword-based detection (catches more variations)
+  const hasListKeyword = lower.includes('which') || lower.includes('what') ||
+                         lower.includes('show') || lower.includes('list');
+  const hasDocKeyword = lower.includes('document') || lower.includes('file');
+  const hasHaveKeyword = lower.includes('have') || lower.includes('upload') ||
+                         lower.includes('got') || lower.includes('own');
+
+  return hasListKeyword && hasDocKeyword && hasHaveKeyword;
+}
+
+async function handleDocumentListing(
+  userId: string,
+  onChunk: (chunk: string) => void
+): Promise<{ sources: any[] }> {
+  const documents = await prisma.document.findMany({
+    where: {
+      userId,
+      status: { not: 'deleted' },
+    },
+    select: { filename: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  let response = '';
+  if (documents.length === 0) {
+    response = "You don't have any documents uploaded yet.\n\n";
+    response += 'Next step:\n';
+    response += 'Upload some documents to get started!';
+  } else {
+    response = `You have **${documents.length}** ${documents.length === 1 ? 'document' : 'documents'}:\n\n`;
+    documents.forEach(doc => {
+      response += `• ${doc.filename}\n`;
+    });
+
+    response += '\nNext step:\n';
+    response += 'What would you like to know about these documents?';
+  }
+
+  onChunk(response);
+
+  const sources = documents.map(doc => ({
+    documentName: doc.filename,
+    pageNumber: 0,
+    score: 1.0,
+  }));
+
   return { sources };
 }
 
@@ -568,7 +830,7 @@ async function handleRegularQuery(
 
     const rawResults = await pineconeIndex.query({
       vector: queryEmbedding,
-      topK: 10,
+      topK: 20,
       filter,
       includeMetadata: true,
     });
@@ -605,7 +867,7 @@ async function handleRegularQuery(
       console.log('📊 [REGULAR QUERY] No document names detected, using vector search');
       const rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
-        topK: 10,
+        topK: 20,
         filter,
         includeMetadata: true,
       });
@@ -648,13 +910,16 @@ async function handleRegularQuery(
 RELEVANT CONTENT FROM USER'S DOCUMENTS:
 ${context}
 
+RESPONSE RULES:
+- Start with a brief intro (MAX 2 sentences)
+- Answer based on the provided content
+- Bold key information with **text**
+- DO NOT include inline citations (no parentheses with document names/pages in the text)
+- If the content doesn't answer the question, say so honestly
+
 FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - Between bullet points: Use SINGLE newline only (no blank lines)
 - Before "Next step:" section: Use ONE blank line
-- Answer based on the provided content
-- Bold key information with **text**
-- Cite sources with document names and page numbers
-- If the content doesn't answer the question, say so honestly
 - NO emojis
 
 User query: "${query}"`;
@@ -688,6 +953,8 @@ async function streamLLMResponse(
 
       // Apply precise spacing rules for clean, readable output
       const processedChunk = text
+        // ✅ CRITICAL: Remove inline citations like (filename.pdf, Page: N/A)
+        .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')
         // Ensure one blank line (double newline) after headers before bullet lists
         .replace(/(:)\n([•\-\*])/g, '$1\n\n$2')
         // Remove extra blank lines between bullets (keep them tight)
