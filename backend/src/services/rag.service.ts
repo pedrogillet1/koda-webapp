@@ -5,6 +5,43 @@ import fileActionsService from './fileActions.service';
 import { actionHistoryService } from './actionHistory.service';
 
 // ════════════════════════════════════════════════════════════════════════════════
+// DELETED DOCUMENT FILTER
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Filter out deleted documents from Pinecone results
+ */
+async function filterDeletedDocuments(matches: any[], userId: string): Promise<any[]> {
+  if (!matches || matches.length === 0) return [];
+
+  // Get unique document IDs
+  const documentIds = [...new Set(matches.map(m => m.metadata?.documentId).filter(Boolean))];
+
+  if (documentIds.length === 0) return matches;
+
+  // Query database for valid (non-deleted) documents
+  const validDocuments = await prisma.document.findMany({
+    where: {
+      id: { in: documentIds },
+      userId: userId,
+      status: { not: 'deleted' },
+    },
+    select: { id: true },
+  });
+
+  const validDocumentIds = new Set(validDocuments.map(d => d.id));
+
+  // Filter matches to only include valid documents
+  const filtered = matches.filter(m => validDocumentIds.has(m.metadata?.documentId));
+
+  if (filtered.length < matches.length) {
+    console.log(`🗑️ [FILTER] Removed deleted documents: ${matches.length} → ${filtered.length}`);
+  }
+
+  return filtered;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // HYBRID RAG SERVICE - Simple, Reliable, 95%+ Success Rate
 // ════════════════════════════════════════════════════════════════════════════════
 //
@@ -396,17 +433,20 @@ async function handleComparison(
     const queryEmbedding = embeddingResult.embedding.values;
 
     // Search this specific document
-    const searchResults = await pineconeIndex.query({
+    const rawResults = await pineconeIndex.query({
       vector: queryEmbedding,
       topK: 5,
       filter: { documentId: docId },
       includeMetadata: true,
     });
 
-    console.log(`  ✅ Found ${searchResults.matches?.length || 0} chunks for ${docId}`);
+    // Filter out deleted documents
+    const filteredMatches = await filterDeletedDocuments(rawResults.matches || [], userId);
 
-    if (searchResults.matches) {
-      allChunks.push(...searchResults.matches);
+    console.log(`  ✅ Found ${filteredMatches.length} chunks for ${docId}`);
+
+    if (filteredMatches.length > 0) {
+      allChunks.push(...filteredMatches);
     }
   }
 
@@ -526,12 +566,15 @@ async function handleRegularQuery(
     filter.documentId = attachedDocumentId;
     console.log('📎 [REGULAR QUERY] Filtering by attached document:', attachedDocumentId);
 
-    searchResults = await pineconeIndex.query({
+    const rawResults = await pineconeIndex.query({
       vector: queryEmbedding,
       topK: 10,
       filter,
       includeMetadata: true,
     });
+
+    const filteredMatches = await filterDeletedDocuments(rawResults.matches || [], userId);
+    searchResults = { matches: filteredMatches };
   } else {
     // ✅ NEW: Try to find documents by name
     const potentialNames = extractDocumentNames(query);
@@ -545,25 +588,30 @@ async function handleRegularQuery(
 
       for (const docId of matchedDocs) {
         const docFilter = { userId, documentId: docId };
-        const docResults = await pineconeIndex.query({
+        const rawResults = await pineconeIndex.query({
           vector: queryEmbedding,
           topK: 5,
           filter: docFilter,
           includeMetadata: true,
         });
-        allResults.push(...(docResults.matches || []));
+
+        const filteredMatches = await filterDeletedDocuments(rawResults.matches || [], userId);
+        allResults.push(...filteredMatches);
       }
 
       searchResults = { matches: allResults };
     } else {
       // Fall back to regular vector search
       console.log('📊 [REGULAR QUERY] No document names detected, using vector search');
-      searchResults = await pineconeIndex.query({
+      const rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
         topK: 10,
         filter,
         includeMetadata: true,
       });
+
+      const filteredMatches = await filterDeletedDocuments(rawResults.matches || [], userId);
+      searchResults = { matches: filteredMatches };
     }
   }
 
