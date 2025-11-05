@@ -260,12 +260,18 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             attachedFiles: optimisticMessage?.attachedFiles || data.userMessage.attachedFiles || []
                         };
 
+                        // ✅ FIX: Parse metadata and attach sources to assistantMessage
+                        const assistantMessageWithSources = {
+                            ...data.assistantMessage,
+                            ragSources: data.sources || [],  // Attach sources from WebSocket
+                        };
+
                         const withoutOptimistic = prev.filter(m => {
                             if (m.isOptimistic) return false;
                             if (m.id === data.userMessage?.id || m.id === data.assistantMessage?.id) return false;
                             return true;
                         });
-                        return [...withoutOptimistic, userMessageWithFiles, data.assistantMessage];
+                        return [...withoutOptimistic, userMessageWithFiles, assistantMessageWithSources];
                     });
                 });
 

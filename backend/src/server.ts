@@ -144,9 +144,8 @@ io.on('connection', (socket) => {
 
       // Use NEW Hybrid RAG service with streaming
       let fullResponse = '';
-      const sources: any[] = [];
 
-      await ragService.generateAnswerStream(
+      const { sources } = await ragService.generateAnswerStream(
         authenticatedUserId,
         data.content,
         conversationId,
