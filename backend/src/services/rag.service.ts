@@ -49,7 +49,7 @@ export async function generateAnswerStream(
   conversationId: string,
   onChunk: (chunk: string) => void,
   attachedDocumentId?: string
-): Promise<void> {
+): Promise<{ sources: any[] }> {
   await initializePinecone();
 
   console.log('\n🎯 [HYBRID RAG] Processing query:', query);
@@ -61,7 +61,8 @@ export async function generateAnswerStream(
   const fileAction = await detectFileAction(query);
   if (fileAction) {
     console.log('📁 [FILE ACTION] Detected:', fileAction);
-    return handleFileAction(userId, query, fileAction, onChunk);
+    await handleFileAction(userId, query, fileAction, onChunk);
+    return { sources: [] }; // File actions don't have sources
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ export async function generateAnswerStream(
   const comparison = await detectComparison(userId, query);
   if (comparison) {
     console.log('🔄 [COMPARISON] Detected:', comparison.documents);
-    return handleComparison(userId, query, comparison, onChunk);
+    return await handleComparison(userId, query, comparison, onChunk);
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -78,14 +79,15 @@ export async function generateAnswerStream(
   // ──────────────────────────────────────────────────────────────────────────────
   if (isMetaQuery(query)) {
     console.log('💭 [META-QUERY] Detected');
-    return handleMetaQuery(query, onChunk);
+    await handleMetaQuery(query, onChunk);
+    return { sources: [] }; // Meta queries don't have sources
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
   // STEP 4: Regular Queries - Standard RAG
   // ──────────────────────────────────────────────────────────────────────────────
   console.log('📚 [REGULAR QUERY] Processing');
-  return handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId);
+  return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId);
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -94,6 +96,10 @@ export async function generateAnswerStream(
 
 async function detectFileAction(query: string): Promise<string | null> {
   const lower = query.toLowerCase().trim();
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STAGE 1: Regex Pattern Matching (Fast Path)
+  // ──────────────────────────────────────────────────────────────────────────────
 
   // Folder operations
   if (/(create|make|new|add).*folder/i.test(lower)) {
@@ -123,6 +129,38 @@ async function detectFileAction(query: string): Promise<string | null> {
     return 'moveFile';
   }
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STAGE 2: LLM Intent Detection (Fallback for natural queries)
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  try {
+    console.log('🤖 [FILE ACTION] No strict match, trying LLM intent detection...');
+
+    // Dynamic import to avoid circular dependency
+    const { llmIntentDetectorService } = await import('./llmIntentDetector.service');
+
+    const intentResult = await llmIntentDetectorService.detectIntent(query);
+    console.log('🤖 [FILE ACTION] LLM intent:', intentResult);
+
+    // Map LLM intents to file actions
+    const fileActionIntents: Record<string, string> = {
+      'create_folder': 'createFolder',
+      'move_files': 'moveFile',
+      'rename_file': 'renameFile',
+      'delete_file': 'deleteFile'
+    };
+
+    if (fileActionIntents[intentResult.intent] && intentResult.confidence > 0.7) {
+      const action = fileActionIntents[intentResult.intent];
+      console.log(`✅ [FILE ACTION] LLM detected: ${action}`);
+      return action;
+    }
+
+    console.log('❌ [FILE ACTION] LLM confidence too low or not a file action');
+  } catch (error) {
+    console.error('❌ [FILE ACTION] LLM intent detection failed:', error);
+  }
+
   return null;
 }
 
@@ -139,190 +177,15 @@ async function handleFileAction(
   console.log(`🔧 [FILE ACTION] Executing: ${actionType}`);
 
   try {
-    // Parse the query to extract parameters (folder name, file name, etc.)
-    const parsedAction = await fileActionsService.parseFileAction(query);
-
-    if (!parsedAction) {
-      onChunk('I detected a file action, but I need more information. Could you please be more specific?');
-      return;
-    }
-
-    let result: any;
-
-    // Execute the appropriate action
-    switch (actionType) {
-      case 'createFolder': {
-        const folderName = parsedAction.params.folderName || parsedAction.params.name;
-        if (!folderName) {
-          onChunk('I need a folder name. Please specify which folder you want to create.');
-          return;
-        }
-        result = await fileActionsService.createFolder({
-          userId,
-          folderName,
-          parentFolderId: parsedAction.params.parentFolderId,
-        });
-
-        // Record action for undo
-        if (result.success && result.data) {
-          await actionHistoryService.recordAction(
-            userId,
-            'folder',
-            'create',
-            { folderId: result.data.id, folderName }
-          );
-        }
-        break;
-      }
-
-      case 'renameFolder': {
-        const folderId = parsedAction.params.folderId;
-        const newName = parsedAction.params.newName;
-        if (!folderId || !newName) {
-          onChunk('I need both the folder to rename and the new name.');
-          return;
-        }
-
-        // Get old name for undo
-        const folder = await prisma.folder.findUnique({ where: { id: folderId } });
-        const oldName = folder?.name;
-
-        result = await fileActionsService.renameFolder(userId, folderId, newName);
-
-        // Record action for undo
-        if (result.success && oldName) {
-          await actionHistoryService.recordAction(
-            userId,
-            'folder',
-            'rename',
-            { folderId, oldName, newName }
-          );
-        }
-        break;
-      }
-
-      case 'deleteFolder': {
-        const folderId = parsedAction.params.folderId;
-        if (!folderId) {
-          onChunk('I need to know which folder to delete.');
-          return;
-        }
-
-        // Get folder data for undo
-        const folder = await prisma.folder.findUnique({
-          where: { id: folderId },
-          include: { documents: true }
-        });
-
-        result = await fileActionsService.deleteFolder(userId, folderId);
-
-        // Record action for undo
-        if (result.success && folder) {
-          await actionHistoryService.recordAction(
-            userId,
-            'folder',
-            'delete',
-            { folderId, folderData: folder }
-          );
-        }
-        break;
-      }
-
-      case 'renameFile': {
-        const documentId = parsedAction.params.documentId || parsedAction.params.fileId;
-        const newFilename = parsedAction.params.newFilename || parsedAction.params.newName;
-        if (!documentId || !newFilename) {
-          onChunk('I need both the file to rename and the new name.');
-          return;
-        }
-
-        // Get old filename for undo
-        const doc = await prisma.document.findUnique({ where: { id: documentId } });
-        const oldFilename = doc?.filename;
-
-        result = await fileActionsService.renameFile({
-          userId,
-          documentId,
-          newFilename,
-        });
-
-        // Record action for undo
-        if (result.success && oldFilename) {
-          await actionHistoryService.recordAction(
-            userId,
-            'file',
-            'rename',
-            { documentId, oldFilename, newFilename }
-          );
-        }
-        break;
-      }
-
-      case 'deleteFile': {
-        const documentId = parsedAction.params.documentId || parsedAction.params.fileId;
-        if (!documentId) {
-          onChunk('I need to know which file to delete.');
-          return;
-        }
-
-        // Get document data for undo
-        const doc = await prisma.document.findUnique({ where: { id: documentId } });
-
-        result = await fileActionsService.deleteFile({
-          userId,
-          documentId,
-        });
-
-        // Record action for undo
-        if (result.success && doc) {
-          await actionHistoryService.recordAction(
-            userId,
-            'file',
-            'delete',
-            { documentId, documentData: doc }
-          );
-        }
-        break;
-      }
-
-      case 'moveFile': {
-        const documentId = parsedAction.params.documentId || parsedAction.params.fileId;
-        const targetFolderId = parsedAction.params.targetFolderId || parsedAction.params.folderId;
-        if (!documentId || !targetFolderId) {
-          onChunk('I need both the file to move and the destination folder.');
-          return;
-        }
-
-        // Get old folder for undo
-        const doc = await prisma.document.findUnique({ where: { id: documentId } });
-        const oldFolderId = doc?.folderId;
-
-        result = await fileActionsService.moveFile({
-          userId,
-          documentId,
-          targetFolderId,
-        });
-
-        // Record action for undo
-        if (result.success) {
-          await actionHistoryService.recordAction(
-            userId,
-            'file',
-            'move',
-            { documentId, oldFolderId, newFolderId: targetFolderId }
-          );
-        }
-        break;
-      }
-
-      default:
-        onChunk(`I don't know how to perform the action: ${actionType}`);
-        return;
-    }
+    // ✅ FIX: Use fileActionsService.executeAction which handles name→ID lookup
+    const result = await fileActionsService.executeAction(query, userId);
 
     // Stream the result to the user
     if (result.success) {
       onChunk(result.message);
+
+      // TODO: Record action for undo (needs refactoring)
+      // The executeAction doesn't return document/folder IDs needed for undo
     } else {
       onChunk(`Sorry, I couldn't complete that action: ${result.error || result.message}`);
     }
@@ -442,14 +305,19 @@ function extractDocumentNames(query: string): string[] {
     .split(/\s+/)
     .filter(w => w.length > 2);  // Ignore short words like "is", "me"
 
-  // Remove common question words
+  console.log('🔍 [EXTRACT] All words:', words);
+
+  // Remove common question words AND file extensions
   const stopWords = new Set([
     'what', 'tell', 'about', 'the', 'and', 'compare', 'between',
     'show', 'find', 'get', 'give', 'how', 'why', 'when', 'where',
-    'can', 'you', 'please', 'summary', 'summarize', 'does', 'talk'
+    'can', 'you', 'please', 'summary', 'summarize', 'does', 'talk',
+    'pdf', 'doc', 'docx', 'txt', 'xlsx', 'xls', 'pptx', 'ppt', 'csv'
   ]);
 
-  return words.filter(w => !stopWords.has(w));
+  const result = words.filter(w => !stopWords.has(w));
+  console.log('🔍 [EXTRACT] After filtering stop words:', result);
+  return result;
 }
 
 /**
@@ -477,12 +345,21 @@ async function findDocumentsByName(
 
     for (const doc of allDocs) {
       const docLower = doc.filename.toLowerCase();
+      const docWithoutExt = docLower.replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv)$/i, '');
+
+      console.log(`📄 [DOC SEARCH] Checking document: "${doc.filename}" (lower: "${docLower}", without ext: "${docWithoutExt}")`);
 
       for (const potentialName of potentialNames) {
-        // Check if document name contains the potential name
-        if (docLower.includes(potentialName) || potentialName.includes(docLower.replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv)$/i, ''))) {
+        const match1 = docLower.includes(potentialName);
+        const match2 = potentialName.includes(docWithoutExt);
+        const match3 = docWithoutExt.includes(potentialName);
+
+        console.log(`  🔍 Testing "${potentialName}": docLower.includes="${match1}", potentialName.includes(docWithoutExt)="${match2}", docWithoutExt.includes="${match3}"`);
+
+        // Check if document name contains the potential name OR vice versa
+        if (match1 || match2 || match3) {
           matchedDocIds.push(doc.id);
-          console.log(`✅ [DOC SEARCH] Matched "${potentialName}" → "${doc.filename}"`);
+          console.log(`  ✅ [DOC SEARCH] MATCHED "${potentialName}" → "${doc.filename}"`);
           break;
         }
       }
@@ -505,7 +382,7 @@ async function handleComparison(
   query: string,
   comparison: { documents: string[] },
   onChunk: (chunk: string) => void
-): Promise<void> {
+): Promise<{ sources: any[] }> {
   console.log('🔄 [COMPARISON] Retrieving content for documents:', comparison.documents);
 
   // GUARANTEE: Search each document separately
@@ -539,9 +416,17 @@ async function handleComparison(
   const context = allChunks
     .map((match: any) => {
       const meta = match.metadata || {};
-      return `[Document: ${meta.documentName || 'Unknown'}, Page: ${meta.pageNumber || 'N/A'}]\n${meta.text || ''}`;
+      // ✅ FIX: Use correct field names from Pinecone (content, filename, page)
+      return `[Document: ${meta.filename || 'Unknown'}, Page: ${meta.page || 'N/A'}]\n${meta.content || ''}`;
     })
     .join('\n\n---\n\n');
+
+  // Build sources array from all chunks
+  const sources = allChunks.map((match: any) => ({
+    documentName: match.metadata?.filename || 'Unknown',
+    pageNumber: match.metadata?.page || 0,
+    score: match.score || 0
+  }));
 
   // Generate comparison answer
   const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
@@ -561,7 +446,8 @@ COMPARISON RULES:
 
 User query: "${query}"`;
 
-  return streamLLMResponse(systemPrompt, '', onChunk);
+  await streamLLMResponse(systemPrompt, '', onChunk);
+  return { sources };
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -683,16 +569,30 @@ async function handleRegularQuery(
 
   console.log(`✅ [REGULAR QUERY] Found ${searchResults.matches?.length || 0} relevant chunks`);
 
+  // 🐛 DEBUG: Log first chunk to see what Pinecone is returning
+  if (searchResults.matches && searchResults.matches.length > 0) {
+    console.log('🐛 [DEBUG] First chunk sample:', JSON.stringify(searchResults.matches[0], null, 2));
+  }
+
   // Build context
   const context = searchResults.matches
     ?.map((match: any) => {
       const meta = match.metadata || {};
-      return `[Source: ${meta.documentName || 'Unknown'}, Page: ${meta.pageNumber || 'N/A'}]\n${meta.text || ''}`;
+      // ✅ FIX: Use correct field names from Pinecone (content, filename, page)
+      return `[Source: ${meta.filename || 'Unknown'}, Page: ${meta.page || 'N/A'}]\n${meta.content || ''}`;
     })
     .join('\n\n---\n\n') || '';
 
   console.log(`📝 [CONTEXT] Length: ${context.length} chars`);
   console.log(`📝 [CONTEXT] Preview: ${context.substring(0, 200)}...`);
+  console.log(`🐛 [DEBUG] Full context (first 500 chars): ${context.substring(0, 500)}`);
+
+  // Build sources array from search results
+  const sources = searchResults.matches?.map((match: any) => ({
+    documentName: match.metadata?.filename || 'Unknown',
+    pageNumber: match.metadata?.page || 0,
+    score: match.score || 0
+  })) || [];
 
   // System prompt
   const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
@@ -711,7 +611,8 @@ RESPONSE RULES:
 
 User query: "${query}"`;
 
-  return streamLLMResponse(systemPrompt, '', onChunk);
+  await streamLLMResponse(systemPrompt, '', onChunk);
+  return { sources };
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -732,29 +633,23 @@ async function streamLLMResponse(
   try {
     const result = await model.generateContentStream(fullPrompt);
 
-    // Step 1: Collect ALL chunks from Gemini (no streaming yet)
+    // ✅ REAL STREAMING: Post-process and send each chunk immediately
     for await (const chunk of result.stream) {
       const text = chunk.text();
       fullAnswer += text;
+
+      // Post-process each chunk before sending
+      const processedChunk = text
+        .replace(/\n\n\n+/g, '\n\n')  // Fix triple+ blank lines (keep single blank lines)
+        .replace(/\n\n([•●○■\-*])/g, '\n$1')  // ✅ FIX: Remove blank lines before bullets
+        .replace(/\*\*\*\*/g, '**')   // Fix quadruple asterisks
+        .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')  // Remove emojis
+        .replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');  // Remove specific emojis
+
+      onChunk(processedChunk);
     }
 
-    console.log('✅ [COLLECT] Collected full answer:', fullAnswer.length, 'chars');
-
-    // Step 2: Apply post-processing to the COMPLETE answer
-    const processed = postProcessAnswer(fullAnswer);
-
-    console.log('✅ [POST-PROCESS] After processing:', processed.length, 'chars');
-
-    // Step 3: Stream the processed answer word-by-word for smooth UX
-    const words = processed.split(' ');
-    for (let i = 0; i < words.length; i++) {
-      const word = i === words.length - 1 ? words[i] : words[i] + ' ';
-      onChunk(word);
-      // Small delay for smooth streaming effect (optional)
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-
-    console.log('✅ [STREAMING] Complete');
+    console.log('✅ [STREAMING] Complete. Total chars:', fullAnswer.length);
 
   } catch (error: any) {
     console.error('❌ [STREAMING] Error:', error);
