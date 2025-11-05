@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 
 function RecoverAccess() {
   const navigate = useNavigate();
@@ -25,7 +25,7 @@ function RecoverAccess() {
     setLoading(true);
 
     try {
-      const response = await axios.post('/api/auth/forgot-password-init', {
+      const response = await api.post('/api/auth/forgot-password-init', {
         email: email.toLowerCase()
       });
 
@@ -68,12 +68,10 @@ function RecoverAccess() {
       display: 'flex',
       width: '100vw',
       height: '100vh',
-      padding: '16px',
       flexDirection: 'column',
-      alignItems: 'center',
       background: '#FFF'
     }}>
-      <div style={{ width: '100%', maxWidth: '400px', marginBottom: '40px' }}>
+      <div style={{ width: '100%', padding: '16px' }}>
         <button
           onClick={() => navigate('/login')}
           style={{
@@ -92,12 +90,18 @@ function RecoverAccess() {
       </div>
 
       <div style={{
-        width: '100%',
-        maxWidth: '400px',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center'
+        alignItems: 'center',
+        flex: 1,
+        justifyContent: 'center',
+        width: '100%'
       }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '400px',
+          padding: '0 16px'
+        }}>
         <h1 style={{
           fontSize: '32px',
           fontWeight: '600',
@@ -177,6 +181,7 @@ function RecoverAccess() {
         >
           {loading ? 'Please wait...' : 'Continue'}
         </button>
+        </div>
       </div>
     </div>
   );

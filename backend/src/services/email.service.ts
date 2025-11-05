@@ -1,4 +1,8 @@
-/** Email Service - Minimal Stub (Non-MVP) */
+import { Resend } from 'resend';
+
+/** Email Service - Using Resend for email delivery */
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 class EmailService {
   async sendEmail(to: string, subject: string, body: string) { return true; }
   async sendBulkEmail(recipients: string[], subject: string, body: string) { return true; }
@@ -35,26 +39,71 @@ export async function sendPasswordResetEmail(
   resetLink: string,
   firstName: string = 'User'
 ): Promise<void> {
-  // In production, this would send actual email via SendGrid or similar service
-  // For now, log the reset link for development/testing
-  console.log(`📧 Password reset link for ${email}:`);
-  console.log(`   Link: ${resetLink}`);
-  console.log(`   Recipient: ${firstName}`);
+  try {
+    console.log(`📧 Sending password reset email to ${email}...`);
 
-  // Stub: In production, send via SendGrid:
-  // const msg = {
-  //   to: email,
-  //   from: process.env.SENDGRID_FROM_EMAIL || 'noreply@koda.app',
-  //   subject: 'Reset Your Password',
-  //   html: `<h2>Password Reset Request</h2>
-  //     <p>Hi ${firstName},</p>
-  //     <p>Click the button below to reset your password:</p>
-  //     <a href="${resetLink}">Reset Password</a>
-  //     <p>This link will expire in 15 minutes.</p>`
-  // };
-  // await sgMail.send(msg);
+    const { data, error } = await resend.emails.send({
+      from: 'Koda <support@kodapda.com>',
+      to: email,
+      subject: 'Reset Your Password - Koda',
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #181818; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+              .content { background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-radius: 0 0 8px 8px; }
+              .button {
+                display: inline-block;
+                padding: 14px 32px;
+                background: #181818;
+                color: white;
+                text-decoration: none;
+                border-radius: 8px;
+                margin: 20px 0;
+                font-weight: 600;
+              }
+              .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">Reset Your Password</h1>
+              </div>
+              <div class="content">
+                <p>Hi ${firstName},</p>
+                <p>We received a request to reset your password for your Koda account.</p>
+                <p>Click the button below to reset your password:</p>
+                <p style="text-align: center;">
+                  <a href="${resetLink}" class="button">Reset Password</a>
+                </p>
+                <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
+                <p style="word-break: break-all; color: #666; font-size: 12px;">${resetLink}</p>
+                <p style="color: #D92D20; font-weight: 600; margin-top: 20px;">⚠️ This link will expire in 15 minutes.</p>
+                <p style="margin-top: 20px;">If you didn't request a password reset, you can safely ignore this email.</p>
+              </div>
+              <div class="footer">
+                <p>© ${new Date().getFullYear()} Koda. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `
+    });
 
-  return Promise.resolve();
+    if (error) {
+      console.error('❌ Resend API error:', error);
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+
+    console.log(`✅ Password reset email sent successfully! ID: ${data?.id}`);
+  } catch (error) {
+    console.error('❌ Failed to send password reset email:', error);
+    throw error;
+  }
 }
 
 export default new EmailService();

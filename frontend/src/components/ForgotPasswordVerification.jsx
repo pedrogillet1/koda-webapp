@@ -42,12 +42,10 @@ function ForgotPasswordVerification() {
       display: 'flex',
       width: '100vw',
       height: '100vh',
-      padding: '16px',
       flexDirection: 'column',
-      alignItems: 'center',
       background: '#FFF'
     }}>
-      <div style={{ width: '100%', maxWidth: '400px', marginBottom: '40px' }}>
+      <div style={{ width: '100%', padding: '16px' }}>
         <button
           onClick={() => navigate('/forgot-password')}
           style={{
@@ -66,13 +64,22 @@ function ForgotPasswordVerification() {
       </div>
 
       <div style={{
-        width: '100%',
-        maxWidth: '400px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        textAlign: 'center'
+        flex: 1,
+        justifyContent: 'center',
+        width: '100%'
       }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '400px',
+          padding: '0 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center'
+        }}>
         <div style={{
           width: '80px',
           height: '80px',
@@ -146,6 +153,7 @@ function ForgotPasswordVerification() {
         >
           Back to Log In
         </button>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 
 function ForgotPassword() {
   const location = useLocation();
@@ -37,7 +37,7 @@ function ForgotPassword() {
       }
 
       // Send reset LINK (not code) via selected method
-      const response = await axios.post('/api/auth/send-reset-link', {
+      const response = await api.post('/api/auth/send-reset-link', {
         sessionToken,
         method: selectedMethod
       });
@@ -69,12 +69,10 @@ function ForgotPassword() {
       display: 'flex',
       width: '100vw',
       height: '100vh',
-      padding: '16px',
       flexDirection: 'column',
-      alignItems: 'center',
       background: '#FFF'
     }}>
-      <div style={{ width: '100%', maxWidth: '400px', marginBottom: '40px' }}>
+      <div style={{ width: '100%', padding: '16px' }}>
         <button
           onClick={() => navigate('/recover-access')}
           style={{
@@ -93,12 +91,18 @@ function ForgotPassword() {
       </div>
 
       <div style={{
-        width: '100%',
-        maxWidth: '400px',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center'
+        alignItems: 'center',
+        flex: 1,
+        justifyContent: 'center',
+        width: '100%'
       }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '400px',
+          padding: '0 16px'
+        }}>
         <h1 style={{
           fontSize: '32px',
           fontWeight: '600',
@@ -233,6 +237,7 @@ function ForgotPassword() {
         >
           {loading ? 'Sending...' : 'Continue'}
         </button>
+        </div>
       </div>
     </div>
   );
