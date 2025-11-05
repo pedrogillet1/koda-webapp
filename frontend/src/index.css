@@ -140,7 +140,7 @@ code {
 
 /* Markdown Content Styling */
 .markdown-content p {
-  margin: 0 0 12px 0;
+  margin: 0 0 4px 0;
 }
 
 .markdown-content p:last-child {
