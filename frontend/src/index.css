@@ -160,13 +160,13 @@ code {
 
 .markdown-content ul,
 .markdown-content ol {
-  margin: 8px 0 12px 0;
+  margin: 0;
   padding-left: 20px;
 }
 
 .markdown-content li {
-  margin: 2px 0;
-  line-height: 1.6;
+  margin: 0;
+  line-height: 1.2;
 }
 
 .markdown-content h1,
