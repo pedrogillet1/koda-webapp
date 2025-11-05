@@ -46,38 +46,52 @@ export const registerUser = async ({ email, password }: RegisterInput) => {
   // Hash password
   const { hash, salt } = await hashPassword(password);
 
-  // TODO: Pending user service was removed during cleanup
-  // For now, create user directly without email verification (development mode)
-  const user = await prisma.user.create({
+  // Check if pending user already exists
+  const existingPendingUser = await prisma.pendingUser.findUnique({
+    where: { email: email.toLowerCase() },
+  });
+
+  if (existingPendingUser) {
+    // Delete old pending user and create new one
+    await prisma.pendingUser.delete({
+      where: { email: email.toLowerCase() },
+    });
+  }
+
+  // Generate email verification code
+  const emailService = await import('./email.service');
+  const emailCode = emailService.generateVerificationCode();
+
+  // Create pending user (not a real user yet)
+  const expiresAt = new Date();
+  expiresAt.setMinutes(expiresAt.getMinutes() + 10); // Code expires in 10 minutes
+
+  await prisma.pendingUser.create({
     data: {
       email: email.toLowerCase(),
       passwordHash: hash,
       salt,
-      isEmailVerified: true, // Skip verification for now
+      emailCode,
+      expiresAt,
     },
   });
 
-  console.log(`✅ User created directly: ${user.email}`);
+  console.log(`✅ Pending user created: ${email.toLowerCase()}`);
 
-  // Generate tokens
-  const accessToken = generateAccessToken({ userId: user.id, email: user.email });
-  const refreshToken = generateRefreshToken({ userId: user.id, email: user.email });
+  // Send verification email
+  try {
+    await emailService.sendVerificationCodeEmail(email.toLowerCase(), emailCode);
+    console.log(`📧 Verification code sent to ${email.toLowerCase()}`);
+  } catch (error) {
+    console.error('Failed to send verification email:', error);
+    console.log(`📧 [DEV MODE] Verification code for ${email.toLowerCase()}: ${emailCode}`);
+  }
 
-  // Store refresh token
-  const tokenHash = hashToken(refreshToken);
-  await prisma.refreshToken.create({
-    data: {
-      userId: user.id,
-      tokenHash,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-    },
-  });
-
+  // Return requiresVerification flag for frontend
   return {
-    user,
-    accessToken,
-    refreshToken,
-    message: 'User registered successfully',
+    requiresVerification: true,
+    email: email.toLowerCase(),
+    message: 'Please verify your email or phone to complete registration',
   };
 };
 
@@ -254,7 +268,7 @@ export const resendPendingUserEmail = async (email: string) => {
   // Send email verification code
   try {
     const emailService = await import('./email.service');
-    await emailService.sendVerificationEmail(email, emailCode);
+    await emailService.sendVerificationCodeEmail(email, emailCode);
     console.log(`📧 Verification code resent to ${email}`);
   } catch (error) {
     console.error('Failed to resend verification email:', error);
@@ -539,33 +553,50 @@ export const sendPhoneVerificationCode = async (userId: string, phoneNumber: str
  * Verify phone code
  */
 export const verifyPhoneCode = async (userId: string, code: string) => {
-  const verificationCode = await prisma.verificationCode.findFirst({
-    where: {
-      userId,
-      type: 'phone',
-      code,
-      isUsed: false,
-      expiresAt: { gte: new Date() },
-    },
+  // Use transaction to ensure atomicity
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. Find and validate the verification code
+    const verificationCode = await tx.verificationCode.findFirst({
+      where: {
+        userId,
+        type: 'phone',
+        code,
+        isUsed: false,
+        expiresAt: { gte: new Date() },
+      },
+    });
+
+    if (!verificationCode) {
+      throw new Error('Invalid or expired verification code');
+    }
+
+    // 2. Mark code as used
+    await tx.verificationCode.update({
+      where: { id: verificationCode.id },
+      data: { isUsed: true },
+    });
+
+    // 3. Update user verification status
+    const updatedUser = await tx.user.update({
+      where: { id: userId },
+      data: { isPhoneVerified: true },
+      select: {
+        id: true,
+        phoneNumber: true,
+        isPhoneVerified: true,
+      },
+    });
+
+    return updatedUser;
   });
 
-  if (!verificationCode) {
-    throw new Error('Invalid or expired verification code');
-  }
+  console.log(`✅ Phone verified successfully for user ${userId}: ${result.phoneNumber}`);
 
-  // Mark code as used
-  await prisma.verificationCode.update({
-    where: { id: verificationCode.id },
-    data: { isUsed: true },
-  });
-
-  // Update user
-  await prisma.user.update({
-    where: { id: userId },
-    data: { isPhoneVerified: true },
-  });
-
-  return { success: true };
+  return {
+    success: true,
+    phoneNumber: result.phoneNumber,
+    isPhoneVerified: result.isPhoneVerified,
+  };
 };
 
 /**
@@ -854,16 +885,21 @@ export async function initiateForgotPassword(email: string) {
     };
   }
 
-  // Check if email is verified
-  if (!user.isEmailVerified) {
-    throw new Error('EMAIL_NOT_VERIFIED');
+  // Check if email OR phone is verified (allow password reset for either)
+  if (!user.isEmailVerified && !user.isPhoneVerified) {
+    throw new Error('ACCOUNT_NOT_VERIFIED');
   }
 
   // Mask the user's actual email and phone
   const maskedEmailValue = maskEmail(user.email);
-  const maskedPhoneValue = user.phoneNumber && user.isPhoneVerified
-    ? maskPhone(user.phoneNumber)
-    : null;
+  const maskedPhoneValue = user.phoneNumber ? maskPhone(user.phoneNumber) : null;
+
+  // Determine which reset methods are available
+  // If email is not verified, user can ONLY use phone (if verified)
+  // If email is verified, user can use both email and phone
+  const canUseEmail = user.isEmailVerified;
+  const canUsePhone = !!user.phoneNumber && user.isPhoneVerified;
+  const hasUnverifiedPhone = !!user.phoneNumber && !user.isPhoneVerified;
 
   // Generate session token for method selection
   const sessionToken = generateSecureToken();
@@ -874,7 +910,10 @@ export async function initiateForgotPassword(email: string) {
     sessionToken,
     maskedEmail: maskedEmailValue,
     maskedPhone: maskedPhoneValue,
-    hasPhone: !!user.phoneNumber && user.isPhoneVerified
+    hasPhone: canUsePhone,
+    canUseEmail,
+    canUsePhone,
+    hasUnverifiedPhone
   };
 }
 

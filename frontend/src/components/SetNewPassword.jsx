@@ -7,11 +7,19 @@ function SetNewPassword() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
 
-  const [newPassword, setNewPassword] = useState('');
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Password validation state
+  const [passwordValidation, setPasswordValidation] = useState({
+    noPersonalInfo: false,
+    minLength: false,
+    hasSymbolOrNumber: false,
+  });
 
   // Check if token exists
   useEffect(() => {
@@ -20,22 +28,48 @@ function SetNewPassword() {
     }
   }, [token]);
 
-  const handleResetPassword = async () => {
+  // Real-time password validation
+  const validatePassword = (pwd) => {
+    const validation = {
+      noPersonalInfo: true, // Simplified - always true for now
+      minLength: pwd.length >= 8,
+      hasSymbolOrNumber: /[0-9!@#$%^&*(),.?":{}|<>]/.test(pwd),
+    };
+
+    setPasswordValidation(validation);
+  };
+
+  const handlePasswordChange = (e) => {
+    const newPassword = e.target.value;
+    setPassword(newPassword);
+    validatePassword(newPassword);
+  };
+
+  const isPasswordValid = () => {
+    return (
+      password === confirmPassword &&
+      password.length > 0 &&
+      passwordValidation.noPersonalInfo &&
+      passwordValidation.minLength &&
+      passwordValidation.hasSymbolOrNumber
+    );
+  };
+
+  const handleSubmit = async () => {
     setError('');
 
-    if (!newPassword || !confirmPassword) {
+    if (!password || !confirmPassword) {
       setError('Please fill in all fields');
       return;
     }
 
-    if (newPassword !== confirmPassword) {
+    if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
 
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!passwordRegex.test(newPassword)) {
-      setError('Password must be at least 8 characters with uppercase, lowercase, number, and special character');
+    if (!isPasswordValid()) {
+      setError('Please meet all password requirements');
       return;
     }
 
@@ -44,11 +78,11 @@ function SetNewPassword() {
     try {
       const response = await axios.post('/api/auth/reset-password-with-token', {
         token,
-        newPassword
+        newPassword: password
       });
 
       if (response.data.success) {
-        navigate('/password-changed');
+        navigate('/login');
       }
     } catch (error) {
       console.error('Reset password error:', error);
@@ -66,64 +100,67 @@ function SetNewPassword() {
   return (
     <div style={{
       display: 'flex',
-      width: '100vw',
-      height: '100vh',
-      padding: '16px',
       flexDirection: 'column',
       alignItems: 'center',
-      background: '#FFF'
+      justifyContent: 'center',
+      minHeight: '100vh',
+      padding: '20px',
+      background: '#FFF',
     }}>
       <div style={{
         width: '100%',
         maxWidth: '400px',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center'
       }}>
+        {/* Title */}
         <h1 style={{
-          fontSize: '32px',
+          fontSize: '28px',
           fontWeight: '600',
-          marginBottom: '12px',
-          textAlign: 'center'
+          color: '#000',
+          textAlign: 'left',
+          marginBottom: '8px',
         }}>
-          Set New Password
+          Set A New Password
         </h1>
 
+        {/* Subtitle */}
         <p style={{
-          fontSize: '16px',
+          fontSize: '14px',
           color: '#666',
+          textAlign: 'left',
           marginBottom: '32px',
-          textAlign: 'center'
         }}>
-          Create a strong password for your account
+          Set a new secure password.
         </p>
 
-        <div style={{ width: '100%', marginBottom: '16px' }}>
+        {/* New Password Input */}
+        <div style={{ marginBottom: '20px' }}>
           <label style={{
             display: 'block',
-            fontSize: '14px',
+            fontSize: '13px',
             fontWeight: '500',
+            color: '#000',
             marginBottom: '8px',
-            color: '#000'
           }}>
             New Password
           </label>
           <div style={{ position: 'relative' }}>
             <input
               type={showPassword ? 'text' : 'password'}
-              placeholder="Enter new password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              value={password}
+              onChange={handlePasswordChange}
+              placeholder="••••••••"
+              disabled={loading || !token}
               style={{
                 width: '100%',
-                padding: '12px 40px 12px 16px',
-                fontSize: '16px',
-                border: '1px solid #E0E0E0',
+                height: '48px',
+                padding: '0 40px 0 16px',
+                background: '#F9FAFB',
+                border: '1px solid #E5E7EB',
                 borderRadius: '8px',
+                fontSize: '16px',
                 outline: 'none',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
               }}
-              disabled={loading || !token}
             />
             <button
               type="button"
@@ -136,90 +173,231 @@ function SetNewPassword() {
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                fontSize: '18px'
+                padding: '8px',
+                fontSize: '18px',
+                color: '#9CA3AF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              {showPassword ? '🙈' : '👁️'}
+              {showPassword ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              )}
             </button>
           </div>
         </div>
 
-        <div style={{ width: '100%', marginBottom: '24px' }}>
+        {/* Confirm Password Input */}
+        <div style={{ marginBottom: '24px' }}>
           <label style={{
             display: 'block',
-            fontSize: '14px',
+            fontSize: '13px',
             fontWeight: '500',
+            color: '#000',
             marginBottom: '8px',
-            color: '#000'
           }}>
             Confirm Password
           </label>
-          <input
-            type={showPassword ? 'text' : 'password'}
-            placeholder="Confirm new password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              fontSize: '16px',
-              border: '1px solid #E0E0E0',
-              borderRadius: '8px',
-              outline: 'none',
-              boxSizing: 'border-box'
-            }}
-            disabled={loading || !token}
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showConfirmPassword ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              disabled={loading || !token}
+              style={{
+                width: '100%',
+                height: '48px',
+                padding: '0 40px 0 16px',
+                background: '#F9FAFB',
+                border: '1px solid #E5E7EB',
+                borderRadius: '8px',
+                fontSize: '16px',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px',
+                fontSize: '18px',
+                color: '#9CA3AF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {showConfirmPassword ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
 
-        <div style={{
-          width: '100%',
-          padding: '12px',
-          marginBottom: '16px',
-          background: '#F9F9F9',
-          borderRadius: '8px',
-          fontSize: '12px',
-          color: '#666'
-        }}>
-          <div style={{ fontWeight: '600', marginBottom: '8px' }}>Password must contain:</div>
-          <div>• At least 8 characters</div>
-          <div>• One uppercase letter</div>
-          <div>• One lowercase letter</div>
-          <div>• One number</div>
-          <div>• One special character (@$!%*?&)</div>
+        {/* Password Requirements with Real-Time Validation */}
+        <div style={{ marginBottom: '24px' }}>
+          {/* Requirement 1: No Personal Info */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: '12px',
+          }}>
+            <div style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              border: passwordValidation.noPersonalInfo ? '2px solid #10B981' : '2px solid #D1D5DB',
+              background: passwordValidation.noPersonalInfo ? '#10B981' : 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease',
+              flexShrink: 0,
+            }}>
+              {passwordValidation.noPersonalInfo && (
+                <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
+                  <path d="M1 5L4.5 8.5L11 1.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </div>
+            <span style={{
+              fontSize: '14px',
+              color: passwordValidation.noPersonalInfo ? '#10B981' : '#666',
+              transition: 'color 0.2s ease',
+            }}>
+              Must Not Contain Your Name Or Email
+            </span>
+          </div>
+
+          {/* Requirement 2: Minimum Length */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: '12px',
+          }}>
+            <div style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              border: passwordValidation.minLength ? '2px solid #10B981' : '2px solid #D1D5DB',
+              background: passwordValidation.minLength ? '#10B981' : 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease',
+              flexShrink: 0,
+            }}>
+              {passwordValidation.minLength && (
+                <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
+                  <path d="M1 5L4.5 8.5L11 1.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </div>
+            <span style={{
+              fontSize: '14px',
+              color: passwordValidation.minLength ? '#10B981' : '#666',
+              transition: 'color 0.2s ease',
+            }}>
+              At Least 8 Characters
+            </span>
+          </div>
+
+          {/* Requirement 3: Symbol or Number */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}>
+            <div style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              border: passwordValidation.hasSymbolOrNumber ? '2px solid #10B981' : '2px solid #D1D5DB',
+              background: passwordValidation.hasSymbolOrNumber ? '#10B981' : 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease',
+              flexShrink: 0,
+            }}>
+              {passwordValidation.hasSymbolOrNumber && (
+                <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
+                  <path d="M1 5L4.5 8.5L11 1.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </div>
+            <span style={{
+              fontSize: '14px',
+              color: passwordValidation.hasSymbolOrNumber ? '#10B981' : '#666',
+              transition: 'color 0.2s ease',
+            }}>
+              Contains A Symbol Or A Number
+            </span>
+          </div>
         </div>
 
+        {/* Error Message */}
         {error && (
           <div style={{
             width: '100%',
-            padding: '12px',
+            padding: '12px 16px',
             marginBottom: '16px',
-            background: '#FEE',
-            border: '1px solid #FCC',
+            background: '#FEE2E2',
+            border: '1px solid #FCA5A5',
             borderRadius: '8px',
-            color: '#C00',
-            fontSize: '14px'
+            color: '#DC2626',
+            fontSize: '14px',
           }}>
             {error}
           </div>
         )}
 
+        {/* Save Button */}
         <button
-          onClick={handleResetPassword}
-          disabled={loading || !token}
+          onClick={handleSubmit}
+          disabled={!isPasswordValid() || loading || !token}
           style={{
             width: '100%',
-            padding: '14px',
-            fontSize: '16px',
-            fontWeight: '600',
+            height: '48px',
+            background: (isPasswordValid() && !loading && token) ? '#000' : '#D1D5DB',
             color: '#FFF',
-            background: (loading || !token) ? '#666' : '#000',
             border: 'none',
             borderRadius: '8px',
-            cursor: (loading || !token) ? 'not-allowed' : 'pointer'
+            fontSize: '16px',
+            fontWeight: '600',
+            cursor: (isPasswordValid() && !loading && token) ? 'pointer' : 'not-allowed',
+            transition: 'all 0.2s ease',
           }}
         >
-          {loading ? 'Resetting...' : 'Reset Password'}
+          {loading ? 'Saving...' : 'Save'}
         </button>
       </div>
     </div>

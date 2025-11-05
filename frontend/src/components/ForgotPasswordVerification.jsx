@@ -39,40 +39,45 @@ function ForgotPasswordVerification() {
 
   return (
     <div style={{
-      display: 'flex',
       width: '100vw',
       height: '100vh',
-      padding: '16px',
-      flexDirection: 'column',
-      alignItems: 'center',
-      background: '#FFF'
+      background: '#FFF',
+      position: 'relative'
     }}>
-      <div style={{ width: '100%', maxWidth: '400px', marginBottom: '40px' }}>
-        <button
-          onClick={() => navigate('/forgot-password')}
-          style={{
-            background: 'none',
-            border: 'none',
-            fontSize: '16px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            color: '#000',
-            padding: '8px 0'
-          }}
-        >
-          ← Back
-        </button>
-      </div>
+      {/* Back Button */}
+      <button
+        onClick={() => navigate(-1)}
+        style={{
+          position: 'absolute',
+          top: '24px',
+          left: '24px',
+          background: 'none',
+          border: 'none',
+          fontSize: '16px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          color: '#000',
+          padding: 0
+        }}
+      >
+        ← Back
+      </button>
 
+      {/* Content Container */}
       <div style={{
         width: '100%',
         maxWidth: '400px',
+        margin: '0 auto',
+        padding: '0 24px',
+        boxSizing: 'border-box',
+        paddingTop: '140px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         textAlign: 'center'
       }}>
+        {/* Blue Icon Circle */}
         <div style={{
           width: '80px',
           height: '80px',
@@ -81,7 +86,7 @@ function ForgotPasswordVerification() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          marginBottom: '24px',
+          marginBottom: '32px',
           fontSize: '40px'
         }}>
           {isEmail ? '📧' : '💬'}
@@ -90,7 +95,8 @@ function ForgotPasswordVerification() {
         <h1 style={{
           fontSize: '32px',
           fontWeight: '600',
-          marginBottom: '12px'
+          margin: 0,
+          marginBottom: '16px'
         }}>
           {title}
         </h1>
@@ -98,7 +104,8 @@ function ForgotPasswordVerification() {
         <p style={{
           fontSize: '16px',
           color: '#666',
-          marginBottom: '32px',
+          margin: 0,
+          marginBottom: '48px',
           lineHeight: '1.5'
         }}>
           {subtitle}
@@ -134,14 +141,16 @@ function ForgotPasswordVerification() {
           onClick={() => navigate('/login')}
           style={{
             width: '100%',
-            padding: '14px',
+            height: '52px',
+            padding: '14px 24px',
             fontSize: '16px',
             fontWeight: '600',
             color: '#000',
             background: '#FFF',
             border: '1px solid #E0E0E0',
             borderRadius: '8px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            boxSizing: 'border-box'
           }}
         >
           Back to Log In

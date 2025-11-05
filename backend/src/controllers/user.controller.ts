@@ -15,6 +15,63 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
 
     const { firstName, lastName, phoneNumber, profileImage } = req.body;
 
+    // Get current user data
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { phoneNumber: true, email: true },
+    });
+
+    if (!currentUser) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    let needsPhoneVerification = false;
+    let verificationCode: string | undefined;
+
+    // If phone number is being updated and is different from current phone
+    if (phoneNumber && phoneNumber !== currentUser.phoneNumber) {
+      // Check if another user has this phone number
+      const existingUserWithPhone = await prisma.user.findUnique({
+        where: { phoneNumber },
+        select: { id: true },
+      });
+
+      if (existingUserWithPhone && existingUserWithPhone.id !== req.user.id) {
+        res.status(400).json({
+          error: 'Phone number already in use',
+          field: 'phoneNumber'
+        });
+        return;
+      }
+
+      // Generate verification code
+      const { generateSMSCode } = await import('../services/sms.service');
+      verificationCode = generateSMSCode();
+      needsPhoneVerification = true;
+
+      console.log(`📱 Phone verification code for ${req.user.id}: ${verificationCode}`);
+
+      // Create verification code entry
+      await prisma.verificationCode.create({
+        data: {
+          userId: req.user.id,
+          type: 'phone',
+          code: verificationCode,
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+        },
+      });
+
+      // Send SMS verification code
+      try {
+        const { sendSMS } = await import('../services/sms.service');
+        await sendSMS(phoneNumber, `Your Koda verification code is: ${verificationCode}`);
+      } catch (error) {
+        console.error('Failed to send SMS:', error);
+        console.log(`📧 [DEV MODE] Verification code for ${phoneNumber}: ${verificationCode}`);
+      }
+    }
+
     // Update user in database
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
@@ -23,6 +80,10 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         lastName: lastName || null,
         phoneNumber: phoneNumber || null,
         profileImage: profileImage || null,
+        // If phone changed, set verification to false
+        ...(needsPhoneVerification && {
+          isPhoneVerified: false,
+        }),
       },
       select: {
         id: true,
@@ -39,11 +100,12 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     res.status(200).json({
       message: 'Profile updated successfully',
       user: updatedUser,
+      needsPhoneVerification,
     });
   } catch (error) {
     const err = error as Error;
     console.error('Error updating profile:', error);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to update profile' });
   }
 };
 
@@ -163,5 +225,82 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
     const err = error as Error;
     console.error('Error changing password:', error);
     res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * Verify phone number with verification code
+ */
+export const verifyProfilePhone = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { code } = req.body;
+
+    if (!code) {
+      res.status(400).json({ error: 'Verification code is required' });
+      return;
+    }
+
+    // Find verification code
+    const verificationRecord = await prisma.verificationCode.findFirst({
+      where: {
+        userId: req.user.id,
+        type: 'phone',
+        code,
+        isUsed: false,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    if (!verificationRecord) {
+      res.status(400).json({ error: 'Invalid verification code' });
+      return;
+    }
+
+    // Check if code expired
+    if (verificationRecord.expiresAt < new Date()) {
+      res.status(400).json({ error: 'Verification code has expired' });
+      return;
+    }
+
+    // Mark code as used
+    await prisma.verificationCode.update({
+      where: { id: verificationRecord.id },
+      data: { isUsed: true },
+    });
+
+    // Update user - mark phone as verified
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        isPhoneVerified: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+        profileImage: true,
+        isEmailVerified: true,
+        isPhoneVerified: true,
+      },
+    });
+
+    console.log(`✅ Phone verified for user ${req.user.id}`);
+
+    res.status(200).json({
+      message: 'Phone number verified successfully',
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error('Error verifying phone:', error);
+    res.status(500).json({ error: 'Failed to verify phone number' });
   }
 };

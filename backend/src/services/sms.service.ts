@@ -1,10 +1,45 @@
-/** SMS Service - Minimal Stub with Password Reset (Non-MVP) */
+/** SMS Service - Twilio Integration for Verification and Password Reset */
+
+import twilio from 'twilio';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// Initialize Twilio client
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
+let twilioClient: twilio.Twilio | null = null;
+let smsServiceEnabled = false;
+
+if (!accountSid || !authToken || !twilioPhoneNumber) {
+  console.warn('⚠️  Twilio credentials not configured. SMS service will be disabled.');
+} else {
+  twilioClient = twilio(accountSid, authToken);
+  smsServiceEnabled = true;
+  console.log('✅ Twilio SMS service initialized');
+}
 
 class SmsService {
-  async sendSMS(to: string, message: string) {
-    // Stub: Would send SMS via Twilio or similar service
-    console.log(`📱 SMS to ${to}: ${message}`);
-    return true;
+  async sendSMS(to: string, message: string): Promise<boolean> {
+    if (!smsServiceEnabled || !twilioClient) {
+      console.log(`📱 [DEV MODE] SMS to ${to}: ${message}`);
+      return false;
+    }
+
+    try {
+      const result = await twilioClient.messages.create({
+        body: message,
+        from: twilioPhoneNumber,
+        to: to,
+      });
+      console.log(`✅ SMS sent successfully to ${to} (SID: ${result.sid})`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Failed to send SMS to ${to}:`, error);
+      return false;
+    }
   }
 }
 
@@ -43,9 +78,25 @@ export function generateSMSCode(): string {
  * Send verification SMS
  */
 export async function sendVerificationSMS(phoneNumber: string, code: string): Promise<void> {
-  // Stub: In production, send via Twilio
-  console.log(`📱 Verification code for ${phoneNumber}: ${code}`);
-  return Promise.resolve();
+  if (!smsServiceEnabled || !twilioClient) {
+    console.log(`📱 [DEV MODE] Verification code for ${phoneNumber}: ${code}`);
+    return Promise.resolve();
+  }
+
+  try {
+    const message = `Your Koda verification code is: ${code}\n\nThis code expires in 10 minutes.`;
+
+    const result = await twilioClient.messages.create({
+      body: message,
+      from: twilioPhoneNumber,
+      to: phoneNumber,
+    });
+
+    console.log(`✅ Verification SMS sent to ${phoneNumber} (SID: ${result.sid})`);
+  } catch (error) {
+    console.error(`❌ Failed to send verification SMS to ${phoneNumber}:`, error);
+    throw new Error('Failed to send verification SMS');
+  }
 }
 
 /**
@@ -57,23 +108,26 @@ export async function sendPasswordResetSMS(
   phoneNumber: string,
   resetLink: string
 ): Promise<void> {
-  // In production, this would send actual SMS via Twilio or similar service
-  // For now, log the reset link for development/testing
-  console.log(`📱 Password reset SMS for ${phoneNumber}:`);
-  console.log(`   Link: ${resetLink}`);
+  if (!smsServiceEnabled || !twilioClient) {
+    console.log(`📱 [DEV MODE] Password reset SMS for ${phoneNumber}:`);
+    console.log(`   Link: ${resetLink}`);
+    return Promise.resolve();
+  }
 
-  // Stub: In production, send via Twilio:
-  // const twilioClient = twilio(
-  //   process.env.TWILIO_ACCOUNT_SID,
-  //   process.env.TWILIO_AUTH_TOKEN
-  // );
-  // await twilioClient.messages.create({
-  //   body: `Reset your Koda password: ${resetLink}\n\nThis link expires in 15 minutes.`,
-  //   from: process.env.TWILIO_PHONE_NUMBER,
-  //   to: phoneNumber
-  // });
+  try {
+    const message = `Reset your Koda password: ${resetLink}\n\n⚠️ This link expires in 15 minutes.\n\nIf you didn't request this, please ignore this message.`;
 
-  return Promise.resolve();
+    const result = await twilioClient.messages.create({
+      body: message,
+      from: twilioPhoneNumber,
+      to: phoneNumber,
+    });
+
+    console.log(`✅ Password reset SMS sent to ${phoneNumber} (SID: ${result.sid})`);
+  } catch (error) {
+    console.error(`❌ Failed to send password reset SMS to ${phoneNumber}:`, error);
+    throw new Error('Failed to send password reset SMS');
+  }
 }
 
 export default new SmsService();
