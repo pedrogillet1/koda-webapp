@@ -475,14 +475,14 @@ The user wants to compare multiple documents. Here's the relevant content from e
 
 ${context}
 
-COMPARISON RULES:
+FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
+- Between bullet points: Use SINGLE newline only (no blank lines)
+- Before "Next step:" section: Use ONE blank line
 - Compare the documents clearly and objectively
-- Use bullet points for clarity
 - Bold key differences with **text**
 - Cite specific sources with document names and page numbers
 - Be thorough but concise
 - NO emojis
-- End with ONE "Next step:" bullet only
 
 User query: "${query}"`;
 
@@ -524,12 +524,12 @@ WHAT YOU CAN DO:
 - Extract specific information
 - Help with document organization (create/rename/delete folders and files)
 
-RESPONSE RULES:
+FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
+- Between bullet points: Use SINGLE newline only (no blank lines)
+- Before "Next step:" section: Use ONE blank line
 - Professional, friendly tone
-- Use bullet points for clarity
 - Bold key features with **text**
 - NO emojis
-- End with ONE "Next step:" bullet only
 
 User query: "${query}"
 
@@ -648,14 +648,14 @@ async function handleRegularQuery(
 RELEVANT CONTENT FROM USER'S DOCUMENTS:
 ${context}
 
-RESPONSE RULES:
+FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
+- Between bullet points: Use SINGLE newline only (no blank lines)
+- Before "Next step:" section: Use ONE blank line
 - Answer based on the provided content
-- Use bullet points for clarity
 - Bold key information with **text**
 - Cite sources with document names and page numbers
 - If the content doesn't answer the question, say so honestly
 - NO emojis
-- End with ONE "Next step:" bullet only
 
 User query: "${query}"`;
 
