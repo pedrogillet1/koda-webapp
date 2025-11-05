@@ -549,11 +549,13 @@ INFERENTIAL REASONING:
 - Infer implicit relationships and dependencies
 - Example: If Doc A discusses "value" and Doc B discusses "trust", explain how value creation depends on trust
 
-CRITICAL EVALUATION & INSIGHTS (Required):
-After your comparison, include an "Implications" section that:
-- Explains what the comparison reveals about the broader context
-- Highlights practical implications of the differences/similarities
-- Provides actionable insights from the synthesis
+CRITICAL RULE - NO IMPLICATIONS SECTION:
+- NEVER add an "Implications:" section or heading
+- NEVER use the word "Implications" as a section header
+- Integrate insights naturally as you compare
+- Explain what the comparison MEANS and why it matters within your main comparison
+- ONLY if the user explicitly asks "what are the implications" or "what does this mean", add 1-2 sentences at the end
+- Keep all insights embedded in the main comparison content, not separated
 
 FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - Between bullet points: Use SINGLE newline only (no blank lines)
@@ -997,11 +999,13 @@ INFERENTIAL REASONING (Critical):
 - Synthesize information across multiple sources to reveal deeper patterns
 - Explain the practical implications and "why this matters"
 
-CRITICAL EVALUATION & INSIGHTS (Required):
-After your main answer, include an "Implications" section that:
-- Explains what this reveals about the broader context
-- Highlights practical implications for decision-making
-- Provides actionable insights, not just summaries
+CRITICAL RULE - NO IMPLICATIONS SECTION:
+- NEVER add an "Implications:" section or heading
+- NEVER use the word "Implications" as a section header
+- Integrate insights naturally INTO your answer as you explain concepts
+- Explain what things MEAN and why they matter as part of your main explanation
+- ONLY if the user explicitly asks "what are the implications" or "what does this mean", add 1-2 sentences at the end
+- Keep all insights embedded in the main content, not separated
 
 FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - Between bullet points: Use SINGLE newline only (no blank lines)
