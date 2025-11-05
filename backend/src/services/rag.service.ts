@@ -986,10 +986,12 @@ ${context}
 
 RESPONSE RULES:
 - Start with a brief intro (MAX 2 sentences)
-- Answer based on the provided content
+- Answer based on the provided content from the user's uploaded documents
 - Bold key information with **text**
 - DO NOT include inline citations (no parentheses with document names/pages in the text)
-- If the content doesn't answer the question, say so honestly
+- If the content doesn't contain the specific information requested, say: "I couldn't find information about [topic] in your uploaded documents."
+- NEVER ask the user to upload documents - they already have documents uploaded
+- NEVER say "please upload" or "provide documents" - instead say "I don't have that information in your current documents"
 
 INFERENTIAL REASONING (Critical):
 - Don't just list facts - explain HOW concepts relate to each other
