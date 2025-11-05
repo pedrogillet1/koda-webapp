@@ -795,6 +795,7 @@ async function streamLLMResponse(
       // Post-process each chunk before sending
       const processedChunk = text
         .replace(/\n\n\n+/g, '\n\n')  // Fix triple+ blank lines (keep single blank lines)
+        .replace(/\n\n([•●○■\-*])/g, '\n$1')  // ✅ FIX: Remove blank lines before bullets
         .replace(/\*\*\*\*/g, '**')   // Fix quadruple asterisks
         .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')  // Remove emojis
         .replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');  // Remove specific emojis
