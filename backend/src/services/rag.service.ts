@@ -694,8 +694,8 @@ async function streamLLMResponse(
         .replace(/\n\n([•\-\*])/g, '\n$1')
         // Collapse 3+ newlines into one blank line (2 \n)
         .replace(/\n\n\n+/g, '\n\n')
-        // Ensure one blank line before "Next step:" or similar headings
-        .replace(/\n(?=(Next step:|I'?m ready|How can I help))/g, '\n\n')
+        // Ensure one blank line before "Next step:"
+        .replace(/\n(?=Next step:)/g, '\n\n')
         // Fix quadruple asterisks
         .replace(/\*\*\*\*/g, '**')
         // Remove emojis
