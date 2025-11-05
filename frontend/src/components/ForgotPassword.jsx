@@ -1,162 +1,241 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import backArrow from '../assets/arrow-narrow-left.svg';
-import mailIcon from '../assets/Mail.svg';
-import messageIcon from '../assets/message-3.svg';
-import PhoneInput from 'react-phone-number-input';
-import 'react-phone-number-input/style.css';
-import './PhoneNumber.css';
-import { isValidPhoneNumber } from 'react-phone-number-input';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
-const ForgotPassword = () => {
-    const navigate = useNavigate();
-    const [selectedOption, setSelectedOption] = useState('');
-    const [contactInfo, setContactInfo] = useState('');
-    const [error, setError] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+function ForgotPassword() {
+  const location = useLocation();
+  const navigate = useNavigate();
 
-    const handleContinue = async () => {
-        if (!selectedOption || !contactInfo) {
-            setError('Please enter your ' + (selectedOption === 'email' ? 'email' : 'phone number'));
-            return;
-        }
+  const { maskedEmail, maskedPhone, hasPhone } = location.state || {};
 
-        // Basic validation
-        if (selectedOption === 'email') {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(contactInfo)) {
-                setError('Please enter a valid email address');
-                return;
-            }
-        } else if (selectedOption === 'message') {
-            if (!isValidPhoneNumber(contactInfo)) {
-                setError('Please enter a valid phone number');
-                return;
-            }
-        }
+  const [selectedMethod, setSelectedMethod] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-        setIsLoading(true);
-        setError('');
+  useEffect(() => {
+    if (!maskedEmail) {
+      navigate('/recover-access');
+    }
+  }, [maskedEmail, navigate]);
 
-        try {
-            // Send password reset code
-            const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/forgot-password`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    email: selectedOption === 'email' ? contactInfo : undefined,
-                    phoneNumber: selectedOption === 'message' ? contactInfo : undefined,
-                }),
-            });
+  const handleContinue = async () => {
+    if (!selectedMethod) {
+      setError('Please select a verification method');
+      return;
+    }
 
-            const data = await response.json();
+    setError('');
+    setLoading(true);
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to send reset code');
-            }
+    try {
+      const sessionToken = sessionStorage.getItem('resetSessionToken');
 
-            // Navigate to email sent confirmation page
-            navigate('/forgot-password-email-sent', {
-                state: {
-                    email: selectedOption === 'email' ? contactInfo : undefined,
-                    phoneNumber: selectedOption === 'message' ? contactInfo : undefined
-                }
-            });
-        } catch (error) {
-            console.error('Error sending reset code:', error);
-            setError(error.message || 'Failed to send reset code');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+      if (!sessionToken) {
+        setError('Session expired. Please start over.');
+        setTimeout(() => navigate('/recover-access'), 2000);
+        return;
+      }
 
-    return (
-        <div style={{width: '100%', height: '100%', padding: 16, background: 'white', overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
-            {/* Header */}
-            <div onClick={() => navigate(-1)} style={{alignSelf: 'flex-start', justifyContent: 'center', alignItems: 'center', gap: 4, display: 'flex', cursor: 'pointer', marginBottom: 24}}>
-                <img src={backArrow} alt="Back" />
-                <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px'}}>Back</div>
+      // Send reset LINK (not code) via selected method
+      const response = await axios.post('/api/auth/send-reset-link', {
+        sessionToken,
+        method: selectedMethod
+      });
+
+      if (response.data.success) {
+        navigate('/forgot-password-verification', {
+          state: {
+            method: selectedMethod,
+            maskedEmail,
+            maskedPhone
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Send reset link error:', error);
+
+      if (error.response?.data?.error) {
+        setError(error.response.data.error);
+      } else {
+        setError('Failed to send reset link. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      display: 'flex',
+      width: '100vw',
+      height: '100vh',
+      padding: '16px',
+      flexDirection: 'column',
+      alignItems: 'center',
+      background: '#FFF'
+    }}>
+      <div style={{ width: '100%', maxWidth: '400px', marginBottom: '40px' }}>
+        <button
+          onClick={() => navigate('/recover-access')}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: '16px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            color: '#000',
+            padding: '8px 0'
+          }}
+        >
+          ← Back
+        </button>
+      </div>
+
+      <div style={{
+        width: '100%',
+        maxWidth: '400px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center'
+      }}>
+        <h1 style={{
+          fontSize: '32px',
+          fontWeight: '600',
+          marginBottom: '12px',
+          textAlign: 'center'
+        }}>
+          Forgot Password?
+        </h1>
+
+        <p style={{
+          fontSize: '16px',
+          color: '#666',
+          marginBottom: '32px',
+          textAlign: 'center'
+        }}>
+          No worries, we'll send you a code via email or message
+        </p>
+
+        {/* Email Option */}
+        <button
+          onClick={() => setSelectedMethod('email')}
+          style={{
+            width: '100%',
+            padding: '16px',
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: selectedMethod === 'email' ? '#F0F0F0' : '#FFF',
+            border: selectedMethod === 'email' ? '2px solid #000' : '1px solid #E0E0E0',
+            borderRadius: '8px',
+            cursor: 'pointer'
+          }}
+        >
+          <div style={{ width: '24px', height: '24px' }}>📧</div>
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <div style={{ fontSize: '16px', fontWeight: '600', color: '#000', marginBottom: '4px' }}>
+              Send Via Email
             </div>
-
-            {/* Main Content */}
-            <div style={{flex: '1 1 0', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center'}}>
-                <div style={{width: 500, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 32, display: 'flex'}}>
-                    {/* Title */}
-                    <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex'}}>
-                        <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '40px'}}>Forgot Password?</div>
-                        <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>No worries, we’ll send you a code via email or message.</div>
-                    </div>
-
-                    {/* Options */}
-                    <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
-                        <div onClick={() => setSelectedOption('email')} style={{alignSelf: 'stretch', height: 52, padding: '10px 18px', background: selectedOption === 'email' ? '#E6E6EC' : '#F5F5F5', borderRadius: 14, border: `1px solid ${selectedOption === 'email' ? '#323232' : '#E6E6EC'}`, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer'}}>
-                            <img src={mailIcon} alt="Email" />
-                            <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>Send Via Email</div>
-                        </div>
-                        <div onClick={() => setSelectedOption('message')} style={{alignSelf: 'stretch', height: 52, padding: '10px 18px', background: selectedOption === 'message' ? '#E6E6EC' : '#F5F5F5', borderRadius: 14, border: `1px solid ${selectedOption === 'message' ? '#323232' : '#E6E6EC'}`, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer'}}>
-                            <img src={messageIcon} alt="Message" />
-                            <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>Send via Messages</div>
-                        </div>
-                    </div>
-
-                    {/* Contact Info Input */}
-                    {selectedOption && (
-                        <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex'}}>
-                            <label style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px'}}>
-                                {selectedOption === 'email' ? 'Email Address' : 'Phone Number'}
-                            </label>
-                            <div style={{alignSelf: 'stretch', minHeight: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', overflow: selectedOption === 'message' ? 'visible' : 'hidden', borderRadius: 14, outline: error ? '1px rgba(217, 45, 32, 0.40) solid' : '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
-                                {selectedOption === 'email' ? (
-                                    <input
-                                        type="email"
-                                        value={contactInfo}
-                                        onChange={(e) => {
-                                            setContactInfo(e.target.value);
-                                            setError('');
-                                        }}
-                                        placeholder="Enter your email"
-                                        style={{flex: '1 1 0', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '24px', background: 'transparent', border: 'none', outline: 'none', width: '100%'}}
-                                    />
-                                ) : (
-                                    <PhoneInput
-                                        international
-                                        defaultCountry="US"
-                                        value={contactInfo}
-                                        onChange={(value) => {
-                                            setContactInfo(value || '');
-                                            setError('');
-                                        }}
-                                        placeholder="Enter phone number"
-                                        style={{
-                                            flex: '1 1 0',
-                                            width: '100%',
-                                            border: 'none',
-                                            background: 'transparent'
-                                        }}
-                                        className="custom-phone-input"
-                                    />
-                                )}
-                            </div>
-                            {error && (
-                                <div style={{color: '#D92D20', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px'}}>{error}</div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Continue Button */}
-                    <div style={{alignSelf: 'stretch'}}>
-                        <button onClick={handleContinue} disabled={!selectedOption || !contactInfo || isLoading} style={{width: '100%', height: 52, background: (selectedOption && contactInfo && !isLoading) ? '#181818' : '#F5F5F5', borderRadius: 14, border: 'none', cursor: (selectedOption && contactInfo && !isLoading) ? 'pointer' : 'not-allowed'}}>
-                            <div style={{color: (selectedOption && contactInfo && !isLoading) ? 'white' : '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>
-                                {isLoading ? 'Sending...' : 'Continue'}
-                            </div>
-                        </button>
-                    </div>
-                </div>
+            <div style={{ fontSize: '14px', color: '#666' }}>
+              {maskedEmail}
             </div>
-        </div>
-    );
-};
+          </div>
+          <div style={{
+            width: '20px',
+            height: '20px',
+            borderRadius: '50%',
+            border: '2px solid ' + (selectedMethod === 'email' ? '#000' : '#CCC'),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            {selectedMethod === 'email' && (
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#000' }} />
+            )}
+          </div>
+        </button>
+
+        {/* Phone Option */}
+        <button
+          onClick={() => hasPhone && setSelectedMethod('sms')}
+          disabled={!hasPhone}
+          style={{
+            width: '100%',
+            padding: '16px',
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: selectedMethod === 'sms' ? '#F0F0F0' : '#FFF',
+            border: selectedMethod === 'sms' ? '2px solid #000' : '1px solid #E0E0E0',
+            borderRadius: '8px',
+            cursor: hasPhone ? 'pointer' : 'not-allowed',
+            opacity: hasPhone ? 1 : 0.5
+          }}
+        >
+          <div style={{ width: '24px', height: '24px' }}>💬</div>
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <div style={{ fontSize: '16px', fontWeight: '600', color: hasPhone ? '#000' : '#999', marginBottom: '4px' }}>
+              Send Via Messages
+            </div>
+            <div style={{ fontSize: '14px', color: hasPhone ? '#666' : '#999' }}>
+              {hasPhone ? maskedPhone : 'No phone number linked'}
+            </div>
+          </div>
+          {hasPhone && (
+            <div style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              border: '2px solid ' + (selectedMethod === 'sms' ? '#000' : '#CCC'),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              {selectedMethod === 'sms' && (
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#000' }} />
+              )}
+            </div>
+          )}
+        </button>
+
+        {error && (
+          <div style={{
+            width: '100%',
+            padding: '12px',
+            marginBottom: '16px',
+            background: '#FEE',
+            border: '1px solid #FCC',
+            borderRadius: '8px',
+            color: '#C00',
+            fontSize: '14px'
+          }}>
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={handleContinue}
+          disabled={!selectedMethod || loading}
+          style={{
+            width: '100%',
+            padding: '14px',
+            fontSize: '16px',
+            fontWeight: '600',
+            color: '#FFF',
+            background: (!selectedMethod || loading) ? '#666' : '#000',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: (!selectedMethod || loading) ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {loading ? 'Sending...' : 'Continue'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default ForgotPassword;

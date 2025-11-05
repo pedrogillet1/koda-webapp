@@ -412,3 +412,138 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
     res.status(500).json({ error: err.message });
   }
 };
+
+/**
+ * ========================================
+ * NEW PASSWORD RECOVERY CONTROLLERS (LINK-BASED)
+ * ========================================
+ */
+
+/**
+ * POST /api/auth/forgot-password-init
+ * Step 1: User enters email, backend returns masked email/phone
+ */
+export async function initiateForgotPasswordController(req: Request, res: Response) {
+  try {
+    const { email } = req.body;
+
+    if (!email || typeof email !== 'string') {
+      res.status(400).json({ error: 'Valid email is required' });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      res.status(400).json({ error: 'Invalid email format' });
+      return;
+    }
+
+    const result = await authService.initiateForgotPassword(email);
+
+    res.status(200).json(result);
+
+  } catch (error: any) {
+    console.error('Forgot password init error:', error);
+
+    if (error.message === 'EMAIL_NOT_VERIFIED') {
+      res.status(400).json({
+        error: 'Email not verified. Please verify your email first.',
+        needsVerification: true
+      });
+      return;
+    }
+
+    res.status(500).json({ error: 'Server error' });
+  }
+}
+
+/**
+ * POST /api/auth/send-reset-link
+ * Step 2: User selects method, backend sends reset link
+ */
+export async function sendResetLinkController(req: Request, res: Response) {
+  try {
+    const { sessionToken, method } = req.body;
+
+    if (!sessionToken || typeof sessionToken !== 'string') {
+      res.status(400).json({ error: 'Session token is required' });
+      return;
+    }
+
+    if (!method || !['email', 'sms'].includes(method)) {
+      res.status(400).json({ error: 'Valid method is required (email or sms)' });
+      return;
+    }
+
+    const result = await authService.sendResetLink(sessionToken, method as 'email' | 'sms');
+
+    res.status(200).json({
+      success: true,
+      message: `Reset link sent via ${result.method}`
+    });
+
+  } catch (error: any) {
+    console.error('Send reset link error:', error);
+
+    if (error.message === 'INVALID_OR_EXPIRED_SESSION') {
+      res.status(400).json({ error: 'Session expired. Please start over.' });
+      return;
+    }
+
+    if (error.message === 'USER_NOT_FOUND') {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    if (error.message === 'NO_VERIFIED_PHONE') {
+      res.status(400).json({ error: 'No verified phone number linked' });
+      return;
+    }
+
+    res.status(500).json({ error: 'Failed to send reset link' });
+  }
+}
+
+/**
+ * POST /api/auth/reset-password-with-token
+ * Step 4: User sets new password using token from link
+ */
+export async function resetPasswordWithTokenController(req: Request, res: Response) {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || typeof token !== 'string') {
+      res.status(400).json({ error: 'Reset token is required' });
+      return;
+    }
+
+    if (!newPassword || typeof newPassword !== 'string') {
+      res.status(400).json({ error: 'New password is required' });
+      return;
+    }
+
+    await authService.resetPasswordWithToken(token, newPassword);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+
+  } catch (error: any) {
+    console.error('Reset password error:', error);
+
+    if (error.message === 'INVALID_OR_EXPIRED_TOKEN') {
+      res.status(400).json({ error: 'Invalid or expired reset link' });
+      return;
+    }
+
+    if (error.message === 'WEAK_PASSWORD') {
+      res.status(400).json({
+        error: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character'
+      });
+      return;
+    }
+
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+}

@@ -764,3 +764,230 @@ export const resetPassword = async ({
     message: 'Password reset successfully',
   };
 };
+
+/**
+ * ========================================
+ * NEW PASSWORD RECOVERY SYSTEM (LINK-BASED)
+ * ========================================
+ */
+
+import { redisConnection } from '../config/redis';
+import { generateSecureToken, maskEmail, maskPhone } from '../utils/maskingUtils';
+import bcrypt from 'bcrypt';
+
+/**
+ * Store reset token in Redis (15 minute expiry)
+ */
+export async function storeResetToken(token: string, userId: string): Promise<void> {
+  if (!redisConnection) {
+    throw new Error('Redis not available');
+  }
+  const RESET_TOKEN_EXPIRY = 900; // 15 minutes in seconds
+  await redisConnection.setex(`pwd-reset:${token}`, RESET_TOKEN_EXPIRY, userId);
+}
+
+/**
+ * Retrieve user ID from reset token
+ */
+export async function getUserFromResetToken(token: string): Promise<string | null> {
+  if (!redisConnection) {
+    return null;
+  }
+  return await redisConnection.get(`pwd-reset:${token}`);
+}
+
+/**
+ * Delete reset token after use
+ */
+export async function deleteResetToken(token: string): Promise<void> {
+  if (!redisConnection) {
+    return;
+  }
+  await redisConnection.del(`pwd-reset:${token}`);
+}
+
+/**
+ * Store temporary session for method selection (5 minute expiry)
+ */
+export async function storeResetSession(sessionToken: string, userId: string): Promise<void> {
+  if (!redisConnection) {
+    throw new Error('Redis not available');
+  }
+  const SESSION_EXPIRY = 300; // 5 minutes in seconds
+  await redisConnection.setex(`reset-session:${sessionToken}`, SESSION_EXPIRY, userId);
+}
+
+/**
+ * Get user ID from session token
+ */
+export async function getUserFromSessionToken(sessionToken: string): Promise<string | null> {
+  if (!redisConnection) {
+    return null;
+  }
+  return await redisConnection.get(`reset-session:${sessionToken}`);
+}
+
+/**
+ * Initiate password reset - Get user info and create session
+ */
+export async function initiateForgotPassword(email: string) {
+  // Find user by email
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() },
+    select: {
+      id: true,
+      email: true,
+      phoneNumber: true,
+      isEmailVerified: true,
+      isPhoneVerified: true
+    }
+  });
+
+  // Security: Don't reveal if user exists
+  if (!user) {
+    return {
+      success: true,
+      maskedEmail: maskEmail(email),
+      maskedPhone: null,
+      hasPhone: false,
+      sessionToken: null
+    };
+  }
+
+  // Check if email is verified
+  if (!user.isEmailVerified) {
+    throw new Error('EMAIL_NOT_VERIFIED');
+  }
+
+  // Mask the user's actual email and phone
+  const maskedEmailValue = maskEmail(user.email);
+  const maskedPhoneValue = user.phoneNumber && user.isPhoneVerified
+    ? maskPhone(user.phoneNumber)
+    : null;
+
+  // Generate session token for method selection
+  const sessionToken = generateSecureToken();
+  await storeResetSession(sessionToken, user.id);
+
+  return {
+    success: true,
+    sessionToken,
+    maskedEmail: maskedEmailValue,
+    maskedPhone: maskedPhoneValue,
+    hasPhone: !!user.phoneNumber && user.isPhoneVerified
+  };
+}
+
+/**
+ * Send reset link via email or SMS
+ */
+export async function sendResetLink(sessionToken: string, method: 'email' | 'sms') {
+  // Retrieve user ID from session token
+  const userId = await getUserFromSessionToken(sessionToken);
+
+  if (!userId) {
+    throw new Error('INVALID_OR_EXPIRED_SESSION');
+  }
+
+  // Get user details from database
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      phoneNumber: true,
+      isPhoneVerified: true,
+      firstName: true,
+      lastName: true
+    }
+  });
+
+  if (!user) {
+    throw new Error('USER_NOT_FOUND');
+  }
+
+  // Generate password reset token
+  const resetToken = generateSecureToken();
+  await storeResetToken(resetToken, userId);
+
+  // Create reset link
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+  const resetLink = `${frontendUrl}/set-new-password?token=${resetToken}`;
+
+  if (method === 'email') {
+    // Use existing email service
+    const emailService = await import('./email.service');
+    await emailService.sendPasswordResetEmail(
+      user.email,
+      resetLink,
+      user.firstName || 'User'
+    );
+
+    return { success: true, method: 'email' };
+
+  } else if (method === 'sms') {
+    // Validate phone exists and is verified
+    if (!user.phoneNumber || !user.isPhoneVerified) {
+      throw new Error('NO_VERIFIED_PHONE');
+    }
+
+    // Use existing SMS service
+    const smsService = await import('./sms.service');
+    await smsService.sendPasswordResetSMS(user.phoneNumber, resetLink);
+
+    return { success: true, method: 'sms' };
+
+  } else {
+    throw new Error('INVALID_METHOD');
+  }
+}
+
+/**
+ * Reset password using token from link
+ */
+export async function resetPasswordWithToken(token: string, newPassword: string) {
+  // Get user ID from reset token
+  const userId = await getUserFromResetToken(token);
+
+  if (!userId) {
+    throw new Error('INVALID_OR_EXPIRED_TOKEN');
+  }
+
+  // Validate password strength
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+  if (!passwordRegex.test(newPassword)) {
+    throw new Error('WEAK_PASSWORD');
+  }
+
+  // Hash new password
+  const salt = await bcrypt.genSalt(12);
+  const passwordHash = await bcrypt.hash(newPassword, salt);
+
+  // Update user password in database
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash,
+      salt
+    }
+  });
+
+  // Delete reset token after successful password change
+  await deleteResetToken(token);
+
+  // Log audit event if audit service exists
+  try {
+    const auditLogService = await import('./auditLog.service');
+    await auditLogService.logAuditEvent({
+      userId,
+      action: 'password_reset',
+      resource: 'user',
+      status: 'success'
+    });
+  } catch (error) {
+    // Audit logging is optional
+    console.log('Audit logging not available');
+  }
+
+  return { success: true };
+}
