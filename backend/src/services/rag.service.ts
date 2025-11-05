@@ -686,19 +686,19 @@ async function streamLLMResponse(
       const text = chunk.text();
       fullAnswer += text;
 
-      // Apply spacing and formatting fixes to each chunk
+      // Apply precise spacing rules for clean, readable output
       const processedChunk = text
-        // Add a single newline (Enter equivalent) after a colon before bullet lists
-        .replace(/(:)\n([•\-\*])/g, '$1\n$2')
-        // Remove all blank lines (and stray spaces) between bullet points (keep them tight)
+        // Ensure one blank line (double newline) after headers before bullet lists
+        .replace(/(:)\n([•\-\*])/g, '$1\n\n$2')
+        // Remove extra blank lines between bullets (keep them tight)
         .replace(/\n\s*\n\s*([•\-\*])/g, '\n$1')
+        // Ensure one blank line (double newline) after the last bullet before next sections
+        .replace(/([•\-\*].+)\n(?=[A-Z][a-z]+|Next step:|How can I help|I'?m ready)/g, '$1\n\n')
         // Collapse 3+ newlines into one blank line (2 \n)
         .replace(/\n{3,}/g, '\n\n')
-        // Ensure one blank line before "Next step:" or similar headings
-        .replace(/\n(?=(Next step:|I'?m ready|How can I help))/g, '\n\n')
         // Fix quadruple asterisks
         .replace(/\*\*\*\*/g, '**')
-        // Remove emojis
+        // Remove emojis and symbols
         .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')
         .replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');
 
