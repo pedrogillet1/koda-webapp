@@ -632,6 +632,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         try {
                             const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
 
+                            // ✅ FIX: Preserve the entire metadata object first
+                            msg.metadata = metadata;
+
                             // Parse RAG sources for assistant messages
                             if (msg.role === 'assistant') {
                                 if (metadata.ragSources) {
@@ -1630,6 +1633,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             )}
 
                                                             {/* Show File Preview Button */}
+                                                            {(() => {
+                                                                // Debug logging
+                                                                if (msg.role === 'assistant' && msg.metadata) {
+                                                                    console.log('🔍 [DEBUG] Assistant message metadata:', {
+                                                                        hasMetadata: !!msg.metadata,
+                                                                        metadataType: typeof msg.metadata,
+                                                                        actionType: msg.metadata.actionType,
+                                                                        success: msg.metadata.success,
+                                                                        hasDocument: !!msg.metadata.document,
+                                                                        fullMetadata: msg.metadata
+                                                                    });
+                                                                }
+                                                                return null;
+                                                            })()}
                                                             {msg.metadata && msg.metadata.actionType === 'show_file' && msg.metadata.success && msg.metadata.document && (
                                                                 <div
                                                                     onClick={() => {
