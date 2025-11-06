@@ -120,6 +120,14 @@ export async function generateAnswerStream(
   onChunk: (chunk: string) => void,
   attachedDocumentId?: string
 ): Promise<{ sources: any[] }> {
+  console.log('🚀 [DEBUG] generateAnswerStream called');
+  console.log('🚀 [DEBUG] onChunk is function:', typeof onChunk === 'function');
+
+  // Test onChunk immediately
+  console.log('🚀 [DEBUG] Testing onChunk callback...');
+  onChunk('TEST CHUNK');
+  console.log('🚀 [DEBUG] onChunk test completed');
+
   await initializePinecone();
 
   console.log('\n🎯 [HYBRID RAG] Processing query:', query);

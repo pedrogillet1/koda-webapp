@@ -1361,6 +1361,18 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
     // Send initial connection confirmation
     res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+    console.log('🚀 [DEBUG] Sent connected event');
+
+    // Add keepalive pings every 15 seconds to prevent timeout
+    const keepaliveInterval = setInterval(() => {
+      res.write(': keepalive\n\n');
+      if (res.flush) res.flush();
+    }, 15000);
+
+    // Clean up interval when done
+    res.on('close', () => {
+      clearInterval(keepaliveInterval);
+    });
 
     // Save user message to database with attached files metadata
     const userMessage = await prisma.message.create({
@@ -1376,18 +1388,31 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     let fullAnswer = '';
     let result: any = { answer: '', sources: [], contextId: undefined };
     try {
+      console.log('🚀 [DEBUG] About to call generateAnswerStream');
+      console.log('🚀 [DEBUG] userId:', userId);
+      console.log('🚀 [DEBUG] query:', query);
+      console.log('🚀 [DEBUG] conversationId:', conversationId);
+
       // ✅ FIX: Use NEW generateAnswerStream (hybrid RAG with document detection + post-processing)
       await ragService.generateAnswerStream(
         userId,
         query,
         conversationId,
         (chunk: string) => {
+          console.log('🚀 [DEBUG] onChunk called with chunk length:', chunk.length);
+          console.log('🚀 [DEBUG] Chunk preview:', chunk.substring(0, 50));
           fullAnswer += chunk;
           // Stream each chunk to client
+          console.log('🚀 [DEBUG] Writing chunk to SSE stream...');
           res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
+          if (res.flush) res.flush(); // Force immediate send
+          console.log('🚀 [DEBUG] Chunk written and flushed');
         },
         effectiveDocumentId
       );
+
+      console.log('🚀 [DEBUG] generateAnswerStream completed');
+      console.log('🚀 [DEBUG] fullAnswer length:', fullAnswer.length);
 
       // Set result for post-processing below
       result = {
@@ -1522,6 +1547,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     }
 
     // Send completion signal with metadata AND formatted answer
+    console.log('🚀 [DEBUG] About to send done event');
     res.write(`data: ${JSON.stringify({
       type: 'done',
       formattedAnswer: cleanedAnswer, // ✅ Send post-processed answer (next steps limited)
@@ -1535,8 +1561,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       uiUpdate: result.uiUpdate,
       conversationId
     })}\n\n`);
+    console.log('🚀 [DEBUG] Done event sent');
 
+    clearInterval(keepaliveInterval); // Clean up keepalive
     res.end();
+    console.log('🚀 [DEBUG] Response ended');
     console.timeEnd('⚡ RAG Streaming Response Time');
 
   } catch (error: any) {

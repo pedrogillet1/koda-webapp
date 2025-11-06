@@ -1132,6 +1132,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     };
 
                     console.log('📤 RAG REQUEST BODY:', JSON.stringify(requestBody, null, 2));
+                    console.log('🚀 [DEBUG] Starting SSE request to:', `${process.env.REACT_APP_API_URL}/api/rag/query/stream`);
 
                     const response = await fetch(
                         `${process.env.REACT_APP_API_URL}/api/rag/query/stream`,
@@ -1145,32 +1146,62 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     );
 
+                    console.log('🚀 [DEBUG] Response status:', response.status);
+                    console.log('🚀 [DEBUG] Response headers:', [...response.headers.entries()]);
+                    console.log('🚀 [DEBUG] Response ok:', response.ok);
+
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
 
                     // Set up SSE reader
                     const reader = response.body.getReader();
+                    console.log('🚀 [DEBUG] Got reader:', !!reader);
+
                     const decoder = new TextDecoder();
                     let buffer = '';
                     let streamedContent = '';
                     let metadata = null;
 
                     console.log('🌊 Starting SSE stream...');
+                    console.log('🚀 [DEBUG] Initial streamedContent:', streamedContent);
                     // Use varied, natural messages instead of robotic "Generating answer"
                     const thinkingMessages = ['Thinking...', 'Analyzing...', 'Processing...', 'Understanding...', 'Working on it...'];
                     const randomMessage = thinkingMessages[Math.floor(Math.random() * thinkingMessages.length)];
                     setCurrentStage({ stage: 'generating', message: randomMessage });
 
+                    // Add timeout detection
+                    const streamTimeout = setTimeout(() => {
+                        console.error('❌ Stream timeout - no chunks received in 30 seconds');
+                        reader.cancel();
+                        throw new Error('Stream timeout - no response from server');
+                    }, 30000);
+
+                    let firstChunkReceived = false;
+
                     while (true) {
+                        console.log('🚀 [DEBUG] Waiting for chunk...');
                         const { value, done } = await reader.read();
+                        console.log('🚀 [DEBUG] Got chunk - done:', done, 'value length:', value?.length);
+
                         if (done) {
                             console.log('✅ Stream finished');
+                            console.log('🚀 [DEBUG] Final streamedContent length:', streamedContent.length);
+                            clearTimeout(streamTimeout);
                             break;
+                        }
+
+                        // Clear timeout on first chunk
+                        if (!firstChunkReceived) {
+                            console.log('🚀 [DEBUG] First chunk received, clearing timeout');
+                            clearTimeout(streamTimeout);
+                            firstChunkReceived = true;
                         }
 
                         // Decode chunk and add to buffer
                         const decodedChunk = decoder.decode(value, { stream: true });
+                        console.log('🚀 [DEBUG] Decoded chunk length:', decodedChunk.length);
+                        console.log('🚀 [DEBUG] Decoded chunk preview:', decodedChunk.substring(0, 100));
                         buffer += decodedChunk;
 
                         // Process complete SSE messages (delimited by \n\n)
@@ -1181,13 +1212,18 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             if (message.startsWith('data: ')) {
                                 try {
                                     const data = JSON.parse(message.slice(6));
+                                    console.log('🚀 [DEBUG] Parsed SSE message type:', data.type);
 
                                     if (data.type === 'connected') {
                                         console.log('🔗 Connected to conversation:', data.conversationId);
                                     } else if (data.type === 'content') {
                                         // Stream content chunk
                                         streamedContent += data.content;
+                                        console.log('💜 [STREAMING] Received chunk, total length:', streamedContent.length);
+                                        console.log('💜 [STREAMING] Chunk preview:', streamedContent.substring(0, 50));
+                                        console.log('🚀 [DEBUG] About to call setStreamingMessage with length:', streamedContent.length);
                                         setStreamingMessage(streamedContent);
+                                        console.log('🚀 [DEBUG] Called setStreamingMessage');
                                     } else if (data.type === 'done') {
                                         console.log('✅ Stream complete, metadata received');
                                         metadata = data;
