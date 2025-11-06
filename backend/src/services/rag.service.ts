@@ -123,11 +123,6 @@ export async function generateAnswerStream(
   console.log('🚀 [DEBUG] generateAnswerStream called');
   console.log('🚀 [DEBUG] onChunk is function:', typeof onChunk === 'function');
 
-  // Test onChunk immediately
-  console.log('🚀 [DEBUG] Testing onChunk callback...');
-  onChunk('TEST CHUNK');
-  console.log('🚀 [DEBUG] onChunk test completed');
-
   await initializePinecone();
 
   console.log('\n🎯 [HYBRID RAG] Processing query:', query);
@@ -1397,4 +1392,5 @@ export default {
   generateAnswerStream,
   generateAnswerStreaming,
 };
+
 
