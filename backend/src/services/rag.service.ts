@@ -535,6 +535,13 @@ The user wants to compare multiple documents. Here's the relevant content from e
 
 ${context}
 
+LANGUAGE DETECTION (CRITICAL):
+- ALWAYS respond in the SAME LANGUAGE as the user's query
+- Portuguese query → Portuguese response
+- English query → English response
+- Spanish query → Spanish response
+- Detect the language automatically and match it exactly
+
 CROSS-DOCUMENT SYNTHESIS (Critical):
 - Don't just summarize each document independently
 - Merge insights into a unified conceptual framework
@@ -801,6 +808,13 @@ function isMetaQuery(query: string): boolean {
 async function handleMetaQuery(query: string, onChunk: (chunk: string) => void): Promise<void> {
   const prompt = `You are KODA, a professional AI document assistant.
 
+LANGUAGE DETECTION (CRITICAL):
+- ALWAYS respond in the SAME LANGUAGE as the user's query
+- Portuguese query → Portuguese response
+- English query → English response
+- Spanish query → Spanish response
+- Detect the language automatically and match it exactly
+
 WHAT YOU CAN DO:
 - Answer questions about uploaded documents
 - Compare multiple documents
@@ -985,6 +999,13 @@ async function handleRegularQuery(
 
 RELEVANT CONTENT FROM USER'S DOCUMENTS:
 ${context}
+
+LANGUAGE DETECTION (CRITICAL):
+- ALWAYS respond in the SAME LANGUAGE as the user's query
+- Portuguese query → Portuguese response
+- English query → English response
+- Spanish query → Spanish response
+- Detect the language automatically and match it exactly
 
 RESPONSE RULES:
 - Start with a brief intro (MAX 2 sentences)
