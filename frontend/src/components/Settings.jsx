@@ -21,6 +21,7 @@ import { ReactComponent as PlusWhiteIcon } from '../assets/plus-white.svg';
 import { ReactComponent as HideIcon } from '../assets/Hide.svg';
 import { ReactComponent as CheckCircleIcon } from '../assets/check-circle.svg';
 import { ReactComponent as CheckDoubleIcon } from '../assets/check-double_svgrepo.com.svg';
+import { ReactComponent as ExpandIcon } from '../assets/expand.svg';
 import pdfIcon from '../assets/pdf-icon.svg';
 import jpgIcon from '../assets/jpg-icon.svg';
 import docIcon from '../assets/doc-icon.svg';
@@ -38,6 +39,7 @@ const Settings = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const [activeSection, setActiveSection] = useState('general');
+  const [isExpanded, setIsExpanded] = useState(true);
   const [documents, setDocuments] = useState([]);
   const [fileData, setFileData] = useState([]);
   const [totalStorage, setTotalStorage] = useState(0);
@@ -479,114 +481,252 @@ const Settings = () => {
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Settings Sidebar */}
-      <div style={{ width: 314, height: '100vh', padding: 20, background: 'white', borderRight: '1px #E6E6EC solid', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 20, display: 'flex' }}>
-        <div style={{ alignSelf: 'stretch', height: 44, justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
-          <SettingsFilledIcon style={{ width: 20, height: 20 }} />
-          <div style={{ color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '19.80px' }}>Settings</div>
-        </div>
+      <div style={{
+        width: isExpanded ? 314 : 64,
+        height: '100vh',
+        padding: 20,
+        background: 'white',
+        borderRight: '1px #E6E6EC solid',
+        flexDirection: 'column',
+        justifyContent: 'flex-start',
+        alignItems: 'flex-start',
+        gap: 20,
+        display: 'flex',
+        transition: 'width 300ms ease-in-out',
+        overflow: 'hidden'
+      }}>
+        {/* Expanded Header with Collapse Button */}
+        {isExpanded && (
+          <div style={{ alignSelf: 'stretch', height: 44, justifyContent: 'space-between', alignItems: 'center', display: 'flex' }}>
+            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
+              <SettingsFilledIcon style={{ width: 20, height: 20 }} />
+              <div style={{ color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '19.80px' }}>Settings</div>
+            </div>
+            <div
+              onClick={() => setIsExpanded(false)}
+              style={{
+                width: 32,
+                height: 32,
+                background: 'transparent',
+                borderRadius: 8,
+                justifyContent: 'center',
+                alignItems: 'center',
+                display: 'flex',
+                cursor: 'pointer',
+                transition: 'background 0.2s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <ExpandIcon style={{ width: 20, height: 20, transform: 'rotate(180deg)' }} />
+            </div>
+          </div>
+        )}
+
+        {/* Collapsed Expand Button */}
+        {!isExpanded && (
+          <div
+            onClick={() => setIsExpanded(true)}
+            style={{
+              width: 24,
+              height: 24,
+              background: 'transparent',
+              justifyContent: 'center',
+              alignItems: 'center',
+              display: 'flex',
+              cursor: 'pointer',
+              alignSelf: 'center'
+            }}
+          >
+            <ExpandIcon style={{ width: 20, height: 20 }} />
+          </div>
+        )}
 
         <div style={{ alignSelf: 'stretch', flex: '1 1 0', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', display: 'flex' }}>
           <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
             {/* General */}
-            <div
-              onClick={() => setActiveSection('general')}
-              style={{
-                alignSelf: 'stretch',
-                height: 44,
-                paddingLeft: 14,
-                paddingRight: 14,
-                paddingTop: 10,
-                paddingBottom: 10,
-                background: activeSection === 'general' ? '#F5F5F5' : 'transparent',
-                borderRadius: 12,
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                display: 'flex',
-                cursor: 'pointer',
-                gap: 8
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <LayersIcon style={{ width: 16, height: 16 }} />
-                <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>General</div>
+            {isExpanded ? (
+              <div
+                onClick={() => setActiveSection('general')}
+                style={{
+                  alignSelf: 'stretch',
+                  height: 44,
+                  paddingLeft: 14,
+                  paddingRight: 14,
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  background: activeSection === 'general' ? '#F5F5F5' : 'transparent',
+                  borderRadius: 12,
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  display: 'flex',
+                  cursor: 'pointer',
+                  gap: 8
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <LayersIcon style={{ width: 16, height: 16 }} />
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>General</div>
+                </div>
+                <Right3Icon style={{ width: 16, height: 16 }} />
               </div>
-              <Right3Icon style={{ width: 16, height: 16 }} />
-            </div>
+            ) : (
+              <div
+                onClick={() => setActiveSection('general')}
+                style={{
+                  width: 44,
+                  height: 44,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  background: activeSection === 'general' ? '#F5F5F5' : 'transparent',
+                  borderRadius: 12,
+                  transition: 'background 0.2s ease-in-out',
+                  alignSelf: 'center'
+                }}
+              >
+                <LayersIcon style={{ width: 20, height: 20 }} />
+              </div>
+            )}
 
             {/* Profile */}
-            <div
-              onClick={() => setActiveSection('profile')}
-              style={{
-                alignSelf: 'stretch',
-                paddingLeft: 14,
-                paddingRight: 14,
-                paddingTop: 12,
-                paddingBottom: 12,
-                background: activeSection === 'profile' ? '#F5F5F5' : 'transparent',
-                borderRadius: 12,
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                display: 'flex',
-                cursor: 'pointer',
-                gap: 8
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <UserIcon style={{ width: 16, height: 16 }} />
-                <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Profile</div>
+            {isExpanded ? (
+              <div
+                onClick={() => setActiveSection('profile')}
+                style={{
+                  alignSelf: 'stretch',
+                  height: 44,
+                  paddingLeft: 14,
+                  paddingRight: 14,
+                  paddingTop: 12,
+                  paddingBottom: 12,
+                  background: activeSection === 'profile' ? '#F5F5F5' : 'transparent',
+                  borderRadius: 12,
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  display: 'flex',
+                  cursor: 'pointer',
+                  gap: 8
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <UserIcon style={{ width: 16, height: 16 }} />
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Profile</div>
+                </div>
+                <Right3Icon style={{ width: 16, height: 16 }} />
               </div>
-              <Right3Icon style={{ width: 16, height: 16 }} />
-            </div>
+            ) : (
+              <div
+                onClick={() => setActiveSection('profile')}
+                style={{
+                  width: 44,
+                  height: 44,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  background: activeSection === 'profile' ? '#F5F5F5' : 'transparent',
+                  borderRadius: 12,
+                  transition: 'background 0.2s ease-in-out',
+                  alignSelf: 'center'
+                }}
+              >
+                <UserIcon style={{ width: 20, height: 20 }} />
+              </div>
+            )}
 
             {/* Password */}
-            <div
-              onClick={() => setActiveSection('password')}
-              style={{
-                alignSelf: 'stretch',
-                paddingLeft: 14,
-                paddingRight: 14,
-                paddingTop: 12,
-                paddingBottom: 12,
-                background: activeSection === 'password' ? '#F5F5F5' : 'transparent',
-                borderRadius: 12,
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                display: 'flex',
-                cursor: 'pointer',
-                gap: 8
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <KeyIcon style={{ width: 16, height: 16 }} />
-                <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Password</div>
+            {isExpanded ? (
+              <div
+                onClick={() => setActiveSection('password')}
+                style={{
+                  alignSelf: 'stretch',
+                  height: 44,
+                  paddingLeft: 14,
+                  paddingRight: 14,
+                  paddingTop: 12,
+                  paddingBottom: 12,
+                  background: activeSection === 'password' ? '#F5F5F5' : 'transparent',
+                  borderRadius: 12,
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  display: 'flex',
+                  cursor: 'pointer',
+                  gap: 8
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <KeyIcon style={{ width: 16, height: 16 }} />
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Password</div>
+                </div>
+                <Right3Icon style={{ width: 16, height: 16 }} />
               </div>
-              <Right3Icon style={{ width: 16, height: 16 }} />
-            </div>
+            ) : (
+              <div
+                onClick={() => setActiveSection('password')}
+                style={{
+                  width: 44,
+                  height: 44,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  background: activeSection === 'password' ? '#F5F5F5' : 'transparent',
+                  borderRadius: 12,
+                  transition: 'background 0.2s ease-in-out',
+                  alignSelf: 'center'
+                }}
+              >
+                <KeyIcon style={{ width: 20, height: 20 }} />
+              </div>
+            )}
 
             {/* Notifications */}
-            <div
-              onClick={() => setActiveSection('notifications')}
-              style={{
-                alignSelf: 'stretch',
-                paddingLeft: 14,
-                paddingRight: 14,
-                paddingTop: 12,
-                paddingBottom: 12,
-                background: activeSection === 'notifications' ? '#F5F5F5' : 'transparent',
-                borderRadius: 12,
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                display: 'flex',
-                cursor: 'pointer',
-                gap: 8
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <BellIcon style={{ width: 16, height: 16 }} />
-                <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Notifications</div>
+            {isExpanded ? (
+              <div
+                onClick={() => setActiveSection('notifications')}
+                style={{
+                  alignSelf: 'stretch',
+                  height: 44,
+                  paddingLeft: 14,
+                  paddingRight: 14,
+                  paddingTop: 12,
+                  paddingBottom: 12,
+                  background: activeSection === 'notifications' ? '#F5F5F5' : 'transparent',
+                  borderRadius: 12,
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  display: 'flex',
+                  cursor: 'pointer',
+                  gap: 8
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <BellIcon style={{ width: 16, height: 16 }} />
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Notifications</div>
+                </div>
+                <Right3Icon style={{ width: 16, height: 16 }} />
               </div>
-              <Right3Icon style={{ width: 16, height: 16 }} />
-            </div>
+            ) : (
+              <div
+                onClick={() => setActiveSection('notifications')}
+                style={{
+                  width: 44,
+                  height: 44,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  background: activeSection === 'notifications' ? '#F5F5F5' : 'transparent',
+                  borderRadius: 12,
+                  transition: 'background 0.2s ease-in-out',
+                  alignSelf: 'center'
+                }}
+              >
+                <BellIcon style={{ width: 20, height: 20 }} />
+              </div>
+            )}
           </div>
         </div>
       </div>

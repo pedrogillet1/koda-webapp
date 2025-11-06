@@ -338,9 +338,9 @@ const DocumentViewer = () => {
               console.log('✅ DOCX marked as converted to PDF for rendering');
             } catch (error) {
               console.error('❌ DOCX preview failed:', error);
-              // Fall back to showing error message
+              // Silently continue - document might still be processing
+              // The component will handle the loading/error state without blocking the user
               setLoading(false);
-              alert('Failed to load DOCX preview. The document is still being processed. Please refresh the page in a few moments.');
               return;
             }
           } else {
@@ -572,10 +572,19 @@ const DocumentViewer = () => {
                 <PrinterIcon style={{ width: 36, height: 36 }} />
               </button>
               <button
-                onClick={() => {
-                  if (documentUrl && document) {
-                    // Use Safari-aware download function
-                    safariDownloadFile(documentUrl, document.filename);
+                onClick={async () => {
+                  if (document) {
+                    try {
+                      // Call the download endpoint to get the original file
+                      const response = await api.get(`/api/documents/${document.id}/download`);
+                      const downloadUrl = response.data.url;
+
+                      // Use Safari-aware download function with the original file URL
+                      safariDownloadFile(downloadUrl, document.filename);
+                    } catch (error) {
+                      console.error('Download error:', error);
+                      alert('Failed to download document');
+                    }
                   }
                 }}
                 style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
@@ -770,7 +779,16 @@ const DocumentViewer = () => {
                                 {document.filename}
                               </div>
                               <button
-                                onClick={() => safariDownloadFile(documentUrl, document.filename)}
+                                onClick={async () => {
+                                  try {
+                                    const response = await api.get(`/api/documents/${document.id}/download`);
+                                    const downloadUrl = response.data.url;
+                                    safariDownloadFile(downloadUrl, document.filename);
+                                  } catch (error) {
+                                    console.error('Download error:', error);
+                                    alert('Failed to download document');
+                                  }
+                                }}
                                 style={{
                                   display: 'inline-block',
                                   padding: '12px 24px',
@@ -881,7 +899,16 @@ const DocumentViewer = () => {
                               {document.filename}
                             </div>
                             <button
-                              onClick={() => safariDownloadFile(documentUrl, document.filename)}
+                              onClick={async () => {
+                                try {
+                                  const response = await api.get(`/api/documents/${document.id}/download`);
+                                  const downloadUrl = response.data.url;
+                                  safariDownloadFile(downloadUrl, document.filename);
+                                } catch (error) {
+                                  console.error('Download error:', error);
+                                  alert('Failed to download document');
+                                }
+                              }}
                               style={{
                                 display: 'inline-block',
                                 padding: '12px 24px',
@@ -974,7 +1001,16 @@ const DocumentViewer = () => {
                             {document.filename}
                           </div>
                           <button
-                            onClick={() => safariDownloadFile(documentUrl, document.filename)}
+                            onClick={async () => {
+                              try {
+                                const response = await api.get(`/api/documents/${document.id}/download`);
+                                const downloadUrl = response.data.url;
+                                safariDownloadFile(downloadUrl, document.filename);
+                              } catch (error) {
+                                console.error('Download error:', error);
+                                alert('Failed to download document');
+                              }
+                            }}
                             style={{
                               display: 'inline-block',
                               padding: '12px 24px',
@@ -1398,9 +1434,19 @@ const DocumentViewer = () => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <button
-                onClick={() => {
-                  if (documentUrl && document) {
-                    safariDownloadFile(documentUrl, document.filename);
+                onClick={async () => {
+                  if (document) {
+                    try {
+                      // Call the download endpoint to get the original file
+                      const response = await api.get(`/api/documents/${document.id}/download`);
+                      const downloadUrl = response.data.url;
+
+                      // Use Safari-aware download function with the original file URL
+                      safariDownloadFile(downloadUrl, document.filename);
+                    } catch (error) {
+                      console.error('Download error:', error);
+                      alert('Failed to download document');
+                    }
                   }
                 }}
                 style={{
