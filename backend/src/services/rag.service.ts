@@ -646,7 +646,7 @@ FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - DO NOT include inline citations (no parentheses with document names/pages in the text)
 - Be thorough but concise
 - NO emojis
-- End with ONE "**Next step:**" bullet only (always bold)
+- End with "Next step:" followed by a helpful suggestion (plain text, NOT bold)
 
 User query: "${query}"`;
 
@@ -1019,7 +1019,7 @@ FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - Professional, friendly tone
 - Bold key features with **text**
 - NO emojis
-- End with ONE "**Next step:**" bullet only (always bold)
+- End with "Next step:" followed by a helpful suggestion (plain text, NOT bold)
 
 User query: "${query}"
 
@@ -1060,6 +1060,11 @@ async function handleRegularQuery(
 
   // Build search filter
   const filter: any = { userId };
+
+  // 🔍 DEBUG: Log query details for diagnosis
+  console.log(`🔍 [DEBUG] Query filter - userId: ${userId}`);
+  console.log(`🔍 [DEBUG] Query text: "${query}"`);
+  console.log(`🔍 [DEBUG] Attached document ID: ${attachedDocumentId || 'none'}`);
 
   // ✅ NEW: Try to detect document names in query
   let searchResults;
@@ -1120,9 +1125,20 @@ async function handleRegularQuery(
 
   console.log(`✅ [REGULAR QUERY] Found ${searchResults.matches?.length || 0} relevant chunks`);
 
-  // 🐛 DEBUG: Log first chunk to see what Pinecone is returning
+  // 🐛 DEBUG: Comprehensive Pinecone results analysis
   if (searchResults.matches && searchResults.matches.length > 0) {
+    console.log('🐛 [DEBUG] All document IDs found:',
+      [...new Set(searchResults.matches.map((m: any) => m.metadata?.documentId))]);
+    console.log('🐛 [DEBUG] All filenames found:',
+      [...new Set(searchResults.matches.map((m: any) => m.metadata?.filename))]);
     console.log('🐛 [DEBUG] First chunk sample:', JSON.stringify(searchResults.matches[0], null, 2));
+  } else {
+    console.error('❌ [CRITICAL] No matches returned from Pinecone!');
+    console.error('❌ [DEBUG] Filter used:', JSON.stringify(filter, null, 2));
+    console.error('❌ [DEBUG] This means either:');
+    console.error('   1. No documents uploaded for this user');
+    console.error('   2. Documents not indexed in Pinecone');
+    console.error('   3. userId mismatch between upload and query');
   }
 
   // ✅ PSYCHOLOGICAL LAYER ENRICHMENT
@@ -1184,6 +1200,16 @@ async function handleRegularQuery(
     score: match.score || 0
   })) || [];
 
+  // ✅ Detect query language for proper "Next step" translation
+  const queryLang = detectLanguage(query);
+  const nextStepText = queryLang === 'pt' ? 'Próximo passo' :
+                       queryLang === 'es' ? 'Próximo paso' :
+                       queryLang === 'fr' ? 'Prochaine étape' : 'Next step';
+  const queryLangName = queryLang === 'pt' ? 'Portuguese' :
+                        queryLang === 'es' ? 'Spanish' :
+                        queryLang === 'fr' ? 'French' : 'English';
+  console.log(`🌍 Detected query language: ${queryLangName} (Next step: "${nextStepText}")`);
+
   // System prompt
   const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
 
@@ -1191,11 +1217,11 @@ RELEVANT CONTENT FROM USER'S DOCUMENTS:
 ${context}
 
 LANGUAGE DETECTION (CRITICAL):
-- ALWAYS respond in the SAME LANGUAGE as the user's query
-- Portuguese query → Portuguese response
-- English query → English response
-- Spanish query → Spanish response
-- Detect the language automatically and match it exactly
+- CRITICAL LANGUAGE RULE: The user asked their question in ${queryLangName}. You MUST respond entirely in ${queryLangName}, including all text, bullets, and the "Next step" section
+- DO NOT mix languages - if user asks in English, respond in English even if documents are in Portuguese
+- DO NOT match document language - match QUERY language only
+- Example: If user asks "what is this about" (English) and document is in Portuguese, answer in English
+- Example: If user asks "o que é isso" (Portuguese) and document is in English, answer in Portuguese
 
 RESPONSE RULES:
 - Start with a brief intro (MAX 2 sentences)
@@ -1226,7 +1252,8 @@ FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
 - Between bullet points: Use SINGLE newline only (no blank lines)
 - Before "Next step:" section: Use ONE blank line
 - NO emojis
-- End with ONE "**Next step:**" bullet only (always bold)
+- End with ONE "**${nextStepText}:**" section (always bold) followed by a helpful suggestion
+- The "${nextStepText}:" MUST be in ${queryLangName} to match your response language
 
 User query: "${query}"`;
 
@@ -1261,32 +1288,22 @@ async function streamLLMResponse(
       const processedChunk = text
         // ✅ CRITICAL: Remove inline citations like (filename.pdf, Page: N/A)
         .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')
-        // Ensure one blank line (double newline) after headers before bullet lists
-        .replace(/(:)\n([•\-\*])/g, '$1\n\n$2')
-        // Remove extra blank lines between bullets (keep them tight)
-        .replace(/\n\s*\n\s*([•\-\*])/g, '\n$1')
-        // Ensure one blank line (double newline) after the last bullet before next sections
-        .replace(/([•\-\*].+)\n(?=[A-Z][a-z]+|Next step:|How can I help|I'?m ready)/g, '$1\n\n')
-        // Collapse 3+ newlines into one blank line (2 \n)
-        .replace(/\n{3,}/g, '\n\n')
-        // Fix quadruple asterisks
-        .replace(/\*\*\*\*/g, '**')
+        // ✅ FIX: Clean up formatting issues
+        .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks (4, 6, 8, etc.)
+        .replace(/\n\n\n+/g, '\n\n')  // Collapse 3+ newlines to 2 (one blank line)
+        .replace(/([•\-\*].*?)\n\n+([•\-\*])/g, '$1\n$2')  // Remove blank lines BETWEEN bullets
+        .replace(/\n\n([•\-\*])/g, '\n$1')  // Remove blank line BEFORE first bullet
+        .replace(/(.*?)\n\n(Next step:|Próximo passo:|Próximo paso:|Prochaine étape:)/g, '$1\n\n$2')  // Ensure ONE blank line before "Next step"
+        .replace(/(\*\*Next step:\*\*)\n\n/g, '$1\n')  // Reduce spacing after "Next step:" (English)
+        .replace(/(\*\*Próximo passo:\*\*)\n\n/g, '$1\n')  // Reduce spacing after "Próximo passo:" (Portuguese)
+        .replace(/(\*\*Próximo paso:\*\*)\n\n/g, '$1\n')  // Reduce spacing after "Próximo paso:" (Spanish)
+        .replace(/(\*\*Prochaine étape:\*\*)\n\n/g, '$1\n')  // Reduce spacing after "Prochaine étape:" (French)
         // Remove emojis and symbols
         .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')
         .replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '')
-        // ✅ "Next step:" formatting - make bold and remove gaps
-        .replace(/Next step:\s*\n\s*\n/g, '\n**Next step:**\n')  // Make bold and remove gaps
-        .replace(/Next step:/g, '**Next step:**')  // Make any remaining bold
-        .replace(/Próximo passo:\s*\n\s*\n/g, '\n**Próximo passo:**\n')  // Portuguese
-        .replace(/Próximo passo:/g, '**Próximo passo:**')
-        .replace(/Próximo paso:\s*\n\s*\n/g, '\n**Próximo paso:**\n')  // Spanish
-        .replace(/Próximo paso:/g, '**Próximo paso:**')
-        .replace(/Prochaine étape:\s*\n\s*\n/g, '\n**Prochaine étape:**\n')  // French
-        .replace(/Prochaine étape:/g, '**Prochaine étape:**')
-        .replace(/\*\*\*\*Next step:\*\*\*\*/g, '**Next step:**')  // Fix double-bolding
-        .replace(/\*\*\*\*Próximo passo:\*\*\*\*/g, '**Próximo passo:**')
-        .replace(/\*\*\*\*Próximo paso:\*\*\*\*/g, '**Próximo paso:**')
-        .replace(/\*\*\*\*Prochaine étape:\*\*\*\*/g, '**Prochaine étape:**');
+        // Flatten nested bullets - convert sub-bullets (○, ◦, indented bullets) to main bullets
+        .replace(/\n\s+[○◦]\s+/g, '\n• ')  // Convert circle bullets to main bullets
+        .replace(/\n\s{2,}[•\-\*]\s+/g, '\n• ');
 
       onChunk(processedChunk);
     }
@@ -1303,22 +1320,34 @@ async function streamLLMResponse(
 // POST-PROCESSING
 // ════════════════════════════════════════════════════════════════════════════════
 
+export function postProcessAnswerExport(answer: string): string {
+  return postProcessAnswer(answer);
+}
+
 function postProcessAnswer(answer: string): string {
   let processed = answer;
 
-  // Remove emojis
+  // ✅ CRITICAL: Remove inline citations like (filename.pdf, Page: N/A)
+  processed = processed.replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '');
+
+  // ✅ FIX: Clean up formatting issues
+  processed = processed.replace(/\*\*\*\*+/g, '**');  // Fix multiple asterisks (4, 6, 8, etc.)
+  processed = processed.replace(/\n\n\n+/g, '\n\n');  // Collapse 3+ newlines to 2 (one blank line)
+  processed = processed.replace(/([•\-\*].*?)\n\n+([•\-\*])/g, '$1\n$2');  // Remove blank lines BETWEEN bullets
+  processed = processed.replace(/\n\n([•\-\*])/g, '\n$1');  // Remove blank line BEFORE first bullet
+  processed = processed.replace(/(.*?)\n\n(Next step:|Próximo passo:|Próximo paso:|Prochaine étape:)/g, '$1\n\n$2');  // Ensure ONE blank line before "Next step"
+  processed = processed.replace(/(\*\*Next step:\*\*)\n\n/g, '$1\n');  // Reduce spacing after "Next step:" (English)
+  processed = processed.replace(/(\*\*Próximo passo:\*\*)\n\n/g, '$1\n');  // Reduce spacing after "Próximo passo:" (Portuguese)
+  processed = processed.replace(/(\*\*Próximo paso:\*\*)\n\n/g, '$1\n');  // Reduce spacing after "Próximo paso:" (Spanish)
+  processed = processed.replace(/(\*\*Prochaine étape:\*\*)\n\n/g, '$1\n');  // Reduce spacing after "Prochaine étape:" (French)
+
+  // Remove emojis and symbols
   processed = processed.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '');
   processed = processed.replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');
 
-  // Fix excessive blank lines - CRITICAL: Use \n\n\n+ to preserve paragraph breaks!
-  // Replace 3+ newlines (2+ blank lines) with 2 newlines (1 blank line)
-  processed = processed.replace(/\n\n\n+/g, '\n\n');
-
-  // Fix quadruple asterisks
-  processed = processed.replace(/\*\*\*\*/g, '**');
-
-  // Fix "Next steps:" or "Next step:" to bold "**Next step:**"
-  processed = processed.replace(/Next steps?:/gi, '**Next step:**');
+  // Flatten nested bullets - convert sub-bullets (○, ◦, indented bullets) to main bullets
+  processed = processed.replace(/\n\s+[○◦]\s+/g, '\n• ');  // Convert circle bullets to main bullets
+  processed = processed.replace(/\n\s{2,}[•\-\*]\s+/g, '\n• ');  // Convert indented bullets to main bullets
 
   // Trim
   processed = processed.trim();

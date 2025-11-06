@@ -54,10 +54,12 @@ class FileActionsService {
     action: string;
     params: Record<string, string>;
   } | null> {
+    console.log(`\n🔍 [parseFileAction] Parsing query: "${query}"`);
+
     try {
       // Use LLM to detect intent
       const intentResult = await llmIntentDetectorService.detectIntent(query);
-      console.log(`📊 [parseFileAction] Intent detected:`, intentResult);
+      console.log(`📊 [parseFileAction] Intent detected:`, JSON.stringify(intentResult, null, 2));
 
       // Map LLM intent to file actions
       const fileActionIntents = [
@@ -77,7 +79,7 @@ class FileActionsService {
       }
 
       if (intentResult.confidence < 0.7) {
-        console.log(`❌ [parseFileAction] Confidence ${intentResult.confidence} is below 0.7`);
+        console.log(`❌ [parseFileAction] Confidence ${intentResult.confidence.toFixed(2)} is below 0.7 threshold`);
         return null;
       }
 
@@ -98,14 +100,15 @@ class FileActionsService {
         return null;
       }
 
-      console.log(`✅ [parseFileAction] Mapped to action: "${action}" with params:`, intentResult.parameters);
+      console.log(`✅ [parseFileAction] Mapped to action: "${action}"`);
+      console.log(`📦 [parseFileAction] Parameters:`, JSON.stringify(intentResult.parameters, null, 2));
 
       return {
         action,
         params: intentResult.parameters
       };
     } catch (error) {
-      console.error('❌ Error parsing file action with LLM:', error);
+      console.error('❌ [parseFileAction] Error parsing file action with LLM:', error);
       return null;
     }
   }
@@ -120,10 +123,10 @@ class FileActionsService {
     filename: string,
     userId: string
   ): Promise<Document | null> {
-    // First try exact match
+    // First try exact match (case-insensitive)
     let document = await prisma.document.findFirst({
       where: {
-        filename: filename,
+        filename: { equals: filename, mode: 'insensitive' },
         userId: userId,
         status: { not: 'deleted' },
       },
@@ -134,7 +137,7 @@ class FileActionsService {
       return document;
     }
 
-    // If no exact match, try fuzzy matching
+    // If no exact match, try fuzzy matching (case-insensitive)
     console.log(`🔍 [FUZZY] No exact match for "${filename}", trying fuzzy search...`);
 
     // Get all user's documents
@@ -162,21 +165,35 @@ class FileActionsService {
       return null;
     }
 
-    // Find best match using string similarity
-    const filenames = allDocuments.map(d => d.filename);
-    const matches = findBestMatch(filename, filenames);
+    // ✅ IMPROVED: Normalize filename for better matching
+    const normalizeFilename = (name: string) => {
+      return name
+        .toLowerCase()
+        .replace(/\.pdf$|\.docx?$|\.xlsx?$|\.pptx?$|\.txt$/i, '') // Remove extensions
+        .replace(/[_\-\.]/g, ' ') // Replace separators with spaces
+        .replace(/\s+/g, ' ') // Collapse multiple spaces
+        .trim();
+    };
+
+    // Find best match using string similarity with normalization
+    const normalizedInput = normalizeFilename(filename);
+    const normalizedFilenames = allDocuments.map(d => normalizeFilename(d.filename));
+    const matches = findBestMatch(normalizedInput, normalizedFilenames);
     const bestMatch = matches.bestMatch;
 
-    console.log(`🎯 [FUZZY] Best match: "${bestMatch.target}" (similarity: ${bestMatch.rating.toFixed(2)})`);
+    // Find the original document (case-preserving)
+    const matchedDoc = allDocuments.find(d => normalizeFilename(d.filename) === bestMatch.target);
 
-    // If similarity is above threshold (0.6 = 60% similar), use it
-    if (bestMatch.rating >= 0.6) {
-      document = allDocuments.find(d => d.filename === bestMatch.target) || null;
-      console.log(`✅ [FUZZY] Using fuzzy match: "${filename}" → "${document?.filename}"`);
-      return document;
+    console.log(`🔍 [FUZZY] Searching for: "${filename}" (normalized: "${normalizedInput}")`);
+    console.log(`🎯 [FUZZY] Best match: "${matchedDoc?.filename}" (similarity: ${bestMatch.rating.toFixed(2)})`);
+
+    // ✅ IMPROVED: Lower threshold to 0.4 (40%) for more lenient matching
+    if (bestMatch.rating >= 0.4 && matchedDoc) {
+      console.log(`✅ [FUZZY] Using fuzzy match: "${filename}" → "${matchedDoc.filename}"`);
+      return matchedDoc;
     }
 
-    console.log(`❌ [FUZZY] No good match found (best similarity: ${bestMatch.rating.toFixed(2)})`);
+    console.log(`❌ [FUZZY] No good match found (best similarity: ${bestMatch.rating.toFixed(2)}, threshold: 0.4)`);
     return null;
   }
 
@@ -378,28 +395,61 @@ class FileActionsService {
   }
 
   /**
-   * Find folder by name
+   * Find folder by name with fuzzy matching (case-insensitive)
    */
   async findFolderByName(userId: string, folderName: string): Promise<Folder | null> {
-    // Try exact match first
+    // Try exact match first (case-insensitive)
     let folder = await prisma.folder.findFirst({
       where: {
         userId,
-        name: folderName
+        name: { equals: folderName, mode: 'insensitive' }
       }
     });
 
-    // If not found, try partial match
-    if (!folder) {
-      folder = await prisma.folder.findFirst({
-        where: {
-          userId,
-          name: { contains: folderName }
-        }
-      });
+    if (folder) {
+      console.log(`✅ [FUZZY FOLDER] Exact match found: ${folderName}`);
+      return folder;
     }
 
-    return folder;
+    // If not found, try fuzzy matching (case-insensitive)
+    console.log(`🔍 [FUZZY FOLDER] No exact match for "${folderName}", trying fuzzy search...`);
+
+    const allFolders = await prisma.folder.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        name: true,
+        userId: true,
+        parentFolderId: true,
+        color: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    if (allFolders.length === 0) {
+      console.log(`❌ [FUZZY FOLDER] No folders found for user`);
+      return null;
+    }
+
+    // Find best match using string similarity (case-insensitive)
+    const folderNameLower = folderName.toLowerCase();
+    const folderNames = allFolders.map(f => f.name.toLowerCase());
+    const matches = findBestMatch(folderNameLower, folderNames);
+    const bestMatch = matches.bestMatch;
+
+    // Find the original folder (case-preserving)
+    const matchedFolder = allFolders.find(f => f.name.toLowerCase() === bestMatch.target);
+
+    console.log(`🎯 [FUZZY FOLDER] Best match: "${matchedFolder?.name}" (similarity: ${bestMatch.rating.toFixed(2)})`);
+
+    if (bestMatch.rating >= 0.6 && matchedFolder) {
+      console.log(`✅ [FUZZY FOLDER] Using fuzzy match: "${folderName}" → "${matchedFolder.name}"`);
+      return matchedFolder;
+    }
+
+    console.log(`❌ [FUZZY FOLDER] No good match found (best similarity: ${bestMatch.rating.toFixed(2)})`);
+    return null;
   }
 
   /**
@@ -428,9 +478,12 @@ class FileActionsService {
         });
 
       case 'moveFile': {
+        console.log(`🔍 [MOVE FILE] Looking for file: "${params.filename}"`);
+
         // Find document by filename
         const document = await this.findDocumentByName(userId, params.filename);
         if (!document) {
+          console.error(`❌ [MOVE FILE] File not found: "${params.filename}"`);
           return {
             success: false,
             message: `File "${params.filename}" not found`,
@@ -438,15 +491,21 @@ class FileActionsService {
           };
         }
 
+        console.log(`✅ [MOVE FILE] Found file: "${document.filename}" (ID: ${document.id})`);
+        console.log(`🔍 [MOVE FILE] Looking for folder: "${params.targetFolder}"`);
+
         // Find target folder
         const folder = await this.findFolderByName(userId, params.targetFolder);
         if (!folder) {
+          console.error(`❌ [MOVE FILE] Folder not found: "${params.targetFolder}"`);
           return {
             success: false,
             message: `Folder "${params.targetFolder}" not found`,
             error: 'FOLDER_NOT_FOUND'
           };
         }
+
+        console.log(`✅ [MOVE FILE] Found folder: "${folder.name}" (ID: ${folder.id})`);
 
         return await this.moveFile({
           userId,

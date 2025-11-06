@@ -73,13 +73,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     // Helper function to get file icon based on extension
     const getFileIcon = (filename) => {
-        console.log('🎨 Getting icon for filename:', filename);
         if (!filename) {
-            console.log('⚠️ No filename provided, using default docIcon');
             return docIcon;
         }
         const ext = filename.toLowerCase();
-        console.log('🔍 File extension:', ext);
 
         if (ext.match(/\.(pdf)$/)) return pdfIcon;
         if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
@@ -87,15 +84,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         if (ext.match(/\.(doc|docx)$/)) return docIcon;
         if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
         if (ext.match(/\.(txt)$/)) return txtIcon;
-        if (ext.match(/\.(ppt|pptx)$/)) {
-            console.log('✅ Matched PowerPoint, returning pptxIcon');
-            return pptxIcon;
-        }
+        if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
         if (ext.match(/\.(mov)$/)) return movIcon;
         if (ext.match(/\.(mp4)$/)) return mp4Icon;
         if (ext.match(/\.(mp3)$/)) return mp3Icon;
 
-        console.log('⚠️ No match found, using default docIcon');
         return docIcon; // Default icon
     };
 
@@ -1266,6 +1259,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             content: displayMessageText,
                             createdAt: new Date().toISOString(),
                         };
+
+                        // 🐛 DEBUG: Log metadata and actions
+                        console.log('🐛 [DEBUG] Metadata received:', JSON.stringify(metadata, null, 2));
+                        console.log('🐛 [DEBUG] Sources:', metadata.sources);
+                        console.log('🐛 [DEBUG] Actions:', metadata.actions);
+                        console.log('🐛 [DEBUG] ContextId:', metadata.contextId);
 
                         const assistantMessage = {
                             id: metadata.assistantMessageId,
@@ -2498,10 +2497,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 )}
 
                 {/* Document Attachments Banner - Hide when loading/streaming */}
-                {attachedDocuments.length > 0 && !isLoading && !isStreaming && (
+                {(attachedDocuments.length > 0 || (messages.length > 0 && messages[messages.length - 1]?.role === 'user' && messages[messages.length - 1]?.attachedFiles?.length > 0)) && !isLoading && !isStreaming && (
                     <div style={{marginBottom: 12, padding: 12, background: 'white', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
                         <img
-                            src={getFileIcon(attachedDocuments[0].name)}
+                            src={getFileIcon((() => {
+                                const docs = attachedDocuments.length > 0
+                                    ? attachedDocuments
+                                    : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
+                                return docs.length > 0 ? docs[0].name : '';
+                            })())}
                             alt="File icon"
                             style={{
                                 width: 40,
@@ -2514,14 +2518,22 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         />
                         <div style={{flex: 1}}>
                             <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>
-                                {attachedDocuments.length === 1
-                                    ? attachedDocuments[0].name
-                                    : `${attachedDocuments.length} documents attached`}
+                                {(() => {
+                                    const docs = attachedDocuments.length > 0
+                                        ? attachedDocuments
+                                        : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
+                                    return docs.length === 1 ? docs[0].name : `${docs.length} documents attached`;
+                                })()}
                             </div>
                             <div style={{fontSize: 12, color: '#8E8E93'}}>
-                                {attachedDocuments.length === 1
-                                    ? 'Ready to answer questions about this document'
-                                    : 'Ready to compare and analyze these documents'}
+                                {(() => {
+                                    const docs = attachedDocuments.length > 0
+                                        ? attachedDocuments
+                                        : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
+                                    return docs.length === 1
+                                        ? 'Ready to answer questions about this document'
+                                        : 'Ready to compare and analyze these documents';
+                                })()}
                             </div>
                         </div>
                         <button
