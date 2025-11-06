@@ -58,6 +58,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [researchProgress, setResearchProgress] = useState(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
     const [previewDocument, setPreviewDocument] = useState(null); // For document preview popup
+    const [socketReady, setSocketReady] = useState(false); // Track WebSocket connection state
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
     const inputRef = useRef(null);
@@ -195,7 +196,18 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             console.log('🔌 Initializing socket connection...');
             globalSocketInitialized = true;
 
-            chatService.initializeSocket(token);
+            const socket = chatService.initializeSocket(token);
+
+            // Track socket connection state
+            socket.on('connect', () => {
+                console.log('✅ Socket connected');
+                setSocketReady(true);
+            });
+
+            socket.on('disconnect', () => {
+                console.log('❌ Socket disconnected');
+                setSocketReady(false);
+            });
 
             // IMPORTANT: Remove any existing listeners first to prevent duplicates
             chatService.removeMessageListeners();
@@ -1094,8 +1106,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             // Route to RAG or regular chat based on question detection
             if (isQuestion) {
-                console.log('🔍 Using RAG with STREAMING for question:', messageText);
+                console.log('🔍 Using RAG with STREAMING (SSE) for question:', messageText);
+                console.log('📊 Socket ready:', socketReady, '| User:', user?.id, '| Conversation:', currentConversation?.id);
                 setCurrentStage({ stage: 'searching', message: researchMode ? 'Searching documents and web...' : 'Searching documents...' });
+
+                // ✅ ALWAYS use SSE for questions (more reliable than WebSocket)
+                // SSE doesn't depend on socket initialization state
 
                 // Use RAG STREAMING endpoint for real-time responses
                 try {
@@ -1297,7 +1313,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     };
                     setMessages((prev) => [...prev, errorMessage]);
                 }
-            } else if (currentConversation?.id && user?.id) {
+            } else if (currentConversation?.id && user?.id && socketReady) {
+                // ✅ Only use WebSocket if socket is ready
                 console.log('🔌 Sending via WebSocket:', { conversationId: currentConversation.id, userId: user.id, documentId: uploadedDocument?.id });
                 // Send via WebSocket for real-time response
                 chatService.sendMessageRealtime(
@@ -1307,29 +1324,142 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     uploadedDocument?.id
                 );
             } else {
-                // Regular REST API for new conversation
-                console.log('📨 Sending message via REST...');
-                const result = await chatService.sendMessage(conversationId, messageText, uploadedDocument?.id);
-                console.log('✅ Got response:', result);
+                // ✅ Fallback to SSE if socket not ready or no conversation
+                console.log('📡 Using SSE fallback (socket not ready or new conversation)');
+                console.log('📊 Socket ready:', socketReady, '| User:', user?.id, '| Conversation:', currentConversation?.id);
 
-                if (result.assistantMessage.id) {
-                    globalProcessedMessageIds.add(result.assistantMessage.id);
-                    console.log('🔒 Locked message ID to prevent duplication:', result.assistantMessage.id);
-                }
+                try {
+                    const token = localStorage.getItem('accessToken');
+                    const requestBody = {
+                        conversationId: conversationId,
+                        query: messageText,
+                        researchMode: false,
+                        attachedDocumentId: uploadedDocument?.id || null,
+                    };
 
-                // Trigger streaming effect for assistant message
-                setStreamingMessage(result.assistantMessage.content);
-                setIsLoading(false);
+                    console.log('📤 RAG REQUEST BODY:', JSON.stringify(requestBody, null, 2));
+                    console.log('🚀 [DEBUG] Starting SSE request to:', `${process.env.REACT_APP_API_URL}/api/rag/query/stream`);
 
-                // After streaming completes, add to messages history
-                const streamDuration = result.assistantMessage.content.length * 15 + 500;
-                setTimeout(() => {
+                    const response = await fetch(
+                        `${process.env.REACT_APP_API_URL}/api/rag/query/stream`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${token}`,
+                            },
+                            body: JSON.stringify(requestBody),
+                        }
+                    );
+
+                    console.log('🚀 [DEBUG] Response status:', response.status);
+                    console.log('🚀 [DEBUG] Response ok:', response.ok);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    // Set up SSE reader (same as question handling)
+                    const reader = response.body.getReader();
+                    console.log('🚀 [DEBUG] Got reader:', !!reader);
+
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let streamedContent = '';
+                    let metadata = null;
+
+                    console.log('🌊 Starting SSE stream (fallback)...');
+                    console.log('🚀 [DEBUG] Initial streamedContent:', streamedContent);
+                    setCurrentStage({ stage: 'generating', message: 'Thinking...' });
+
+                    // Add timeout detection
+                    const streamTimeout = setTimeout(() => {
+                        console.error('❌ Stream timeout - no chunks received in 30 seconds');
+                        reader.cancel();
+                        throw new Error('Stream timeout - no response from server');
+                    }, 30000);
+
+                    let firstChunkReceived = false;
+
+                    while (true) {
+                        console.log('🚀 [DEBUG] Waiting for chunk...');
+                        const { value, done } = await reader.read();
+                        console.log('🚀 [DEBUG] Got chunk - done:', done, 'value length:', value?.length);
+
+                        if (done) {
+                            console.log('✅ Stream finished');
+                            console.log('🚀 [DEBUG] Final streamedContent length:', streamedContent.length);
+                            clearTimeout(streamTimeout);
+                            break;
+                        }
+
+                        if (!firstChunkReceived) {
+                            console.log('🚀 [DEBUG] First chunk received, clearing timeout');
+                            clearTimeout(streamTimeout);
+                            firstChunkReceived = true;
+                        }
+
+                        const decodedChunk = decoder.decode(value, { stream: true });
+                        console.log('🚀 [DEBUG] Decoded chunk length:', decodedChunk.length);
+                        console.log('🚀 [DEBUG] Decoded chunk preview:', decodedChunk.substring(0, 100));
+
+                        buffer += decodedChunk;
+
+                        const messages = buffer.split('\n\n');
+                        buffer = messages.pop() || '';
+
+                        for (const message of messages) {
+                            if (message.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(message.slice(6));
+                                    console.log('🚀 [DEBUG] Parsed SSE message type:', data.type);
+
+                                    if (data.type === 'content') {
+                                        streamedContent += data.content;
+                                        console.log('💜 [STREAMING] Received chunk, total length:', streamedContent.length);
+                                        console.log('💜 [STREAMING] Chunk preview:', streamedContent.substring(0, 50));
+                                        console.log('🚀 [DEBUG] About to call setStreamingMessage with length:', streamedContent.length);
+                                        setStreamingMessage(streamedContent);
+                                        console.log('🚀 [DEBUG] Called setStreamingMessage');
+                                    } else if (data.type === 'done') {
+                                        metadata = data;
+                                    } else if (data.type === 'error') {
+                                        throw new Error(data.error);
+                                    }
+                                } catch (parseError) {
+                                    console.error('Error parsing SSE message:', parseError);
+                                }
+                            }
+                        }
+                    }
+
+                    // Queue message
+                    if (metadata) {
+                        const realUserMessage = {
+                            id: metadata.userMessageId,
+                            role: 'user',
+                            content: displayMessageText,
+                            createdAt: new Date().toISOString(),
+                        };
+
+                        const assistantMessage = {
+                            id: metadata.assistantMessageId,
+                            role: 'assistant',
+                            content: streamedContent,
+                            createdAt: new Date().toISOString(),
+                            ragSources: metadata.sources || [],
+                        };
+
+                        pendingMessageRef.current = {
+                            userMessage: realUserMessage,
+                            assistantMessage: assistantMessage
+                        };
+                    }
+                } catch (error) {
+                    console.error('❌ Error in SSE fallback:', error);
+                    setIsLoading(false);
                     setStreamingMessage('');
-                    setMessages((prev) => {
-                        const withoutOptimistic = prev.filter(m => !m.isOptimistic);
-                        return [...withoutOptimistic, result.userMessage, result.assistantMessage];
-                    });
-                }, streamDuration);
+                }
             }
         } catch (error) {
             console.error('❌ Error sending message:', error);

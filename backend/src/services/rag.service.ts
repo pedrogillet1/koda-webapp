@@ -1273,7 +1273,20 @@ async function streamLLMResponse(
         .replace(/\*\*\*\*/g, '**')
         // Remove emojis and symbols
         .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')
-        .replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');
+        .replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '')
+        // ✅ "Next step:" formatting - make bold and remove gaps
+        .replace(/Next step:\s*\n\s*\n/g, '\n**Next step:**\n')  // Make bold and remove gaps
+        .replace(/Next step:/g, '**Next step:**')  // Make any remaining bold
+        .replace(/Próximo passo:\s*\n\s*\n/g, '\n**Próximo passo:**\n')  // Portuguese
+        .replace(/Próximo passo:/g, '**Próximo passo:**')
+        .replace(/Próximo paso:\s*\n\s*\n/g, '\n**Próximo paso:**\n')  // Spanish
+        .replace(/Próximo paso:/g, '**Próximo paso:**')
+        .replace(/Prochaine étape:\s*\n\s*\n/g, '\n**Prochaine étape:**\n')  // French
+        .replace(/Prochaine étape:/g, '**Prochaine étape:**')
+        .replace(/\*\*\*\*Next step:\*\*\*\*/g, '**Next step:**')  // Fix double-bolding
+        .replace(/\*\*\*\*Próximo passo:\*\*\*\*/g, '**Próximo passo:**')
+        .replace(/\*\*\*\*Próximo paso:\*\*\*\*/g, '**Próximo paso:**')
+        .replace(/\*\*\*\*Prochaine étape:\*\*\*\*/g, '**Prochaine étape:**');
 
       onChunk(processedChunk);
     }
