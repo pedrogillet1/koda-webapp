@@ -45,6 +45,11 @@ export interface DeleteFileParams {
   documentId: string;
 }
 
+export interface ShowFileParams {
+  userId: string;
+  filename: string;
+}
+
 class FileActionsService {
   /**
    * Parse natural language file action query using LLM
@@ -69,7 +74,8 @@ class FileActionsService {
         'search_files',
         'file_location',
         'rename_file',
-        'delete_file'
+        'delete_file',
+        'show_file'
       ];
 
       // Only process if it's a file action intent with high confidence
@@ -91,7 +97,8 @@ class FileActionsService {
         'search_files': 'searchFiles',
         'file_location': 'fileLocation',
         'rename_file': 'renameFile',
-        'delete_file': 'deleteFile'
+        'delete_file': 'deleteFile',
+        'show_file': 'showFile'
       };
 
       const action = actionMapping[intentResult.intent];
@@ -381,6 +388,106 @@ class FileActionsService {
       return {
         success: false,
         message: 'Failed to delete file',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Show/preview a file
+   */
+  async showFile(params: ShowFileParams): Promise<FileActionResult> {
+    try {
+      console.log(`👁️ [SHOW_FILE] Looking for file: "${params.filename}"`);
+
+      // Find document by filename with fuzzy matching
+      const document = await this.findDocumentWithFuzzyMatch(params.filename, params.userId);
+
+      if (!document) {
+        // Try searching by content keywords
+        const searchResults = await prisma.document.findMany({
+          where: {
+            userId: params.userId,
+            status: { not: 'deleted' },
+            OR: [
+              { filename: { contains: params.filename } },
+              {
+                metadata: {
+                  extractedText: { contains: params.filename }
+                }
+              }
+            ]
+          },
+          take: 5
+        });
+
+        if (searchResults.length === 0) {
+          return {
+            success: false,
+            message: `I couldn't find a file matching **"${params.filename}"**.\n\nWould you like me to show you all your documents instead?`,
+            error: 'FILE_NOT_FOUND'
+          };
+        }
+
+        // Multiple matches - ask user to clarify
+        if (searchResults.length > 1) {
+          const fileList = searchResults
+            .map((doc, idx) => `${idx + 1}. **${doc.filename}** (${(doc.fileSize / 1024).toFixed(2)} KB)`)
+            .join('\n');
+
+          return {
+            success: false,
+            message: `I found **${searchResults.length} documents** matching "${params.filename}":\n\n${fileList}\n\nWhich one would you like to see?`,
+            data: {
+              action: 'clarify',
+              matches: searchResults.map(doc => ({
+                id: doc.id,
+                filename: doc.filename,
+                mimeType: doc.mimeType,
+                fileSize: doc.fileSize
+              }))
+            }
+          };
+        }
+
+        // Single match from search
+        const foundDoc = searchResults[0];
+        return {
+          success: true,
+          message: `Here's the file:`,
+          data: {
+            action: 'preview',
+            document: {
+              id: foundDoc.id,
+              filename: foundDoc.filename,
+              mimeType: foundDoc.mimeType,
+              fileSize: foundDoc.fileSize
+            }
+          }
+        };
+      }
+
+      // Document found via fuzzy matching
+      console.log(`✅ [SHOW_FILE] Found document: ${document.filename}`);
+
+      return {
+        success: true,
+        message: `Here's the file:`,
+        data: {
+          action: 'preview',
+          document: {
+            id: document.id,
+            filename: document.filename,
+            mimeType: document.mimeType,
+            fileSize: document.fileSize
+          }
+        }
+      };
+    } catch (error: any) {
+      console.error('❌ Show file failed:', error);
+      return {
+        success: false,
+        message: 'Failed to show file',
         error: error.message
       };
     }

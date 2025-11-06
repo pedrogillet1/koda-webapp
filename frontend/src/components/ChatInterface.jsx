@@ -1619,6 +1619,75 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 </div>
                                                             )}
 
+                                                            {/* Show File Preview Button */}
+                                                            {msg.metadata && msg.metadata.actionType === 'show_file' && msg.metadata.success && msg.metadata.document && (
+                                                                <div
+                                                                    onClick={() => {
+                                                                        console.log('👁️ [SHOW_FILE] Opening preview for:', msg.metadata.document);
+                                                                        setPreviewDocument({
+                                                                            id: msg.metadata.document.id,
+                                                                            filename: msg.metadata.document.filename,
+                                                                            mimeType: msg.metadata.document.mimeType
+                                                                        });
+                                                                    }}
+                                                                    style={{
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '12px',
+                                                                        padding: '12px 16px',
+                                                                        marginTop: '8px',
+                                                                        backgroundColor: 'white',
+                                                                        border: '1px solid #E5E5E5',
+                                                                        borderRadius: '8px',
+                                                                        cursor: 'pointer',
+                                                                        transition: 'all 0.2s ease',
+                                                                    }}
+                                                                    onMouseEnter={(e) => {
+                                                                        e.currentTarget.style.backgroundColor = '#F5F5F5';
+                                                                        e.currentTarget.style.borderColor = '#D1D1D6';
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        e.currentTarget.style.backgroundColor = 'white';
+                                                                        e.currentTarget.style.borderColor = '#E5E5E5';
+                                                                    }}
+                                                                >
+                                                                    {/* File Icon */}
+                                                                    <div style={{ fontSize: '24px' }}>
+                                                                        {msg.metadata.document.mimeType === 'application/pdf' ? '📝' :
+                                                                         msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ? '📄' :
+                                                                         msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ? '📊' :
+                                                                         msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ? '📊' :
+                                                                         msg.metadata.document.mimeType?.startsWith('image/') ? '🖼️' :
+                                                                         msg.metadata.document.mimeType?.startsWith('video/') ? '🎥' :
+                                                                         msg.metadata.document.mimeType?.startsWith('audio/') ? '🎵' :
+                                                                         '📎'}
+                                                                    </div>
+
+                                                                    {/* File Info */}
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <div style={{
+                                                                            fontSize: '14px',
+                                                                            fontWeight: '500',
+                                                                            color: '#1F1F1F',
+                                                                            marginBottom: '4px',
+                                                                            overflow: 'hidden',
+                                                                            textOverflow: 'ellipsis',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            {msg.metadata.document.filename}
+                                                                        </div>
+                                                                        <div style={{
+                                                                            fontSize: '12px',
+                                                                            color: '#6B7280'
+                                                                        }}>
+                                                                            {msg.metadata.document.fileSize ?
+                                                                                `${(msg.metadata.document.fileSize / 1024).toFixed(2)} KB` :
+                                                                                'File'}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
                                                             {/* Confidence Indicator Badge */}
                                                             {msg.confidence && (
                                                                 <div

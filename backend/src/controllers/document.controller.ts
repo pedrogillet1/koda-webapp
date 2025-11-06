@@ -917,6 +917,26 @@ export const regeneratePPTXSlides = async (req: Request, res: Response): Promise
 };
 
 /**
+ * Test LibreOffice installation
+ */
+export const testLibreOffice = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { pptxSlideGeneratorService } = await import('../services/pptxSlideGenerator.service');
+    const result = await pptxSlideGeneratorService.checkLibreOffice();
+
+    res.status(200).json(result);
+  } catch (error) {
+    const err = error as Error;
+    console.error('Test LibreOffice error:', err);
+    res.status(500).json({
+      installed: false,
+      error: err.message,
+      message: 'Failed to check LibreOffice installation'
+    });
+  }
+};
+
+/**
  * Export document with edited markdown content
  * Converts markdown back to original format or exports as markdown
  */

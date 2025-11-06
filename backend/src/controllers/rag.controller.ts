@@ -1218,6 +1218,61 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       return;
     }
 
+    // SHOW_FILE
+    if (intentResult.intent === 'show_file' && intentResult.parameters.filename) {
+      console.log(`👁️ [STREAMING ACTION] Showing file: "${intentResult.parameters.filename}"`);
+
+      const result = await fileActionsService.showFile({
+        userId,
+        filename: intentResult.parameters.filename
+      });
+
+      const userMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'user',
+          content: query,
+          metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
+        },
+      });
+
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: result.message,
+          metadata: JSON.stringify({
+            actionType: 'show_file',
+            success: result.success,
+            document: result.data?.document,
+            action: result.data?.action
+          })
+        },
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      });
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        type: 'done',
+        userMessage,
+        assistantMessage,
+        sources: []
+      })}\n\n`);
+      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
+      return;
+    }
+
     // FILE_LOCATION
     if (intentResult.intent === 'file_location' && intentResult.parameters.filename) {
       console.log(`📍 [STREAMING] Finding: "${intentResult.parameters.filename}"`);

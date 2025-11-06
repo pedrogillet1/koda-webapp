@@ -154,13 +154,13 @@ class FolderContentsHandler {
     });
 
     // Build response
-    let answer = `📂 **${folder.name}**\n\n`;
-    answer += `📍 **Location:** ${folderPath}\n`;
-    answer += `${categoryEmoji} **Category:** ${categoryName}\n\n`;
+    let answer = `**${folder.name}**\n\n`;
+    answer += `**Location:** ${folderPath}\n`;
+    answer += `**Category:** ${categoryName}\n\n`;
 
     // List subfolders
     if (subfolders.length > 0) {
-      answer += `**📁 Subfolders (${subfolders.length}):**\n`;
+      answer += `**Subfolders (${subfolders.length}):**\n`;
       subfolders.forEach(subfolder => {
         answer += `   • ${subfolder.name}\n`;
       });
@@ -169,15 +169,15 @@ class FolderContentsHandler {
 
     // List documents
     if (documents.length > 0) {
-      answer += `**📄 Documents (${documents.length}):**\n\n`;
+      answer += `**Documents (${documents.length}):**\n\n`;
       documents.forEach((doc, index) => {
         answer += `**${index + 1}. ${doc.filename}**\n`;
-        answer += `   📊 Size: ${formatFileSize(doc.fileSize)}\n`;
-        answer += `   📅 Added: ${formatDate(doc.createdAt)}\n`;
-        answer += `   📄 Type: ${this.formatMimeType(doc.mimeType)}\n\n`;
+        answer += `   Size: ${formatFileSize(doc.fileSize)}\n`;
+        answer += `   Added: ${formatDate(doc.createdAt)}\n`;
+        answer += `   Type: ${this.formatMimeType(doc.mimeType)}\n\n`;
       });
     } else {
-      answer += `**📄 Documents:** None\n\n`;
+      answer += `**Documents:** None\n\n`;
     }
 
     // Summary
@@ -195,8 +195,7 @@ class FolderContentsHandler {
       label: `Open ${folder.name} folder`,
       action: ActionType.OPEN_FOLDER,
       folderId: folder.id,
-      variant: 'primary' as const,
-      icon: '📁'
+      variant: 'primary' as const
     });
 
     // Buttons for each document (limit to first 5)
@@ -205,8 +204,7 @@ class FolderContentsHandler {
         label: `Open ${doc.filename}`,
         action: ActionType.OPEN_DOCUMENT,
         documentId: doc.id,
-        variant: 'outline' as const,
-        icon: '📄'
+        variant: 'outline' as const
       });
     });
 
@@ -216,8 +214,7 @@ class FolderContentsHandler {
         label: `Open ${subfolder.name}`,
         action: ActionType.OPEN_FOLDER,
         folderId: subfolder.id,
-        variant: 'outline' as const,
-        icon: '📁'
+        variant: 'outline' as const
       });
     });
 
@@ -266,11 +263,11 @@ class FolderContentsHandler {
     });
 
     // Build response
-    let answer = `${categoryEmoji} **${category.name} Category**\n\n`;
+    let answer = `**${category.name} Category**\n\n`;
 
     // List root folders
     if (folders.length > 0) {
-      answer += `**📁 Folders (${folders.length}):**\n`;
+      answer += `**Folders (${folders.length}):**\n`;
       folders.forEach(folder => {
         answer += `   • ${folder.name}\n`;
       });
@@ -279,7 +276,7 @@ class FolderContentsHandler {
 
     // List documents
     if (documents.length > 0) {
-      answer += `**📄 Documents (${documents.length}):**\n\n`;
+      answer += `**Documents (${documents.length}):**\n\n`;
 
       // Group by folder
       const documentsInRoot = documents.filter(d => !d.folderId);
@@ -290,7 +287,7 @@ class FolderContentsHandler {
         answer += `**Root Level:**\n`;
         documentsInRoot.forEach((doc, index) => {
           answer += `${index + 1}. ${doc.filename}\n`;
-          answer += `   📊 ${formatFileSize(doc.fileSize)} • 📅 ${formatDate(doc.createdAt)}\n\n`;
+          answer += `   ${formatFileSize(doc.fileSize)} • ${formatDate(doc.createdAt)}\n\n`;
         });
       }
 
@@ -300,7 +297,7 @@ class FolderContentsHandler {
         documentsInFolders.slice(0, 10).forEach((doc, index) => {
           const folderName = doc.folder?.name || 'Unknown';
           answer += `${index + 1}. ${doc.filename}\n`;
-          answer += `   📁 ${folderName} • 📊 ${formatFileSize(doc.fileSize)}\n\n`;
+          answer += `   ${folderName} • ${formatFileSize(doc.fileSize)}\n\n`;
         });
 
         if (documentsInFolders.length > 10) {
@@ -308,7 +305,7 @@ class FolderContentsHandler {
         }
       }
     } else {
-      answer += `**📄 Documents:** None\n\n`;
+      answer += `**Documents:** None\n\n`;
     }
 
     // Summary
@@ -326,8 +323,7 @@ class FolderContentsHandler {
       label: `Open ${category.name} category`,
       action: ActionType.OPEN_CATEGORY,
       categoryId: category.id,
-      variant: 'primary' as const,
-      icon: categoryEmoji
+      variant: 'primary' as const
     });
 
     // Buttons for folders (limit to first 3)
@@ -336,8 +332,7 @@ class FolderContentsHandler {
         label: `Open ${folder.name}`,
         action: ActionType.OPEN_FOLDER,
         folderId: folder.id,
-        variant: 'outline' as const,
-        icon: '📁'
+        variant: 'outline' as const
       });
     });
 
@@ -347,8 +342,7 @@ class FolderContentsHandler {
         label: `Open ${doc.filename}`,
         action: ActionType.OPEN_DOCUMENT,
         documentId: doc.id,
-        variant: 'outline' as const,
-        icon: '📄'
+        variant: 'outline' as const
       });
     });
 

@@ -20,6 +20,7 @@ router.post('/upload-multiple', uploadLimiter, uploadMultiple, documentControlle
 // Bulk operations (MUST be before /:id routes to avoid matching)
 router.post('/reindex-all', documentController.reindexAllDocuments);
 router.delete('/delete-all', documentController.deleteAllDocuments);
+router.get('/test-libreoffice', documentController.testLibreOffice);
 
 // List and specific document routes
 router.get('/', documentController.listDocuments);

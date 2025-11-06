@@ -106,11 +106,11 @@ class LocationQueryHandler {
     const categoryEmoji = doc.category?.emoji || '📁';
 
     const answer = `I found **${doc.filename}**! Here's where it's located:\n\n` +
-      `📂 **Folder Path:** ${folderPath}\n` +
-      `${categoryEmoji} **Category:** ${categoryName}\n` +
-      `📅 **Date Added:** ${formatDate(doc.createdAt)}\n` +
-      `📊 **File Size:** ${formatFileSize(doc.fileSize)}\n` +
-      `📄 **File Type:** ${this.formatMimeType(doc.mimeType)}\n\n` +
+      `**Folder Path:** ${folderPath}\n` +
+      `**Category:** ${categoryName}\n` +
+      `**Date Added:** ${formatDate(doc.createdAt)}\n` +
+      `**File Size:** ${formatFileSize(doc.fileSize)}\n` +
+      `**File Type:** ${this.formatMimeType(doc.mimeType)}\n\n` +
       `Would you like me to open this document or its folder?`;
 
     return {
@@ -121,15 +121,13 @@ class LocationQueryHandler {
           label: `Open ${doc.filename}`,
           action: ActionType.OPEN_DOCUMENT,
           documentId: doc.id,
-          variant: 'primary',
-          icon: '📄'
+          variant: 'primary'
         },
         {
           label: doc.folder ? `Open ${doc.folder.name} folder` : 'Open Root folder',
           action: ActionType.OPEN_FOLDER,
           folderId: doc.folder?.id || 'root',
-          variant: 'secondary',
-          icon: '📁'
+          variant: 'secondary'
         }
       ]
     };
@@ -165,9 +163,9 @@ class LocationQueryHandler {
     // Format list
     docDetails.forEach(doc => {
       answer += `**${doc.index}. ${doc.filename}**\n`;
-      answer += `   📂 Location: ${doc.folderPath}\n`;
-      answer += `   ${doc.categoryEmoji} Category: ${doc.categoryName}\n`;
-      answer += `   📅 Added: ${formatDate(doc.createdAt)}\n\n`;
+      answer += `   Location: ${doc.folderPath}\n`;
+      answer += `   Category: ${doc.categoryName}\n`;
+      answer += `   Added: ${formatDate(doc.createdAt)}\n\n`;
     });
 
     answer += `Which one would you like to open?`;
@@ -177,8 +175,7 @@ class LocationQueryHandler {
       label: `Open ${doc.filename}`,
       action: ActionType.OPEN_DOCUMENT,
       documentId: doc.id,
-      variant: 'outline' as const,
-      icon: '📄'
+      variant: 'outline' as const
     }));
 
     return {

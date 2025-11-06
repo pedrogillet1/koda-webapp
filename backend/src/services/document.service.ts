@@ -312,6 +312,8 @@ async function processDocumentWithTimeout(
           console.log('📊 Starting slide image generation in background...');
           (async () => {
             try {
+              // Import prisma in async scope
+              const prismaClient = (await import('../config/database')).default;
               const { pptxSlideGeneratorService } = await import('./pptxSlideGenerator.service');
               const slideResult = await pptxSlideGeneratorService.generateSlideImages(
                 tempFilePath,
@@ -325,7 +327,7 @@ async function processDocumentWithTimeout(
 
               if (slideResult.success && slideResult.slides) {
                 // Fetch existing slidesData to preserve text content
-                const existingMetadata = await prisma.document_metadata.findUnique({
+                const existingMetadata = await prismaClient.documentMetadata.findUnique({
                   where: { documentId }
                 });
 
@@ -359,7 +361,7 @@ async function processDocumentWithTimeout(
                 });
 
                 // Update metadata with merged data
-                await prisma.document_metadata.update({
+                await prismaClient.documentMetadata.update({
                   where: { documentId },
                   data: {
                     slidesData: JSON.stringify(mergedSlidesData)
@@ -1111,6 +1113,8 @@ async function processDocumentAsync(
           console.log('📊 Starting slide image generation in background...');
           (async () => {
             try {
+              // Import prisma in async scope
+              const prismaClient = (await import('../config/database')).default;
               const { pptxSlideGeneratorService } = await import('./pptxSlideGenerator.service');
               const slideResult = await pptxSlideGeneratorService.generateSlideImages(
                 tempFilePath,
@@ -1124,7 +1128,7 @@ async function processDocumentAsync(
 
               if (slideResult.success && slideResult.slides) {
                 // Fetch existing slidesData to preserve text content
-                const existingMetadata = await prisma.document_metadata.findUnique({
+                const existingMetadata = await prismaClient.documentMetadata.findUnique({
                   where: { documentId }
                 });
 
@@ -1158,7 +1162,7 @@ async function processDocumentAsync(
                 });
 
                 // Update metadata with merged data
-                await prisma.document_metadata.update({
+                await prismaClient.documentMetadata.update({
                   where: { documentId },
                   data: {
                     slidesData: JSON.stringify(mergedSlidesData)

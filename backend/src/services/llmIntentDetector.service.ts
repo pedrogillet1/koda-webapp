@@ -64,13 +64,17 @@ Analyze the following user query and determine the intent.
 7. **delete_file** - User wants to delete a file
    - Examples: "delete document X", "remove file Y", "erase Z", "get rid of X"
 
-8. **metadata_query** - User wants information about files (size, type, date, count)
+8. **show_file** - User wants to preview/see/view/open a specific file
+   - Examples: "show me this file", "show me document X", "show me the file with Y", "take me to file X", "open document X", "I want to see this file", "show me image 1", "let me see the file"
+   - Extract: filename (the file name or reference)
+
+9. **metadata_query** - User wants information about files (size, type, date, count)
    - Examples: "how many files", "what's the size of X", "when was Y uploaded", "file count", "what types of documents"
 
-9. **rag_query** - User wants to ask questions about document content (default)
+10. **rag_query** - User wants to ask questions about document content (default)
    - Examples: "what does document X say about Y", "explain concept Z", "summarize X"
 
-10. **greeting** - User is greeting or making small talk
+11. **greeting** - User is greeting or making small talk
    - Examples: "hello", "hi", "how are you", "good morning", "olá", "hola"
 
 **User Query:** "${query}"
@@ -153,6 +157,11 @@ Respond with JSON only:`;
         throw new Error('Missing oldFilename or newFilename parameter');
       }
 
+      if (intentResult.intent === 'show_file' && !intentResult.parameters?.filename) {
+        console.error('❌ show_file intent missing filename parameter');
+        throw new Error('Missing filename parameter');
+      }
+
       // Log for debugging
       console.log(`🧠 LLM Intent Detection:`, {
         query: query.substring(0, 50),
@@ -203,7 +212,7 @@ Respond with JSON only:`;
   async detectFileAction(query: string): Promise<{ action: string | null; parameters: Record<string, any> }> {
     const result = await this.detectIntent(query);
 
-    const fileActions = ['list_files', 'search_files', 'rename_file', 'delete_file', 'file_location'];
+    const fileActions = ['list_files', 'search_files', 'rename_file', 'delete_file', 'file_location', 'show_file'];
 
     if (fileActions.includes(result.intent) && result.confidence > 0.7) {
       return {
