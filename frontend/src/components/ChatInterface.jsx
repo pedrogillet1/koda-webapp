@@ -439,13 +439,23 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     attachedFiles: optimisticMessage?.attachedFiles || pending.userMessage.attachedFiles || []
                 };
 
+                // Parse metadata for assistant message (for file actions, etc.)
+                let assistantMessageWithMetadata = { ...pending.assistantMessage };
+                if (pending.assistantMessage.metadata) {
+                    const parsedMetadata = typeof pending.assistantMessage.metadata === 'string'
+                        ? JSON.parse(pending.assistantMessage.metadata)
+                        : pending.assistantMessage.metadata;
+                    assistantMessageWithMetadata.metadata = parsedMetadata;
+                    console.log('✅ Parsed assistant message metadata:', parsedMetadata);
+                }
+
                 // Replace optimistic user message with real one, then add assistant message
                 const withoutOptimistic = prev.filter(m => {
                     if (m.isOptimistic) return false;
                     if (m.id === pending.userMessage?.id || m.id === pending.assistantMessage?.id) return false;
                     return true;
                 });
-                return [...withoutOptimistic, userMessageWithFiles, pending.assistantMessage];
+                return [...withoutOptimistic, userMessageWithFiles, assistantMessageWithMetadata];
             });
         }
     }, [isStreaming]);
