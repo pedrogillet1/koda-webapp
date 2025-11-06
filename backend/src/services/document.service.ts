@@ -294,10 +294,19 @@ async function processDocumentWithTimeout(
 
         if (result.success) {
           extractedText = result.fullText || '';
-          slidesData = result.slides || [];
+          const extractedSlides = result.slides || [];
           pptxMetadata = result.metadata || {};
           pageCount = result.totalSlides || null;
-          console.log(`✅ PPTX extracted: ${slidesData?.length || 0} slides, ${extractedText.length} characters`);
+
+          // Store slide text data immediately (even without images)
+          slidesData = extractedSlides.map((slide) => ({
+            slideNumber: slide.slide_number,
+            content: slide.content,
+            textCount: slide.text_count,
+            imageUrl: null, // Will be updated later if images are generated
+          }));
+
+          console.log(`✅ PPTX extracted: ${slidesData.length} slides, ${extractedText.length} characters`);
 
           // 🆕 Phase 4C: Process PowerPoint into slide-level chunks
           console.log('📊 Processing PowerPoint into slide-level chunks...');
@@ -325,16 +334,45 @@ async function processDocumentWithTimeout(
               );
 
               if (slideResult.success && slideResult.slides) {
-                // Update metadata with image URLs
+                // Fetch existing slidesData to preserve text content
+                const existingMetadata = await prisma.document_metadata.findUnique({
+                  where: { documentId }
+                });
+
+                let existingSlidesData: any[] = [];
+                try {
+                  if (existingMetadata?.slidesData) {
+                    existingSlidesData = typeof existingMetadata.slidesData === 'string'
+                      ? JSON.parse(existingMetadata.slidesData)
+                      : existingMetadata.slidesData as any[];
+                  }
+                } catch (e) {
+                  console.warn('Failed to parse existing slidesData, will create new');
+                }
+
+                // Merge image URLs with existing slide data
+                const mergedSlidesData = slideResult.slides.map(slide => {
+                  // Find matching slide in existing data
+                  const existingSlide = existingSlidesData.find(
+                    (s: any) => s.slideNumber === slide.slideNumber || s.slide_number === slide.slideNumber
+                  );
+
+                  return {
+                    slideNumber: slide.slideNumber,
+                    imageUrl: slide.publicUrl,
+                    width: slide.width,
+                    height: slide.height,
+                    // Preserve existing text content
+                    content: existingSlide?.content || '',
+                    text_count: existingSlide?.text_count || existingSlide?.textCount || 0
+                  };
+                });
+
+                // Update metadata with merged data
                 await prisma.document_metadata.update({
                   where: { documentId },
                   data: {
-                    slidesData: JSON.stringify(slideResult.slides.map(slide => ({
-                      slideNumber: slide.slideNumber,
-                      imageUrl: slide.publicUrl,
-                      width: slide.width,
-                      height: slide.height
-                    })))
+                    slidesData: JSON.stringify(mergedSlidesData)
                   }
                 });
                 console.log(`✅ [Background] Generated ${slideResult.totalSlides} slide images for ${filename}`);
@@ -1033,10 +1071,19 @@ async function processDocumentAsync(
 
         if (result.success) {
           extractedText = result.fullText || '';
-          slidesData = result.slides || [];
+          const extractedSlides = result.slides || [];
           pptxMetadata = result.metadata || {};
           pageCount = result.totalSlides || null;
-          console.log(`✅ PPTX extracted: ${slidesData?.length || 0} slides, ${extractedText.length} characters`);
+
+          // Store slide text data immediately (even without images)
+          slidesData = extractedSlides.map((slide) => ({
+            slideNumber: slide.slide_number,
+            content: slide.content,
+            textCount: slide.text_count,
+            imageUrl: null, // Will be updated later if images are generated
+          }));
+
+          console.log(`✅ PPTX extracted: ${slidesData.length} slides, ${extractedText.length} characters`);
 
           // 🆕 Phase 4C: Process PowerPoint into slide-level chunks
           console.log('📊 Processing PowerPoint into slide-level chunks...');
@@ -1064,16 +1111,45 @@ async function processDocumentAsync(
               );
 
               if (slideResult.success && slideResult.slides) {
-                // Update metadata with image URLs
+                // Fetch existing slidesData to preserve text content
+                const existingMetadata = await prisma.document_metadata.findUnique({
+                  where: { documentId }
+                });
+
+                let existingSlidesData: any[] = [];
+                try {
+                  if (existingMetadata?.slidesData) {
+                    existingSlidesData = typeof existingMetadata.slidesData === 'string'
+                      ? JSON.parse(existingMetadata.slidesData)
+                      : existingMetadata.slidesData as any[];
+                  }
+                } catch (e) {
+                  console.warn('Failed to parse existing slidesData, will create new');
+                }
+
+                // Merge image URLs with existing slide data
+                const mergedSlidesData = slideResult.slides.map(slide => {
+                  // Find matching slide in existing data
+                  const existingSlide = existingSlidesData.find(
+                    (s: any) => s.slideNumber === slide.slideNumber || s.slide_number === slide.slideNumber
+                  );
+
+                  return {
+                    slideNumber: slide.slideNumber,
+                    imageUrl: slide.publicUrl,
+                    width: slide.width,
+                    height: slide.height,
+                    // Preserve existing text content
+                    content: existingSlide?.content || '',
+                    text_count: existingSlide?.text_count || existingSlide?.textCount || 0
+                  };
+                });
+
+                // Update metadata with merged data
                 await prisma.document_metadata.update({
                   where: { documentId },
                   data: {
-                    slidesData: JSON.stringify(slideResult.slides.map(slide => ({
-                      slideNumber: slide.slideNumber,
-                      imageUrl: slide.publicUrl,
-                      width: slide.width,
-                      height: slide.height
-                    })))
+                    slidesData: JSON.stringify(mergedSlidesData)
                   }
                 });
                 console.log(`✅ [Background] Generated ${slideResult.totalSlides} slide images for ${filename}`);
@@ -2661,13 +2737,39 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
       const slides = slideResult.slides || [];
       console.log(`✅ Successfully regenerated ${slides.length} slides`);
 
-      // 6. Update metadata with new slides data
-      const slidesData = slides.map((slide) => ({
-        slideNumber: slide.slideNumber,
-        imageUrl: slide.gcsPath ? `gcs://${config.GCS_BUCKET_NAME}/${slide.gcsPath}` : slide.publicUrl || '',
-        width: slide.width || 1920,
-        height: slide.height || 1080,
-      }));
+      // 6. Fetch existing slidesData to preserve text content
+      const existingMetadata = await prisma.documentMetadata.findUnique({
+        where: { documentId: document.id }
+      });
+
+      let existingSlidesData: any[] = [];
+      try {
+        if (existingMetadata?.slidesData) {
+          existingSlidesData = typeof existingMetadata.slidesData === 'string'
+            ? JSON.parse(existingMetadata.slidesData)
+            : existingMetadata.slidesData as any[];
+        }
+      } catch (e) {
+        console.warn('Failed to parse existing slidesData, will create new');
+      }
+
+      // Merge image URLs with existing slide data
+      const slidesData = slides.map((slide) => {
+        // Find matching slide in existing data
+        const existingSlide = existingSlidesData.find(
+          (s: any) => s.slideNumber === slide.slideNumber || s.slide_number === slide.slideNumber
+        );
+
+        return {
+          slideNumber: slide.slideNumber,
+          imageUrl: slide.gcsPath ? `gcs://${config.GCS_BUCKET_NAME}/${slide.gcsPath}` : slide.publicUrl || '',
+          width: slide.width || 1920,
+          height: slide.height || 1080,
+          // Preserve existing text content
+          content: existingSlide?.content || '',
+          text_count: existingSlide?.text_count || existingSlide?.textCount || 0
+        };
+      });
 
       await prisma.documentMetadata.update({
         where: { documentId: document.id },

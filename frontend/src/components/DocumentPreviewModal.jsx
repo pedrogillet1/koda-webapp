@@ -4,6 +4,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../services/api';
 import pdfIcon from '../assets/pdf-icon.svg';
 import docIcon from '../assets/doc-icon.svg';
+import { downloadFile } from '../utils/browserUtils';
 
 // Set up the worker for pdf.js
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -56,19 +57,26 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
         if (isDocx) {
           console.log('🔍 Requesting DOCX preview for document:', document.id);
 
-          // Get PDF preview for DOCX with timeout
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('DOCX preview timeout')), 60000)
-          );
+          try {
+            // Get PDF preview for DOCX with timeout
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('DOCX preview timeout')), 60000)
+            );
 
-          const previewResponse = await Promise.race([
-            api.get(`/api/documents/${document.id}/preview`),
-            timeoutPromise
-          ]);
+            const previewResponse = await Promise.race([
+              api.get(`/api/documents/${document.id}/preview`),
+              timeoutPromise
+            ]);
 
-          const { previewUrl: pdfUrl } = previewResponse.data;
-          console.log('✅ DOCX preview received:', pdfUrl?.substring(0, 100));
-          setPreviewUrl(pdfUrl);
+            const { previewUrl: pdfUrl } = previewResponse.data;
+            console.log('✅ DOCX preview received:', pdfUrl?.substring(0, 100));
+            setPreviewUrl(pdfUrl);
+          } catch (docxError) {
+            console.error('❌ DOCX preview failed:', docxError);
+            // Set previewUrl to null so it shows error state
+            setPreviewUrl(null);
+            throw docxError; // Re-throw to be caught by outer catch
+          }
         } else {
           // For PDF files, get document stream as blob
           const response = await api.get(`/api/documents/${document.id}/stream`, {
@@ -166,19 +174,15 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
   // Download document
   const handleDownload = async () => {
     try {
-      const response = await api.get(`/api/documents/${document.id}/stream?download=true`, {
-        responseType: 'blob'
-      });
-      const url = window.URL.createObjectURL(response.data);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = document.filename || 'document';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // Call the download endpoint to get the original file
+      const response = await api.get(`/api/documents/${document.id}/download`);
+      const downloadUrl = response.data.url;
+
+      // Use browser-aware download function with the original file URL
+      downloadFile(downloadUrl, document.filename);
     } catch (error) {
       console.error('Error downloading document:', error);
+      alert('Failed to download document');
     }
   };
 
@@ -190,10 +194,22 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
 
   // Get file type icon
   const getFileIcon = () => {
-    if (!document) return null;
-    const extension = document.filename.split('.').pop().toLowerCase();
-    if (extension === 'pdf') return pdfIcon;
-    if (['doc', 'docx'].includes(extension)) return docIcon;
+    if (!document) return pdfIcon;
+
+    // Check mimeType first for most reliable detection
+    if (document.mimeType) {
+      if (document.mimeType === 'application/pdf') return pdfIcon;
+      if (document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+          document.mimeType === 'application/msword') return docIcon;
+    }
+
+    // Fallback to filename extension
+    if (document.filename) {
+      const extension = document.filename.split('.').pop().toLowerCase();
+      if (extension === 'pdf') return pdfIcon;
+      if (['doc', 'docx'].includes(extension)) return docIcon;
+    }
+
     return pdfIcon; // default
   };
 
@@ -506,10 +522,13 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                   }}>
                     <div style={{ fontSize: 64, marginBottom: 20 }}>📄</div>
                     <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
-                      Failed to load PDF
+                      Failed to load document preview
                     </div>
-                    <div style={{ fontSize: 14, color: '#6C6C6C', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
+                    <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
                       {document.filename}
+                    </div>
+                    <div style={{ fontSize: 13, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans' }}>
+                      The document may still be processing. Please try opening the full preview.
                     </div>
                   </div>
                 }

@@ -277,6 +277,77 @@ const DocumentsPage = () => {
     );
   }, [contextDocuments, searchQuery]);
 
+  // Get file icon based on document type
+  const getFileIcon = (doc) => {
+    // Prioritize MIME type over file extension (more reliable for encrypted filenames)
+    const mimeType = doc?.mimeType || '';
+    const filename = doc?.filename || '';
+
+    // ========== VIDEO FILES ==========
+    // QuickTime videos (.mov) - MUST check before generic video check
+    if (mimeType === 'video/quicktime') {
+      return movIcon; // Blue MOV icon
+    }
+
+    // MP4 videos - specific check only
+    if (mimeType === 'video/mp4') {
+      return mp4Icon; // Pink MP4 icon
+    }
+
+    // Other video types - use generic video icon (mp4)
+    if (mimeType.startsWith('video/')) {
+      return mp4Icon;
+    }
+
+    // ========== AUDIO FILES ==========
+    if (mimeType.startsWith('audio/') || mimeType === 'audio/mpeg' || mimeType === 'audio/mp3') {
+      return mp3Icon;
+    }
+
+    // ========== DOCUMENT FILES ==========
+    if (mimeType === 'application/pdf') return pdfIcon;
+    if (mimeType.includes('word') || mimeType.includes('msword')) return docIcon;
+    if (mimeType.includes('sheet') || mimeType.includes('excel')) return xlsIcon;
+    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return pptxIcon;
+    if (mimeType === 'text/plain' || mimeType === 'text/csv') return txtIcon;
+
+    // ========== IMAGE FILES ==========
+    if (mimeType.startsWith('image/')) {
+      if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return jpgIcon;
+      if (mimeType.includes('png')) return pngIcon;
+      return pngIcon; // Default for other images
+    }
+
+    // ========== FALLBACK: Extension-based check ==========
+    // (For files where MIME type is not set or is generic)
+    if (filename) {
+      const ext = filename.toLowerCase();
+      // Documents
+      if (ext.match(/\.(pdf)$/)) return pdfIcon;
+      if (ext.match(/\.(doc|docx)$/)) return docIcon;
+      if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
+      if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
+      if (ext.match(/\.(txt)$/)) return txtIcon;
+
+      // Images
+      if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
+      if (ext.match(/\.(png)$/)) return pngIcon;
+
+      // Videos
+      if (ext.match(/\.(mov)$/)) return movIcon;
+      if (ext.match(/\.(mp4)$/)) return mp4Icon;
+
+      // Audio
+      if (ext.match(/\.(mp3|wav|aac|m4a)$/)) return mp3Icon;
+
+      // Adobe Premiere Pro / Video editing files use generic file icon
+      // .prproj, .pek, .cfa - let them fall through to default
+    }
+
+    // Final fallback - for unknown/binary files (including .prproj, .pek, .cfa)
+    return txtIcon;
+  };
+
   // Handle page-level file drop
   const handlePageDrop = useCallback((e) => {
     e.preventDefault();
@@ -525,18 +596,16 @@ const DocumentsPage = () => {
                             onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
-                            <div style={{
-                              width: 40,
-                              height: 40,
-                              background: '#F5F5F5',
-                              borderRadius: 8,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: 20
-                            }}>
-                              📄
-                            </div>
+                            <img
+                              src={getFileIcon(doc)}
+                              alt=""
+                              style={{
+                                width: 40,
+                                height: 40,
+                                objectFit: 'contain',
+                                flexShrink: 0
+                              }}
+                            />
                             <div style={{flex: 1, overflow: 'hidden'}}>
                               <div style={{
                                 color: '#32302C',
