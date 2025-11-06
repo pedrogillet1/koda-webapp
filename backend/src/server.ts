@@ -160,8 +160,12 @@ io.on('connection', (socket) => {
         data.attachedDocumentId // Use actual attached document ID (not answerLength!)
       );
 
+      // ✅ CRITICAL: Apply post-processing to fullResponse before saving to database
+      // This ensures consistency between streaming (which processes chunks) and refresh (which loads from DB)
+      const processedAnswer = await ragService.postProcessAnswerExport(fullResponse);
+
       const result = {
-        answer: fullResponse,
+        answer: processedAnswer,  // Use processed answer instead of raw fullResponse
         sources: sources,
         expandedQuery: undefined,
         contextId: undefined,

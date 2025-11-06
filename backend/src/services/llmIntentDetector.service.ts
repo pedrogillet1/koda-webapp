@@ -110,7 +110,16 @@ Analyze the following user query and determine the intent.
 Respond with JSON only:`;
 
     try {
-      const result = await this.model.generateContent(prompt);
+      // ✅ FIX: Add 10-second timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('LLM intent detection timeout (10s)')), 10000)
+      );
+
+      const result = await Promise.race([
+        this.model.generateContent(prompt),
+        timeoutPromise
+      ]);
+
       const responseText = result.response.text();
 
       // Extract JSON from response (handle markdown code blocks)
@@ -126,6 +135,22 @@ Respond with JSON only:`;
       // Validate result
       if (!intentResult.intent || typeof intentResult.confidence !== 'number') {
         throw new Error('Invalid intent result format');
+      }
+
+      // ✅ FIX: Validate required parameters for each intent
+      if (intentResult.intent === 'create_folder' && !intentResult.parameters?.folderName) {
+        console.error('❌ create_folder intent missing folderName parameter');
+        throw new Error('Missing folderName parameter');
+      }
+
+      if (intentResult.intent === 'move_files' && (!intentResult.parameters?.filename || !intentResult.parameters?.targetFolder)) {
+        console.error('❌ move_files intent missing required parameters', intentResult.parameters);
+        throw new Error('Missing filename or targetFolder parameter');
+      }
+
+      if (intentResult.intent === 'rename_file' && (!intentResult.parameters?.oldFilename || !intentResult.parameters?.newFilename)) {
+        console.error('❌ rename_file intent missing required parameters');
+        throw new Error('Missing oldFilename or newFilename parameter');
       }
 
       // Log for debugging
