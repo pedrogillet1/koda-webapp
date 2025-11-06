@@ -127,11 +127,8 @@ export class PPTXSlideGeneratorService {
         throw new Error(`PPTX file not found: ${pptxFilePath}`);
       }
 
-      // 2. Check LibreOffice installation
-      const libreOfficeCheck = await this.checkLibreOffice();
-      if (!libreOfficeCheck.installed) {
-        throw new Error(libreOfficeCheck.message);
-      }
+      // 2. Skip LibreOffice check (causes timeout on Windows, we'll let conversion fail if needed)
+      console.log(`⏭️  [PPTX Slide Generator] Skipping LibreOffice check, proceeding to conversion...`);
 
       // 3. Create temp directory for processing
       const relativeTempDir = path.join('temp', `pptx-${documentId}-${Date.now()}`);

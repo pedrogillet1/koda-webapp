@@ -381,14 +381,19 @@ async function processDocumentWithTimeout(
               }
             } catch (slideError: any) {
               console.warn(`⚠️ [Background] Slide image generation error for ${filename}:`, slideError.message);
+            } finally {
+              // Clean up temp file after processing
+              try {
+                fs.unlinkSync(tempFilePath);
+                console.log(`🗑️  [Background] Cleaned up temp file for ${filename}`);
+              } catch (cleanupError: any) {
+                console.warn(`⚠️  [Background] Failed to clean up temp file: ${cleanupError.message}`);
+              }
             }
           })().catch(err => console.error('Background slide generation error:', err));
         } else {
           throw new Error('PPTX extraction failed');
         }
-
-        // Clean up temp file
-        fs.unlinkSync(tempFilePath);
       } catch (pptxError: any) {
         console.error('❌ CRITICAL: Python PPTX extraction failed. This document will be marked as failed.');
         console.error('   └── Error:', pptxError.message);
@@ -1158,14 +1163,19 @@ async function processDocumentAsync(
               }
             } catch (slideError: any) {
               console.warn(`⚠️ [Background] Slide image generation error for ${filename}:`, slideError.message);
+            } finally {
+              // Clean up temp file after processing
+              try {
+                fs.unlinkSync(tempFilePath);
+                console.log(`🗑️  [Background] Cleaned up temp file for ${filename}`);
+              } catch (cleanupError: any) {
+                console.warn(`⚠️  [Background] Failed to clean up temp file: ${cleanupError.message}`);
+              }
             }
           })().catch(err => console.error('Background slide generation error:', err));
         } else {
           throw new Error('PPTX extraction failed');
         }
-
-        // Clean up temp file
-        fs.unlinkSync(tempFilePath);
       } catch (pptxError: any) {
         console.error('❌ CRITICAL: Python PPTX extraction failed. This document will be marked as failed.');
         console.error('   └── Error:', pptxError.message);
