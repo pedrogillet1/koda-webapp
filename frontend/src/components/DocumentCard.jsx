@@ -1,10 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import pdfIcon from '../assets/pdf-icon.svg';
-import docIcon from '../assets/doc-icon.svg';
-import xlsIcon from '../assets/xls.svg';
-import pptIcon from '../assets/pptx.svg';
-import fileIcon from '../assets/txt-icon.svg'; // Use txt-icon as generic file fallback
+import pdfIcon from '../assets/pdf-icon.png';
+import docIcon from '../assets/doc-icon.png';
+import xlsIcon from '../assets/xls.png';
+import pptIcon from '../assets/pptx.png';
+import fileIcon from '../assets/txt-icon.png'; // Use txt-icon as generic file fallback
 
 /**
  * DocumentCard Component

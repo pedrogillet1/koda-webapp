@@ -11,15 +11,15 @@ import * as chatService from '../services/chatService';
 import useStreamingText from '../hooks/useStreamingText';
 import VoiceInput from './VoiceInput';
 import { useNavigate, useLocation } from 'react-router-dom';
-import pdfIcon from '../assets/pdf-icon.svg';
-import docIcon from '../assets/doc-icon.svg';
-import txtIcon from '../assets/txt-icon.svg';
-import xlsIcon from '../assets/xls.svg';
-import jpgIcon from '../assets/jpg-icon.svg';
-import pngIcon from '../assets/png-icon.svg';
-import pptxIcon from '../assets/pptx.svg';
-import movIcon from '../assets/mov.svg';
-import mp4Icon from '../assets/mp4.svg';
+import pdfIcon from '../assets/pdf-icon.png';
+import docIcon from '../assets/doc-icon.png';
+import txtIcon from '../assets/txt-icon.png';
+import xlsIcon from '../assets/xls.png';
+import jpgIcon from '../assets/jpg-icon.png';
+import pngIcon from '../assets/png-icon.png';
+import pptxIcon from '../assets/pptx.png';
+import movIcon from '../assets/mov.png';
+import mp4Icon from '../assets/mp4.png';
 import mp3Icon from '../assets/mp3.svg';
 import GeneratedDocumentCard from './GeneratedDocumentCard';
 import DocumentCard from './DocumentCard';
@@ -617,27 +617,37 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 if (msg.id && !seenIds.has(msg.id)) {
                     seenIds.add(msg.id);
 
-                    // Parse RAG sources from metadata if present
-                    if (msg.metadata && msg.role === 'assistant') {
+                    // Parse metadata for both assistant and user messages
+                    if (msg.metadata) {
                         try {
                             const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
-                            if (metadata.ragSources) {
-                                msg.ragSources = metadata.ragSources;
+
+                            // Parse RAG sources for assistant messages
+                            if (msg.role === 'assistant') {
+                                if (metadata.ragSources) {
+                                    msg.ragSources = metadata.ragSources;
+                                }
+                                if (metadata.webSources) {
+                                    msg.webSources = metadata.webSources;
+                                }
+                                if (metadata.expandedQuery) {
+                                    msg.expandedQuery = metadata.expandedQuery;
+                                }
+                                if (metadata.actions) {
+                                    msg.actions = metadata.actions;
+                                }
+                                if (metadata.contextId) {
+                                    msg.contextId = metadata.contextId;
+                                }
                             }
-                            if (metadata.webSources) {
-                                msg.webSources = metadata.webSources;
-                            }
-                            if (metadata.expandedQuery) {
-                                msg.expandedQuery = metadata.expandedQuery;
-                            }
-                            if (metadata.actions) {
-                                msg.actions = metadata.actions;
-                            }
-                            if (metadata.contextId) {
-                                msg.contextId = metadata.contextId;
+
+                            // ✅ FIX #1: Parse attachedFiles for user messages to persist on refresh
+                            if (msg.role === 'user' && metadata.attachedFiles) {
+                                msg.attachedFiles = metadata.attachedFiles;
+                                console.log(`📎 [LOAD] Restored ${metadata.attachedFiles.length} attached files for user message`);
                             }
                         } catch (e) {
-                            console.error('Error parsing RAG metadata:', e);
+                            console.error('Error parsing message metadata:', e);
                         }
                     }
 
@@ -1048,7 +1058,28 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         // Upload files in background if attached, or use already-uploaded document
         let uploadedDocuments = [];
         if (filesToUpload.length > 0) {
+            // ✅ FIX: Show accurate upload status message
+            setCurrentStage({ stage: 'uploading', message: `Uploading and processing ${filesToUpload.length} file(s)...` });
             uploadedDocuments = await uploadMultipleFiles(filesToUpload);
+            setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+
+            // ✅ FIX: Update optimistic message with document IDs after upload completes
+            if (uploadedDocuments.length > 0) {
+                setMessages((prev) => prev.map(msg => {
+                    if (msg.id === tempUserId && msg.isOptimistic) {
+                        console.log('📎 Updating optimistic message with uploaded document IDs');
+                        return {
+                            ...msg,
+                            attachedFiles: uploadedDocuments.map(doc => ({
+                                id: doc.id,
+                                name: doc.filename || doc.name || filesToUpload.find(f => f.name)?.name,
+                                type: doc.mimeType || doc.type || filesToUpload.find(f => f.type)?.type
+                            }))
+                        };
+                    }
+                    return msg;
+                }));
+            }
 
             // If no message text was provided, add a default message
             if (uploadedDocuments.length > 0 && !messageText.trim()) {
@@ -2498,7 +2529,53 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
                 {/* Document Attachments Banner - Hide when loading/streaming */}
                 {(attachedDocuments.length > 0 || (messages.length > 0 && messages[messages.length - 1]?.role === 'user' && messages[messages.length - 1]?.attachedFiles?.length > 0)) && !isLoading && !isStreaming && (
-                    <div style={{marginBottom: 12, padding: 12, background: 'white', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
+                    <div
+                        onClick={() => {
+                            // ✅ FIX #2: Make banner clickable to preview document
+                            console.log('🖱️ [BANNER CLICK] Attachment banner clicked');
+                            console.log('📎 [BANNER CLICK] attachedDocuments:', attachedDocuments);
+                            console.log('💬 [BANNER CLICK] Last message attachedFiles:', messages.length > 0 && messages[messages.length - 1]?.attachedFiles);
+
+                            const docs = attachedDocuments.length > 0
+                                ? attachedDocuments
+                                : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
+
+                            console.log('📋 [BANNER CLICK] Resolved docs array:', docs);
+
+                            if (docs.length > 0 && docs[0].id) {
+                                console.log('✅ [BANNER CLICK] Opening preview for document:', {
+                                    id: docs[0].id,
+                                    filename: docs[0].name,
+                                    mimeType: docs[0].type
+                                });
+                                setPreviewDocument({
+                                    id: docs[0].id,
+                                    filename: docs[0].name,
+                                    mimeType: docs[0].type
+                                });
+                            } else {
+                                console.warn('⚠️ [BANNER CLICK] No valid document found to preview');
+                            }
+                        }}
+                        style={{
+                            marginBottom: 12,
+                            padding: 12,
+                            background: 'white',
+                            borderRadius: 12,
+                            border: '1px solid #E6E6EC',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            cursor: 'pointer',  // ✅ Show it's clickable
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#F9F9FB';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'white';
+                        }}
+                    >
                         <img
                             src={getFileIcon((() => {
                                 const docs = attachedDocuments.length > 0

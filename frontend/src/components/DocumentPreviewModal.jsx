@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../services/api';
-import pdfIcon from '../assets/pdf-icon.svg';
-import docIcon from '../assets/doc-icon.svg';
+import pdfIcon from '../assets/pdf-icon.png';
+import docIcon from '../assets/doc-icon.png';
 import { downloadFile } from '../utils/browserUtils';
 
 // Set up the worker for pdf.js

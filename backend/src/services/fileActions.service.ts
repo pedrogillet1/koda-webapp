@@ -126,7 +126,7 @@ class FileActionsService {
     // First try exact match (case-insensitive)
     let document = await prisma.document.findFirst({
       where: {
-        filename: { equals: filename, mode: 'insensitive' },
+        filename: filename,
         userId: userId,
         status: { not: 'deleted' },
       },
@@ -402,7 +402,7 @@ class FileActionsService {
     let folder = await prisma.folder.findFirst({
       where: {
         userId,
-        name: { equals: folderName, mode: 'insensitive' }
+        name: folderName
       }
     });
 

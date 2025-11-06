@@ -19,9 +19,9 @@ import { ReactComponent as MinusIcon } from '../assets/Minus.svg';
 import { ReactComponent as StarIcon } from '../assets/Star.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import folderIcon from '../assets/folder_icon.svg';
-import pdfIcon from '../assets/pdf-icon.svg';
-import docIcon from '../assets/doc-icon.svg';
-import xlsIcon from '../assets/xls.svg';
+import pdfIcon from '../assets/pdf-icon.png';
+import docIcon from '../assets/doc-icon.png';
+import xlsIcon from '../assets/xls.png';
 import {
   isSafari,
   isMacOS,

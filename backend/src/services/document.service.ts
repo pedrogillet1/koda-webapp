@@ -181,31 +181,21 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
     },
   });
 
-  // ⚡ SYNCHRONOUS PROCESSING - Wait for all steps to complete
-  console.log('🔄 Processing document synchronously...');
+  // ⚡ ASYNCHRONOUS PROCESSING - Don't wait for all steps to complete
+  console.log('🔄 Starting document processing asynchronously...');
 
-  try {
-    await processDocumentInBackground(document.id, fileBuffer, filename, mimeType, userId, thumbnailUrl);
-
-    // Fetch updated document with all relationships
-    const completedDocument = await prisma.document.findUnique({
-      where: { id: document.id },
-      include: { folder: true },
+  // Start processing in the background without awaiting
+  processDocumentInBackground(document.id, fileBuffer, filename, mimeType, userId, thumbnailUrl)
+    .then(() => {
+      console.log(`✅ Document processing complete: ${filename}`);
+    })
+    .catch((error: any) => {
+      console.error('❌ Document processing failed:', error.message);
     });
 
-    console.log(`✅ Document processing complete: ${filename}`);
-    return completedDocument!;
-  } catch (error: any) {
-    console.error('❌ Document processing failed:', error.message);
-
-    // Mark document as failed
-    await prisma.document.update({
-      where: { id: document.id },
-      data: { status: 'failed' },
-    });
-
-    throw new Error(`Document processing failed: ${error.message}`);
-  }
+  // Return immediately with the document in 'processing' status
+  console.log(`✅ Document created, processing in background: ${filename}`);
+  return document;
 };
 
 /**
@@ -805,16 +795,33 @@ async function processDocumentWithTimeout(
       }
     }
 
-    // 🔍 VERIFY PINECONE STORAGE - Critical step!
+    // 🔍 VERIFY PINECONE STORAGE - Critical step with retry logic for eventual consistency!
     console.log('🔍 Step 7: Verifying Pinecone storage...');
     const pineconeService = await import('./pinecone.service');
-    const verification = await pineconeService.default.verifyDocument(documentId);
 
-    if (!verification.success) {
-      throw new Error(`Pinecone verification failed: ${verification.error || 'No vectors found'}`);
+    // Pinecone has eventual consistency, so we need to retry with delays
+    const maxRetries = 5;
+    const retryDelay = 2000; // 2 seconds between retries
+    let verification = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      console.log(`🔄 Verification attempt ${attempt}/${maxRetries}...`);
+      verification = await pineconeService.default.verifyDocument(documentId);
+
+      if (verification.success) {
+        console.log(`✅ Verification passed: Found ${verification.vectorCount} vectors in Pinecone`);
+        break;
+      }
+
+      if (attempt < maxRetries) {
+        console.log(`⏳ Vectors not found yet, waiting ${retryDelay}ms before retry ${attempt + 1}...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
     }
 
-    console.log(`✅ Verification passed: Found ${verification.vectorCount} vectors in Pinecone`);
+    if (!verification || !verification.success) {
+      throw new Error(`Pinecone verification failed after ${maxRetries} attempts: ${verification?.error || 'No vectors found'}`);
+    }
 
     // 🔍 PHASE 3 WEEK 9-10: Extract entities and auto-tag document
     console.log('🔍 Step 8: Extracting entities and auto-tagging...');

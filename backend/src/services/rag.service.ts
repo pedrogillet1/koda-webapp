@@ -86,20 +86,28 @@ async function initializePinecone() {
 function detectLanguage(query: string): 'pt' | 'es' | 'fr' | 'en' {
   const lower = query.toLowerCase();
 
+  // Helper function to match whole words only (not substrings)
+  const countMatches = (text: string, words: string[]): number => {
+    return words.filter(word => {
+      // Create regex with word boundaries
+      const regex = new RegExp('\\b' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+      return regex.test(text);
+    }).length;
+  };
+
   // Portuguese indicators
   const ptWords = ['quantos', 'quantas', 'quais', 'que', 'tenho', 'salvei', 'salvo',
                    'documento', 'documentos', 'arquivo', 'arquivos', 'pasta', 'cria', 'criar'];
-  const ptCount = ptWords.filter(word => lower.includes(word)).length;
+  const ptCount = countMatches(lower, ptWords);
 
   // Spanish indicators
   const esWords = ['cuántos', 'cuántas', 'cuáles', 'qué', 'tengo', 'documento',
                    'documentos', 'archivo', 'archivos', 'carpeta', 'crear'];
-  const esCount = esWords.filter(word => lower.includes(word)).length;
+  const esCount = countMatches(lower, esWords);
 
   // French indicators
-  const frWords = ['combien', 'quels', 'quelles', 'quel', 'ai', 'j\'ai',
-                   'document', 'documents', 'fichier', 'fichiers', 'dossier', 'créer'];
-  const frCount = frWords.filter(word => lower.includes(word)).length;
+  const frWords = ['combien', 'quels', 'quelles', 'quel', 'fichier', 'fichiers', 'dossier', 'créer'];
+  const frCount = countMatches(lower, frWords);
 
   // Return language with most matches
   if (ptCount > esCount && ptCount > frCount && ptCount > 0) return 'pt';
@@ -1149,7 +1157,7 @@ async function handleRegularQuery(
       const psychDoc = await prisma.document.findFirst({
         where: {
           userId,
-          filename: { contains: 'PSYCOLOGY', mode: 'insensitive' },
+          filename: { contains: 'PSYCOLOGY' },
           status: { not: 'deleted' }
         },
         select: { id: true, filename: true }
@@ -1249,8 +1257,15 @@ CRITICAL RULE - NO IMPLICATIONS SECTION:
 - Keep all insights embedded in the main content, not separated
 
 FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
+- Use HYBRID FORMAT: Opening paragraph + 4-5 detailed bullet points + Next step
+- Opening paragraph: 1-2 sentences introducing the document/topic
+- Transition: Add a sentence like "The document covers several key areas:" or "Here's what the document explains:"
+- Bullet points: 4-5 bullets on average (can be 3-7 depending on content)
+- Each bullet MUST be a full sentence or 2-3 sentences with detailed explanation (NOT just 7 words)
+- Example of GOOD bullet: "• Psychological Drivers: The framework identifies core psychological drivers that motivate user behavior, helping AI systems understand what truly matters to users and how to align messaging with their deeper needs."
+- Example of BAD bullet: "• Psychological Drivers: Identifies core drivers" (too short!)
 - Between bullet points: Use SINGLE newline only (no blank lines)
-- Before "Next step:" section: Use ONE blank line
+- After last bullet point: Use ONE blank line before "Next step:" section
 - NO emojis
 - End with ONE "**${nextStepText}:**" section (always bold) followed by a helpful suggestion
 - The "${nextStepText}:" MUST be in ${queryLangName} to match your response language

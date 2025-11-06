@@ -11,7 +11,7 @@ import sharp from 'sharp';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { PDFParse } from 'pdf-parse';
+import pdfParse from 'pdf-parse';
 
 class OCRService {
   private client: ImageAnnotatorClient | null = null;
@@ -65,8 +65,7 @@ class OCRService {
 
       // Try to extract text using pdf-parse
       const dataBuffer = await fs.readFile(pdfPath);
-      const parser = new PDFParse({ data: dataBuffer });
-      const pdfData = await parser.getText();
+      const pdfData = await pdfParse(dataBuffer);
 
       const extractedText = pdfData.text.trim();
       const wordCount = extractedText.split(/\s+/).filter(w => w.length > 0).length;

@@ -79,7 +79,8 @@ class ResponsePostProcessorService {
         const firstBullet = bullets[0];
         // Preserve the original heading (Next steps/Next actions)
         const heading = nextStepsMatch[0].split(':')[0];
-        text = text.replace(nextStepsMatch[0], `${heading}:\n${firstBullet}\n`);
+        // Keep one blank line before "Next step:" for proper spacing
+        text = text.replace(nextStepsMatch[0], `\n${heading}: ${firstBullet}`);
       }
     }
 

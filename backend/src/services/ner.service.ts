@@ -85,10 +85,10 @@ Return ONLY the JSON object, no additional text.`;
       const result = await model.generateContent(prompt);
       const responseText = result.response.text();
 
-      // Parse JSON response
+      // Parse JSON response with better error handling
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        console.warn(`⚠️ NER: Failed to parse JSON from Gemini response`);
+        console.warn(`⚠️ NER: Failed to extract JSON from Gemini response`);
         return {
           entities: [],
           suggestedTags: [],
@@ -96,7 +96,29 @@ Return ONLY the JSON object, no additional text.`;
         };
       }
 
-      const extracted = JSON.parse(jsonMatch[0]);
+      let extracted;
+      try {
+        extracted = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.warn(`⚠️ NER: JSON parsing failed, attempting to fix common issues...`);
+        // Try to fix common JSON issues (trailing commas, missing quotes, etc.)
+        try {
+          // Remove trailing commas before closing brackets/braces
+          const fixedJson = jsonMatch[0]
+            .replace(/,(\s*[}\]])/g, '$1')
+            .replace(/\n/g, ' ')
+            .trim();
+          extracted = JSON.parse(fixedJson);
+          console.log(`✅ NER: JSON fixed and parsed successfully`);
+        } catch (fixError) {
+          console.error(`❌ NER: Entity extraction failed:`, fixError);
+          return {
+            entities: [],
+            suggestedTags: [],
+            keyTopics: []
+          };
+        }
+      }
       console.log(`   ✅ Extracted ${extracted.entities?.length || 0} entities`);
       console.log(`   📊 Document Type: ${extracted.documentType || 'unknown'}`);
       console.log(`   🏷️  Suggested Tags: ${extracted.suggestedTags?.join(', ') || 'none'}`);
