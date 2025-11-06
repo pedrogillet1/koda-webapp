@@ -80,6 +80,36 @@ async function initializePinecone() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// LANGUAGE DETECTION UTILITY
+// ════════════════════════════════════════════════════════════════════════════════
+
+function detectLanguage(query: string): 'pt' | 'es' | 'fr' | 'en' {
+  const lower = query.toLowerCase();
+
+  // Portuguese indicators
+  const ptWords = ['quantos', 'quantas', 'quais', 'que', 'tenho', 'salvei', 'salvo',
+                   'documento', 'documentos', 'arquivo', 'arquivos', 'pasta', 'cria', 'criar'];
+  const ptCount = ptWords.filter(word => lower.includes(word)).length;
+
+  // Spanish indicators
+  const esWords = ['cuántos', 'cuántas', 'cuáles', 'qué', 'tengo', 'documento',
+                   'documentos', 'archivo', 'archivos', 'carpeta', 'crear'];
+  const esCount = esWords.filter(word => lower.includes(word)).length;
+
+  // French indicators
+  const frWords = ['combien', 'quels', 'quelles', 'quel', 'ai', 'j\'ai',
+                   'document', 'documents', 'fichier', 'fichiers', 'dossier', 'créer'];
+  const frCount = frWords.filter(word => lower.includes(word)).length;
+
+  // Return language with most matches
+  if (ptCount > esCount && ptCount > frCount && ptCount > 0) return 'pt';
+  if (esCount > ptCount && esCount > frCount && esCount > 0) return 'es';
+  if (frCount > ptCount && frCount > esCount && frCount > 0) return 'fr';
+
+  return 'en'; // Default to English
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // MAIN ENTRY POINT - Streaming Answer Generation
 // ════════════════════════════════════════════════════════════════════════════════
 
@@ -120,7 +150,7 @@ export async function generateAnswerStream(
   const countingCheck = isDocumentCountingQuery(query);
   if (countingCheck.isCounting) {
     console.log('🔢 [DOCUMENT COUNTING] Detected');
-    return await handleDocumentCounting(userId, countingCheck.fileType, onChunk);
+    return await handleDocumentCounting(userId, query, countingCheck.fileType, onChunk);
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -128,7 +158,7 @@ export async function generateAnswerStream(
   // ──────────────────────────────────────────────────────────────────────────────
   if (isDocumentTypesQuery(query)) {
     console.log('📊 [DOCUMENT TYPES] Detected');
-    return await handleDocumentTypes(userId, onChunk);
+    return await handleDocumentTypes(userId, query, onChunk);
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -136,7 +166,7 @@ export async function generateAnswerStream(
   // ──────────────────────────────────────────────────────────────────────────────
   if (isDocumentListingQuery(query)) {
     console.log('📋 [DOCUMENT LISTING] Detected');
-    return await handleDocumentListing(userId, onChunk);
+    return await handleDocumentListing(userId, query, onChunk);
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -163,34 +193,34 @@ async function detectFileAction(query: string): Promise<string | null> {
   const lower = query.toLowerCase().trim();
 
   // ──────────────────────────────────────────────────────────────────────────────
-  // STAGE 1: Regex Pattern Matching (Fast Path)
+  // STAGE 1: Regex Pattern Matching (Fast Path) - MULTILINGUAL
   // ──────────────────────────────────────────────────────────────────────────────
 
-  // Folder operations
-  if (/(create|make|new|add).*folder/i.test(lower)) {
+  // Folder operations (multilingual)
+  if (/(create|make|new|add|cria|criar|nueva|nuevo|créer).*(?:folder|pasta|carpeta|dossier)/i.test(lower)) {
     return 'createFolder';
   }
-  if (/(rename|change.*name).*folder/i.test(lower)) {
+  if (/(rename|change.*name|renomear|renombrar|renommer).*(?:folder|pasta|carpeta|dossier)/i.test(lower)) {
     return 'renameFolder';
   }
-  if (/(delete|remove).*folder/i.test(lower)) {
+  if (/(delete|remove|deletar|apagar|eliminar|supprimer).*(?:folder|pasta|carpeta|dossier)/i.test(lower)) {
     return 'deleteFolder';
   }
-  if (/(move|relocate).*folder/i.test(lower)) {
+  if (/(move|relocate|mover|déplacer).*(?:folder|pasta|carpeta|dossier)/i.test(lower)) {
     return 'moveFolder';
   }
 
-  // File operations
-  if (/(create|make|new|add).*file/i.test(lower)) {
+  // File operations (multilingual)
+  if (/(create|make|new|add|cria|criar|nueva|nuevo|créer).*(?:file|arquivo|archivo|fichier)/i.test(lower)) {
     return 'createFile';
   }
-  if (/(rename|change.*name).*file/i.test(lower)) {
+  if (/(rename|change.*name|renomear|renombrar|renommer).*(?:file|arquivo|archivo|fichier)/i.test(lower)) {
     return 'renameFile';
   }
-  if (/(delete|remove).*file/i.test(lower)) {
+  if (/(delete|remove|deletar|apagar|eliminar|supprimer).*(?:file|arquivo|archivo|fichier)/i.test(lower)) {
     return 'deleteFile';
   }
-  if (/(move|relocate).*file/i.test(lower)) {
+  if (/(move|relocate|mover|déplacer).*(?:file|arquivo|archivo|fichier)/i.test(lower)) {
     return 'moveFile';
   }
 
@@ -241,23 +271,64 @@ async function handleFileAction(
 ): Promise<void> {
   console.log(`🔧 [FILE ACTION] Executing: ${actionType}`);
 
+  // Detect language
+  const lang = detectLanguage(query);
+
   try {
     // ✅ FIX: Use fileActionsService.executeAction which handles name→ID lookup
     const result = await fileActionsService.executeAction(query, userId);
 
-    // Stream the result to the user
+    // Stream the result to the user with language translation
     if (result.success) {
-      onChunk(result.message);
+      // Translate success message to detected language
+      let translatedMessage = result.message;
+
+      // Translate common success patterns
+      if (lang === 'pt') {
+        translatedMessage = translatedMessage
+          .replace(/Folder "(.+?)" created successfully/i, 'Pasta "$1" criada com sucesso')
+          .replace(/File "(.+?)" moved successfully/i, 'Arquivo "$1" movido com sucesso')
+          .replace(/File "(.+?)" renamed successfully/i, 'Arquivo "$1" renomeado com sucesso')
+          .replace(/File "(.+?)" deleted successfully/i, 'Arquivo "$1" deletado com sucesso')
+          .replace(/Folder "(.+?)" renamed successfully/i, 'Pasta "$1" renomeada com sucesso')
+          .replace(/Folder "(.+?)" deleted successfully/i, 'Pasta "$1" deletada com sucesso');
+      } else if (lang === 'es') {
+        translatedMessage = translatedMessage
+          .replace(/Folder "(.+?)" created successfully/i, 'Carpeta "$1" creada exitosamente')
+          .replace(/File "(.+?)" moved successfully/i, 'Archivo "$1" movido exitosamente')
+          .replace(/File "(.+?)" renamed successfully/i, 'Archivo "$1" renombrado exitosamente')
+          .replace(/File "(.+?)" deleted successfully/i, 'Archivo "$1" eliminado exitosamente')
+          .replace(/Folder "(.+?)" renamed successfully/i, 'Carpeta "$1" renombrada exitosamente')
+          .replace(/Folder "(.+?)" deleted successfully/i, 'Carpeta "$1" eliminada exitosamente');
+      } else if (lang === 'fr') {
+        translatedMessage = translatedMessage
+          .replace(/Folder "(.+?)" created successfully/i, 'Dossier "$1" créé avec succès')
+          .replace(/File "(.+?)" moved successfully/i, 'Fichier "$1" déplacé avec succès')
+          .replace(/File "(.+?)" renamed successfully/i, 'Fichier "$1" renommé avec succès')
+          .replace(/File "(.+?)" deleted successfully/i, 'Fichier "$1" supprimé avec succès')
+          .replace(/Folder "(.+?)" renamed successfully/i, 'Dossier "$1" renommé avec succès')
+          .replace(/Folder "(.+?)" deleted successfully/i, 'Dossier "$1" supprimé avec succès');
+      }
+
+      onChunk(translatedMessage);
 
       // TODO: Record action for undo (needs refactoring)
       // The executeAction doesn't return document/folder IDs needed for undo
     } else {
-      onChunk(`Sorry, I couldn't complete that action: ${result.error || result.message}`);
+      const sorry = lang === 'pt' ? 'Desculpe, não consegui completar essa ação:' :
+                    lang === 'es' ? 'Lo siento, no pude completar esa acción:' :
+                    lang === 'fr' ? 'Désolé, je n\'ai pas pu compléter cette action:' :
+                    'Sorry, I couldn\'t complete that action:';
+      onChunk(`${sorry} ${result.error || result.message}`);
     }
 
   } catch (error: any) {
     console.error('❌ [FILE ACTION] Error:', error);
-    onChunk(`Sorry, an error occurred while trying to execute that action: ${error.message}`);
+    const sorry = lang === 'pt' ? 'Desculpe, ocorreu um erro ao tentar executar essa ação:' :
+                  lang === 'es' ? 'Lo siento, ocurrió un error al intentar ejecutar esa acción:' :
+                  lang === 'fr' ? 'Désolé, une erreur s\'est produite lors de l\'exécution de cette action:' :
+                  'Sorry, an error occurred while trying to execute that action:';
+    onChunk(`${sorry} ${error.message}`);
   }
 }
 
@@ -587,11 +658,20 @@ User query: "${query}"`;
 function isDocumentCountingQuery(query: string): { isCounting: boolean; fileType?: string } {
   const lower = query.toLowerCase().trim();
 
-  const hasCountKeyword = lower.includes('how many') || lower.includes('count');
+  // Check for counting keywords (multilingual)
+  const hasCountKeyword = lower.includes('how many') || lower.includes('count') ||
+                         lower.includes('quantos') || lower.includes('quantas') || // Portuguese
+                         lower.includes('cuántos') || lower.includes('cuántas') || // Spanish
+                         lower.includes('combien') || // French
+                         lower.includes('contar');
+
   const hasDocKeyword = lower.includes('document') || lower.includes('file') ||
+                        lower.includes('documento') || lower.includes('arquivo') || // Portuguese
+                        lower.includes('fichier') || // French
                         lower.includes('pdf') || lower.includes('excel') ||
                         lower.includes('xlsx') || lower.includes('docx') ||
                         lower.includes('pptx') || lower.includes('image') ||
+                        lower.includes('imagem') || // Portuguese
                         lower.includes('png') || lower.includes('jpg');
 
   if (!hasCountKeyword || !hasDocKeyword) {
@@ -612,9 +692,15 @@ function isDocumentCountingQuery(query: string): { isCounting: boolean; fileType
 
 async function handleDocumentCounting(
   userId: string,
+  query: string,
   fileType: string | undefined,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
+  console.log(`🔢 [DOCUMENT COUNTING] Counting documents${fileType ? ` of type ${fileType}` : ''}`);
+
+  // Detect language
+  const lang = detectLanguage(query);
+
   const whereClause: any = {
     userId,
     status: { not: 'deleted' },
@@ -630,10 +716,17 @@ async function handleDocumentCounting(
     select: { filename: true },
   });
 
+  // Build multilingual response
   let response = '';
+
   if (fileType) {
     const typeName = fileType.replace('.', '').toUpperCase();
-    response = `You have **${count}** ${typeName} ${count === 1 ? 'file' : 'files'}.`;
+    const fileWord = count === 1 ?
+      (lang === 'pt' ? 'arquivo' : lang === 'es' ? 'archivo' : lang === 'fr' ? 'fichier' : 'file') :
+      (lang === 'pt' ? 'arquivos' : lang === 'es' ? 'archivos' : lang === 'fr' ? 'fichiers' : 'files');
+
+    const youHave = lang === 'pt' ? 'Você tem' : lang === 'es' ? 'Tienes' : lang === 'fr' ? 'Vous avez' : 'You have';
+    response = `${youHave} **${count}** ${fileWord} ${typeName}.`;
 
     if (count > 0) {
       response += '\n\n';
@@ -642,11 +735,22 @@ async function handleDocumentCounting(
       });
     }
   } else {
-    response = `You have **${count}** ${count === 1 ? 'document' : 'documents'} in total.`;
+    const docWord = count === 1 ?
+      (lang === 'pt' ? 'documento' : lang === 'es' ? 'documento' : lang === 'fr' ? 'document' : 'document') :
+      (lang === 'pt' ? 'documentos' : lang === 'es' ? 'documentos' : lang === 'fr' ? 'documents' : 'documents');
+
+    const youHave = lang === 'pt' ? 'Você tem' : lang === 'es' ? 'Tienes' : lang === 'fr' ? 'Vous avez' : 'You have';
+    const inTotal = lang === 'pt' ? 'no total' : lang === 'es' ? 'en total' : lang === 'fr' ? 'au total' : 'in total';
+    response = `${youHave} **${count}** ${docWord} ${inTotal}.`;
   }
 
-  response += '\n\n**Next step:**\n';
-  response += 'What would you like to know about these documents?';
+  const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
+  const question = lang === 'pt' ? 'O que você gostaria de saber sobre esses documentos?' :
+                   lang === 'es' ? '¿Qué te gustaría saber sobre estos documentos?' :
+                   lang === 'fr' ? 'Que souhaitez-vous savoir sur ces documents?' :
+                   'What would you like to know about these documents?';
+
+  response += `\n\n${nextStep}\n${question}`;
 
   onChunk(response);
 
@@ -667,17 +771,34 @@ function isDocumentTypesQuery(query: string): boolean {
   const lower = query.toLowerCase().trim();
 
   const hasTypeKeyword = lower.includes('what type') || lower.includes('what kind') ||
-                         lower.includes('which type') || lower.includes('file type');
-  const hasDocKeyword = lower.includes('document') || lower.includes('file');
-  const hasHaveKeyword = lower.includes('have') || lower.includes('got') || lower.includes('own');
+                         lower.includes('which type') || lower.includes('file type') ||
+                         lower.includes('que tipo') || lower.includes('quais tipos') || // Portuguese
+                         lower.includes('qué tipo') || lower.includes('cuáles tipos') || // Spanish
+                         lower.includes('quel type') || lower.includes('quels types'); // French
+
+  const hasDocKeyword = lower.includes('document') || lower.includes('file') ||
+                        lower.includes('documento') || lower.includes('arquivo') || // Portuguese
+                        lower.includes('fichier'); // French
+
+  const hasHaveKeyword = lower.includes('have') || lower.includes('got') || lower.includes('own') ||
+                         lower.includes('tenho') || lower.includes('salvei') || // Portuguese
+                         lower.includes('salvo') || lower.includes('guardado') || // Portuguese
+                         lower.includes('tengo') || // Spanish
+                         lower.includes('ai') || lower.includes('j\'ai'); // French
 
   return hasTypeKeyword && hasDocKeyword && hasHaveKeyword;
 }
 
 async function handleDocumentTypes(
   userId: string,
+  query: string,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
+  console.log('📊 [DOCUMENT TYPES] Fetching document types from database');
+
+  // Detect language
+  const lang = detectLanguage(query);
+
   const documents = await prisma.document.findMany({
     where: {
       userId,
@@ -695,24 +816,51 @@ async function handleDocumentTypes(
     typeMap.get(ext)!.push(doc.filename);
   });
 
-  let response = 'Based on the files you uploaded, you have the following types of files:\n\n';
+  // Build multilingual response
+  let response = '';
+
+  const basedOn = lang === 'pt' ? 'Com base nos arquivos que você enviou, você tem os seguintes tipos de arquivos:' :
+                  lang === 'es' ? 'Según los archivos que subiste, tienes los siguientes tipos de archivos:' :
+                  lang === 'fr' ? 'En fonction des fichiers que vous avez téléchargés, vous avez les types de fichiers suivants:' :
+                  'Based on the files you uploaded, you have the following types of files:';
 
   if (typeMap.size === 0) {
-    response = "You don't have any documents uploaded yet.\n\n";
-    response += '**Next step:**\n';
-    response += 'Upload some documents to get started!';
+    const noDocsYet = lang === 'pt' ? 'Você ainda não tem documentos enviados.' :
+                      lang === 'es' ? 'Aún no tienes documentos subidos.' :
+                      lang === 'fr' ? 'Vous n\'avez pas encore de documents téléchargés.' :
+                      "You don't have any documents uploaded yet.";
+
+    const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
+    const uploadSome = lang === 'pt' ? 'Envie alguns documentos para começar!' :
+                       lang === 'es' ? '¡Sube algunos documentos para comenzar!' :
+                       lang === 'fr' ? 'Téléchargez des documents pour commencer!' :
+                       'Upload some documents to get started!';
+
+    response = `${noDocsYet}\n\n${nextStep}\n${uploadSome}`;
   } else {
+    response = `${basedOn}\n\n`;
+
+    // Sort by count (descending)
     const sortedTypes = Array.from(typeMap.entries()).sort((a, b) => b[1].length - a[1].length);
 
     sortedTypes.forEach(([ext, files]) => {
       const typeName = ext.replace('.', '').toUpperCase();
-      response += `• **${typeName}** (${files.length} ${files.length === 1 ? 'file' : 'files'}): `;
+      const fileWord = files.length === 1 ?
+        (lang === 'pt' ? 'arquivo' : lang === 'es' ? 'archivo' : lang === 'fr' ? 'fichier' : 'file') :
+        (lang === 'pt' ? 'arquivos' : lang === 'es' ? 'archivos' : lang === 'fr' ? 'fichiers' : 'files');
+
+      response += `• **${typeName}** (${files.length} ${fileWord}): `;
       response += files.map(f => f).join(', ');
       response += '\n';
     });
 
-    response += '\n**Next step:**\n';
-    response += 'What would you like to know about these documents?';
+    const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
+    const question = lang === 'pt' ? 'O que você gostaria de saber sobre esses documentos?' :
+                     lang === 'es' ? '¿Qué te gustaría saber sobre estos documentos?' :
+                     lang === 'fr' ? 'Que souhaitez-vous savoir sur ces documents?' :
+                     'What would you like to know about these documents?';
+
+    response += `\n${nextStep}\n${question}`;
   }
 
   onChunk(response);
@@ -733,20 +881,38 @@ async function handleDocumentTypes(
 function isDocumentListingQuery(query: string): boolean {
   const lower = query.toLowerCase().trim();
 
-  // Flexible keyword-based detection (catches more variations)
+  // Flexible keyword-based detection (multilingual)
   const hasListKeyword = lower.includes('which') || lower.includes('what') ||
-                         lower.includes('show') || lower.includes('list');
-  const hasDocKeyword = lower.includes('document') || lower.includes('file');
+                         lower.includes('show') || lower.includes('list') ||
+                         lower.includes('quais') || lower.includes('que') || // Portuguese
+                         lower.includes('mostrar') || lower.includes('listar') || // Portuguese
+                         lower.includes('cuáles') || lower.includes('qué') || // Spanish
+                         lower.includes('quels') || lower.includes('quelles'); // French
+
+  const hasDocKeyword = lower.includes('document') || lower.includes('file') ||
+                        lower.includes('documento') || lower.includes('arquivo') || // Portuguese
+                        lower.includes('fichier'); // French
+
   const hasHaveKeyword = lower.includes('have') || lower.includes('upload') ||
-                         lower.includes('got') || lower.includes('own');
+                         lower.includes('got') || lower.includes('own') ||
+                         lower.includes('tenho') || lower.includes('salvei') || // Portuguese
+                         lower.includes('salvo') || lower.includes('guardado') || // Portuguese
+                         lower.includes('tengo') || // Spanish
+                         lower.includes('ai') || lower.includes('j\'ai'); // French
 
   return hasListKeyword && hasDocKeyword && hasHaveKeyword;
 }
 
 async function handleDocumentListing(
   userId: string,
+  query: string,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
+  console.log('📋 [DOCUMENT LISTING] Fetching all user documents from database');
+
+  // Detect language
+  const lang = detectLanguage(query);
+
   const documents = await prisma.document.findMany({
     where: {
       userId,
@@ -756,19 +922,40 @@ async function handleDocumentListing(
     orderBy: { createdAt: 'desc' },
   });
 
+  // Build multilingual response
   let response = '';
+
+  const basedOn = lang === 'pt' ? 'Com base nos arquivos que você enviou, você tem os seguintes documentos:' :
+                  lang === 'es' ? 'Según los archivos que subiste, tienes los siguientes documentos:' :
+                  lang === 'fr' ? 'En fonction des fichiers que vous avez téléchargés, vous avez les documents suivants:' :
+                  'Based on the files you uploaded, you have the following documents:';
+
   if (documents.length === 0) {
-    response = "You don't have any documents uploaded yet.\n\n";
-    response += '**Next step:**\n';
-    response += 'Upload some documents to get started!';
+    const noDocsYet = lang === 'pt' ? 'Você ainda não tem documentos enviados.' :
+                      lang === 'es' ? 'Aún no tienes documentos subidos.' :
+                      lang === 'fr' ? 'Vous n\'avez pas encore de documents téléchargés.' :
+                      "You don't have any documents uploaded yet.";
+
+    const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
+    const uploadSome = lang === 'pt' ? 'Envie alguns documentos para começar!' :
+                       lang === 'es' ? '¡Sube algunos documentos para comenzar!' :
+                       lang === 'fr' ? 'Téléchargez des documents pour commencer!' :
+                       'Upload some documents to get started!';
+
+    response = `${noDocsYet}\n\n${nextStep}\n${uploadSome}`;
   } else {
-    response = `You have **${documents.length}** ${documents.length === 1 ? 'document' : 'documents'}:\n\n`;
+    response = `${basedOn}\n\n`;
     documents.forEach(doc => {
       response += `• ${doc.filename}\n`;
     });
 
-    response += '\n**Next step:**\n';
-    response += 'What would you like to know about these documents?';
+    const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
+    const question = lang === 'pt' ? 'O que você gostaria de saber sobre esses documentos?' :
+                     lang === 'es' ? '¿Qué te gustaría saber sobre estos documentos?' :
+                     lang === 'fr' ? 'Que souhaitez-vous savoir sur ces documents?' :
+                     'What would you like to know about these documents?';
+
+    response += `\n${nextStep}\n${question}`;
   }
 
   onChunk(response);
