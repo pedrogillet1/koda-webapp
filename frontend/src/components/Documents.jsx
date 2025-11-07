@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
@@ -52,8 +52,9 @@ import mp3Icon from '../assets/mp3.svg';
 
 const Documents = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
 
   // Use DocumentsContext for instant updates
   const {
@@ -115,6 +116,22 @@ const Documents = () => {
   useEffect(() => {
     setCategoriesRefreshKey(prev => prev + 1);
   }, [contextFolders]);
+
+  // Handle notification from navigation state (e.g., after deleting a document)
+  useEffect(() => {
+    if (location.state?.notification) {
+      const { type, message } = location.state.notification;
+      if (type === 'success') {
+        showSuccess(message);
+      } else if (type === 'error') {
+        showError(message);
+      }
+      // Clear the notification from state after a small delay to avoid showing it again on refresh
+      setTimeout(() => {
+        navigate(location.pathname, { replace: true, state: {} });
+      }, 100);
+    }
+  }, [location.state?.notification, location.pathname, navigate, showSuccess, showError]);
 
   // Compute categories from context folders (auto-updates!)
   const categories = getRootFolders()

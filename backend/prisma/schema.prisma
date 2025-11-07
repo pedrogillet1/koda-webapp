@@ -184,6 +184,10 @@ model Document {
   // Advanced Features: Interactive preview
   renderableContent String? // JSON structure for Manus-style preview (optional)
 
+  // PDF Preview for PPTX files
+  pdfPreviewPath    String? // GCS path to PDF preview (for PPTX files)
+  pdfPreviewUrl     String? // Signed URL to PDF preview
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

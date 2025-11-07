@@ -14,6 +14,7 @@ import logoSvg from '../assets/logo.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can.svg';
 import { ReactComponent as PrinterIcon } from '../assets/printer.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
+import { ReactComponent as DownloadWhiteIcon } from '../assets/Download 3- white.svg';
 import { ReactComponent as PlusIcon } from '../assets/Plus.svg';
 import { ReactComponent as MinusIcon } from '../assets/Minus.svg';
 import { ReactComponent as StarIcon } from '../assets/Star.svg';
@@ -572,27 +573,6 @@ const DocumentViewer = () => {
                 <PrinterIcon style={{ width: 44, height: 44 }} />
               </button>
               <button
-                onClick={async () => {
-                  if (document) {
-                    try {
-                      // Call the download endpoint to get the original file
-                      const response = await api.get(`/api/documents/${document.id}/download`);
-                      const downloadUrl = response.data.url;
-
-                      // Use Safari-aware download function with the original file URL
-                      safariDownloadFile(downloadUrl, document.filename);
-                    } catch (error) {
-                      console.error('Download error:', error);
-                      alert('Failed to download document');
-                    }
-                  }
-                }}
-                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
-                title={isSafari() || isIOS() ? 'Open in new tab' : 'Download'}
-              >
-                <DownloadIcon style={{ width: 44, height: 44 }} />
-              </button>
-              <button
                 onClick={() => {
                   // Clear current conversation to force a new chat
                   sessionStorage.removeItem('currentConversationId');
@@ -613,11 +593,26 @@ const DocumentViewer = () => {
               </button>
             </div>
             <button
-              onClick={() => setShowShareModal(true)}
+              onClick={async () => {
+                if (document) {
+                  try {
+                    // Call the download endpoint to get the original file
+                    const response = await api.get(`/api/documents/${document.id}/download`);
+                    const downloadUrl = response.data.url;
+
+                    // Use Safari-aware download function with the original file URL
+                    safariDownloadFile(downloadUrl, document.filename);
+                  } catch (error) {
+                    console.error('Download error:', error);
+                    alert('Failed to download document');
+                  }
+                }
+              }}
               style={{ flex: '1 1 0', height: 52, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+              title={isSafari() || isIOS() ? 'Open in new tab' : 'Download'}
             >
-              <LogoutWhiteIcon style={{ width: 24, height: 24 }} />
-              <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Export</div>
+              <DownloadWhiteIcon style={{ width: 24, height: 24 }} />
+              <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Download</div>
             </button>
           </div>
         </div>
@@ -1539,13 +1534,29 @@ const DocumentViewer = () => {
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={async () => {
+          setShowDeleteModal(false);
           try {
             await api.delete(`/api/documents/${documentId}`);
-            alert('Document deleted successfully');
-            navigate('/documents');
+            // Navigate back to previous page or documents page
+            navigate('/documents', {
+              state: {
+                notification: {
+                  type: 'success',
+                  message: '1 file has been deleted'
+                }
+              }
+            });
           } catch (error) {
             console.error('Error deleting document:', error);
-            alert('Failed to delete document: ' + (error.response?.data?.error || error.message));
+            // Navigate back even on error
+            navigate('/documents', {
+              state: {
+                notification: {
+                  type: 'error',
+                  message: `Failed to delete document: ${error.response?.data?.error || error.message}`
+                }
+              }
+            });
           }
         }}
         itemName={document.filename}
