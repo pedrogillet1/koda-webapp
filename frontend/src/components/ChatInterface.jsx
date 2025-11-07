@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { ReactComponent as AttachmentIcon } from '../assets/Paperclip.svg';
 import { ReactComponent as SendIcon } from '../assets/arrow-narrow-up.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
+import { ReactComponent as UploadIconDrag } from '../assets/Logout-black.svg';
 import logo from '../assets/logo1.svg';
 import kodaLogoSvg from '../assets/koda-logo_1.svg';
 import sphere from '../assets/sphere.svg';
@@ -732,22 +733,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const handleDragEnter = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        setIsDraggingOver(true);
     };
 
     const handleDragOver = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        // Required to allow drop
+        // Only show overlay for external file drags, not internal element drags
+        const hasFiles = e.dataTransfer.types.includes('Files');
+        setIsDraggingOver(hasFiles);
     };
 
     const handleDragLeave = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        // Only set to false if leaving the container itself, not child elements
-        if (e.currentTarget === e.target) {
-            setIsDraggingOver(false);
-        }
+        setIsDraggingOver(false);
     };
 
     const handleDrop = (e) => {
@@ -1541,41 +1540,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     padding: 20,
                     paddingBottom: 20,
                     position: 'relative',
-                    backgroundColor: isDraggingOver ? '#F5F5F7' : 'transparent',
-                    transition: 'background-color 0.2s ease',
                 }}
             >
-                {/* Drag and Drop Overlay */}
-                {isDraggingOver && (
-                    <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: 'rgba(79, 70, 229, 0.05)',
-                        border: '3px dashed #4F46E5',
-                        borderRadius: 12,
-                        display: 'flex',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        zIndex: 1000,
-                        pointerEvents: 'none',
-                    }}>
-                        <div style={{
-                            background: 'white',
-                            padding: '24px 32px',
-                            borderRadius: 12,
-                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                            textAlign: 'center',
-                        }}>
-                            <div style={{fontSize: 48, marginBottom: 12}}>📎</div>
-                            <div style={{fontSize: 18, fontWeight: '600', color: '#4F46E5', marginBottom: 4}}>Drop files here</div>
-                            <div style={{fontSize: 14, color: '#6B7280'}}>Release to attach files to your message</div>
-                        </div>
-                    </div>
-                )}
-
                 {messages.length === 0 ? (
                     // Show welcome message when no messages
                     <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%'}}>
@@ -2435,10 +2401,87 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         <div ref={messagesEndRef} />
                     </div>
                 )}
+
+                {/* Drag and Drop Overlay - Only covers messages area */}
+                {isDraggingOver && (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            background: 'rgba(23, 23, 23, 0.95)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 20,
+                            zIndex: 999,
+                            pointerEvents: 'none',
+                            animation: 'fadeIn 0.2s ease-in'
+                        }}
+                    >
+                        <style>
+                            {`
+                                @keyframes fadeIn {
+                                    from { opacity: 0; }
+                                    to { opacity: 1; }
+                                }
+                                @keyframes pulse {
+                                    0%, 100% { transform: scale(1); }
+                                    50% { transform: scale(1.05); }
+                                }
+                            `}
+                        </style>
+                        <div
+                            style={{
+                                width: 120,
+                                height: 120,
+                                background: 'white',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                animation: 'pulse 1.5s ease-in-out infinite'
+                            }}
+                        >
+                            <UploadIconDrag style={{ width: 60, height: 60 }} />
+                        </div>
+                        <div
+                            style={{
+                                color: 'white',
+                                fontSize: 32,
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontWeight: '700',
+                                textAlign: 'center'
+                            }}
+                        >
+                            Drop files here to upload
+                        </div>
+                        <div
+                            style={{
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                fontSize: 18,
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontWeight: '500',
+                                textAlign: 'center'
+                            }}
+                        >
+                            Release to attach files to your message
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Message Input */}
-            <div style={{padding: 20, background: 'white', borderTop: '1px solid #E6E6EC'}}>
+            <div
+                style={{padding: 20, background: 'white', borderTop: '1px solid #E6E6EC'}}
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
                 {/* REMOVED: Research Mode Popup - disabled per user request */}
                 {/* {showResearchSuggestion && !researchMode && (
                     <div style={{
@@ -2568,10 +2611,64 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         {uploadingFiles.map((file, index) => {
                             const isImage = isImageFile(file);
                             const previewUrl = isImage ? URL.createObjectURL(file) : null;
+                            const progressWidth = uploadProgress[index] || 0;
 
                             return (
-                            <div key={`uploading-${index}`} style={{padding: 12, background: '#EFF6FF', borderRadius: 12, border: '1px solid #3B82F6', display: 'flex', alignItems: 'center', gap: 12}}>
-                                <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0}}>
+                            <div
+                                key={`uploading-${index}`}
+                                style={{
+                                    position: 'relative',
+                                    padding: 12,
+                                    background: 'white',
+                                    borderRadius: 12,
+                                    border: '1px solid #E6E6EC',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 12,
+                                    overflow: 'hidden'
+                                }}
+                            >
+                                {/* Progress bar background */}
+                                <div style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    left: 0,
+                                    top: 0,
+                                    position: 'absolute',
+                                    pointerEvents: 'none'
+                                }}>
+                                    <div style={{
+                                        width: `${progressWidth}%`,
+                                        height: '100%',
+                                        left: 0,
+                                        top: 0,
+                                        position: 'absolute',
+                                        background: 'rgba(169, 169, 169, 0.12)',
+                                        borderTopLeftRadius: 12,
+                                        borderBottomLeftRadius: 12,
+                                        transition: 'width 0.3s ease-in-out',
+                                        opacity: progressWidth >= 100 ? 0 : 1,
+                                        transitionProperty: progressWidth >= 100 ? 'width 0.3s ease-in-out, opacity 400ms ease-out' : 'width 0.3s ease-in-out'
+                                    }} />
+                                </div>
+
+                                {/* Upload percentage counter */}
+                                <div style={{
+                                    position: 'absolute',
+                                    bottom: 12,
+                                    right: 16,
+                                    fontSize: 13,
+                                    fontWeight: '500',
+                                    color: '#6C6C6C',
+                                    zIndex: 2,
+                                    opacity: progressWidth < 100 ? 1 : 0,
+                                    transition: 'opacity 0.3s ease-out'
+                                }}>
+                                    {Math.round(progressWidth)}%
+                                </div>
+
+                                {/* File icon */}
+                                <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0, zIndex: 1}}>
                                     {isImage ? (
                                         <img
                                             src={previewUrl}
@@ -2580,8 +2677,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 width: 40,
                                                 height: 40,
                                                 objectFit: 'cover',
-                                                borderRadius: 6,
-                                                opacity: 0.5
+                                                borderRadius: 6
                                             }}
                                         />
                                     ) : (
@@ -2593,28 +2689,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 height: 40,
                                                 imageRendering: '-webkit-optimize-contrast',
                                                 objectFit: 'contain',
-                                                shapeRendering: 'geometricPrecision',
-                                                opacity: 0.5
+                                                shapeRendering: 'geometricPrecision'
                                             }}
                                         />
                                     )}
-                                    <div style={{
-                                        position: 'absolute',
-                                        top: '50%',
-                                        left: '50%',
-                                        transform: 'translate(-50%, -50%)',
-                                        width: 20,
-                                        height: 20,
-                                        border: '3px solid #E6E6EC',
-                                        borderTop: '3px solid #3B82F6',
-                                        borderRadius: '50%',
-                                        animation: 'spin 1s linear infinite'
-                                    }} />
                                 </div>
-                                <div style={{flex: 1}}>
+
+                                {/* File info */}
+                                <div style={{flex: 1, zIndex: 1}}>
                                     <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>{file.name}</div>
-                                    <div style={{fontSize: 12, color: '#3B82F6'}}>
-                                        Uploading...
+                                    <div style={{fontSize: 12, color: '#A0A0A0'}}>
+                                        Uploading to cloud...
                                     </div>
                                 </div>
                             </div>

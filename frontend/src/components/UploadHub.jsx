@@ -11,6 +11,7 @@ import { useToast } from '../context/ToastContext';
 import { ReactComponent as SearchIcon} from '../assets/Search.svg';
 import { ReactComponent as CheckIcon} from '../assets/check.svg';
 import { ReactComponent as LogoutBlackIcon } from '../assets/Logout-black.svg';
+import { ReactComponent as ExpandIcon } from '../assets/expand.svg';
 import LayeredFolderIcon from './LayeredFolderIcon';
 import api from '../services/api';
 import folderUploadService from '../services/folderUploadService';
@@ -89,6 +90,9 @@ const UploadHub = () => {
   const [itemToRename, setItemToRename] = useState(null);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [isLibraryExpanded, setIsLibraryExpanded] = useState(true);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [modalSearchQuery, setModalSearchQuery] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1057,47 +1061,332 @@ const UploadHub = () => {
     setSelectedCategories({});
   };
 
+  // Group documents by time for search modal
+  const groupDocumentsByTime = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const groups = {
+      TODAY: [],
+      YESTERDAY: [],
+      OLDER: []
+    };
+
+    // Filter combined items based on modal search query
+    const query = modalSearchQuery.toLowerCase();
+    const filtered = combinedItems.filter(item => {
+      if (item.isFolder) {
+        return item.name.toLowerCase().includes(query);
+      } else {
+        return item.filename.toLowerCase().includes(query);
+      }
+    });
+
+    filtered.forEach(item => {
+      const itemDate = new Date(item.createdAt || item.uploadedAt);
+
+      if (itemDate >= today) {
+        groups.TODAY.push(item);
+      } else if (itemDate >= yesterday) {
+        groups.YESTERDAY.push(item);
+      } else {
+        groups.OLDER.push(item);
+      }
+    });
+
+    return groups;
+  };
+
+  // Search Modal Component
+  const SearchModal = () => {
+    const groupedDocuments = groupDocumentsByTime();
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: showSearchModal ? 'flex' : 'none',
+          justifyContent: 'center',
+          alignItems: 'flex-start',
+          paddingTop: '10vh',
+          zIndex: 1000,
+        }}
+        onClick={() => setShowSearchModal(false)}
+      >
+        <div
+          style={{
+            width: 600,
+            maxHeight: '80vh',
+            background: 'white',
+            borderRadius: 16,
+            boxShadow: '0 4px 24px rgba(0, 0, 0, 0.15)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Search Header */}
+          <div style={{
+            padding: '20px 20px 16px',
+            borderBottom: '1px solid #E6E6EC',
+          }}>
+            <div style={{position: 'relative'}}>
+              <input
+                type="text"
+                placeholder="Search any documents..."
+                value={modalSearchQuery}
+                onChange={(e) => setModalSearchQuery(e.target.value)}
+                autoFocus
+                style={{
+                  width: '100%',
+                  height: 44,
+                  padding: '10px 40px 10px 40px',
+                  background: '#F5F5F5',
+                  borderRadius: 100,
+                  border: '1px solid #E6E6EC',
+                  outline: 'none',
+                  fontSize: 14,
+                  fontFamily: 'Plus Jakarta Sans',
+                }}
+              />
+              <SearchIcon style={{
+                width: 20,
+                height: 20,
+                color: '#32302C',
+                position: 'absolute',
+                left: 12,
+                top: 12
+              }} />
+              <div
+                onClick={() => setShowSearchModal(false)}
+                style={{
+                  position: 'absolute',
+                  right: 12,
+                  top: 10,
+                  width: 24,
+                  height: 24,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  borderRadius: 4,
+                  transition: 'background 200ms ease-in-out',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M13 1L1 13M1 1L13 13" stroke="#6C6B6E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Documents List */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '16px 20px',
+          }}>
+            {Object.entries(groupedDocuments).map(([day, list]) => {
+              if (list.length === 0) return null;
+
+              return (
+                <div key={day} style={{marginBottom: 20}}>
+                  <div style={{
+                    color: '#32302C',
+                    fontSize: 12,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    marginBottom: 12
+                  }}>
+                    {day}
+                  </div>
+                  <div>
+                    {list.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          if (item.isFolder) {
+                            // Toggle folder expansion
+                            const newExpanded = new Set(expandedFolders);
+                            if (newExpanded.has(item.id)) {
+                              newExpanded.delete(item.id);
+                            } else {
+                              newExpanded.add(item.id);
+                            }
+                            setExpandedFolders(newExpanded);
+                          }
+                          setShowSearchModal(false);
+                        }}
+                        style={{
+                          padding: '12px 14px',
+                          background: 'transparent',
+                          borderRadius: 12,
+                          color: '#6C6B6E',
+                          fontSize: 14,
+                          fontFamily: 'Plus Jakarta Sans',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          transition: 'background 200ms ease-in-out',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <img
+                          src={item.isFolder ? folderIcon : getFileIcon(item.filename)}
+                          alt={item.isFolder ? 'Folder' : 'File'}
+                          style={{
+                            width: 40,
+                            height: 40,
+                            flexShrink: 0,
+                            objectFit: 'contain'
+                          }}
+                        />
+                        <div style={{
+                          flex: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {item.isFolder ? item.name : item.filename}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {combinedItems.length === 0 && (
+              <div style={{
+                textAlign: 'center',
+                color: '#6C6B6E',
+                fontSize: 14,
+                marginTop: 20
+              }}>
+                No documents yet. Upload some documents!
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Left Sidebar - Library */}
       <div style={{
-        width: 320,
+        width: isLibraryExpanded ? 320 : 80,
         background: '#F9FAFB',
         borderRight: '1px solid #E5E7EB',
         display: 'flex',
         flexDirection: 'column',
         height: '100vh',
-        overflowY: 'auto'
+        overflowY: 'auto',
+        transition: 'width 0.3s ease'
       }}>
-        <div style={{padding: 20, borderBottom: '1px solid #E5E7EB'}}>
-          <h3 style={{fontSize: 18, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Library</h3>
-        </div>
-
-        <div style={{padding: 16}}>
-          <div style={{position: 'relative'}}>
-            <SearchIcon style={{position: 'absolute', left: 12, top: 12, width: 20, height: 20, zIndex: 1}} />
-            <input
-              type="text"
-              placeholder="Search for document......"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+        <div style={{padding: 20, borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+          {isLibraryExpanded && (
+            <h3 style={{fontSize: 18, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Library</h3>
+          )}
+          <button
+            onClick={() => setIsLibraryExpanded(!isLibraryExpanded)}
+            style={{
+              width: 44,
+              height: 44,
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 12,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              transition: 'background 0.15s',
+              marginLeft: isLibraryExpanded ? 0 : 'auto',
+              marginRight: isLibraryExpanded ? 0 : 'auto'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <ExpandIcon
               style={{
-                width: '100%',
-                padding: '8px 12px 8px 40px',
-                border: '1px solid #E5E7EB',
-                borderRadius: 8,
-                fontSize: 14,
-                fontFamily: 'Plus Jakarta Sans',
-                outline: 'none'
+                width: 20,
+                height: 20,
+                transform: isLibraryExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.3s ease'
               }}
             />
-          </div>
+          </button>
         </div>
 
-        <div style={{flex: 1, overflowY: 'auto', padding: 8}}>
-          {combinedItems.map((item) => (
+        <div style={{padding: 16, display: 'flex', justifyContent: 'center'}}>
+          {isLibraryExpanded ? (
+            <div style={{position: 'relative', height: 52, display: 'flex', alignItems: 'center', width: '100%'}}>
+              <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
+              <input
+                type="text"
+                placeholder="Search any documents..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  paddingLeft: 46,
+                  paddingRight: 16,
+                  background: '#F5F5F5',
+                  border: '1px #E6E6EC solid',
+                  borderRadius: 100,
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500',
+                  lineHeight: '24px',
+                  color: '#32302C',
+                  outline: 'none'
+                }}
+              />
+            </div>
+          ) : (
+            <div
+              onClick={() => setShowSearchModal(true)}
+              style={{
+                width: 44,
+                height: 44,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#F5F5F5',
+                borderRadius: 12,
+                border: '1px solid #E6E6EC',
+                cursor: 'pointer',
+                transition: 'background 0.15s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#EAEAEA'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+            >
+              <SearchIcon style={{width: 20, height: 20}} />
+            </div>
+          )}
+        </div>
+
+        {isLibraryExpanded && (
+          <div style={{flex: 1, overflowY: 'auto', padding: 8}}>
+            {combinedItems.map((item) => (
             <div key={item.id}>
               {/* Render folder */}
               {item.isFolder && (
@@ -1579,7 +1868,8 @@ const UploadHub = () => {
               )}
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Main Upload Area */}
@@ -2527,6 +2817,9 @@ const UploadHub = () => {
           }
         }}
       />
+
+      {/* Search Modal */}
+      <SearchModal />
 
       {/* Animation Keyframes */}
       <style dangerouslySetInnerHTML={{ __html: `

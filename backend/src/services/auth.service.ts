@@ -6,6 +6,8 @@ import { hashToken } from '../utils/encryption';
 export interface RegisterInput {
   email: string;
   password: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 export interface LoginInput {
@@ -21,7 +23,7 @@ export interface AuthTokens {
 /**
  * Register a new user (creates pending user, no tokens until fully verified)
  */
-export const registerUser = async ({ email, password }: RegisterInput) => {
+export const registerUser = async ({ email, password, firstName, lastName }: RegisterInput) => {
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
@@ -71,6 +73,8 @@ export const registerUser = async ({ email, password }: RegisterInput) => {
       email: email.toLowerCase(),
       passwordHash: hash,
       salt,
+      firstName,
+      lastName,
       emailCode,
       expiresAt,
     },
@@ -213,8 +217,10 @@ export const verifyPendingUserEmail = async (email: string, code: string) => {
       email: pendingUser.email,
       passwordHash: pendingUser.passwordHash,
       salt: pendingUser.salt,
+      firstName: pendingUser.firstName,
+      lastName: pendingUser.lastName,
       phoneNumber: null, // Phone is optional
-      isEmailVerified: true,
+      isEmailVerified: false, // Set to false for recovery setup
       isPhoneVerified: false,
     },
   });
@@ -346,9 +352,11 @@ export const verifyPendingUserPhone = async (email: string, code: string) => {
       email: pendingUser.email,
       passwordHash: pendingUser.passwordHash,
       salt: pendingUser.salt,
+      firstName: pendingUser.firstName,
+      lastName: pendingUser.lastName,
       phoneNumber: pendingUser.phoneNumber!,
       isEmailVerified: pendingUser.emailVerified || false, // Set based on actual verification status
-      isPhoneVerified: true,
+      isPhoneVerified: false, // Set to false for recovery setup
     },
   });
 

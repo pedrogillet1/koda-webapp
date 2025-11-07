@@ -12,7 +12,7 @@ import pngIcon from '../assets/png-icon.png';
 import pptxIcon from '../assets/pptx.png';
 import api from '../services/api';
 
-const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocuments = [] }) => {
+const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocuments = [], preSelectedDocumentId = null }) => {
   const [categoryName, setCategoryName] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState('__FOLDER_SVG__');
   const [documents, setDocuments] = useState([]);
@@ -22,6 +22,11 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
   const [nameError, setNameError] = useState(false);
   const [documentsError, setDocumentsError] = useState(false);
   const [showAllEmojis, setShowAllEmojis] = useState(false);
+
+  // Debug: Log when preSelectedDocumentId changes
+  useEffect(() => {
+    console.log('📋 CreateCategoryModal received preSelectedDocumentId:', preSelectedDocumentId);
+  }, [preSelectedDocumentId]);
 
   const emojis = [
     // Default folder icon (folder_icon.svg)
@@ -55,6 +60,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
         try {
           setLoading(true);
           console.log('📂 CreateCategoryModal opening - fetching ALL documents from API...');
+          console.log('📂 Pre-selected document ID:', preSelectedDocumentId);
 
           // Fetch ALL documents with a high limit to ensure we get everything
           const response = await api.get('/api/documents?limit=1000');
@@ -64,7 +70,14 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
           console.log('📂 Full response:', response.data);
 
           setDocuments(allDocuments);
-          setSelectedDocuments([]); // Start with none selected
+          // Pre-select document if provided
+          if (preSelectedDocumentId) {
+            console.log('📂 Pre-selecting document:', preSelectedDocumentId);
+            setSelectedDocuments([preSelectedDocumentId]);
+          } else {
+            console.log('📂 No pre-selected document');
+            setSelectedDocuments([]);
+          }
           setLoading(false);
         } catch (error) {
           console.error('❌ Error fetching documents:', error);
@@ -74,8 +87,15 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
       };
 
       fetchAllDocuments();
+      // Reset form when modal opens
+      setCategoryName('');
+      setSelectedEmoji('__FOLDER_SVG__');
+      setSearchQuery('');
+      setNameError(false);
+      setDocumentsError(false);
+      setShowAllEmojis(false);
     }
-  }, [isOpen]);
+  }, [isOpen, preSelectedDocumentId]);
 
   const toggleDocumentSelection = (docId) => {
     setSelectedDocuments(prev => {

@@ -7,14 +7,14 @@ import prisma from '../config/database';
  */
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const { email, password, firstName, lastName } = req.body;
 
     if (!email || !password) {
       res.status(400).json({ error: 'Email and password are required' });
       return;
     }
 
-    const result = await authService.registerUser({ email, password });
+    const result = await authService.registerUser({ email, password, firstName, lastName });
 
     // New flow: returns { message, email, requiresVerification } without tokens
     res.status(201).json(result);

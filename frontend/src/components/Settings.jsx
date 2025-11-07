@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import LeftNav from './LeftNav';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import FeedbackModal from './FeedbackModal';
+import RecoveryVerificationBanner from './RecoveryVerificationBanner';
 import { useToast } from '../context/ToastContext';
 import { ReactComponent as DonutIcon } from '../assets/Donut.svg';
 import { ReactComponent as UserIcon } from '../assets/User.svg';
@@ -742,7 +743,10 @@ const Settings = () => {
 
         {/* Content */}
         {activeSection === 'general' && (
-        <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: 32, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 24, display: 'flex' }}>
+        <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: 32, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 16, display: 'flex' }}>
+          {/* Recovery Verification Banner */}
+          <RecoveryVerificationBanner />
+
           {/* Profile Card - Row 1 */}
           <div
             onClick={() => setActiveSection('profile')}
