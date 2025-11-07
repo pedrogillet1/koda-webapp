@@ -534,7 +534,7 @@ const DocumentViewer = () => {
                 onClick={() => setShowDeleteModal(true)}
                 style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
               >
-                <TrashCanIcon style={{ width: 36, height: 36 }} />
+                <TrashCanIcon style={{ width: 44, height: 44 }} />
               </button>
               <button
                 onClick={() => {
@@ -569,7 +569,7 @@ const DocumentViewer = () => {
                 }}
                 style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
               >
-                <PrinterIcon style={{ width: 36, height: 36 }} />
+                <PrinterIcon style={{ width: 44, height: 44 }} />
               </button>
               <button
                 onClick={async () => {
@@ -590,7 +590,7 @@ const DocumentViewer = () => {
                 style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
                 title={isSafari() || isIOS() ? 'Open in new tab' : 'Download'}
               >
-                <DownloadIcon style={{ width: 36, height: 36 }} />
+                <DownloadIcon style={{ width: 44, height: 44 }} />
               </button>
               <button
                 onClick={() => {
@@ -604,8 +604,8 @@ const DocumentViewer = () => {
                   src={logoSvg}
                   alt="Profile"
                   style={{
-                    width: 32,
-                    height: 32,
+                    width: 40,
+                    height: 40,
                     objectFit: 'contain',
                     ...getImageRenderingCSS()
                   }}
@@ -617,7 +617,7 @@ const DocumentViewer = () => {
               style={{ flex: '1 1 0', height: 52, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
             >
               <LogoutWhiteIcon style={{ width: 24, height: 24 }} />
-              <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Share</div>
+              <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Export</div>
             </button>
           </div>
         </div>
@@ -637,9 +637,29 @@ const DocumentViewer = () => {
           <div style={{ flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
             <button
               onClick={() => setShowCategoryModal(true)}
-              style={{ width: 20, height: 20, background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{
+                paddingLeft: 12,
+                paddingRight: 12,
+                paddingTop: 8,
+                paddingBottom: 8,
+                background: '#000000',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
             >
-              <StarIcon style={{ width: 20, height: 20 }} />
+              <span style={{
+                color: '#FFFFFF',
+                fontSize: 14,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '600',
+                lineHeight: '20px'
+              }}>
+                Add to Category
+              </span>
             </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
@@ -1349,90 +1369,12 @@ const DocumentViewer = () => {
             }}
           >
             <div style={{ fontSize: 20, fontWeight: '700', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 8 }}>
-              Share Document
+              Export Document
             </div>
             <div style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', color: '#6C6B6E', marginBottom: 24 }}>
               {document.filename}
             </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 8 }}>
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={shareEmail}
-                onChange={(e) => setShareEmail(e.target.value)}
-                placeholder="Enter email address..."
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: 8,
-                  border: '1px solid #E6E6EC',
-                  fontSize: 14,
-                  fontFamily: 'Plus Jakarta Sans',
-                  outline: 'none'
-                }}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #E6E6EC' }}>
-              <button
-                onClick={() => {
-                  setShowShareModal(false);
-                  setShareEmail('');
-                }}
-                style={{
-                  padding: '12px 24px',
-                  borderRadius: 14,
-                  border: '1px solid #E6E6EC',
-                  background: 'white',
-                  color: '#323232',
-                  fontSize: 14,
-                  fontWeight: '600',
-                  fontFamily: 'Plus Jakarta Sans',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  if (!shareEmail.trim()) {
-                    alert('Please enter an email address');
-                    return;
-                  }
-                  setSendingEmail(true);
-                  try {
-                    await api.post(`/api/documents/${documentId}/share`, {
-                      email: shareEmail
-                    });
-                    alert(`Document shared with ${shareEmail}`);
-                    setShowShareModal(false);
-                    setShareEmail('');
-                  } catch (error) {
-                    console.error('Error sharing document:', error);
-                    alert('Failed to send email: ' + (error.response?.data?.error || error.message));
-                  } finally {
-                    setSendingEmail(false);
-                  }
-                }}
-                disabled={sendingEmail}
-                style={{
-                  padding: '12px 24px',
-                  borderRadius: 14,
-                  border: 'none',
-                  background: sendingEmail ? '#999' : '#181818',
-                  color: 'white',
-                  fontSize: 14,
-                  fontWeight: '600',
-                  fontFamily: 'Plus Jakarta Sans',
-                  cursor: sendingEmail ? 'not-allowed' : 'pointer',
-                  marginLeft: 'auto'
-                }}
-              >
-                {sendingEmail ? 'Sending...' : 'Send Email'}
-              </button>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
               <button
                 onClick={async () => {
                   if (document) {
