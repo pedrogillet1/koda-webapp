@@ -308,6 +308,26 @@ async function processDocumentWithTimeout(
             console.warn(`⚠️ PowerPoint processor failed: ${pptxProcessResult.error}`);
           }
 
+          // 🆕 Convert PPTX to PDF for preview (synchronous, before document creation)
+          let pdfPreviewPath: string | null = null;
+          let pdfPreviewUrl: string | null = null;
+
+          console.log('📄 Converting PPTX to PDF for preview...');
+          try {
+            const pptxToPdfService = (await import('./pptxToPdf.service')).default;
+            const pdfResult = await pptxToPdfService.convertToPdf(tempFilePath, userId);
+
+            if (pdfResult.success) {
+              pdfPreviewPath = pdfResult.pdfPath;
+              pdfPreviewUrl = pdfResult.pdfUrl;
+              console.log('✅ PDF preview created successfully');
+            } else {
+              console.warn(`⚠️ PDF preview generation failed: ${pdfResult.error}`);
+            }
+          } catch (pdfError: any) {
+            console.warn(`⚠️ PDF preview generation error: ${pdfError.message}`);
+          }
+
           // ✅ FIX: PROACTIVE image extraction approach - Always extract images first
           console.log('📊 Starting PPTX image processing in background...');
           (async () => {
@@ -985,6 +1005,8 @@ async function processDocumentWithTimeout(
       where: { id: documentId },
       data: {
         status: 'completed',
+        pdfPreviewPath,
+        pdfPreviewUrl,
         updatedAt: new Date()
       },
     });
@@ -1233,6 +1255,26 @@ async function processDocumentAsync(
             console.log(`✅ Created ${pptxSlideChunks.length} slide-level chunks`);
           } else {
             console.warn(`⚠️ PowerPoint processor failed: ${pptxProcessResult.error}`);
+          }
+
+          // 🆕 Convert PPTX to PDF for preview (synchronous, before document creation)
+          let pdfPreviewPath: string | null = null;
+          let pdfPreviewUrl: string | null = null;
+
+          console.log('📄 Converting PPTX to PDF for preview...');
+          try {
+            const pptxToPdfService = (await import('./pptxToPdf.service')).default;
+            const pdfResult = await pptxToPdfService.convertToPdf(tempFilePath, userId);
+
+            if (pdfResult.success) {
+              pdfPreviewPath = pdfResult.pdfPath;
+              pdfPreviewUrl = pdfResult.pdfUrl;
+              console.log('✅ PDF preview created successfully');
+            } else {
+              console.warn(`⚠️ PDF preview generation failed: ${pdfResult.error}`);
+            }
+          } catch (pdfError: any) {
+            console.warn(`⚠️ PDF preview generation error: ${pdfError.message}`);
           }
 
           // ✅ FIX: PROACTIVE image extraction approach - Always extract images first

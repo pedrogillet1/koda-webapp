@@ -21,7 +21,7 @@ if (!document.head.querySelector('#pptx-spinner-styles')) {
 
 /**
  * PPTX Preview Component
- * Displays PowerPoint presentations with slide navigation
+ * Displays PowerPoint presentations with PDF preview (if available) or slide navigation
  */
 const PPTXPreview = ({ document, zoom }) => {
   const [slides, setSlides] = useState([]);
@@ -29,13 +29,35 @@ const PPTXPreview = ({ document, zoom }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [metadata, setMetadata] = useState(null);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [usePdfPreview, setUsePdfPreview] = useState(false);
 
   useEffect(() => {
-    const fetchSlides = async () => {
+    const fetchPreview = async () => {
       try {
         setLoading(true);
         setError(null);
 
+        // First, try to get PDF preview if document has pdfPreviewPath
+        if (document.pdfPreviewPath) {
+          try {
+            console.log('📄 Fetching PDF preview...');
+            const pdfResponse = await api.get(`/api/documents/${document.id}/pdf-preview`);
+
+            if (pdfResponse.data.success && pdfResponse.data.pdfUrl) {
+              setPdfUrl(pdfResponse.data.pdfUrl);
+              setUsePdfPreview(true);
+              setLoading(false);
+              console.log('✅ Using PDF preview');
+              return;
+            }
+          } catch (pdfErr) {
+            console.warn('⚠️ PDF preview not available, falling back to slides:', pdfErr.message);
+          }
+        }
+
+        // Fallback to slide-by-slide view
+        console.log('📊 Fetching slide images...');
         const response = await api.get(`/api/documents/${document.id}/slides`);
 
         if (response.data.success) {
@@ -59,14 +81,14 @@ const PPTXPreview = ({ document, zoom }) => {
 
         setLoading(false);
       } catch (err) {
-        console.error('Error fetching slides:', err);
-        setError(err.response?.data?.error || 'Failed to load presentation slides');
+        console.error('Error fetching preview:', err);
+        setError(err.response?.data?.error || 'Failed to load presentation preview');
         setLoading(false);
       }
     };
 
     if (document && document.id) {
-      fetchSlides();
+      fetchPreview();
     }
   }, [document]);
 
@@ -163,6 +185,75 @@ const PPTXPreview = ({ document, zoom }) => {
           fontFamily: 'Plus Jakarta Sans'
         }}>
           Loading presentation...
+        </div>
+      </div>
+    );
+  }
+
+  // Render PDF preview if available
+  if (usePdfPreview && pdfUrl) {
+    return (
+      <div style={{
+        width: '100%',
+        maxWidth: '1200px',
+        transform: `scale(${zoom / 100})`,
+        transformOrigin: 'top center',
+        transition: 'transform 0.2s ease'
+      }}>
+        <div style={{
+          background: 'white',
+          borderRadius: 12,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          overflow: 'hidden'
+        }}>
+          {/* PDF Header */}
+          <div style={{
+            padding: 16,
+            background: '#F5F5F5',
+            borderBottom: '1px solid #E6E6EC',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div style={{
+              fontSize: 14,
+              fontWeight: '600',
+              color: '#32302C',
+              fontFamily: 'Plus Jakarta Sans'
+            }}>
+              PDF Preview
+            </div>
+            <div style={{
+              fontSize: 12,
+              color: '#6C6B6E',
+              fontFamily: 'Plus Jakarta Sans'
+            }}>
+              {document.name}
+            </div>
+          </div>
+
+          {/* PDF Viewer */}
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            height: '800px',
+            background: '#525252'
+          }}>
+            <iframe
+              src={pdfUrl}
+              title="PPTX PDF Preview"
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none'
+              }}
+              onError={(e) => {
+                console.error('Failed to load PDF preview');
+                setError('Failed to load PDF preview');
+                setUsePdfPreview(false);
+              }}
+            />
+          </div>
         </div>
       </div>
     );
