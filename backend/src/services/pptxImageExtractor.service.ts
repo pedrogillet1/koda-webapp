@@ -10,7 +10,7 @@ interface ExtractedImage {
   filename: string;
   localPath: string;
   gcsPath?: string;
-  imageUrl?: string;
+  imageUrl?: string | null; // ✅ FIX: Allow null for failed uploads
 }
 
 interface SlideWithImages {
@@ -34,6 +34,7 @@ export class PPTXImageExtractorService {
     options: {
       uploadToGCS?: boolean;
       outputDir?: string;
+      signedUrlExpiration?: number; // ✅ FIX: Add expiration option (in seconds)
     } = {}
   ): Promise<{
     success: boolean;
@@ -44,7 +45,7 @@ export class PPTXImageExtractorService {
     try {
       console.log('📸 [PPTX Image Extractor] Starting image extraction...');
 
-      const { uploadToGCS = true, outputDir } = options;
+      const { uploadToGCS = true, outputDir, signedUrlExpiration = 604800 } = options; // ✅ FIX: Default 7 days
 
       // 1. Create temp directory
       const tempDir = outputDir || path.join(process.cwd(), 'temp', `pptx-images-${documentId}-${Date.now()}`);
@@ -131,14 +132,81 @@ export class PPTXImageExtractorService {
             try {
               await uploadFile(image.localPath, gcsPath);
               image.gcsPath = `gcs://${process.env.GCS_BUCKET_NAME}/${gcsPath}`;
-              image.imageUrl = await getSignedUrl(gcsPath, 3600);
+              image.imageUrl = await getSignedUrl(gcsPath, signedUrlExpiration); // ✅ FIX: Use configurable expiration
               console.log(`   ✅ Uploaded: ${gcsPath}`);
             } catch (uploadError) {
               console.error(`   ❌ Failed to upload ${gcsPath}:`, uploadError);
+              // ✅ FIX: Set imageUrl to null so we know it failed
+              image.imageUrl = null;
+              image.gcsPath = undefined;
             }
           }
         }
       }
+
+      // 6.5. Create composite images for slides with multiple images
+      console.log('🖼️  [PPTX Image Extractor] Creating composite images...');
+      for (const slide of slides) {
+        if (slide.images.length > 1) {
+          try {
+            console.log(`🖼️  Creating composite image for slide ${slide.slideNumber}...`);
+
+            // Load all images that were successfully uploaded
+            const validImages = slide.images.filter(img => img.imageUrl && img.localPath);
+
+            if (validImages.length === 0) {
+              console.warn(`⚠️  No valid images for slide ${slide.slideNumber}`);
+              continue;
+            }
+
+            const imageBuffers = await Promise.all(
+              validImages.map(img => sharp(img.localPath).toBuffer())
+            );
+
+            if (imageBuffers.length > 0) {
+              // Create a composite by layering images
+              // Simple approach: use the first (usually background) as base
+              let composite = sharp(imageBuffers[0]);
+
+              // Overlay other images
+              if (imageBuffers.length > 1) {
+                const composites = imageBuffers.slice(1).map(buffer => ({
+                  input: buffer,
+                  blend: 'over' as const
+                }));
+                composite = composite.composite(composites);
+              }
+
+              // Save composite
+              const compositeFilename = `slide-${slide.slideNumber}-composite.png`;
+              const compositePath = path.join(tempDir, compositeFilename);
+              await composite.toFile(compositePath);
+
+              // Upload composite if GCS upload is enabled
+              if (uploadToGCS) {
+                const compositeGcsPath = `slides/${documentId}/slide-${slide.slideNumber}-composite.png`;
+                try {
+                  await uploadFile(compositePath, compositeGcsPath);
+                  slide.compositeImageUrl = await getSignedUrl(compositeGcsPath, signedUrlExpiration);
+                  console.log(`   ✅ Uploaded composite: ${compositeGcsPath}`);
+                } catch (uploadError) {
+                  console.error(`   ❌ Failed to upload composite:`, uploadError);
+                }
+              } else {
+                slide.compositeImageUrl = compositePath;
+              }
+            }
+          } catch (compositeError) {
+            console.warn(`⚠️  Failed to create composite for slide ${slide.slideNumber}:`, compositeError);
+            // Non-critical error, continue
+          }
+        } else if (slide.images.length === 1) {
+          // Single image - use it as composite
+          slide.compositeImageUrl = slide.images[0].imageUrl || undefined;
+        }
+      }
+
+      console.log(`✅ [PPTX Image Extractor] Created composites for ${slides.filter(s => s.compositeImageUrl).length} slides`);
 
       // 7. Clean up temp directory
       if (!outputDir) {

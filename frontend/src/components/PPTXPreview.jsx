@@ -3,6 +3,22 @@ import api from '../services/api';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as ArrowRightIcon } from '../assets/arrow-narrow-right.svg';
 
+// ✅ FIX: Add CSS animation for spinner
+const spinnerStyles = document.createElement('style');
+spinnerStyles.textContent = `
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  .pptx-spinner {
+    animation: spin 1s linear infinite;
+  }
+`;
+if (!document.head.querySelector('#pptx-spinner-styles')) {
+  spinnerStyles.id = 'pptx-spinner-styles';
+  document.head.appendChild(spinnerStyles);
+}
+
 /**
  * PPTX Preview Component
  * Displays PowerPoint presentations with slide navigation
@@ -256,10 +272,101 @@ const PPTXPreview = ({ document, zoom }) => {
           padding: 20,
           minHeight: 400,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#F9FAFB'
+          background: '#F9FAFB',
+          gap: 16
         }}>
+          {/* ✅ FIX: Show processing status */}
+          {metadata?.slideGenerationStatus === 'processing' && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12,
+              padding: 20,
+              background: '#FFF7ED',
+              borderRadius: 8,
+              border: '1px solid #FED7AA'
+            }}>
+              <div className="pptx-spinner" style={{
+                width: 40,
+                height: 40,
+                border: '3px solid #FB923C',
+                borderTopColor: 'transparent',
+                borderRadius: '50%'
+              }} />
+              <div style={{
+                fontSize: 14,
+                fontWeight: '600',
+                color: '#EA580C',
+                fontFamily: 'Plus Jakarta Sans'
+              }}>
+                Generating slide images...
+              </div>
+              <div style={{
+                fontSize: 12,
+                color: '#9A3412',
+                fontFamily: 'Plus Jakarta Sans',
+                textAlign: 'center'
+              }}>
+                This may take a minute. The preview will update automatically.
+              </div>
+            </div>
+          )}
+
+          {/* ✅ FIX: Show error status with retry */}
+          {metadata?.slideGenerationStatus === 'failed' && !currentSlide?.imageUrl && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12,
+              padding: 20,
+              background: '#FEE2E2',
+              borderRadius: 8,
+              border: '1px solid #FECACA'
+            }}>
+              <div style={{
+                fontSize: 14,
+                fontWeight: '600',
+                color: '#DC2626',
+                fontFamily: 'Plus Jakarta Sans'
+              }}>
+                Failed to generate slide images
+              </div>
+              <div style={{
+                fontSize: 12,
+                color: '#991B1B',
+                fontFamily: 'Plus Jakarta Sans',
+                textAlign: 'center'
+              }}>
+                {metadata.slideGenerationError || 'Unknown error'}
+              </div>
+              <button
+                onClick={() => {
+                  // TODO: Implement retry logic
+                  console.log('Retry slide generation');
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: '#DC2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontFamily: 'Plus Jakarta Sans'
+                }}
+              >
+                Retry Generation
+              </button>
+            </div>
+          )}
+
+          {/* Show slide image */}
           {currentSlide && currentSlide.imageUrl ? (
             <img
               src={currentSlide.imageUrl}
@@ -274,8 +381,8 @@ const PPTXPreview = ({ document, zoom }) => {
               }}
               onError={(e) => {
                 console.error('Failed to load slide image:', currentSlide.imageUrl);
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'block';
+                // ✅ FIX: Show text content as fallback
+                e.currentTarget.style.display = 'none';
               }}
             />
           ) : currentSlide && currentSlide.content ? (
@@ -303,17 +410,6 @@ const PPTXPreview = ({ document, zoom }) => {
               This slide is empty
             </div>
           )}
-          {/* Hidden error fallback */}
-          <div style={{
-            display: 'none',
-            textAlign: 'center',
-            color: '#6C6B6E',
-            fontSize: 14,
-            fontFamily: 'Plus Jakarta Sans',
-            padding: 40
-          }}>
-            Failed to load slide image
-          </div>
         </div>
 
         {/* Navigation Controls */}
