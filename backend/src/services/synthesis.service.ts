@@ -44,7 +44,7 @@ class SynthesisService {
 
     // Generate synthesis using LLM
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         maxOutputTokens: 2000,
         temperature: 0.4, // Balanced creativity for analysis
@@ -102,7 +102,7 @@ ${documents.map((doc, idx) => `**Document ${idx + 1}: ${doc.documentName}**\n${d
 Provide a concise summary with bullet points for trends and changes.`;
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         maxOutputTokens: 1500,
         temperature: 0.3,
@@ -147,7 +147,7 @@ ${documents.map((doc, idx) => `**Document ${idx + 1}: ${doc.documentName}**\n${d
 Use bullet points for similarities and differences, followed by a paragraph summary.`;
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         maxOutputTokens: 1500,
         temperature: 0.3,

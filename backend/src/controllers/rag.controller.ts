@@ -301,10 +301,10 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     if (intentResult.intent === Intent.CREATE_FOLDER && intentResult.entities.folderName) {
       console.log(`📁 [ACTION] Creating folder: "${intentResult.entities.folderName}"`);
 
-      const result = await fileActionsService.createFolder(
-        intentResult.entities.folderName,
-        userId
-      );
+      const result = await fileActionsService.createFolder({
+        userId,
+        folderName: intentResult.entities.folderName
+      }, query);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1007,10 +1007,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     if (intentResult.intent === 'create_folder' && intentResult.parameters.folderName) {
       console.log(`📁 [STREAMING ACTION] Creating folder: "${intentResult.parameters.folderName}"`);
 
-      const result = await fileActionsService.createFolder(
-        intentResult.parameters.folderName,
-        userId
-      );
+      const result = await fileActionsService.createFolder({
+        userId,
+        folderName: intentResult.parameters.folderName
+      }, query);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1119,7 +1119,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         userId,
         oldFilename: intentResult.parameters.oldName,
         newFilename: intentResult.parameters.newName
-      });
+      }, query);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1169,10 +1169,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     if (intentResult.intent === 'delete_file' && intentResult.parameters.filename) {
       console.log(`📁 [STREAMING ACTION] Deleting: "${intentResult.parameters.filename}"`);
 
-      const result = await fileActionsService.deleteFile({
-        userId,
-        filename: intentResult.parameters.filename
-      });
+      const result = await fileActionsService.handleFileAction(
+        query,
+        userId
+      );
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1225,7 +1225,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       const result = await fileActionsService.showFile({
         userId,
         filename: intentResult.parameters.filename
-      });
+      }, query);
 
       const userMessage = await prisma.message.create({
         data: {

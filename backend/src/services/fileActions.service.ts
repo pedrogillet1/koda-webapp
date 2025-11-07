@@ -14,6 +14,100 @@ import { Document, Folder } from '@prisma/client';
 import { llmIntentDetectorService } from './llmIntentDetector.service';
 import { findBestMatch } from 'string-similarity';
 
+/**
+ * Language Detection Function
+ * Detects user's language from query to provide localized responses
+ * Supports: English (EN), Portuguese (PT), Spanish (ES), French (FR)
+ */
+function detectLanguage(query: string): 'pt' | 'es' | 'fr' | 'en' {
+  const lowerQuery = query.toLowerCase();
+
+  // Portuguese indicators
+  const ptWords = ['me mostra', 'mostra', 'arquivo', 'pasta', 'mover', 'renomear', 'deletar', 'criar', 'excluir', 'abrir', 'mostre', 'aqui está'];
+  const ptCount = ptWords.filter(word => lowerQuery.includes(word)).length;
+
+  // Spanish indicators
+  const esWords = ['muéstrame', 'muestra', 'archivo', 'carpeta', 'mover', 'renombrar', 'eliminar', 'crear', 'abrir', 'aquí está'];
+  const esCount = esWords.filter(word => lowerQuery.includes(word)).length;
+
+  // French indicators
+  const frWords = ['montre-moi', 'montre', 'fichier', 'dossier', 'déplacer', 'renommer', 'supprimer', 'créer', 'ouvrir', 'voici'];
+  const frCount = frWords.filter(word => lowerQuery.includes(word)).length;
+
+  // Return language with highest match count
+  if (ptCount > esCount && ptCount > frCount && ptCount > 0) return 'pt';
+  if (esCount > ptCount && esCount > frCount && esCount > 0) return 'es';
+  if (frCount > ptCount && frCount > esCount && frCount > 0) return 'fr';
+  return 'en'; // Default to English
+}
+
+/**
+ * Multilingual Message Templates
+ * All file action responses in 4 languages
+ */
+const messages = {
+  hereIsFile: {
+    en: "Here's the file:",
+    pt: "Aqui está o arquivo:",
+    es: "Aquí está el archivo:",
+    fr: "Voici le fichier:"
+  },
+  fileNotFound: {
+    en: (filename: string) => `I couldn't find a file named "${filename}". Please check the name and try again.`,
+    pt: (filename: string) => `Não consegui encontrar um arquivo chamado "${filename}". Por favor, verifique o nome e tente novamente.`,
+    es: (filename: string) => `No pude encontrar un archivo llamado "${filename}". Por favor, verifica el nombre e intenta de nuevo.`,
+    fr: (filename: string) => `Je n'ai pas pu trouver un fichier nommé "${filename}". Veuillez vérifier le nom et réessayer.`
+  },
+  multipleFilesFound: {
+    en: (count: number, filename: string) => `I found **${count} files** matching "${filename}". Which one would you like to see?`,
+    pt: (count: number, filename: string) => `Encontrei **${count} arquivos** correspondentes a "${filename}". Qual deles você quer ver?`,
+    es: (count: number, filename: string) => `Encontré **${count} archivos** que coinciden con "${filename}". ¿Cuál quieres ver?`,
+    fr: (count: number, filename: string) => `J'ai trouvé **${count} fichiers** correspondant à "${filename}". Lequel voulez-vous voir?`
+  },
+  folderCreated: {
+    en: (folderName: string) => `Folder "${folderName}" created successfully.`,
+    pt: (folderName: string) => `Pasta "${folderName}" criada com sucesso.`,
+    es: (folderName: string) => `Carpeta "${folderName}" creada exitosamente.`,
+    fr: (folderName: string) => `Dossier "${folderName}" créé avec succès.`
+  },
+  folderAlreadyExists: {
+    en: (folderName: string) => `Folder "${folderName}" already exists.`,
+    pt: (folderName: string) => `A pasta "${folderName}" já existe.`,
+    es: (folderName: string) => `La carpeta "${folderName}" ya existe.`,
+    fr: (folderName: string) => `Le dossier "${folderName}" existe déjà.`
+  },
+  fileMoved: {
+    en: (filename: string, folderName: string) => `File "${filename}" moved to "${folderName}" successfully.`,
+    pt: (filename: string, folderName: string) => `Arquivo "${filename}" movido para "${folderName}" com sucesso.`,
+    es: (filename: string, folderName: string) => `Archivo "${filename}" movido a "${folderName}" exitosamente.`,
+    fr: (filename: string, folderName: string) => `Fichier "${filename}" déplacé vers "${folderName}" avec succès.`
+  },
+  fileRenamed: {
+    en: (oldName: string, newName: string) => `File renamed from "${oldName}" to "${newName}" successfully.`,
+    pt: (oldName: string, newName: string) => `Arquivo renomeado de "${oldName}" para "${newName}" com sucesso.`,
+    es: (oldName: string, newName: string) => `Archivo renombrado de "${oldName}" a "${newName}" exitosamente.`,
+    fr: (oldName: string, newName: string) => `Fichier renommé de "${oldName}" à "${newName}" avec succès.`
+  },
+  fileDeleted: {
+    en: (filename: string) => `File "${filename}" deleted successfully.`,
+    pt: (filename: string) => `Arquivo "${filename}" deletado com sucesso.`,
+    es: (filename: string) => `Archivo "${filename}" eliminado exitosamente.`,
+    fr: (filename: string) => `Fichier "${filename}" supprimé avec succès.`
+  },
+  folderNotFound: {
+    en: (folderName: string) => `Folder "${folderName}" not found.`,
+    pt: (folderName: string) => `Pasta "${folderName}" não encontrada.`,
+    es: (folderName: string) => `Carpeta "${folderName}" no encontrada.`,
+    fr: (folderName: string) => `Dossier "${folderName}" non trouvé.`
+  },
+  fileNotFoundShort: {
+    en: (filename: string) => `File "${filename}" not found.`,
+    pt: (filename: string) => `Arquivo "${filename}" não encontrado.`,
+    es: (filename: string) => `Archivo "${filename}" no encontrado.`,
+    fr: (filename: string) => `Fichier "${filename}" non trouvé.`
+  }
+};
+
 export interface FileActionResult {
   success: boolean;
   message: string;
@@ -207,8 +301,12 @@ class FileActionsService {
   /**
    * Create a new folder
    */
-  async createFolder(params: CreateFolderParams): Promise<FileActionResult> {
+  async createFolder(params: CreateFolderParams, query: string = ''): Promise<FileActionResult> {
     try {
+      // Detect language from user query
+      const lang = detectLanguage(query);
+      console.log(`📁 [CREATE_FOLDER] Creating folder: "${params.folderName}" (Language: ${lang})`);
+
       // Check if folder already exists
       const existingFolder = await prisma.folder.findFirst({
         where: {
@@ -221,7 +319,7 @@ class FileActionsService {
       if (existingFolder) {
         return {
           success: false,
-          message: `Folder "${params.folderName}" already exists`,
+          message: messages.folderAlreadyExists[lang](params.folderName),
           error: 'FOLDER_EXISTS'
         };
       }
@@ -238,7 +336,7 @@ class FileActionsService {
 
       return {
         success: true,
-        message: `Folder "${params.folderName}" created successfully`,
+        message: messages.folderCreated[lang](params.folderName),
         data: { folder }
       };
     } catch (error: any) {
@@ -254,8 +352,12 @@ class FileActionsService {
   /**
    * Move file to a different folder
    */
-  async moveFile(params: MoveFileParams): Promise<FileActionResult> {
+  async moveFile(params: MoveFileParams, query: string = ''): Promise<FileActionResult> {
     try {
+      // Detect language from user query
+      const lang = detectLanguage(query);
+      console.log(`📦 [MOVE_FILE] Moving file (Language: ${lang})`);
+
       // Verify document exists and belongs to user
       const document = await prisma.document.findFirst({
         where: {
@@ -267,7 +369,7 @@ class FileActionsService {
       if (!document) {
         return {
           success: false,
-          message: 'Document not found',
+          message: messages.fileNotFoundShort[lang](params.documentId),
           error: 'DOCUMENT_NOT_FOUND'
         };
       }
@@ -283,7 +385,7 @@ class FileActionsService {
       if (!targetFolder) {
         return {
           success: false,
-          message: 'Target folder not found',
+          message: messages.folderNotFound[lang](params.targetFolderId),
           error: 'FOLDER_NOT_FOUND'
         };
       }
@@ -296,7 +398,7 @@ class FileActionsService {
 
       return {
         success: true,
-        message: `Moved "${document.filename}" to "${targetFolder.name}"`,
+        message: messages.fileMoved[lang](document.filename, targetFolder.name),
         data: { document: updatedDocument }
       };
     } catch (error: any) {
@@ -312,8 +414,12 @@ class FileActionsService {
   /**
    * Rename a file
    */
-  async renameFile(params: RenameFileParams): Promise<FileActionResult> {
+  async renameFile(params: RenameFileParams, query: string = ''): Promise<FileActionResult> {
     try {
+      // Detect language from user query
+      const lang = detectLanguage(query);
+      console.log(`✏️ [RENAME_FILE] Renaming file (Language: ${lang})`);
+
       // Verify document exists and belongs to user
       const document = await prisma.document.findFirst({
         where: {
@@ -325,7 +431,7 @@ class FileActionsService {
       if (!document) {
         return {
           success: false,
-          message: 'Document not found',
+          message: messages.fileNotFoundShort[lang](params.documentId),
           error: 'DOCUMENT_NOT_FOUND'
         };
       }
@@ -338,7 +444,7 @@ class FileActionsService {
 
       return {
         success: true,
-        message: `Renamed "${document.filename}" to "${params.newFilename}"`,
+        message: messages.fileRenamed[lang](document.filename, params.newFilename),
         data: { document: updatedDocument }
       };
     } catch (error: any) {
@@ -354,8 +460,12 @@ class FileActionsService {
   /**
    * Delete a file
    */
-  async deleteFile(params: DeleteFileParams): Promise<FileActionResult> {
+  async deleteFile(params: DeleteFileParams, query: string = ''): Promise<FileActionResult> {
     try {
+      // Detect language from user query
+      const lang = detectLanguage(query);
+      console.log(`🗑️ [DELETE_FILE] Deleting file (Language: ${lang})`);
+
       // Verify document exists and belongs to user
       const document = await prisma.document.findFirst({
         where: {
@@ -367,7 +477,7 @@ class FileActionsService {
       if (!document) {
         return {
           success: false,
-          message: 'Document not found',
+          message: messages.fileNotFoundShort[lang](params.documentId),
           error: 'DOCUMENT_NOT_FOUND'
         };
       }
@@ -380,7 +490,7 @@ class FileActionsService {
 
       return {
         success: true,
-        message: `Deleted "${document.filename}"`,
+        message: messages.fileDeleted[lang](document.filename),
         data: { documentId: params.documentId }
       };
     } catch (error: any) {
@@ -396,9 +506,11 @@ class FileActionsService {
   /**
    * Show/preview a file
    */
-  async showFile(params: ShowFileParams): Promise<FileActionResult> {
+  async showFile(params: ShowFileParams, query: string = ''): Promise<FileActionResult> {
     try {
-      console.log(`👁️ [SHOW_FILE] Looking for file: "${params.filename}"`);
+      // Detect language from user query
+      const lang = detectLanguage(query);
+      console.log(`👁️ [SHOW_FILE] Looking for file: "${params.filename}" (Language: ${lang})`);
 
       // Find document by filename with fuzzy matching
       const document = await this.findDocumentWithFuzzyMatch(params.filename, params.userId);
@@ -424,7 +536,7 @@ class FileActionsService {
         if (searchResults.length === 0) {
           return {
             success: false,
-            message: `I couldn't find a file matching **"${params.filename}"**.\n\nWould you like me to show you all your documents instead?`,
+            message: messages.fileNotFound[lang](params.filename),
             error: 'FILE_NOT_FOUND'
           };
         }
@@ -437,7 +549,7 @@ class FileActionsService {
 
           return {
             success: false,
-            message: `I found **${searchResults.length} documents** matching "${params.filename}":\n\n${fileList}\n\nWhich one would you like to see?`,
+            message: `${messages.multipleFilesFound[lang](searchResults.length, params.filename)}\n\n${fileList}`,
             data: {
               action: 'clarify',
               matches: searchResults.map(doc => ({
@@ -454,7 +566,7 @@ class FileActionsService {
         const foundDoc = searchResults[0];
         return {
           success: true,
-          message: `Here's the file:`,
+          message: messages.hereIsFile[lang],
           data: {
             action: 'preview',
             document: {
@@ -472,7 +584,7 @@ class FileActionsService {
 
       return {
         success: true,
-        message: `Here's the file:`,
+        message: messages.hereIsFile[lang],
         data: {
           action: 'preview',
           document: {
@@ -582,7 +694,7 @@ class FileActionsService {
         return await this.createFolder({
           userId,
           folderName: params.folderName
-        });
+        }, query);
 
       case 'moveFile': {
         console.log(`🔍 [MOVE FILE] Looking for file: "${params.filename}"`);
@@ -618,7 +730,7 @@ class FileActionsService {
           userId,
           documentId: document.id,
           targetFolderId: folder.id
-        });
+        }, query);
       }
 
       case 'renameFile': {
@@ -642,7 +754,7 @@ class FileActionsService {
             userId,
             documentId: document.id,
             newFilename: params.newFilename
-          });
+          }, query);
         }
 
         // Neither file nor folder found
@@ -673,7 +785,7 @@ class FileActionsService {
           return await this.deleteFile({
             userId,
             documentId: document.id
-          });
+          }, query);
         }
 
         // Neither file nor folder found
@@ -816,7 +928,7 @@ class FileActionsService {
   /**
    * Move multiple files to a folder
    */
-  async moveFiles(userId: string, documentIds: string[], targetFolderId: string): Promise<FileActionResult> {
+  async moveFiles(userId: string, documentIds: string[], targetFolderId: string, query: string = ''): Promise<FileActionResult> {
     try {
       const results = [];
       for (const documentId of documentIds) {
@@ -824,7 +936,7 @@ class FileActionsService {
           userId,
           documentId,
           targetFolderId
-        });
+        }, query);
         results.push(result);
       }
 

@@ -63,7 +63,7 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 // ════════════════════════════════════════════════════════════════════════════════
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
 
 let pinecone: Pinecone | null = null;
@@ -353,12 +353,26 @@ async function detectComparison(userId: string, query: string): Promise<{
 } | null> {
   const lower = query.toLowerCase();
 
-  // Check for comparison keywords
+  // Check for comparison keywords (multilingual)
   const comparisonPatterns = [
+    // English
     /\bcompare\b/,
     /\bdifference(s)?\b/,
     /\bvs\b/,
     /\bversus\b/,
+    /\bbetween\b/,
+    // Portuguese
+    /\bcomparar\b/,
+    /\bdiferença(s)?\b/,
+    /\bentre\b/,
+    // Spanish
+    /\bcomparar\b/,
+    /\bcomparación\b/,
+    /\bdiferencia(s)?\b/,
+    // French
+    /\bcomparer\b/,
+    /\bdifférence(s)?\b/,
+    // Generic
     /\band\b.*\band\b/,  // "doc1 and doc2"
   ];
 
@@ -646,15 +660,56 @@ CRITICAL RULE - NO IMPLICATIONS SECTION:
 - ONLY if the user explicitly asks "what are the implications" or "what does this mean", add 1-2 sentences at the end
 - Keep all insights embedded in the main comparison content, not separated
 
-FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
-- Between bullet points: Use SINGLE newline only (no blank lines)
-- Before "Next step:" section: Use ONE blank line
-- Compare the documents clearly and objectively
-- Bold key differences with **text**
-- DO NOT include inline citations (no parentheses with document names/pages in the text)
-- Be thorough but concise
-- NO emojis
-- End with "Next step:" followed by a helpful suggestion (plain text, NOT bold)
+FORMATTING EXAMPLES FOR COMPARISONS (FOLLOW THESE EXACTLY):
+
+<example_comparison_1>
+Here's a side-by-side comparison of the two documents:
+
+| Aspect | KODA Blueprint | KODA Checklist |
+|--------|----------------|----------------|
+| **Purpose** | Strategic vision and product roadmap | Development task checklist |
+| **Target Audience** | Investors, stakeholders, executives | Developers, engineers, product team |
+| **Content Focus** | Market positioning, user personas, competitive analysis | Technical implementation, features, security |
+| **Document Length** | 15 pages with detailed analysis | 3 pages with concise task list |
+| **Key Sections** | Market analysis, user personas, pricing strategy | Core setup, security, documents, AI features |
+
+**Key Differences:**
+• The Blueprint focuses on strategic planning and market positioning, while the Checklist focuses on technical implementation.
+• The Blueprint is designed for external stakeholders, while the Checklist is for internal development teams.
+• The Blueprint provides context and rationale, while the Checklist provides actionable tasks.
+
+**Next step:** Review both documents together to ensure the development tasks in the Checklist align with the strategic vision in the Blueprint.
+</example_comparison_1>
+
+<example_comparison_2>
+Here's a comparison of the financial data in both documents:
+
+| Metric | Q1 2025 Report | Q2 2025 Report | Change |
+|--------|----------------|----------------|--------|
+| **Revenue** | $1.2M | $1.5M | +25% |
+| **Expenses** | $800K | $900K | +12.5% |
+| **Net Profit** | $400K | $600K | +50% |
+| **Customer Count** | 150 | 200 | +33% |
+| **Avg Deal Size** | $8,000 | $7,500 | -6.25% |
+
+**Key Insights:**
+• Revenue grew significantly (+25%) driven by customer acquisition (+33%).
+• Average deal size decreased slightly (-6.25%), suggesting growth in smaller customers.
+• Profit margin improved from 33% to 40%, indicating better operational efficiency.
+
+**Next step:** Analyze the customer segmentation to understand the shift toward smaller deal sizes and assess if this aligns with the growth strategy.
+</example_comparison_2>
+
+IMPORTANT: Notice the structure in the examples above:
+- Opening sentence introducing the comparison
+- ONE blank line
+- Markdown table with | separators for side-by-side comparison
+- ONE blank line after table
+- "**Key Differences:**" or "**Key Insights:**" section with bullets (NO blank lines between bullets)
+- ONE blank line
+- "**Next step:**" section (always bold)
+
+Follow this EXACT structure. Use tables for side-by-side comparisons.
 
 User query: "${query}"`;
 
@@ -1224,12 +1279,14 @@ async function handleRegularQuery(
 RELEVANT CONTENT FROM USER'S DOCUMENTS:
 ${context}
 
-LANGUAGE DETECTION (CRITICAL):
-- CRITICAL LANGUAGE RULE: The user asked their question in ${queryLangName}. You MUST respond entirely in ${queryLangName}, including all text, bullets, and the "Next step" section
-- DO NOT mix languages - if user asks in English, respond in English even if documents are in Portuguese
-- DO NOT match document language - match QUERY language only
-- Example: If user asks "what is this about" (English) and document is in Portuguese, answer in English
-- Example: If user asks "o que é isso" (Portuguese) and document is in English, answer in Portuguese
+LANGUAGE DETECTION (CRITICAL - MOST IMPORTANT RULE):
+- The user's query is in ${queryLangName}
+- You MUST respond ENTIRELY in ${queryLangName}, regardless of the document's language
+- NEVER respond in the document's language - ALWAYS respond in the query's language
+- If user asks in English → respond in English (even if document is in Portuguese)
+- If user asks in Portuguese → respond in Portuguese (even if document is in English)
+- If user asks in Spanish → respond in Spanish (even if document is in English)
+- This rule applies to ALL text: opening paragraph, bullets, next step, everything
 
 RESPONSE RULES:
 - Start with a brief intro (MAX 2 sentences)
@@ -1256,19 +1313,75 @@ CRITICAL RULE - NO IMPLICATIONS SECTION:
 - ONLY if the user explicitly asks "what are the implications" or "what does this mean", add 1-2 sentences at the end
 - Keep all insights embedded in the main content, not separated
 
-FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
-- Use HYBRID FORMAT: Opening paragraph + 4-5 detailed bullet points + Next step
-- Opening paragraph: 1-2 sentences introducing the document/topic
-- Transition: Add a sentence like "The document covers several key areas:" or "Here's what the document explains:"
-- Bullet points: 4-5 bullets on average (can be 3-7 depending on content)
-- Each bullet MUST be a full sentence or 2-3 sentences with detailed explanation (NOT just 7 words)
-- Example of GOOD bullet: "• Psychological Drivers: The framework identifies core psychological drivers that motivate user behavior, helping AI systems understand what truly matters to users and how to align messaging with their deeper needs."
-- Example of BAD bullet: "• Psychological Drivers: Identifies core drivers" (too short!)
-- Between bullet points: Use SINGLE newline only (no blank lines)
-- After last bullet point: Use ONE blank line before "Next step:" section
-- NO emojis
-- End with ONE "**${nextStepText}:**" section (always bold) followed by a helpful suggestion
-- The "${nextStepText}:" MUST be in ${queryLangName} to match your response language
+ADAPTIVE FORMATTING (CRITICAL - MATCH ANSWER LENGTH TO QUESTION COMPLEXITY):
+
+**Simple Questions → Simple Answers (1-2 sentences, NO bullets):**
+- Questions like: "what is this", "tell me about X", "how much", "when", "who", "what value"
+- Answer directly in 1-2 sentences without bullet points
+- Example Q: "tell me about comprovante1"
+- Example A: "It's a Pix transaction receipt showing a R$ 2500,00 payment from Maria Victoria Camasmie to Luciana Felix Braz on September 27, 2025."
+
+**Complex Questions → Detailed Answers (with bullets):**
+- Questions like: "explain in detail", "what are all the sections", "compare", "analyze"
+- Use 3-5 bullets MAXIMUM (not forced to 5)
+- Only use bullets when there are genuinely multiple distinct points
+- Example Q: "explain the koda checklist in detail"
+- Example A: Use bullets for each major section
+
+**General Guidelines:**
+- If the answer can fit in 1-2 sentences, DON'T use bullets
+- If there are 2-3 key points, use 2-3 bullets (not 5)
+- If there are 5+ key points, use 4-5 bullets maximum
+- Don't artificially inflate answers to reach 5 bullets
+
+FORMATTING EXAMPLES:
+
+<simple_example_1>
+User: "tell me about comprovante1"
+
+It's a Pix transaction receipt showing a **R$ 2500,00** payment from **Maria Victoria Camasmie** to **Luciana Felix Braz** on **September 27, 2025** at 09:01:35.
+
+**${nextStepText}:** Keep this receipt for your records as proof of payment.
+</simple_example_1>
+
+<simple_example_2>
+User: "me fala sobre o comprovante1"
+
+É um comprovante de transação Pix mostrando um pagamento de **R$ 2500,00** de **Maria Victoria Camasmie** para **Luciana Felix Braz** em **27 de setembro de 2025** às 09:01:35.
+
+**Próximo passo:** Guarde este comprovante como prova de pagamento.
+</simple_example_2>
+
+<complex_example>
+User: "explain the koda checklist in detail"
+
+The Koda Developer Checklist outlines the essential components for building the Koda application, covering core setup, security, documents, AI & answers, notifications, app & access, and plans & capacities.
+
+The document covers several key areas:
+• **Core Setup:** Includes account creation & login with email and password, secure sessions, two-factor login for enhanced security, and account deletion functionality.
+• **Security:** Emphasizes end-to-end encryption to ensure files are encrypted before upload, secure storage in the cloud using AES-256 encryption, and data privacy to prevent access by the Koda team or third-party tracking.
+• **Documents:** Covers the ability to upload any document type, automatic organization using AI to add categories & tags, search & filter functionality, and a trash & restore feature for deleted documents.
+• **AI & Answers:** Focuses on the ability for users to ask questions and receive answers, AI's ability to find answers and highlight the source, citations to show the origin of answers, and document summarization and explanation capabilities.
+
+**${nextStepText}:** Ensure each item on the checklist is completed to build a functional and secure Koda application.
+</complex_example>
+
+IMPORTANT: Notice the patterns in the examples above:
+
+**For Simple Questions:**
+- Direct answer in 1-2 sentences (NO bullets)
+- ONE blank line
+- "**${nextStepText}:**" section (always bold)
+
+**For Complex Questions:**
+- Opening paragraph (1-2 sentences)
+- ONE blank line
+- Transition sentence ("The document covers several key areas:")
+- Bullet list with NO blank lines between bullets (use 3-5 bullets, NOT always 5)
+- ONE blank line after last bullet
+- "**${nextStepText}:**" section (always bold)
+
+Follow this EXACT pattern based on question complexity. The ${nextStepText} MUST be in ${queryLangName}.
 
 User query: "${query}"`;
 
@@ -1299,26 +1412,14 @@ async function streamLLMResponse(
       const text = chunk.text();
       fullAnswer += text;
 
-      // Apply precise spacing rules for clean, readable output
+      // Simplified post-processing - let examples guide formatting
       const processedChunk = text
-        // ✅ CRITICAL: Remove inline citations like (filename.pdf, Page: N/A)
-        .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')
-        // ✅ FIX: Clean up formatting issues
-        .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks (4, 6, 8, etc.)
-        .replace(/\n\n\n+/g, '\n\n')  // Collapse 3+ newlines to 2 (one blank line)
-        .replace(/([•\-\*].*?)\n\n+([•\-\*])/g, '$1\n$2')  // Remove blank lines BETWEEN bullets
-        .replace(/\n\n([•\-\*])/g, '\n$1')  // Remove blank line BEFORE first bullet
-        .replace(/(.*?)\n\n(Next step:|Próximo passo:|Próximo paso:|Prochaine étape:)/g, '$1\n\n$2')  // Ensure ONE blank line before "Next step"
-        .replace(/(\*\*Next step:\*\*)\n\n/g, '$1\n')  // Reduce spacing after "Next step:" (English)
-        .replace(/(\*\*Próximo passo:\*\*)\n\n/g, '$1\n')  // Reduce spacing after "Próximo passo:" (Portuguese)
-        .replace(/(\*\*Próximo paso:\*\*)\n\n/g, '$1\n')  // Reduce spacing after "Próximo paso:" (Spanish)
-        .replace(/(\*\*Prochaine étape:\*\*)\n\n/g, '$1\n')  // Reduce spacing after "Prochaine étape:" (French)
-        // Remove emojis and symbols
-        .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')
-        .replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '')
-        // Flatten nested bullets - convert sub-bullets (○, ◦, indented bullets) to main bullets
-        .replace(/\n\s+[○◦]\s+/g, '\n• ')  // Convert circle bullets to main bullets
-        .replace(/\n\s{2,}[•\-\*]\s+/g, '\n• ');
+        .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')  // Remove citations
+        .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Remove emojis
+        .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks
+        .replace(/\n\n\n\n+/g, '\n\n\n')  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
+        .replace(/\n\s+[○◦]\s+/g, '\n\n• ')  // Flatten nested bullets
+        .replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
 
       onChunk(processedChunk);
     }
@@ -1342,32 +1443,16 @@ export function postProcessAnswerExport(answer: string): string {
 function postProcessAnswer(answer: string): string {
   let processed = answer;
 
-  // ✅ CRITICAL: Remove inline citations like (filename.pdf, Page: N/A)
-  processed = processed.replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '');
+  // Simplified post-processing - let examples guide formatting
+  processed = processed.replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '');  // Remove citations
+  processed = processed.replace(/[\u{1F300}-\u{1F9FF}]/gu, '');  // Remove emojis
+  processed = processed.replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');  // Remove specific emoji symbols
+  processed = processed.replace(/\*\*\*\*+/g, '**');  // Fix multiple asterisks
+  processed = processed.replace(/\n\n\n\n+/g, '\n\n\n');  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
+  processed = processed.replace(/\n\s+[○◦]\s+/g, '\n\n• ');  // Flatten nested bullets
+  processed = processed.replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
 
-  // ✅ FIX: Clean up formatting issues
-  processed = processed.replace(/\*\*\*\*+/g, '**');  // Fix multiple asterisks (4, 6, 8, etc.)
-  processed = processed.replace(/\n\n\n+/g, '\n\n');  // Collapse 3+ newlines to 2 (one blank line)
-  processed = processed.replace(/([•\-\*].*?)\n\n+([•\-\*])/g, '$1\n$2');  // Remove blank lines BETWEEN bullets
-  processed = processed.replace(/\n\n([•\-\*])/g, '\n$1');  // Remove blank line BEFORE first bullet
-  processed = processed.replace(/(.*?)\n\n(Next step:|Próximo passo:|Próximo paso:|Prochaine étape:)/g, '$1\n\n$2');  // Ensure ONE blank line before "Next step"
-  processed = processed.replace(/(\*\*Next step:\*\*)\n\n/g, '$1\n');  // Reduce spacing after "Next step:" (English)
-  processed = processed.replace(/(\*\*Próximo passo:\*\*)\n\n/g, '$1\n');  // Reduce spacing after "Próximo passo:" (Portuguese)
-  processed = processed.replace(/(\*\*Próximo paso:\*\*)\n\n/g, '$1\n');  // Reduce spacing after "Próximo paso:" (Spanish)
-  processed = processed.replace(/(\*\*Prochaine étape:\*\*)\n\n/g, '$1\n');  // Reduce spacing after "Prochaine étape:" (French)
-
-  // Remove emojis and symbols
-  processed = processed.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '');
-  processed = processed.replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');
-
-  // Flatten nested bullets - convert sub-bullets (○, ◦, indented bullets) to main bullets
-  processed = processed.replace(/\n\s+[○◦]\s+/g, '\n• ');  // Convert circle bullets to main bullets
-  processed = processed.replace(/\n\s{2,}[•\-\*]\s+/g, '\n• ');  // Convert indented bullets to main bullets
-
-  // Trim
-  processed = processed.trim();
-
-  return processed;
+  return processed.trim();
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

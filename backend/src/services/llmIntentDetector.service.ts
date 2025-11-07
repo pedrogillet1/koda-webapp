@@ -28,7 +28,7 @@ class LLMIntentDetectorService {
       throw new Error('GEMINI_API_KEY environment variable is required');
     }
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   }
 
   /**
@@ -65,7 +65,10 @@ Analyze the following user query and determine the intent.
    - Examples: "delete document X", "remove file Y", "erase Z", "get rid of X"
 
 8. **show_file** - User wants to preview/see/view/open a specific file
-   - Examples: "show me this file", "show me document X", "show me the file with Y", "take me to file X", "open document X", "I want to see this file", "show me image 1", "let me see the file"
+   - Examples (EN): "show me this file", "show me document X", "show me the file with Y", "take me to file X", "open document X", "I want to see this file", "show me image 1", "let me see the file"
+   - Examples (PT): "me mostra este arquivo", "me mostra o arquivo X", "mostre o documento X", "abrir arquivo X", "quero ver este arquivo", "mostre-me o arquivo X"
+   - Examples (ES): "muéstrame este archivo", "muéstrame el archivo X", "mostrar documento X", "abrir archivo X", "quiero ver este archivo"
+   - Examples (FR): "montre-moi ce fichier", "montre-moi le fichier X", "montrer document X", "ouvrir fichier X", "je veux voir ce fichier"
    - Extract: filename (the file name or reference)
 
 9. **metadata_query** - User wants information about files (size, type, date, count)

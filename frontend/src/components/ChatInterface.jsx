@@ -1297,7 +1297,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     console.log('📬 SSE stream complete - queueing message to wait for animation');
 
                     if (metadata) {
-                        const realUserMessage = {
+                        // Use the full message objects from backend instead of reconstructing
+                        const realUserMessage = metadata.userMessage || {
                             id: metadata.userMessageId,
                             role: 'user',
                             content: displayMessageText,
@@ -1309,11 +1310,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         console.log('🐛 [DEBUG] Sources:', metadata.sources);
                         console.log('🐛 [DEBUG] Actions:', metadata.actions);
                         console.log('🐛 [DEBUG] ContextId:', metadata.contextId);
+                        console.log('🐛 [DEBUG] assistantMessage from backend:', metadata.assistantMessage);
 
-                        const assistantMessage = {
+                        // Use backend message object which includes metadata for file actions
+                        const assistantMessage = metadata.assistantMessage ? {
+                            ...metadata.assistantMessage,
+                            content: streamedContent, // Use streamed content (raw from Gemini)
+                            ragSources: metadata.sources || [],
+                            webSources: [],
+                            expandedQuery: metadata.expandedQuery,
+                            contextId: metadata.contextId,
+                            actions: metadata.actions || [],
+                        } : {
                             id: metadata.assistantMessageId,
                             role: 'assistant',
-                            content: streamedContent, // Use streamed content (raw from Gemini)
+                            content: streamedContent,
                             createdAt: new Date().toISOString(),
                             ragSources: metadata.sources || [],
                             webSources: [],
@@ -1633,20 +1644,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             )}
 
                                                             {/* Show File Preview Button */}
-                                                            {(() => {
-                                                                // Debug logging
-                                                                if (msg.role === 'assistant' && msg.metadata) {
-                                                                    console.log('🔍 [DEBUG] Assistant message metadata:', {
-                                                                        hasMetadata: !!msg.metadata,
-                                                                        metadataType: typeof msg.metadata,
-                                                                        actionType: msg.metadata.actionType,
-                                                                        success: msg.metadata.success,
-                                                                        hasDocument: !!msg.metadata.document,
-                                                                        fullMetadata: msg.metadata
-                                                                    });
-                                                                }
-                                                                return null;
-                                                            })()}
                                                             {msg.metadata && msg.metadata.actionType === 'show_file' && msg.metadata.success && msg.metadata.document && (
                                                                 <div
                                                                     onClick={() => {
@@ -1679,16 +1676,30 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                     }}
                                                                 >
                                                                     {/* File Icon */}
-                                                                    <div style={{ fontSize: '24px' }}>
-                                                                        {msg.metadata.document.mimeType === 'application/pdf' ? '📝' :
-                                                                         msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ? '📄' :
-                                                                         msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ? '📊' :
-                                                                         msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ? '📊' :
-                                                                         msg.metadata.document.mimeType?.startsWith('image/') ? '🖼️' :
-                                                                         msg.metadata.document.mimeType?.startsWith('video/') ? '🎥' :
-                                                                         msg.metadata.document.mimeType?.startsWith('audio/') ? '🎵' :
-                                                                         '📎'}
-                                                                    </div>
+                                                                    <img
+                                                                        src={
+                                                                            msg.metadata.document.mimeType === 'application/pdf' ? pdfIcon :
+                                                                            msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ? docIcon :
+                                                                            msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ? xlsIcon :
+                                                                            msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ? pptxIcon :
+                                                                            msg.metadata.document.mimeType === 'text/plain' ? txtIcon :
+                                                                            msg.metadata.document.mimeType === 'image/jpeg' ? jpgIcon :
+                                                                            msg.metadata.document.mimeType === 'image/png' ? pngIcon :
+                                                                            msg.metadata.document.mimeType === 'video/quicktime' ? movIcon :
+                                                                            msg.metadata.document.mimeType === 'video/mp4' ? mp4Icon :
+                                                                            msg.metadata.document.mimeType === 'audio/mpeg' ? mp3Icon :
+                                                                            msg.metadata.document.mimeType?.startsWith('image/') ? pngIcon :
+                                                                            msg.metadata.document.mimeType?.startsWith('video/') ? mp4Icon :
+                                                                            msg.metadata.document.mimeType?.startsWith('audio/') ? mp3Icon :
+                                                                            pdfIcon
+                                                                        }
+                                                                        alt="file icon"
+                                                                        style={{
+                                                                            width: '32px',
+                                                                            height: '32px',
+                                                                            objectFit: 'contain'
+                                                                        }}
+                                                                    />
 
                                                                     {/* File Info */}
                                                                     <div style={{ flex: 1 }}>

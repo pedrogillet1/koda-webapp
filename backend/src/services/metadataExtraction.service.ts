@@ -262,7 +262,7 @@ class MetadataExtractionService {
       // Limit text length for API call
       const truncatedText = text.substring(0, 10000);
 
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       const prompt = `Analyze the following document and extract:
 1. Main topics (max 5, comma-separated)
