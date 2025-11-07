@@ -18,7 +18,7 @@ const fromEmail = process.env.EMAIL_FROM || 'noreply@koda.app';
  * @param subject - The subject of the email.
  * @param html - The HTML body of the email.
  */
-const sendEmail = async (to: string, subject: string, html: string): Promise<boolean> => {
+export const sendEmail = async (to: string, subject: string, html: string): Promise<boolean> => {
   if (!emailServiceEnabled) {
     console.error('Email service is disabled. Cannot send email.');
     // In development, you might want to log the email content

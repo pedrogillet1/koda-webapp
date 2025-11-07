@@ -16,6 +16,7 @@ import ragRoutes from './routes/rag.routes';
 // import securityRoutes from './routes/security.routes';
 import rbacRoutes from './routes/rbac.routes';
 import healthRoutes from './routes/health.routes';
+import recoveryVerificationRoutes from './routes/recoveryVerification.routes';
 // TODO: Temporarily disabled routes with deleted service dependencies
 // import dataProtectionRoutes from './routes/dataProtection.routes';
 // import documentGenerationRoutes from './routes/documentGeneration.routes';
@@ -195,6 +196,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/rag', ragRoutes);
 // app.use('/api/security', securityRoutes); // Security monitoring endpoints (temporarily disabled - missing service)
 app.use('/api/rbac', rbacRoutes); // RBAC and access control endpoints
+app.use('/api/recovery-verification', recoveryVerificationRoutes); // Recovery verification endpoints
 // TODO: Temporarily disabled route with deleted service dependencies
 // app.use('/api/data-protection', dataProtectionRoutes); // Data protection and privacy endpoints
 

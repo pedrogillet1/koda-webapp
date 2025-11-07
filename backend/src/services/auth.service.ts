@@ -6,6 +6,9 @@ import { hashToken } from '../utils/encryption';
 export interface RegisterInput {
   email: string;
   password: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string; // ✅ FIX: Add optional 'name' field for frontend compatibility
 }
 
 export interface LoginInput {
@@ -21,7 +24,25 @@ export interface AuthTokens {
 /**
  * Register a new user (creates pending user, no tokens until fully verified)
  */
-export const registerUser = async ({ email, password }: RegisterInput) => {
+export const registerUser = async ({ email, password, firstName, lastName, name }: RegisterInput) => {
+  // ✅ FIX: Parse 'name' field into firstName and lastName if provided
+  let parsedFirstName = firstName;
+  let parsedLastName = lastName;
+
+  if (name && !firstName && !lastName) {
+    // Split name by space
+    const nameParts = name.trim().split(/\s+/);
+    if (nameParts.length === 1) {
+      // Single name → use as firstName
+      parsedFirstName = nameParts[0];
+      parsedLastName = undefined;
+    } else {
+      // Multiple parts → first is firstName, rest is lastName
+      parsedFirstName = nameParts[0];
+      parsedLastName = nameParts.slice(1).join(' ');
+    }
+  }
+
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
@@ -71,6 +92,8 @@ export const registerUser = async ({ email, password }: RegisterInput) => {
       email: email.toLowerCase(),
       passwordHash: hash,
       salt,
+      firstName: parsedFirstName, // ✅ FIX: Use parsed firstName
+      lastName: parsedLastName,   // ✅ FIX: Use parsed lastName
       emailCode,
       expiresAt,
     },
@@ -213,9 +236,11 @@ export const verifyPendingUserEmail = async (email: string, code: string) => {
       email: pendingUser.email,
       passwordHash: pendingUser.passwordHash,
       salt: pendingUser.salt,
+      firstName: pendingUser.firstName,
+      lastName: pendingUser.lastName,
       phoneNumber: null, // Phone is optional
-      isEmailVerified: true,
-      isPhoneVerified: false,
+      isEmailVerified: true, // ✅ FIX: User just verified email during signup
+      isPhoneVerified: false, // Phone not verified yet
     },
   });
 
@@ -346,9 +371,11 @@ export const verifyPendingUserPhone = async (email: string, code: string) => {
       email: pendingUser.email,
       passwordHash: pendingUser.passwordHash,
       salt: pendingUser.salt,
+      firstName: pendingUser.firstName,
+      lastName: pendingUser.lastName,
       phoneNumber: pendingUser.phoneNumber!,
       isEmailVerified: pendingUser.emailVerified || false, // Set based on actual verification status
-      isPhoneVerified: true,
+      isPhoneVerified: true, // ✅ FIX: User just verified phone during signup
     },
   });
 

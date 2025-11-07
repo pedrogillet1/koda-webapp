@@ -1,0 +1,401 @@
+/* Recovery Verification Banner Styles */
+
+.recovery-verification-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #F8F8F8;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .recovery-verification-banner {
+    background: #1A1A1A;
+    border: 1px solid #2A2A2A;
+  }
+}
+
+.banner-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.banner-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.banner-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: #000;
+}
+
+@media (prefers-color-scheme: dark) {
+  .banner-title {
+    color: #FFF;
+  }
+}
+
+.banner-body {
+  font-size: 14px;
+  font-weight: 400;
+  margin: 0;
+  color: #666;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  .banner-body {
+    color: #999;
+  }
+}
+
+.banner-cta {
+  flex-shrink: 0;
+  background: #000;
+  color: #FFF;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.banner-cta:hover:not(:disabled) {
+  background: #333;
+  transform: translateY(-1px);
+}
+
+.banner-cta:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.banner-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: dark) {
+  .banner-cta {
+    background: #FFF;
+    color: #000;
+  }
+
+  .banner-cta:hover:not(:disabled) {
+    background: #E6E6E6;
+  }
+}
+
+/* Notification Styles */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #000;
+  color: #FFF;
+  padding: 16px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  animation: slideIn 0.3s ease;
+}
+
+.notification.error {
+  background: #D92D20;
+}
+
+.notification.success {
+  background: #12B76A;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.phone-modal {
+  background: #1A1A1A;
+  border: 1px solid #2A2A2A;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: scaleIn 0.2s ease;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.modal-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  color: #FFF;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.close-button:hover {
+  background: #2A2A2A;
+  color: #FFF;
+}
+
+.form-group {
+  margin-bottom: 24px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #FFF;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px 16px;
+  background: #0A0A0A;
+  border: 1px solid #2A2A2A;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #FFF;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #FFF;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+.form-group input:disabled {
+  background: #1A1A1A;
+  cursor: not-allowed;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: #999;
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.button-primary,
+.button-secondary {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.button-primary {
+  background: #FFF;
+  color: #000;
+}
+
+.button-primary:hover:not(:disabled) {
+  background: #E6E6E6;
+}
+
+.button-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button-secondary {
+  background: transparent;
+  color: #999;
+  border: 1px solid #2A2A2A;
+}
+
+.button-secondary:hover:not(:disabled) {
+  background: #2A2A2A;
+  color: #FFF;
+}
+
+.button-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Phone Input Styles */
+.phone-input-field {
+  width: 100%;
+}
+
+.phone-input-field .PhoneInputInput {
+  width: 100%;
+  padding: 12px 16px;
+  background: #0A0A0A;
+  border: 1px solid #2A2A2A;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #FFF;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.phone-input-field .PhoneInputInput:focus {
+  outline: none;
+  border-color: #FFF;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+.phone-input-field .PhoneInputInput:disabled {
+  background: #1A1A1A;
+  cursor: not-allowed;
+}
+
+.phone-input-field .PhoneInputInput::placeholder {
+  color: #666;
+}
+
+.phone-input-field .PhoneInputCountry {
+  margin-right: 12px;
+  padding: 8px;
+  background: #0A0A0A;
+  border: 1px solid #2A2A2A;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.phone-input-field .PhoneInputCountrySelect {
+  background: #0A0A0A;
+  border: none;
+  color: #FFF;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.phone-input-field .PhoneInputCountrySelect:focus {
+  outline: none;
+}
+
+.phone-input-field .PhoneInputCountryIcon {
+  width: 24px;
+  height: 18px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.phone-input-field .PhoneInputCountrySelectArrow {
+  color: #999;
+  margin-left: 6px;
+  border: none;
+  width: 0.3em;
+  height: 0.3em;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .recovery-verification-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .banner-cta {
+    width: 100%;
+  }
+
+  .phone-modal {
+    padding: 24px;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .button-primary,
+  .button-secondary {
+    width: 100%;
+  }
+}

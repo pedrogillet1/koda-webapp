@@ -145,8 +145,26 @@ export class PPTXSlideGeneratorService {
 
       // Use Impress PDF Export filter to preserve PowerPoint design, layout, colors, and images
       // Use --headless --invisible --nologo --norestore to prevent any windows from appearing
+      // Use enhanced export options to preserve images and graphics
+      const exportOptions = [
+        'EmbedStandardFonts=true',
+        'Quality=90',
+        'ReduceImageResolution=false',
+        'MaxImageResolution=300',
+        'ImageResolution=300',
+        'ExportFormFields=false',
+        'UseTransitionEffects=true',
+        'ExportHiddenSlides=false',
+        'ExportNotes=false',
+        'ExportNotesPages=false',
+        'SelectPdfVersion=1', // PDF 1.6 for better image support
+        'IsCollectImageResolution=false',
+        'UseTaggedPDF=false',
+        'UseReferenceXObject=false'
+      ].join('&');
+
       await execAsync(
-        `"${this.libreOfficePath}" --headless --invisible --nologo --norestore --convert-to pdf:impress_pdf_Export --outdir "${tempDir}" "${pptxFilePath}"`,
+        `"${this.libreOfficePath}" --headless --invisible --nologo --norestore --convert-to "pdf:impress_pdf_Export:${exportOptions}" --outdir "${tempDir}" "${pptxFilePath}"`,
         {
           timeout: 120000, // 2 minute timeout
           maxBuffer: 50 * 1024 * 1024 // 50MB buffer

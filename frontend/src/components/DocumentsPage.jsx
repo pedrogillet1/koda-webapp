@@ -1368,8 +1368,12 @@ const DocumentsPage = () => {
       {/* Create Category Modal */}
       <CreateCategoryModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedDocumentForCategory(null);
+        }}
         onCreateCategory={handleCreateCategory}
+        preSelectedDocumentId={selectedDocumentForCategory?.id}
       />
 
       {/* Notification Panel */}
@@ -1522,6 +1526,48 @@ const DocumentsPage = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Create New Category Button */}
+              <button
+                onClick={() => {
+                  console.log('🆕 Create New Category clicked, selectedDocumentForCategory:', selectedDocumentForCategory);
+                  setShowCategoryModal(false);
+                  setIsModalOpen(true);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  background: 'white',
+                  borderRadius: 12,
+                  border: '1px #E6E6EC dashed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  marginTop: 4
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#F9FAFB';
+                  e.currentTarget.style.borderColor = '#32302C';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.borderColor = '#E6E6EC';
+                }}
+              >
+                <AddIcon style={{width: 16, height: 16, color: '#32302C'}} />
+                <div style={{
+                  color: '#32302C',
+                  fontSize: 14,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '600',
+                  lineHeight: '19.60px'
+                }}>
+                  Create New Category
+                </div>
+              </button>
             </div>
 
             {/* Buttons */}

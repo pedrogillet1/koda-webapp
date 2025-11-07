@@ -13,6 +13,8 @@ import Verification from './components/Verification';
 import VerifyEmail from './components/VerifyEmail';
 import PhoneNumberPending from './components/PhoneNumberPending';
 import VerificationPending from './components/VerificationPending';
+import VerifyRecoveryEmail from './components/VerifyRecoveryEmail';
+import VerifyRecoveryPhone from './components/VerifyRecoveryPhone';
 import Upload from './components/Upload';
 import RecoverAccess from './components/RecoverAccess';
 import ForgotPassword from './components/ForgotPassword';
@@ -71,6 +73,10 @@ function App() {
             <Route path="/forgot-password-verification" element={<ForgotPasswordVerification />} />
             <Route path="/set-new-password" element={<SetNewPassword />} />
             <Route path="/password-changed" element={<PasswordChanged />} />
+
+            {/* RECOVERY VERIFICATION ROUTES */}
+            <Route path="/verify-recovery-email" element={<VerifyRecoveryEmail />} />
+            <Route path="/verify-recovery-phone" element={<VerifyRecoveryPhone />} />
 
             {/* OLD PASSWORD RECOVERY (CODE-BASED - DEPRECATED) */}
             <Route path="/forgot-password-code" element={<ForgotPasswordCode />} />

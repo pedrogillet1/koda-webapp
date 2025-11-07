@@ -1,0 +1,161 @@
+/* Verify Recovery Page Styles */
+
+.verify-recovery-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F5F5F5;
+  padding: 20px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .verify-recovery-container {
+    background: #0A0A0A;
+  }
+}
+
+.verify-recovery-card {
+  background: white;
+  border-radius: 16px;
+  padding: 48px;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  animation: slideUp 0.4s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .verify-recovery-card {
+    background: #1A1A1A;
+    border: 1px solid #2A2A2A;
+  }
+}
+
+.verify-icon {
+  font-size: 64px;
+  margin-bottom: 24px;
+  animation: bounce 0.6s ease;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.verify-icon.verifying {
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.verify-recovery-card h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+  color: #000;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  .verify-recovery-card h1 {
+    color: #FFF;
+  }
+}
+
+.verify-recovery-card p {
+  font-size: 16px;
+  color: #666;
+  margin: 0 0 12px 0;
+  line-height: 1.6;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  .verify-recovery-card p {
+    color: #999;
+  }
+}
+
+.redirect-message {
+  font-size: 14px;
+  color: #999;
+  margin-top: 24px;
+  font-style: italic;
+}
+
+.button-primary {
+  margin-top: 24px;
+  padding: 12px 32px;
+  background: #000;
+  color: #FFF;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.button-primary:hover {
+  background: #333;
+  transform: translateY(-2px);
+}
+
+.button-primary:active {
+  transform: translateY(0);
+}
+
+@media (prefers-color-scheme: dark) {
+  .button-primary {
+    background: #FFF;
+    color: #000;
+  }
+
+  .button-primary:hover {
+    background: #E6E6E6;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .verify-recovery-card {
+    padding: 32px 24px;
+  }
+
+  .verify-icon {
+    font-size: 48px;
+  }
+
+  .verify-recovery-card h1 {
+    font-size: 24px;
+  }
+
+  .verify-recovery-card p {
+    font-size: 14px;
+  }
+}
