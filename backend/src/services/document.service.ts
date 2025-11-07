@@ -370,6 +370,69 @@ async function processDocumentWithTimeout(
                 console.log(`✅ [Background] Generated ${slideResult.totalSlides} slide images for ${filename}`);
               } else {
                 console.warn(`⚠️ [Background] Slide image generation failed for ${filename}:`, slideResult.error);
+
+                // 🆕 FALLBACK: If slide generation failed or produced no images, try direct image extraction
+                console.log('⚠️  Slide generation failed, trying direct image extraction...');
+                try {
+                  const { pptxImageExtractorService } = await import('./pptxImageExtractor.service');
+                  const imageResult = await pptxImageExtractorService.extractImages(
+                    tempFilePath,
+                    documentId,
+                    { uploadToGCS: true }
+                  );
+
+                  if (imageResult.success && imageResult.slides && imageResult.slides.length > 0) {
+                    console.log(`✅ [Fallback] Extracted ${imageResult.totalImages} images from ${imageResult.slides.length} slides`);
+
+                    // Fetch existing slidesData
+                    const existingMetadata = await prismaClient.documentMetadata.findUnique({
+                      where: { documentId }
+                    });
+
+                    let existingSlidesData: any[] = [];
+                    try {
+                      if (existingMetadata?.slidesData) {
+                        existingSlidesData = typeof existingMetadata.slidesData === 'string'
+                          ? JSON.parse(existingMetadata.slidesData)
+                          : existingMetadata.slidesData as any[];
+                      }
+                    } catch (e) {
+                      console.warn('Failed to parse existing slidesData');
+                    }
+
+                    // Merge extracted images with existing slide data
+                    const mergedSlidesData = existingSlidesData.map((existingSlide: any) => {
+                      const slideNum = existingSlide.slideNumber || existingSlide.slide_number;
+                      const extractedSlide = imageResult.slides!.find(s => s.slideNumber === slideNum);
+
+                      // Use the first image as the slide preview
+                      const imageUrl = extractedSlide && extractedSlide.images.length > 0
+                        ? extractedSlide.images[0].imageUrl
+                        : existingSlide.imageUrl;
+
+                      return {
+                        slideNumber: slideNum,
+                        content: existingSlide.content || '',
+                        textCount: existingSlide.textCount || existingSlide.text_count || 0,
+                        imageUrl: imageUrl
+                      };
+                    });
+
+                    // Update metadata
+                    await prismaClient.documentMetadata.update({
+                      where: { documentId },
+                      data: {
+                        slidesData: JSON.stringify(mergedSlidesData)
+                      }
+                    });
+
+                    console.log(`✅ [Fallback] Updated metadata with extracted images`);
+                  } else {
+                    console.error('❌ [Fallback] Direct image extraction also failed');
+                  }
+                } catch (fallbackError: any) {
+                  console.error('❌ [Fallback] Error during direct image extraction:', fallbackError.message);
+                }
               }
             } catch (slideError: any) {
               console.warn(`⚠️ [Background] Slide image generation error for ${filename}:`, slideError.message);
@@ -1171,6 +1234,69 @@ async function processDocumentAsync(
                 console.log(`✅ [Background] Generated ${slideResult.totalSlides} slide images for ${filename}`);
               } else {
                 console.warn(`⚠️ [Background] Slide image generation failed for ${filename}:`, slideResult.error);
+
+                // 🆕 FALLBACK: If slide generation failed or produced no images, try direct image extraction
+                console.log('⚠️  Slide generation failed, trying direct image extraction...');
+                try {
+                  const { pptxImageExtractorService } = await import('./pptxImageExtractor.service');
+                  const imageResult = await pptxImageExtractorService.extractImages(
+                    tempFilePath,
+                    documentId,
+                    { uploadToGCS: true }
+                  );
+
+                  if (imageResult.success && imageResult.slides && imageResult.slides.length > 0) {
+                    console.log(`✅ [Fallback] Extracted ${imageResult.totalImages} images from ${imageResult.slides.length} slides`);
+
+                    // Fetch existing slidesData
+                    const existingMetadata = await prismaClient.documentMetadata.findUnique({
+                      where: { documentId }
+                    });
+
+                    let existingSlidesData: any[] = [];
+                    try {
+                      if (existingMetadata?.slidesData) {
+                        existingSlidesData = typeof existingMetadata.slidesData === 'string'
+                          ? JSON.parse(existingMetadata.slidesData)
+                          : existingMetadata.slidesData as any[];
+                      }
+                    } catch (e) {
+                      console.warn('Failed to parse existing slidesData');
+                    }
+
+                    // Merge extracted images with existing slide data
+                    const mergedSlidesData = existingSlidesData.map((existingSlide: any) => {
+                      const slideNum = existingSlide.slideNumber || existingSlide.slide_number;
+                      const extractedSlide = imageResult.slides!.find(s => s.slideNumber === slideNum);
+
+                      // Use the first image as the slide preview
+                      const imageUrl = extractedSlide && extractedSlide.images.length > 0
+                        ? extractedSlide.images[0].imageUrl
+                        : existingSlide.imageUrl;
+
+                      return {
+                        slideNumber: slideNum,
+                        content: existingSlide.content || '',
+                        textCount: existingSlide.textCount || existingSlide.text_count || 0,
+                        imageUrl: imageUrl
+                      };
+                    });
+
+                    // Update metadata
+                    await prismaClient.documentMetadata.update({
+                      where: { documentId },
+                      data: {
+                        slidesData: JSON.stringify(mergedSlidesData)
+                      }
+                    });
+
+                    console.log(`✅ [Fallback] Updated metadata with extracted images`);
+                  } else {
+                    console.error('❌ [Fallback] Direct image extraction also failed');
+                  }
+                } catch (fallbackError: any) {
+                  console.error('❌ [Fallback] Error during direct image extraction:', fallbackError.message);
+                }
               }
             } catch (slideError: any) {
               console.warn(`⚠️ [Background] Slide image generation error for ${filename}:`, slideError.message);
@@ -2729,6 +2855,15 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
 
     console.log('📊 PowerPoint file confirmed, regenerating slides with ImageMagick...');
 
+    // Set status to processing
+    await prisma.documentMetadata.update({
+      where: { documentId: document.id },
+      data: {
+        slideGenerationStatus: 'processing',
+        slideGenerationError: null
+      }
+    });
+
     // 3. Download file from GCS
     const fileBuffer = await downloadFile(document.encryptedFilename);
 
@@ -2748,12 +2883,83 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
         quality: 90
       });
 
+      if (!slideResult.success || !slideResult.slides || slideResult.slides.length === 0) {
+        console.warn(`⚠️  Slide generation failed, trying direct image extraction...`);
+
+        // 🆕 FALLBACK: Try direct image extraction
+        const { pptxImageExtractorService } = await import('./pptxImageExtractor.service');
+        const imageResult = await pptxImageExtractorService.extractImages(
+          tempFilePath,
+          documentId,
+          { uploadToGCS: true }
+        );
+
+        // Clean up temp file
+        fs.unlinkSync(tempFilePath);
+
+        if (imageResult.success && imageResult.slides && imageResult.slides.length > 0) {
+          console.log(`✅ [Fallback] Extracted ${imageResult.totalImages} images from ${imageResult.slides.length} slides`);
+
+          // Fetch existing slidesData
+          const existingMetadata = await prisma.documentMetadata.findUnique({
+            where: { documentId: document.id }
+          });
+
+          let existingSlidesData: any[] = [];
+          try {
+            if (existingMetadata?.slidesData) {
+              existingSlidesData = typeof existingMetadata.slidesData === 'string'
+                ? JSON.parse(existingMetadata.slidesData)
+                : existingMetadata.slidesData as any[];
+            }
+          } catch (e) {
+            console.warn('Failed to parse existing slidesData');
+          }
+
+          // Merge extracted images with existing slide data
+          const slidesData = existingSlidesData.map((existingSlide: any) => {
+            const slideNum = existingSlide.slideNumber || existingSlide.slide_number;
+            const extractedSlide = imageResult.slides!.find(s => s.slideNumber === slideNum);
+
+            // Use the first image as the slide preview
+            const imageUrl = extractedSlide && extractedSlide.images.length > 0
+              ? extractedSlide.images[0].imageUrl
+              : existingSlide.imageUrl;
+
+            return {
+              slideNumber: slideNum,
+              content: existingSlide.content || '',
+              textCount: existingSlide.textCount || existingSlide.text_count || 0,
+              imageUrl: imageUrl
+            };
+          });
+
+          // Update metadata
+          await prisma.documentMetadata.update({
+            where: { documentId: document.id },
+            data: {
+              slidesData: JSON.stringify(slidesData),
+              slideGenerationStatus: 'completed',
+              slideGenerationError: null,
+              updatedAt: new Date()
+            }
+          });
+
+          console.log(`✅ [Fallback] Updated metadata with extracted images`);
+
+          return {
+            success: true,
+            message: 'Slides regenerated successfully using image extraction',
+            slides: slidesData,
+            totalSlides: slidesData.length
+          };
+        } else {
+          throw new Error('Both slide generation and image extraction failed');
+        }
+      }
+
       // Clean up temp file
       fs.unlinkSync(tempFilePath);
-
-      if (!slideResult.success) {
-        throw new Error(slideResult.error || 'Failed to generate slides');
-      }
 
       const slides = slideResult.slides || [];
       console.log(`✅ Successfully regenerated ${slides.length} slides`);
@@ -2796,6 +3002,8 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
         where: { documentId: document.id },
         data: {
           slidesData: JSON.stringify(slidesData),
+          slideGenerationStatus: 'completed',
+          slideGenerationError: null,
           updatedAt: new Date(),
         },
       });
@@ -2816,8 +3024,22 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
       throw error;
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error regenerating PPTX slides:', error);
+
+    // Set status to failed
+    try {
+      await prisma.documentMetadata.update({
+        where: { documentId },
+        data: {
+          slideGenerationStatus: 'failed',
+          slideGenerationError: error.message || 'Unknown error during slide generation'
+        }
+      });
+    } catch (updateError) {
+      console.error('Failed to update error status:', updateError);
+    }
+
     throw error;
   }
 };

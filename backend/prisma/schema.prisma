@@ -244,6 +244,8 @@ model DocumentMetadata {
   // PowerPoint specific fields
   slidesData        String? // JSON: Array of slide objects with content
   pptxMetadata      String? // JSON: Presentation metadata (author, title, etc.)
+  slideGenerationStatus String? @default("pending") // 'pending' | 'processing' | 'completed' | 'failed'
+  slideGenerationError  String? // Error message if failed
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
