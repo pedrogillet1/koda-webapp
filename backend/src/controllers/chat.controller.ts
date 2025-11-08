@@ -3,6 +3,7 @@ import chatService from '../services/chat.service';
 import { transcribeAudioWithWhisper } from '../services/gemini.service';
 import { emitToUser } from '../services/websocket.service';
 import prisma from '../config/database';
+import cacheService from '../services/cache.service';
 
 /**
  * Create a new conversation
@@ -30,7 +31,22 @@ export const createConversation = async (req: Request, res: Response) => {
 export const getConversations = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
+
+    // Try to get from cache first
+    const cacheKey = cacheService.generateKey('conversations_list', userId);
+    const cached = await cacheService.get<any>(cacheKey);
+
+    if (cached) {
+      console.log(`✅ Cache hit for conversations list`);
+      res.json(cached);
+      return;
+    }
+
     const conversations = await chatService.getUserConversations(userId);
+
+    // Cache for 2 minutes
+    await cacheService.set(cacheKey, conversations, { ttl: 120 });
+
     res.json(conversations);
   } catch (error: any) {
     console.error('Error fetching conversations:', error);
@@ -46,7 +62,21 @@ export const getConversation = async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { conversationId } = req.params;
 
+    // Try to get from cache first
+    const cacheKey = cacheService.generateKey('conversation', conversationId, userId);
+    const cached = await cacheService.get<any>(cacheKey);
+
+    if (cached) {
+      console.log(`✅ Cache hit for conversation ${conversationId}`);
+      res.json(cached);
+      return;
+    }
+
     const conversation = await chatService.getConversation(conversationId, userId);
+
+    // Cache for 1 minute (shorter because messages update frequently)
+    await cacheService.set(cacheKey, conversation, { ttl: 60 });
+
     res.json(conversation);
   } catch (error: any) {
     console.error('Error fetching conversation:', error);
@@ -86,6 +116,14 @@ export const sendMessage = async (req: Request, res: Response) => {
       attachedDocumentId,
       answerLength, // Phase 4D: Pass answer length to chat service
     });
+
+    // Invalidate conversation cache (new message added)
+    const conversationCacheKey = cacheService.generateKey('conversation', conversationId, userId);
+    const conversationsListCacheKey = cacheService.generateKey('conversations_list', userId);
+    await Promise.all([
+      cacheService.set(conversationCacheKey, null, { ttl: 0 }),
+      cacheService.set(conversationsListCacheKey, null, { ttl: 0 })
+    ]);
 
     // Include conversation ID in response for frontend to track
     res.json({

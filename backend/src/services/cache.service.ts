@@ -247,6 +247,40 @@ class CacheService {
   }
 
   /**
+   * Invalidate document list cache for a user
+   */
+  async invalidateDocumentListCache(userId: string): Promise<void> {
+    try {
+      const pattern = `documents_list:*${userId}*`;
+      const keys = await this.redis.keys(pattern);
+
+      if (keys.length > 0) {
+        await this.redis.del(...keys);
+        console.log(`🗑️ Invalidated ${keys.length} document list cache entries for user ${userId}`);
+      }
+    } catch (error) {
+      console.error('Error invalidating document list cache:', error);
+    }
+  }
+
+  /**
+   * Invalidate folder tree cache for a user
+   */
+  async invalidateFolderTreeCache(userId: string): Promise<void> {
+    try {
+      const pattern = `folder_tree:*${userId}*`;
+      const keys = await this.redis.keys(pattern);
+
+      if (keys.length > 0) {
+        await this.redis.del(...keys);
+        console.log(`🗑️ Invalidated ${keys.length} folder tree cache entries for user ${userId}`);
+      }
+    } catch (error) {
+      console.error('Error invalidating folder tree cache:', error);
+    }
+  }
+
+  /**
    * Invalidate specific document cache
    */
   async invalidateDocumentCache(documentId: string): Promise<void> {

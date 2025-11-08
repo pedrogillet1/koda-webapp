@@ -8,6 +8,7 @@ import DeleteConfirmationModal from './DeleteConfirmationModal';
 import RenameModal from './RenameModal';
 import CreateFolderModal from './CreateFolderModal';
 import { useToast } from '../context/ToastContext';
+import { useDocuments } from '../context/DocumentsContext';
 import { ReactComponent as SearchIcon} from '../assets/Search.svg';
 import { ReactComponent as CheckIcon} from '../assets/check.svg';
 import { ReactComponent as LogoutBlackIcon } from '../assets/Logout-black.svg';
@@ -69,6 +70,7 @@ const filterMacHiddenFiles = (files) => {
 const UploadHub = () => {
   const navigate = useNavigate();
   const { showSuccess } = useToast();
+  const { fetchDocuments, fetchFolders } = useDocuments(); // Use DocumentsContext
   const [documents, setDocuments] = useState([]);
   const [folders, setFolders] = useState([]); // Track folders
   const [expandedFolders, setExpandedFolders] = useState(new Set()); // Track which folders are expanded
@@ -618,43 +620,35 @@ const UploadHub = () => {
           idx === i ? { ...f, progress: 10, processingStage: 'Preparing...' } : f
         ));
 
-        // Generate thumbnail if supported (PDF or image)
-        let thumbnailBase64 = null;
-        if (supportsThumbnail(file.name)) {
-          try {
-            console.log('🖼️ Generating thumbnail for:', file.name);
-            const thumbnailBlob = await generateThumbnail(file);
-            if (thumbnailBlob) {
-              // Convert to base64
-              thumbnailBase64 = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result.split(',')[1]);
-                reader.readAsDataURL(thumbnailBlob);
-              });
-              console.log('✅ Thumbnail generated:', thumbnailBlob.size, 'bytes');
-            }
-          } catch (thumbError) {
-            console.warn('⚠️ Thumbnail generation failed:', thumbError);
-          }
-        }
+        // Thumbnail generation disabled
+        const thumbnailBase64 = null;
 
         // Update progress
         setUploadingFiles(prev => prev.map((f, idx) =>
           idx === i ? { ...f, progress: 30, processingStage: 'Uploading to cloud...' } : f
         ));
 
-        // Upload directly to GCS using the new function!
-        const document = await uploadFileDirectToGCS(
-          file,
-          fileHash,
-          targetFolderId,
-          thumbnailBase64,
-          (progress) => {
+        // Upload via backend (Supabase doesn't support signed URLs like GCS)
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('fileHash', fileHash);
+        if (targetFolderId) {
+          formData.append('folderId', targetFolderId);
+        }
+
+        const uploadResponse = await api.post('/api/documents/upload', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: (progressEvent) => {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
             setUploadingFiles(prev => prev.map((f, idx) =>
-              idx === i ? { ...f, progress } : f
+              idx === i ? { ...f, progress: Math.min(progress, 95) } : f
             ));
           }
-        );
+        });
+
+        const document = uploadResponse.data.document;
 
         console.log('✅ Direct upload completed for:', file.name);
 
@@ -701,7 +695,14 @@ const UploadHub = () => {
           setNotificationType('success');
           setShowNotification(true);
 
-          // Reload documents and folders
+          // Reload documents and folders using DocumentsContext
+          console.log('📥 Refreshing DocumentsContext after upload...');
+          await Promise.all([
+            fetchDocuments(), // This updates the global context
+            fetchFolders()    // This updates the global context
+          ]);
+
+          // Also update local state for UploadHub display
           const loadData = async () => {
             const [docsResponse, foldersResponse] = await Promise.all([
               api.get('/api/documents'),

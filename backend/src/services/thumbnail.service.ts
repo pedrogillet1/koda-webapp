@@ -1,18 +1,26 @@
 import sharp from 'sharp';
-import { Storage } from '@google-cloud/storage';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import crypto from 'crypto';
-import * as pdfjsLib from 'pdfjs-dist';
-import { createCanvas } from 'canvas';
+import { Canvas, createCanvas } from 'canvas';
+import supabaseStorageService from './supabaseStorage.service';
 
-const storage = new Storage({
-  keyFilename: process.env.GCS_KEY_FILE,
-  projectId: process.env.GCS_PROJECT_ID,
-});
+// Polyfill DOM APIs for pdfjs-dist in Node.js environment
+if (typeof globalThis.DOMMatrix === 'undefined') {
+  (globalThis as any).DOMMatrix = class DOMMatrix {
+    constructor() {}
+  };
+}
 
-const bucket = storage.bucket(process.env.GCS_BUCKET_NAME || '');
+// Lazy-load pdfjs-dist only when needed (for PDF thumbnail generation)
+let pdfjsLib: any = null;
+async function getPdfJsLib() {
+  if (!pdfjsLib) {
+    pdfjsLib = await import('pdfjs-dist');
+  }
+  return pdfjsLib;
+}
 
 interface ThumbnailOptions {
   width?: number;
@@ -30,11 +38,14 @@ export const generatePDFThumbnail = async (
   const { width = 300, height = 400, quality = 85 } = options;
 
   try {
+    // Lazy-load pdfjs-dist
+    const pdfjs = await getPdfJsLib();
+
     // Read PDF file
     const pdfData = new Uint8Array(fs.readFileSync(filePath));
 
     // Load PDF document
-    const loadingTask = pdfjsLib.getDocument({
+    const loadingTask = pdfjs.getDocument({
       data: pdfData,
       useSystemFonts: true,
     });
@@ -68,23 +79,17 @@ export const generatePDFThumbnail = async (
     const thumbnailPath = path.join(tempDir, thumbnailFilename);
 
     // Convert to JPEG using sharp for better compression
-    await sharp(buffer)
+    const thumbnailBuffer = await sharp(buffer)
       .jpeg({ quality })
-      .toFile(thumbnailPath);
+      .toBuffer();
 
-    // Upload thumbnail to GCS
-    const gcsPath = `thumbnails/${thumbnailFilename}`;
-    await bucket.upload(thumbnailPath, {
-      destination: gcsPath,
-      metadata: {
-        contentType: 'image/jpeg',
-      },
+    // Upload thumbnail to Supabase
+    const storagePath = `thumbnails/${thumbnailFilename}`;
+    await supabaseStorageService.upload(storagePath, thumbnailBuffer, {
+      contentType: 'image/jpeg',
     });
 
-    // Clean up temp file
-    fs.unlinkSync(thumbnailPath);
-
-    return gcsPath; // Store the GCS path
+    return storagePath; // Store the Supabase path
   } catch (error) {
     console.error('Error generating PDF thumbnail:', error);
     return null;
@@ -107,34 +112,21 @@ export const generateImageThumbnail = async (
     const thumbnailPath = path.join(tempDir, thumbnailFilename);
 
     // Generate thumbnail using sharp
-    await sharp(filePath)
+    const thumbnailBuffer = await sharp(filePath)
       .resize(width, height, {
         fit: 'cover',
         position: 'center',
       })
       .jpeg({ quality })
-      .toFile(thumbnailPath);
+      .toBuffer();
 
-    // Upload thumbnail to GCS
-    const gcsPath = `thumbnails/${thumbnailFilename}`;
-    await bucket.upload(thumbnailPath, {
-      destination: gcsPath,
-      metadata: {
-        contentType: 'image/jpeg',
-      },
+    // Upload thumbnail to Supabase
+    const storagePath = `thumbnails/${thumbnailFilename}`;
+    await supabaseStorageService.upload(storagePath, thumbnailBuffer, {
+      contentType: 'image/jpeg',
     });
 
-    // Clean up temp file
-    fs.unlinkSync(thumbnailPath);
-
-    // Return public URL
-    const file = bucket.file(gcsPath);
-    const [url] = await file.getSignedUrl({
-      action: 'read',
-      expires: Date.now() + 365 * 24 * 60 * 60 * 1000, // 1 year
-    });
-
-    return gcsPath; // Store the GCS path, not the signed URL
+    return storagePath; // Store the Supabase path
   } catch (error) {
     console.error('Error generating image thumbnail:', error);
     return null;
@@ -184,17 +176,13 @@ export const getThumbnailUrl = async (thumbnailPath: string): Promise<string | n
   if (!thumbnailPath) return null;
 
   try {
-    const file = bucket.file(thumbnailPath);
-    const [exists] = await file.exists();
+    const exists = await supabaseStorageService.exists(thumbnailPath);
 
     if (!exists) {
       return null;
     }
 
-    const [url] = await file.getSignedUrl({
-      action: 'read',
-      expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    const url = await supabaseStorageService.getSignedUrl(thumbnailPath, 7 * 24 * 60 * 60); // 7 days
 
     return url;
   } catch (error) {
@@ -210,11 +198,10 @@ export const deleteThumbnail = async (thumbnailPath: string): Promise<boolean> =
   if (!thumbnailPath) return true;
 
   try {
-    const file = bucket.file(thumbnailPath);
-    const [exists] = await file.exists();
+    const exists = await supabaseStorageService.exists(thumbnailPath);
 
     if (exists) {
-      await file.delete();
+      await supabaseStorageService.delete(thumbnailPath);
     }
 
     return true;

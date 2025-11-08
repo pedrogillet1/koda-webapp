@@ -466,7 +466,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         console.log('📨 Messages array changed:', messages.length, 'messages');
         console.log('🔢 Message IDs in array:', messages.map(m => ({ id: m.id, role: m.role, content: m.content?.substring(0, 30) })));
         scrollToBottom();
-    }, [messages]);
+
+        // Update cache when messages change (excluding optimistic messages)
+        if (currentConversation?.id && messages.length > 0) {
+            const realMessages = messages.filter(m => !m.isOptimistic);
+            if (realMessages.length > 0) {
+                const cacheKey = `koda_chat_messages_${currentConversation.id}`;
+                sessionStorage.setItem(cacheKey, JSON.stringify(realMessages));
+            }
+        }
+    }, [messages, currentConversation]);
 
     // Auto-scroll while streaming (only if user is near bottom)
     useEffect(() => {
@@ -614,6 +623,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     const loadConversation = async (conversationId) => {
         try {
+            // Check cache first for instant loading
+            const cacheKey = `koda_chat_messages_${conversationId}`;
+            const cached = sessionStorage.getItem(cacheKey);
+
+            if (cached) {
+                try {
+                    const cachedMessages = JSON.parse(cached);
+                    console.log(`⚡ Loaded ${cachedMessages.length} messages from cache`);
+                    setMessages(cachedMessages);
+                } catch (e) {
+                    console.error('Error parsing cached messages:', e);
+                }
+            }
+
             const conversation = await chatService.getConversation(conversationId);
             const loadedMessages = conversation.messages || [];
 
@@ -684,6 +707,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             console.log(`✅ Loaded ${uniqueMessages.length} unique messages`);
             setMessages(uniqueMessages);
             setStreamingMessage(''); // Clear any streaming message when loading conversation
+
+            // Cache messages for instant loading next time
+            sessionStorage.setItem(cacheKey, JSON.stringify(uniqueMessages));
         } catch (error) {
             console.error('Error loading conversation:', error);
         }

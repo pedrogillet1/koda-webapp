@@ -7,7 +7,18 @@ import * as chatService from '../services/chatService';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 
 const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onConversationUpdate }) => {
-    const [conversations, setConversations] = useState([]);
+    const [conversations, setConversations] = useState(() => {
+        // Load from cache immediately for instant display
+        const cached = sessionStorage.getItem('koda_chat_conversations');
+        if (cached) {
+            try {
+                return JSON.parse(cached);
+            } catch (e) {
+                return [];
+            }
+        }
+        return [];
+    });
     const [searchQuery, setSearchQuery] = useState('');
     const [hoveredConversation, setHoveredConversation] = useState(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -39,13 +50,16 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     // Use useCallback to prevent infinite loop
     const updateConversationInList = useCallback((updatedConversation) => {
         console.log('📝 ChatHistory: Updating conversation', updatedConversation);
-        setConversations(prevConversations =>
-            prevConversations.map(conv =>
+        setConversations(prevConversations => {
+            const updated = prevConversations.map(conv =>
                 conv.id === updatedConversation.id
                     ? { ...conv, ...updatedConversation, updatedAt: new Date().toISOString() }
                     : conv
-            )
-        );
+            );
+            // Update cache
+            sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
+            return updated;
+        });
     }, []);
 
     // Expose the update function to parent component
@@ -59,6 +73,8 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
         try {
             const data = await chatService.getConversations();
             setConversations(data);
+            // Cache conversations for instant loading
+            sessionStorage.setItem('koda_chat_conversations', JSON.stringify(data));
         } catch (error) {
             console.error('Error loading conversations:', error);
         }
@@ -97,11 +113,24 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
             if (itemToDelete.type === 'all') {
                 await chatService.deleteAllConversations();
                 setConversations([]);
+                // Clear cache
+                sessionStorage.removeItem('koda_chat_conversations');
+                // Clear all message caches
+                Object.keys(sessionStorage).forEach(key => {
+                    if (key.startsWith('koda_chat_messages_')) {
+                        sessionStorage.removeItem(key);
+                    }
+                });
                 // Create a new chat after deleting all
                 onNewChat?.();
             } else if (itemToDelete.type === 'conversation') {
                 await chatService.deleteConversation(itemToDelete.id);
-                setConversations(conversations.filter(c => c.id !== itemToDelete.id));
+                const updated = conversations.filter(c => c.id !== itemToDelete.id);
+                setConversations(updated);
+                // Update cache
+                sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
+                // Clear specific message cache
+                sessionStorage.removeItem(`koda_chat_messages_${itemToDelete.id}`);
 
                 // If deleting current conversation, create a new chat
                 if (currentConversation?.id === itemToDelete.id) {

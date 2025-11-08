@@ -106,23 +106,37 @@ export const DocumentsProvider = ({ children }) => {
     }
   }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments]);
 
-  // Auto-refresh data when window regains focus or becomes visible
+  // Auto-refresh data when window regains focus or becomes visible (with debounce)
   useEffect(() => {
+    let refreshTimeout = null;
+    let lastRefresh = 0;
+    const REFRESH_COOLDOWN = 5000; // Only refresh once every 5 seconds
+
+    const debouncedRefresh = () => {
+      const now = Date.now();
+      if (now - lastRefresh < REFRESH_COOLDOWN) {
+        console.log('⏸️  Skipping refresh (too soon since last refresh)');
+        return;
+      }
+
+      lastRefresh = now;
+      console.log('🔄 Refreshing data...');
+      fetchDocuments();
+      fetchFolders();
+      fetchRecentDocuments();
+    };
+
     const handleVisibilityChange = () => {
       if (!document.hidden && initialized) {
-        console.log('📱 Page became visible, refreshing documents...');
-        fetchDocuments();
-        fetchFolders();
-        fetchRecentDocuments();
+        console.log('📱 Page became visible');
+        debouncedRefresh();
       }
     };
 
     const handleFocus = () => {
       if (initialized) {
-        console.log('🔄 Window focused, refreshing documents...');
-        fetchDocuments();
-        fetchFolders();
-        fetchRecentDocuments();
+        console.log('🔄 Window focused');
+        debouncedRefresh();
       }
     };
 
@@ -132,6 +146,7 @@ export const DocumentsProvider = ({ children }) => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
+      if (refreshTimeout) clearTimeout(refreshTimeout);
     };
   }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments]);
 
@@ -166,56 +181,72 @@ export const DocumentsProvider = ({ children }) => {
       console.log('❌ WebSocket disconnected');
     });
 
+    // Debounced refresh to prevent multiple rapid refreshes
+    let documentRefreshTimeout = null;
+    let folderRefreshTimeout = null;
+
+    const debouncedDocumentRefresh = () => {
+      if (documentRefreshTimeout) clearTimeout(documentRefreshTimeout);
+      documentRefreshTimeout = setTimeout(() => {
+        console.log('🔄 Debounced: Refreshing documents...');
+        fetchDocuments();
+        fetchRecentDocuments();
+      }, 500); // Wait 500ms before refreshing
+    };
+
+    const debouncedFolderRefresh = () => {
+      if (folderRefreshTimeout) clearTimeout(folderRefreshTimeout);
+      folderRefreshTimeout = setTimeout(() => {
+        console.log('🔄 Debounced: Refreshing folders...');
+        fetchFolders();
+      }, 500); // Wait 500ms before refreshing
+    };
+
     // Listen for document processing updates
     socket.on('document-processing-update', (data) => {
       console.log('📄 Document processing update received:', data);
 
       // Auto-refresh documents when processing completes
       if (data.status === 'completed' || data.status === 'failed') {
-        fetchDocuments();
-        fetchRecentDocuments();
+        debouncedDocumentRefresh();
       }
     });
 
     // Listen for general data changes (we'll add these events to backend)
     socket.on('documents-changed', () => {
-      console.log('📚 Documents changed, refreshing...');
-      fetchDocuments();
-      fetchRecentDocuments();
+      console.log('📚 Documents changed');
+      debouncedDocumentRefresh();
     });
 
     socket.on('folders-changed', () => {
-      console.log('📁 Folders changed, refreshing...');
-      fetchFolders();
+      console.log('📁 Folders changed');
+      debouncedFolderRefresh();
     });
 
     socket.on('document-created', () => {
-      console.log('➕ Document created, refreshing...');
-      fetchDocuments();
-      fetchRecentDocuments();
+      console.log('➕ Document created');
+      debouncedDocumentRefresh();
     });
 
     socket.on('document-deleted', () => {
-      console.log('🗑️ Document deleted, refreshing...');
-      fetchDocuments();
-      fetchRecentDocuments();
+      console.log('🗑️ Document deleted');
+      debouncedDocumentRefresh();
     });
 
     socket.on('document-moved', () => {
-      console.log('📦 Document moved, refreshing...');
-      fetchDocuments();
-      fetchRecentDocuments();
+      console.log('📦 Document moved');
+      debouncedDocumentRefresh();
     });
 
     socket.on('folder-created', () => {
-      console.log('➕ Folder created, refreshing...');
-      fetchFolders();
+      console.log('➕ Folder created');
+      debouncedFolderRefresh();
     });
 
     socket.on('folder-deleted', () => {
-      console.log('🗑️ Folder deleted, refreshing...');
-      fetchFolders();
-      fetchDocuments();
+      console.log('🗑️ Folder deleted');
+      debouncedFolderRefresh();
+      debouncedDocumentRefresh(); // Also refresh documents since folder counts changed
     });
 
     return () => {
@@ -333,6 +364,12 @@ export const DocumentsProvider = ({ children }) => {
       );
 
       console.log('🔵 Document upload fully complete, returning:', newDocument);
+
+      // Invalidate settings cache (storage stats need to be recalculated)
+      sessionStorage.removeItem('koda_settings_documents');
+      sessionStorage.removeItem('koda_settings_fileData');
+      sessionStorage.removeItem('koda_settings_totalStorage');
+
       return newDocument;
     } catch (error) {
       console.error('🔴 Error in addDocument:', error);
@@ -366,6 +403,11 @@ export const DocumentsProvider = ({ children }) => {
     try {
       // Delete on server in background
       await api.delete(`/api/documents/${documentId}`);
+
+      // Invalidate settings cache (storage stats need to be recalculated)
+      sessionStorage.removeItem('koda_settings_documents');
+      sessionStorage.removeItem('koda_settings_fileData');
+      sessionStorage.removeItem('koda_settings_totalStorage');
     } catch (error) {
       console.error('Error deleting document:', error);
 

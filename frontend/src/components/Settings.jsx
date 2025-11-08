@@ -41,15 +41,96 @@ const Settings = () => {
   const { showSuccess, showError } = useToast();
   const [activeSection, setActiveSection] = useState('general');
   const [isExpanded, setIsExpanded] = useState(true);
-  const [documents, setDocuments] = useState([]);
-  const [fileData, setFileData] = useState([]);
-  const [totalStorage, setTotalStorage] = useState(0);
+  const [documents, setDocuments] = useState(() => {
+    // Load from cache for instant display
+    const cached = sessionStorage.getItem('koda_settings_documents');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+  const [fileData, setFileData] = useState(() => {
+    // Load from cache for instant display
+    const cached = sessionStorage.getItem('koda_settings_fileData');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+  const [totalStorage, setTotalStorage] = useState(() => {
+    // Load from cache for instant display
+    const cached = sessionStorage.getItem('koda_settings_totalStorage');
+    return cached ? parseInt(cached, 10) : 0;
+  });
   const [storageLimit] = useState(1024 * 1024 * 1024); // 1GB in bytes
-  const [user, setUser] = useState(null);
-  const [profileImage, setProfileImage] = useState(null);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [user, setUser] = useState(() => {
+    // Load from cache for instant display
+    const cached = localStorage.getItem('user');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [profileImage, setProfileImage] = useState(() => {
+    const cached = localStorage.getItem('user');
+    if (cached) {
+      try {
+        const userData = JSON.parse(cached);
+        return userData.profileImage || null;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [firstName, setFirstName] = useState(() => {
+    const cached = localStorage.getItem('user');
+    if (cached) {
+      try {
+        const userData = JSON.parse(cached);
+        return userData.firstName || '';
+      } catch (e) {
+        return '';
+      }
+    }
+    return '';
+  });
+  const [lastName, setLastName] = useState(() => {
+    const cached = localStorage.getItem('user');
+    if (cached) {
+      try {
+        const userData = JSON.parse(cached);
+        return userData.lastName || '';
+      } catch (e) {
+        return '';
+      }
+    }
+    return '';
+  });
+  const [phoneNumber, setPhoneNumber] = useState(() => {
+    const cached = localStorage.getItem('user');
+    if (cached) {
+      try {
+        const userData = JSON.parse(cached);
+        return userData.phoneNumber || '';
+      } catch (e) {
+        return '';
+      }
+    }
+    return '';
+  });
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -94,6 +175,9 @@ const Settings = () => {
         const response = await api.get('/api/auth/me');
         const userData = response.data.user;
         setUser(userData);
+
+        // Cache user data
+        localStorage.setItem('user', JSON.stringify(userData));
 
         // Set form fields
         setFirstName(userData.firstName || '');
@@ -155,12 +239,18 @@ const Settings = () => {
           return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
         };
 
-        setFileData([
+        const chartData = [
           { name: 'Video', value: breakdown.video.count, color: '#181818', size: formatBytes(breakdown.video.size) },
           { name: 'Document', value: breakdown.document.count, color: '#000000', size: formatBytes(breakdown.document.size) },
           { name: 'Image', value: breakdown.image.count, color: '#A8A8A8', size: formatBytes(breakdown.image.size) },
           { name: 'Other', value: breakdown.other.count, color: '#D9D9D9', size: formatBytes(breakdown.other.size) }
-        ]);
+        ];
+        setFileData(chartData);
+
+        // Cache all settings data
+        sessionStorage.setItem('koda_settings_documents', JSON.stringify(docs));
+        sessionStorage.setItem('koda_settings_fileData', JSON.stringify(chartData));
+        sessionStorage.setItem('koda_settings_totalStorage', total.toString());
       } catch (error) {
         console.error('Error fetching documents:', error);
       }

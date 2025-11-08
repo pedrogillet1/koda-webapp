@@ -325,9 +325,10 @@ const DocumentViewer = () => {
   useEffect(() => {
     const fetchDocument = async () => {
       try {
-        const response = await api.get('/api/documents');
-        const allDocuments = response.data.documents || [];
-        const foundDocument = allDocuments.find(doc => doc.id === documentId);
+        // Fetch only the specific document instead of all documents
+        console.log('📄 Fetching document:', documentId);
+        const response = await api.get(`/api/documents/${documentId}/status`);
+        const foundDocument = response.data;
 
         if (foundDocument) {
           setDocument(foundDocument);
@@ -383,14 +384,27 @@ const DocumentViewer = () => {
               console.log('🍎 Using Mac PDF workaround with direct stream URL (platform:', navigator.platform, ')');
               setDocumentUrl(streamUrl);
             } else {
-              // Use blob URL for Windows/Linux or non-PDF files
-              const fileResponse = await api.get(`/api/documents/${documentId}/stream`, {
-                responseType: 'blob'
-              });
-              const blob = new Blob([fileResponse.data], { type: foundDocument.mimeType });
-              const url = URL.createObjectURL(blob);
-              console.log('📄 Using blob URL for document (platform:', navigator.platform, ')');
-              setDocumentUrl(url);
+              // Check if we have a cached blob URL
+              const cacheKey = `document_blob_${documentId}`;
+              const cachedUrl = sessionStorage.getItem(cacheKey);
+
+              if (cachedUrl) {
+                console.log('⚡ Using cached blob URL for document');
+                setDocumentUrl(cachedUrl);
+              } else {
+                // Use blob URL for Windows/Linux or non-PDF files
+                console.log('📥 Downloading document for preview...');
+                const fileResponse = await api.get(`/api/documents/${documentId}/stream`, {
+                  responseType: 'blob'
+                });
+                const blob = new Blob([fileResponse.data], { type: foundDocument.mimeType });
+                const url = URL.createObjectURL(blob);
+                console.log('📄 Created blob URL for document (platform:', navigator.platform, ')');
+
+                // Cache the blob URL (it will be cleaned up when the page is refreshed)
+                sessionStorage.setItem(cacheKey, url);
+                setDocumentUrl(url);
+              }
             }
           }
         }
