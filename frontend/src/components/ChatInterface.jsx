@@ -2595,8 +2595,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 {/* File Attachments Preview */}
                 {(pendingFiles.length > 0 || uploadingFiles.length > 0) && (
                     <div style={{marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
-                        {/* Pending files */}
-                        {pendingFiles.map((file, index) => {
+                        {/* Pending files - hide when send is clicked (isLoading) */}
+                        {!isLoading && pendingFiles.map((file, index) => {
                             const isImage = isImageFile(file);
                             const previewUrl = isImage ? URL.createObjectURL(file) : null;
 

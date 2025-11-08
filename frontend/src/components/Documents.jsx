@@ -1924,14 +1924,8 @@ const Documents = () => {
                   );
                 })}
               </div>
-            </div>
 
-            {/* Create New Category Button */}
-            <div style={{
-              width: '100%',
-              paddingLeft: 24,
-              paddingRight: 24
-            }}>
+              {/* Create New Category Button */}
               <button
                 onClick={() => {
                   setShowCategoryModal(false);
@@ -1939,33 +1933,36 @@ const Documents = () => {
                 }}
                 style={{
                   width: '100%',
-                  paddingLeft: 18,
-                  paddingRight: 18,
-                  paddingTop: 10,
-                  paddingBottom: 10,
+                  marginTop: 16,
+                  padding: '14px 20px',
                   background: '#F5F5F5',
-                  borderRadius: 100,
-                  border: '1px #E6E6EC solid',
+                  borderRadius: 12,
+                  border: '2px dashed #D1D5DB',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 6,
+                  gap: 8,
                   cursor: 'pointer',
-                  transition: 'background 0.2s'
+                  transition: 'all 0.2s ease'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#EBEBEB';
+                  e.currentTarget.style.borderColor = '#A0A0A0';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#F5F5F5';
+                  e.currentTarget.style.borderColor = '#D1D5DB';
+                }}
               >
-                <AddIcon style={{ width: 20, height: 20 }} />
-                <div style={{
-                  color: '#32302C',
-                  fontSize: 16,
-                  fontFamily: 'Plus Jakarta Sans',
+                <span style={{ fontSize: 18 }}>+</span>
+                <span style={{
+                  fontSize: 14,
                   fontWeight: '600',
-                  lineHeight: '24px'
+                  color: '#181818',
+                  fontFamily: 'Plus Jakarta Sans'
                 }}>
                   Create New Category
-                </div>
+                </span>
               </button>
             </div>
 

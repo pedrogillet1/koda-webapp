@@ -1,59 +1,45 @@
 /**
- * Storage Configuration - Now using Supabase Storage
- * Provides the same interface as GCS for backward compatibility
+ * Storage Configuration - Google Cloud Storage
  */
 
-import supabaseStorageService from '../services/supabaseStorage.service';
+import { Storage } from '@google-cloud/storage';
 
-// For backward compatibility, export a bucket-like object
-export const bucket = {
-  file: (fileName: string) => ({
-    save: async (buffer: Buffer, options: any) => {
-      await supabaseStorageService.upload(fileName, buffer, {
-        contentType: options.contentType,
-        cacheControl: options.metadata?.cacheControl
-      });
-    },
-    download: async () => {
-      const result = await supabaseStorageService.download(fileName);
-      return [result.data];
-    },
-    delete: async () => {
-      await supabaseStorageService.delete(fileName);
-    },
-    exists: async () => {
-      return [await supabaseStorageService.exists(fileName)];
-    },
-    getSignedUrl: async (options: any) => {
-      const expiresIn = Math.floor((options.expires - Date.now()) / 1000);
-      const url = await supabaseStorageService.getSignedUrl(fileName, expiresIn);
-      return [url];
-    }
-  })
-};
+// Initialize GCS
+const storage = new Storage({
+  projectId: process.env.GCS_PROJECT_ID,
+  keyFilename: process.env.GCS_KEY_FILE
+});
 
-console.log('✅ Supabase Storage initialized');
+const bucketName = process.env.GCS_BUCKET_NAME || 'koda-documents-dev';
+export const bucket = storage.bucket(bucketName);
+
+console.log('✅ GCS initialized');
 
 /**
- * Upload a file to Supabase Storage
+ * Upload a file to Google Cloud Storage
  */
 export const uploadFile = async (
   fileName: string,
   fileBuffer: Buffer,
   mimeType: string
 ): Promise<string> => {
-  await supabaseStorageService.upload(fileName, fileBuffer, {
-    contentType: mimeType
+  const file = bucket.file(fileName);
+  await file.save(fileBuffer, {
+    contentType: mimeType,
+    metadata: {
+      cacheControl: 'public, max-age=3600'
+    }
   });
   return fileName;
 };
 
 /**
- * Download a file from Supabase Storage
+ * Download a file from Google Cloud Storage
  */
 export const downloadFile = async (fileName: string): Promise<Buffer> => {
-  const result = await supabaseStorageService.download(fileName);
-  return result.data;
+  const file = bucket.file(fileName);
+  const [buffer] = await file.download();
+  return buffer;
 };
 
 /**
@@ -65,43 +51,57 @@ export const getSignedUrl = async (
   forceDownload: boolean = false,
   downloadFilename?: string
 ): Promise<string> => {
-  // Note: Supabase signed URLs don't support custom response-disposition
-  // For downloads, we'll use the signed URL directly
-  const url = await supabaseStorageService.getSignedUrl(fileName, expiresIn);
+  const file = bucket.file(fileName);
+
+  const options: any = {
+    version: 'v4',
+    action: 'read',
+    expires: Date.now() + expiresIn * 1000
+  };
+
+  if (forceDownload && downloadFilename) {
+    options.responseDisposition = `attachment; filename="${downloadFilename}"`;
+  }
+
+  const [url] = await file.getSignedUrl(options);
   return url;
 };
 
 /**
- * Generate a signed URL for direct upload to Supabase Storage
- * Note: Supabase uses different mechanism for uploads (not signed URLs)
- * This function creates a signed URL for download and returns it for compatibility
+ * Generate a signed URL for direct upload to GCS
  */
 export const getSignedUploadUrl = async (
   fileName: string,
   mimeType: string,
   expiresIn: number = 600 // 10 minutes for upload
 ): Promise<string> => {
-  // For Supabase, uploads are typically done server-side
-  // This is a compatibility shim - actual uploads should use uploadFile()
-  console.warn('⚠️ getSignedUploadUrl called - Supabase uploads should use server-side uploadFile()');
+  const file = bucket.file(fileName);
 
-  // Return a placeholder - the actual upload will need to be done server-side
-  return `/api/upload/placeholder`;
+  const [url] = await file.getSignedUrl({
+    version: 'v4',
+    action: 'write',
+    expires: Date.now() + expiresIn * 1000,
+    contentType: mimeType
+  });
+
+  return url;
 };
 
 /**
- * Delete a file from Supabase Storage
+ * Delete a file from Google Cloud Storage
  */
 export const deleteFile = async (fileName: string): Promise<void> => {
-  await supabaseStorageService.delete(fileName);
+  const file = bucket.file(fileName);
+  await file.delete();
 };
 
 /**
- * Check if a file exists in Supabase Storage
+ * Check if a file exists in Google Cloud Storage
  */
 export const fileExists = async (fileName: string): Promise<boolean> => {
-  return await supabaseStorageService.exists(fileName);
+  const file = bucket.file(fileName);
+  const [exists] = await file.exists();
+  return exists;
 };
 
-// Export null for storage to maintain compatibility
-export default null;
+export default storage;

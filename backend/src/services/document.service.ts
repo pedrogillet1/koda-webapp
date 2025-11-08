@@ -1,3 +1,4 @@
+// Document Service - handles document upload and processing
 import crypto from 'crypto';
 import prisma from '../config/database';
 import { uploadFile, downloadFile, getSignedUrl, deleteFile, bucket, fileExists } from '../config/storage';
@@ -236,6 +237,8 @@ async function processDocumentWithTimeout(
     let slidesData: any[] | null = null;
     let pptxMetadata: any | null = null;
     let pptxSlideChunks: any[] | null = null; // For Phase 4C: Slide-level chunks
+    let pdfPreviewPath: string | null = null; // For PPTX PDF preview
+    let pdfPreviewUrl: string | null = null; // For PPTX PDF preview
 
     // Check if it's a PowerPoint file - use Python PPTX extractor
     const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
@@ -278,9 +281,6 @@ async function processDocumentWithTimeout(
           }
 
           // 🆕 Convert PPTX to PDF for preview (synchronous, before document creation)
-          let pdfPreviewPath: string | null = null;
-          let pdfPreviewUrl: string | null = null;
-
           console.log('📄 Converting PPTX to PDF for preview...');
           try {
             const pptxToPdfService = (await import('./pptxToPdf.service')).default;
@@ -1185,6 +1185,8 @@ async function processDocumentAsync(
     let slidesData: any[] | null = null;
     let pptxMetadata: any | null = null;
     let pptxSlideChunks: any[] | null = null; // For Phase 4C: Slide-level chunks
+    let pdfPreviewPath: string | null = null; // For PPTX PDF preview
+    let pdfPreviewUrl: string | null = null; // For PPTX PDF preview
 
     // Check if it's a PowerPoint file - use Python PPTX extractor
     const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
@@ -1227,9 +1229,6 @@ async function processDocumentAsync(
           }
 
           // 🆕 Convert PPTX to PDF for preview (synchronous, before document creation)
-          let pdfPreviewPath: string | null = null;
-          let pdfPreviewUrl: string | null = null;
-
           console.log('📄 Converting PPTX to PDF for preview...');
           try {
             const pptxToPdfService = (await import('./pptxToPdf.service')).default;

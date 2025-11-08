@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { Document, Page, pdfjs } from 'react-pdf';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as ArrowRightIcon } from '../assets/arrow-narrow-right.svg';
-import PDFPreviewCustom from './PDFPreviewCustom';
+
+// Configure PDF.js worker - use the same configuration as DocumentViewer
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 // ✅ FIX: Add CSS animation for spinner
 const spinnerStyles = document.createElement('style');
@@ -19,6 +22,319 @@ if (!document.head.querySelector('#pptx-spinner-styles')) {
   spinnerStyles.id = 'pptx-spinner-styles';
   document.head.appendChild(spinnerStyles);
 }
+
+/**
+ * Custom PDF Preview Component with KODA Styling
+ * Displays PDF with vertical thumbnail sidebar and clean navigation
+ */
+const PDFPreviewCustom = ({ pdfUrl, document, zoom = 100 }) => {
+  const [numPages, setNumPages] = useState(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const onDocumentLoadSuccess = ({ numPages }) => {
+    setNumPages(numPages);
+    setLoading(false);
+  };
+
+  const onDocumentLoadError = (error) => {
+    console.error('Error loading PDF:', error);
+    setError('Failed to load PDF preview');
+    setLoading(false);
+  };
+
+  const goToPrevPage = () => {
+    if (pageNumber > 1) setPageNumber(pageNumber - 1);
+  };
+
+  const goToNextPage = () => {
+    if (pageNumber < numPages) setPageNumber(pageNumber + 1);
+  };
+
+  const goToPage = (page) => {
+    if (page >= 1 && page <= numPages) setPageNumber(page);
+  };
+
+  if (loading) {
+    return (
+      <div style={{
+        width: '100%',
+        maxWidth: '1200px',
+        padding: 40,
+        background: 'white',
+        borderRadius: 12,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          fontSize: 48,
+          marginBottom: 20
+        }}>📄</div>
+        <div style={{
+          color: '#6C6B6E',
+          fontSize: 16,
+          fontFamily: 'Plus Jakarta Sans'
+        }}>
+          Loading PDF preview...
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{
+        width: '100%',
+        maxWidth: '1200px',
+        padding: 40,
+        background: 'white',
+        borderRadius: 12,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          fontSize: 48,
+          marginBottom: 20
+        }}>⚠️</div>
+        <div style={{
+          color: '#DC2626',
+          fontSize: 16,
+          fontFamily: 'Plus Jakarta Sans',
+          fontWeight: '600',
+          marginBottom: 8
+        }}>
+          Failed to Load PDF
+        </div>
+        <div style={{
+          color: '#6C6B6E',
+          fontSize: 14,
+          fontFamily: 'Plus Jakarta Sans'
+        }}>
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      width: '100%',
+      maxWidth: '1200px',
+      transform: `scale(${zoom / 100})`,
+      transformOrigin: 'top center',
+      transition: 'transform 0.2s ease'
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: 12,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {/* Navigation Bar */}
+        <div style={{
+          padding: 16,
+          background: '#FAFAFA',
+          borderBottom: '1px solid #E6E6EC',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 16
+        }}>
+          <button
+            onClick={goToPrevPage}
+            disabled={pageNumber <= 1}
+            style={{
+              width: 32,
+              height: 32,
+              background: pageNumber <= 1 ? '#F5F5F5' : 'white',
+              border: '1px solid #E6E6EC',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: pageNumber <= 1 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <ArrowLeftIcon style={{
+              width: 16,
+              height: 16,
+              opacity: pageNumber <= 1 ? 0.3 : 1
+            }} />
+          </button>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 14,
+            fontFamily: 'Plus Jakarta Sans',
+            color: '#32302C'
+          }}>
+            <input
+              type="number"
+              value={pageNumber}
+              onChange={(e) => {
+                const page = parseInt(e.target.value);
+                if (page >= 1 && page <= numPages) {
+                  setPageNumber(page);
+                }
+              }}
+              style={{
+                width: 50,
+                padding: '4px 8px',
+                border: '1px solid #E6E6EC',
+                borderRadius: 6,
+                textAlign: 'center',
+                fontSize: 14,
+                fontFamily: 'Plus Jakarta Sans',
+                outline: 'none'
+              }}
+            />
+            <span style={{ color: '#6C6B6E' }}>/ {numPages}</span>
+          </div>
+
+          <button
+            onClick={goToNextPage}
+            disabled={pageNumber >= numPages}
+            style={{
+              width: 32,
+              height: 32,
+              background: pageNumber >= numPages ? '#F5F5F5' : 'white',
+              border: '1px solid #E6E6EC',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: pageNumber >= numPages ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <ArrowRightIcon style={{
+              width: 16,
+              height: 16,
+              opacity: pageNumber >= numPages ? 0.3 : 1
+            }} />
+          </button>
+        </div>
+
+        {/* Main Content Area */}
+        <div style={{
+          display: 'flex',
+          height: '700px',
+          background: '#FAFAFA'
+        }}>
+          {/* Thumbnail Sidebar */}
+          <div style={{
+            width: 200,
+            background: 'white',
+            borderRight: '1px solid #E6E6EC',
+            overflowY: 'auto',
+            padding: 12
+          }}>
+            <div style={{
+              fontSize: 12,
+              fontWeight: '600',
+              color: '#6C6B6E',
+              fontFamily: 'Plus Jakarta Sans',
+              marginBottom: 12,
+              paddingLeft: 4
+            }}>
+              All Slides
+            </div>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8
+            }}>
+              <Document
+                file={pdfUrl}
+                onLoadSuccess={() => {}}
+                onLoadError={() => {}}
+              >
+                {Array.from(new Array(numPages), (el, index) => (
+                  <div
+                    key={`thumb_${index + 1}`}
+                    onClick={() => goToPage(index + 1)}
+                    style={{
+                      cursor: 'pointer',
+                      border: pageNumber === index + 1 ? '2px solid #32302C' : '1px solid #E6E6EC',
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                      background: 'white',
+                      transition: 'all 0.2s',
+                      position: 'relative'
+                    }}
+                  >
+                    <Page
+                      pageNumber={index + 1}
+                      width={176}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                    />
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 4,
+                      right: 4,
+                      background: 'rgba(0,0,0,0.7)',
+                      color: 'white',
+                      fontSize: 10,
+                      fontFamily: 'Plus Jakarta Sans',
+                      padding: '2px 6px',
+                      borderRadius: 4
+                    }}>
+                      {index + 1}
+                    </div>
+                  </div>
+                ))}
+              </Document>
+            </div>
+          </div>
+
+          {/* Main PDF View */}
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'auto',
+            padding: 20
+          }}>
+            <Document
+              file={pdfUrl}
+              onLoadSuccess={onDocumentLoadSuccess}
+              onLoadError={onDocumentLoadError}
+              loading={
+                <div style={{
+                  color: '#6C6B6E',
+                  fontSize: 14,
+                  fontFamily: 'Plus Jakarta Sans'
+                }}>
+                  Loading page...
+                </div>
+              }
+            >
+              <Page
+                pageNumber={pageNumber}
+                width={800}
+                renderTextLayer={true}
+                renderAnnotationLayer={true}
+                style={{
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  borderRadius: 8,
+                  overflow: 'hidden'
+                }}
+              />
+            </Document>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /**
  * PPTX Preview Component

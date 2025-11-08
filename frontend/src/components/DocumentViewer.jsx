@@ -8,8 +8,7 @@ import SearchInDocumentModal from './SearchInDocumentModal';
 import MarkdownEditor from './MarkdownEditor';
 import PPTXPreview from './PPTXPreview';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
-import AddToCategoryModal from './AddToCategoryModal';
-import CreateCategoryModal from './CreateCategoryModal';
+import CategoryIcon from './CategoryIcon';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as LogoutWhiteIcon } from '../assets/Logout-white.svg';
 import logoSvg from '../assets/Logo_head_crop.svg';
@@ -25,6 +24,9 @@ import folderIcon from '../assets/folder_icon.svg';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import xlsIcon from '../assets/xls.png';
+import pptxIcon from '../assets/pptx.png';
+import jpgIcon from '../assets/jpg-icon.png';
+import pngIcon from '../assets/png-icon.png';
 import {
   isSafari,
   isMacOS,
@@ -127,7 +129,7 @@ const DocumentViewer = () => {
   const [shareEmail, setShareEmail] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showCreateCategory, setShowCreateCategory] = useState(false);
+  const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -309,6 +311,258 @@ const DocumentViewer = () => {
 
     return 'unknown';
   };
+
+  // ============================================
+  // COMPREHENSIVE PRINT HANDLERS
+  // ============================================
+
+  // Main print handler for all file types
+  const handlePrint = async () => {
+    try {
+      if (!document || !documentUrl) {
+        alert('Document not loaded yet. Please wait.');
+        return;
+      }
+
+      const fileType = getFileType(document.filename, document.mimeType);
+      console.log('Printing document:', document.filename, 'Type:', fileType);
+
+      // For PDF files (including PPTX converted to PDF)
+      if (fileType === 'pdf' || fileType === 'powerpoint') {
+        printPDF(documentUrl);
+        return;
+      }
+
+      // For images
+      if (fileType === 'image') {
+        printImage(documentUrl);
+        return;
+      }
+
+      // For Word documents
+      if (fileType === 'word') {
+        // Word docs are typically converted to PDF for preview
+        // Check if we have a PDF URL
+        if (documentUrl.includes('.pdf') || document.pdfUrl) {
+          printPDF(document.pdfUrl || documentUrl);
+        } else {
+          // Fallback: try to print the doc directly
+          printGenericDocument(documentUrl);
+        }
+        return;
+      }
+
+      // For Excel files
+      if (fileType === 'excel') {
+        printGenericDocument(documentUrl);
+        return;
+      }
+
+      // For text files
+      if (fileType === 'text' || fileType === 'code') {
+        printTextDocument(documentUrl, document.filename);
+        return;
+      }
+
+      // Default fallback
+      printGenericDocument(documentUrl);
+
+    } catch (error) {
+      console.error('Print error:', error);
+      alert('Failed to print document. Please try downloading and printing manually.');
+    }
+  };
+
+  // Print PDF files
+  const printPDF = (pdfUrl) => {
+    const iframe = window.document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    window.document.body.appendChild(iframe);
+
+    iframe.onload = () => {
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (e) {
+          console.error('PDF print error:', e);
+          // Fallback: open in new window
+          window.open(pdfUrl, '_blank');
+        }
+        // Remove iframe after printing
+        setTimeout(() => {
+          if (window.document.body.contains(iframe)) {
+            window.document.body.removeChild(iframe);
+          }
+        }, 1000);
+      }, 500);
+    };
+
+    iframe.onerror = () => {
+      console.error('Failed to load PDF for printing');
+      window.document.body.removeChild(iframe);
+      // Fallback: open in new window
+      window.open(pdfUrl, '_blank');
+    };
+
+    iframe.src = pdfUrl;
+  };
+
+  // Print image files
+  const printImage = (imageUrl) => {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Print Image</title>
+          <style>
+            body {
+              margin: 0;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+            }
+            img {
+              max-width: 100%;
+              max-height: 100vh;
+              object-fit: contain;
+            }
+            @media print {
+              body {
+                margin: 0;
+              }
+              img {
+                max-width: 100%;
+                height: auto;
+                page-break-inside: avoid;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${imageUrl}" onload="window.print(); setTimeout(() => window.close(), 500);" />
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // Print text/code files
+  const printTextDocument = async (textUrl, filename) => {
+    try {
+      const response = await fetch(textUrl);
+      const text = await response.text();
+
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${filename}</title>
+            <style>
+              body {
+                font-family: 'Courier New', monospace;
+                padding: 20mm;
+                font-size: 12pt;
+                line-height: 1.6;
+                color: #000;
+              }
+              pre {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                margin: 0;
+              }
+              @media print {
+                body {
+                  padding: 15mm;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <pre>${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+
+      setTimeout(() => {
+        printWindow.print();
+        setTimeout(() => printWindow.close(), 500);
+      }, 500);
+    } catch (error) {
+      console.error('Error printing text document:', error);
+      alert('Failed to load text document for printing.');
+    }
+  };
+
+  // Generic document print (fallback)
+  const printGenericDocument = (docUrl) => {
+    // Try iframe method first
+    const iframe = window.document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    window.document.body.appendChild(iframe);
+
+    let printed = false;
+
+    iframe.onload = () => {
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+          printed = true;
+        } catch (e) {
+          console.error('Generic print error:', e);
+          if (!printed) {
+            // Fallback: open in new window
+            window.open(docUrl, '_blank');
+          }
+        }
+        // Remove iframe after printing
+        setTimeout(() => {
+          if (window.document.body.contains(iframe)) {
+            window.document.body.removeChild(iframe);
+          }
+        }, 1000);
+      }, 500);
+    };
+
+    iframe.onerror = () => {
+      console.error('Failed to load document for printing');
+      if (window.document.body.contains(iframe)) {
+        window.document.body.removeChild(iframe);
+      }
+      // Fallback: open in new window
+      window.open(docUrl, '_blank');
+    };
+
+    // Set timeout to fallback if loading takes too long
+    setTimeout(() => {
+      if (!printed && window.document.body.contains(iframe)) {
+        console.warn('Print timeout, opening in new window');
+        window.open(docUrl, '_blank');
+        window.document.body.removeChild(iframe);
+      }
+    }, 5000);
+
+    iframe.src = docUrl;
+  };
+
+  // ============================================
+  // END PRINT HANDLERS
+  // ============================================
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -575,37 +829,30 @@ const DocumentViewer = () => {
                 <TrashCanIcon style={{ width: 44, height: 44 }} />
               </button>
               <button
-                onClick={() => {
-                  if (documentUrl && document) {
-                    // Create a hidden iframe for printing
-                    const iframe = window.document.createElement('iframe');
-                    iframe.style.position = 'fixed';
-                    iframe.style.right = '0';
-                    iframe.style.bottom = '0';
-                    iframe.style.width = '0';
-                    iframe.style.height = '0';
-                    iframe.style.border = '0';
-                    window.document.body.appendChild(iframe);
-
-                    iframe.onload = () => {
-                      setTimeout(() => {
-                        try {
-                          iframe.contentWindow.focus();
-                          iframe.contentWindow.print();
-                        } catch (e) {
-                          console.error('Print error:', e);
-                        }
-                        // Remove iframe after printing
-                        setTimeout(() => {
-                          window.document.body.removeChild(iframe);
-                        }, 1000);
-                      }, 500);
-                    };
-
-                    iframe.src = documentUrl;
-                  }
+                onClick={handlePrint}
+                style={{
+                  width: 52,
+                  height: 52,
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  background: 'white',
+                  overflow: 'hidden',
+                  borderRadius: 14,
+                  outline: '1px #E6E6EC solid',
+                  outlineOffset: '-1px',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 8,
+                  display: 'flex',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
                 }}
-                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                title="Print document"
               >
                 <PrinterIcon style={{ width: 44, height: 44 }} />
               </button>
@@ -1599,29 +1846,403 @@ const DocumentViewer = () => {
         itemName={document.filename}
       />
 
-      {/* Add to Category Modal */}
-      <AddToCategoryModal
-        isOpen={showCategoryModal}
-        onClose={() => setShowCategoryModal(false)}
-        documentId={document?.id}
-        uploadedDocuments={document ? [document] : []}
-        onCategorySelected={handleAddToCategory}
-        onCreateNew={() => {
-          setShowCategoryModal(false);
-          setShowCreateCategory(true);
-        }}
-      />
+      {/* Category Modal */}
+      {showCategoryModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: 400,
+            paddingTop: 18,
+            paddingBottom: 18,
+            background: 'white',
+            borderRadius: 14,
+            outline: '1px #E6E6EC solid',
+            outlineOffset: '-1px',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 18,
+            display: 'flex'
+          }}>
+            {/* Header */}
+            <div style={{
+              width: '100%',
+              paddingLeft: 24,
+              paddingRight: 24,
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              display: 'flex'
+            }}>
+              <div style={{
+                color: '#32302C',
+                fontSize: 18,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '600',
+                lineHeight: '25.20px'
+              }}>
+                Move to Category
+              </div>
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setSelectedCategory(null);
+                  setNewCategoryName('');
+                }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  background: '#F5F5F5',
+                  border: 'none',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+              >
+                <XCloseIcon style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
 
-      {/* Create Category Modal */}
-      <CreateCategoryModal
-        isOpen={showCreateCategory}
-        onClose={() => setShowCreateCategory(false)}
-        onCategoryCreated={async (newCategoryId) => {
-          // Move document to newly created category
-          await handleAddToCategory(newCategoryId);
-          setShowCreateCategory(false);
-        }}
-      />
+            {/* Selected Document Display */}
+            {document && (
+              <div style={{
+                width: '100%',
+                paddingLeft: 24,
+                paddingRight: 24
+              }}>
+                <div style={{
+                  padding: 12,
+                  background: '#F5F5F5',
+                  borderRadius: 12,
+                  border: '1px #E6E6EC solid',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12
+                }}>
+                  <img
+                    src={(() => {
+                      const filename = document.filename.toLowerCase();
+                      if (filename.match(/\.(pdf)$/)) return pdfIcon;
+                      if (filename.match(/\.(jpg|jpeg)$/)) return jpgIcon;
+                      if (filename.match(/\.(png)$/)) return pngIcon;
+                      if (filename.match(/\.(doc|docx)$/)) return docIcon;
+                      if (filename.match(/\.(xls|xlsx)$/)) return xlsIcon;
+                      if (filename.match(/\.(ppt|pptx)$/)) return pptxIcon;
+                      return docIcon;
+                    })()}
+                    alt="File icon"
+                    style={{
+                      width: 40,
+                      height: 40,
+                      imageRendering: '-webkit-optimize-contrast',
+                      objectFit: 'contain',
+                      shapeRendering: 'geometricPrecision',
+                      flexShrink: 0
+                    }}
+                  />
+                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <div style={{
+                      color: '#32302C',
+                      fontSize: 14,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '600',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {document.filename}
+                    </div>
+                    <div style={{
+                      color: '#6C6B6E',
+                      fontSize: 12,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '400'
+                    }}>
+                      {((document.fileSize || 0) / 1024 / 1024).toFixed(2)} MB
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Categories Grid */}
+            <div style={{
+              width: '100%',
+              paddingLeft: 24,
+              paddingRight: 24,
+              paddingTop: 8,
+              paddingBottom: 8,
+              flexDirection: 'column',
+              justifyContent: 'flex-start',
+              alignItems: 'flex-start',
+              gap: 12,
+              display: 'flex',
+              maxHeight: '280px',
+              overflowY: 'auto'
+            }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 12,
+                width: '100%'
+              }}>
+                {categories.filter(f => f.name.toLowerCase() !== 'recently added').map((category) => {
+                  const fileCount = category._count?.documents || 0;
+                  return (
+                    <div
+                      key={category.id}
+                      onClick={() => setSelectedCategory(category.id)}
+                      style={{
+                        paddingLeft: 12,
+                        paddingRight: 12,
+                        paddingTop: 12,
+                        paddingBottom: 12,
+                        background: selectedCategory === category.id ? '#F5F5F5' : 'white',
+                        borderRadius: 12,
+                        border: selectedCategory === category.id ? '2px #32302C solid' : '1px #E6E6EC solid',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        position: 'relative'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedCategory !== category.id) {
+                          e.currentTarget.style.background = '#F9FAFB';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedCategory !== category.id) {
+                          e.currentTarget.style.background = 'white';
+                        }
+                      }}
+                    >
+                      {/* Emoji */}
+                      <div style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        background: '#F5F5F5',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 20
+                      }}>
+                        <CategoryIcon emoji={category.emoji} style={{width: 18, height: 18}} />
+                      </div>
+
+                      {/* Category Name */}
+                      <div style={{
+                        width: '100%',
+                        color: '#32302C',
+                        fontSize: 14,
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: '600',
+                        lineHeight: '19.60px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        textAlign: 'center'
+                      }}>
+                        {category.name}
+                      </div>
+
+                      {/* File Count */}
+                      <div style={{
+                        color: '#6C6B6E',
+                        fontSize: 12,
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: '500',
+                        lineHeight: '15.40px'
+                      }}>
+                        {fileCount || 0} {fileCount === 1 ? 'File' : 'Files'}
+                      </div>
+
+                      {/* Checkmark */}
+                      {selectedCategory === category.id && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8
+                        }}>
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="8" cy="8" r="8" fill="#32302C"/>
+                            <path d="M4.5 8L7 10.5L11.5 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Create New Category Button */}
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setShowCreateCategoryModal(true);
+                }}
+                style={{
+                  width: '100%',
+                  marginTop: 16,
+                  padding: '14px 20px',
+                  background: '#F5F5F5',
+                  borderRadius: 12,
+                  border: '2px dashed #D1D5DB',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#EBEBEB';
+                  e.currentTarget.style.borderColor = '#A0A0A0';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#F5F5F5';
+                  e.currentTarget.style.borderColor = '#D1D5DB';
+                }}
+              >
+                <span style={{ fontSize: 18 }}>+</span>
+                <span style={{
+                  fontSize: 14,
+                  fontWeight: '600',
+                  color: '#181818',
+                  fontFamily: 'Plus Jakarta Sans'
+                }}>
+                  Create New Category
+                </span>
+              </button>
+            </div>
+
+            {/* Footer Buttons */}
+            <div style={{
+              width: '100%',
+              paddingLeft: 24,
+              paddingRight: 24,
+              display: 'flex',
+              gap: 8
+            }}>
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setSelectedCategory(null);
+                  setNewCategoryName('');
+                }}
+                style={{
+                  flex: 1,
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  background: '#F5F5F5',
+                  borderRadius: 100,
+                  border: '1px #E6E6EC solid',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 6,
+                  display: 'flex',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+              >
+                <div style={{
+                  color: '#323232',
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500',
+                  lineHeight: '24px'
+                }}>
+                  Cancel
+                </div>
+              </button>
+              <button
+                onClick={async () => {
+                  if (!selectedCategory) {
+                    alert('Please select a category');
+                    return;
+                  }
+                  try {
+                    await api.patch(`/api/documents/${documentId}`, {
+                      folderId: selectedCategory
+                    });
+                    alert('Document moved successfully');
+                    setShowCategoryModal(false);
+                    setSelectedCategory(null);
+
+                    // Refresh document
+                    const response = await api.get(`/api/documents/${documentId}/status`);
+                    setDocument(response.data);
+
+                    // Refresh categories
+                    const catResponse = await api.get('/api/folders');
+                    setCategories(catResponse.data.folders || []);
+                  } catch (error) {
+                    console.error('Error moving document:', error);
+                    alert('Failed to move document: ' + (error.response?.data?.error || error.message));
+                  }
+                }}
+                disabled={!selectedCategory}
+                style={{
+                  flex: 1,
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  background: selectedCategory ? '#32302C' : '#E6E6EC',
+                  borderRadius: 100,
+                  border: 'none',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 6,
+                  display: 'flex',
+                  cursor: selectedCategory ? 'pointer' : 'not-allowed',
+                  transition: 'opacity 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedCategory) {
+                    e.currentTarget.style.opacity = '0.9';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '1';
+                }}
+              >
+                <div style={{
+                  color: selectedCategory ? 'white' : '#9CA3AF',
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500',
+                  lineHeight: '24px'
+                }}>
+                  Add
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
