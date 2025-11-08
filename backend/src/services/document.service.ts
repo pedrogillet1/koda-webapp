@@ -5,7 +5,6 @@ import { config } from '../config/env';
 import * as textExtractionService from './textExtraction.service';
 import * as geminiService from './gemini.service';
 import * as folderService from './folder.service';
-import * as thumbnailService from './thumbnail.service';
 import markdownConversionService from './markdownConversion.service';
 import cacheService from './cache.service';
 import encryptionService from './encryption.service';
@@ -22,7 +21,6 @@ export interface UploadDocumentInput {
   mimeType: string;
   folderId?: string;
   fileHash: string; // SHA-256 hash from client
-  thumbnailBuffer?: Buffer; // Optional thumbnail
   relativePath?: string; // For nested folder uploads
 }
 
@@ -75,7 +73,7 @@ async function createFoldersFromPath(userId: string, relativePath: string, paren
  * Upload an encrypted document
  */
 export const uploadDocument = async (input: UploadDocumentInput) => {
-  const { userId, filename, fileBuffer, mimeType, folderId, fileHash, thumbnailBuffer, relativePath } = input;
+  const { userId, filename, fileBuffer, mimeType, folderId, fileHash, relativePath } = input;
 
   console.log(`\n═══════════════════════════════════════════════════════`);
   console.log(`📤 UPLOADING DOCUMENT: ${filename}`);
@@ -126,40 +124,11 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   const encryptionAuthTag = encryptedFileBuffer.slice(16, 32).toString('base64'); // Next 16 bytes
   console.log(`✅ File encrypted successfully (${encryptedFileBuffer.length} bytes)`);
 
-  // Upload encrypted file to GCS
+  // Upload encrypted file to Supabase Storage
   await uploadFile(encryptedFilename, encryptedFileBuffer, mimeType);
 
-  // Upload thumbnail if provided, otherwise generate one
-  let thumbnailUrl: string | null = null;
-  if (thumbnailBuffer) {
-    const thumbnailFilename = `${userId}/thumbnails/${crypto.randomUUID()}-${Date.now()}.jpg`;
-    await uploadFile(thumbnailFilename, thumbnailBuffer, 'image/jpeg');
-    // Get public URL for thumbnail
-    thumbnailUrl = await getSignedUrl(thumbnailFilename);
-    console.log('✅ Thumbnail uploaded:', thumbnailFilename);
-  } else {
-    // Generate thumbnail on server if not provided
-    console.log('🖼️ Generating thumbnail on server...');
-    try {
-      // Save file to temp location for thumbnail generation
-      const tempDir = os.tmpdir();
-      const tempFilePath = path.join(tempDir, `upload-${crypto.randomUUID()}`);
-      fs.writeFileSync(tempFilePath, fileBuffer);
-
-      // Generate thumbnail
-      const thumbnailPath = await thumbnailService.generateThumbnail(tempFilePath, mimeType);
-
-      // Clean up temp file
-      fs.unlinkSync(tempFilePath);
-
-      if (thumbnailPath) {
-        thumbnailUrl = thumbnailPath; // Store GCS path
-        console.log('✅ Thumbnail generated:', thumbnailPath);
-      }
-    } catch (error) {
-      console.warn('⚠️ Thumbnail generation failed (non-critical):', error);
-    }
-  }
+  // Thumbnail generation disabled - set to null
+  const thumbnailUrl: string | null = null;
 
   // Create document record with encryption metadata
   const document = await prisma.document.create({
@@ -2098,7 +2067,16 @@ export const listDocuments = async (
             tag: true,
           },
         },
-        metadata: true,
+        // Only include minimal metadata fields for list view (not the huge content fields)
+        metadata: {
+          select: {
+            documentId: true,
+            pageCount: true,
+            wordCount: true,
+            ocrConfidence: true,
+            // Exclude large fields: markdownContent, extractedText, slidesData, pptxMetadata, etc.
+          }
+        },
       },
       orderBy: { createdAt: 'desc' },
       skip,
@@ -2459,9 +2437,6 @@ export const getDocumentStatus = async (documentId: string, userId: string) => {
 export const getDocumentThumbnail = async (documentId: string, userId: string) => {
   const document = await prisma.document.findUnique({
     where: { id: documentId },
-    include: {
-      metadata: true,
-    },
   });
 
   if (!document) {
@@ -2472,14 +2447,8 @@ export const getDocumentThumbnail = async (documentId: string, userId: string) =
     throw new Error('Unauthorized');
   }
 
-  if (!document.metadata?.thumbnailUrl) {
-    return { thumbnailUrl: null };
-  }
-
-  // Get signed URL for the thumbnail
-  const thumbnailUrl = await thumbnailService.getThumbnailUrl(document.metadata.thumbnailUrl);
-
-  return { thumbnailUrl };
+  // Thumbnails disabled - always return null
+  return { thumbnailUrl: null };
 };
 
 /**

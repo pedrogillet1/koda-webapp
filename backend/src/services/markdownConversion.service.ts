@@ -6,9 +6,8 @@
 
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
-import { Storage } from '@google-cloud/storage';
-import { config } from '../config/env';
-import pdfParse from 'pdf-parse';
+// pdf-parse v2 will be required when needed
+// Note: Storage operations now handled by Supabase via storage.ts
 
 interface MarkdownConversionResult {
   markdownContent: string;
@@ -52,13 +51,8 @@ interface TOCItem {
 }
 
 class MarkdownConversionService {
-  private storage: Storage;
-
   constructor() {
-    this.storage = new Storage({
-      keyFilename: config.GCS_KEY_FILE,
-      projectId: config.GCS_PROJECT_ID,
-    });
+    // Storage is now handled by Supabase via storage.ts
   }
 
   /**
@@ -104,7 +98,9 @@ class MarkdownConversionService {
     documentId: string
   ): Promise<MarkdownConversionResult> {
     try {
-      const data = await pdfParse(buffer);
+      const { PDFParse } = require('pdf-parse');
+      const parser = new PDFParse({ data: buffer });
+      const data = await parser.getText();
       const markdownParts: string[] = [];
       const images: string[] = [];
 

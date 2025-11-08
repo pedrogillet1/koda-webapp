@@ -41,7 +41,20 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('refreshToken');
 
         if (!refreshToken) {
-          throw new Error('No refresh token available');
+          // No refresh token - clear all auth data and redirect to login
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+
+          console.log('🔒 No refresh token found. Redirecting to login...');
+
+          // Redirect to login page
+          if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+            window.location.href = '/login';
+          }
+
+          return Promise.reject(new Error('No refresh token available'));
         }
 
         // Call refresh endpoint
@@ -68,7 +81,11 @@ api.interceptors.response.use(
 
         console.log('🔒 Session expired. Please log in again.');
 
-        // Don't redirect here - let the app handle it via AuthContext/ProtectedRoute
+        // Redirect to login page
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+          window.location.href = '/login';
+        }
+
         return Promise.reject(refreshError);
       }
     }

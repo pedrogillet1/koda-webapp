@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as folderService from '../services/folder.service';
 import { emitFolderEvent } from '../services/websocket.service';
+import cacheService from '../services/cache.service';
 
 /**
  * Create folder
@@ -28,6 +29,12 @@ export const createFolder = async (req: Request, res: Response): Promise<void> =
 
     const folder = await folderService.createFolder(req.user.id, trimmedName, emoji, parentFolderId);
 
+    // Invalidate folder tree cache and document list cache (folder counts changed)
+    await Promise.all([
+      cacheService.invalidateFolderTreeCache(req.user.id),
+      cacheService.invalidateDocumentListCache(req.user.id)
+    ]);
+
     // Emit real-time event for folder creation
     emitFolderEvent(req.user.id, 'created', folder.id);
 
@@ -52,6 +59,16 @@ export const getFolderTree = async (req: Request, res: Response): Promise<void> 
     const includeAll = req.query.includeAll === 'true';
     console.log(`📊 getFolderTree API called, includeAll=${includeAll}, user=${req.user.id}`);
 
+    // Try to get from cache first
+    const cacheKey = cacheService.generateKey('folder_tree', req.user.id, includeAll);
+    const cached = await cacheService.get<any>(cacheKey);
+
+    if (cached) {
+      console.log(`✅ Cache hit for folder tree (includeAll: ${includeAll})`);
+      res.status(200).json({ folders: cached });
+      return;
+    }
+
     const folders = await folderService.getFolderTree(req.user.id, includeAll);
 
     // Log the actual folders being returned with count data
@@ -61,10 +78,8 @@ export const getFolderTree = async (req: Request, res: Response): Promise<void> 
       console.log(`  - ${f.emoji || '📁'} ${f.name} (parent: ${f.parentFolderId || 'null'}) | docs: ${countInfo?.documents || 'N/A'} | total: ${countInfo?.totalDocuments || 'N/A'} | subfolders: ${countInfo?.subfolders || 'N/A'}`);
     });
 
-    // Disable caching to ensure fresh data
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    // Cache the result for 5 minutes
+    await cacheService.set(cacheKey, folders, { ttl: 300 });
 
     res.status(200).json({ folders });
   } catch (error) {
@@ -109,6 +124,12 @@ export const updateFolder = async (req: Request, res: Response): Promise<void> =
 
     const folder = await folderService.updateFolder(id, req.user.id, name, emoji, parentFolderId);
 
+    // Invalidate folder tree cache and document list cache
+    await Promise.all([
+      cacheService.invalidateFolderTreeCache(req.user.id),
+      cacheService.invalidateDocumentListCache(req.user.id)
+    ]);
+
     // Emit real-time event for folder update
     emitFolderEvent(req.user.id, 'updated', id);
 
@@ -149,6 +170,12 @@ export const bulkCreateFolders = async (req: Request, res: Response): Promise<vo
     console.log(`✅ [${requestId}] Successfully created ${Object.keys(folderMap).length} folders`);
     console.log(`🆔 [${requestId}] ===== REQUEST COMPLETE =====\n`);
 
+    // Invalidate folder tree cache and document list cache
+    await Promise.all([
+      cacheService.invalidateFolderTreeCache(req.user.id),
+      cacheService.invalidateDocumentListCache(req.user.id)
+    ]);
+
     // Emit real-time event for bulk folder creation (emit generic folders-changed)
     emitFolderEvent(req.user.id, 'created');
 
@@ -177,6 +204,12 @@ export const deleteFolder = async (req: Request, res: Response): Promise<void> =
     const { id } = req.params;
 
     await folderService.deleteFolder(id, req.user.id);
+
+    // Invalidate folder tree cache and document list cache
+    await Promise.all([
+      cacheService.invalidateFolderTreeCache(req.user.id),
+      cacheService.invalidateDocumentListCache(req.user.id)
+    ]);
 
     // Emit real-time event for folder deletion
     emitFolderEvent(req.user.id, 'deleted', id);

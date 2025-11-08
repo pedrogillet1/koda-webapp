@@ -149,6 +149,9 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       relativePath: relativePath || undefined,
     });
 
+    // Invalidate document list cache
+    await cacheService.invalidateDocumentListCache(req.user.id);
+
     // Emit real-time event for document creation
     emitDocumentEvent(req.user.id, 'created', document.id);
 
@@ -223,6 +226,9 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
     console.log(`📤 [Backend] Returning ${documents.length} document(s) to frontend`);
     console.log(`📤 [Backend] Document IDs:`, documents.map(d => d?.id || 'null').join(', '));
 
+    // Invalidate document list cache
+    await cacheService.invalidateDocumentListCache(req.user.id);
+
     // Emit real-time events for all created documents
     documents.forEach(doc => {
       emitDocumentEvent(req.user!.id, 'created', doc.id);
@@ -291,7 +297,18 @@ export const streamDocument = async (req: Request, res: Response): Promise<void>
     }
   } catch (error) {
     const err = error as Error;
-    res.status(400).json({ error: err.message });
+    console.error(`❌ Stream document error for ID ${req.params.id}:`, err.message);
+
+    // Provide more specific error messages
+    if (err.message.includes('Supabase download error') || err.message.includes('not found')) {
+      res.status(404).json({
+        error: 'File not found in storage',
+        details: 'This document may have been uploaded before the storage migration. Please re-upload the file.',
+        documentId: req.params.id
+      });
+    } else {
+      res.status(400).json({ error: err.message });
+    }
   }
 };
 
@@ -306,13 +323,28 @@ export const listDocuments = async (req: Request, res: Response): Promise<void> 
     }
 
     const { folderId, page, limit } = req.query;
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 1000;
+
+    // Try to get from cache first
+    const cacheKey = cacheService.generateKey('documents_list', req.user.id, folderId, pageNum, limitNum);
+    const cached = await cacheService.get<any>(cacheKey);
+
+    if (cached) {
+      console.log(`✅ Cache hit for document list (folderId: ${folderId || 'all'})`);
+      res.status(200).json(cached);
+      return;
+    }
 
     const result = await documentService.listDocuments(
       req.user.id,
       folderId as string | undefined,
-      parseInt(page as string) || 1,
-      parseInt(limit as string) || 1000
+      pageNum,
+      limitNum
     );
+
+    // Cache the result for 2 minutes
+    await cacheService.set(cacheKey, result, { ttl: 120 });
 
     res.status(200).json(result);
   } catch (error) {
@@ -335,6 +367,9 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
     const { folderId, filename } = req.body;
 
     const document = await documentService.updateDocument(id, req.user.id, { folderId, filename });
+
+    // Invalidate document list cache
+    await cacheService.invalidateDocumentListCache(req.user.id);
 
     // Emit real-time event for document update (moved or renamed)
     if (folderId !== undefined) {

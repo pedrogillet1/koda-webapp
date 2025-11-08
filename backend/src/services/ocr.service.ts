@@ -11,7 +11,7 @@ import sharp from 'sharp';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import pdfParse from 'pdf-parse';
+// pdf-parse v2 will be required when needed
 
 class OCRService {
   private client: ImageAnnotatorClient | null = null;
@@ -63,9 +63,11 @@ class OCRService {
     try {
       console.log(`🔍 [OCR] Checking if PDF is scanned: ${path.basename(pdfPath)}`);
 
-      // Try to extract text using pdf-parse
+      // Try to extract text using pdf-parse v2
       const dataBuffer = await fs.readFile(pdfPath);
-      const pdfData = await pdfParse(dataBuffer);
+      const { PDFParse } = require('pdf-parse');
+      const parser = new PDFParse({ data: dataBuffer });
+      const pdfData = await parser.getText();
 
       const extractedText = pdfData.text.trim();
       const wordCount = extractedText.split(/\s+/).filter(w => w.length > 0).length;

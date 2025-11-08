@@ -6,7 +6,6 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
-import pdfParse from 'pdf-parse';
 
 export interface ExtractionResult {
   text: string;
@@ -129,7 +128,10 @@ const postProcessOCRText = (text: string): string => {
  */
 export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResult> => {
   try {
-    const data = await pdfParse(buffer);
+    // Use require() for pdf-parse v2 (uses PDFParse class)
+    const { PDFParse } = require('pdf-parse');
+    const parser = new PDFParse({ data: buffer });
+    const data = await parser.getText();
 
     // If no text found, might be a scanned PDF - use OCR
     if (!data.text || data.text.trim().length === 0) {
