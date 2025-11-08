@@ -19,6 +19,12 @@ import ragService from './rag.service';
 interface CreateConversationParams {
   userId: string;
   title?: string;
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION
+  titleEncrypted?: string;
+  encryptionSalt?: string;
+  encryptionIV?: string;
+  encryptionAuthTag?: string;
+  isEncrypted?: boolean;
 }
 
 interface SendMessageParams {
@@ -27,6 +33,12 @@ interface SendMessageParams {
   content: string;
   attachedDocumentId?: string;
   answerLength?: string;
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION
+  contentEncrypted?: string;
+  encryptionSalt?: string;
+  encryptionIV?: string;
+  encryptionAuthTag?: string;
+  isEncrypted?: boolean;
 }
 
 interface MessageResult {
@@ -42,14 +54,30 @@ interface MessageResult {
  * Create a new conversation
  */
 export const createConversation = async (params: CreateConversationParams) => {
-  const { userId, title = 'New Chat' } = params;
+  const {
+    userId,
+    title = 'New Chat',
+    titleEncrypted,
+    encryptionSalt,
+    encryptionIV,
+    encryptionAuthTag,
+    isEncrypted = false
+  } = params;
 
   console.log('💬 Creating new conversation for user:', userId);
+  if (isEncrypted) {
+    console.log('🔐 Zero-knowledge encryption enabled for conversation');
+  }
 
   const conversation = await prisma.conversation.create({
     data: {
       userId,
       title,
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Store encrypted title metadata
+      titleEncrypted: titleEncrypted || null,
+      encryptionSalt: encryptionSalt || null,
+      encryptionIV: encryptionIV || null,
+      encryptionAuthTag: encryptionAuthTag || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     },
@@ -184,9 +212,22 @@ export const deleteAllConversations = async (userId: string) => {
  * Send a message and get AI response (non-streaming)
  */
 export const sendMessage = async (params: SendMessageParams): Promise<MessageResult> => {
-  const { userId, conversationId, content, attachedDocumentId } = params;
+  const {
+    userId,
+    conversationId,
+    content,
+    attachedDocumentId,
+    contentEncrypted,
+    encryptionSalt,
+    encryptionIV,
+    encryptionAuthTag,
+    isEncrypted = false
+  } = params;
 
   console.log('💬 Sending message in conversation:', conversationId);
+  if (isEncrypted) {
+    console.log('🔐 Zero-knowledge encryption enabled for message');
+  }
 
   // Verify conversation ownership
   const conversation = await prisma.conversation.findFirst({
@@ -206,6 +247,12 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
       conversationId,
       role: 'user',
       content,
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Store encrypted content metadata
+      isEncrypted: isEncrypted || false,
+      contentEncrypted: contentEncrypted || null,
+      encryptionSalt: encryptionSalt || null,
+      encryptionIV: encryptionIV || null,
+      encryptionAuthTag: encryptionAuthTag || null,
       createdAt: new Date(),
     },
   });
@@ -380,7 +427,8 @@ export const sendMessageStreaming = async (
       fullResponse += chunk;
       onChunk(chunk); // Send chunk to client
     },
-    attachedDocumentId
+    attachedDocumentId,
+    conversationHistory  // ✅ Pass conversation history for context
   );
 
   console.log(`✅ Streaming complete. Total response length: ${fullResponse.length} chars`);

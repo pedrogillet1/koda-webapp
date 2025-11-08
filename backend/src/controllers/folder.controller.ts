@@ -13,7 +13,17 @@ export const createFolder = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const { name, emoji, parentFolderId } = req.body;
+    const {
+      name,
+      emoji,
+      parentFolderId,
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Extract encryption metadata
+      nameEncrypted,
+      encryptionSalt,
+      encryptionIV,
+      encryptionAuthTag,
+      isEncrypted
+    } = req.body;
 
     if (!name || !name.trim()) {
       res.status(400).json({ error: 'Folder name is required' });
@@ -27,7 +37,20 @@ export const createFolder = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const folder = await folderService.createFolder(req.user.id, trimmedName, emoji, parentFolderId);
+    const folder = await folderService.createFolder(
+      req.user.id,
+      trimmedName,
+      emoji,
+      parentFolderId,
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Pass encryption metadata
+      {
+        nameEncrypted,
+        encryptionSalt,
+        encryptionIV,
+        encryptionAuthTag,
+        isEncrypted: isEncrypted === true || isEncrypted === 'true',
+      }
+    );
 
     // Invalidate folder tree cache and document list cache (folder counts changed)
     await Promise.all([

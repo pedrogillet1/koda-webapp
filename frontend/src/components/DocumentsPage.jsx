@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection.js';
 import { useToast } from '../context/ToastContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import CreateCategoryModal from './CreateCategoryModal';
@@ -41,6 +42,7 @@ const DocumentsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showSuccess } = useToast();
+  const isMobile = useIsMobile();
 
   // Get global state from context
   const {
@@ -388,7 +390,15 @@ const DocumentsPage = () => {
 
       {/* Main Content */}
       <div
-        style={{flex: 1, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative'}}
+        style={{
+          flex: 1,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          paddingTop: isMobile ? '70px' : 0, // Space for hamburger button on mobile
+          width: isMobile ? '100%' : 'auto'
+        }}
         onDrop={handlePageDrop}
         onDragOver={handlePageDragOver}
         onDragLeave={handlePageDragLeave}

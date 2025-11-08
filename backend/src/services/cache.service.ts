@@ -298,6 +298,42 @@ class CacheService {
   }
 
   /**
+   * Cache document buffer for fast preview loading
+   * TTL: 30 minutes (frequent access documents stay cached)
+   */
+  async cacheDocumentBuffer(documentId: string, buffer: Buffer): Promise<void> {
+    try {
+      const key = `document_buffer:${documentId}`;
+      // Store as binary in Redis
+      await this.redis.setex(key, 1800, buffer); // 30 minutes
+      console.log(`💾 Cached document buffer for ${documentId} (${(buffer.length / 1024 / 1024).toFixed(2)} MB)`);
+    } catch (error) {
+      console.error('Error caching document buffer:', error);
+      // Don't throw - caching failures should not break the app
+    }
+  }
+
+  /**
+   * Get cached document buffer
+   */
+  async getCachedDocumentBuffer(documentId: string): Promise<Buffer | null> {
+    try {
+      const key = `document_buffer:${documentId}`;
+      const cached = await this.redis.getBuffer(key);
+
+      if (cached) {
+        console.log(`✅ Cache hit for document buffer ${documentId} (${(cached.length / 1024 / 1024).toFixed(2)} MB)`);
+        return cached;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error getting cached document buffer:', error);
+      return null;
+    }
+  }
+
+  /**
    * Get cache statistics
    */
   async getCacheStats(): Promise<{

@@ -336,3 +336,53 @@ code {
     transform: rotate(360deg);
   }
 }
+
+/* ========================================
+   MOBILE RESPONSIVE ENHANCEMENTS
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* Ensure content doesn't get hidden behind hamburger menu */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Make sure all containers are full width on mobile */
+  .container,
+  .content-wrapper,
+  .page-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* Adjust grid layouts for mobile */
+  .grid-container {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Touch-friendly buttons */
+  button,
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Readable text on mobile */
+  body {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  /* Hide scrollbars but keep functionality */
+  ::-webkit-scrollbar {
+    width: 0px;
+    background: transparent;
+  }
+}

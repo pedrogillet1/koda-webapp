@@ -22,6 +22,28 @@ export interface UploadDocumentInput {
   folderId?: string;
   fileHash: string; // SHA-256 hash from client
   relativePath?: string; // For nested folder uploads
+  thumbnailBuffer?: Buffer;
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Client-side encryption metadata
+  encryptionMetadata?: {
+    isEncrypted: boolean;
+    encryptionSalt: string;
+    encryptionIV: string;
+    encryptionAuthTag: string;
+    filenameEncrypted: {
+      salt: string;
+      iv: string;
+      ciphertext: string;
+      authTag: string;
+    };
+    extractedTextEncrypted?: {
+      salt: string;
+      iv: string;
+      ciphertext: string;
+      authTag: string;
+    };
+  };
+  // ⚡ TEXT EXTRACTION: Plaintext for embeddings (NOT stored, only used for Pinecone)
+  plaintextForEmbeddings?: string;
 }
 
 /**
@@ -70,15 +92,18 @@ async function createFoldersFromPath(userId: string, relativePath: string, paren
 }
 
 /**
- * Upload an encrypted document
+ * Upload an encrypted document (supports both server-side and zero-knowledge client-side encryption)
  */
 export const uploadDocument = async (input: UploadDocumentInput) => {
-  const { userId, filename, fileBuffer, mimeType, folderId, fileHash, relativePath } = input;
+  const { userId, filename, fileBuffer, mimeType, folderId, fileHash, relativePath, encryptionMetadata } = input;
 
   console.log(`\n═══════════════════════════════════════════════════════`);
   console.log(`📤 UPLOADING DOCUMENT: ${filename}`);
   console.log(`👤 User: ${userId}`);
   console.log(`🔐 Hash: ${fileHash}`);
+  if (encryptionMetadata?.isEncrypted) {
+    console.log(`🔐 Zero-Knowledge Encryption: YES (client-side encrypted)`);
+  }
   console.log(`═══════════════════════════════════════════════════════\n`);
 
   // If relativePath is provided AND contains folders (has /), create nested folders
@@ -114,15 +139,45 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   // Generate unique encrypted filename
   const encryptedFilename = `${userId}/${crypto.randomUUID()}-${Date.now()}`;
 
-  // 🔒 ENCRYPT FILE BEFORE UPLOAD (AES-256-GCM)
-  console.log(`🔒 Encrypting file: ${filename} (${fileBuffer.length} bytes)`);
-  const encryptionService = await import('./encryption.service');
-  const encryptedFileBuffer = encryptionService.default.encryptFile(fileBuffer, `document-${userId}`);
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Handle client-side encrypted files vs server-side encryption
+  let encryptedFileBuffer: Buffer;
+  let encryptionIV: string;
+  let encryptionAuthTag: string;
+  let encryptionSalt: string | null = null;
+  let filenameEncrypted: string | null = null;
+  let extractedTextEncrypted: string | null = null;
+  let isZeroKnowledge = false;
 
-  // Extract IV and auth tag from encrypted buffer (stored as IV + AuthTag + EncryptedData)
-  const encryptionIV = encryptedFileBuffer.slice(0, 16).toString('base64'); // First 16 bytes
-  const encryptionAuthTag = encryptedFileBuffer.slice(16, 32).toString('base64'); // Next 16 bytes
-  console.log(`✅ File encrypted successfully (${encryptedFileBuffer.length} bytes)`);
+  if (encryptionMetadata?.isEncrypted) {
+    // ⚡ ZERO-KNOWLEDGE ENCRYPTION: File is already encrypted client-side
+    console.log(`🔐 [Zero-Knowledge] File already encrypted on client (${fileBuffer.length} bytes)`);
+
+    encryptedFileBuffer = fileBuffer; // Already encrypted
+    encryptionIV = encryptionMetadata.encryptionIV;
+    encryptionAuthTag = encryptionMetadata.encryptionAuthTag;
+    encryptionSalt = encryptionMetadata.encryptionSalt;
+    filenameEncrypted = JSON.stringify(encryptionMetadata.filenameEncrypted);
+
+    // ⚡ TEXT EXTRACTION: Store encrypted text if provided
+    if (encryptionMetadata.extractedTextEncrypted) {
+      extractedTextEncrypted = JSON.stringify(encryptionMetadata.extractedTextEncrypted);
+      console.log(`📄 [Text Extraction] Encrypted text provided (${extractedTextEncrypted.length} chars)`);
+    }
+
+    isZeroKnowledge = true;
+
+    console.log(`✅ [Zero-Knowledge] Metadata extracted successfully`);
+  } else {
+    // 🔒 SERVER-SIDE ENCRYPTION: Encrypt file before upload (AES-256-GCM)
+    console.log(`🔒 [Server-Side] Encrypting file: ${filename} (${fileBuffer.length} bytes)`);
+    const encryptionService = await import('./encryption.service');
+    encryptedFileBuffer = encryptionService.default.encryptFile(fileBuffer, `document-${userId}`);
+
+    // Extract IV and auth tag from encrypted buffer (stored as IV + AuthTag + EncryptedData)
+    encryptionIV = encryptedFileBuffer.slice(0, 16).toString('base64'); // First 16 bytes
+    encryptionAuthTag = encryptedFileBuffer.slice(16, 32).toString('base64'); // Next 16 bytes
+    console.log(`✅ [Server-Side] File encrypted successfully (${encryptedFileBuffer.length} bytes)`);
+  }
 
   // Upload encrypted file to Supabase Storage
   await uploadFile(encryptedFilename, encryptedFileBuffer, mimeType);
@@ -140,10 +195,16 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
       fileSize: encryptedFileBuffer.length, // Store encrypted file size
       mimeType,
       fileHash,
-      status: 'processing',
+      status: isZeroKnowledge ? 'ready' : 'processing', // ⚡ Zero-knowledge files are ready immediately
       isEncrypted: true,
       encryptionIV,
       encryptionAuthTag,
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Store additional metadata
+      ...(isZeroKnowledge && {
+        encryptionSalt,
+        filenameEncrypted,
+        extractedTextEncrypted, // Store encrypted extracted text
+      }),
     },
     include: {
       folder: true,
@@ -153,7 +214,39 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   // ⚡ ASYNCHRONOUS PROCESSING - Don't wait for all steps to complete
   console.log('🔄 Starting document processing asynchronously...');
 
-  // Start processing in the background without awaiting
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Use plaintext for embeddings if provided
+  if (isZeroKnowledge) {
+    console.log('🔐 [Zero-Knowledge] Client-side encrypted file detected');
+
+    // ⚡ TEXT EXTRACTION: Generate embeddings ASYNCHRONOUSLY (don't wait)
+    if (plaintextForEmbeddings && plaintextForEmbeddings.length > 0) {
+      console.log(`📄 [Text Extraction] Received plaintext for embeddings (${plaintextForEmbeddings.length} characters)`);
+
+      // Generate embeddings in background without blocking the response
+      (async () => {
+        try {
+          await geminiService.generateEmbeddings(document.id, plaintextForEmbeddings);
+          console.log('✅ [Embeddings] Generated embeddings from plaintext');
+        } catch (error) {
+          console.error('❌ [Embeddings] Failed to generate embeddings:', error);
+        } finally {
+          // ⚠️ IMPORTANT: Delete plaintext from memory after embeddings
+          (plaintextForEmbeddings as any) = null;
+          console.log('🗑️ [Security] Plaintext deleted from memory');
+        }
+      })();
+
+      console.log('🚀 [Embeddings] Background generation started (non-blocking)');
+    } else {
+      console.log('⚠️ [Text Extraction] No plaintext provided, skipping embeddings');
+    }
+
+    // Return immediately - document is already marked as 'ready'
+    console.log(`✅ Document uploaded successfully (zero-knowledge encrypted): ${filename}`);
+    return document; // Return the already-created document
+  }
+
+  // Start processing in the background without awaiting (for server-side encrypted files)
   processDocumentInBackground(document.id, fileBuffer, filename, mimeType, userId, thumbnailUrl)
     .then(() => {
       console.log(`✅ Document processing complete: ${filename}`);
@@ -2017,7 +2110,20 @@ export const streamDocument = async (documentId: string, userId: string) => {
     throw new Error('Unauthorized access to document');
   }
 
-  // Download file from GCS
+  // ⚡ PERFORMANCE OPTIMIZATION: Check cache first
+  const cachedBuffer = await cacheService.getCachedDocumentBuffer(documentId);
+  if (cachedBuffer) {
+    console.log(`🚀 [CACHE HIT] Serving document ${documentId} from cache`);
+    return {
+      buffer: cachedBuffer,
+      filename: document.filename,
+      mimeType: document.mimeType,
+    };
+  }
+
+  console.log(`⬇️ [CACHE MISS] Downloading document ${documentId} from Supabase...`);
+
+  // Download file from Supabase
   const encryptedBuffer = await downloadFile(document.encryptedFilename);
 
   // Decrypt if encrypted
@@ -2030,6 +2136,9 @@ export const streamDocument = async (documentId: string, userId: string) => {
   } else {
     fileBuffer = encryptedBuffer;
   }
+
+  // ⚡ PERFORMANCE OPTIMIZATION: Cache the decrypted buffer for next time
+  await cacheService.cacheDocumentBuffer(documentId, fileBuffer);
 
   return {
     buffer: fileBuffer,

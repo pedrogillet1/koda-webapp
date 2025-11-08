@@ -28,6 +28,10 @@ import mp4Icon from '../assets/mp4.png';
 import mp3Icon from '../assets/mp3.svg';
 import folderIcon from '../assets/folder_icon.svg';
 import { generateThumbnail, supportsThumbnail } from '../utils/thumbnailGenerator';
+import { encryptFile, encryptData } from '../utils/encryption';
+import { extractText } from '../utils/textExtraction';
+import { useAuth } from '../context/AuthContext';
+import pLimit from 'p-limit';
 
 /**
  * Filter Mac hidden files before upload
@@ -71,6 +75,7 @@ const UploadHub = () => {
   const navigate = useNavigate();
   const { showSuccess } = useToast();
   const { fetchDocuments, fetchFolders } = useDocuments(); // Use DocumentsContext
+  const { encryptionPassword } = useAuth(); // ⚡ ZERO-KNOWLEDGE ENCRYPTION
   const [documents, setDocuments] = useState([]);
   const [folders, setFolders] = useState([]); // Track folders
   const [expandedFolders, setExpandedFolders] = useState(new Set()); // Track which folders are expanded
@@ -244,84 +249,7 @@ const UploadHub = () => {
     return hashHex;
   };
 
-  /**
-   * Upload file directly to GCS using signed URL
-   */
-  const uploadFileDirectToGCS = async (file, fileHash, folderId, thumbnailBase64, onProgress) => {
-    try {
-      console.log('🚀 [uploadFileDirectToGCS] Starting upload process for:', file.name);
-      console.log('   File type:', file.type);
-      console.log('   File size:', file.size);
-      console.log('   File hash:', fileHash);
-      console.log('   Folder ID:', folderId);
-
-      // Step 1: Request signed upload URL from backend
-      console.log('📡 [Step 1/3] Requesting signed upload URL from backend...');
-      const urlResponse = await api.post('/api/documents/upload-url', {
-        fileName: file.name,
-        fileType: file.type,
-        fileHash
-      });
-
-      console.log('✅ [Step 1/3] Got upload URL response:', {
-        hasUploadUrl: !!urlResponse.data.uploadUrl,
-        hasEncryptedFilename: !!urlResponse.data.encryptedFilename,
-        documentId: urlResponse.data.documentId
-      });
-
-      const { uploadUrl, encryptedFilename, documentId } = urlResponse.data;
-
-      // Step 2: Upload file directly to GCS (this is where the speed improvement happens!)
-      console.log('📡 [Step 2/3] Uploading file directly to GCS...');
-      await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': file.type,
-        },
-        body: file
-      });
-
-      console.log('✅ [Step 2/3] File uploaded to GCS successfully');
-
-      // Update progress to show upload complete
-      if (onProgress) onProgress(90);
-
-      // Step 3: Confirm upload with backend to create document record
-      console.log('📡 [Step 3/3] Confirming upload with backend...');
-      console.log('   Calling:', `/api/documents/${documentId}/confirm-upload`);
-      console.log('   Payload:', {
-        encryptedFilename,
-        filename: file.name,
-        mimeType: file.type,
-        fileSize: file.size,
-        fileHash,
-        folderId: folderId || undefined,
-        hasThumbnail: !!thumbnailBase64
-      });
-
-      const confirmResponse = await api.post(`/api/documents/${documentId}/confirm-upload`, {
-        encryptedFilename,
-        filename: file.name,
-        mimeType: file.type,
-        fileSize: file.size,
-        fileHash,
-        folderId: folderId || undefined,
-        thumbnailData: thumbnailBase64 || undefined
-      });
-
-      console.log('✅ [Step 3/3] Upload confirmed! Document created:', confirmResponse.data.document?.id);
-
-      return confirmResponse.data.document;
-    } catch (error) {
-      console.error('❌ [uploadFileDirectToGCS] Error during upload:', error);
-      console.error('   Error message:', error.message);
-      console.error('   Error response:', error.response?.data);
-      console.error('   Error status:', error.response?.status);
-      throw error; // Re-throw to be handled by caller
-    }
-  };
-
-  const { getRootProps, getInputProps, open } = useDropzone({
+  const { getRootProps, getInputProps, open} = useDropzone({
     onDrop: (acceptedFiles) => {
       // ✅ CRITICAL: Filter Mac hidden files (.DS_Store, __MACOSX, etc.)
       const filteredFiles = filterMacHiddenFiles(acceptedFiles);
@@ -474,10 +402,16 @@ const UploadHub = () => {
       f.status === 'pending' ? { ...f, status: 'uploading' } : f
     ));
 
-    // Upload each item that was pending
-    for (let i = 0; i < itemsToUpload.length; i++) {
-      const item = itemsToUpload[i];
-      if (item.status !== 'pending') continue;
+    // ⚡ PARALLEL UPLOAD OPTIMIZATION: Use p-limit for concurrent uploads
+    // Limit to 3 concurrent uploads (encryption is CPU-intensive)
+    const limit = pLimit(3);
+
+    // Create upload promises for all items
+    const uploadPromises = itemsToUpload.map((item, i) => {
+      if (item.status !== 'pending') return Promise.resolve();
+
+      // Wrap each upload in p-limit for concurrency control
+      return limit(async () => {
 
       if (item.isFolder) {
         // Handle folder upload using the dedicated folder upload service
@@ -617,8 +551,83 @@ const UploadHub = () => {
 
         // Update to show starting
         setUploadingFiles(prev => prev.map((f, idx) =>
-          idx === i ? { ...f, progress: 10, processingStage: 'Preparing...' } : f
+          idx === i ? { ...f, progress: 5, processingStage: 'Preparing...' } : f
         ));
+
+        // ⚡ STEP 1: Extract text from file BEFORE encryption
+        let extractedText = '';
+        if (encryptionPassword) {
+          setUploadingFiles(prev => prev.map((f, idx) =>
+            idx === i ? { ...f, progress: 5, processingStage: 'Extracting text...' } : f
+          ));
+
+          try {
+            console.log('📄 [Text Extraction] Extracting text from:', file.name);
+            extractedText = await extractText(file);
+            console.log(`✅ [Text Extraction] Extracted ${extractedText.length} characters`);
+          } catch (extractionError) {
+            console.warn('⚠️ [Text Extraction] Failed:', extractionError);
+            // Continue anyway - text extraction failure shouldn't block upload
+          }
+        }
+
+        // ⚡ STEP 2: ZERO-KNOWLEDGE ENCRYPTION: Encrypt file before upload
+        let fileToUpload = file;
+        let encryptionMetadata = null;
+        let encryptedFilename = null;
+        let encryptedText = null;
+
+        if (encryptionPassword) {
+          console.log('🔐 [Encryption] Encrypting file:', file.name);
+
+          setUploadingFiles(prev => prev.map((f, idx) =>
+            idx === i ? { ...f, progress: 10, processingStage: 'Encrypting file...' } : f
+          ));
+
+          try {
+            // Encrypt file contents
+            const encrypted = await encryptFile(file, encryptionPassword, (progress) => {
+              setUploadingFiles(prev => prev.map((f, idx) =>
+                idx === i ? { ...f, progress: 10 + (progress * 0.15), processingStage: `Encrypting... ${Math.round(progress)}%` } : f
+              ));
+            });
+
+            // Encrypt filename
+            const filenameEncrypted = await encryptData(file.name, encryptionPassword);
+
+            // Encrypt extracted text
+            if (extractedText) {
+              console.log('🔐 [Encryption] Encrypting extracted text...');
+              encryptedText = await encryptData(extractedText, encryptionPassword);
+            }
+
+            // Create encrypted file blob
+            fileToUpload = new File([encrypted.ciphertext], `encrypted_${Date.now()}`, {
+              type: 'application/octet-stream' // Encrypted files are binary blobs
+            });
+
+            encryptionMetadata = {
+              salt: encrypted.salt,
+              iv: encrypted.iv,
+              authTag: encrypted.authTag,
+              filenameEncrypted: filenameEncrypted,
+              encryptedText: encryptedText, // Encrypted extracted text
+              originalMimeType: file.type
+            };
+
+            console.log('✅ [Encryption] File encrypted successfully');
+          } catch (encryptionError) {
+            console.error('❌ [Encryption] Failed to encrypt file:', encryptionError);
+            setUploadingFiles(prev => prev.map((f, idx) =>
+              idx === i ? {
+                ...f,
+                status: 'failed',
+                error: 'Encryption failed: ' + encryptionError.message
+              } : f
+            ));
+            return; // Exit this upload function early
+          }
+        }
 
         // Thumbnail generation disabled
         const thumbnailBase64 = null;
@@ -630,10 +639,29 @@ const UploadHub = () => {
 
         // Upload via backend (Supabase doesn't support signed URLs like GCS)
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', fileToUpload); // Upload encrypted file
         formData.append('fileHash', fileHash);
         if (targetFolderId) {
           formData.append('folderId', targetFolderId);
+        }
+
+        // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Append encryption metadata
+        if (encryptionMetadata) {
+          formData.append('isEncrypted', 'true');
+          formData.append('encryptionSalt', encryptionMetadata.salt);
+          formData.append('encryptionIV', encryptionMetadata.iv);
+          formData.append('encryptionAuthTag', encryptionMetadata.authTag);
+          formData.append('filenameEncrypted', JSON.stringify(encryptionMetadata.filenameEncrypted));
+          formData.append('originalMimeType', encryptionMetadata.originalMimeType);
+          formData.append('originalFilename', file.name); // Send original filename for backend logging
+
+          // ⚡ IMPORTANT: Send both encrypted text (for storage) and plaintext (for embeddings)
+          if (encryptionMetadata.encryptedText) {
+            formData.append('extractedTextEncrypted', JSON.stringify(encryptionMetadata.encryptedText));
+          }
+          if (extractedText) {
+            formData.append('plaintextForEmbeddings', extractedText); // Backend uses this, then deletes
+          }
         }
 
         const uploadResponse = await api.post('/api/documents/upload', formData, {
@@ -673,6 +701,28 @@ const UploadHub = () => {
           } : f
         ));
 
+        // ✅ FIX: Immediately refresh documents so they appear right away
+        console.log('📥 Refreshing documents immediately after upload...');
+        try {
+          await Promise.all([
+            fetchDocuments(), // Update global context
+            fetchFolders()    // Update global context
+          ]);
+
+          // Also update local state for UploadHub display
+          const [docsResponse, foldersResponse] = await Promise.all([
+            api.get('/api/documents'),
+            api.get('/api/folders')
+          ]);
+          setDocuments(docsResponse.data.documents || []);
+          const allFolders = foldersResponse.data.folders || [];
+          setFolders(allFolders.filter(f =>
+            !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
+          ));
+        } catch (refreshError) {
+          console.error('⚠️ Error refreshing after upload:', refreshError);
+        }
+
         // Wait a moment then remove the completed file from upload area
         await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -685,36 +735,13 @@ const UploadHub = () => {
 
         console.log(`✅ Completed ${newCompletedCount} of ${totalFiles} files`);
 
-        // If all files are done, show notification and reload documents
+        // If all files are done, show notification
         if (newCompletedCount === totalFiles) {
           console.log('🎉 All files uploaded! Showing notification...');
-          console.log('Setting uploadedCount to:', newCompletedCount);
-          console.log('Setting showNotification to: true');
 
           setUploadedCount(newCompletedCount);
           setNotificationType('success');
           setShowNotification(true);
-
-          // Reload documents and folders using DocumentsContext
-          console.log('📥 Refreshing DocumentsContext after upload...');
-          await Promise.all([
-            fetchDocuments(), // This updates the global context
-            fetchFolders()    // This updates the global context
-          ]);
-
-          // Also update local state for UploadHub display
-          const loadData = async () => {
-            const [docsResponse, foldersResponse] = await Promise.all([
-              api.get('/api/documents'),
-              api.get('/api/folders')
-            ]);
-            setDocuments(docsResponse.data.documents || []);
-            const allFolders = foldersResponse.data.folders || [];
-            setFolders(allFolders.filter(f =>
-              !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
-            ));
-          };
-          loadData();
 
           setTimeout(() => {
             console.log('Hiding notification...');
@@ -733,8 +760,14 @@ const UploadHub = () => {
             } : f
           ));
         }
-      }
-    }
+      } // Close the else block for individual file upload
+      }); // Close the limit(async () => {})
+    }); // Close the .map((item, i) => {})
+
+    // ⚡ PARALLEL UPLOAD OPTIMIZATION: Wait for all uploads to complete
+    console.log(`🚀 Starting ${uploadPromises.length} uploads with max 3 concurrent...`);
+    await Promise.all(uploadPromises);
+    console.log('✅ All uploads completed!');
 
     // After all uploads complete, show notification
     const newCompletedCount = completedFilesCountRef.current;
@@ -747,17 +780,10 @@ const UploadHub = () => {
       setNotificationType('success');
       setShowNotification(true);
 
-      // Reload documents and folders
+      // Reload documents and folders using DocumentsContext
       const loadData = async () => {
-        const [docsResponse, foldersResponse] = await Promise.all([
-          api.get('/api/documents'),
-          api.get('/api/folders')
-        ]);
-        setDocuments(docsResponse.data.documents || []);
-        const allFolders = foldersResponse.data.folders || [];
-        setFolders(allFolders.filter(f =>
-          !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
-        ));
+        await fetchDocuments(); // Update global context
+        await fetchFolders();   // Update global context
       };
       loadData();
 

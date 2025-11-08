@@ -2039,7 +2039,8 @@ const CategoryDetail = () => {
                           transition: 'all 0.2s',
                           position: 'relative',
                           opacity: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 0.5 : 1,
-                          overflow: 'visible'
+                          overflow: 'visible',
+                          zIndex: openDropdownId === doc.id ? 200 : 1
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background = '#F9FAFB';

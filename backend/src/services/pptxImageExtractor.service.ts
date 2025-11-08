@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
 import sharp from 'sharp';
-import { getSignedUrl, uploadFile } from '../config/storage';
+import supabaseStorageService from './supabaseStorage.service';
 
 interface ExtractedImage {
   slideNumber: number;
@@ -127,15 +127,23 @@ export class PPTXImageExtractorService {
 
         for (const slide of slides) {
           for (const image of slide.images) {
-            const gcsPath = `slides/${documentId}/slide-${slide.slideNumber}-image-${image.imageNumber}.png`;
+            const storagePath = `slides/${documentId}/slide-${slide.slideNumber}-image-${image.imageNumber}.png`;
 
             try {
-              await uploadFile(image.localPath, gcsPath);
-              image.gcsPath = `gcs://${process.env.GCS_BUCKET_NAME}/${gcsPath}`;
-              image.imageUrl = await getSignedUrl(gcsPath, signedUrlExpiration); // ✅ FIX: Use configurable expiration
-              console.log(`   ✅ Uploaded: ${gcsPath}`);
+              // Read the file buffer
+              const fileBuffer = await fs.promises.readFile(image.localPath);
+
+              // Upload to Supabase
+              await supabaseStorageService.upload(storagePath, fileBuffer, {
+                contentType: 'image/png',
+                cacheControl: '3600'
+              });
+
+              image.gcsPath = storagePath;
+              image.imageUrl = await supabaseStorageService.getSignedUrl(storagePath, signedUrlExpiration);
+              console.log(`   ✅ Uploaded: ${storagePath}`);
             } catch (uploadError) {
-              console.error(`   ❌ Failed to upload ${gcsPath}:`, uploadError);
+              console.error(`   ❌ Failed to upload ${storagePath}:`, uploadError);
               // ✅ FIX: Set imageUrl to null so we know it failed
               image.imageUrl = null;
               image.gcsPath = undefined;
@@ -184,11 +192,19 @@ export class PPTXImageExtractorService {
 
               // Upload composite if GCS upload is enabled
               if (uploadToGCS) {
-                const compositeGcsPath = `slides/${documentId}/slide-${slide.slideNumber}-composite.png`;
+                const compositeStoragePath = `slides/${documentId}/slide-${slide.slideNumber}-composite.png`;
                 try {
-                  await uploadFile(compositePath, compositeGcsPath);
-                  slide.compositeImageUrl = await getSignedUrl(compositeGcsPath, signedUrlExpiration);
-                  console.log(`   ✅ Uploaded composite: ${compositeGcsPath}`);
+                  // Read the composite file buffer
+                  const compositeBuffer = await fs.promises.readFile(compositePath);
+
+                  // Upload to Supabase
+                  await supabaseStorageService.upload(compositeStoragePath, compositeBuffer, {
+                    contentType: 'image/png',
+                    cacheControl: '3600'
+                  });
+
+                  slide.compositeImageUrl = await supabaseStorageService.getSignedUrl(compositeStoragePath, signedUrlExpiration);
+                  console.log(`   ✅ Uploaded composite: ${compositeStoragePath}`);
                 } catch (uploadError) {
                   console.error(`   ❌ Failed to upload composite:`, uploadError);
                 }
@@ -286,3 +302,4 @@ export class PPTXImageExtractorService {
 }
 
 export const pptxImageExtractorService = new PPTXImageExtractorService();
+ 

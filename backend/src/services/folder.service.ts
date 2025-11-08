@@ -3,13 +3,32 @@ import prisma from '../config/database';
 /**
  * Create a new folder
  */
-export const createFolder = async (userId: string, name: string, emoji?: string, parentFolderId?: string) => {
+export const createFolder = async (
+  userId: string,
+  name: string,
+  emoji?: string,
+  parentFolderId?: string,
+  encryptionMetadata?: {
+    nameEncrypted?: string;
+    encryptionSalt?: string;
+    encryptionIV?: string;
+    encryptionAuthTag?: string;
+    isEncrypted?: boolean;
+  }
+) => {
   const folder = await prisma.folder.create({
     data: {
       userId,
       name,
       emoji: emoji || null,
       parentFolderId: parentFolderId || null,
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Store encryption metadata
+      ...(encryptionMetadata?.isEncrypted && {
+        nameEncrypted: encryptionMetadata.nameEncrypted || null,
+        encryptionSalt: encryptionMetadata.encryptionSalt || null,
+        encryptionIV: encryptionMetadata.encryptionIV || null,
+        encryptionAuthTag: encryptionMetadata.encryptionAuthTag || null,
+      }),
     },
     include: {
       parentFolder: true,

@@ -4,10 +4,13 @@ import LeftNav from './LeftNav';
 import ChatHistory from './ChatHistory';
 import ChatInterface from './ChatInterface';
 import NotificationPanel from './NotificationPanel';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const ChatScreen = () => {
     const location = useLocation();
+    const isMobile = useIsMobile();
     const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
+    const [showMobileChatHistory, setShowMobileChatHistory] = useState(false);
 
     // Load current conversation from sessionStorage on mount (persists during session)
     const [currentConversation, setCurrentConversation] = useState(() => {
@@ -72,17 +75,23 @@ const ChatScreen = () => {
     return (
         <div style={{width: '100%', height: '100%', background: '#F5F5F5', display: 'flex', overflow: 'hidden'}}>
             <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
-            <ChatHistory
-                onSelectConversation={handleSelectConversation}
-                currentConversation={currentConversation}
-                onNewChat={handleNewChat}
-                onConversationUpdate={registerUpdateFunction}
-            />
+
+            {/* Mobile: Hide ChatHistory, show full-width ChatInterface */}
+            {!isMobile && (
+                <ChatHistory
+                    onSelectConversation={handleSelectConversation}
+                    currentConversation={currentConversation}
+                    onNewChat={handleNewChat}
+                    onConversationUpdate={registerUpdateFunction}
+                />
+            )}
+
             <ChatInterface
                 currentConversation={currentConversation}
                 onConversationUpdate={handleConversationUpdate}
                 onConversationCreated={handleConversationCreated}
             />
+
             <NotificationPanel
                 showNotificationsPopup={showNotificationsPopup}
                 setShowNotificationsPopup={setShowNotificationsPopup}

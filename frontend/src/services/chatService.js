@@ -1,8 +1,21 @@
 import axios from 'axios';
 import { io } from 'socket.io-client';
+import { encryptData, decryptData } from '../utils/encryption';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://koda-backend.ngrok.app';
 const WS_URL = process.env.REACT_APP_WS_URL || 'https://koda-backend.ngrok.app';
+
+// ⚡ ZERO-KNOWLEDGE ENCRYPTION: Get encryption password from AuthContext
+// This will be passed to functions that need encryption
+let encryptionPassword = null;
+
+export const setEncryptionPassword = (password) => {
+  encryptionPassword = password;
+};
+
+export const clearEncryptionPassword = () => {
+  encryptionPassword = null;
+};
 
 // Axios instance for API calls
 const api = axios.create({
@@ -53,7 +66,26 @@ export const disconnectSocket = () => {
  * Create a new conversation
  */
 export const createConversation = async (title = 'New Chat') => {
-  const response = await api.post('/conversations', { title });
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Encrypt conversation title
+  let requestData = { title };
+
+  if (encryptionPassword) {
+    console.log('🔐 [Encryption] Encrypting conversation title:', title);
+    const encryptedTitle = await encryptData(title, encryptionPassword);
+
+    requestData = {
+      title, // Send plaintext for non-encrypted users (backward compatibility)
+      titleEncrypted: JSON.stringify(encryptedTitle.ciphertext),
+      encryptionSalt: encryptedTitle.salt,
+      encryptionIV: encryptedTitle.iv,
+      encryptionAuthTag: encryptedTitle.authTag,
+      isEncrypted: true,
+    };
+
+    console.log('✅ [Encryption] Title encrypted successfully');
+  }
+
+  const response = await api.post('/conversations', requestData);
   return response.data;
 };
 
@@ -62,6 +94,33 @@ export const createConversation = async (title = 'New Chat') => {
  */
 export const getConversations = async () => {
   const response = await api.get('/conversations');
+
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Decrypt conversation titles
+  if (encryptionPassword && response.data.conversations) {
+    const decryptedConversations = await Promise.all(
+      response.data.conversations.map(async (conversation) => {
+        if (conversation.titleEncrypted && conversation.encryptionSalt) {
+          try {
+            const encryptedData = {
+              salt: conversation.encryptionSalt,
+              iv: conversation.encryptionIV,
+              ciphertext: JSON.parse(conversation.titleEncrypted),
+              authTag: conversation.encryptionAuthTag,
+            };
+            const decryptedTitle = await decryptData(encryptedData, encryptionPassword);
+            return { ...conversation, title: decryptedTitle };
+          } catch (error) {
+            console.error('❌ [Decryption] Failed to decrypt conversation title:', error);
+            return conversation; // Return original if decryption fails
+          }
+        }
+        return conversation;
+      })
+    );
+
+    return { ...response.data, conversations: decryptedConversations };
+  }
+
   return response.data;
 };
 
@@ -70,6 +129,51 @@ export const getConversations = async () => {
  */
 export const getConversation = async (conversationId) => {
   const response = await api.get(`/conversations/${conversationId}`);
+
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Decrypt conversation title and messages
+  if (encryptionPassword && response.data) {
+    const conversation = response.data;
+
+    // Decrypt conversation title
+    if (conversation.titleEncrypted && conversation.encryptionSalt) {
+      try {
+        const encryptedTitleData = {
+          salt: conversation.encryptionSalt,
+          iv: conversation.encryptionIV,
+          ciphertext: JSON.parse(conversation.titleEncrypted),
+          authTag: conversation.encryptionAuthTag,
+        };
+        conversation.title = await decryptData(encryptedTitleData, encryptionPassword);
+      } catch (error) {
+        console.error('❌ [Decryption] Failed to decrypt conversation title:', error);
+      }
+    }
+
+    // Decrypt messages
+    if (conversation.messages) {
+      conversation.messages = await Promise.all(
+        conversation.messages.map(async (message) => {
+          if (message.isEncrypted && message.encryptionSalt) {
+            try {
+              const encryptedContentData = {
+                salt: message.encryptionSalt,
+                iv: message.encryptionIV,
+                ciphertext: message.contentEncrypted,
+                authTag: message.encryptionAuthTag,
+              };
+              const decryptedContent = await decryptData(encryptedContentData, encryptionPassword);
+              return { ...message, content: decryptedContent };
+            } catch (error) {
+              console.error('❌ [Decryption] Failed to decrypt message:', error);
+              return message; // Return original if decryption fails
+            }
+          }
+          return message;
+        })
+      );
+    }
+  }
+
   return response.data;
 };
 
@@ -77,10 +181,30 @@ export const getConversation = async (conversationId) => {
  * Send a message in a conversation (REST API)
  */
 export const sendMessage = async (conversationId, content, attachedDocumentId = null) => {
-  const response = await api.post(`/conversations/${conversationId}/messages`, {
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Encrypt message content
+  let requestData = {
     content,
     attachedDocumentId,
-  });
+  };
+
+  if (encryptionPassword) {
+    console.log('🔐 [Encryption] Encrypting message content');
+    const encryptedContent = await encryptData(content, encryptionPassword);
+
+    requestData = {
+      content, // Send plaintext for backward compatibility
+      contentEncrypted: encryptedContent.ciphertext,
+      encryptionSalt: encryptedContent.salt,
+      encryptionIV: encryptedContent.iv,
+      encryptionAuthTag: encryptedContent.authTag,
+      isEncrypted: true,
+      attachedDocumentId,
+    };
+
+    console.log('✅ [Encryption] Message encrypted successfully');
+  }
+
+  const response = await api.post(`/conversations/${conversationId}/messages`, requestData);
   return response.data;
 };
 
@@ -92,10 +216,30 @@ export const sendMessage = async (conversationId, content, attachedDocumentId = 
  * @returns {Promise<Object>} Response with queryType, confidence, followUp, responseTime
  */
 export const sendAdaptiveMessage = async (conversationId, content, attachedDocumentId = null) => {
-  const response = await api.post(`/conversations/${conversationId}/messages/adaptive`, {
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Encrypt message content
+  let requestData = {
     content,
     attachedDocumentId,
-  });
+  };
+
+  if (encryptionPassword) {
+    console.log('🔐 [Encryption] Encrypting adaptive message content');
+    const encryptedContent = await encryptData(content, encryptionPassword);
+
+    requestData = {
+      content, // Send plaintext for backward compatibility
+      contentEncrypted: encryptedContent.ciphertext,
+      encryptionSalt: encryptedContent.salt,
+      encryptionIV: encryptedContent.iv,
+      encryptionAuthTag: encryptedContent.authTag,
+      isEncrypted: true,
+      attachedDocumentId,
+    };
+
+    console.log('✅ [Encryption] Adaptive message encrypted successfully');
+  }
+
+  const response = await api.post(`/conversations/${conversationId}/messages/adaptive`, requestData);
   return response.data;
 };
 

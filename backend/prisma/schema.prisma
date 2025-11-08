@@ -30,6 +30,10 @@ model User {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  // Zero-Knowledge Encryption Recovery
+  recoveryKeyHash  String? // Hashed recovery key for account recovery (bcrypt)
+  masterKeyEncrypted String? // Master encryption key encrypted with recovery key
+
   // Relations
   sessions          Session[]
   twoFactorAuth     TwoFactorAuth?
@@ -115,6 +119,12 @@ model Folder {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  // Encryption metadata (AES-256-GCM) - Zero-Knowledge Encryption for folder name
+  nameEncrypted     String? // Encrypted folder name
+  encryptionSalt    String? // PBKDF2 salt (base64)
+  encryptionIV      String? // Initialization vector (base64)
+  encryptionAuthTag String? // Authentication tag (base64)
+
   // Relations
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   parentFolder Folder?    @relation("FolderHierarchy", fields: [parentFolderId], references: [id], onDelete: Cascade)
@@ -176,10 +186,13 @@ model Document {
   status            String   @default("processing") // processing, completed, failed
   parentVersionId   String? // For version control
 
-  // Encryption metadata (AES-256-GCM)
-  isEncrypted       Boolean  @default(false) // Flag for encrypted documents
-  encryptionIV      String? // Initialization vector (base64)
-  encryptionAuthTag String? // Authentication tag (base64)
+  // Encryption metadata (AES-256-GCM) - Zero-Knowledge Encryption
+  isEncrypted          Boolean  @default(false) // Flag for encrypted documents
+  encryptionSalt       String? // PBKDF2 salt (base64)
+  encryptionIV         String? // Initialization vector (base64)
+  encryptionAuthTag    String? // Authentication tag (base64)
+  filenameEncrypted    String? // Encrypted original filename
+  extractedTextEncrypted String? // Encrypted extracted text (JSON with salt, iv, ciphertext, authTag)
 
   // Advanced Features: Interactive preview
   renderableContent String? // JSON structure for Manus-style preview (optional)
@@ -336,6 +349,12 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Encryption metadata (AES-256-GCM) - Zero-Knowledge Encryption for title
+  titleEncrypted    String? // Encrypted conversation title
+  encryptionSalt    String? // PBKDF2 salt (base64)
+  encryptionIV      String? // Initialization vector (base64)
+  encryptionAuthTag String? // Authentication tag (base64)
+
   // Context tracking for folder/category-scoped conversations
   contextType   String?  // "folder" | "category" | "document" | null
   contextId     String?  // ID of the folder/category/document
@@ -360,6 +379,12 @@ model Message {
   content        String // The message text
   metadata       String? // JSON string for additional data (function calls, etc.)
   createdAt      DateTime @default(now())
+
+  // Encryption metadata (AES-256-GCM) - Zero-Knowledge Encryption
+  isEncrypted       Boolean  @default(false) // Flag for encrypted messages
+  encryptionSalt    String? // PBKDF2 salt (base64)
+  encryptionIV      String? // Initialization vector (base64)
+  encryptionAuthTag String? // Authentication tag (base64)
 
   // Document generation fields
   isDocument      Boolean  @default(false) // Flag if this message contains a generated document
