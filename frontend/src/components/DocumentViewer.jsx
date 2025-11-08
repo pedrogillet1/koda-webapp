@@ -8,9 +8,11 @@ import SearchInDocumentModal from './SearchInDocumentModal';
 import MarkdownEditor from './MarkdownEditor';
 import PPTXPreview from './PPTXPreview';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
+import AddToCategoryModal from './AddToCategoryModal';
+import CreateCategoryModal from './CreateCategoryModal';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as LogoutWhiteIcon } from '../assets/Logout-white.svg';
-import logoSvg from '../assets/logo.svg';
+import logoSvg from '../assets/Logo_head_crop.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can.svg';
 import { ReactComponent as PrinterIcon } from '../assets/printer.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
@@ -125,6 +127,7 @@ const DocumentViewer = () => {
   const [shareEmail, setShareEmail] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showCreateCategory, setShowCreateCategory] = useState(false);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -199,6 +202,26 @@ const DocumentViewer = () => {
     } catch (error) {
       console.error(`Error exporting document as ${format}:`, error);
       alert(`Failed to export document: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
+  // Handler for adding document to category
+  const handleAddToCategory = async (categoryId) => {
+    try {
+      await api.patch(`/api/documents/${documentId}`, {
+        folderId: categoryId
+      });
+      console.log('✅ Document added to category');
+      // Optionally refresh document data
+      const response = await api.get('/api/documents');
+      const allDocuments = response.data.documents || [];
+      const updatedDocument = allDocuments.find(doc => doc.id === documentId);
+      if (updatedDocument) {
+        setDocument(updatedDocument);
+      }
+    } catch (error) {
+      console.error('❌ Failed to add document to category:', error);
+      alert('Failed to add document to category');
     }
   };
 
@@ -1562,203 +1585,29 @@ const DocumentViewer = () => {
         itemName={document.filename}
       />
 
-      {/* Category Modal */}
-      {showCategoryModal && (
-        <div
-          onClick={() => setShowCategoryModal(false)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2000
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'white',
-              borderRadius: 16,
-              padding: 32,
-              width: 500,
-              maxWidth: '90%',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
-            }}
-          >
-            <div style={{ fontSize: 20, fontWeight: '700', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 8 }}>
-              Move to Category
-            </div>
-            <div style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', color: '#6C6B6E', marginBottom: 24 }}>
-              {document.filename}
-            </div>
+      {/* Add to Category Modal */}
+      <AddToCategoryModal
+        isOpen={showCategoryModal}
+        onClose={() => setShowCategoryModal(false)}
+        documentId={document?.id}
+        uploadedDocuments={document ? [document] : []}
+        onCategorySelected={handleAddToCategory}
+        onCreateNew={() => {
+          setShowCategoryModal(false);
+          setShowCreateCategory(true);
+        }}
+      />
 
-            {/* Create New Category */}
-            <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: '1px solid #E6E6EC' }}>
-              <div style={{ fontSize: 16, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 12 }}>
-                Create New Category
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="Category name..."
-                  style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    borderRadius: 8,
-                    border: '1px solid #E6E6EC',
-                    fontSize: 14,
-                    fontFamily: 'Plus Jakarta Sans',
-                    outline: 'none'
-                  }}
-                />
-                <button
-                  onClick={async () => {
-                    if (!newCategoryName.trim()) {
-                      alert('Please enter a category name');
-                      return;
-                    }
-                    try {
-                      const createResponse = await api.post('/api/folders', { name: newCategoryName });
-                      const newCategory = createResponse.data.folder;
-
-                      // Move document to new category
-                      await api.patch(`/api/documents/${documentId}`, {
-                        folderId: newCategory.id
-                      });
-
-                      alert('Document moved to new category successfully');
-                      setShowCategoryModal(false);
-                      setNewCategoryName('');
-
-                      // Refresh categories
-                      const response = await api.get('/api/folders');
-                      setCategories(response.data.folders || []);
-                    } catch (error) {
-                      console.error('Error creating category:', error);
-                      alert('Failed to create category: ' + (error.response?.data?.error || error.message));
-                    }
-                  }}
-                  style={{
-                    padding: '12px 24px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: '#181818',
-                    color: 'white',
-                    fontSize: 14,
-                    fontWeight: '600',
-                    fontFamily: 'Plus Jakarta Sans',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-
-            {/* Select Existing Category */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 16, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 12 }}>
-                Or Select Existing Category
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto' }}>
-                {categories.length === 0 ? (
-                  <div style={{ padding: 16, textAlign: 'center', color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans' }}>
-                    No categories available. Create one above.
-                  </div>
-                ) : (
-                  categories.map((category) => (
-                    <div
-                      key={category.id}
-                      onClick={() => setSelectedCategory(category.id)}
-                      style={{
-                        padding: 12,
-                        borderRadius: 8,
-                        border: selectedCategory === category.id ? '2px solid #181818' : '1px solid #E6E6EC',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        background: selectedCategory === category.id ? '#F9FAFB' : 'white',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <img src={folderIcon} alt="Folder" style={{ width: 24, height: 24 }} />
-                      <div style={{ fontSize: 14, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232' }}>
-                        {category.name}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => {
-                  setShowCategoryModal(false);
-                  setSelectedCategory(null);
-                  setNewCategoryName('');
-                }}
-                style={{
-                  padding: '12px 24px',
-                  borderRadius: 14,
-                  border: '1px solid #E6E6EC',
-                  background: 'white',
-                  color: '#323232',
-                  fontSize: 14,
-                  fontWeight: '600',
-                  fontFamily: 'Plus Jakarta Sans',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  if (!selectedCategory) {
-                    alert('Please select a category');
-                    return;
-                  }
-                  try {
-                    await api.patch(`/api/documents/${documentId}`, {
-                      folderId: selectedCategory
-                    });
-                    alert('Document moved successfully');
-                    setShowCategoryModal(false);
-                    setSelectedCategory(null);
-                  } catch (error) {
-                    console.error('Error moving document:', error);
-                    alert('Failed to move document: ' + (error.response?.data?.error || error.message));
-                  }
-                }}
-                disabled={!selectedCategory}
-                style={{
-                  padding: '12px 24px',
-                  borderRadius: 14,
-                  border: 'none',
-                  background: selectedCategory ? '#181818' : '#999',
-                  color: 'white',
-                  fontSize: 14,
-                  fontWeight: '600',
-                  fontFamily: 'Plus Jakarta Sans',
-                  cursor: selectedCategory ? 'pointer' : 'not-allowed'
-                }}
-              >
-                Move to Category
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Create Category Modal */}
+      <CreateCategoryModal
+        isOpen={showCreateCategory}
+        onClose={() => setShowCreateCategory(false)}
+        onCategoryCreated={async (newCategoryId) => {
+          // Move document to newly created category
+          await handleAddToCategory(newCategoryId);
+          setShowCreateCategory(false);
+        }}
+      />
     </div>
   );
 };

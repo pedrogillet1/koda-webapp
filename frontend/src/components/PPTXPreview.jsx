@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as ArrowRightIcon } from '../assets/arrow-narrow-right.svg';
+import PDFPreviewCustom from './PDFPreviewCustom';
 
 // ✅ FIX: Add CSS animation for spinner
 const spinnerStyles = document.createElement('style');
@@ -192,71 +193,7 @@ const PPTXPreview = ({ document, zoom }) => {
 
   // Render PDF preview if available
   if (usePdfPreview && pdfUrl) {
-    return (
-      <div style={{
-        width: '100%',
-        maxWidth: '1200px',
-        transform: `scale(${zoom / 100})`,
-        transformOrigin: 'top center',
-        transition: 'transform 0.2s ease'
-      }}>
-        <div style={{
-          background: 'white',
-          borderRadius: 12,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          overflow: 'hidden'
-        }}>
-          {/* PDF Header */}
-          <div style={{
-            padding: 16,
-            background: '#F5F5F5',
-            borderBottom: '1px solid #E6E6EC',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <div style={{
-              fontSize: 14,
-              fontWeight: '600',
-              color: '#32302C',
-              fontFamily: 'Plus Jakarta Sans'
-            }}>
-              PDF Preview
-            </div>
-            <div style={{
-              fontSize: 12,
-              color: '#6C6B6E',
-              fontFamily: 'Plus Jakarta Sans'
-            }}>
-              {document.name}
-            </div>
-          </div>
-
-          {/* PDF Viewer */}
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            height: '800px',
-            background: '#525252'
-          }}>
-            <iframe
-              src={pdfUrl}
-              title="PPTX PDF Preview"
-              style={{
-                width: '100%',
-                height: '100%',
-                border: 'none'
-              }}
-              onError={(e) => {
-                console.error('Failed to load PDF preview');
-                setError('Failed to load PDF preview');
-                setUsePdfPreview(false);
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    );
+    return <PDFPreviewCustom pdfUrl={pdfUrl} document={document} zoom={zoom} />;
   }
 
   if (error || slides.length === 0) {
