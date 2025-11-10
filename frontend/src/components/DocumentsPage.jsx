@@ -233,19 +233,27 @@ const DocumentsPage = () => {
     }
   };
 
-  // Handle document delete
+  // Handle document delete with proper error handling
   const handleDelete = async (docId) => {
     try {
-      // Show notification immediately for instant feedback
-      showSuccess('1 file has been deleted');
+      // Use context to delete (instant UI update with optimistic update!)
+      const result = await deleteDocument(docId);
 
-      // Use context to delete (instant UI update!)
-      await deleteDocument(docId);
+      // Show success message only after successful delete
+      if (result && result.success) {
+        showSuccess('1 file has been deleted');
+      }
 
       setOpenDropdownId(null);
     } catch (error) {
-      console.error('Error deleting document:', error);
-      alert('Failed to delete document');
+      console.error('❌ Error deleting document:', error);
+
+      // Show user-friendly error message
+      const errorMessage = error.filename
+        ? `Failed to delete "${error.filename}": ${error.message}`
+        : `Failed to delete document: ${error.message}`;
+
+      alert(errorMessage);
     }
   };
 
@@ -408,6 +416,8 @@ const DocumentsPage = () => {
           <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px'}}>
             Documents
           </div>
+          {/* Hide search and select controls on mobile */}
+          {!isMobile && (
           <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
             {isSelectMode ? (
               <>
@@ -698,6 +708,7 @@ const DocumentsPage = () => {
               </>
             )}
           </div>
+          )}
         </div>
 
         {/* Scrollable Content */}
@@ -1745,20 +1756,32 @@ const DocumentsPage = () => {
                 // Handle bulk deletion of selected documents
                 const deleteCount = itemToDeleteCopy.count;
 
-                // Delete all selected documents
-                await Promise.all(
+                // Delete all selected documents with proper error handling
+                const results = await Promise.allSettled(
                   itemToDeleteCopy.ids.map(docId => deleteDocument(docId))
                 );
 
-                // Show success message
-                showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
+                // Count successes and failures
+                const succeeded = results.filter(r => r.status === 'fulfilled').length;
+                const failed = results.filter(r => r.status === 'rejected').length;
+
+                // Show appropriate message
+                if (failed === 0) {
+                  showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
+                } else if (succeeded === 0) {
+                  alert(`Failed to delete ${failed} file${failed > 1 ? 's' : ''}`);
+                } else {
+                  showSuccess(`${succeeded} file${succeeded > 1 ? 's' : ''} deleted`);
+                  alert(`Failed to delete ${failed} file${failed > 1 ? 's' : ''}`);
+                }
               } else if (itemToDeleteCopy.type === 'category') {
                 await handleDeleteCategory(itemToDeleteCopy.id);
               } else if (itemToDeleteCopy.type === 'document') {
                 await handleDelete(itemToDeleteCopy.id);
               }
             } catch (error) {
-              console.error('Delete error:', error);
+              console.error('❌ Delete error:', error);
+              alert('Failed to delete: ' + (error.message || 'Unknown error'));
             }
           })();
         }}

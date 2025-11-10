@@ -12,6 +12,7 @@ import * as chatService from '../services/chatService';
 import useStreamingText from '../hooks/useStreamingText';
 import VoiceInput from './VoiceInput';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useIsMobile } from '../hooks/useIsMobile';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -34,6 +35,7 @@ let globalListenersAttached = false;
 const ChatInterface = ({ currentConversation, onConversationUpdate, onConversationCreated }) => {
     const navigate = useNavigate();
     const location = useLocation();
+    const isMobile = useIsMobile();
     // ✅ FIX: Persist draft message across screen changes
     const [message, setMessage] = useState(() => {
         // Load draft from localStorage on mount
@@ -1560,7 +1562,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         <div style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column'}}>
             {/* Header */}
             <div style={{height: 84, padding: '0 20px', background: 'white', borderBottom: '1px solid #E6E6EC', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                <img style={{height: 65}} src={kodaLogoSvg} alt="Logo" />
+                <img style={{height: 65, marginLeft: isMobile ? '50px' : '0'}} src={kodaLogoSvg} alt="Logo" />
             </div>
 
             {/* Messages Area */}

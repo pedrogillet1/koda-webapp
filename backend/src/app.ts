@@ -193,7 +193,7 @@ app.use('/api/chat', chatRoutes);
 // app.use('/api/chat', chatDocumentAnalysisRoutes); // Advanced: Chat-based document analysis (temporary documents)
 // app.use('/api/chat-documents', chatDocumentRoutes); // Chat document generation and export (PDF/DOCX/MD)
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/rag', ragRoutes);
+app.use('/api/rag', ragRoutes); // RAG query endpoints with streaming support
 // app.use('/api/security', securityRoutes); // Security monitoring endpoints (temporarily disabled - missing service)
 app.use('/api/rbac', rbacRoutes); // RBAC and access control endpoints
 app.use('/api/recovery-verification', recoveryVerificationRoutes); // Recovery verification endpoints

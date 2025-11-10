@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection';
 import { useToast } from '../context/ToastContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import CreateCategoryModal from './CreateCategoryModal';
@@ -54,6 +55,7 @@ const Documents = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showSuccess } = useToast();
+  const isMobile = useIsMobile();
 
   // Use DocumentsContext for instant updates
   const {
@@ -305,20 +307,27 @@ const Documents = () => {
     }
   };
 
-  // INSTANT UPDATE: Delete document
+  // INSTANT UPDATE: Delete document with proper error handling
   const handleDelete = async (docId) => {
     try {
-      // Show notification immediately for instant feedback
-      showSuccess('1 file has been deleted');
+      // Delete document (UI updates INSTANTLY via context with optimistic update!)
+      const result = await deleteDocument(docId);
 
-      // Delete document (UI updates INSTANTLY via context!)
-      await deleteDocument(docId);
-      // File disappears immediately, counts update automatically!
+      // Show success message only after successful delete
+      if (result && result.success) {
+        showSuccess('1 file has been deleted');
+      }
 
       setOpenDropdownId(null);
     } catch (error) {
-      console.error('Error deleting document:', error);
-      alert('Failed to delete document');
+      console.error('❌ Error deleting document:', error);
+
+      // Show user-friendly error message
+      const errorMessage = error.filename
+        ? `Failed to delete "${error.filename}": ${error.message}`
+        : `Failed to delete document: ${error.message}`;
+
+      alert(errorMessage);
     }
   };
 
@@ -427,7 +436,7 @@ const Documents = () => {
 
   return (
     <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
-      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
+      {!isMobile && <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />}
 
       {/* Main Content */}
       <div
@@ -2114,20 +2123,32 @@ const Documents = () => {
                 // Handle bulk deletion of selected documents
                 const deleteCount = itemToDeleteCopy.count;
 
-                // Delete all selected documents
-                await Promise.all(
+                // Delete all selected documents with proper error handling
+                const results = await Promise.allSettled(
                   itemToDeleteCopy.ids.map(docId => deleteDocument(docId))
                 );
 
-                // Show success message
-                showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
+                // Count successes and failures
+                const succeeded = results.filter(r => r.status === 'fulfilled').length;
+                const failed = results.filter(r => r.status === 'rejected').length;
+
+                // Show appropriate message
+                if (failed === 0) {
+                  showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
+                } else if (succeeded === 0) {
+                  alert(`Failed to delete ${failed} file${failed > 1 ? 's' : ''}`);
+                } else {
+                  showSuccess(`${succeeded} file${succeeded > 1 ? 's' : ''} deleted`);
+                  alert(`Failed to delete ${failed} file${failed > 1 ? 's' : ''}`);
+                }
               } else if (itemToDeleteCopy.type === 'category') {
                 await handleDeleteCategory(itemToDeleteCopy.id);
               } else if (itemToDeleteCopy.type === 'document') {
                 await handleDelete(itemToDeleteCopy.id);
               }
             } catch (error) {
-              console.error('Delete error:', error);
+              console.error('❌ Delete error:', error);
+              alert('Failed to delete: ' + (error.message || 'Unknown error'));
             }
           })();
         }}

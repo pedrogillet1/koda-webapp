@@ -1,50 +1,30 @@
 /**
  * Cache Service
  * Provides intelligent caching for embeddings, search results, and frequent queries
+ * Uses node-cache for fast in-memory caching without Redis dependency
  */
 
-import Redis from 'ioredis';
+import NodeCache from 'node-cache';
 import crypto from 'crypto';
 
 class CacheService {
-  private redis: Redis;
-  private readonly DEFAULT_TTL = 3600; // 1 hour
-  private readonly EMBEDDING_TTL = 86400 * 7; // 7 days
-  private readonly SEARCH_TTL = 1800; // 30 minutes
-  private readonly ANSWER_TTL = 3600; // 1 hour
+  private cache: NodeCache;
+  private readonly DEFAULT_TTL = 300; // 5 minutes
+  private readonly EMBEDDING_TTL = 3600; // 1 hour (reduced from 7 days for memory)
+  private readonly SEARCH_TTL = 300; // 5 minutes
+  private readonly ANSWER_TTL = 300; // 5 minutes
+  private readonly DOCUMENT_LIST_TTL = 60; // 1 minute
+  private readonly CONVERSATION_TTL = 120; // 2 minutes
 
   constructor() {
-    // Railway sets REDIS_URL, local dev uses REDIS_HOST/REDIS_PORT
-    const redisUrl = process.env.REDIS_URL;
-
-    if (redisUrl) {
-      this.redis = new Redis(redisUrl, {
-        retryStrategy: (times) => {
-          const delay = Math.min(times * 50, 2000);
-          return delay;
-        },
-        maxRetriesPerRequest: 3,
-      });
-    } else {
-      this.redis = new Redis({
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379'),
-        password: process.env.REDIS_PASSWORD,
-        retryStrategy: (times) => {
-          const delay = Math.min(times * 50, 2000);
-          return delay;
-        },
-        maxRetriesPerRequest: 3,
-      });
-    }
-
-    this.redis.on('connect', () => {
-      console.log('✅ Cache service connected to Redis');
+    this.cache = new NodeCache({
+      stdTTL: this.DEFAULT_TTL,
+      checkperiod: 60,
+      useClones: false, // Better performance
+      deleteOnExpire: true,
     });
 
-    this.redis.on('error', (err) => {
-      console.error('❌ Redis error:', err);
-    });
+    console.log('✅ [Cache] In-memory cache service initialized with node-cache');
   }
 
   /**
@@ -69,15 +49,10 @@ class CacheService {
   async cacheEmbedding(text: string, embedding: number[]): Promise<void> {
     try {
       const key = this.generateKey('embedding', text);
-      await this.redis.setex(
-        key,
-        this.EMBEDDING_TTL,
-        JSON.stringify(embedding)
-      );
-      console.log(`💾 Cached embedding for text (length: ${text.length})`);
+      this.cache.set(key, embedding, this.EMBEDDING_TTL);
+      console.log(`💾 [Cache] Cached embedding for text (length: ${text.length})`);
     } catch (error) {
-      console.error('Error caching embedding:', error);
-      // Don't throw - caching failures should not break the app
+      console.error('❌ [Cache] Error caching embedding:', error);
     }
   }
 
@@ -87,16 +62,16 @@ class CacheService {
   async getCachedEmbedding(text: string): Promise<number[] | null> {
     try {
       const key = this.generateKey('embedding', text);
-      const cached = await this.redis.get(key);
+      const cached = this.cache.get<number[]>(key);
 
       if (cached) {
-        console.log(`✅ Cache hit for embedding (length: ${text.length})`);
-        return JSON.parse(cached);
+        console.log(`✅ [Cache] HIT for embedding (length: ${text.length})`);
+        return cached;
       }
 
       return null;
     } catch (error) {
-      console.error('Error getting cached embedding:', error);
+      console.error('❌ [Cache] Error getting cached embedding:', error);
       return null;
     }
   }
@@ -111,14 +86,10 @@ class CacheService {
   ): Promise<void> {
     try {
       const key = this.generateKey('search', userId, query);
-      await this.redis.setex(
-        key,
-        this.SEARCH_TTL,
-        JSON.stringify(results)
-      );
-      console.log(`💾 Cached search results for query: "${query.substring(0, 50)}..."`);
+      this.cache.set(key, results, this.SEARCH_TTL);
+      console.log(`💾 [Cache] Cached search results for query: "${query.substring(0, 50)}..."`);
     } catch (error) {
-      console.error('Error caching search results:', error);
+      console.error('❌ [Cache] Error caching search results:', error);
     }
   }
 
@@ -131,16 +102,16 @@ class CacheService {
   ): Promise<any[] | null> {
     try {
       const key = this.generateKey('search', userId, query);
-      const cached = await this.redis.get(key);
+      const cached = this.cache.get<any[]>(key);
 
       if (cached) {
-        console.log(`✅ Cache hit for search: "${query.substring(0, 50)}..."`);
-        return JSON.parse(cached);
+        console.log(`✅ [Cache] HIT for search: "${query.substring(0, 50)}..."`);
+        return cached;
       }
 
       return null;
     } catch (error) {
-      console.error('Error getting cached search results:', error);
+      console.error('❌ [Cache] Error getting cached search results:', error);
       return null;
     }
   }
@@ -155,14 +126,10 @@ class CacheService {
   ): Promise<void> {
     try {
       const key = this.generateKey('answer', userId, query);
-      await this.redis.setex(
-        key,
-        this.ANSWER_TTL,
-        JSON.stringify(answer)
-      );
-      console.log(`💾 Cached answer for query: "${query.substring(0, 50)}..."`);
+      this.cache.set(key, answer, this.ANSWER_TTL);
+      console.log(`💾 [Cache] Cached answer for query: "${query.substring(0, 50)}..."`);
     } catch (error) {
-      console.error('Error caching answer:', error);
+      console.error('❌ [Cache] Error caching answer:', error);
     }
   }
 
@@ -175,16 +142,16 @@ class CacheService {
   ): Promise<any | null> {
     try {
       const key = this.generateKey('answer', userId, query);
-      const cached = await this.redis.get(key);
+      const cached = this.cache.get<any>(key);
 
       if (cached) {
-        console.log(`✅ Cache hit for answer: "${query.substring(0, 50)}..."`);
-        return JSON.parse(cached);
+        console.log(`✅ [Cache] HIT for answer: "${query.substring(0, 50)}..."`);
+        return cached;
       }
 
       return null;
     } catch (error) {
-      console.error('Error getting cached answer:', error);
+      console.error('❌ [Cache] Error getting cached answer:', error);
       return null;
     }
   }
@@ -198,14 +165,10 @@ class CacheService {
   ): Promise<void> {
     try {
       const key = this.generateKey('query_expansion', query);
-      await this.redis.setex(
-        key,
-        this.SEARCH_TTL,
-        JSON.stringify(expandedQueries)
-      );
-      console.log(`💾 Cached query expansion for: "${query.substring(0, 50)}..."`);
+      this.cache.set(key, expandedQueries, this.SEARCH_TTL);
+      console.log(`💾 [Cache] Cached query expansion for: "${query.substring(0, 50)}..."`);
     } catch (error) {
-      console.error('Error caching query expansion:', error);
+      console.error('❌ [Cache] Error caching query expansion:', error);
     }
   }
 
@@ -215,16 +178,16 @@ class CacheService {
   async getCachedQueryExpansion(query: string): Promise<string[] | null> {
     try {
       const key = this.generateKey('query_expansion', query);
-      const cached = await this.redis.get(key);
+      const cached = this.cache.get<string[]>(key);
 
       if (cached) {
-        console.log(`✅ Cache hit for query expansion: "${query.substring(0, 50)}..."`);
-        return JSON.parse(cached);
+        console.log(`✅ [Cache] HIT for query expansion: "${query.substring(0, 50)}..."`);
+        return cached;
       }
 
       return null;
     } catch (error) {
-      console.error('Error getting cached query expansion:', error);
+      console.error('❌ [Cache] Error getting cached query expansion:', error);
       return null;
     }
   }
@@ -234,15 +197,22 @@ class CacheService {
    */
   async invalidateUserCache(userId: string): Promise<void> {
     try {
-      const pattern = `*:*${userId}*`;
-      const keys = await this.redis.keys(pattern);
+      // Invalidate ALL cache entries that could be affected by document changes
+      const allKeys = this.cache.keys();
+      const keysToDelete = allKeys.filter(key =>
+        key.includes(userId) ||
+        key.startsWith('documents_list:') ||
+        key.startsWith('folder_tree:') ||
+        key.startsWith('search:') ||
+        key.startsWith('answer:')
+      );
 
-      if (keys.length > 0) {
-        await this.redis.del(...keys);
-        console.log(`🗑️ Invalidated ${keys.length} cache entries for user ${userId}`);
+      if (keysToDelete.length > 0) {
+        this.cache.del(keysToDelete);
+        console.log(`🗑️  [Cache] Invalidated ${keysToDelete.length} cache entries for user ${userId}`);
       }
     } catch (error) {
-      console.error('Error invalidating user cache:', error);
+      console.error('❌ [Cache] Error invalidating user cache:', error);
     }
   }
 
@@ -251,15 +221,14 @@ class CacheService {
    */
   async invalidateDocumentListCache(userId: string): Promise<void> {
     try {
-      const pattern = `documents_list:*${userId}*`;
-      const keys = await this.redis.keys(pattern);
+      const keys = this.cache.keys().filter(key => key.startsWith('documents_list:') && key.includes(userId));
 
       if (keys.length > 0) {
-        await this.redis.del(...keys);
-        console.log(`🗑️ Invalidated ${keys.length} document list cache entries for user ${userId}`);
+        this.cache.del(keys);
+        console.log(`🗑️  [Cache] Invalidated ${keys.length} document list cache entries for user ${userId}`);
       }
     } catch (error) {
-      console.error('Error invalidating document list cache:', error);
+      console.error('❌ [Cache] Error invalidating document list cache:', error);
     }
   }
 
@@ -268,15 +237,14 @@ class CacheService {
    */
   async invalidateFolderTreeCache(userId: string): Promise<void> {
     try {
-      const pattern = `folder_tree:*${userId}*`;
-      const keys = await this.redis.keys(pattern);
+      const keys = this.cache.keys().filter(key => key.startsWith('folder_tree:') && key.includes(userId));
 
       if (keys.length > 0) {
-        await this.redis.del(...keys);
-        console.log(`🗑️ Invalidated ${keys.length} folder tree cache entries for user ${userId}`);
+        this.cache.del(keys);
+        console.log(`🗑️  [Cache] Invalidated ${keys.length} folder tree cache entries for user ${userId}`);
       }
     } catch (error) {
-      console.error('Error invalidating folder tree cache:', error);
+      console.error('❌ [Cache] Error invalidating folder tree cache:', error);
     }
   }
 
@@ -285,15 +253,14 @@ class CacheService {
    */
   async invalidateDocumentCache(documentId: string): Promise<void> {
     try {
-      const pattern = `*:*${documentId}*`;
-      const keys = await this.redis.keys(pattern);
+      const keys = this.cache.keys().filter(key => key.includes(documentId));
 
       if (keys.length > 0) {
-        await this.redis.del(...keys);
-        console.log(`🗑️ Invalidated ${keys.length} cache entries for document ${documentId}`);
+        this.cache.del(keys);
+        console.log(`🗑️  [Cache] Invalidated ${keys.length} cache entries for document ${documentId}`);
       }
     } catch (error) {
-      console.error('Error invalidating document cache:', error);
+      console.error('❌ [Cache] Error invalidating document cache:', error);
     }
   }
 
@@ -304,12 +271,10 @@ class CacheService {
   async cacheDocumentBuffer(documentId: string, buffer: Buffer): Promise<void> {
     try {
       const key = `document_buffer:${documentId}`;
-      // Store as binary in Redis
-      await this.redis.setex(key, 1800, buffer); // 30 minutes
-      console.log(`💾 Cached document buffer for ${documentId} (${(buffer.length / 1024 / 1024).toFixed(2)} MB)`);
+      this.cache.set(key, buffer, 1800); // 30 minutes
+      console.log(`💾 [Cache] Cached document buffer for ${documentId} (${(buffer.length / 1024 / 1024).toFixed(2)} MB)`);
     } catch (error) {
-      console.error('Error caching document buffer:', error);
-      // Don't throw - caching failures should not break the app
+      console.error('❌ [Cache] Error caching document buffer:', error);
     }
   }
 
@@ -319,16 +284,16 @@ class CacheService {
   async getCachedDocumentBuffer(documentId: string): Promise<Buffer | null> {
     try {
       const key = `document_buffer:${documentId}`;
-      const cached = await this.redis.getBuffer(key);
+      const cached = this.cache.get<Buffer>(key);
 
       if (cached) {
-        console.log(`✅ Cache hit for document buffer ${documentId} (${(cached.length / 1024 / 1024).toFixed(2)} MB)`);
+        console.log(`✅ [Cache] HIT for document buffer ${documentId} (${(cached.length / 1024 / 1024).toFixed(2)} MB)`);
         return cached;
       }
 
       return null;
     } catch (error) {
-      console.error('Error getting cached document buffer:', error);
+      console.error('❌ [Cache] Error getting cached document buffer:', error);
       return null;
     }
   }
@@ -342,26 +307,16 @@ class CacheService {
     hitRate: number;
   }> {
     try {
-      const info = await this.redis.info('stats');
-      const memory = await this.redis.info('memory');
-
-      // Parse info strings
-      const keyspaceHits = parseInt(info.match(/keyspace_hits:(\d+)/)?.[1] || '0');
-      const keyspaceMisses = parseInt(info.match(/keyspace_misses:(\d+)/)?.[1] || '0');
-      const totalKeys = await this.redis.dbsize();
-      const usedMemory = memory.match(/used_memory_human:(.+)/)?.[1] || 'Unknown';
-
-      const hitRate = keyspaceHits + keyspaceMisses > 0
-        ? (keyspaceHits / (keyspaceHits + keyspaceMisses)) * 100
-        : 0;
+      const stats = this.cache.getStats();
+      const keys = this.cache.keys().length;
 
       return {
-        keys: totalKeys,
-        memory: usedMemory,
-        hitRate: Math.round(hitRate * 100) / 100
+        keys,
+        memory: `${stats.ksize} keys`,
+        hitRate: stats.hits / (stats.hits + stats.misses) * 100 || 0
       };
     } catch (error) {
-      console.error('Error getting cache stats:', error);
+      console.error('❌ [Cache] Error getting cache stats:', error);
       return {
         keys: 0,
         memory: 'Unknown',
@@ -373,16 +328,16 @@ class CacheService {
   /**
    * Generic get method for any cache key
    */
-  async get<T>(key: string, options?: { ttl?: number; useMemory?: boolean; useRedis?: boolean }): Promise<T | null> {
+  async get<T>(key: string, options?: { ttl?: number }): Promise<T | null> {
     try {
-      const cached = await this.redis.get(key);
+      const cached = this.cache.get<T>(key);
       if (cached) {
-        console.log(`✅ Cache hit for key: ${key.substring(0, 50)}...`);
-        return JSON.parse(cached);
+        console.log(`✅ [Cache] HIT for key: ${key.substring(0, 50)}...`);
+        return cached;
       }
       return null;
     } catch (error) {
-      console.error('Error getting cached value:', error);
+      console.error('❌ [Cache] Error getting cached value:', error);
       return null;
     }
   }
@@ -390,14 +345,13 @@ class CacheService {
   /**
    * Generic set method for any cache key
    */
-  async set<T>(key: string, value: T, options?: { ttl?: number; useMemory?: boolean; useRedis?: boolean }): Promise<void> {
+  async set<T>(key: string, value: T, options?: { ttl?: number }): Promise<void> {
     try {
       const ttl = options?.ttl || this.DEFAULT_TTL;
-      await this.redis.setex(key, ttl, JSON.stringify(value));
-      console.log(`💾 Cached value for key: ${key.substring(0, 50)}... (TTL: ${ttl}s)`);
+      this.cache.set(key, value, ttl);
+      console.log(`💾 [Cache] SET: ${key.substring(0, 50)}... (TTL: ${ttl}s)`);
     } catch (error) {
-      console.error('Error caching value:', error);
-      // Don't throw - caching failures should not break the app
+      console.error('❌ [Cache] Error caching value:', error);
     }
   }
 
@@ -406,18 +360,19 @@ class CacheService {
    */
   async clearAll(): Promise<void> {
     try {
-      await this.redis.flushdb();
-      console.log('🗑️ Cleared all cache');
+      this.cache.flushAll();
+      console.log('🗑️  [Cache] Cleared all cache');
     } catch (error) {
-      console.error('Error clearing cache:', error);
+      console.error('❌ [Cache] Error clearing cache:', error);
     }
   }
 
   /**
-   * Close Redis connection
+   * Close cache service (for graceful shutdown)
    */
   async close(): Promise<void> {
-    await this.redis.quit();
+    this.cache.close();
+    console.log('✅ [Cache] Cache service closed');
   }
 }
 

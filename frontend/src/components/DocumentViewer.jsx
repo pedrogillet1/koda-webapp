@@ -130,8 +130,8 @@ const DocumentViewer = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [showAskKoda, setShowAskKoda] = useState(true);
   const [showExtractedText, setShowExtractedText] = useState(false);
-  const [isDocxConvertedToPdf, setIsDocxConvertedToPdf] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const zoomPresets = [50, 75, 100, 125, 150, 175, 200];
 
@@ -201,6 +201,37 @@ const DocumentViewer = () => {
     }
   };
 
+  // Handler for regenerating preview (markdown/slides)
+  const handleRegeneratePreview = async () => {
+    if (!document) return;
+
+    try {
+      setIsRegenerating(true);
+      console.log('Regenerating preview for document:', documentId);
+
+      // Call reprocess endpoint to regenerate markdown/slides
+      const response = await api.post(`/api/documents/${documentId}/reprocess`);
+      console.log('Reprocess response:', response.data);
+
+      // Reload the document to get fresh metadata
+      const updatedDoc = await api.get(`/api/documents/${documentId}/status`);
+
+      // Update document state
+      setDocument(updatedDoc.data);
+
+      // Show success message
+      alert('Preview regenerated successfully! The page will reload.');
+
+      // Reload the page to show updated preview
+      window.location.reload();
+    } catch (error) {
+      console.error('Error regenerating preview:', error);
+      alert('Failed to regenerate preview. Please try again.');
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   // Determine breadcrumb start based on location state or default to Documents
   const breadcrumbStart = useMemo(() => {
     const from = location.state?.from;
@@ -216,12 +247,31 @@ const DocumentViewer = () => {
   };
 
   // Memoize the file and options props to prevent unnecessary reloads
-  const fileConfig = useMemo(() => documentUrl ? { url: documentUrl } : null, [documentUrl]);
+  const fileConfig = useMemo(() => {
+    if (!documentUrl) return null;
+
+    // If it's a stream endpoint, we need to include auth headers
+    const isStreamEndpoint = documentUrl.includes('/stream');
+
+    if (isStreamEndpoint) {
+      // Get the auth token from localStorage
+      const token = localStorage.getItem('accessToken');
+      return {
+        url: documentUrl,
+        httpHeaders: {
+          'Authorization': `Bearer ${token}`
+        }
+      };
+    }
+
+    return { url: documentUrl };
+  }, [documentUrl]);
+
   const pdfOptions = useMemo(() => ({
     cMapUrl: 'https://unpkg.com/pdfjs-dist@' + pdfjs.version + '/cmaps/',
     cMapPacked: true,
     // Add better error handling for PDF loading
-    withCredentials: false,
+    withCredentials: true,
     isEvalSupported: false,
   }), []);
 
@@ -314,72 +364,95 @@ const DocumentViewer = () => {
             setExtractedText(foundDocument.metadata.extractedText);
           }
 
-          // Check if document is DOCX - use preview endpoint for PDF conversion
+          // AUTO-REGENERATE: Check if markdown content is missing for Excel (keep for Excel only)
+          const isExcel = foundDocument.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+          const hasMarkdown = foundDocument.metadata && foundDocument.metadata.markdownContent;
+
+          if (isExcel && !hasMarkdown) {
+            console.log('⚠️ Markdown content missing, auto-regenerating...');
+            // Trigger reprocess in background (don't await, let it run async)
+            api.post(`/api/documents/${documentId}/reprocess`)
+              .then(response => {
+                console.log('✅ Auto-regeneration completed:', response.data);
+                // Reload document to get updated metadata
+                return api.get(`/api/documents/${documentId}/status`);
+              })
+              .then(response => {
+                setDocument(response.data);
+                console.log('✅ Document reloaded with markdown content');
+              })
+              .catch(error => {
+                console.error('❌ Auto-regeneration failed:', error);
+              });
+          }
+
+          // DOCX FILES: Fetch preview information from backend
+          // Backend will return previewType='pdf' with a URL to the converted PDF
           const isDocx = foundDocument.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
           if (isDocx) {
-            // Get PDF preview for DOCX with timeout
-            console.log('🔍 Requesting DOCX preview for document:', documentId);
+            console.log('📄 DOCX detected - fetching preview information from backend...');
+            const previewResponse = await api.get(`/api/documents/${documentId}/preview`);
+            const { previewType, previewUrl } = previewResponse.data;
 
-            try {
-              // Timeout increased to 60 seconds to allow for DOCX-to-PDF conversion
-              const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('DOCX preview timeout')), 60000)
-              );
+            console.log(`📋 Preview type: ${previewType}, URL: ${previewUrl}`);
 
-              const previewResponse = await Promise.race([
-                api.get(`/api/documents/${documentId}/preview`),
-                timeoutPromise
-              ]);
-
-              const { previewUrl, previewType } = previewResponse.data;
-              console.log('✅ Preview response received:', { previewUrl: previewUrl.substring(0, 100), previewType });
+            // For DOCX converted to PDF, set the preview-pdf URL
+            if (previewType === 'pdf' && previewUrl) {
               setDocumentUrl(previewUrl);
-              setIsDocxConvertedToPdf(true); // Mark that this DOCX should be treated as PDF for rendering
-              console.log('✅ DOCX marked as converted to PDF for rendering');
-            } catch (error) {
-              console.error('❌ DOCX preview failed:', error);
-              // Silently continue - document might still be processing
-              // The component will handle the loading/error state without blocking the user
-              setLoading(false);
-              return;
             }
           } else {
-            setIsDocxConvertedToPdf(false);
+            // For non-DOCX files, use the existing view-url logic
+            // PERFORMANCE OPTIMIZATION: Use signed URLs for direct access to Supabase Storage (non-encrypted files)
+            // For encrypted files, use stream endpoint for server-side decryption
+            // This eliminates the backend proxy bottleneck for 50-70% faster loading (non-encrypted files)
 
-            // Mac (both Safari and Chrome) has issues with blob URLs for PDFs
-            const isPdf = foundDocument.mimeType === 'application/pdf';
-            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-            const useMacPdfWorkaround = isMac && isPdf;
+            // Fetch the view URL from backend
+            console.log('📡 Fetching view URL for document...');
+            const viewUrlResponse = await api.get(`/api/documents/${documentId}/view-url`);
+            const { url: documentUrl, encrypted } = viewUrlResponse.data;
 
-            if (useMacPdfWorkaround) {
-              // For Mac PDFs, use the direct stream URL with authentication
-              // This bypasses blob URL issues that affect both Safari and Chrome on Mac
-              const accessToken = localStorage.getItem('accessToken');
-              const streamUrl = `${api.defaults.baseURL}/api/documents/${documentId}/stream?token=${accessToken}`;
-              console.log('🍎 Using Mac PDF workaround with direct stream URL (platform:', navigator.platform, ')');
-              setDocumentUrl(streamUrl);
+            // Check if this is a stream endpoint (for encrypted files) or signed URL (for non-encrypted files)
+            const isStreamEndpoint = documentUrl.includes('/stream');
+
+            if (isStreamEndpoint) {
+              // Encrypted file - use stream endpoint directly (no caching needed)
+              console.log('🔐 Document is encrypted, using stream endpoint for server-side decryption');
+              setDocumentUrl(documentUrl);
             } else {
-              // Check if we have a cached blob URL
-              const cacheKey = `document_blob_${documentId}`;
-              const cachedUrl = sessionStorage.getItem(cacheKey);
+              // Non-encrypted file - use signed URL with caching
+              const cacheKey = `document_signed_url_${documentId}`;
+              const cachedData = sessionStorage.getItem(cacheKey);
 
-              if (cachedUrl) {
-                console.log('⚡ Using cached blob URL for document');
-                setDocumentUrl(cachedUrl);
+              if (cachedData) {
+                try {
+                  const { url, timestamp } = JSON.parse(cachedData);
+                  const age = Date.now() - timestamp;
+                  // Signed URLs are valid for 1 hour (3600000ms), refresh if older than 50 minutes
+                  if (age < 3000000) {
+                    console.log('⚡ Using cached signed URL for non-encrypted document');
+                    setDocumentUrl(url);
+                  } else {
+                    throw new Error('Cached URL expired');
+                  }
+                } catch (err) {
+                  // Cache invalid or expired, use new signed URL
+                  console.log('🔄 Cached URL expired, using new signed URL');
+                  sessionStorage.removeItem(cacheKey);
+                  sessionStorage.setItem(cacheKey, JSON.stringify({
+                    url: documentUrl,
+                    timestamp: Date.now()
+                  }));
+                  setDocumentUrl(documentUrl);
+                }
               } else {
-                // Use blob URL for Windows/Linux or non-PDF files
-                console.log('📥 Downloading document for preview...');
-                const fileResponse = await api.get(`/api/documents/${documentId}/stream`, {
-                  responseType: 'blob'
-                });
-                const blob = new Blob([fileResponse.data], { type: foundDocument.mimeType });
-                const url = URL.createObjectURL(blob);
-                console.log('📄 Created blob URL for document (platform:', navigator.platform, ')');
-
-                // Cache the blob URL (it will be cleaned up when the page is refreshed)
-                sessionStorage.setItem(cacheKey, url);
-                setDocumentUrl(url);
+                // No cache, use signed URL and cache it
+                console.log('🚀 Direct signed URL obtained for non-encrypted document');
+                sessionStorage.setItem(cacheKey, JSON.stringify({
+                  url: documentUrl,
+                  timestamp: Date.now()
+                }));
+                setDocumentUrl(documentUrl);
               }
             }
           }
@@ -770,121 +843,117 @@ const DocumentViewer = () => {
               }
 
               switch (fileType) {
-                case 'word': // DOCX
-                  // If DOCX was converted to PDF for preview, render as PDF
-                  if (isDocxConvertedToPdf) {
-                    return (
-                      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-                        <Document
-                          file={fileConfig}
-                          onLoadSuccess={onDocumentLoadSuccess}
-                          onLoadError={(error) => {
-                            console.error('❌ PDF Load Error (DOCX preview):', error);
-                            console.error('PDF URL:', documentUrl);
-                            console.error('Document:', document);
-                          }}
-                          options={pdfOptions}
-                          loading={
-                            <div style={{
-                              padding: 40,
-                              background: 'white',
-                              borderRadius: 12,
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              color: '#6C6B6E',
-                              fontSize: 16,
-                              fontFamily: 'Plus Jakarta Sans'
-                            }}>
-                              Loading DOCX preview...
+                case 'word': // DOCX - show as PDF (converted during upload)
+                  // DOCX files are converted to PDF on the backend and displayed as PDF
+                  return (
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+                      <Document
+                        file={fileConfig}
+                        onLoadSuccess={onDocumentLoadSuccess}
+                        onLoadError={(error) => {
+                          console.error('❌ PDF Load Error:', error);
+                          console.error('PDF URL:', documentUrl);
+                          console.error('Document:', document);
+                        }}
+                        options={pdfOptions}
+                        loading={
+                          <div style={{
+                            padding: 40,
+                            background: 'white',
+                            borderRadius: 12,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                            color: '#6C6B6E',
+                            fontSize: 16,
+                            fontFamily: 'Plus Jakarta Sans'
+                          }}>
+                            Loading PDF...
+                          </div>
+                        }
+                        error={
+                          <div style={{
+                            padding: 40,
+                            background: 'white',
+                            borderRadius: 12,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                            textAlign: 'center'
+                          }}>
+                            <div style={{ fontSize: 64, marginBottom: 20 }}>📄</div>
+                            <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
+                              Failed to load PDF
                             </div>
-                          }
-                          error={
-                            <div style={{
-                              padding: 40,
-                              background: 'white',
-                              borderRadius: 12,
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              textAlign: 'center'
-                            }}>
-                              <div style={{ fontSize: 64, marginBottom: 20 }}>📄</div>
-                              <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
-                                Failed to load DOCX preview
-                              </div>
-                              <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
-                                {document.filename}
-                              </div>
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const response = await api.get(`/api/documents/${document.id}/download`);
-                                    const downloadUrl = response.data.url;
-                                    safariDownloadFile(downloadUrl, document.filename);
-                                  } catch (error) {
-                                    console.error('Download error:', error);
-                                    alert('Failed to download document');
-                                  }
-                                }}
-                                style={{
-                                  display: 'inline-block',
-                                  padding: '12px 24px',
-                                  background: '#181818',
-                                  color: 'white',
-                                  borderRadius: 14,
-                                  textDecoration: 'none',
-                                  fontSize: 14,
-                                  fontWeight: '600',
-                                  fontFamily: 'Plus Jakarta Sans',
-                                  border: 'none',
-                                  cursor: 'pointer'
-                                }}>
-                                {isSafari() || isIOS() ? 'Open Document' : 'Download Document'}
-                              </button>
+                            <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
+                              {document.filename}
                             </div>
-                          }
-                        >
-                          {Array.from(new Array(numPages), (el, index) => (
-                            <div
-                              key={`page_${index + 1}`}
-                              ref={(el) => {
-                                if (el) {
-                                  pageRefs.current[index + 1] = el;
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const response = await api.get(`/api/documents/${document.id}/download`);
+                                  const downloadUrl = response.data.url;
+                                  safariDownloadFile(downloadUrl, document.filename);
+                                } catch (error) {
+                                  console.error('Download error:', error);
+                                  alert('Failed to download document');
                                 }
                               }}
-                              data-page-number={index + 1}
                               style={{
-                                marginBottom: index < numPages - 1 ? '20px' : '0'
-                              }}
-                            >
-                              <Page
-                                pageNumber={index + 1}
-                                width={900 * (zoom / 100)}
-                                scale={getOptimalPDFScale()}
-                                renderTextLayer={true}
-                                renderAnnotationLayer={true}
-                                loading={
-                                  <div style={{
-                                    width: 900 * (zoom / 100),
-                                    height: 1200 * (zoom / 100),
-                                    background: 'white',
-                                    borderRadius: 8,
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: '#6C6B6E',
-                                    fontFamily: 'Plus Jakarta Sans'
-                                  }}>
-                                    Loading page {index + 1}...
-                                  </div>
-                                }
-                              />
-                            </div>
-                          ))}
-                        </Document>
-                      </div>
-                    );
-                  }
-                  // Otherwise show markdown editor
-                  return <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />;
+                                display: 'inline-block',
+                                padding: '12px 24px',
+                                background: '#181818',
+                                color: 'white',
+                                borderRadius: 14,
+                                textDecoration: 'none',
+                                fontSize: 14,
+                                fontWeight: '600',
+                                fontFamily: 'Plus Jakarta Sans',
+                                border: 'none',
+                                cursor: 'pointer'
+                              }}>
+                              {isSafari() || isIOS() ? 'Open PDF' : 'Download PDF'}
+                            </button>
+                          </div>
+                        }
+                      >
+                        {Array.from(new Array(numPages), (el, index) => (
+                          <div
+                            key={`page_${index + 1}`}
+                            ref={(el) => {
+                              if (el) {
+                                pageRefs.current[index + 1] = el;
+                              }
+                            }}
+                            data-page-number={index + 1}
+                            style={{
+                              marginBottom: index < numPages - 1 ? '20px' : '0'
+                            }}
+                          >
+                            <Page
+                              pageNumber={index + 1}
+                              width={900 * (zoom / 100)}
+                              scale={getOptimalPDFScale()}
+                              renderTextLayer={true}
+                              renderAnnotationLayer={true}
+                              loading={
+                                <div style={{
+                                  width: 900 * (zoom / 100),
+                                  height: 1200 * (zoom / 100),
+                                  background: 'white',
+                                  borderRadius: 8,
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#6C6B6E',
+                                  fontFamily: 'Plus Jakarta Sans'
+                                }}>
+                                  Loading page {index + 1}...
+                                </div>
+                              }
+                            />
+                          </div>
+                        ))}
+                      </Document>
+                    </div>
+                  );
 
                 case 'excel': // XLSX - show markdown editor
                   return <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />;

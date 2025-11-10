@@ -214,8 +214,7 @@ export const sendMessageStreaming = async (req: Request, res: Response) => {
       (chunk: string) => {
         // Stream each chunk to client
         res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
-      },
-      undefined // onStage callback (not used in SSE streaming)
+      }
     );
 
     // Send completion signal
@@ -468,8 +467,7 @@ export const sendAdaptiveMessageStreaming = async (req: Request, res: Response) 
       (chunk: string) => {
         // Stream each chunk to client
         res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
-      },
-      undefined // onStage callback
+      }
     );
 
     // Send completion signal

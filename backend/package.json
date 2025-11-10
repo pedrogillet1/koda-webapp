@@ -87,6 +87,7 @@
     "socket.io-client": "^4.8.1",
     "speakeasy": "^2.0.0",
     "string-similarity": "^4.0.4",
+    "tesseract.js": "^6.0.1",
     "tsx": "^4.20.6",
     "turndown": "^7.2.1",
     "twilio": "^5.10.2",

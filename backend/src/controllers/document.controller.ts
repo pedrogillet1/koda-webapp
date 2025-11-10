@@ -325,6 +325,28 @@ export const getDownloadUrl = async (req: Request, res: Response): Promise<void>
 };
 
 /**
+ * Get document view URL (signed URL for direct viewing, no forced download)
+ */
+export const getViewUrl = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+
+    // Pass request object to construct proper base URL (ngrok, localhost, etc.)
+    const result = await documentService.getDocumentViewUrl(id, req.user.id, req);
+
+    res.status(200).json(result);
+  } catch (error) {
+    const err = error as Error;
+    res.status(400).json({ error: err.message });
+  }
+};
+
+/**
  * Stream document file (proxies from GCS to avoid CORS issues)
  */
 export const streamDocument = async (req: Request, res: Response): Promise<void> => {
@@ -367,6 +389,50 @@ export const streamDocument = async (req: Request, res: Response): Promise<void>
     } else {
       res.status(400).json({ error: err.message });
     }
+  }
+};
+
+/**
+ * Stream converted PDF for DOCX preview
+ */
+export const streamPreviewPdf = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+
+    console.log(`📄 [streamPreviewPdf] Starting PDF stream for document: ${id}`);
+
+    // Get PDF buffer from service
+    const { buffer, filename } = await documentService.streamPreviewPdf(id, req.user.id);
+
+    console.log(`✅ [streamPreviewPdf] Got PDF buffer: ${(buffer.length / 1024).toFixed(2)} KB, filename: ${filename}`);
+
+    // Verify PDF header
+    const pdfHeader = buffer.slice(0, 5).toString();
+    if (!pdfHeader.startsWith('%PDF-')) {
+      console.error(`❌ [streamPreviewPdf] Invalid PDF header: ${pdfHeader}`);
+      throw new Error('Invalid PDF file - missing PDF header');
+    }
+
+    // Set appropriate headers for PDF viewing
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename.replace(/\.[^.]+$/, '.pdf'))}"`);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Content-Length', buffer.length.toString());
+
+    console.log(`📤 [streamPreviewPdf] Sending PDF response...`);
+    res.end(buffer, 'binary');
+  } catch (error) {
+    const err = error as Error;
+    console.error(`❌ Stream preview PDF error for ID ${req.params.id}:`, err.message);
+    console.error(`❌ Stack trace:`, err.stack);
+    res.status(400).json({ error: err.message });
   }
 };
 
@@ -702,11 +768,8 @@ export const shareDocument = async (req: Request, res: Response): Promise<void> 
       ? `${user.firstName} ${user.lastName || ''}`.trim()
       : user?.email || 'A Koda user';
 
-    // Generate download URL
-    const downloadUrl = `${config.FRONTEND_URL}/api/documents/${id}/stream`;
-
     // Send email
-    await sendDocumentShareEmail(email, document.filename, senderName, downloadUrl);
+    await sendDocumentShareEmail(email, document.filename, senderName);
 
     res.json({ message: 'Document shared successfully' });
   } catch (error) {
@@ -1163,7 +1226,7 @@ export const reindexAllDocuments = async (req: Request, res: Response): Promise<
 
     // Import required services dynamically
     const prisma = (await import('../config/database')).default;
-    const { chunkDocument } = await import('../services/documentChunking.service');
+    const documentChunkingService = (await import('../services/documentChunking.service')).default;
     const vectorEmbeddingService = (await import('../services/vectorEmbedding.service')).default;
 
     // Get all completed documents with extracted text
@@ -1198,15 +1261,15 @@ export const reindexAllDocuments = async (req: Request, res: Response): Promise<
         console.log(`   Text length: ${doc.metadata.extractedText.length.toLocaleString()} characters`);
 
         // Chunk the document using simple chunking
-        const docChunks = chunkDocument(doc.metadata.extractedText);
+        const docChunks = documentChunkingService.chunkText(doc.metadata.extractedText);
         console.log(`   Chunks created: ${docChunks.length}`);
 
         // Convert to format expected by vector embedding service
-        const chunks = docChunks.map((chunk) => ({
-          content: chunk.text,
+        const chunks = docChunks.map((chunk, index) => ({
+          content: chunk,
           metadata: {
-            startChar: chunk.startPosition,
-            endChar: chunk.endPosition
+            startChar: index * 500,
+            endChar: Math.min((index + 1) * 500, doc.metadata.extractedText.length)
           }
         }));
 
