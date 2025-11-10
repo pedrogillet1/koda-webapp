@@ -9,6 +9,9 @@ export interface RegisterInput {
   firstName?: string;
   lastName?: string;
   name?: string; // ✅ FIX: Add optional 'name' field for frontend compatibility
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Recovery key data
+  recoveryKeyHash?: string;
+  masterKeyEncrypted?: string;
 }
 
 export interface LoginInput {
@@ -24,7 +27,7 @@ export interface AuthTokens {
 /**
  * Register a new user (creates pending user, no tokens until fully verified)
  */
-export const registerUser = async ({ email, password, firstName, lastName, name }: RegisterInput) => {
+export const registerUser = async ({ email, password, firstName, lastName, name, recoveryKeyHash, masterKeyEncrypted }: RegisterInput) => {
   // ✅ FIX: Parse 'name' field into firstName and lastName if provided
   let parsedFirstName = firstName;
   let parsedLastName = lastName;
@@ -41,6 +44,14 @@ export const registerUser = async ({ email, password, firstName, lastName, name 
       parsedFirstName = nameParts[0];
       parsedLastName = nameParts.slice(1).join(' ');
     }
+  }
+
+  // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Hash recovery key for storage
+  let hashedRecoveryKey = null;
+  if (recoveryKeyHash) {
+    console.log('🔐 [Recovery] Hashing recovery key for storage...');
+    hashedRecoveryKey = await hashPassword(recoveryKeyHash);
+    console.log('✅ [Recovery] Recovery key hashed successfully');
   }
 
   // Validate email format
@@ -96,6 +107,9 @@ export const registerUser = async ({ email, password, firstName, lastName, name 
       lastName: parsedLastName,   // ✅ FIX: Use parsed lastName
       emailCode,
       expiresAt,
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Store recovery key data
+      recoveryKeyHash: hashedRecoveryKey || null,
+      masterKeyEncrypted: masterKeyEncrypted || null,
     },
   });
 
@@ -241,6 +255,9 @@ export const verifyPendingUserEmail = async (email: string, code: string) => {
       phoneNumber: null, // Phone is optional
       isEmailVerified: true, // ✅ FIX: User just verified email during signup
       isPhoneVerified: false, // Phone not verified yet
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Copy recovery key data from pending user
+      recoveryKeyHash: pendingUser.recoveryKeyHash || null,
+      masterKeyEncrypted: pendingUser.masterKeyEncrypted || null,
     },
   });
 

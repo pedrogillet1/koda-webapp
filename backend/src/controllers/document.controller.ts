@@ -127,26 +127,84 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
     const file = fileArray[0];
     const thumbnail = thumbnailArray && thumbnailArray.length > 0 ? thumbnailArray[0] : undefined;
 
-    const { folderId, fileHash, filename, relativePath } = req.body;
+    const {
+      folderId,
+      fileHash,
+      filename,
+      relativePath,
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Extract encryption metadata
+      isEncrypted,
+      encryptionSalt,
+      encryptionIV,
+      encryptionAuthTag,
+      filenameEncrypted,
+      originalMimeType,
+      originalFilename,
+      // ⚡ TEXT EXTRACTION: Encrypted text and plaintext for embeddings
+      extractedTextEncrypted,
+      plaintextForEmbeddings
+    } = req.body;
 
     if (!fileHash) {
       res.status(400).json({ error: 'File hash is required' });
       return;
     }
 
-    // Use filename from request body (properly encoded from frontend) or fallback to multer's filename
-    // Normalize to NFC form to handle special characters like ç correctly
-    const finalFilename = (filename || file.originalname).normalize('NFC');
+    // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Handle encrypted files
+    let finalFilename: string;
+    let finalMimeType: string;
+    let encryptionMetadata: any = undefined;
+
+    if (isEncrypted === 'true') {
+      console.log('🔐 [Encryption] Receiving encrypted file');
+
+      // Parse encrypted filename object
+      const parsedFilenameEncrypted = filenameEncrypted ? JSON.parse(filenameEncrypted) : null;
+
+      // Parse encrypted text object (if provided)
+      const parsedExtractedTextEncrypted = extractedTextEncrypted ? JSON.parse(extractedTextEncrypted) : null;
+
+      // Use original filename for display
+      finalFilename = (originalFilename || file.originalname).normalize('NFC');
+
+      // Use original MIME type for file type detection
+      finalMimeType = originalMimeType || file.mimetype;
+
+      // Prepare encryption metadata for storage
+      encryptionMetadata = {
+        isEncrypted: true,
+        encryptionSalt,
+        encryptionIV,
+        encryptionAuthTag,
+        filenameEncrypted: parsedFilenameEncrypted,
+        extractedTextEncrypted: parsedExtractedTextEncrypted, // Store encrypted text
+      };
+
+      console.log('✅ [Encryption] Metadata extracted:', {
+        filename: finalFilename,
+        mimeType: finalMimeType,
+        hasMetadata: !!encryptionMetadata,
+        hasExtractedText: !!parsedExtractedTextEncrypted,
+        hasPlaintext: !!plaintextForEmbeddings
+      });
+    } else {
+      // Use filename from request body (properly encoded from frontend) or fallback to multer's filename
+      // Normalize to NFC form to handle special characters like ç correctly
+      finalFilename = (filename || file.originalname).normalize('NFC');
+      finalMimeType = file.mimetype;
+    }
 
     const document = await documentService.uploadDocument({
       userId: req.user.id,
       filename: finalFilename,
       fileBuffer: file.buffer,
-      mimeType: file.mimetype,
+      mimeType: finalMimeType,
       folderId: folderId || undefined,
       fileHash,
       thumbnailBuffer: thumbnail?.buffer,
       relativePath: relativePath || undefined,
+      encryptionMetadata, // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Pass encryption metadata
+      plaintextForEmbeddings: plaintextForEmbeddings || undefined, // ⚡ TEXT EXTRACTION: Pass plaintext for embeddings
     });
 
     // Invalidate document list cache

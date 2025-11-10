@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import api from '../services/api';
+import { encryptData, decryptData } from '../utils/encryption';
+import { useAuth } from './AuthContext';
 
 const DocumentsContext = createContext();
 
@@ -13,6 +15,7 @@ export const useDocuments = () => {
 };
 
 export const DocumentsProvider = ({ children }) => {
+  const { encryptionPassword } = useAuth(); // ⚡ ZERO-KNOWLEDGE ENCRYPTION
   const [documents, setDocuments] = useState([]);
   const [folders, setFolders] = useState([]);
   const [recentDocuments, setRecentDocuments] = useState([]);
@@ -61,7 +64,31 @@ export const DocumentsProvider = ({ children }) => {
       // IMPORTANT: Pass includeAll=true to get ALL folders (including subfolders)
       // This is required for recursive document counting to work properly
       const response = await api.get(`/api/folders?includeAll=true&_t=${timestamp}`);
-      const fetchedFolders = response.data.folders || [];
+      let fetchedFolders = response.data.folders || [];
+
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Decrypt folder names
+      if (encryptionPassword && fetchedFolders.length > 0) {
+        fetchedFolders = await Promise.all(
+          fetchedFolders.map(async (folder) => {
+            if (folder.nameEncrypted && folder.encryptionSalt) {
+              try {
+                const encryptedData = {
+                  salt: folder.encryptionSalt,
+                  iv: folder.encryptionIV,
+                  ciphertext: folder.nameEncrypted,
+                  authTag: folder.encryptionAuthTag,
+                };
+                const decryptedName = await decryptData(encryptedData, encryptionPassword);
+                return { ...folder, name: decryptedName };
+              } catch (error) {
+                console.error('❌ [Decryption] Failed to decrypt folder name:', error);
+                return folder; // Return original if decryption fails
+              }
+            }
+            return folder;
+          })
+        );
+      }
 
       console.log('\n🗂️ FETCHED FOLDERS:', fetchedFolders.length, 'total');
       fetchedFolders.forEach(f => {
@@ -78,7 +105,7 @@ export const DocumentsProvider = ({ children }) => {
         return;
       }
     }
-  }, []);
+  }, [encryptionPassword]);
 
   // Fetch recent documents (use existing endpoint with limit)
   const fetchRecentDocuments = useCallback(async () => {
@@ -160,6 +187,14 @@ export const DocumentsProvider = ({ children }) => {
     const token = localStorage.getItem('accessToken');
     if (!token) return;
 
+    // Get user ID from localStorage (set during login)
+    const userStr = localStorage.getItem('user');
+    const userId = userStr ? JSON.parse(userStr).id : null;
+    if (!userId) {
+      console.warn('⚠️ No userId found in localStorage, cannot join user room');
+      return;
+    }
+
     console.log('🔌 Setting up WebSocket connection for real-time updates...');
 
     // Initialize socket connection
@@ -175,6 +210,10 @@ export const DocumentsProvider = ({ children }) => {
 
     socket.on('connect', () => {
       console.log('✅ WebSocket connected for real-time document updates');
+
+      // Join user-specific room for targeted events
+      socket.emit('join-user-room', userId);
+      console.log(`📡 Joined user room: user:${userId.substring(0, 8)}...`);
     });
 
     socket.on('disconnect', () => {
@@ -531,11 +570,32 @@ export const DocumentsProvider = ({ children }) => {
     setFolders(prev => [tempFolder, ...prev]);
 
     try {
-      const response = await api.post('/api/folders', {
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Encrypt folder name
+      let requestData = {
         name,
         emoji,
         parentFolderId
-      });
+      };
+
+      if (encryptionPassword) {
+        console.log('🔐 [Encryption] Encrypting folder name:', name);
+        const encryptedName = await encryptData(name, encryptionPassword);
+
+        requestData = {
+          name, // Send plaintext for backward compatibility
+          nameEncrypted: encryptedName.ciphertext,
+          encryptionSalt: encryptedName.salt,
+          encryptionIV: encryptedName.iv,
+          encryptionAuthTag: encryptedName.authTag,
+          isEncrypted: true,
+          emoji,
+          parentFolderId
+        };
+
+        console.log('✅ [Encryption] Folder name encrypted successfully');
+      }
+
+      const response = await api.post('/api/folders', requestData);
 
       const newFolder = response.data.folder;
 

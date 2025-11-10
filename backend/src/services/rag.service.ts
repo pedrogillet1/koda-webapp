@@ -126,7 +126,8 @@ export async function generateAnswerStream(
   query: string,
   conversationId: string,
   onChunk: (chunk: string) => void,
-  attachedDocumentId?: string
+  attachedDocumentId?: string,
+  conversationHistory?: Array<{ role: string; content: string }>
 ): Promise<{ sources: any[] }> {
   console.log('🚀 [DEBUG] generateAnswerStream called');
   console.log('🚀 [DEBUG] onChunk is function:', typeof onChunk === 'function');
@@ -193,7 +194,7 @@ export async function generateAnswerStream(
   // STEP 7: Regular Queries - Standard RAG
   // ──────────────────────────────────────────────────────────────────────────────
   console.log('📚 [REGULAR QUERY] Processing');
-  return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId);
+  return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory);
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -1100,7 +1101,8 @@ async function handleRegularQuery(
   query: string,
   conversationId: string,
   onChunk: (chunk: string) => void,
-  attachedDocumentId?: string
+  attachedDocumentId?: string,
+  conversationHistory?: Array<{ role: string; content: string }>
 ): Promise<void> {
   console.log('📚 [REGULAR QUERY] Starting RAG pipeline');
 
@@ -1273,20 +1275,48 @@ async function handleRegularQuery(
                         queryLang === 'fr' ? 'French' : 'English';
   console.log(`🌍 Detected query language: ${queryLangName} (Next step: "${nextStepText}")`);
 
+  // Build conversation history context
+  let conversationContext = '';
+  if (conversationHistory && conversationHistory.length > 1) {
+    // Only include history if there are previous messages (more than just the current query)
+    const recentHistory = conversationHistory.slice(-10); // Last 10 messages for context
+    conversationContext = '\n\nCONVERSATION HISTORY:\n' +
+      recentHistory.map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`).join('\n\n') +
+      '\n\nUse this conversation history to understand context and references (like "it", "that document", "the passport", etc.).\n';
+    console.log('💬 [CONVERSATION HISTORY] Including', recentHistory.length, 'previous messages for context');
+  }
+
   // System prompt
   const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌍 CRITICAL RULE #1: LANGUAGE DETECTION (HIGHEST PRIORITY - NEVER VIOLATE THIS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+THE USER'S QUERY IS IN: **${queryLangName.toUpperCase()}**
+
+YOU MUST RESPOND **100% IN ${queryLangName.toUpperCase()}** - NO EXCEPTIONS.
+
+RULES:
+1. ✅ If user asks in Portuguese → respond in Portuguese (even if document is in English)
+2. ✅ If user asks in English → respond in English (even if document is in Portuguese)
+3. ✅ If user asks in Spanish → respond in Spanish (even if document is in English)
+4. ✅ If user asks in French → respond in French (even if document is in English)
+5. ❌ NEVER respond in the document's language - ALWAYS respond in the query's language
+6. ❌ NEVER mix languages - use ONLY ${queryLangName}
+7. ❌ This applies to ALL text: opening paragraph, bullets, next step, EVERYTHING
+
+EXAMPLES:
+- User asks in Portuguese about English document → Respond in Portuguese ✅
+- User asks in English about Portuguese document → Respond in English ✅
+- User asks "quanto que e 23 x 24" (Portuguese) → Respond "O resultado de 23 multiplicado por 24 é 552." ✅
+- User asks "quanto que e 23 x 24" (Portuguese) → Respond "The result of 23 x 24 is 552." ❌ WRONG
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 RELEVANT CONTENT FROM USER'S DOCUMENTS:
 ${context}
-
-LANGUAGE DETECTION (CRITICAL - MOST IMPORTANT RULE):
-- The user's query is in ${queryLangName}
-- You MUST respond ENTIRELY in ${queryLangName}, regardless of the document's language
-- NEVER respond in the document's language - ALWAYS respond in the query's language
-- If user asks in English → respond in English (even if document is in Portuguese)
-- If user asks in Portuguese → respond in Portuguese (even if document is in English)
-- If user asks in Spanish → respond in Spanish (even if document is in English)
-- This rule applies to ALL text: opening paragraph, bullets, next step, everything
+${conversationContext}
 
 RESPONSE RULES:
 - Start with a brief intro (MAX 2 sentences)

@@ -5,7 +5,10 @@
   "dependencies": {
     "@clerk/clerk-react": "^5.49.1",
     "axios": "^1.12.2",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.546.0",
+    "mammoth": "^1.11.0",
+    "p-limit": "^7.2.0",
     "pdfjs-dist": "^3.11.174",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -19,7 +22,8 @@
     "rehype-raw": "^7.0.0",
     "remark-emoji": "^4.0.1",
     "remark-gfm": "^4.0.0",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "xlsx": "^0.18.5"
   },
   "scripts": {
     "start": "react-scripts start",

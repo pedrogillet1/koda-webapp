@@ -11,11 +11,25 @@ import cacheService from '../services/cache.service';
 export const createConversation = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { title } = req.body;
+    const {
+      title,
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Extract encryption metadata
+      titleEncrypted,
+      encryptionSalt,
+      encryptionIV,
+      encryptionAuthTag,
+      isEncrypted
+    } = req.body;
 
     const conversation = await chatService.createConversation({
       userId,
       title,
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Pass encryption metadata
+      titleEncrypted,
+      encryptionSalt,
+      encryptionIV,
+      encryptionAuthTag,
+      isEncrypted: isEncrypted === true || isEncrypted === 'true',
     });
 
     res.status(201).json(conversation);
@@ -92,7 +106,17 @@ export const sendMessage = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     let { conversationId } = req.params;
-    const { content, attachedDocumentId, answerLength } = req.body; // Phase 4D: Added answerLength
+    const {
+      content,
+      attachedDocumentId,
+      answerLength,
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Extract encryption metadata
+      contentEncrypted,
+      encryptionSalt,
+      encryptionIV,
+      encryptionAuthTag,
+      isEncrypted
+    } = req.body;
 
     if (!content || typeof content !== 'string') {
       res.status(400).json({ error: 'Message content is required' });
@@ -115,6 +139,12 @@ export const sendMessage = async (req: Request, res: Response) => {
       content,
       attachedDocumentId,
       answerLength, // Phase 4D: Pass answer length to chat service
+      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Pass encryption metadata
+      contentEncrypted,
+      encryptionSalt,
+      encryptionIV,
+      encryptionAuthTag,
+      isEncrypted: isEncrypted === true || isEncrypted === 'true',
     });
 
     // Invalidate conversation cache (new message added)

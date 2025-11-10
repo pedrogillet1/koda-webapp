@@ -221,75 +221,30 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       message: 'Document converted to markdown',
     });
 
-    // Step 3: Generate thumbnail for images and PDFs
-    console.log(`🖼️  Generating thumbnail...`);
-    let thumbnailUrl = null;
-
-    try {
-      if (imageProcessing.isImage(mimeType)) {
-        thumbnailUrl = await imageProcessing.generateAndUploadThumbnail(
-          fileBuffer,
-          userId,
-          documentId
-        );
-        console.log(`✅ Thumbnail generated: ${thumbnailUrl}`);
-      } else if (imageProcessing.isPDF(mimeType)) {
-        const pdfThumb = await imageProcessing.generatePDFThumbnail(fileBuffer);
-        if (pdfThumb) {
-          // Upload PDF thumbnail to GCS
-          const thumbFileName = `thumbnails/${userId}/${documentId}_thumb.jpg`;
-          await imageProcessing.generateAndUploadThumbnail(fileBuffer, userId, documentId);
-          thumbnailUrl = thumbFileName;
-          console.log(`✅ PDF thumbnail generated: ${thumbnailUrl}`);
-        }
-      }
-    } catch (error) {
-      console.warn(`⚠️  Thumbnail generation failed: ${(error as Error).message}`);
-    }
+    // Step 3: REMOVED - Thumbnail generation (performance optimization)
+    // Thumbnails are now generated on-demand or on the frontend
+    const thumbnailUrl = null;
 
     await job.updateProgress(75);
     emitProcessingUpdate(userId, documentId, {
       progress: 75,
-      stage: 'thumbnail-generated',
-      message: thumbnailUrl ? 'Thumbnail created' : 'Thumbnail skipped',
+      stage: 'thumbnail-skipped',
+      message: 'Thumbnail generation skipped for performance',
     });
 
-    // Step 4: Document classification and entity extraction
-    console.log(`🏷️  Classifying document...`);
-    let classification = 'unknown';
-    let entities = {};
-
-    try {
-      if (imageProcessing.isImage(mimeType)) {
-        const docInfo = await visionService.detectDocumentType(fileBuffer);
-        classification = docInfo.type;
-        entities = docInfo.entities;
-        console.log(`✅ Document classified as: ${classification}`);
-      } else {
-        // For non-image documents, use simple text-based classification
-        const lowerText = extractedText.toLowerCase();
-        if (lowerText.includes('invoice') || lowerText.includes('bill')) {
-          classification = 'invoice';
-        } else if (lowerText.includes('receipt')) {
-          classification = 'receipt';
-        } else if (lowerText.includes('contract')) {
-          classification = 'contract';
-        } else if (lowerText.includes('report')) {
-          classification = 'report';
-        }
-      }
-    } catch (error) {
-      console.warn(`⚠️  Classification failed: ${(error as Error).message}`);
-    }
+    // Step 4: REMOVED - Document classification (performance optimization)
+    // Classification can be done on-demand if needed
+    const classification = 'unknown';
+    const entities = {};
 
     await job.updateProgress(85);
     emitProcessingUpdate(userId, documentId, {
       progress: 85,
-      stage: 'classified',
-      message: `Document classified as: ${classification}`,
+      stage: 'classification-skipped',
+      message: 'Classification skipped for performance',
     });
 
-    // Step 5: Save metadata (entity extraction disabled temporarily)
+    // Step 5: Save metadata
     await job.updateProgress(95);
 
     // Step 6: Save metadata to database with explicit logging
@@ -431,7 +386,7 @@ if (documentQueue && redisConnection) {
           port: config.REDIS_PORT,
           password: config.REDIS_PASSWORD || undefined,
         },
-        concurrency: 5, // Process 5 documents simultaneously for 5x throughput
+        concurrency: 10, // Process 10 documents simultaneously for 10x throughput
       }
     );
 

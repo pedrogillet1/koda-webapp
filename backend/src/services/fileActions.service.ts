@@ -703,9 +703,22 @@ class FileActionsService {
         const document = await this.findDocumentByName(userId, params.filename);
         if (!document) {
           console.error(`❌ [MOVE FILE] File not found: "${params.filename}"`);
+
+          // List all user documents for debugging
+          const allDocs = await prisma.document.findMany({
+            where: { userId, status: { not: 'deleted' } },
+            select: { filename: true },
+            take: 10
+          });
+          console.error(`❌ [MOVE FILE] Available documents:`, allDocs.map(d => d.filename));
+
+          const availableList = allDocs.length > 0
+            ? `\n\nAvailable files:\n${allDocs.map(d => `• ${d.filename}`).join('\n')}`
+            : '';
+
           return {
             success: false,
-            message: `File "${params.filename}" not found`,
+            message: `File "${params.filename}" not found.${availableList}`,
             error: 'DOCUMENT_NOT_FOUND'
           };
         }
@@ -717,9 +730,22 @@ class FileActionsService {
         const folder = await this.findFolderByName(userId, params.targetFolder);
         if (!folder) {
           console.error(`❌ [MOVE FILE] Folder not found: "${params.targetFolder}"`);
+
+          // List all user folders for debugging
+          const allFolders = await prisma.folder.findMany({
+            where: { userId },
+            select: { name: true },
+            take: 10
+          });
+          console.error(`❌ [MOVE FILE] Available folders:`, allFolders.map(f => f.name));
+
+          const availableList = allFolders.length > 0
+            ? `\n\nAvailable folders:\n${allFolders.map(f => `• ${f.name}`).join('\n')}`
+            : '';
+
           return {
             success: false,
-            message: `Folder "${params.targetFolder}" not found`,
+            message: `Folder "${params.targetFolder}" not found.${availableList}`,
             error: 'FOLDER_NOT_FOUND'
           };
         }
