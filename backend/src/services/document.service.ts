@@ -1569,7 +1569,8 @@ async function processDocumentAsync(
     if (isDocx) {
       console.log('📄 Pre-generating PDF preview for DOCX...');
       try {
-        const { convertDocxToPdf } = await import('./docx-converter.service');
+        // REASON: Use the new universal office-converter service with enhanced flags and temp profile
+        // WHY: Provides more stable conversions with proper isolation
         const supabaseStorageService = await import('./supabaseStorage.service');
 
         // REASON: Use the correct PDF path format
@@ -1584,8 +1585,8 @@ async function processDocumentAsync(
           const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
           fs.writeFileSync(tempDocxPath, fileBuffer);
 
-          // Convert to PDF
-          const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
+          // Convert to PDF using the new universal converter
+          const conversion = await convertOfficeToPdf(tempDocxPath, os.tmpdir());
 
           if (conversion.success && conversion.pdfPath) {
             // Upload PDF to Supabase
@@ -2720,32 +2721,84 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
     'application/vnd.openxmlformats-officedocument.presentationml.presentation' // PPTX
   ].includes(document.mimeType);
 
-  // REASON: For Office documents, use the pre-converted PDF preview.
+  // REASON: For Office documents, use the pre-converted PDF preview when available.
   // WHY: This is the core of the fix. We check if a pdfPreviewPath exists in the metadata or document
-  //      and, if so, generate a signed URL for it. This is much faster and more reliable than on-demand conversion.
-  if (isOfficeDoc && (document.pdfPreviewPath || document.metadata?.pdfPreviewPath)) {
-    const pdfPath = document.pdfPreviewPath || document.metadata?.pdfPreviewPath;
-    console.log(`📄 Using pre-generated PDF preview: ${pdfPath}`);
-
-    const url = await getSignedUrl(pdfPath, 3600); // 1-hour expiry
-    return {
-      previewType: 'pdf',
-      previewUrl: url,
-      originalType: document.mimeType,
-      filename: document.filename,
-    };
-  }
-
-  // Fallback for Office documents without pre-generated PDF
+  //      and, if so, generate a signed URL for it. This is much faster and more reliable.
   if (isOfficeDoc) {
-    console.warn(`⚠️  No pre-generated PDF found for ${document.filename}. Document may need reprocessing.`);
-    return {
-      previewType: 'none',
-      previewUrl: null,
-      originalType: document.mimeType,
-      filename: document.filename,
-      message: 'Preview not available. Please try re-uploading this document.',
-    };
+    const pdfPath = document.pdfPreviewPath || document.metadata?.pdfPreviewPath;
+
+    if (pdfPath) {
+      console.log(`📄 Using pre-generated PDF preview: ${pdfPath}`);
+      const url = await getSignedUrl(pdfPath, 3600); // 1-hour expiry
+      return {
+        previewType: 'pdf',
+        previewUrl: url,
+        originalType: document.mimeType,
+        filename: document.filename,
+      };
+    }
+
+    // REASON: On-demand conversion as fallback for documents without pre-generated PDFs
+    // WHY: Ensures backward compatibility with older documents and provides a safety net
+    console.log(`📄 [Preview] PDF not found for ${document.filename}. Converting on-demand...`);
+    const pdfKey = `${userId}/${documentId}-preview.pdf`;
+    const tempDir = os.tmpdir();
+    const tempFilePath = path.join(tempDir, document.filename);
+
+    try {
+      // 1. Download the original file
+      let fileBuffer = await downloadFile(document.encryptedFilename);
+
+      // 2. Decrypt if necessary
+      if (document.isEncrypted) {
+        console.log('🔓 Decrypting file...');
+        const encryptionService = await import('./encryption.service');
+        fileBuffer = encryptionService.default.decryptFile(fileBuffer, `document-${userId}`);
+      }
+
+      fs.writeFileSync(tempFilePath, fileBuffer);
+
+      // 3. Convert to PDF using the universal converter
+      const conversion = await convertOfficeToPdf(tempFilePath, tempDir);
+
+      if (conversion.success && conversion.pdfPath) {
+        // 4. Upload the converted PDF for future use
+        const pdfBuffer = fs.readFileSync(conversion.pdfPath);
+        await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
+        console.log(`✅ [Preview] PDF created and uploaded to ${pdfKey}`);
+
+        // 5. Update document record with the new PDF path
+        await prisma.document.update({
+          where: { id: documentId },
+          data: { pdfPreviewPath: pdfKey }
+        });
+
+        // 6. Return signed URL
+        const signedUrl = await getSignedUrl(pdfKey, 3600);
+        return {
+          previewType: 'pdf',
+          previewUrl: signedUrl,
+          originalType: document.mimeType,
+          filename: document.filename,
+        };
+      } else {
+        throw new Error(`Failed to convert to PDF: ${conversion.error}`);
+      }
+    } catch (conversionError: any) {
+      console.error(`❌ [Preview] On-demand conversion failed: ${conversionError.message}`);
+      return {
+        previewType: 'none',
+        previewUrl: null,
+        originalType: document.mimeType,
+        filename: document.filename,
+        message: 'Preview conversion failed. Please try re-uploading this document.',
+      };
+    } finally {
+      // 7. Clean up temporary files
+      if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+      const convertedPdfPath = path.join(tempDir, `${path.basename(document.filename, path.extname(document.filename))}.pdf`);
+      if (fs.existsSync(convertedPdfPath)) fs.unlinkSync(convertedPdfPath);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
