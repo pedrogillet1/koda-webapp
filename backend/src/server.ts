@@ -146,6 +146,21 @@ io.on('connection', (socket) => {
         },
       });
 
+      // ✅ FIX: Create assistant message placeholder BEFORE streaming
+      // This prevents it from disappearing if user refreshes during streaming
+      const assistantMessagePlaceholder = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: '', // Empty initially
+          isDocument: false,
+          metadata: JSON.stringify({
+            status: 'streaming',
+            startedAt: new Date().toISOString()
+          }),
+        },
+      });
+
       // Use NEW Hybrid RAG service with streaming
       let fullResponse = '';
 
@@ -184,14 +199,14 @@ io.on('connection', (socket) => {
         actions: []
       };
 
-      // Save assistant message with RAG metadata
-      const assistantMessage = await prisma.message.create({
+      // ✅ FIX: Update placeholder message with final content instead of creating new one
+      const assistantMessage = await prisma.message.update({
+        where: { id: assistantMessagePlaceholder.id },
         data: {
-          conversationId,
-          role: 'assistant',
           content: result.answer,
-          isDocument: false,
           metadata: JSON.stringify({
+            status: 'complete',
+            completedAt: new Date().toISOString(),
             ragSources: result.sources,
             expandedQuery: result.expandedQuery,
             contextId: result.contextId,

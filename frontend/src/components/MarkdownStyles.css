@@ -164,7 +164,7 @@
 }
 
 .markdown-table thead {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  background: #000000 !important;
   color: white !important;
 }
 

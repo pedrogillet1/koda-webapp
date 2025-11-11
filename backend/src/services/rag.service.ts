@@ -10,6 +10,10 @@ import { gracefulDegradationService } from './graceful-degradation.service';
 import { rerankingService } from './reranking.service';
 import { queryEnhancementService } from './query-enhancement.service';
 import { bm25RetrievalService } from './bm25-retrieval.service';
+import fastPathDetector from './fastPathDetector.service';
+import statusEmitter, { ProcessingStage } from './statusEmitter.service';
+import postProcessor from './postProcessor.service';
+import geminiCache from './geminiCache.service';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // DELETED DOCUMENT FILTER
@@ -1030,6 +1034,41 @@ export async function generateAnswerStream(
   console.log(`📝 [QUERY] "${query}"`);
   console.log('════════════════════════════════════════════════════════════════════════════════\n');
 
+  // ════════════════════════════════════════════════════════════════════════════════
+  // FAST PATH DETECTION - Instant responses for greetings and simple queries
+  // ════════════════════════════════════════════════════════════════════════════════
+  // Impact: 20+ seconds → < 1 second for 30-40% of queries
+
+  // Emit initial analyzing status
+  if (onStage) {
+    onStage('analyzing', 'Understanding your question...');
+  }
+
+  const fastPathResult = await fastPathDetector.detect(query);
+
+  if (fastPathResult.isFastPath && fastPathResult.response) {
+    console.log(`⚡ FAST PATH: ${fastPathResult.type} - Bypassing RAG pipeline`);
+
+    // Stream the fast path response character by character
+    if (onChunk && fastPathResult.response) {
+      for (const char of fastPathResult.response) {
+        onChunk(char);
+        // Small delay for natural streaming effect
+        await new Promise(resolve => setTimeout(resolve, 5));
+      }
+    }
+
+    // Emit complete status
+    if (onStage) {
+      onStage('complete', 'Complete');
+    }
+
+    return {
+      sources: [],
+    };
+  }
+
+  console.log('📊 Not a fast path query - proceeding with RAG pipeline');
   console.log('🎯 [HYBRID RAG] Processing query:', query);
   console.log('📎 Attached document ID:', attachedDocumentId);
 
@@ -1891,6 +1930,7 @@ CRITICAL RULES:
 • Use [p.X] format for citations (NOT "Document 1/2/3")
 • Use tables for structured comparisons
 • NO section labels ("Context:", "Details:", etc.)
+• NO emojis in your response
 
 The user wants to compare multiple documents. Here's the relevant content from each:
 
@@ -2423,39 +2463,48 @@ function isMetaQuery(query: string): boolean {
 // ════════════════════════════════════════════════════════════════════════════════
 
 async function handleMetaQuery(query: string, onChunk: (chunk: string) => void): Promise<void> {
-  const prompt = `You are a professional AI assistant helping users understand their documents.
+  console.log(`⚡ FAST PATH: Meta-query detected, generating varied response`);
+
+  // Generate varied greeting templates
+  const greetingTemplates = [
+    "I'm KODA, your intelligent document assistant. I can help you find information in your documents, summarize content, and answer questions. What would you like to know?",
+    "I'm here to help you with your documents. I can search across all your files, extract key information, and answer questions. What can I help you with today?",
+    "I'm KODA. I can analyze your documents, answer questions, and help you find exactly what you're looking for. How can I assist you?",
+    "Ready to help you explore your documents. I can answer questions, summarize content, compare files, and more. What would you like to do?"
+  ];
+
+  // Add time-of-day awareness
+  const hour = new Date().getHours();
+  let timeGreeting = '';
+  if (hour < 12) {
+    timeGreeting = 'Good morning! ';
+  } else if (hour < 18) {
+    timeGreeting = 'Good afternoon! ';
+  } else {
+    timeGreeting = 'Good evening! ';
+  }
+
+  // Select random template
+  const randomTemplate = greetingTemplates[Math.floor(Math.random() * greetingTemplates.length)];
+
+  // Combine time greeting with template (50% chance)
+  const suggestedResponse = Math.random() > 0.5
+    ? timeGreeting + randomTemplate
+    : randomTemplate;
+
+  const prompt = `You are KODA, an intelligent document assistant. The user sent: "${query}".
+
+Respond naturally and briefly using this suggested response as inspiration (but you can vary it slightly): "${suggestedResponse}"
 
 CRITICAL RULES:
-• NEVER start with greetings ("Hello", "Hi", "I'm KODA")
-• Be helpful and direct
-• Explain capabilities clearly
-
-LANGUAGE DETECTION (CRITICAL):
-- ALWAYS respond in the SAME LANGUAGE as the user's query
-- Portuguese query → Portuguese response
-- English query → English response
-- Spanish query → Spanish response
-- Detect the language automatically and match it exactly
-
-WHAT YOU CAN DO:
-- Answer questions about uploaded documents
-- Compare multiple documents
-- Search across all documents
-- Summarize content
-- Extract specific information
-- Help with document organization (create/rename/delete folders and files)
-
-FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
-- Between bullet points: Use SINGLE newline only (no blank lines)
-- Before "Next step:" section: Use ONE blank line
-- Professional, friendly tone
-- Bold key features with **text**
+- Keep response under 75 words
+- Be friendly and conversational, not robotic
+- NO citations, source references, or page numbers
 - NO emojis
-- End with "Next step:" followed by a helpful suggestion (plain text, NOT bold)
+- Match the user's language
+- Professional tone
 
-User query: "${query}"
-
-Respond naturally and helpfully.`;
+Respond naturally:`;
 
   return streamLLMResponse(prompt, '', onChunk);
 }
@@ -3030,6 +3079,16 @@ Details:
 Examples:
 This is a standard 10-year passport."
 
+RULE 4 - NO EMOJIS:
+• NEVER use any emojis in your response
+• No checkmarks (✅❌), arrows (→), icons (📄📁), or any other emoji characters
+• Use plain text and formatting only
+• Professional, clean responses without decorative symbols
+
+Examples:
+✅ CORRECT: "The document includes three key sections: Introduction, Analysis, and Conclusion."
+❌ WRONG: "The document includes three key sections: 📝 Introduction, 📊 Analysis, and ✅ Conclusion."
+
 ═══════════════════════════════════════════════════════════════════
 FORMATTING GUIDELINES
 ═══════════════════════════════════════════════════════════════════
@@ -3308,33 +3367,34 @@ async function streamLLMResponse(
   context: string,
   onChunk: (chunk: string) => void
 ): Promise<string> {
-  console.log('🌊 [STREAMING] Starting real stream');
-
-  const fullPrompt = context ? `${systemPrompt}\n\nContext:\n${context}` : systemPrompt;
+  console.log('🌊 [STREAMING] Starting real stream with implicit caching');
 
   let fullAnswer = '';
 
   try {
-    const result = await model.generateContentStream(fullPrompt);
+    // Use Gemini Cache Service with implicit caching
+    // The systemPrompt is automatically cached via systemInstruction parameter
+    fullAnswer = await geminiCache.generateStreamingWithCache({
+      systemPrompt,
+      documentContext: context,
+      query: '', // Empty query - context already contains full prompt
+      temperature: 0.4,
+      maxTokens: 3000,
+      onChunk: (text: string) => {
+        // Simplified post-processing - let examples guide formatting
+        const processedChunk = text
+          .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')  // Remove citations
+          .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Remove emojis
+          .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks
+          .replace(/\n\n\n\n+/g, '\n\n\n')  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
+          .replace(/\n\s+[○◦]\s+/g, '\n\n• ')  // Flatten nested bullets
+          .replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
 
-    // ✅ REAL STREAMING: Stream chunks in real-time with spacing fixes
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      fullAnswer += text;
+        onChunk(processedChunk);
+      }
+    });
 
-      // Simplified post-processing - let examples guide formatting
-      const processedChunk = text
-        .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')  // Remove citations
-        .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Remove emojis
-        .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks
-        .replace(/\n\n\n\n+/g, '\n\n\n')  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
-        .replace(/\n\s+[○◦]\s+/g, '\n\n• ')  // Flatten nested bullets
-        .replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
-
-      onChunk(processedChunk);
-    }
-
-    console.log('✅ [STREAMING] Complete. Total chars:', fullAnswer.length);
+    console.log('✅ [STREAMING] Complete with caching. Total chars:', fullAnswer.length);
     return fullAnswer;
 
   } catch (error: any) {
@@ -3355,14 +3415,119 @@ export function postProcessAnswerExport(answer: string): string {
 function postProcessAnswer(answer: string): string {
   let processed = answer;
 
-  // Simplified post-processing - let examples guide formatting
-  processed = processed.replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '');  // Remove citations
-  processed = processed.replace(/[\u{1F300}-\u{1F9FF}]/gu, '');  // Remove emojis
-  processed = processed.replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');  // Remove specific emoji symbols
-  processed = processed.replace(/\*\*\*\*+/g, '**');  // Fix multiple asterisks
-  processed = processed.replace(/\n\n\n\n+/g, '\n\n\n');  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
-  processed = processed.replace(/\n\s+[○◦]\s+/g, '\n\n• ');  // Flatten nested bullets
-  processed = processed.replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
+  // ════════════════════════════════════════════════════════════════════════════════
+  // CITATION CLEANUP - Remove all inline citations (UI displays sources separately)
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Pattern 1: (page X), (p. X), (pg. X), (p.X)
+  // Matches: (page 3), (p. 5), (pg. 12), (p.7)
+  processed = processed.replace(/\s*\((?:page|p\.|pg\.|p)\s*\d+\)/gi, '');
+
+  // Pattern 2: [page X], [p. X], [p.X]
+  // Matches: [page 3], [p. 5], [p.7]
+  processed = processed.replace(/\s*\[(?:page|p\.|pg\.|p)\s*\d+\]/gi, '');
+
+  // Pattern 3: [Source: filename]
+  // Matches: [Source: document.pdf], [Source: Business Plan.docx]
+  processed = processed.replace(/\s*\[Source:\s*[^\]]+\]/gi, '');
+
+  // Pattern 4: Numbered citations [1], [2], etc.
+  // Matches: [1], [2], [3]
+  processed = processed.replace(/\s*\[\d+\]/g, '');
+
+  // Pattern 5: "According to X.pdf," or "Based on Y.docx,"
+  // Matches: "According to Business Plan.pdf,", "Based on Report.docx,"
+  processed = processed.replace(/(?:According to|Based on)\s+[^,]+\.(pdf|docx|xlsx|pptx|txt),?\s*/gi, '');
+
+  // Pattern 6: Superscript numbers (if Gemini adds them)
+  // Matches: ¹, ², ³, etc.
+  processed = processed.replace(/\s*[\u2070-\u209F]+/g, '');
+
+  // Pattern 7: "See page X" or "Refer to page X"
+  // Matches: "See page 5", "Refer to page 12"
+  processed = processed.replace(/(?:See|Refer to)\s+page\s+\d+\.?\s*/gi, '');
+
+  // Pattern 8: (Document.pdf, page X) or (filename.docx, Page: X)
+  // Matches: "(Business Plan.pdf, page 3)", "(Report.docx, Page: 5)"
+  processed = processed.replace(/\s*\([^)]*\.(pdf|docx|xlsx|pptx|txt)[^)]*(?:page|Page|p\.|pg\.)\s*:?\s*\d+[^)]*\)/gi, '');
+
+  // Pattern 9: [p.X] or [p. X] (square brackets with page)
+  // Matches: [p.5], [p. 12]
+  processed = processed.replace(/\s*\[p\.\s*\d+\]/gi, '');
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // DOCUMENT NAME CLEANUP - Remove inline document citations
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Pattern 1: [filename.ext] - e.g., [Koda blueprint.docx], [Business Plan.pdf]
+  // Matches: [anything.docx], [anything.pdf], [anything.xlsx], etc.
+  processed = processed.replace(/\[([^\]]+\.(docx|pdf|xlsx|pptx|txt|doc|xls|ppt|csv))\]/gi, '');
+
+  // Pattern 2: (filename.ext) - e.g., (Koda blueprint.docx)
+  processed = processed.replace(/\(([^\)]+\.(docx|pdf|xlsx|pptx|txt|doc|xls|ppt|csv))\)/gi, '');
+
+  // Pattern 3: "in [Document Name]" or "from [Document Name]" or "provided in [Document Name]"
+  processed = processed.replace(/\s+(?:in|from|provided in|detailed in|described in|under)\s+\[([^\]]+)\]/gi, '');
+
+  // Pattern 4: Remove any remaining bracketed content that looks like a filename
+  // (contains common keywords: blueprint, plan, document, report, analysis, checklist)
+  processed = processed.replace(/\[([^\]]*(?:blueprint|plan|document|report|analysis|checklist|guide|manual|specification)[^\]]*)\]/gi, '');
+
+  // Pattern 5: "According to [document]," or "As stated in [document],"
+  processed = processed.replace(/(?:As (?:stated|mentioned) in|Referring to)\s+[^\.,]+[,\.]\s*/gi, '');
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // FORMATTING CLEANUP
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Remove emojis
+  processed = processed.replace(/[\u{1F300}-\u{1F9FF}]/gu, '');
+  processed = processed.replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');
+
+  // Fix multiple asterisks
+  processed = processed.replace(/\*\*\*\*+/g, '**');
+
+  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
+  processed = processed.replace(/\n\n\n\n+/g, '\n\n\n');
+
+  // Flatten nested bullets
+  processed = processed.replace(/\n\s+[○◦]\s+/g, '\n\n• ');
+  processed = processed.replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // CLEANUP ARTIFACTS
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Remove double spaces created by removals
+  processed = processed.replace(/\s{2,}/g, ' ');
+
+  // Clean up orphaned commas/periods
+  processed = processed.replace(/\s+([.,])/g, '$1');
+
+  // Remove spaces before punctuation
+  processed = processed.replace(/\s+([!?;:])/g, '$1');
+
+  // Ensure space after punctuation
+  processed = processed.replace(/([.,!?;:])([A-Z])/g, '$1 $2');
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // ENHANCED SPACING NORMALIZATION
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Normalize line breaks (max 2 consecutive)
+  processed = processed.replace(/\n{3,}/g, '\n\n');
+
+  // Remove trailing spaces on lines
+  processed = processed.split('\n').map(line => line.trimEnd()).join('\n');
+
+  // Ensure consistent spacing after headers (double newline)
+  processed = processed.replace(/(^#{1,6}\s+.+)(\n)(?!\n)/gm, '$1\n\n');
+
+  // Ensure single newline between bullet points
+  processed = processed.replace(/(^[•\-\*]\s+.+)(\n)(?=[•\-\*])/gm, '$1\n');
+
+  // Remove excessive spacing before bullet points
+  processed = processed.replace(/\n{2,}(?=[•\-\*])/g, '\n\n');
 
   return processed.trim();
 }

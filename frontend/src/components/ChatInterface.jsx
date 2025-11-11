@@ -329,7 +329,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 const stoppedMessage = {
                     id: `stopped-${Date.now()}`,
                     role: 'assistant',
-                    content: '⏸️ **Stopped Searching**',
+                    content: '**Stopped Searching**',
                     createdAt: new Date().toISOString(),
                 };
                 setMessages((prev) => [...prev, stoppedMessage]);
@@ -505,6 +505,18 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     useEffect(() => {
         inputRef.current?.focus();
     }, []);
+
+    // Auto-resize textarea as user types
+    useEffect(() => {
+        if (inputRef.current) {
+            // Reset height to auto to get the correct scrollHeight
+            inputRef.current.style.height = 'auto';
+
+            // Set height based on scrollHeight, with max limit
+            const newHeight = Math.min(inputRef.current.scrollHeight, 200);
+            inputRef.current.style.height = `${newHeight}px`;
+        }
+    }, [message]);
 
     // Focus input when conversation changes
     useEffect(() => {
@@ -891,7 +903,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         const stoppedMessage = {
             id: `stopped-${Date.now()}`,
             role: 'assistant',
-            content: '⏸️ **Stopped Searching**',
+            content: '**Stopped Searching**',
             createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, stoppedMessage]);
@@ -2919,9 +2931,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         cursor: 'text'
                     }}
                 >
-                    <input
+                    <textarea
                         ref={inputRef}
-                        type="text"
                         placeholder="Ask KODA anything..."
                         value={message}
                         onChange={(e) => {
@@ -2931,6 +2942,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             localStorage.setItem(`koda_draft_${currentConversation?.id || 'new'}`, newValue);
                         }}
                         onPaste={handlePaste}
+                        onKeyDown={(e) => {
+                            // Submit on Enter (without Shift)
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSendMessage();
+                            }
+                            // Allow Shift+Enter for new lines (default behavior)
+                        }}
                         onFocus={(e) => {
                             // Always allow focus, even if disabled
                             if (e.target.disabled) {
@@ -2938,6 +2957,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             }
                         }}
                         autoFocus
+                        rows={1}
                         style={{
                             flex: '1 1 0',
                             background: 'transparent',
@@ -2945,10 +2965,19 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             outline: 'none',
                             fontSize: 16,
                             color: '#32302C',
-                            cursor: 'text'
+                            cursor: 'text',
+                            resize: 'none',
+                            overflow: 'auto',
+                            minHeight: '24px',
+                            maxHeight: '200px',
+                            lineHeight: '24px',
+                            fontFamily: 'inherit',
+                            transition: 'height 0.1s ease',
+                            padding: 0,
+                            margin: 0
                         }}
                     />
-                    <div style={{display: 'flex', gap: 6}}>
+                    <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
                         <input
                             ref={fileInputRef}
                             type="file"
@@ -2959,7 +2988,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         />
                         <AttachmentIcon
                             onClick={() => fileInputRef.current?.click()}
-                            style={{width: 24, height: 24, color: '#171717', cursor: 'pointer'}}
+                            style={{width: 24, height: 24, color: '#171717', cursor: 'pointer', flexShrink: 0}}
                         />
                         <VoiceInput
                             onTranscript={handleVoiceTranscript}

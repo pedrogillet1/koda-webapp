@@ -1459,15 +1459,33 @@ const DocumentViewer = () => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
               <button
-                onClick={async () => {
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  console.log('Download button clicked');
                   if (document) {
                     try {
-                      // Call the download endpoint to get the original file
+                      // Call the download endpoint to get the signed URL
                       const response = await api.get(`/api/documents/${document.id}/download`);
-                      const downloadUrl = response.data.url;
+                      const signedUrl = response.data.url;
 
-                      // Use Safari-aware download function with the original file URL
-                      safariDownloadFile(downloadUrl, document.filename);
+                      // Fetch the file as a blob to avoid CORS issues with download attribute
+                      const fileResponse = await fetch(signedUrl);
+                      const blob = await fileResponse.blob();
+
+                      // Create object URL and trigger download
+                      const blobUrl = URL.createObjectURL(blob);
+                      const link = document.createElement('a');
+                      link.href = blobUrl;
+                      link.download = document.filename;
+                      link.style.display = 'none';
+                      document.body.appendChild(link);
+                      link.click();
+
+                      // Clean up
+                      setTimeout(() => {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(blobUrl);
+                      }, 100);
                     } catch (error) {
                       console.error('Download error:', error);
                       alert('Failed to download document');
@@ -1489,7 +1507,7 @@ const DocumentViewer = () => {
                   gap: 8
                 }}
               >
-                <DownloadIcon style={{ width: 20, height: 20 }} />
+                <DownloadIcon style={{ width: 20, height: 20, pointerEvents: 'none' }} />
                 Download Document
               </button>
             </div>
@@ -1515,7 +1533,11 @@ const DocumentViewer = () => {
                 gap: 10
               }}>
                 <button
-                  onClick={() => handleExport('pdf')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('Export PDF clicked');
+                    handleExport('pdf');
+                  }}
                   style={{
                     width: '100%',
                     padding: 12,
@@ -1534,20 +1556,24 @@ const DocumentViewer = () => {
                     gap: 8
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.background = '#F9FAFB';
-                    e.target.style.borderColor = '#D1D5DB';
+                    e.currentTarget.style.background = '#F9FAFB';
+                    e.currentTarget.style.borderColor = '#D1D5DB';
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.background = 'white';
-                    e.target.style.borderColor = '#E6E6EC';
+                    e.currentTarget.style.background = 'white';
+                    e.currentTarget.style.borderColor = '#E6E6EC';
                   }}
                 >
-                  <img src={pdfIcon} alt="PDF" style={{ width: 30, height: 30, display: 'block' }} />
+                  <img src={pdfIcon} alt="PDF" style={{ width: 30, height: 30, display: 'block', pointerEvents: 'none' }} />
                   Export as PDF
                 </button>
 
                 <button
-                  onClick={() => handleExport('docx')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('Export DOCX clicked');
+                    handleExport('docx');
+                  }}
                   style={{
                     width: '100%',
                     padding: 12,
@@ -1566,15 +1592,15 @@ const DocumentViewer = () => {
                     gap: 8
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.background = '#F9FAFB';
-                    e.target.style.borderColor = '#D1D5DB';
+                    e.currentTarget.style.background = '#F9FAFB';
+                    e.currentTarget.style.borderColor = '#D1D5DB';
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.background = 'white';
-                    e.target.style.borderColor = '#E6E6EC';
+                    e.currentTarget.style.background = 'white';
+                    e.currentTarget.style.borderColor = '#E6E6EC';
                   }}
                 >
-                  <img src={docIcon} alt="DOCX" style={{ width: 30, height: 30, display: 'block' }} />
+                  <img src={docIcon} alt="DOCX" style={{ width: 30, height: 30, display: 'block', pointerEvents: 'none' }} />
                   Export as DOCX
                 </button>
 

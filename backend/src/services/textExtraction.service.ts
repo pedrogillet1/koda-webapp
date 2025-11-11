@@ -130,25 +130,89 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
     const parser = new PDFParse({ data: buffer });
     const data = await parser.getText();
 
-    // If no text found, might be a scanned PDF - use OCR
-    if (!data.text || data.text.trim().length === 0) {
-      console.log('📄 PDF appears to be scanned, using OCR with preprocessing...');
-      const ocrResult = await visionService.extractTextFromScannedPDF(buffer);
+    // ════════════════════════════════════════════════════════════════════════════════
+    // IMPROVED SCANNED PDF DETECTION
+    // ════════════════════════════════════════════════════════════════════════════════
 
-      // Post-process the OCR text
-      const cleanedText = postProcessOCRText(ocrResult.text);
+    const hasText = data.text && data.text.trim().length > 0;
+    const avgCharsPerPage = hasText ? data.text.length / data.numpages : 0;
 
-      return {
-        text: cleanedText,
-        confidence: ocrResult.confidence,
-        pageCount: data.numpages,
-        wordCount: cleanedText.split(/\s+/).filter((w: any) => w.length > 0).length,
-        language: ocrResult.language,
-      };
+    // Consider PDF scanned if:
+    // 1. No text at all, OR
+    // 2. Less than 100 characters per page (likely just page numbers/headers)
+    const isLikelyScanned = avgCharsPerPage < 100;
+
+    // Use OCR if no text or low character density
+    if (!hasText || isLikelyScanned) {
+      const reason = !hasText
+        ? 'no text found'
+        : `low text density (${avgCharsPerPage.toFixed(0)} chars/page, threshold: 100)`;
+
+      console.log(`📄 PDF appears to be scanned (${reason}), using OCR with preprocessing...`);
+      console.log(`📊 PDF Analysis:`, {
+        totalPages: data.numpages,
+        totalChars: data.text?.length || 0,
+        avgCharsPerPage: avgCharsPerPage.toFixed(2),
+        isScanned: isLikelyScanned,
+        reason: reason
+      });
+
+      try {
+        const ocrResult = await visionService.extractTextFromScannedPDF(buffer);
+
+        // Verify OCR returned valid text
+        if (!ocrResult || !ocrResult.text || ocrResult.text.trim().length === 0) {
+          console.warn('⚠️  OCR returned empty text, falling back to native extraction');
+
+          // Return whatever text we have, even if minimal
+          return {
+            text: data.text || '',
+            confidence: 0.3,
+            pageCount: data.numpages,
+            wordCount: data.text ? data.text.split(/\s+/).length : 0,
+          };
+        }
+
+        // Post-process the OCR text to fix common errors
+        const cleanedText = postProcessOCRText(ocrResult.text);
+
+        console.log(`📊 OCR Results:`, {
+          extractedChars: cleanedText.length,
+          extractedWords: cleanedText.split(/\s+/).length,
+          confidence: ocrResult.confidence?.toFixed(2),
+          language: ocrResult.language,
+          avgCharsPerPage: (cleanedText.length / data.numpages).toFixed(2)
+        });
+        console.log(`✅ OCR successful: ${cleanedText.length} chars, ${cleanedText.split(/\s+/).length} words, confidence: ${ocrResult.confidence?.toFixed(2)}`);
+
+        return {
+          text: cleanedText,
+          confidence: ocrResult.confidence,
+          pageCount: data.numpages,
+          wordCount: cleanedText.split(/\s+/).filter((w: any) => w.length > 0).length,
+          language: ocrResult.language,
+        };
+      } catch (ocrError) {
+        console.error(`❌ OCR failed: ${(ocrError as Error).message}`);
+
+        // Fallback to whatever text we have
+        return {
+          text: data.text || '',
+          confidence: 0.5,
+          pageCount: data.numpages,
+          wordCount: data.text ? data.text.split(/\s+/).length : 0,
+        };
+      }
     }
 
-    // Native text extraction - apply basic cleanup
+    // ════════════════════════════════════════════════════════════════════════════════
+    // NATIVE TEXT EXTRACTION (PDF has text layer)
+    // ════════════════════════════════════════════════════════════════════════════════
+
+    // Apply basic cleanup even for native text
     const cleanedText = postProcessOCRText(data.text);
+
+    console.log(`✅ Native PDF text extraction: ${cleanedText.length} chars, ${cleanedText.split(/\s+/).length} words, ${avgCharsPerPage.toFixed(0)} chars/page`);
 
     return {
       text: cleanedText,
@@ -156,9 +220,31 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
       wordCount: cleanedText.split(/\s+/).filter((w: any) => w.length > 0).length,
       confidence: 1.0, // Native text extraction has 100% confidence
     };
-  } catch (error) {
-    console.error('Error extracting text from PDF:', error);
-    throw new Error('Failed to extract text from PDF');
+  } catch (error: any) {
+    console.error('❌ PDF text extraction failed:', error.message);
+
+    // ════════════════════════════════════════════════════════════════════════════════
+    // FALLBACK: Try OCR even if parsing failed
+    // ════════════════════════════════════════════════════════════════════════════════
+
+    console.log('🔄 Attempting OCR as fallback...');
+
+    try {
+      const ocrResult = await visionService.extractTextFromScannedPDF(buffer);
+      const cleanedText = postProcessOCRText(ocrResult.text);
+
+      console.log(`✅ OCR fallback successful: ${cleanedText.length} chars`);
+
+      return {
+        text: cleanedText,
+        confidence: ocrResult.confidence,
+        wordCount: cleanedText.split(/\s+/).filter((w: any) => w.length > 0).length,
+        language: ocrResult.language,
+      };
+    } catch (ocrError: any) {
+      console.error('❌ OCR fallback also failed:', ocrError.message);
+      throw new Error(`Failed to extract text from PDF: ${error.message}`);
+    }
   }
 };
 

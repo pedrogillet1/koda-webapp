@@ -10,6 +10,7 @@ import cacheService from './cache.service';
 import encryptionService from './encryption.service';
 import pptxProcessorService from './pptxProcessor.service';
 import nerService from './ner.service';
+import fileValidator from './fileValidator.service';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -105,6 +106,30 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
     console.log(`🔐 Zero-Knowledge Encryption: YES (client-side encrypted)`);
   }
   console.log(`═══════════════════════════════════════════════════════\n`);
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // LAYER 2: SERVER-SIDE VALIDATION
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  console.log('🔍 Validating file...');
+
+  const validationResult = await fileValidator.validateServerSide(
+    fileBuffer,
+    mimeType,
+    filename
+  );
+
+  if (!validationResult.isValid) {
+    console.error(`❌ File validation failed: ${validationResult.error}`);
+
+    throw new Error(JSON.stringify({
+      code: validationResult.errorCode,
+      message: validationResult.error,
+      suggestion: validationResult.suggestion,
+    }));
+  }
+
+  console.log('✅ File validation passed');
 
   // If relativePath is provided AND contains folders (has /), create nested folders
   // Skip if it's just a filename without folder structure
