@@ -10,6 +10,7 @@ import { createSecureServer, createHTTPRedirectServer, getPortConfig, checkCerti
 import { startReminderScheduler } from './jobs/reminder.scheduler';
 import rbacService from './services/rbac.service';
 import prisma from './config/database';
+import websocketService from './services/websocket.service';
 
 const portConfig = getPortConfig();
 
@@ -39,6 +40,9 @@ export const io = new Server(httpServer, {
     allowedHeaders: ['Content-Type', 'Authorization'],
   },
 });
+
+// Initialize WebSocket service with Socket.IO instance
+websocketService.initialize(io);
 
 // WebSocket authentication middleware
 io.use((socket, next) => {
@@ -157,7 +161,15 @@ io.on('connection', (socket) => {
             conversationId: conversationId
           });
         },
-        data.attachedDocumentId // Use actual attached document ID (not answerLength!)
+        data.attachedDocumentId, // Use actual attached document ID
+        undefined, // conversationHistory (optional)
+        (stage: string, message: string) => {
+          // Emit stage updates for progress animation
+          io.to(`conversation:${conversationId}`).emit('message-stage', {
+            stage,
+            message
+          });
+        }
       );
 
       // ✅ CRITICAL: Apply post-processing to fullResponse before saving to database
