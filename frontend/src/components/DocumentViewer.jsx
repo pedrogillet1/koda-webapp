@@ -6,7 +6,6 @@ import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import SearchInDocumentModal from './SearchInDocumentModal';
 import MarkdownEditor from './MarkdownEditor';
-import PPTXPreview from './PPTXPreview';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as LogoutWhiteIcon } from '../assets/Logout-white.svg';
@@ -306,16 +305,15 @@ const DocumentViewer = () => {
     }
 
     // Microsoft Office documents
-    if (['doc', 'docx'].includes(extension)) {
-      return 'word';
+    // REASON: Consolidate DOCX and PPTX into a single 'office' type for preview purposes.
+    // WHY: Since both will be rendered as PDFs, we can treat them identically in the preview logic,
+    //      simplifying the code and ensuring consistent behavior.
+    if (['doc', 'docx', 'ppt', 'pptx'].includes(extension)) {
+      return 'office';
     }
 
     if (['xls', 'xlsx'].includes(extension)) {
       return 'excel';
-    }
-
-    if (['ppt', 'pptx'].includes(extension)) {
-      return 'powerpoint';
     }
 
     // Text files
@@ -714,7 +712,7 @@ const DocumentViewer = () => {
           <div style={{ color: '#323232', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px', wordWrap: 'break-word' }}>
             {(() => {
               const fileType = document ? getFileType(document.filename, document.mimeType) : 'unknown';
-              if (fileType === 'pdf' || fileType === 'word') {
+              if (fileType === 'pdf' || fileType === 'office') {
                 return numPages ? `${currentPage} of ${numPages} page${numPages > 1 ? 's' : ''}` : 'Loading...';
               }
               return '1 page';
@@ -843,8 +841,10 @@ const DocumentViewer = () => {
               }
 
               switch (fileType) {
-                case 'word': // DOCX - show as PDF (converted during upload)
-                  // DOCX files are converted to PDF on the backend and displayed as PDF
+                case 'office': // DOCX & PPTX - show as PDF (converted during upload)
+                  // REASON: Render the PDF viewer for the 'office' type.
+                  // WHY: This is where the unified preview is rendered. The standard PDF viewer component
+                  //      will now display the high-fidelity, pre-converted PDF for both Word and PowerPoint files.
                   return (
                     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
                       <Document
@@ -957,9 +957,6 @@ const DocumentViewer = () => {
 
                 case 'excel': // XLSX - show markdown editor
                   return <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />;
-
-                case 'powerpoint': // PPTX - show PPTX preview
-                  return <PPTXPreview document={document} zoom={zoom} />;
 
                 case 'pdf':
                   return (

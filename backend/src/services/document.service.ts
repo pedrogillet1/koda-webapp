@@ -11,6 +11,7 @@ import cacheService from './cache.service';
 import encryptionService from './encryption.service';
 import pptxProcessorService from './pptxProcessor.service';
 import nerService from './ner.service';
+import { convertOfficeToPdf } from './office-converter.service';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -373,22 +374,8 @@ async function processDocumentWithTimeout(
             console.warn(`⚠️ PowerPoint processor failed: ${pptxProcessResult.error}`);
           }
 
-          // 🆕 Convert PPTX to PDF for preview (synchronous, before document creation)
-          console.log('📄 Converting PPTX to PDF for preview...');
-          try {
-            const pptxToPdfService = (await import('./pptxToPdf.service')).default;
-            const pdfResult = await pptxToPdfService.convertToPdf(tempFilePath, userId);
-
-            if (pdfResult.success) {
-              pdfPreviewPath = pdfResult.pdfPath;
-              pdfPreviewUrl = pdfResult.pdfUrl;
-              console.log('✅ PDF preview created successfully');
-            } else {
-              console.warn(`⚠️ PDF preview generation failed: ${pdfResult.error}`);
-            }
-          } catch (pdfError: any) {
-            console.warn(`⚠️ PDF preview generation error: ${pdfError.message}`);
-          }
+          // NOTE: PDF preview generation now handled by unified office converter above
+          // This ensures consistent PDF generation for both DOCX and PPTX files
 
           // ✅ FIX: PROACTIVE image extraction approach - Always extract images first
           console.log('📊 Starting PPTX image processing in background...');
@@ -716,55 +703,39 @@ async function processDocumentWithTimeout(
       console.warn('⚠️ Markdown conversion failed (non-critical):', error);
     }
 
-    // PRE-GENERATE PDF FOR DOCX FILES (so viewing is instant)
+    // PRE-GENERATE PDF FOR DOCX AND PPTX FILES (unified approach for instant viewing)
     const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    if (isDocx) {
-      console.log('📄 Pre-generating PDF preview for DOCX...');
+    const isPptxForPdf = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+    if (isDocx || isPptxForPdf) {
+      const fileType = isDocx ? 'DOCX' : 'PPTX';
+      console.log(`📄 [Preview] Pre-generating PDF preview for ${fileType}...`);
       try {
-        const { convertDocxToPdf } = await import('./docx-converter.service');
-        const supabaseStorageService = await import('./supabaseStorage.service');
+        // 1. Write original file to a temporary location
+        const tempDir = os.tmpdir();
+        const tempFilePath = path.join(tempDir, `${documentId}${isDocx ? '.docx' : '.pptx'}`);
+        fs.writeFileSync(tempFilePath, fileBuffer);
 
-        // Get the document info
-        const document = await prisma.document.findUnique({
-          where: { id: documentId },
-          select: { encryptedFilename: true, userId: true }
-        });
+        // 2. Convert the temporary file to PDF
+        const conversion = await convertOfficeToPdf(tempFilePath, tempDir);
 
-        if (!document) {
-          throw new Error('Document not found');
-        }
+        if (conversion.success && conversion.pdfPath) {
+          const pdfBuffer = fs.readFileSync(conversion.pdfPath);
+          const pdfKey = `${userId}/${documentId}-preview.pdf`;
 
-        const pdfKey = `${document.userId}/${documentId}-converted.pdf`;
+          // 3. Upload the generated PDF to cloud storage
+          await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
+          pdfPreviewPath = pdfKey; // Store the path to save in metadata
+          console.log(`✅ [Preview] PDF preview uploaded to: ${pdfKey}`);
 
-        // Check if PDF already exists in Supabase
-        const pdfExists = await supabaseStorageService.default.exists(pdfKey);
-
-        if (!pdfExists) {
-          // Save DOCX to temp file
-          const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
-          fs.writeFileSync(tempDocxPath, fileBuffer);
-
-          // Convert to PDF
-          const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
-
-          if (conversion.success && conversion.pdfPath) {
-            // Upload PDF to Supabase
-            const pdfBuffer = fs.readFileSync(conversion.pdfPath);
-            await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
-
-            console.log('✅ PDF preview pre-generated:', pdfKey);
-
-            // Clean up temp files
-            fs.unlinkSync(tempDocxPath);
-            fs.unlinkSync(conversion.pdfPath);
-          } else {
-            console.warn('⚠️ PDF preview generation failed (non-critical):', conversion.error);
-          }
+          // 4. Clean up temporary files
+          fs.unlinkSync(tempFilePath);
+          fs.unlinkSync(conversion.pdfPath);
         } else {
-          console.log('✅ PDF preview already exists');
+          console.warn(`⚠️ [Preview] PDF preview generation failed: ${conversion.error}`);
         }
       } catch (error: any) {
-        console.warn('⚠️ PDF preview generation failed (non-critical):', error.message);
+        console.warn(`⚠️ [Preview] PDF preview generation failed: ${error.message}`);
       }
     }
 
@@ -1314,22 +1285,8 @@ async function processDocumentAsync(
             console.warn(`⚠️ PowerPoint processor failed: ${pptxProcessResult.error}`);
           }
 
-          // 🆕 Convert PPTX to PDF for preview (synchronous, before document creation)
-          console.log('📄 Converting PPTX to PDF for preview...');
-          try {
-            const pptxToPdfService = (await import('./pptxToPdf.service')).default;
-            const pdfResult = await pptxToPdfService.convertToPdf(tempFilePath, userId);
-
-            if (pdfResult.success) {
-              pdfPreviewPath = pdfResult.pdfPath;
-              pdfPreviewUrl = pdfResult.pdfUrl;
-              console.log('✅ PDF preview created successfully');
-            } else {
-              console.warn(`⚠️ PDF preview generation failed: ${pdfResult.error}`);
-            }
-          } catch (pdfError: any) {
-            console.warn(`⚠️ PDF preview generation error: ${pdfError.message}`);
-          }
+          // NOTE: PDF preview generation now handled by unified office converter above
+          // This ensures consistent PDF generation for both DOCX and PPTX files
 
           // ✅ FIX: PROACTIVE image extraction approach - Always extract images first
           console.log('📊 Starting PPTX image processing in background...');
@@ -2756,94 +2713,38 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DOCX FILES: Convert to PDF for universal preview
+  // OFFICE FILES (DOCX & PPTX): Use pre-generated PDF preview for universal display
   // ═══════════════════════════════════════════════════════════════════════════
-  const isDocx = document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const isOfficeDoc = [
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation' // PPTX
+  ].includes(document.mimeType);
 
-  if (isDocx) {
-    const { convertDocxToPdf } = await import('./docx-converter.service');
-    const supabaseStorageService = await import('./supabaseStorage.service');
+  // REASON: For Office documents, use the pre-converted PDF preview.
+  // WHY: This is the core of the fix. We check if a pdfPreviewPath exists in the metadata or document
+  //      and, if so, generate a signed URL for it. This is much faster and more reliable than on-demand conversion.
+  if (isOfficeDoc && (document.pdfPreviewPath || document.metadata?.pdfPreviewPath)) {
+    const pdfPath = document.pdfPreviewPath || document.metadata?.pdfPreviewPath;
+    console.log(`📄 Using pre-generated PDF preview: ${pdfPath}`);
 
-    // REASON: Use the correct path for the converted PDF
-    // WHY: During upload, DOCX is converted to PDF and saved as `${userId}/${documentId}-converted.pdf`
-    // This matches the path used in document.queue.ts line 242
-    const pdfKey = `${userId}/${documentId}-converted.pdf`;
-
-    const pdfExists = await supabaseStorageService.default.exists(pdfKey);
-
-    if (!pdfExists) {
-      console.log('📄 PDF not found, converting DOCX to PDF...');
-
-      // Download DOCX from Supabase Storage
-      const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
-      console.log(`⬇️  Downloading DOCX from Supabase Storage: ${document.encryptedFilename}`);
-      let docxBuffer = await downloadFile(document.encryptedFilename);
-
-      // ✅ Validate that the downloaded buffer is not empty
-      if (!docxBuffer || docxBuffer.length === 0) {
-        throw new Error(`Downloaded DOCX file is empty: ${document.encryptedFilename}`);
-      }
-
-      console.log(`✅ Downloaded ${docxBuffer.length} bytes`);
-
-      // 🔓 DECRYPT FILE if encrypted
-      if (document.isEncrypted) {
-        console.log('🔓 Decrypting file...');
-        const encryptionService = await import('./encryption.service');
-        docxBuffer = encryptionService.default.decryptFile(docxBuffer, `document-${userId}`);
-        console.log(`✅ File decrypted successfully (${docxBuffer.length} bytes)`);
-      }
-
-      // ✅ Validate DOCX file format (check ZIP signature)
-      // DOCX files are ZIP archives, so they should start with 'PK' (0x50, 0x4B)
-      if (docxBuffer[0] !== 0x50 || docxBuffer[1] !== 0x4B) {
-        throw new Error(`Invalid DOCX file format - not a valid ZIP archive: ${document.encryptedFilename}`);
-      }
-
-      fs.writeFileSync(tempDocxPath, docxBuffer);
-
-      // Convert to PDF
-      const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
-
-      if (conversion.success && conversion.pdfPath) {
-        // Upload PDF to Supabase Storage
-        const pdfBuffer = fs.readFileSync(conversion.pdfPath);
-        await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
-
-        console.log('✅ PDF uploaded to Supabase Storage:', pdfKey);
-
-        // Clean up temp files
-        fs.unlinkSync(tempDocxPath);
-        fs.unlinkSync(conversion.pdfPath);
-      } else {
-        throw new Error('Failed to convert DOCX to PDF: ' + conversion.error);
-      }
-    }
-
-    // Return backend proxy URL instead of direct Supabase URL to avoid CORS issues
-    // The PDF will be streamed through our backend
+    const url = await getSignedUrl(pdfPath, 3600); // 1-hour expiry
     return {
       previewType: 'pdf',
-      previewUrl: `/api/documents/${documentId}/preview-pdf`,
+      previewUrl: url,
       originalType: document.mimeType,
       filename: document.filename,
-      pdfKey, // Include PDF key for backend to fetch
     };
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // POWERPOINT FILES: Return slides data for custom preview
-  // ═══════════════════════════════════════════════════════════════════════════
-  if (document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
-    const slidesData = document.metadata?.slidesData;
-    const pptxMetadata = document.metadata?.pptxMetadata;
-
+  // Fallback for Office documents without pre-generated PDF
+  if (isOfficeDoc) {
+    console.warn(`⚠️  No pre-generated PDF found for ${document.filename}. Document may need reprocessing.`);
     return {
-      previewType: 'pptx',
-      slidesData: slidesData ? JSON.parse(slidesData as string) : [],
-      pptxMetadata: pptxMetadata ? JSON.parse(pptxMetadata as string) : {},
+      previewType: 'none',
+      previewUrl: null,
       originalType: document.mimeType,
       filename: document.filename,
+      message: 'Preview not available. Please try re-uploading this document.',
     };
   }
 
