@@ -201,8 +201,8 @@ class SystemMetadataService {
       select: {
         id: true,
         filename: true,
-        mimetype: true,
-        filesize: true,
+        mimeType: true,
+        fileSize: true,
         createdAt: true
       },
       orderBy: {
@@ -257,7 +257,7 @@ class SystemMetadataService {
       select: {
         id: true,
         filename: true,
-        mimetype: true,
+        mimeType: true,
         createdAt: true
       }
     });

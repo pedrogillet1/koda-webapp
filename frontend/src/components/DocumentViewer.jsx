@@ -8,14 +8,12 @@ import SearchInDocumentModal from './SearchInDocumentModal';
 import MarkdownEditor from './MarkdownEditor';
 import PPTXPreview from './PPTXPreview';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
-import CategoryIcon from './CategoryIcon';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as LogoutWhiteIcon } from '../assets/Logout-white.svg';
-import logoSvg from '../assets/Logo_head_crop.svg';
+import logoSvg from '../assets/logo.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can.svg';
 import { ReactComponent as PrinterIcon } from '../assets/printer.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
-import { ReactComponent as DownloadWhiteIcon } from '../assets/Download 3- white.svg';
 import { ReactComponent as PlusIcon } from '../assets/Plus.svg';
 import { ReactComponent as MinusIcon } from '../assets/Minus.svg';
 import { ReactComponent as StarIcon } from '../assets/Star.svg';
@@ -24,9 +22,6 @@ import folderIcon from '../assets/folder_icon.svg';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import xlsIcon from '../assets/xls.png';
-import pptxIcon from '../assets/pptx.png';
-import jpgIcon from '../assets/jpg-icon.png';
-import pngIcon from '../assets/png-icon.png';
 import {
   isSafari,
   isMacOS,
@@ -129,15 +124,14 @@ const DocumentViewer = () => {
   const [shareEmail, setShareEmail] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [showAskKoda, setShowAskKoda] = useState(true);
   const [showExtractedText, setShowExtractedText] = useState(false);
-  const [isDocxConvertedToPdf, setIsDocxConvertedToPdf] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const zoomPresets = [50, 75, 100, 125, 150, 175, 200];
 
@@ -207,23 +201,34 @@ const DocumentViewer = () => {
     }
   };
 
-  // Handler for adding document to category
-  const handleAddToCategory = async (categoryId) => {
+  // Handler for regenerating preview (markdown/slides)
+  const handleRegeneratePreview = async () => {
+    if (!document) return;
+
     try {
-      await api.patch(`/api/documents/${documentId}`, {
-        folderId: categoryId
-      });
-      console.log('✅ Document added to category');
-      // Optionally refresh document data
-      const response = await api.get('/api/documents');
-      const allDocuments = response.data.documents || [];
-      const updatedDocument = allDocuments.find(doc => doc.id === documentId);
-      if (updatedDocument) {
-        setDocument(updatedDocument);
-      }
+      setIsRegenerating(true);
+      console.log('Regenerating preview for document:', documentId);
+
+      // Call reprocess endpoint to regenerate markdown/slides
+      const response = await api.post(`/api/documents/${documentId}/reprocess`);
+      console.log('Reprocess response:', response.data);
+
+      // Reload the document to get fresh metadata
+      const updatedDoc = await api.get(`/api/documents/${documentId}/status`);
+
+      // Update document state
+      setDocument(updatedDoc.data);
+
+      // Show success message
+      alert('Preview regenerated successfully! The page will reload.');
+
+      // Reload the page to show updated preview
+      window.location.reload();
     } catch (error) {
-      console.error('❌ Failed to add document to category:', error);
-      alert('Failed to add document to category');
+      console.error('Error regenerating preview:', error);
+      alert('Failed to regenerate preview. Please try again.');
+    } finally {
+      setIsRegenerating(false);
     }
   };
 
@@ -242,12 +247,31 @@ const DocumentViewer = () => {
   };
 
   // Memoize the file and options props to prevent unnecessary reloads
-  const fileConfig = useMemo(() => documentUrl ? { url: documentUrl } : null, [documentUrl]);
+  const fileConfig = useMemo(() => {
+    if (!documentUrl) return null;
+
+    // If it's a stream endpoint, we need to include auth headers
+    const isStreamEndpoint = documentUrl.includes('/stream');
+
+    if (isStreamEndpoint) {
+      // Get the auth token from localStorage
+      const token = localStorage.getItem('accessToken');
+      return {
+        url: documentUrl,
+        httpHeaders: {
+          'Authorization': `Bearer ${token}`
+        }
+      };
+    }
+
+    return { url: documentUrl };
+  }, [documentUrl]);
+
   const pdfOptions = useMemo(() => ({
     cMapUrl: 'https://unpkg.com/pdfjs-dist@' + pdfjs.version + '/cmaps/',
     cMapPacked: true,
     // Add better error handling for PDF loading
-    withCredentials: false,
+    withCredentials: true,
     isEvalSupported: false,
   }), []);
 
@@ -312,258 +336,6 @@ const DocumentViewer = () => {
     return 'unknown';
   };
 
-  // ============================================
-  // COMPREHENSIVE PRINT HANDLERS
-  // ============================================
-
-  // Main print handler for all file types
-  const handlePrint = async () => {
-    try {
-      if (!document || !documentUrl) {
-        alert('Document not loaded yet. Please wait.');
-        return;
-      }
-
-      const fileType = getFileType(document.filename, document.mimeType);
-      console.log('Printing document:', document.filename, 'Type:', fileType);
-
-      // For PDF files (including PPTX converted to PDF)
-      if (fileType === 'pdf' || fileType === 'powerpoint') {
-        printPDF(documentUrl);
-        return;
-      }
-
-      // For images
-      if (fileType === 'image') {
-        printImage(documentUrl);
-        return;
-      }
-
-      // For Word documents
-      if (fileType === 'word') {
-        // Word docs are typically converted to PDF for preview
-        // Check if we have a PDF URL
-        if (documentUrl.includes('.pdf') || document.pdfUrl) {
-          printPDF(document.pdfUrl || documentUrl);
-        } else {
-          // Fallback: try to print the doc directly
-          printGenericDocument(documentUrl);
-        }
-        return;
-      }
-
-      // For Excel files
-      if (fileType === 'excel') {
-        printGenericDocument(documentUrl);
-        return;
-      }
-
-      // For text files
-      if (fileType === 'text' || fileType === 'code') {
-        printTextDocument(documentUrl, document.filename);
-        return;
-      }
-
-      // Default fallback
-      printGenericDocument(documentUrl);
-
-    } catch (error) {
-      console.error('Print error:', error);
-      alert('Failed to print document. Please try downloading and printing manually.');
-    }
-  };
-
-  // Print PDF files
-  const printPDF = (pdfUrl) => {
-    const iframe = window.document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    window.document.body.appendChild(iframe);
-
-    iframe.onload = () => {
-      setTimeout(() => {
-        try {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
-        } catch (e) {
-          console.error('PDF print error:', e);
-          // Fallback: open in new window
-          window.open(pdfUrl, '_blank');
-        }
-        // Remove iframe after printing
-        setTimeout(() => {
-          if (window.document.body.contains(iframe)) {
-            window.document.body.removeChild(iframe);
-          }
-        }, 1000);
-      }, 500);
-    };
-
-    iframe.onerror = () => {
-      console.error('Failed to load PDF for printing');
-      window.document.body.removeChild(iframe);
-      // Fallback: open in new window
-      window.open(pdfUrl, '_blank');
-    };
-
-    iframe.src = pdfUrl;
-  };
-
-  // Print image files
-  const printImage = (imageUrl) => {
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Print Image</title>
-          <style>
-            body {
-              margin: 0;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              min-height: 100vh;
-            }
-            img {
-              max-width: 100%;
-              max-height: 100vh;
-              object-fit: contain;
-            }
-            @media print {
-              body {
-                margin: 0;
-              }
-              img {
-                max-width: 100%;
-                height: auto;
-                page-break-inside: avoid;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <img src="${imageUrl}" onload="window.print(); setTimeout(() => window.close(), 500);" />
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
-  // Print text/code files
-  const printTextDocument = async (textUrl, filename) => {
-    try {
-      const response = await fetch(textUrl);
-      const text = await response.text();
-
-      const printWindow = window.open('', '_blank');
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>${filename}</title>
-            <style>
-              body {
-                font-family: 'Courier New', monospace;
-                padding: 20mm;
-                font-size: 12pt;
-                line-height: 1.6;
-                color: #000;
-              }
-              pre {
-                white-space: pre-wrap;
-                word-wrap: break-word;
-                margin: 0;
-              }
-              @media print {
-                body {
-                  padding: 15mm;
-                }
-              }
-            </style>
-          </head>
-          <body>
-            <pre>${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-
-      setTimeout(() => {
-        printWindow.print();
-        setTimeout(() => printWindow.close(), 500);
-      }, 500);
-    } catch (error) {
-      console.error('Error printing text document:', error);
-      alert('Failed to load text document for printing.');
-    }
-  };
-
-  // Generic document print (fallback)
-  const printGenericDocument = (docUrl) => {
-    // Try iframe method first
-    const iframe = window.document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    window.document.body.appendChild(iframe);
-
-    let printed = false;
-
-    iframe.onload = () => {
-      setTimeout(() => {
-        try {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
-          printed = true;
-        } catch (e) {
-          console.error('Generic print error:', e);
-          if (!printed) {
-            // Fallback: open in new window
-            window.open(docUrl, '_blank');
-          }
-        }
-        // Remove iframe after printing
-        setTimeout(() => {
-          if (window.document.body.contains(iframe)) {
-            window.document.body.removeChild(iframe);
-          }
-        }, 1000);
-      }, 500);
-    };
-
-    iframe.onerror = () => {
-      console.error('Failed to load document for printing');
-      if (window.document.body.contains(iframe)) {
-        window.document.body.removeChild(iframe);
-      }
-      // Fallback: open in new window
-      window.open(docUrl, '_blank');
-    };
-
-    // Set timeout to fallback if loading takes too long
-    setTimeout(() => {
-      if (!printed && window.document.body.contains(iframe)) {
-        console.warn('Print timeout, opening in new window');
-        window.open(docUrl, '_blank');
-        window.document.body.removeChild(iframe);
-      }
-    }, 5000);
-
-    iframe.src = docUrl;
-  };
-
-  // ============================================
-  // END PRINT HANDLERS
-  // ============================================
-
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -592,72 +364,95 @@ const DocumentViewer = () => {
             setExtractedText(foundDocument.metadata.extractedText);
           }
 
-          // Check if document is DOCX - use preview endpoint for PDF conversion
+          // AUTO-REGENERATE: Check if markdown content is missing for Excel (keep for Excel only)
+          const isExcel = foundDocument.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+          const hasMarkdown = foundDocument.metadata && foundDocument.metadata.markdownContent;
+
+          if (isExcel && !hasMarkdown) {
+            console.log('⚠️ Markdown content missing, auto-regenerating...');
+            // Trigger reprocess in background (don't await, let it run async)
+            api.post(`/api/documents/${documentId}/reprocess`)
+              .then(response => {
+                console.log('✅ Auto-regeneration completed:', response.data);
+                // Reload document to get updated metadata
+                return api.get(`/api/documents/${documentId}/status`);
+              })
+              .then(response => {
+                setDocument(response.data);
+                console.log('✅ Document reloaded with markdown content');
+              })
+              .catch(error => {
+                console.error('❌ Auto-regeneration failed:', error);
+              });
+          }
+
+          // DOCX FILES: Fetch preview information from backend
+          // Backend will return previewType='pdf' with a URL to the converted PDF
           const isDocx = foundDocument.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
           if (isDocx) {
-            // Get PDF preview for DOCX with timeout
-            console.log('🔍 Requesting DOCX preview for document:', documentId);
+            console.log('📄 DOCX detected - fetching preview information from backend...');
+            const previewResponse = await api.get(`/api/documents/${documentId}/preview`);
+            const { previewType, previewUrl } = previewResponse.data;
 
-            try {
-              // Timeout increased to 60 seconds to allow for DOCX-to-PDF conversion
-              const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('DOCX preview timeout')), 60000)
-              );
+            console.log(`📋 Preview type: ${previewType}, URL: ${previewUrl}`);
 
-              const previewResponse = await Promise.race([
-                api.get(`/api/documents/${documentId}/preview`),
-                timeoutPromise
-              ]);
-
-              const { previewUrl, previewType } = previewResponse.data;
-              console.log('✅ Preview response received:', { previewUrl: previewUrl.substring(0, 100), previewType });
+            // For DOCX converted to PDF, set the preview-pdf URL
+            if (previewType === 'pdf' && previewUrl) {
               setDocumentUrl(previewUrl);
-              setIsDocxConvertedToPdf(true); // Mark that this DOCX should be treated as PDF for rendering
-              console.log('✅ DOCX marked as converted to PDF for rendering');
-            } catch (error) {
-              console.error('❌ DOCX preview failed:', error);
-              // Silently continue - document might still be processing
-              // The component will handle the loading/error state without blocking the user
-              setLoading(false);
-              return;
             }
           } else {
-            setIsDocxConvertedToPdf(false);
+            // For non-DOCX files, use the existing view-url logic
+            // PERFORMANCE OPTIMIZATION: Use signed URLs for direct access to Supabase Storage (non-encrypted files)
+            // For encrypted files, use stream endpoint for server-side decryption
+            // This eliminates the backend proxy bottleneck for 50-70% faster loading (non-encrypted files)
 
-            // Mac (both Safari and Chrome) has issues with blob URLs for PDFs
-            const isPdf = foundDocument.mimeType === 'application/pdf';
-            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-            const useMacPdfWorkaround = isMac && isPdf;
+            // Fetch the view URL from backend
+            console.log('📡 Fetching view URL for document...');
+            const viewUrlResponse = await api.get(`/api/documents/${documentId}/view-url`);
+            const { url: documentUrl, encrypted } = viewUrlResponse.data;
 
-            if (useMacPdfWorkaround) {
-              // For Mac PDFs, use the direct stream URL with authentication
-              // This bypasses blob URL issues that affect both Safari and Chrome on Mac
-              const accessToken = localStorage.getItem('accessToken');
-              const streamUrl = `${api.defaults.baseURL}/api/documents/${documentId}/stream?token=${accessToken}`;
-              console.log('🍎 Using Mac PDF workaround with direct stream URL (platform:', navigator.platform, ')');
-              setDocumentUrl(streamUrl);
+            // Check if this is a stream endpoint (for encrypted files) or signed URL (for non-encrypted files)
+            const isStreamEndpoint = documentUrl.includes('/stream');
+
+            if (isStreamEndpoint) {
+              // Encrypted file - use stream endpoint directly (no caching needed)
+              console.log('🔐 Document is encrypted, using stream endpoint for server-side decryption');
+              setDocumentUrl(documentUrl);
             } else {
-              // Check if we have a cached blob URL
-              const cacheKey = `document_blob_${documentId}`;
-              const cachedUrl = sessionStorage.getItem(cacheKey);
+              // Non-encrypted file - use signed URL with caching
+              const cacheKey = `document_signed_url_${documentId}`;
+              const cachedData = sessionStorage.getItem(cacheKey);
 
-              if (cachedUrl) {
-                console.log('⚡ Using cached blob URL for document');
-                setDocumentUrl(cachedUrl);
+              if (cachedData) {
+                try {
+                  const { url, timestamp } = JSON.parse(cachedData);
+                  const age = Date.now() - timestamp;
+                  // Signed URLs are valid for 1 hour (3600000ms), refresh if older than 50 minutes
+                  if (age < 3000000) {
+                    console.log('⚡ Using cached signed URL for non-encrypted document');
+                    setDocumentUrl(url);
+                  } else {
+                    throw new Error('Cached URL expired');
+                  }
+                } catch (err) {
+                  // Cache invalid or expired, use new signed URL
+                  console.log('🔄 Cached URL expired, using new signed URL');
+                  sessionStorage.removeItem(cacheKey);
+                  sessionStorage.setItem(cacheKey, JSON.stringify({
+                    url: documentUrl,
+                    timestamp: Date.now()
+                  }));
+                  setDocumentUrl(documentUrl);
+                }
               } else {
-                // Use blob URL for Windows/Linux or non-PDF files
-                console.log('📥 Downloading document for preview...');
-                const fileResponse = await api.get(`/api/documents/${documentId}/stream`, {
-                  responseType: 'blob'
-                });
-                const blob = new Blob([fileResponse.data], { type: foundDocument.mimeType });
-                const url = URL.createObjectURL(blob);
-                console.log('📄 Created blob URL for document (platform:', navigator.platform, ')');
-
-                // Cache the blob URL (it will be cleaned up when the page is refreshed)
-                sessionStorage.setItem(cacheKey, url);
-                setDocumentUrl(url);
+                // No cache, use signed URL and cache it
+                console.log('🚀 Direct signed URL obtained for non-encrypted document');
+                sessionStorage.setItem(cacheKey, JSON.stringify({
+                  url: documentUrl,
+                  timestamp: Date.now()
+                }));
+                setDocumentUrl(documentUrl);
               }
             }
           }
@@ -829,32 +624,60 @@ const DocumentViewer = () => {
                 <TrashCanIcon style={{ width: 44, height: 44 }} />
               </button>
               <button
-                onClick={handlePrint}
-                style={{
-                  width: 52,
-                  height: 52,
-                  paddingLeft: 18,
-                  paddingRight: 18,
-                  paddingTop: 10,
-                  paddingBottom: 10,
-                  background: 'white',
-                  overflow: 'hidden',
-                  borderRadius: 14,
-                  outline: '1px #E6E6EC solid',
-                  outlineOffset: '-1px',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: 8,
-                  display: 'flex',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s'
+                onClick={() => {
+                  if (documentUrl && document) {
+                    // Create a hidden iframe for printing
+                    const iframe = window.document.createElement('iframe');
+                    iframe.style.position = 'fixed';
+                    iframe.style.right = '0';
+                    iframe.style.bottom = '0';
+                    iframe.style.width = '0';
+                    iframe.style.height = '0';
+                    iframe.style.border = '0';
+                    window.document.body.appendChild(iframe);
+
+                    iframe.onload = () => {
+                      setTimeout(() => {
+                        try {
+                          iframe.contentWindow.focus();
+                          iframe.contentWindow.print();
+                        } catch (e) {
+                          console.error('Print error:', e);
+                        }
+                        // Remove iframe after printing
+                        setTimeout(() => {
+                          window.document.body.removeChild(iframe);
+                        }, 1000);
+                      }, 500);
+                    };
+
+                    iframe.src = documentUrl;
+                  }
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                title="Print document"
+                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
               >
                 <PrinterIcon style={{ width: 44, height: 44 }} />
+              </button>
+              <button
+                onClick={async () => {
+                  if (document) {
+                    try {
+                      // Call the download endpoint to get the original file
+                      const response = await api.get(`/api/documents/${document.id}/download`);
+                      const downloadUrl = response.data.url;
+
+                      // Use Safari-aware download function with the original file URL
+                      safariDownloadFile(downloadUrl, document.filename);
+                    } catch (error) {
+                      console.error('Download error:', error);
+                      alert('Failed to download document');
+                    }
+                  }
+                }}
+                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                title={isSafari() || isIOS() ? 'Open in new tab' : 'Download'}
+              >
+                <DownloadIcon style={{ width: 44, height: 44 }} />
               </button>
               <button
                 onClick={() => {
@@ -877,26 +700,11 @@ const DocumentViewer = () => {
               </button>
             </div>
             <button
-              onClick={async () => {
-                if (document) {
-                  try {
-                    // Call the download endpoint to get the original file
-                    const response = await api.get(`/api/documents/${document.id}/download`);
-                    const downloadUrl = response.data.url;
-
-                    // Use Safari-aware download function with the original file URL
-                    safariDownloadFile(downloadUrl, document.filename);
-                  } catch (error) {
-                    console.error('Download error:', error);
-                    alert('Failed to download document');
-                  }
-                }
-              }}
+              onClick={() => setShowShareModal(true)}
               style={{ flex: '1 1 0', height: 52, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
-              title={isSafari() || isIOS() ? 'Open in new tab' : 'Download'}
             >
-              <DownloadWhiteIcon style={{ width: 24, height: 24 }} />
-              <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Download</div>
+              <LogoutWhiteIcon style={{ width: 24, height: 24 }} />
+              <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Export</div>
             </button>
           </div>
         </div>
@@ -1035,121 +843,117 @@ const DocumentViewer = () => {
               }
 
               switch (fileType) {
-                case 'word': // DOCX
-                  // If DOCX was converted to PDF for preview, render as PDF
-                  if (isDocxConvertedToPdf) {
-                    return (
-                      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-                        <Document
-                          file={fileConfig}
-                          onLoadSuccess={onDocumentLoadSuccess}
-                          onLoadError={(error) => {
-                            console.error('❌ PDF Load Error (DOCX preview):', error);
-                            console.error('PDF URL:', documentUrl);
-                            console.error('Document:', document);
-                          }}
-                          options={pdfOptions}
-                          loading={
-                            <div style={{
-                              padding: 40,
-                              background: 'white',
-                              borderRadius: 12,
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              color: '#6C6B6E',
-                              fontSize: 16,
-                              fontFamily: 'Plus Jakarta Sans'
-                            }}>
-                              Loading DOCX preview...
+                case 'word': // DOCX - show as PDF (converted during upload)
+                  // DOCX files are converted to PDF on the backend and displayed as PDF
+                  return (
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+                      <Document
+                        file={fileConfig}
+                        onLoadSuccess={onDocumentLoadSuccess}
+                        onLoadError={(error) => {
+                          console.error('❌ PDF Load Error:', error);
+                          console.error('PDF URL:', documentUrl);
+                          console.error('Document:', document);
+                        }}
+                        options={pdfOptions}
+                        loading={
+                          <div style={{
+                            padding: 40,
+                            background: 'white',
+                            borderRadius: 12,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                            color: '#6C6B6E',
+                            fontSize: 16,
+                            fontFamily: 'Plus Jakarta Sans'
+                          }}>
+                            Loading PDF...
+                          </div>
+                        }
+                        error={
+                          <div style={{
+                            padding: 40,
+                            background: 'white',
+                            borderRadius: 12,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                            textAlign: 'center'
+                          }}>
+                            <div style={{ fontSize: 64, marginBottom: 20 }}>📄</div>
+                            <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
+                              Failed to load PDF
                             </div>
-                          }
-                          error={
-                            <div style={{
-                              padding: 40,
-                              background: 'white',
-                              borderRadius: 12,
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              textAlign: 'center'
-                            }}>
-                              <div style={{ fontSize: 64, marginBottom: 20 }}>📄</div>
-                              <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
-                                Failed to load DOCX preview
-                              </div>
-                              <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
-                                {document.filename}
-                              </div>
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const response = await api.get(`/api/documents/${document.id}/download`);
-                                    const downloadUrl = response.data.url;
-                                    safariDownloadFile(downloadUrl, document.filename);
-                                  } catch (error) {
-                                    console.error('Download error:', error);
-                                    alert('Failed to download document');
-                                  }
-                                }}
-                                style={{
-                                  display: 'inline-block',
-                                  padding: '12px 24px',
-                                  background: '#181818',
-                                  color: 'white',
-                                  borderRadius: 14,
-                                  textDecoration: 'none',
-                                  fontSize: 14,
-                                  fontWeight: '600',
-                                  fontFamily: 'Plus Jakarta Sans',
-                                  border: 'none',
-                                  cursor: 'pointer'
-                                }}>
-                                {isSafari() || isIOS() ? 'Open Document' : 'Download Document'}
-                              </button>
+                            <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
+                              {document.filename}
                             </div>
-                          }
-                        >
-                          {Array.from(new Array(numPages), (el, index) => (
-                            <div
-                              key={`page_${index + 1}`}
-                              ref={(el) => {
-                                if (el) {
-                                  pageRefs.current[index + 1] = el;
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const response = await api.get(`/api/documents/${document.id}/download`);
+                                  const downloadUrl = response.data.url;
+                                  safariDownloadFile(downloadUrl, document.filename);
+                                } catch (error) {
+                                  console.error('Download error:', error);
+                                  alert('Failed to download document');
                                 }
                               }}
-                              data-page-number={index + 1}
                               style={{
-                                marginBottom: index < numPages - 1 ? '20px' : '0'
-                              }}
-                            >
-                              <Page
-                                pageNumber={index + 1}
-                                width={900 * (zoom / 100)}
-                                scale={getOptimalPDFScale()}
-                                renderTextLayer={true}
-                                renderAnnotationLayer={true}
-                                loading={
-                                  <div style={{
-                                    width: 900 * (zoom / 100),
-                                    height: 1200 * (zoom / 100),
-                                    background: 'white',
-                                    borderRadius: 8,
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: '#6C6B6E',
-                                    fontFamily: 'Plus Jakarta Sans'
-                                  }}>
-                                    Loading page {index + 1}...
-                                  </div>
-                                }
-                              />
-                            </div>
-                          ))}
-                        </Document>
-                      </div>
-                    );
-                  }
-                  // Otherwise show markdown editor
-                  return <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />;
+                                display: 'inline-block',
+                                padding: '12px 24px',
+                                background: '#181818',
+                                color: 'white',
+                                borderRadius: 14,
+                                textDecoration: 'none',
+                                fontSize: 14,
+                                fontWeight: '600',
+                                fontFamily: 'Plus Jakarta Sans',
+                                border: 'none',
+                                cursor: 'pointer'
+                              }}>
+                              {isSafari() || isIOS() ? 'Open PDF' : 'Download PDF'}
+                            </button>
+                          </div>
+                        }
+                      >
+                        {Array.from(new Array(numPages), (el, index) => (
+                          <div
+                            key={`page_${index + 1}`}
+                            ref={(el) => {
+                              if (el) {
+                                pageRefs.current[index + 1] = el;
+                              }
+                            }}
+                            data-page-number={index + 1}
+                            style={{
+                              marginBottom: index < numPages - 1 ? '20px' : '0'
+                            }}
+                          >
+                            <Page
+                              pageNumber={index + 1}
+                              width={900 * (zoom / 100)}
+                              scale={getOptimalPDFScale()}
+                              renderTextLayer={true}
+                              renderAnnotationLayer={true}
+                              loading={
+                                <div style={{
+                                  width: 900 * (zoom / 100),
+                                  height: 1200 * (zoom / 100),
+                                  background: 'white',
+                                  borderRadius: 8,
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#6C6B6E',
+                                  fontFamily: 'Plus Jakarta Sans'
+                                }}>
+                                  Loading page {index + 1}...
+                                </div>
+                              }
+                            />
+                          </div>
+                        ))}
+                      </Document>
+                    </div>
+                  );
 
                 case 'excel': // XLSX - show markdown editor
                   return <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />;
@@ -1818,29 +1622,13 @@ const DocumentViewer = () => {
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={async () => {
-          setShowDeleteModal(false);
           try {
             await api.delete(`/api/documents/${documentId}`);
-            // Navigate back to previous page or documents page
-            navigate('/documents', {
-              state: {
-                notification: {
-                  type: 'success',
-                  message: '1 file has been deleted'
-                }
-              }
-            });
+            alert('Document deleted successfully');
+            navigate('/documents');
           } catch (error) {
             console.error('Error deleting document:', error);
-            // Navigate back even on error
-            navigate('/documents', {
-              state: {
-                notification: {
-                  type: 'error',
-                  message: `Failed to delete document: ${error.response?.data?.error || error.message}`
-                }
-              }
-            });
+            alert('Failed to delete document: ' + (error.response?.data?.error || error.message));
           }
         }}
         itemName={document.filename}
@@ -1848,300 +1636,144 @@ const DocumentViewer = () => {
 
       {/* Category Modal */}
       {showCategoryModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
+        <div
+          onClick={() => setShowCategoryModal(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
             width: '100%',
-            maxWidth: 400,
-            paddingTop: 18,
-            paddingBottom: 18,
-            background: 'white',
-            borderRadius: 14,
-            outline: '1px #E6E6EC solid',
-            outlineOffset: '-1px',
-            flexDirection: 'column',
-            justifyContent: 'center',
+            height: '100%',
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
             alignItems: 'center',
-            gap: 18,
-            display: 'flex'
-          }}>
-            {/* Header */}
-            <div style={{
-              width: '100%',
-              paddingLeft: 24,
-              paddingRight: 24,
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              display: 'flex'
-            }}>
-              <div style={{
-                color: '#32302C',
-                fontSize: 18,
-                fontFamily: 'Plus Jakarta Sans',
-                fontWeight: '600',
-                lineHeight: '25.20px'
-              }}>
-                Move to Category
-              </div>
-              <button
-                onClick={() => {
-                  setShowCategoryModal(false);
-                  setSelectedCategory(null);
-                  setNewCategoryName('');
-                }}
-                style={{
-                  width: 32,
-                  height: 32,
-                  background: '#F5F5F5',
-                  border: 'none',
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
-              >
-                <XCloseIcon style={{ width: 16, height: 16 }} />
-              </button>
+            justifyContent: 'center',
+            zIndex: 2000
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: 16,
+              padding: 32,
+              width: 500,
+              maxWidth: '90%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}
+          >
+            <div style={{ fontSize: 20, fontWeight: '700', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 8 }}>
+              Move to Category
+            </div>
+            <div style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', color: '#6C6B6E', marginBottom: 24 }}>
+              {document.filename}
             </div>
 
-            {/* Selected Document Display */}
-            {document && (
-              <div style={{
-                width: '100%',
-                paddingLeft: 24,
-                paddingRight: 24
-              }}>
-                <div style={{
-                  padding: 12,
-                  background: '#F5F5F5',
-                  borderRadius: 12,
-                  border: '1px #E6E6EC solid',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12
-                }}>
-                  <img
-                    src={(() => {
-                      const filename = document.filename.toLowerCase();
-                      if (filename.match(/\.(pdf)$/)) return pdfIcon;
-                      if (filename.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-                      if (filename.match(/\.(png)$/)) return pngIcon;
-                      if (filename.match(/\.(doc|docx)$/)) return docIcon;
-                      if (filename.match(/\.(xls|xlsx)$/)) return xlsIcon;
-                      if (filename.match(/\.(ppt|pptx)$/)) return pptxIcon;
-                      return docIcon;
-                    })()}
-                    alt="File icon"
-                    style={{
-                      width: 40,
-                      height: 40,
-                      imageRendering: '-webkit-optimize-contrast',
-                      objectFit: 'contain',
-                      shapeRendering: 'geometricPrecision',
-                      flexShrink: 0
-                    }}
-                  />
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <div style={{
-                      color: '#32302C',
-                      fontSize: 14,
-                      fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: '600',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {document.filename}
-                    </div>
-                    <div style={{
-                      color: '#6C6B6E',
-                      fontSize: 12,
-                      fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: '400'
-                    }}>
-                      {((document.fileSize || 0) / 1024 / 1024).toFixed(2)} MB
-                    </div>
-                  </div>
-                </div>
+            {/* Create New Category */}
+            <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: '1px solid #E6E6EC' }}>
+              <div style={{ fontSize: 16, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 12 }}>
+                Create New Category
               </div>
-            )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Category name..."
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #E6E6EC',
+                    fontSize: 14,
+                    fontFamily: 'Plus Jakarta Sans',
+                    outline: 'none'
+                  }}
+                />
+                <button
+                  onClick={async () => {
+                    if (!newCategoryName.trim()) {
+                      alert('Please enter a category name');
+                      return;
+                    }
+                    try {
+                      const createResponse = await api.post('/api/folders', { name: newCategoryName });
+                      const newCategory = createResponse.data.folder;
 
-            {/* Categories Grid */}
-            <div style={{
-              width: '100%',
-              paddingLeft: 24,
-              paddingRight: 24,
-              paddingTop: 8,
-              paddingBottom: 8,
-              flexDirection: 'column',
-              justifyContent: 'flex-start',
-              alignItems: 'flex-start',
-              gap: 12,
-              display: 'flex',
-              maxHeight: '280px',
-              overflowY: 'auto'
-            }}>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 12,
-                width: '100%'
-              }}>
-                {categories.filter(f => f.name.toLowerCase() !== 'recently added').map((category) => {
-                  const fileCount = category._count?.documents || 0;
-                  return (
+                      // Move document to new category
+                      await api.patch(`/api/documents/${documentId}`, {
+                        folderId: newCategory.id
+                      });
+
+                      alert('Document moved to new category successfully');
+                      setShowCategoryModal(false);
+                      setNewCategoryName('');
+
+                      // Refresh categories
+                      const response = await api.get('/api/folders');
+                      setCategories(response.data.folders || []);
+                    } catch (error) {
+                      console.error('Error creating category:', error);
+                      alert('Failed to create category: ' + (error.response?.data?.error || error.message));
+                    }
+                  }}
+                  style={{
+                    padding: '12px 24px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: '#181818',
+                    color: 'white',
+                    fontSize: 14,
+                    fontWeight: '600',
+                    fontFamily: 'Plus Jakarta Sans',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+
+            {/* Select Existing Category */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 16, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 12 }}>
+                Or Select Existing Category
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto' }}>
+                {categories.length === 0 ? (
+                  <div style={{ padding: 16, textAlign: 'center', color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans' }}>
+                    No categories available. Create one above.
+                  </div>
+                ) : (
+                  categories.map((category) => (
                     <div
                       key={category.id}
                       onClick={() => setSelectedCategory(category.id)}
                       style={{
-                        paddingLeft: 12,
-                        paddingRight: 12,
-                        paddingTop: 12,
-                        paddingBottom: 12,
-                        background: selectedCategory === category.id ? '#F5F5F5' : 'white',
-                        borderRadius: 12,
-                        border: selectedCategory === category.id ? '2px #32302C solid' : '1px #E6E6EC solid',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 8,
+                        padding: 12,
+                        borderRadius: 8,
+                        border: selectedCategory === category.id ? '2px solid #181818' : '1px solid #E6E6EC',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        position: 'relative'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (selectedCategory !== category.id) {
-                          e.currentTarget.style.background = '#F9FAFB';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (selectedCategory !== category.id) {
-                          e.currentTarget.style.background = 'white';
-                        }
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        background: selectedCategory === category.id ? '#F9FAFB' : 'white',
+                        transition: 'all 0.2s ease'
                       }}
                     >
-                      {/* Emoji */}
-                      <div style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: '50%',
-                        background: '#F5F5F5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 20
-                      }}>
-                        <CategoryIcon emoji={category.emoji} style={{width: 18, height: 18}} />
-                      </div>
-
-                      {/* Category Name */}
-                      <div style={{
-                        width: '100%',
-                        color: '#32302C',
-                        fontSize: 14,
-                        fontFamily: 'Plus Jakarta Sans',
-                        fontWeight: '600',
-                        lineHeight: '19.60px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        textAlign: 'center'
-                      }}>
+                      <img src={folderIcon} alt="Folder" style={{ width: 24, height: 24 }} />
+                      <div style={{ fontSize: 14, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232' }}>
                         {category.name}
                       </div>
-
-                      {/* File Count */}
-                      <div style={{
-                        color: '#6C6B6E',
-                        fontSize: 12,
-                        fontFamily: 'Plus Jakarta Sans',
-                        fontWeight: '500',
-                        lineHeight: '15.40px'
-                      }}>
-                        {fileCount || 0} {fileCount === 1 ? 'File' : 'Files'}
-                      </div>
-
-                      {/* Checkmark */}
-                      {selectedCategory === category.id && (
-                        <div style={{
-                          position: 'absolute',
-                          top: 8,
-                          right: 8
-                        }}>
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="8" cy="8" r="8" fill="#32302C"/>
-                            <path d="M4.5 8L7 10.5L11.5 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        </div>
-                      )}
                     </div>
-                  );
-                })}
+                  ))
+                )}
               </div>
-
-              {/* Create New Category Button */}
-              <button
-                onClick={() => {
-                  setShowCategoryModal(false);
-                  setShowCreateCategoryModal(true);
-                }}
-                style={{
-                  width: '100%',
-                  marginTop: 16,
-                  padding: '14px 20px',
-                  background: '#F5F5F5',
-                  borderRadius: 12,
-                  border: '2px dashed #D1D5DB',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#EBEBEB';
-                  e.currentTarget.style.borderColor = '#A0A0A0';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#F5F5F5';
-                  e.currentTarget.style.borderColor = '#D1D5DB';
-                }}
-              >
-                <span style={{ fontSize: 18 }}>+</span>
-                <span style={{
-                  fontSize: 14,
-                  fontWeight: '600',
-                  color: '#181818',
-                  fontFamily: 'Plus Jakarta Sans'
-                }}>
-                  Create New Category
-                </span>
-              </button>
             </div>
 
-            {/* Footer Buttons */}
-            <div style={{
-              width: '100%',
-              paddingLeft: 24,
-              paddingRight: 24,
-              display: 'flex',
-              gap: 8
-            }}>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => {
                   setShowCategoryModal(false);
@@ -2149,33 +1781,18 @@ const DocumentViewer = () => {
                   setNewCategoryName('');
                 }}
                 style={{
-                  flex: 1,
-                  paddingLeft: 18,
-                  paddingRight: 18,
-                  paddingTop: 10,
-                  paddingBottom: 10,
-                  background: '#F5F5F5',
-                  borderRadius: 100,
-                  border: '1px #E6E6EC solid',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: 6,
-                  display: 'flex',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
-              >
-                <div style={{
+                  padding: '12px 24px',
+                  borderRadius: 14,
+                  border: '1px solid #E6E6EC',
+                  background: 'white',
                   color: '#323232',
-                  fontSize: 16,
+                  fontSize: 14,
+                  fontWeight: '600',
                   fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '500',
-                  lineHeight: '24px'
-                }}>
-                  Cancel
-                </div>
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
               </button>
               <button
                 onClick={async () => {
@@ -2190,14 +1807,6 @@ const DocumentViewer = () => {
                     alert('Document moved successfully');
                     setShowCategoryModal(false);
                     setSelectedCategory(null);
-
-                    // Refresh document
-                    const response = await api.get(`/api/documents/${documentId}/status`);
-                    setDocument(response.data);
-
-                    // Refresh categories
-                    const catResponse = await api.get('/api/folders');
-                    setCategories(catResponse.data.folders || []);
                   } catch (error) {
                     console.error('Error moving document:', error);
                     alert('Failed to move document: ' + (error.response?.data?.error || error.message));
@@ -2205,39 +1814,18 @@ const DocumentViewer = () => {
                 }}
                 disabled={!selectedCategory}
                 style={{
-                  flex: 1,
-                  paddingLeft: 18,
-                  paddingRight: 18,
-                  paddingTop: 10,
-                  paddingBottom: 10,
-                  background: selectedCategory ? '#32302C' : '#E6E6EC',
-                  borderRadius: 100,
+                  padding: '12px 24px',
+                  borderRadius: 14,
                   border: 'none',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: 6,
-                  display: 'flex',
-                  cursor: selectedCategory ? 'pointer' : 'not-allowed',
-                  transition: 'opacity 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedCategory) {
-                    e.currentTarget.style.opacity = '0.9';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = '1';
+                  background: selectedCategory ? '#181818' : '#999',
+                  color: 'white',
+                  fontSize: 14,
+                  fontWeight: '600',
+                  fontFamily: 'Plus Jakarta Sans',
+                  cursor: selectedCategory ? 'pointer' : 'not-allowed'
                 }}
               >
-                <div style={{
-                  color: selectedCategory ? 'white' : '#9CA3AF',
-                  fontSize: 16,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '500',
-                  lineHeight: '24px'
-                }}>
-                  Add
-                </div>
+                Move to Category
               </button>
             </div>
           </div>

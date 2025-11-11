@@ -11,6 +11,7 @@
 import prisma from '../config/database';
 import { sendMessageToGemini, sendMessageToGeminiStreaming, generateConversationTitle } from './gemini.service';
 import ragService from './rag.service';
+import cacheService from './cache.service';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -93,6 +94,16 @@ export const createConversation = async (params: CreateConversationParams) => {
 export const getUserConversations = async (userId: string) => {
   console.log('📋 Fetching conversations for user:', userId);
 
+  // ⚡ CACHE: Generate cache key
+  const cacheKey = `conversations:${userId}`;
+
+  // ⚡ CACHE: Check cache first
+  const cached = await cacheService.get<any[]>(cacheKey);
+  if (cached) {
+    console.log(`✅ [Cache] HIT for conversations list (user: ${userId.substring(0, 8)}...)`);
+    return cached;
+  }
+
   const conversations = await prisma.conversation.findMany({
     where: { userId },
     orderBy: { updatedAt: 'desc' },
@@ -112,6 +123,11 @@ export const getUserConversations = async (userId: string) => {
   });
 
   console.log(`✅ Found ${conversations.length} conversations`);
+
+  // ⚡ CACHE: Store result with 2 minute TTL
+  await cacheService.set(cacheKey, conversations, { ttl: 120 });
+  console.log(`💾 [Cache] Stored conversations list (user: ${userId.substring(0, 8)}...)`);
+
   return conversations;
 };
 
@@ -120,6 +136,16 @@ export const getUserConversations = async (userId: string) => {
  */
 export const getConversation = async (conversationId: string, userId: string) => {
   console.log('📖 Fetching conversation:', conversationId);
+
+  // ⚡ CACHE: Generate cache key
+  const cacheKey = `conversation:${conversationId}:${userId}`;
+
+  // ⚡ CACHE: Check cache first
+  const cached = await cacheService.get<any>(cacheKey);
+  if (cached) {
+    console.log(`✅ [Cache] HIT for conversation ${conversationId.substring(0, 8)}...`);
+    return cached;
+  }
 
   const conversation = await prisma.conversation.findFirst({
     where: {
@@ -140,6 +166,11 @@ export const getConversation = async (conversationId: string, userId: string) =>
   if (!conversation) {
     throw new Error('Conversation not found or access denied');
   }
+
+  // ⚡ CACHE: Store result with 2 minute TTL
+  await cacheService.set(cacheKey, conversation, { ttl: 120 });
+  console.log(`💾 [Cache] Stored conversation ${conversationId.substring(0, 8)}...`);
+
 
   console.log(`✅ Conversation found with ${conversation.messages.length} messages`);
   return conversation;
@@ -314,6 +345,10 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
     await autoGenerateTitle(conversationId, content);
   }
 
+  // ⚡ CACHE: Invalidate conversation cache after new message
+  await cacheService.invalidateConversationCache(userId, conversationId);
+  console.log(`🗑️  [Cache] Invalidated conversation cache for ${conversationId.substring(0, 8)}...`);
+
   return {
     userMessage,
     assistantMessage,
@@ -458,6 +493,10 @@ export const sendMessageStreaming = async (
   if (previousMessages.length <= 1) {
     await autoGenerateTitle(conversationId, content);
   }
+
+  // ⚡ CACHE: Invalidate conversation cache after new message
+  await cacheService.invalidateConversationCache(userId, conversationId);
+  console.log(`🗑️  [Cache] Invalidated conversation cache for ${conversationId.substring(0, 8)}...`);
 
   return {
     userMessage,

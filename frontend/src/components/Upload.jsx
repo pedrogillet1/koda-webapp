@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useFiles } from '../context/FileContext';
 import { useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
+import { useIsMobile } from '../hooks/useIsMobile';
 import LeftNav from './LeftNav';
 import { formatFileSize } from '../utils/crypto';
 import api from '../services/api';
 
 const Upload = () => {
     const navigate = useNavigate();
+    const isMobile = useIsMobile();
     const { files, onDrop, removeFile, isUploading } = useFiles();
     const [showNotification, setShowNotification] = useState(false);
     const [notificationType, setNotificationType] = useState('success');
@@ -134,7 +136,7 @@ const Upload = () => {
 
     return (
         <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex'}}>
-            <LeftNav />
+            {!isMobile && <LeftNav />}
 
             {/* Main Content */}
             <div style={{flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex'}}>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection';
 import { useToast } from '../context/ToastContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import CreateCategoryModal from './CreateCategoryModal';
@@ -52,9 +53,9 @@ import mp3Icon from '../assets/mp3.svg';
 
 const Documents = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { user } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showSuccess } = useToast();
+  const isMobile = useIsMobile();
 
   // Use DocumentsContext for instant updates
   const {
@@ -116,22 +117,6 @@ const Documents = () => {
   useEffect(() => {
     setCategoriesRefreshKey(prev => prev + 1);
   }, [contextFolders]);
-
-  // Handle notification from navigation state (e.g., after deleting a document)
-  useEffect(() => {
-    if (location.state?.notification) {
-      const { type, message } = location.state.notification;
-      if (type === 'success') {
-        showSuccess(message);
-      } else if (type === 'error') {
-        showError(message);
-      }
-      // Clear the notification from state after a small delay to avoid showing it again on refresh
-      setTimeout(() => {
-        navigate(location.pathname, { replace: true, state: {} });
-      }, 100);
-    }
-  }, [location.state?.notification, location.pathname, navigate, showSuccess, showError]);
 
   // Compute categories from context folders (auto-updates!)
   const categories = getRootFolders()
@@ -322,20 +307,27 @@ const Documents = () => {
     }
   };
 
-  // INSTANT UPDATE: Delete document
+  // INSTANT UPDATE: Delete document with proper error handling
   const handleDelete = async (docId) => {
     try {
-      // Show notification immediately for instant feedback
-      showSuccess('1 file has been deleted');
+      // Delete document (UI updates INSTANTLY via context with optimistic update!)
+      const result = await deleteDocument(docId);
 
-      // Delete document (UI updates INSTANTLY via context!)
-      await deleteDocument(docId);
-      // File disappears immediately, counts update automatically!
+      // Show success message only after successful delete
+      if (result && result.success) {
+        showSuccess('1 file has been deleted');
+      }
 
       setOpenDropdownId(null);
     } catch (error) {
-      console.error('Error deleting document:', error);
-      alert('Failed to delete document');
+      console.error('❌ Error deleting document:', error);
+
+      // Show user-friendly error message
+      const errorMessage = error.filename
+        ? `Failed to delete "${error.filename}": ${error.message}`
+        : `Failed to delete document: ${error.message}`;
+
+      alert(errorMessage);
     }
   };
 
@@ -444,7 +436,7 @@ const Documents = () => {
 
   return (
     <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
-      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
+      {!isMobile && <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />}
 
       {/* Main Content */}
       <div
@@ -1924,8 +1916,14 @@ const Documents = () => {
                   );
                 })}
               </div>
+            </div>
 
-              {/* Create New Category Button */}
+            {/* Create New Category Button */}
+            <div style={{
+              width: '100%',
+              paddingLeft: 24,
+              paddingRight: 24
+            }}>
               <button
                 onClick={() => {
                   setShowCategoryModal(false);
@@ -1933,36 +1931,33 @@ const Documents = () => {
                 }}
                 style={{
                   width: '100%',
-                  marginTop: 16,
-                  padding: '14px 20px',
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  paddingTop: 10,
+                  paddingBottom: 10,
                   background: '#F5F5F5',
-                  borderRadius: 12,
-                  border: '2px dashed #D1D5DB',
+                  borderRadius: 100,
+                  border: '1px #E6E6EC solid',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 8,
+                  gap: 6,
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'background 0.2s'
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#EBEBEB';
-                  e.currentTarget.style.borderColor = '#A0A0A0';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#F5F5F5';
-                  e.currentTarget.style.borderColor = '#D1D5DB';
-                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
               >
-                <span style={{ fontSize: 18 }}>+</span>
-                <span style={{
-                  fontSize: 14,
+                <AddIcon style={{ width: 20, height: 20 }} />
+                <div style={{
+                  color: '#32302C',
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '600',
-                  color: '#181818',
-                  fontFamily: 'Plus Jakarta Sans'
+                  lineHeight: '24px'
                 }}>
                   Create New Category
-                </span>
+                </div>
               </button>
             </div>
 
@@ -2128,20 +2123,32 @@ const Documents = () => {
                 // Handle bulk deletion of selected documents
                 const deleteCount = itemToDeleteCopy.count;
 
-                // Delete all selected documents
-                await Promise.all(
+                // Delete all selected documents with proper error handling
+                const results = await Promise.allSettled(
                   itemToDeleteCopy.ids.map(docId => deleteDocument(docId))
                 );
 
-                // Show success message
-                showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
+                // Count successes and failures
+                const succeeded = results.filter(r => r.status === 'fulfilled').length;
+                const failed = results.filter(r => r.status === 'rejected').length;
+
+                // Show appropriate message
+                if (failed === 0) {
+                  showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
+                } else if (succeeded === 0) {
+                  alert(`Failed to delete ${failed} file${failed > 1 ? 's' : ''}`);
+                } else {
+                  showSuccess(`${succeeded} file${succeeded > 1 ? 's' : ''} deleted`);
+                  alert(`Failed to delete ${failed} file${failed > 1 ? 's' : ''}`);
+                }
               } else if (itemToDeleteCopy.type === 'category') {
                 await handleDeleteCategory(itemToDeleteCopy.id);
               } else if (itemToDeleteCopy.type === 'document') {
                 await handleDelete(itemToDeleteCopy.id);
               }
             } catch (error) {
-              console.error('Delete error:', error);
+              console.error('❌ Delete error:', error);
+              alert('Failed to delete: ' + (error.message || 'Unknown error'));
             }
           })();
         }}

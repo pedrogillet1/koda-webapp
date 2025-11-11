@@ -137,7 +137,7 @@ export const DocumentsProvider = ({ children }) => {
   useEffect(() => {
     let refreshTimeout = null;
     let lastRefresh = 0;
-    const REFRESH_COOLDOWN = 5000; // Only refresh once every 5 seconds
+    const REFRESH_COOLDOWN = 1000; // Only refresh once every 1 second (reduced from 5s for better UX)
 
     const debouncedRefresh = () => {
       const now = Date.now();
@@ -230,7 +230,7 @@ export const DocumentsProvider = ({ children }) => {
         console.log('🔄 Debounced: Refreshing documents...');
         fetchDocuments();
         fetchRecentDocuments();
-      }, 500); // Wait 500ms before refreshing
+      }, 100); // Wait 100ms before refreshing (reduced from 500ms for instant feel)
     };
 
     const debouncedFolderRefresh = () => {
@@ -238,7 +238,7 @@ export const DocumentsProvider = ({ children }) => {
       folderRefreshTimeout = setTimeout(() => {
         console.log('🔄 Debounced: Refreshing folders...');
         fetchFolders();
-      }, 500); // Wait 500ms before refreshing
+      }, 100); // Wait 100ms before refreshing (reduced from 500ms for instant feel)
     };
 
     // Listen for document processing updates
@@ -430,33 +430,82 @@ export const DocumentsProvider = ({ children }) => {
     }
   }, []);
 
-  // Delete document (optimistic)
+  // Delete document (optimistic with proper error handling)
   const deleteDocument = useCallback(async (documentId) => {
+    console.log('🗑️ [DELETE] Starting delete for document:', documentId);
+
     // Store document for potential rollback
     const documentToDelete = documents.find(d => d.id === documentId);
 
-    // Remove from UI IMMEDIATELY
-    setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-    setRecentDocuments(prev => prev.filter(doc => doc.id !== documentId));
+    if (!documentToDelete) {
+      console.error('❌ [DELETE] Document not found in state:', documentId);
+      throw new Error('Document not found');
+    }
+
+    console.log('🗑️ [DELETE] Document to delete:', {
+      id: documentToDelete.id,
+      filename: documentToDelete.filename,
+      folderId: documentToDelete.folderId
+    });
+
+    // Remove from UI IMMEDIATELY (optimistic update)
+    setDocuments(prev => {
+      const updated = prev.filter(doc => doc.id !== documentId);
+      console.log('🗑️ [DELETE] Optimistic update - removed from documents, count:', updated.length);
+      return updated;
+    });
+    setRecentDocuments(prev => {
+      const updated = prev.filter(doc => doc.id !== documentId);
+      console.log('🗑️ [DELETE] Optimistic update - removed from recent, count:', updated.length);
+      return updated;
+    });
 
     try {
-      // Delete on server in background
-      await api.delete(`/api/documents/${documentId}`);
+      // Delete on server
+      console.log('🗑️ [DELETE] Sending DELETE request to server...');
+      const response = await api.delete(`/api/documents/${documentId}`);
+      console.log('✅ [DELETE] Server delete successful:', response.data);
 
       // Invalidate settings cache (storage stats need to be recalculated)
       sessionStorage.removeItem('koda_settings_documents');
       sessionStorage.removeItem('koda_settings_fileData');
       sessionStorage.removeItem('koda_settings_totalStorage');
+
+      console.log('✅ [DELETE] Document deleted successfully:', documentToDelete.filename);
+
+      // Return success
+      return { success: true, document: documentToDelete };
     } catch (error) {
-      console.error('Error deleting document:', error);
+      console.error('❌ [DELETE] Server delete failed:', {
+        documentId,
+        filename: documentToDelete.filename,
+        error: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
 
-      // Restore document on error
-      if (documentToDelete) {
-        setDocuments(prev => [documentToDelete, ...prev]);
-        setRecentDocuments(prev => [documentToDelete, ...prev].slice(0, 5));
-      }
+      // Rollback: Restore document to UI
+      console.log('🔄 [DELETE] Rolling back optimistic update...');
+      setDocuments(prev => {
+        // Insert document back in its original position (at the beginning for simplicity)
+        const restored = [documentToDelete, ...prev];
+        console.log('🔄 [DELETE] Restored document to state, count:', restored.length);
+        return restored;
+      });
+      setRecentDocuments(prev => {
+        const restored = [documentToDelete, ...prev].slice(0, 5);
+        console.log('🔄 [DELETE] Restored document to recent, count:', restored.length);
+        return restored;
+      });
 
-      throw error;
+      // Throw error with user-friendly message
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to delete document';
+      const userError = new Error(errorMessage);
+      userError.originalError = error;
+      userError.documentId = documentId;
+      userError.filename = documentToDelete.filename;
+
+      throw userError;
     }
   }, [documents]);
 

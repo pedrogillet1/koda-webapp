@@ -17,51 +17,48 @@ export interface ExtractionResult {
 
 /**
  * Preprocess image to improve OCR accuracy
- * Increases resolution, enhances contrast, sharpens text, and removes noise
+ * Aggressive preprocessing for maximum text extraction accuracy
  */
 const preprocessImage = async (inputBuffer: Buffer): Promise<Buffer> => {
   try {
-    console.log('🔧 Preprocessing image for better OCR...');
-
     const image = sharp(inputBuffer);
     const metadata = await image.metadata();
-
     let pipeline = image;
 
-    // Step 1: Increase resolution if too low (minimum 1500px width for good OCR)
-    if (metadata.width && metadata.width < 1500) {
-      const scale = 1500 / metadata.width;
+    // Step 0: Auto-rotate based on EXIF (fixes orientation issues)
+    pipeline = pipeline.rotate();
+
+    // Step 1: Increase resolution for better OCR (2000px minimum)
+    if (metadata.width && metadata.width < 2000) {
+      const scale = 2000 / metadata.width;
       pipeline = pipeline.resize(
         Math.round(metadata.width * scale),
         metadata.height ? Math.round(metadata.height * scale) : undefined,
-        { kernel: 'lanczos3' } // High-quality resampling
+        { kernel: 'lanczos3' }
       );
-      console.log(`  ↑ Scaled up ${scale.toFixed(2)}x to improve resolution`);
     }
 
-    // Step 2: Convert to grayscale (reduces noise, improves OCR)
+    // Step 2: Convert to grayscale
     pipeline = pipeline.grayscale();
 
-    // Step 3: Normalize contrast (makes text stand out)
-    pipeline = pipeline.normalize();
+    // Step 3: Enhance contrast aggressively
+    pipeline = pipeline.normalize().linear(1.2, -(128 * 0.2));
 
     // Step 4: Sharpen text edges
     pipeline = pipeline.sharpen({
-      sigma: 1.5,
-      m1: 1.0,
-      m2: 0.5
+      sigma: 2.0,
+      m1: 1.5,
+      m2: 0.7
     });
 
-    // Step 5: Remove noise with median filter
+    // Step 5: Remove noise
     pipeline = pipeline.median(3);
 
     const processedBuffer = await pipeline.toBuffer();
-    console.log('✅ Image preprocessing completed');
-
     return processedBuffer;
   } catch (error) {
-    console.warn('⚠️ Image preprocessing failed, using original:', error);
-    return inputBuffer; // Fallback to original if preprocessing fails
+    console.error('Image preprocessing error:', error);
+    return inputBuffer; // Fallback to original
   }
 };
 
@@ -601,23 +598,44 @@ export const extractTextFromPlainText = async (buffer: Buffer): Promise<Extracti
  */
 export const extractTextFromImage = async (buffer: Buffer): Promise<ExtractionResult> => {
   try {
-    console.log('🖼️ Extracting text from image with preprocessing...');
-
-    // Preprocess image for better OCR accuracy
+    // First pass: Standard preprocessing
     const preprocessedBuffer = await preprocessImage(buffer);
-
-    // Perform OCR on preprocessed image
     const ocrResult = await visionService.extractTextFromImage(preprocessedBuffer);
 
-    // Post-process the extracted text
+    // If confidence is low, try aggressive preprocessing
+    if (ocrResult.confidence && ocrResult.confidence < 0.7) {
+      console.log(`⚠️ Low OCR confidence (${ocrResult.confidence.toFixed(2)}), retrying with aggressive preprocessing...`);
+
+      const aggressiveBuffer = await sharp(buffer)
+        .rotate()
+        .resize(3000, null, { kernel: 'lanczos3' })
+        .grayscale()
+        .normalize()
+        .linear(1.5, -(128 * 0.5))
+        .sharpen({ sigma: 3.0, m1: 2.0, m2: 1.0 })
+        .median(5)
+        .toBuffer();
+
+      const secondOcrResult = await visionService.extractTextFromImage(aggressiveBuffer);
+
+      if (secondOcrResult.confidence && secondOcrResult.confidence > ocrResult.confidence) {
+        console.log(`✅ Aggressive preprocessing improved confidence: ${ocrResult.confidence.toFixed(2)} → ${secondOcrResult.confidence.toFixed(2)}`);
+        const cleanedText = postProcessOCRText(secondOcrResult.text);
+        return {
+          text: cleanedText,
+          confidence: secondOcrResult.confidence,
+          wordCount: cleanedText.split(/\s+/).filter(w => w.length > 0).length,
+          language: secondOcrResult.language,
+        };
+      }
+    }
+
+    // Use first result
     const cleanedText = postProcessOCRText(ocrResult.text);
-
-    console.log(`✅ Extracted ${cleanedText.length} characters from image (confidence: ${ocrResult.confidence?.toFixed(1)}%)`);
-
     return {
       text: cleanedText,
       confidence: ocrResult.confidence,
-      wordCount: cleanedText.split(/\s+/).filter((w) => w.length > 0).length,
+      wordCount: cleanedText.split(/\s+/).filter(w => w.length > 0).length,
       language: ocrResult.language,
     };
   } catch (error) {

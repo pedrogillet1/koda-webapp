@@ -25,8 +25,10 @@ router.get('/test-libreoffice', documentController.testLibreOffice);
 // List and specific document routes
 router.get('/', documentController.listDocuments);
 router.get('/:id/download', downloadLimiter, documentController.getDownloadUrl);
+router.get('/:id/view-url', downloadLimiter, documentController.getViewUrl);
 router.get('/:id/stream', downloadLimiter, documentController.streamDocument);
 router.get('/:id/preview', downloadLimiter, documentController.getPreview);
+router.get('/:id/preview-pdf', downloadLimiter, documentController.streamPreviewPdf);
 router.get('/:id/status', documentController.getDocumentStatus);
 router.get('/:id/thumbnail', documentController.getThumbnail);
 router.get('/:id/slides', documentController.getPPTXSlides);

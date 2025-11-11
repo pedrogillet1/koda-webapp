@@ -1,4 +1,5 @@
 import vision from '@google-cloud/vision';
+import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
 import { config } from '../config/env';
 import { pdfToPng } from 'pdf-to-png-converter';
 
@@ -174,11 +175,65 @@ export const detectDocumentType = async (
 };
 
 /**
- * Extract text from scanned PDF by converting to images first
+ * Extract text from scanned PDF using Google Document AI (enhanced for books)
+ * Falls back to Vision API if Document AI is not configured
  * @param pdfBuffer - Buffer containing the PDF data
  * @returns Extracted text and confidence score
  */
 export const extractTextFromScannedPDF = async (pdfBuffer: Buffer): Promise<OCRResult> => {
+  // Try Document AI first (better for complex layouts like books)
+  if (process.env.DOCUMENT_AI_PROCESSOR_ID && process.env.GOOGLE_CLOUD_PROJECT_ID) {
+    try {
+      console.log('📄 [OCR] Starting Document AI processing...');
+
+      const client = new DocumentProcessorServiceClient({
+        keyFilename: config.GCS_KEY_FILE,
+        projectId: config.GCS_PROJECT_ID,
+      });
+
+      const name = `projects/${process.env.GOOGLE_CLOUD_PROJECT_ID}/locations/us/processors/${process.env.DOCUMENT_AI_PROCESSOR_ID}`;
+
+      const request = {
+        name,
+        rawDocument: {
+          content: pdfBuffer.toString('base64'),
+          mimeType: 'application/pdf',
+        },
+      };
+
+      const [result] = await client.processDocument(request);
+      const { document } = result;
+
+      if (!document || !document.text) {
+        throw new Error('No text extracted from document');
+      }
+
+      console.log(`✅ [OCR] Document AI extracted ${document.text.length} characters`);
+      console.log(`📊 [OCR] Document has ${document.pages?.length || 0} pages`);
+
+      // Document AI preserves layout, columns, tables
+      return {
+        text: document.text,
+        confidence: 0.99, // Document AI is very accurate
+        language: document.pages?.[0]?.detectedLanguages?.[0]?.languageCode || 'unknown',
+      };
+    } catch (error: any) {
+      console.error('❌ [OCR] Document AI failed:', error.message);
+      console.log('⚠️  [OCR] Falling back to Google Vision API...');
+      // Fall through to Vision API fallback below
+    }
+  }
+
+  // Fallback: Use Vision API (original method)
+  return await extractTextFromScannedPDFWithVision(pdfBuffer);
+};
+
+/**
+ * Extract text from scanned PDF by converting to images first (Vision API fallback)
+ * @param pdfBuffer - Buffer containing the PDF data
+ * @returns Extracted text and confidence score
+ */
+async function extractTextFromScannedPDFWithVision(pdfBuffer: Buffer): Promise<OCRResult> {
   try {
     console.log('🔍 Converting PDF to images for OCR...');
 
@@ -244,4 +299,4 @@ export const extractTextFromScannedPDF = async (pdfBuffer: Buffer): Promise<OCRR
     console.error('❌ PDF OCR failed:', error.message);
     throw new Error(`Failed to extract text from scanned PDF: ${error.message}`);
   }
-};
+}

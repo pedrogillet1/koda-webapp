@@ -12,6 +12,7 @@ import * as chatService from '../services/chatService';
 import useStreamingText from '../hooks/useStreamingText';
 import VoiceInput from './VoiceInput';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useIsMobile } from '../hooks/useIsMobile';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -25,6 +26,7 @@ import mp3Icon from '../assets/mp3.svg';
 import GeneratedDocumentCard from './GeneratedDocumentCard';
 import DocumentCard from './DocumentCard';
 import DocumentPreviewModal from './DocumentPreviewModal';
+import './MarkdownStyles.css';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
 let globalSocketInitialized = false;
@@ -34,6 +36,7 @@ let globalListenersAttached = false;
 const ChatInterface = ({ currentConversation, onConversationUpdate, onConversationCreated }) => {
     const navigate = useNavigate();
     const location = useLocation();
+    const isMobile = useIsMobile();
     // ✅ FIX: Persist draft message across screen changes
     const [message, setMessage] = useState(() => {
         // Load draft from localStorage on mount
@@ -1560,7 +1563,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         <div style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column'}}>
             {/* Header */}
             <div style={{height: 84, padding: '0 20px', background: 'white', borderBottom: '1px solid #E6E6EC', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                <img style={{height: 65}} src={kodaLogoSvg} alt="Logo" />
+                <img style={{height: 65, marginLeft: isMobile ? '50px' : '0'}} src={kodaLogoSvg} alt="Logo" />
             </div>
 
             {/* Messages Area */}
@@ -1612,10 +1615,32 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                     </div>
                                                     <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
                                                         <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
-                                                            <div className="markdown-content" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
+                                                            <div className="markdown-preview-container" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
                                                                 <ReactMarkdown
                                                                     remarkPlugins={[remarkGfm]}
-                                                                    components={{ a: DocumentLink }}
+                                                                    components={{
+                                                                        a: DocumentLink,
+                                                                        table: ({node, ...props}) => <table className="markdown-table" {...props} />,
+                                                                        thead: ({node, ...props}) => <thead {...props} />,
+                                                                        tbody: ({node, ...props}) => <tbody {...props} />,
+                                                                        tr: ({node, ...props}) => <tr {...props} />,
+                                                                        th: ({node, ...props}) => <th {...props} />,
+                                                                        td: ({node, ...props}) => <td {...props} />,
+                                                                        h1: ({node, ...props}) => <h1 className="markdown-h1" {...props} />,
+                                                                        h2: ({node, ...props}) => <h2 className="markdown-h2" {...props} />,
+                                                                        h3: ({node, ...props}) => <h3 className="markdown-h3" {...props} />,
+                                                                        h4: ({node, ...props}) => <h4 className="markdown-h4" {...props} />,
+                                                                        h5: ({node, ...props}) => <h5 className="markdown-h5" {...props} />,
+                                                                        h6: ({node, ...props}) => <h6 className="markdown-h6" {...props} />,
+                                                                        p: ({node, ...props}) => <p className="markdown-paragraph" {...props} />,
+                                                                        ul: ({node, ...props}) => <ul className="markdown-ul" {...props} />,
+                                                                        ol: ({node, ...props}) => <ol className="markdown-ol" {...props} />,
+                                                                        code: ({node, inline, ...props}) =>
+                                                                            inline ? <code className="markdown-inline-code" {...props} /> : <code className="markdown-code-block" {...props} />,
+                                                                        blockquote: ({node, ...props}) => <blockquote className="markdown-blockquote" {...props} />,
+                                                                        hr: ({node, ...props}) => <hr className="markdown-hr" {...props} />,
+                                                                        img: ({node, ...props}) => <img className="markdown-image" {...props} alt={props.alt || ''} />,
+                                                                    }}
                                                                 >
                                                                     {msg.content}
                                                                 </ReactMarkdown>
@@ -2365,10 +2390,32 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             </div>
                                             <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
                                                 <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4, display: 'flex'}}>
-                                                    <div className="markdown-content streaming" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word'}}>
+                                                    <div className="markdown-preview-container streaming" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word'}}>
                                                         <ReactMarkdown
                                                             remarkPlugins={[remarkGfm]}
-                                                            components={{ a: DocumentLink }}
+                                                            components={{
+                                                                a: DocumentLink,
+                                                                table: ({node, ...props}) => <table className="markdown-table" {...props} />,
+                                                                thead: ({node, ...props}) => <thead {...props} />,
+                                                                tbody: ({node, ...props}) => <tbody {...props} />,
+                                                                tr: ({node, ...props}) => <tr {...props} />,
+                                                                th: ({node, ...props}) => <th {...props} />,
+                                                                td: ({node, ...props}) => <td {...props} />,
+                                                                h1: ({node, ...props}) => <h1 className="markdown-h1" {...props} />,
+                                                                h2: ({node, ...props}) => <h2 className="markdown-h2" {...props} />,
+                                                                h3: ({node, ...props}) => <h3 className="markdown-h3" {...props} />,
+                                                                h4: ({node, ...props}) => <h4 className="markdown-h4" {...props} />,
+                                                                h5: ({node, ...props}) => <h5 className="markdown-h5" {...props} />,
+                                                                h6: ({node, ...props}) => <h6 className="markdown-h6" {...props} />,
+                                                                p: ({node, ...props}) => <p className="markdown-paragraph" {...props} />,
+                                                                ul: ({node, ...props}) => <ul className="markdown-ul" {...props} />,
+                                                                ol: ({node, ...props}) => <ol className="markdown-ol" {...props} />,
+                                                                code: ({node, inline, ...props}) =>
+                                                                    inline ? <code className="markdown-inline-code" {...props} /> : <code className="markdown-code-block" {...props} />,
+                                                                blockquote: ({node, ...props}) => <blockquote className="markdown-blockquote" {...props} />,
+                                                                hr: ({node, ...props}) => <hr className="markdown-hr" {...props} />,
+                                                                img: ({node, ...props}) => <img className="markdown-image" {...props} alt={props.alt || ''} />,
+                                                            }}
                                                         >
                                                             {displayedText}
                                                         </ReactMarkdown>

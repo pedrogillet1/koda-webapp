@@ -219,6 +219,11 @@ model Document {
   @@index([userId])
   @@index([folderId])
   @@index([parentVersionId])
+  @@index([userId, status])
+  @@index([status])
+  @@index([mimeType])
+  @@index([userId, createdAt])
+  @@index([userId, updatedAt])
   @@map("documents")
 }
 
@@ -372,6 +377,7 @@ model Conversation {
 
   @@index([userId])
   @@index([contextType, contextId])
+  @@index([userId, updatedAt])
   @@map("conversations")
 }
 
@@ -403,6 +409,7 @@ model Message {
 
   @@index([conversationId])
   @@index([isDocument])
+  @@index([conversationId, createdAt])
   @@map("messages")
 }
 

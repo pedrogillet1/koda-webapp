@@ -722,29 +722,22 @@ async function processDocumentWithTimeout(
       console.log('📄 Pre-generating PDF preview for DOCX...');
       try {
         const { convertDocxToPdf } = await import('./docx-converter.service');
-        const { Storage } = await import('@google-cloud/storage');
+        const supabaseStorageService = await import('./supabaseStorage.service');
 
-        const storage = new Storage({
-          keyFilename: process.env.GCS_KEY_FILE,
-          projectId: process.env.GCS_PROJECT_ID,
-        });
-
-        // Get the encrypted filename from the document
-        const doc = await prisma.document.findUnique({
+        // Get the document info
+        const document = await prisma.document.findUnique({
           where: { id: documentId },
-          select: { encryptedFilename: true }
+          select: { encryptedFilename: true, userId: true }
         });
 
-        if (!doc) {
+        if (!document) {
           throw new Error('Document not found');
         }
 
-        const pdfKey = `${doc.encryptedFilename}.pdf`;
-        const bucket = storage.bucket(process.env.GCS_BUCKET_NAME!);
-        const pdfFile = bucket.file(pdfKey);
+        const pdfKey = `${document.userId}/${documentId}-converted.pdf`;
 
-        // Check if PDF already exists
-        const [pdfExists] = await pdfFile.exists();
+        // Check if PDF already exists in Supabase
+        const pdfExists = await supabaseStorageService.default.exists(pdfKey);
 
         if (!pdfExists) {
           // Save DOCX to temp file
@@ -755,7 +748,7 @@ async function processDocumentWithTimeout(
           const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
 
           if (conversion.success && conversion.pdfPath) {
-            // Upload PDF to GCS
+            // Upload PDF to Supabase
             const pdfBuffer = fs.readFileSync(conversion.pdfPath);
             await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
 
@@ -1620,19 +1613,14 @@ async function processDocumentAsync(
       console.log('📄 Pre-generating PDF preview for DOCX...');
       try {
         const { convertDocxToPdf } = await import('./docx-converter.service');
-        const { Storage } = await import('@google-cloud/storage');
+        const supabaseStorageService = await import('./supabaseStorage.service');
 
-        const storage = new Storage({
-          keyFilename: process.env.GCS_KEY_FILE,
-          projectId: process.env.GCS_PROJECT_ID,
-        });
+        // REASON: Use the correct PDF path format
+        // WHY: DOCX files are converted to PDF and stored as `${userId}/${documentId}-converted.pdf`
+        const pdfKey = `${userId}/${documentId}-converted.pdf`;
 
-        const pdfKey = `${encryptedFilename}.pdf`;
-        const bucket = storage.bucket(process.env.GCS_BUCKET_NAME!);
-        const pdfFile = bucket.file(pdfKey);
-
-        // Check if PDF already exists
-        const [pdfExists] = await pdfFile.exists();
+        // Check if PDF already exists in Supabase
+        const pdfExists = await supabaseStorageService.default.exists(pdfKey);
 
         if (!pdfExists) {
           // Save DOCX to temp file
@@ -1643,7 +1631,7 @@ async function processDocumentAsync(
           const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
 
           if (conversion.success && conversion.pdfPath) {
-            // Upload PDF to GCS
+            // Upload PDF to Supabase
             const pdfBuffer = fs.readFileSync(conversion.pdfPath);
             await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
 
@@ -2136,6 +2124,83 @@ export const getDocumentDownloadUrl = async (documentId: string, userId: string)
 };
 
 /**
+ * Get signed URL for viewing document (no forced download)
+ * Used by DocumentViewer for direct access without backend proxy
+ * PHASE 2: Supports pre-converted PDFs for DOCX files
+ */
+export const getDocumentViewUrl = async (documentId: string, userId: string, req?: any) => {
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+  });
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  if (document.userId !== userId) {
+    throw new Error('Unauthorized access to document');
+  }
+
+  // ⚡ FIX: For encrypted files, use stream endpoint instead of signed URLs
+  // Signed URLs can't decrypt files client-side, so we need server-side decryption
+  if (document.isEncrypted) {
+    console.log(`🔐 [VIEW-URL] Document is encrypted, using stream endpoint for server-side decryption`);
+
+    // Construct base URL from request headers (supports ngrok, localhost, etc.)
+    let baseUrl = 'http://localhost:5000';
+    if (req) {
+      const protocol = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+      const host = req.headers['x-forwarded-host'] || req.headers.host;
+      if (host) {
+        baseUrl = `${protocol}://${host}`;
+      }
+    }
+
+    // Return the stream endpoint URL instead of a signed URL
+    return {
+      url: `${baseUrl}/api/documents/${documentId}/stream`,
+      filename: document.filename,
+      mimeType: document.mimeType,
+      encrypted: true,
+    };
+  }
+
+  // PHASE 2: Check if DOCX has pre-converted PDF
+  const isDocx = document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  let fileToServe = document.encryptedFilename;
+  let mimeTypeToServe = document.mimeType;
+
+  if (isDocx && document.renderableContent) {
+    try {
+      const renderableData = JSON.parse(document.renderableContent);
+      if (renderableData.type === 'docx-pdf-conversion' && renderableData.pdfPath) {
+        console.log(`⚡ [VIEW-URL] Using pre-converted PDF for DOCX: ${renderableData.pdfPath}`);
+        fileToServe = renderableData.pdfPath;
+        mimeTypeToServe = 'application/pdf';
+      }
+    } catch (error) {
+      console.warn('⚠️  [VIEW-URL] Could not parse renderableContent, using original DOCX');
+    }
+  }
+
+  // Generate signed URL (valid for 1 hour) for viewing (no forced download)
+  // This only works for non-encrypted files
+  const signedUrl = await getSignedUrl(
+    fileToServe,
+    3600,
+    false, // Allow inline viewing
+    document.filename // Original filename
+  );
+
+  return {
+    url: signedUrl,
+    filename: document.filename,
+    mimeType: mimeTypeToServe,
+    encrypted: false,
+  };
+};
+
+/**
  * Stream document file (downloads and decrypts server-side, returns buffer)
  */
 export const streamDocument = async (documentId: string, userId: string) => {
@@ -2189,6 +2254,66 @@ export const streamDocument = async (documentId: string, userId: string) => {
 };
 
 /**
+ * Stream converted PDF for DOCX preview
+ * Downloads the converted PDF file from Supabase and returns it for streaming
+ */
+export const streamPreviewPdf = async (documentId: string, userId: string) => {
+  console.log(`📄 [streamPreviewPdf] Starting for documentId: ${documentId}`);
+
+  // Verify document ownership
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+  });
+
+  if (!document) {
+    console.error(`❌ [streamPreviewPdf] Document not found: ${documentId}`);
+    throw new Error('Document not found');
+  }
+
+  console.log(`📄 [streamPreviewPdf] Document found: ${document.filename}, userId: ${document.userId}`);
+
+  if (document.userId !== userId) {
+    console.error(`❌ [streamPreviewPdf] Unauthorized access: document userId ${document.userId} !== request userId ${userId}`);
+    throw new Error('Unauthorized access to document');
+  }
+
+  // REASON: Build the PDF key (same format as in getDocumentPreview)
+  // WHY: DOCX files are converted to PDF and stored as `${userId}/${documentId}-converted.pdf`
+  // This matches the path used in document.queue.ts line 242
+  const pdfKey = `${userId}/${documentId}-converted.pdf`;
+  console.log(`📄 [streamPreviewPdf] Looking for PDF at: ${pdfKey}`);
+
+  // REASON: Check if the PDF version exists in storage
+  // WHY: The PDF might not be converted yet
+  const supabaseStorageService = await import('./supabaseStorage.service');
+  const pdfExists = await supabaseStorageService.default.exists(pdfKey);
+
+  console.log(`📄 [streamPreviewPdf] PDF exists in Supabase: ${pdfExists}`);
+
+  if (!pdfExists) {
+    console.error(`❌ [streamPreviewPdf] PDF not found at ${pdfKey}. Document may need reprocessing.`);
+    throw new Error(`PDF preview not available. This document was uploaded before the Supabase migration and needs to be re-uploaded or reprocessed. Please delete and re-upload this document.`);
+  }
+
+  // REASON: Download the converted PDF from Supabase Storage
+  // WHY: We need the file buffer to stream it to the client
+  const pdfBuffer = await downloadFile(pdfKey);
+
+  // REASON: Validate PDF buffer
+  // WHY: Ensure we have valid data before streaming
+  if (!pdfBuffer || pdfBuffer.length === 0) {
+    throw new Error('PDF preview file is empty or corrupted');
+  }
+
+  console.log(`✅ Streaming PDF preview for ${document.filename} (${(pdfBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
+
+  return {
+    buffer: pdfBuffer,
+    filename: document.filename,
+  };
+};
+
+/**
  * List user documents
  */
 export const listDocuments = async (
@@ -2197,6 +2322,16 @@ export const listDocuments = async (
   page: number = 1,
   limit: number = 1000
 ) => {
+  // ⚡ CACHE: Generate cache key
+  const cacheKey = `documents_list:${userId}:${folderId || 'all'}:${page}:${limit}`;
+
+  // ⚡ CACHE: Check cache first
+  const cached = await cacheService.get<any>(cacheKey);
+  if (cached) {
+    console.log(`✅ [Cache] HIT for documents list (user: ${userId.substring(0, 8)}...)`);
+    return cached;
+  }
+
   const skip = (page - 1) * limit;
 
   const where: any = {
@@ -2265,7 +2400,7 @@ export const listDocuments = async (
     };
   });
 
-  return {
+  const result = {
     documents: sanitizedDocuments,
     pagination: {
       page,
@@ -2274,6 +2409,12 @@ export const listDocuments = async (
       totalPages: Math.ceil(total / limit),
     },
   };
+
+  // ⚡ CACHE: Store result with 1 minute TTL
+  await cacheService.set(cacheKey, result, { ttl: 60 });
+  console.log(`💾 [Cache] Stored documents list (user: ${userId.substring(0, 8)}...)`);
+
+  return result;
 };
 
 /**
@@ -2562,22 +2703,8 @@ export const getDocumentStatus = async (documentId: string, userId: string) => {
   }
 
   return {
-    documentId: document.id,
-    filename: document.filename,
-    status: document.status,
-    uploadedAt: document.createdAt,
-    metadata: document.metadata
-      ? {
-          hasExtractedText: !!document.metadata.extractedText,
-          textLength: document.metadata.extractedText?.length || 0,
-          ocrConfidence: document.metadata.ocrConfidence,
-          hasThumbnail: !!document.metadata.thumbnailUrl,
-          classification: document.metadata.classification,
-          entities: document.metadata.entities
-            ? JSON.parse(document.metadata.entities)
-            : {},
-        }
-      : null,
+    ...document,
+    metadata: document.metadata || null,
   };
 };
 
@@ -2603,6 +2730,7 @@ export const getDocumentThumbnail = async (documentId: string, userId: string) =
 
 /**
  * Get document preview URL (converts DOCX to PDF if needed)
+ * Supports all file formats: PDF, DOCX, PPTX, XLSX, images, text files, etc.
  */
 export const getDocumentPreview = async (documentId: string, userId: string) => {
   const document = await prisma.document.findUnique({
@@ -2620,40 +2748,35 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
     throw new Error('Unauthorized');
   }
 
-  // If it's a DOCX file, convert to PDF for preview
+  // REASON: Verify file exists in storage before proceeding
+  // WHY: Prevents generating URLs for non-existent files after migration
+  const fileExistsInStorage = await fileExists(document.encryptedFilename);
+  if (!fileExistsInStorage) {
+    throw new Error(`Document file not found in storage: ${document.encryptedFilename}`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DOCX FILES: Convert to PDF for universal preview
+  // ═══════════════════════════════════════════════════════════════════════════
   const isDocx = document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
   if (isDocx) {
     const { convertDocxToPdf } = await import('./docx-converter.service');
-    const { Storage } = await import('@google-cloud/storage');
+    const supabaseStorageService = await import('./supabaseStorage.service');
 
-    const storage = new Storage({
-      keyFilename: process.env.GCS_KEY_FILE,
-      projectId: process.env.GCS_PROJECT_ID,
-    });
+    // REASON: Use the correct path for the converted PDF
+    // WHY: During upload, DOCX is converted to PDF and saved as `${userId}/${documentId}-converted.pdf`
+    // This matches the path used in document.queue.ts line 242
+    const pdfKey = `${userId}/${documentId}-converted.pdf`;
 
-    // Check if PDF version already exists
-    // Note: encryptedFilename might not have an extension, so we append .pdf instead of replacing
-    const pdfKey = `${document.encryptedFilename}.pdf`;
-    const bucket = storage.bucket(process.env.GCS_BUCKET_NAME!);
-    const pdfFile = bucket.file(pdfKey);
-
-    const [pdfExists] = await pdfFile.exists();
+    const pdfExists = await supabaseStorageService.default.exists(pdfKey);
 
     if (!pdfExists) {
       console.log('📄 PDF not found, converting DOCX to PDF...');
 
-      // ✅ First, check if DOCX file exists in GCS
-      const docxFile = bucket.file(document.encryptedFilename);
-      const [docxExists] = await docxFile.exists();
-
-      if (!docxExists) {
-        throw new Error(`Document file not found in storage: ${document.encryptedFilename}`);
-      }
-
-      // Download DOCX from GCS
+      // Download DOCX from Supabase Storage
       const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
-      console.log(`⬇️  Downloading DOCX from GCS: ${document.encryptedFilename}`);
+      console.log(`⬇️  Downloading DOCX from Supabase Storage: ${document.encryptedFilename}`);
       let docxBuffer = await downloadFile(document.encryptedFilename);
 
       // ✅ Validate that the downloaded buffer is not empty
@@ -2683,11 +2806,11 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
       const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
 
       if (conversion.success && conversion.pdfPath) {
-        // Upload PDF to GCS
+        // Upload PDF to Supabase Storage
         const pdfBuffer = fs.readFileSync(conversion.pdfPath);
         await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
 
-        console.log('✅ PDF uploaded to GCS:', pdfKey);
+        console.log('✅ PDF uploaded to Supabase Storage:', pdfKey);
 
         // Clean up temp files
         fs.unlinkSync(tempDocxPath);
@@ -2697,18 +2820,20 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
       }
     }
 
-    // Generate signed URL for PDF
-    const pdfUrl = await getSignedUrl(pdfKey, 3600); // 1 hour expiry
-
+    // Return backend proxy URL instead of direct Supabase URL to avoid CORS issues
+    // The PDF will be streamed through our backend
     return {
       previewType: 'pdf',
-      previewUrl: pdfUrl,
+      previewUrl: `/api/documents/${documentId}/preview-pdf`,
       originalType: document.mimeType,
       filename: document.filename,
+      pdfKey, // Include PDF key for backend to fetch
     };
   }
 
-  // For PowerPoint files, return slides data for custom preview
+  // ═══════════════════════════════════════════════════════════════════════════
+  // POWERPOINT FILES: Return slides data for custom preview
+  // ═══════════════════════════════════════════════════════════════════════════
   if (document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
     const slidesData = document.metadata?.slidesData;
     const pptxMetadata = document.metadata?.pptxMetadata;
@@ -2722,15 +2847,13 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
     };
   }
 
-  // For PDF files, return direct URL
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PDF FILES: Generate signed URL with 1-hour expiration
+  // ═══════════════════════════════════════════════════════════════════════════
   if (document.mimeType === 'application/pdf') {
-    // ✅ Check if PDF file exists in GCS before generating signed URL
-    const pdfExists = await fileExists(document.encryptedFilename);
-
-    if (!pdfExists) {
-      throw new Error(`PDF file not found in storage: ${document.encryptedFilename}`);
-    }
-
+    // REASON: Generate signed URL with 1-hour expiration
+    // WHY: Supabase storage requires signed URLs for private files
+    // This creates a temporary, secure link that expires automatically
     const url = await getSignedUrl(document.encryptedFilename, 3600);
 
     return {
@@ -2741,10 +2864,145 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
     };
   }
 
-  // For other files, return stream URL
+  // ═══════════════════════════════════════════════════════════════════════════
+  // IMAGE FILES: Generate signed URL for direct display
+  // ═══════════════════════════════════════════════════════════════════════════
+  const imageTypes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    'image/bmp',
+    'image/tiff'
+  ];
+
+  if (imageTypes.includes(document.mimeType)) {
+    // REASON: Generate signed URL with 1-hour expiration for images
+    // WHY: Images can be displayed directly in browser with img tag
+    const url = await getSignedUrl(document.encryptedFilename, 3600);
+
+    return {
+      previewType: 'image',
+      previewUrl: url,
+      originalType: document.mimeType,
+      filename: document.filename,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXCEL FILES: Generate signed URL for download/preview
+  // ═══════════════════════════════════════════════════════════════════════════
+  const excelTypes = [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    'application/vnd.ms-excel', // .xls
+    'text/csv' // .csv
+  ];
+
+  if (excelTypes.includes(document.mimeType)) {
+    // REASON: Generate signed URL with 1-hour expiration
+    // WHY: Excel files can be downloaded and opened in appropriate applications
+    const url = await getSignedUrl(document.encryptedFilename, 3600);
+
+    return {
+      previewType: 'excel',
+      previewUrl: url,
+      originalType: document.mimeType,
+      filename: document.filename,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TEXT FILES: Generate signed URL for direct display
+  // ═══════════════════════════════════════════════════════════════════════════
+  const textTypes = [
+    'text/plain',
+    'text/markdown',
+    'text/html',
+    'text/css',
+    'text/javascript',
+    'application/json',
+    'application/xml',
+    'text/xml'
+  ];
+
+  if (textTypes.includes(document.mimeType)) {
+    // REASON: Generate signed URL with 1-hour expiration
+    // WHY: Text files can be displayed directly in browser
+    const url = await getSignedUrl(document.encryptedFilename, 3600);
+
+    return {
+      previewType: 'text',
+      previewUrl: url,
+      originalType: document.mimeType,
+      filename: document.filename,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VIDEO FILES: Generate signed URL for video player
+  // ═══════════════════════════════════════════════════════════════════════════
+  const videoTypes = [
+    'video/mp4',
+    'video/webm',
+    'video/ogg',
+    'video/quicktime', // .mov
+    'video/x-msvideo', // .avi
+    'video/x-matroska' // .mkv
+  ];
+
+  if (videoTypes.includes(document.mimeType)) {
+    // REASON: Generate signed URL with 2-hour expiration (longer for videos)
+    // WHY: Videos can be played directly in browser video player
+    const url = await getSignedUrl(document.encryptedFilename, 7200); // 2 hours
+
+    return {
+      previewType: 'video',
+      previewUrl: url,
+      originalType: document.mimeType,
+      filename: document.filename,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AUDIO FILES: Generate signed URL for audio player
+  // ═══════════════════════════════════════════════════════════════════════════
+  const audioTypes = [
+    'audio/mpeg', // .mp3
+    'audio/wav',
+    'audio/ogg',
+    'audio/webm',
+    'audio/aac',
+    'audio/flac',
+    'audio/x-m4a'
+  ];
+
+  if (audioTypes.includes(document.mimeType)) {
+    // REASON: Generate signed URL with 2-hour expiration (longer for audio)
+    // WHY: Audio files can be played directly in browser audio player
+    const url = await getSignedUrl(document.encryptedFilename, 7200); // 2 hours
+
+    return {
+      previewType: 'audio',
+      previewUrl: url,
+      originalType: document.mimeType,
+      filename: document.filename,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // OTHER FILES: Generate signed URL for download
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REASON: For unknown file types, provide signed URL for secure download
+  // WHY: Ensures all files can be accessed even if no specific preview is available
+  console.log(`⚠️  Unknown file type for preview: ${document.mimeType}, generating download URL`);
+
+  const url = await getSignedUrl(document.encryptedFilename, 3600);
+
   return {
-    previewType: 'original',
-    previewUrl: `/api/documents/${documentId}/stream`,
+    previewType: 'download',
+    previewUrl: url,
     originalType: document.mimeType,
     filename: document.filename,
   };
@@ -2942,12 +3200,13 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 
     // 3. Get or re-extract text for non-PPTX or when slides already exist
     let extractedText = document.metadata?.extractedText;
+    let fileBuffer: Buffer | null = null;
 
     if (!extractedText || extractedText.length === 0) {
       console.log('📥 No extracted text found, downloading and extracting...');
 
       // Download file from GCS
-      const fileBuffer = await downloadFile(document.encryptedFilename);
+      fileBuffer = await downloadFile(document.encryptedFilename);
 
       // Extract text
       const result = await textExtractionService.extractText(fileBuffer, document.mimeType);
@@ -2977,6 +3236,50 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
       console.log(`✅ Text extracted (${extractedText.length} characters)`);
     } else {
       console.log(`✅ Using existing extracted text (${extractedText.length} characters)`);
+    }
+
+    // 3.5. Regenerate markdown content if missing or requested
+    const needsMarkdown = !document.metadata?.markdownContent;
+    if (needsMarkdown) {
+      console.log('📝 Markdown content missing, regenerating...');
+
+      try {
+        // Download file if not already downloaded
+        if (!fileBuffer) {
+          fileBuffer = await downloadFile(document.encryptedFilename);
+        }
+
+        // Convert to markdown
+        const markdownResult = await markdownConversionService.convertToMarkdown(
+          fileBuffer,
+          document.mimeType,
+          document.filename,
+          documentId
+        );
+
+        // Update metadata with markdown content
+        if (document.metadata) {
+          await prisma.documentMetadata.update({
+            where: { id: document.metadata.id },
+            data: {
+              markdownContent: markdownResult.markdownContent
+            }
+          });
+        } else {
+          await prisma.documentMetadata.create({
+            data: {
+              documentId,
+              markdownContent: markdownResult.markdownContent
+            }
+          });
+        }
+
+        console.log(`✅ Markdown regenerated (${markdownResult.markdownContent.length} characters)`);
+      } catch (markdownError: any) {
+        console.warn('⚠️ Markdown regeneration failed (non-critical):', markdownError.message);
+      }
+    } else {
+      console.log('✅ Markdown content already exists');
     }
 
     // 4. Delete old embeddings

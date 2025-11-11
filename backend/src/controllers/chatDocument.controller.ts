@@ -24,16 +24,16 @@ export const exportChatDocument = async (req: Request, res: Response): Promise<v
 
     console.log(`[Chat Document Export] Exporting chat document ${id} to ${format}`);
 
+    // Check if user has access (userId from auth middleware)
+    const userId = (req as any).user?.userId;
+
     // Get chat document
-    const chatDocument = await chatDocumentGenerationService.getChatDocument(id);
+    const chatDocument = await chatDocumentGenerationService.getChatDocument(id, userId);
 
     if (!chatDocument) {
       res.status(404).json({ error: 'Chat document not found' });
       return;
     }
-
-    // Check if user has access (userId from auth middleware)
-    const userId = (req as any).user?.userId;
     if (chatDocument.userId !== userId) {
       res.status(403).json({ error: 'Access denied' });
       return;
@@ -93,7 +93,7 @@ export const getChatDocument = async (req: Request, res: Response): Promise<void
 
     console.log(`[Chat Document] Getting chat document ${id}`);
 
-    const chatDocument = await chatDocumentGenerationService.getChatDocument(id);
+    const chatDocument = await chatDocumentGenerationService.getChatDocument(id, userId);
 
     if (!chatDocument) {
       res.status(404).json({ error: 'Chat document not found' });
@@ -124,7 +124,7 @@ export const getChatDocumentsByConversation = async (req: Request, res: Response
 
     console.log(`[Chat Document] Getting documents for conversation ${conversationId}`);
 
-    const chatDocuments = await chatDocumentGenerationService.getChatDocumentsByConversation(conversationId);
+    const chatDocuments = await chatDocumentGenerationService.getChatDocumentsByConversation(conversationId, userId);
 
     // Filter to only user's documents
     const userDocuments = chatDocuments.filter(doc => doc.userId === userId);

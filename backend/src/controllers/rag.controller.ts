@@ -1169,7 +1169,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     if (intentResult.intent === 'delete_file' && intentResult.parameters.filename) {
       console.log(`📁 [STREAMING ACTION] Deleting: "${intentResult.parameters.filename}"`);
 
-      const result = await fileActionsService.handleFileAction(
+      const result = await fileActionsService.executeAction(
         query,
         userId
       );
