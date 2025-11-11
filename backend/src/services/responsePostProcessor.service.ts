@@ -8,6 +8,7 @@
  * 2. Add blank line before first bullet point
  * 3. Limit "Next steps" to 1 bullet
  * 4. Ensure consistent bullet format (use •)
+ * 5. Remove structure labels (Opening:, Context:, Details:, etc.)
  */
 
 class ResponsePostProcessorService {
@@ -28,6 +29,9 @@ class ResponsePostProcessorService {
 
     // Rule 4: Ensure consistent bullet format
     processed = this.ensureBulletFormat(processed);
+
+    // Rule 5: Remove structure labels (Opening:, Context:, etc.)
+    processed = this.removeStructureLabels(processed);
 
     return processed;
   }
@@ -95,6 +99,60 @@ class ResponsePostProcessorService {
     // Convert * and - bullets to •
     text = text.replace(/\n\*\s/g, '\n• ');
     text = text.replace(/\n-\s/g, '\n• ');
+
+    return text;
+  }
+
+  /**
+   * Rule 5: Remove structure labels
+   * Removes labels like "Opening:", "Context:", "Details:", etc.
+   * REASON: Makes responses feel more natural and conversational (like ChatGPT)
+   * WHY: Users find labeled sections robotic and template-like
+   */
+  private removeStructureLabels(text: string): string {
+    // List of common structure labels to remove
+    const labelPatterns = [
+      // Common section labels
+      /^Opening:\s*/gim,
+      /^Context:\s*/gim,
+      /^Details:\s*/gim,
+      /^Examples?:\s*/gim,
+      /^Relationships?:\s*/gim,
+      /^Next Steps?:\s*/gim,
+      /^Summary:\s*/gim,
+      /^Conclusion:\s*/gim,
+      /^Analysis:\s*/gim,
+      /^Overview:\s*/gim,
+      /^Background:\s*/gim,
+      /^Explanation:\s*/gim,
+      /^Key Points?:\s*/gim,
+      /^Main Points?:\s*/gim,
+      /^Important:\s*/gim,
+      /^Note:\s*/gim,
+
+      // Also remove bold versions
+      /^\*\*Opening:\*\*\s*/gim,
+      /^\*\*Context:\*\*\s*/gim,
+      /^\*\*Details:\*\*\s*/gim,
+      /^\*\*Examples?:\*\*\s*/gim,
+      /^\*\*Relationships?:\*\*\s*/gim,
+      /^\*\*Next Steps?:\*\*\s*/gim,
+      /^\*\*Summary:\*\*\s*/gim,
+      /^\*\*Conclusion:\*\*\s*/gim,
+      /^\*\*Analysis:\*\*\s*/gim,
+      /^\*\*Overview:\*\*\s*/gim,
+      /^\*\*Background:\*\*\s*/gim,
+      /^\*\*Explanation:\*\*\s*/gim,
+      /^\*\*Key Points?:\*\*\s*/gim,
+      /^\*\*Main Points?:\*\*\s*/gim,
+      /^\*\*Important:\*\*\s*/gim,
+      /^\*\*Note:\*\*\s*/gim,
+    ];
+
+    // Remove each pattern
+    for (const pattern of labelPatterns) {
+      text = text.replace(pattern, '');
+    }
 
     return text;
   }

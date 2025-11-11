@@ -14,6 +14,7 @@ import { Document, Folder } from '@prisma/client';
 import { llmIntentDetectorService } from './llmIntentDetector.service';
 import { findBestMatch } from 'string-similarity';
 import fuzzyMatchService from './fuzzy-match.service';
+import { emitDocumentEvent, emitFolderEvent } from './websocket.service';
 
 /**
  * Enhanced fuzzy matching using our dedicated service
@@ -342,6 +343,15 @@ class FileActionsService {
         }
       });
 
+      // ✅ Emit WebSocket event for real-time UI update
+      try {
+        emitFolderEvent(params.userId, 'created', folder.id);
+        console.log(`✅ [FILE ACTION] Created folder "${params.folderName}" and emitted WebSocket event`);
+      } catch (error) {
+        console.error('❌ [FILE ACTION] Failed to emit WebSocket event:', error);
+        // Don't throw - folder was created successfully
+      }
+
       return {
         success: true,
         message: messages.folderCreated[lang](params.folderName),
@@ -404,6 +414,14 @@ class FileActionsService {
         data: { folderId: params.targetFolderId }
       });
 
+      // ✅ Emit WebSocket event for real-time UI update
+      try {
+        emitDocumentEvent(params.userId, 'moved', params.documentId);
+        console.log(`✅ [FILE ACTION] Moved document ${params.documentId} and emitted WebSocket event`);
+      } catch (error) {
+        console.error('❌ [FILE ACTION] Failed to emit WebSocket event:', error);
+      }
+
       return {
         success: true,
         message: messages.fileMoved[lang](document.filename, targetFolder.name),
@@ -450,6 +468,14 @@ class FileActionsService {
         data: { filename: params.newFilename }
       });
 
+      // ✅ Emit WebSocket event for real-time UI update
+      try {
+        emitDocumentEvent(params.userId, 'updated', params.documentId);
+        console.log(`✅ [FILE ACTION] Renamed document ${params.documentId} and emitted WebSocket event`);
+      } catch (error) {
+        console.error('❌ [FILE ACTION] Failed to emit WebSocket event:', error);
+      }
+
       return {
         success: true,
         message: messages.fileRenamed[lang](document.filename, params.newFilename),
@@ -495,6 +521,14 @@ class FileActionsService {
         where: { id: params.documentId },
         data: { status: 'deleted' }
       });
+
+      // ✅ Emit WebSocket event for real-time UI update
+      try {
+        emitDocumentEvent(params.userId, 'deleted', params.documentId);
+        console.log(`✅ [FILE ACTION] Deleted document ${params.documentId} and emitted WebSocket event`);
+      } catch (error) {
+        console.error('❌ [FILE ACTION] Failed to emit WebSocket event:', error);
+      }
 
       return {
         success: true,

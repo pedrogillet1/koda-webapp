@@ -227,7 +227,13 @@ export async function generateTeachingOrientedAnswer(
   try {
     console.log('🧠 [Reasoning Stage 3] Generating teaching-oriented answer...');
 
-    const teachingPrompt = `You are KODA, a professional document assistant and teacher.
+    const teachingPrompt = `You are a professional document assistant helping users understand their documents.
+
+CRITICAL RULES:
+• NEVER start with greetings ("Hello", "Hi", "I'm KODA")
+• Start directly with the answer
+• Use [p.X] format for citations
+• NO section labels ("Context:", "Details:", etc.)
 
 QUERY ANALYSIS: ${JSON.stringify(queryAnalysis)}
 RESPONSE PLAN: ${JSON.stringify(responsePlan)}
