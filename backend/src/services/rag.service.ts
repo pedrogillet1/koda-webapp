@@ -1695,13 +1695,13 @@ async function handleConceptComparison(
             concept,
             text: meta.content || meta.text || '',
             documentName: meta.filename || meta.documentName || '',
-            pageNumber: meta.page || meta.pageNumber || 0,
+            pageNumber: meta.page || meta.pageNumber || null, // null instead of 0 to avoid [p.0]
             score: match.score,
           });
 
           allSources.push({
             documentName: meta.filename || meta.documentName || '',
-            pageNumber: meta.page || meta.pageNumber || 0,
+            pageNumber: meta.page || meta.pageNumber || null, // null instead of 0 to avoid [p.0]
             relevanceScore: match.score,
           });
         }
@@ -1728,7 +1728,9 @@ async function handleConceptComparison(
     if (conceptChunks.length > 0) {
       context += `\n\n**${concept.toUpperCase()}**:\n`;
       conceptChunks.forEach(chunk => {
-        context += `\n[${chunk.documentName}, p.${chunk.pageNumber}]\n${chunk.text}\n`;
+        // Only include page number if it exists and is not 0 or null
+        const pageInfo = chunk.pageNumber ? `, p.${chunk.pageNumber}` : '';
+        context += `\n[${chunk.documentName}${pageInfo}]\n${chunk.text}\n`;
       });
     }
   }
@@ -1858,7 +1860,7 @@ async function handleDocumentComparison(
   for (const [docName, match] of chunksMap.entries()) {
     sources.push({
       documentName: docName,
-      pageNumber: match.metadata?.page || 0,
+      pageNumber: match.metadata?.page || null,
       score: match.score || 0
     });
   }
@@ -1874,7 +1876,7 @@ async function handleDocumentComparison(
     if (doc && !sources.find(s => s.documentName === doc.filename)) {
       sources.push({
         documentName: doc.filename,
-        pageNumber: 0,
+        pageNumber: null,
         score: 0
       });
     }
@@ -2100,7 +2102,7 @@ async function handleDocumentCounting(
 
   const sources = documents.map(doc => ({
     documentName: doc.filename,
-    pageNumber: 0,
+    pageNumber: null,
     score: 1.0,
   }));
 
@@ -2211,7 +2213,7 @@ async function handleDocumentTypes(
 
   const sources = documents.map(doc => ({
     documentName: doc.filename,
-    pageNumber: 0,
+    pageNumber: null,
     score: 1.0,
   }));
 
@@ -2390,7 +2392,7 @@ async function handleDocumentListing(
 
   const sources = displayDocs.map(doc => ({
     documentName: doc.filename,
-    pageNumber: 0,
+    pageNumber: null,
     score: 1.0,
   }));
 
@@ -2576,7 +2578,7 @@ async function handleRegularQuery(
       // Build sources from chunks
       const sources = result.chunks.map((chunk: any) => ({
         documentName: chunk.filename || 'Unknown',
-        pageNumber: chunk.metadata?.page || 0,
+        pageNumber: chunk.metadata?.page || null,
         score: chunk.similarity || 0,
       }));
 
@@ -2672,7 +2674,7 @@ async function handleRegularQuery(
     // Build sources from chunks
     const sources = filteredChunks.slice(0, 10).map((chunk: any) => ({
       documentName: chunk.metadata?.filename || 'Unknown',
-      pageNumber: chunk.metadata?.page || 0,
+      pageNumber: chunk.metadata?.page || null,
       score: chunk.score || 0,
     }));
 
@@ -2982,15 +2984,19 @@ RULE 1 - CITATION FORMAT:
 • When referencing information, use ONLY page numbers: [p.X]
 • NEVER say "Document 1", "Document 2", or "According to Document X"
 • NEVER reference source filenames in your answer
+• NEVER cite page 0 or pages that don't exist - if no page info, don't add citation
 • Place citations at the end of the sentence, before the period
+• Only cite pages when page information is explicitly available in the context
 
 Examples:
 ✅ CORRECT: "The passport number is FZ487559 [p.2]."
 ✅ CORRECT: "According to the documents, the value is R$ 2500 [p.1]."
 ✅ CORRECT: "Cialdini's seven principles include reciprocity [p.3], commitment [p.4], and social proof [p.5]."
+✅ CORRECT: "The document mentions several key points." (no citation if no page info)
 ❌ WRONG: "Document 1 states that..."
 ❌ WRONG: "According to PSYCOLOGY.pdf..."
 ❌ WRONG: "[Source: Comprovante1.pdf, p.1]"
+❌ WRONG: "[p.0]" (never cite page 0)
 
 RULE 2 - NO GREETINGS:
 • NEVER start with "Hello", "Hi", "I'm KODA", or any greeting
@@ -3136,7 +3142,7 @@ Now answer the user's question using the context provided above.`;
     // Build sources from reranked chunks
     const sources = rerankedChunks.map((match: any) => ({
       documentName: match.metadata?.filename || 'Unknown',
-      pageNumber: match.metadata?.page || match.metadata?.pageNumber || 0,
+      pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
       score: match.rerankScore || match.originalScore || 0
     }));
 
@@ -3286,7 +3292,7 @@ Now answer the user's question using the context provided above.`;
   // Build sources array
   const sources = searchResults.map((match: any) => ({
     documentName: match.metadata?.filename || 'Unknown',
-    pageNumber: match.metadata?.page || match.metadata?.pageNumber || 0,
+    pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
     score: match.score || 0
   }));
 
