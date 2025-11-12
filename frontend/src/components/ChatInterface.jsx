@@ -9,7 +9,8 @@ import logo from '../assets/logo1.svg';
 import kodaLogoSvg from '../assets/koda-logo_1.svg';
 import sphere from '../assets/sphere.svg';
 import * as chatService from '../services/chatService';
-import useStreamingText from '../hooks/useStreamingText';
+// REMOVED: import useStreamingText from '../hooks/useStreamingText';
+// Character animation caused infinite generation bugs - now displaying chunks directly
 import VoiceInput from './VoiceInput';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -405,11 +406,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         };
     }, [currentConversation]);
 
-    // CRITICAL FIX: Wait for streaming animation to complete before adding final message
-    // This prevents the animation from being cut off mid-sentence
+    // CRITICAL FIX: Process final message when backend completes (no animation delay)
     useEffect(() => {
-        if (!isStreaming && pendingMessageRef.current) {
-            console.log('✅ Streaming animation completed - processing pending message');
+        if (!isLoading && pendingMessageRef.current) {
+            console.log('✅ Backend completed - processing pending message');
             const pending = pendingMessageRef.current;
             pendingMessageRef.current = null;
 
@@ -463,7 +463,45 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 return [...withoutOptimistic, userMessageWithFiles, assistantMessageWithMetadata];
             });
         }
-    }, [isStreaming]);
+    }, [isLoading]);
+
+    // Safety timeout: Force-stop streaming if backend fails to complete
+    useEffect(() => {
+        if (isLoading && streamingMessage.length > 0) {
+            console.log('⏱️ Starting streaming safety timeout (30 seconds)');
+
+            const timeout = setTimeout(() => {
+                console.warn('⚠️ Streaming timeout reached - forcing completion');
+                setIsLoading(false);
+                setStreamingMessage('');
+
+                // Process pending message if exists
+                if (pendingMessageRef.current) {
+                    const pending = pendingMessageRef.current;
+                    pendingMessageRef.current = null;
+
+                    setMessages((prev) => {
+                        const assistantExists = prev.some(msg => msg.id === pending.assistantMessage.id);
+                        if (assistantExists) return prev;
+
+                        const optimisticMessage = prev.find(m => m.isOptimistic && m.role === 'user');
+                        const userMessageWithFiles = {
+                            ...pending.userMessage,
+                            attachedFiles: optimisticMessage?.attachedFiles || pending.userMessage.attachedFiles || []
+                        };
+
+                        const withoutOptimistic = prev.filter(m => !m.isOptimistic);
+                        return [...withoutOptimistic, userMessageWithFiles, pending.assistantMessage];
+                    });
+                }
+            }, 30000);  // 30 seconds
+
+            return () => {
+                console.log('⏱️ Clearing streaming timeout');
+                clearTimeout(timeout);
+            };
+        }
+    }, [isLoading, streamingMessage]);
 
     useEffect(() => {
         // Scroll to bottom when new messages arrive
@@ -1392,8 +1430,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }
 
-                    // Note: streamingMessage will be cleared by the useEffect when animation completes
-                    // Note: isLoading will be set to false by the useEffect when animation completes
+                    // Note: streamingMessage will be cleared by the useEffect when backend completes
+                    // Note: isLoading is already false when backend sends completion event
                     setResearchMode(false);
                 } catch (error) {
                     console.error('❌ Error in RAG streaming:', error);
