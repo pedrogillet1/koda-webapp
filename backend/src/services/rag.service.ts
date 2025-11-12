@@ -1817,22 +1817,32 @@ RESPONSE RULES:
 - NO structure labels like "Opening:", "Context:", etc.
 
 TABLE FORMATTING RULES (CRITICAL):
-- For comparison questions, use a proper markdown table with multiple rows
-- NEVER put all content in one table cell - each row should be ONE line (not 64KB of text)
-- Table structure must have:
+⚠️ PREFER BULLET LISTS OVER TABLES FOR MOST COMPARISONS
+- Tables often fail to render properly - use bullet lists by default
+- ONLY use tables for simple comparisons with 3-5 short items
+- If you use a table:
+  * Each cell MUST be under 100 characters
+  * Each row MUST be ONE physical line in markdown
+  * MUST include separator: |---------|----------|
   * Header row: | Feature | Option A | Option B |
-  * Separator: |---------|----------|----------|
-  * Data rows: | Feature 1 | Value A1 | Value B1 |
-  * Data rows: | Feature 2 | Value A2 | Value B2 |
-- Keep each cell concise (1-2 sentences maximum, 100 characters max per cell)
-- If content is too long for a table cell, use bullet lists instead
-- NEVER generate incomplete tables - either complete the table or use bullets
-
-WHEN TO USE TABLES:
-- Use tables ONLY for direct comparisons with 3-5 features
+  * Data rows: | Purpose | Short desc | Short desc |
+- If ANY cell needs more than 100 chars, use bullet lists instead
 - If comparing more than 5 features, use bullet lists instead
-- If each feature needs more than 2 sentences, use bullet lists instead
-- For complex comparisons, use section headers with bullet lists
+
+RECOMMENDED FORMAT (Use this instead of tables):
+**Concept A:**
+• Feature 1: Description
+• Feature 2: Description
+• Feature 3: Description
+
+**Concept B:**
+• Feature 1: Description
+• Feature 2: Description
+• Feature 3: Description
+
+**Key Differences:**
+• Point 1
+• Point 2
 
 CITATION RULES (CRITICAL):
 - NEVER include inline citations like [pg 1], [p. 1], or (document.pdf, Page: 1)
@@ -3569,7 +3579,110 @@ function postProcessAnswer(answer: string): string {
   // Remove excessive spacing before bullet points
   processed = processed.replace(/\n{2,}(?=[•\-\*])/g, '\n\n');
 
+  // ════════════════════════════════════════════════════════════════════════════════
+  // TABLE DETECTION & CONVERSION - Fallback for incomplete tables
+  // ════════════════════════════════════════════════════════════════════════════════
+  // Detect tables that are malformed (missing separator or have super long lines)
+  if (processed.includes('|') && processed.includes('Feature')) {
+    const lines = processed.split('\n');
+    let hasTableHeader = false;
+    let hasSeparator = false;
+    let hasLongLine = false;
+
+    for (const line of lines) {
+      if (line.includes('|') && line.includes('Feature')) {
+        hasTableHeader = true;
+      }
+      if (/\|[-\s]+\|/.test(line)) {
+        hasSeparator = true;
+      }
+      // Check for lines over 500 chars (likely malformed table)
+      if (line.length > 500 && line.includes('|')) {
+        hasLongLine = true;
+      }
+    }
+
+    // If table is incomplete or malformed, convert to bullets
+    if (hasTableHeader && (!hasSeparator || hasLongLine)) {
+      console.warn('⚠️ [POST-PROCESS] Incomplete/malformed table detected, converting to bullet format');
+      processed = convertTableToBullets(processed);
+    }
+  }
+
   return processed.trim();
+}
+
+/**
+ * Convert malformed tables to bullet list format
+ */
+function convertTableToBullets(text: string): string {
+  const lines = text.split('\n');
+  const result: string[] = [];
+  let inTable = false;
+  let tableContent: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.includes('|') && (line.includes('Feature') || line.includes('Aspect'))) {
+      inTable = true;
+      tableContent.push(line);
+    } else if (inTable && line.includes('|')) {
+      tableContent.push(line);
+    } else {
+      if (inTable && tableContent.length > 0) {
+        // Convert accumulated table to bullets
+        const bulletFormat = convertTableLinesToBullets(tableContent);
+        result.push(bulletFormat);
+        tableContent = [];
+        inTable = false;
+      }
+      result.push(line);
+    }
+  }
+
+  // Handle any remaining table content
+  if (tableContent.length > 0) {
+    const bulletFormat = convertTableLinesToBullets(tableContent);
+    result.push(bulletFormat);
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Convert table lines to bullet format
+ */
+function convertTableLinesToBullets(tableLines: string[]): string {
+  if (tableLines.length === 0) return '';
+
+  // Extract header
+  const headerLine = tableLines[0];
+  const headers = headerLine.split('|').map(h => h.trim()).filter(h => h);
+
+  // If we have a proper table, try to extract data
+  const result: string[] = [];
+  result.push('**Comparison:**\n');
+
+  // For malformed tables, just show that we detected a table issue
+  if (tableLines.length === 1 || tableLines[0].length > 500) {
+    result.push('• (Table formatting issue detected - showing summary instead)');
+    result.push('• Please refer to the document sources for detailed comparison');
+    return result.join('\n');
+  }
+
+  // Try to extract meaningful content
+  for (let i = 1; i < Math.min(tableLines.length, 10); i++) {
+    const line = tableLines[i];
+    if (line.includes('|') && !line.includes('---')) {
+      const cells = line.split('|').map(c => c.trim()).filter(c => c);
+      if (cells.length > 0) {
+        result.push(`• ${cells.join(' - ')}`);
+      }
+    }
+  }
+
+  return result.join('\n');
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
