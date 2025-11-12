@@ -1515,9 +1515,12 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     let cleanedAnswer = responsePostProcessor.process(result.answer, result.sources || []);
     console.log('✅ [POST-PROCESSING] Applied responsePostProcessor formatting (warnings, spacing, next steps limiting)');
 
-    // ✅ FIX #2: Deduplicate sources by documentId
+    // ✅ FIX #2: Deduplicate sources by documentId (or filename if documentId is null)
     const uniqueSources = result.sources ?
-      Array.from(new Map(result.sources.map((src: any) => [src.documentId, src])).values())
+      Array.from(new Map(result.sources.map((src: any) => [
+        src.documentId || src.documentName || `${src.documentName}-${src.pageNumber}`,  // ✅ Fallback to filename if documentId missing
+        src
+      ])).values())
       : [];
     console.log(`✅ [DEDUPLICATION] ${result.sources?.length || 0} sources → ${uniqueSources.length} unique sources`);
 
