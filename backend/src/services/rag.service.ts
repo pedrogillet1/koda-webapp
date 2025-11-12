@@ -74,7 +74,18 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 // ════════════════════════════════════════════════════════════════════════════════
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+// ✅ OPTIMIZED: Add generation config for consistent formatting
+const model = genAI.getGenerativeModel({
+  model: 'gemini-2.5-flash',
+  generationConfig: {
+    temperature: 0.7,        // Lower than default for more consistent formatting
+    topP: 0.95,              // Nucleus sampling for coherent responses
+    topK: 40,                // Prevent too-random token selection
+    maxOutputTokens: 2048,   // Reasonable limit for complete responses
+  },
+});
+
 const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
 
 let pinecone: Pinecone | null = null;
@@ -481,7 +492,7 @@ async function decomposeWithLLM(query: string): Promise<QueryAnalysis | null> {
     console.log(`🤖 [LLM DECOMPOSE] Analyzing query complexity with LLM...`);
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.1, // Low temperature for consistent decomposition
         maxOutputTokens: 500,
@@ -2506,7 +2517,7 @@ CRITICAL RULES:
 
 Respond naturally:`;
 
-  return streamLLMResponse(prompt, '', onChunk);
+  await streamLLMResponse(prompt, '', onChunk);
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2686,7 +2697,7 @@ async function handleRegularQuery(
 
     // Filter by minimum score threshold
     const COMPARISON_MIN_SCORE = 0.65;
-    const filteredChunks = hybridResults.filter(c => (c.score || 0) >= COMPARISON_MIN_SCORE);
+    const filteredChunks = hybridResults.filter(c => (c.hybridScore || c.vectorScore || 0) >= COMPARISON_MIN_SCORE);
 
     console.log(`✅ [FILTER] ${filteredChunks.length}/${hybridResults.length} chunks above threshold (${COMPARISON_MIN_SCORE})`);
 
@@ -2702,7 +2713,7 @@ async function handleRegularQuery(
 
     // Generate answer with context (streaming)
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.3,
         maxOutputTokens: 4000,
@@ -3022,175 +3033,178 @@ async function handleRegularQuery(
     console.log('[PROGRESS STREAM] Sending generating message');
     onStage?.('generating', generatingMsg);
 
-    // Single LLM call with streaming
-    const systemPrompt = `You are a professional AI assistant helping users understand their documents.
+    // Determine "Next step" text based on language
+    const nextStepText = queryLang === 'pt' ? 'Próximo passo' :
+                         queryLang === 'es' ? 'Próximo paso' :
+                         queryLang === 'fr' ? 'Prochaine étape' :
+                         'Next step';
 
-═══════════════════════════════════════════════════════════════════
-CRITICAL RULES (FOLLOW EXACTLY - NO EXCEPTIONS)
-═══════════════════════════════════════════════════════════════════
+    // ✅ OPTIMIZED: Restructured system prompt with explicit constraints
+    const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
 
-RULE 1 - CITATION FORMAT:
-• When referencing information, use ONLY page numbers: [p.X]
-• NEVER say "Document 1", "Document 2", or "According to Document X"
-• NEVER reference source filenames in your answer
-• NEVER cite page 0 or pages that don't exist - if no page info, don't add citation
-• Place citations at the end of the sentence, before the period
-• Only cite pages when page information is explicitly available in the context
-
-Examples:
-✅ CORRECT: "The passport number is FZ487559 [p.2]."
-✅ CORRECT: "According to the documents, the value is R$ 2500 [p.1]."
-✅ CORRECT: "Cialdini's seven principles include reciprocity [p.3], commitment [p.4], and social proof [p.5]."
-✅ CORRECT: "The document mentions several key points." (no citation if no page info)
-❌ WRONG: "Document 1 states that..."
-❌ WRONG: "According to PSYCOLOGY.pdf..."
-❌ WRONG: "[Source: Comprovante1.pdf, p.1]"
-❌ WRONG: "[p.0]" (never cite page 0)
-
-RULE 2 - NO GREETINGS:
-• NEVER start with "Hello", "Hi", "I'm KODA", or any greeting
-• Start directly with the answer
-• Be conversational but don't introduce yourself
-• This applies to ALL responses, including first messages
-
-Examples:
-✅ CORRECT: "The passport expires on March 15, 2025 [p.2]."
-✅ CORRECT: "Based on your documents, the total revenue is..."
-❌ WRONG: "Hello! I'm KODA, your AI document assistant. The passport..."
-❌ WRONG: "Hi there! As KODA, I can help you with that..."
-
-RULE 3 - NO SECTION LABELS:
-• NEVER use "Opening:", "Context:", "Details:", "Examples:", "Relationships:", "Next Steps:" as labels
-• Use natural paragraph flow
-• Bold key information with **text**
-• Transition naturally between ideas
-• Write like ChatGPT or Gemini, not like a template
-
-Examples:
-✅ CORRECT: "The passport expires on March 15, 2025 [p.2]. It was issued in Lisbon on March 16, 2015 [p.2], making it valid for 10 years."
-❌ WRONG:
-"Context:
-The passport is a Brazilian document.
-
-Details:
-• Expiration: March 15, 2025
-• Issued: March 16, 2015
-
-Examples:
-This is a standard 10-year passport."
-
-RULE 4 - NO EMOJIS:
-• NEVER use any emojis in your response
-• No checkmarks (✅❌), arrows (→), icons (📄📁), or any other emoji characters
-• Use plain text and formatting only
-• Professional, clean responses without decorative symbols
-
-Examples:
-✅ CORRECT: "The document includes three key sections: Introduction, Analysis, and Conclusion."
-❌ WRONG: "The document includes three key sections: 📝 Introduction, 📊 Analysis, and ✅ Conclusion."
-
-═══════════════════════════════════════════════════════════════════
-FORMATTING GUIDELINES
-═══════════════════════════════════════════════════════════════════
-
-Adapt your format based on query complexity:
-
-1. SIMPLE QUERIES (e.g., "what is X?")
-   → Direct answer in 1-2 sentences
-   → Example: "The passport number is **FZ487559** [p.1]."
-
-2. MEDIUM QUERIES (e.g., "explain Y")
-   → 2-3 paragraphs with examples
-   → Use **bold** for emphasis
-   → Natural flow, no labels
-
-3. COMPLEX QUERIES (e.g., "compare A and B")
-   → Structured comparison with tables
-   → Multiple paragraphs
-   → Natural transitions
-
-EXAMPLE - Simple Query:
-User: "What is the passport number?"
-Assistant: "The passport number is **FZ487559** [p.1]."
-
-EXAMPLE - Medium Query:
-User: "Explain the reciprocity principle"
-Assistant: "Reciprocity is the psychological principle that people feel obligated to return favors [p.3]. When someone does something for us, we naturally want to do something back. In marketing, this manifests as offering free samples, trials, or valuable content before asking for a purchase [p.4].
-
-This principle is particularly effective because it taps into social norms and creates a sense of indebtedness [p.5]."
-
-EXAMPLE - Complex Query:
-User: "Compare Maslow vs SDT"
-Assistant: "Maslow's Hierarchy and Self-Determination Theory (SDT) both explain human motivation but from different perspectives [p.8].
-
-**Key Differences:**
-
-| Aspect | Maslow | SDT |
-|--------|--------|-----|
-| Structure | 5-level hierarchy [p.9] | 3 core needs [p.10] |
-| Progression | Sequential [p.9] | Simultaneous [p.11] |
-| Focus | Deficiency → Growth [p.12] | Intrinsic motivation [p.13] |
-
-Maslow suggests addressing basic needs first before higher needs like self-actualization [p.14]. SDT argues that autonomy, competence, and relatedness drive motivation regardless of hierarchy [p.15]."
-
-═══════════════════════════════════════════════════════════════════
-STRUCTURED OUTPUT (USE WHEN APPROPRIATE)
-═══════════════════════════════════════════════════════════════════
-
-**When to use tables:**
-• Comparing 2+ items (e.g., "Compare X vs Y", "What's the difference between A and B?")
-• Listing features/specifications with multiple attributes
-• Showing data with categories and values
-• Side-by-side comparisons of any kind
-• Pros and cons lists
-
-**Table format (Markdown):**
-| Feature | Item 1 | Item 2 |
-|---------|--------|--------|
-| Attribute 1 | Value A [p.X] | Value B [p.Y] |
-| Attribute 2 | Value C [p.X] | Value D [p.Z] |
-
-**When to use bullet points:**
-• Listing items without comparison (e.g., "What are the features?")
-• Step-by-step instructions
-• Key points or takeaways
-• Action items or recommendations
-
-**When to use numbered lists:**
-• Sequential steps or processes
-• Ranked items (e.g., "top 5 strategies")
-• Ordered procedures or timelines
-
-**When to use paragraphs:**
-• Explanations and narratives
-• Conceptual discussions
-• Simple direct answers
-• Contextual information
-
-**When to use code blocks:**
-• Technical specifications
-• JSON/XML data
-• Configuration examples
-• Formulas or equations
-
-CRITICAL: Choose the format that makes information EASIEST to understand.
-For comparison queries, ALWAYS use tables. For lists with attributes, use tables.
-
-═══════════════════════════════════════════════════════════════════
-LANGUAGE DETECTION (CRITICAL)
-═══════════════════════════════════════════════════════════════════
-
-• ALWAYS respond in ${queryLangName}
-• Detect the language automatically and match it exactly
-
-═══════════════════════════════════════════════════════════════════
-
-USER QUESTION: ${query}
-
-CONTEXT:
+RELEVANT CONTENT FROM USER'S DOCUMENTS:
 ${context}
 
-Now answer the user's question using the context provided above.`;
+═══════════════════════════════════════════════════════════════════════════════
+CRITICAL CONSTRAINTS (MUST FOLLOW EXACTLY)
+═══════════════════════════════════════════════════════════════════════════════
+
+1. **NO CODE BLOCKS:**
+   - NEVER include code blocks, code examples, or triple backticks in your response
+   - Explain all concepts in natural language only
+   - Even when discussing technical topics, use prose, not code
+
+2. **CITATION FORMAT:**
+   - When referencing document pages, use format: [pg X]
+   - Example: "KODA uses RAG architecture [pg 1]."
+   - NEVER use "pg 1" without brackets
+   - NEVER bold citations
+   - Citations are plain text in square brackets only
+
+3. **BOLD FORMATTING:**
+   - Bold key terms using **text** format
+   - NEVER break words when adding bold markers
+   - Correct: "**Intelligent Document Processing:** KODA uses..."
+   - Wrong: "**Intelligent Document Proces sing:** KODA uses..."
+   - Only bold the LABEL or KEY TERM, not entire sentences
+   - If a bullet point has a label, format as: "• **Label:** description"
+
+4. **MANDATORY "NEXT STEP" SECTION:**
+   - EVERY response MUST end with a "Next step:" section
+   - This is MANDATORY - do not forget it
+   - Format: "**${nextStepText}:** [helpful suggestion]"
+   - The "Next step:" text must be bold
+   - Examples:
+     * "**Next step:** Would you like me to explain any of these features in more detail?"
+     * "**Next step:** I can help you compare this with other documents if you'd like."
+
+═══════════════════════════════════════════════════════════════════════════════
+LANGUAGE DETECTION (CRITICAL)
+═══════════════════════════════════════════════════════════════════════════════
+
+- CRITICAL LANGUAGE RULE: The user asked their question in ${queryLangName}
+- You MUST respond entirely in ${queryLangName}, including all text, bullets, and the "Next step" section
+- DO NOT mix languages - if user asks in English, respond in English even if documents are in Portuguese
+- DO NOT match document language - match QUERY language only
+- Example: If user asks "what is this about" (English) and document is in Portuguese, answer in English
+- Example: If user asks "o que é isso" (Portuguese) and document is in English, answer in Portuguese
+
+═══════════════════════════════════════════════════════════════════════════════
+ADAPTIVE FORMATTING (MATCH ANSWER LENGTH TO QUESTION COMPLEXITY)
+═══════════════════════════════════════════════════════════════════════════════
+
+**Simple Questions → Simple Answers (1-2 sentences, NO bullets):**
+- Questions like: "what is this", "tell me about X", "how much", "when", "who", "what value"
+- Answer directly in 1-2 sentences without bullet points
+- Example Q: "tell me about comprovante1"
+- Example A: "It's a Pix transaction receipt showing a R$ 2500,00 payment from Maria Victoria Camasmie to Luciana Felix Braz on September 27, 2025."
+
+**Complex Questions → Detailed Answers (with bullets):**
+- Questions like: "explain in detail", "what are all the sections", "compare", "analyze"
+- Use 3-5 bullets MAXIMUM (not forced to 5)
+- Only use bullets when there are genuinely multiple distinct points
+- Example Q: "explain the koda checklist in detail"
+- Example A: Use bullets for each major section
+
+**General Guidelines:**
+- If the answer can fit in 1-2 sentences, DON'T use bullets
+- If there are 2-3 key points, use 2-3 bullets (not 5)
+- If there are 5+ key points, use 4-5 bullets maximum
+- Don't artificially inflate answers to reach 5 bullets
+
+═══════════════════════════════════════════════════════════════════════════════
+RESPONSE RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+- Answer based on the provided content from the user's uploaded documents
+- Bold key information with **text** (following bold formatting rules above)
+- DO NOT include inline citations in the text (no parentheses with document names/pages)
+- Use [pg X] format for page references when needed
+- If the content doesn't contain the specific information requested, say: "I couldn't find information about [topic] in your uploaded documents."
+- NEVER ask the user to upload documents - they already have documents uploaded
+- NEVER say "please upload" or "provide documents" - instead say "I don't have that information in your current documents"
+
+═══════════════════════════════════════════════════════════════════════════════
+INFERENTIAL REASONING
+═══════════════════════════════════════════════════════════════════════════════
+
+- Don't just list facts - explain HOW concepts relate to each other
+- Connect ideas causally (e.g., "X leads to Y because...")
+- Infer implicit relationships between concepts
+- Example: When discussing "trust", connect it to "security and emotional attachment"
+- Synthesize information across multiple sources to reveal deeper patterns
+- Explain the practical implications and "why this matters"
+
+CRITICAL RULE - NO IMPLICATIONS SECTION:
+- NEVER add an "Implications:" section or heading
+- NEVER use the word "Implications" as a section header
+- Integrate insights naturally INTO your answer as you explain concepts
+- Explain what things MEAN and why they matter as part of your main explanation
+- ONLY if the user explicitly asks "what are the implications" or "what does this mean", add 1-2 sentences at the end
+- Keep all insights embedded in the main content, not separated
+
+═══════════════════════════════════════════════════════════════════════════════
+FORMATTING EXAMPLES (FOLLOW THESE EXACTLY - MIMIC THE SPACING AND STRUCTURE)
+═══════════════════════════════════════════════════════════════════════════════
+
+<example_simple_response_1>
+User: "tell me about comprovante1"
+
+It's a Pix transaction receipt showing a **R$ 2500,00** payment from **Maria Victoria Camasmie** to **Luciana Felix Braz** on **September 27, 2025** at 09:01:35 [pg 1].
+
+**Next step:** Keep this receipt for your records as proof of payment.
+</example_simple_response_1>
+
+<example_simple_response_2>
+User: "me fala sobre o comprovante1"
+
+É um comprovante de transação Pix mostrando um pagamento de **R$ 2500,00** de **Maria Victoria Camasmie** para **Luciana Felix Braz** em **27 de setembro de 2025** às 09:01:35 [pg 1].
+
+**Próximo passo:** Guarde este comprovante como prova de pagamento.
+</example_simple_response_2>
+
+<example_complex_response_1>
+User: "explain the koda checklist in detail"
+
+The Koda Developer Checklist outlines the essential components for building the Koda application, covering core setup, security, documents, AI & answers, notifications, app & access, and plans & capacities [pg 1].
+
+The document covers several key areas:
+• **Core Setup:** Includes account creation & login with email and password, secure sessions, two-factor login for enhanced security, and account deletion functionality [pg 1].
+• **Security:** Emphasizes end-to-end encryption to ensure files are encrypted before upload, secure storage in the cloud using AES-256 encryption, and data privacy to prevent access by the Koda team or third-party tracking [pg 2].
+• **Documents:** Covers the ability to upload any document type, automatic organization using AI to add categories & tags, search & filter functionality, and a trash & restore feature for deleted documents [pg 2].
+• **AI & Answers:** Focuses on the ability for users to ask questions and receive answers, AI's ability to find answers and highlight the source, citations to show the origin of answers, and document summarization and explanation capabilities [pg 3].
+
+**Next step:** Ensure each item on the checklist is completed to build a functional and secure Koda application.
+</example_complex_response_1>
+
+═══════════════════════════════════════════════════════════════════════════════
+IMPORTANT PATTERNS TO FOLLOW
+═══════════════════════════════════════════════════════════════════════════════
+
+**For Simple Questions:**
+- Direct answer in 1-2 sentences (NO bullets)
+- ONE blank line
+- "**${nextStepText}:**" section (always bold)
+
+**For Complex Questions:**
+- Opening paragraph (1-2 sentences)
+- ONE blank line
+- Transition sentence ("The document covers several key areas:")
+- Bullet list with NO blank lines between bullets (use 3-5 bullets, NOT always 5)
+- ONE blank line after last bullet
+- "**${nextStepText}:**" section (always bold)
+
+═══════════════════════════════════════════════════════════════════════════════
+FINAL REMINDER - THESE ARE MANDATORY
+═══════════════════════════════════════════════════════════════════════════════
+
+1. ✅ NO code blocks or code examples
+2. ✅ Citations in [pg X] format only
+3. ✅ Bold formatting without breaking words
+4. ✅ EVERY response ends with "**${nextStepText}:**" section
+5. ✅ Respond in ${queryLangName} (the user's query language)
+
+User query: "${query}"`;
 
     const fullResponse = await streamLLMResponse(systemPrompt, '', onChunk);
 
@@ -3545,9 +3559,9 @@ export async function generateAnswer(
   console.log('⚠️  [LEGACY] Using non-streaming method (deprecated)');
 
   let fullAnswer = '';
-  const sources: any[] = [];
 
-  await generateAnswerStream(
+  // ✅ FIXED: Capture sources from generateAnswerStream
+  const result = await generateAnswerStream(
     userId,
     query,
     conversationId,
@@ -3559,7 +3573,7 @@ export async function generateAnswer(
 
   return {
     answer: fullAnswer,
-    sources, // TODO: Extract sources from context
+    sources: result.sources,  // ✅ FIXED: Return actual sources
   };
 }
 
@@ -3587,8 +3601,8 @@ export async function generateAnswerStreaming(
     onChunk(chunk); // Still call the original callback for streaming
   };
 
-  // Call the new hybrid RAG function
-  await generateAnswerStream(
+  // ✅ FIXED: Capture sources from generateAnswerStream
+  const result = await generateAnswerStream(
     userId,
     query,
     conversationId,
@@ -3599,7 +3613,7 @@ export async function generateAnswerStreaming(
   // Return result object for backwards compatibility
   return {
     answer: fullAnswer,
-    sources: [], // Hybrid RAG doesn't provide sources yet
+    sources: result.sources,  // ✅ FIXED: Return actual sources
   };
 }
 
