@@ -1816,6 +1816,30 @@ RESPONSE RULES:
 - NO greetings or introductions - start directly with the answer
 - NO structure labels like "Opening:", "Context:", etc.
 
+TABLE FORMATTING RULES (CRITICAL):
+- For comparison questions, use a proper markdown table with multiple rows
+- NEVER put all content in one table cell - each row should be ONE line (not 64KB of text)
+- Table structure must have:
+  * Header row: | Feature | Option A | Option B |
+  * Separator: |---------|----------|----------|
+  * Data rows: | Feature 1 | Value A1 | Value B1 |
+  * Data rows: | Feature 2 | Value A2 | Value B2 |
+- Keep each cell concise (1-2 sentences maximum, 100 characters max per cell)
+- If content is too long for a table cell, use bullet lists instead
+- NEVER generate incomplete tables - either complete the table or use bullets
+
+WHEN TO USE TABLES:
+- Use tables ONLY for direct comparisons with 3-5 features
+- If comparing more than 5 features, use bullet lists instead
+- If each feature needs more than 2 sentences, use bullet lists instead
+- For complex comparisons, use section headers with bullet lists
+
+CITATION RULES (CRITICAL):
+- NEVER include inline citations like [pg 1], [p. 1], or (document.pdf, Page: 1)
+- NEVER reference page numbers in your response
+- The system will automatically add document sources at the end
+- Focus on answering the question clearly without citing pages
+
 USER QUERY:
 ${query}`;
 
@@ -3058,7 +3082,10 @@ CRITICAL CONSTRAINTS (MUST FOLLOW EXACTLY)
    - When referencing document pages, use format: [pg X]
    - Example: "KODA uses RAG architecture [pg 1]."
    - NEVER use "pg 1" without brackets
-   - NEVER bold citations
+   - NEVER bold citations - citations must be plain text
+   - NEVER use **pg X** or **[pg X]** format
+   - Correct: "text here [pg 1]."
+   - Wrong: "text here **pg 1**" or "text here **[pg 1]**"
    - Citations are plain text in square brackets only
 
 3. **BOLD FORMATTING:**
@@ -3437,9 +3464,13 @@ function postProcessAnswer(answer: string): string {
   // Matches: (page 3), (p. 5), (pg. 12), (p.7)
   processed = processed.replace(/\s*\((?:page|p\.|pg\.|p)\s*\d+\)/gi, '');
 
-  // Pattern 2: [page X], [p. X], [p.X]
-  // Matches: [page 3], [p. 5], [p.7]
-  processed = processed.replace(/\s*\[(?:page|p\.|pg\.|p)\s*\d+\]/gi, '');
+  // Pattern 2: [page X], [p. X], [p.X], [pg X], [p X]
+  // Matches: [page 3], [p. 5], [p.7], [pg 1], [p 1]
+  processed = processed.replace(/\s*\[(?:page|p\.|pg\.|pg|p)\s*\d+\]/gi, '');
+
+  // Pattern 2a: [p.X, Y] or [p. X, Y] (multiple page citations)
+  // Matches: [p.1, 2], [p. 3, 4, 5]
+  processed = processed.replace(/\s*\[p\.\s*\d+(?:,\s*\d+)*\]/gi, '');
 
   // Pattern 3: [Source: filename]
   // Matches: [Source: document.pdf], [Source: Business Plan.docx]
@@ -3501,12 +3532,12 @@ function postProcessAnswer(answer: string): string {
   // Fix multiple asterisks
   processed = processed.replace(/\*\*\*\*+/g, '**');
 
-  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
-  processed = processed.replace(/\n\n\n\n+/g, '\n\n\n');
+  // Collapse 4+ newlines to 2 (one blank line)
+  processed = processed.replace(/\n{4,}/g, '\n\n');
 
-  // Flatten nested bullets
-  processed = processed.replace(/\n\s+[○◦]\s+/g, '\n\n• ');
-  processed = processed.replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');
+  // Flatten nested bullets (no extra blank lines)
+  processed = processed.replace(/\n\s+[○◦]\s+/g, '\n• ');
+  processed = processed.replace(/\n\s{2,}[•\-\*]\s+/g, '\n• ');
 
   // ════════════════════════════════════════════════════════════════════════════════
   // CLEANUP ARTIFACTS

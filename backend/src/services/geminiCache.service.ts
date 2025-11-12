@@ -107,23 +107,37 @@ class GeminiCacheService {
       console.log(`📊 [CACHE] System prompt length: ${systemPrompt.length} chars`);
       console.log(`📊 [CACHE] Document context length: ${documentContext.length} chars`);
 
-      // Generate with streaming
-      const result = await model.generateContentStream(fullPrompt);
+      // ✅ NEW: Add timeout to prevent infinite generation
+      const STREAMING_TIMEOUT_MS = 120000; // 2 minutes timeout
+      const timeoutPromise = new Promise<string>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Streaming timeout: Response generation took longer than 2 minutes'));
+        }, STREAMING_TIMEOUT_MS);
+      });
 
-      let fullResponse = '';
+      // Generate with streaming wrapped in timeout
+      const streamingPromise = (async () => {
+        const result = await model.generateContentStream(fullPrompt);
+        let fullResponse = '';
+        let lastChunkTime = Date.now();
 
-      for await (const chunk of result.stream) {
-        const chunkText = chunk.text();
-        fullResponse += chunkText;
+        for await (const chunk of result.stream) {
+          const chunkText = chunk.text();
+          fullResponse += chunkText;
+          lastChunkTime = Date.now();
 
-        // Stream to client in real-time
-        if (onChunk) {
-          onChunk(chunkText);
+          // Stream to client in real-time
+          if (onChunk) {
+            onChunk(chunkText);
+          }
         }
-      }
 
-      console.log('✅ [CACHE] Response generated with implicit caching');
-      return fullResponse;
+        console.log('✅ [CACHE] Response generated with implicit caching');
+        return fullResponse;
+      })();
+
+      // Race between streaming and timeout
+      return await Promise.race([streamingPromise, timeoutPromise]);
     } catch (error) {
       console.error('❌ [CACHE] Error generating with implicit cache:', error);
       throw error;

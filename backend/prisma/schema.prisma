@@ -134,6 +134,8 @@ model Folder {
   @@index([userId])
   @@index([parentFolderId])
   @@index([path])
+  @@index([userId, parentFolderId]) // ✅ Composite index for user's folder tree queries
+  @@index([parentFolderId, name]) // ✅ Composite index for subfolder lookups with sorting
   @@map("folders")
 }
 
@@ -220,6 +222,8 @@ model Document {
   @@index([mimeType])
   @@index([userId, createdAt])
   @@index([userId, updatedAt])
+  @@index([folderId, status]) // ✅ Composite index for folder contents filtering
+  @@index([userId, folderId, status]) // ✅ Composite index for user's folder document queries
   @@map("documents")
 }
 
