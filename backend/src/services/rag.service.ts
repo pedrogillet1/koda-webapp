@@ -1812,7 +1812,7 @@ RESPONSE RULES:
 - Bold key information with **text**
 - Use bullet points for clarity
 - If comparing 2 concepts, consider using a markdown table format
-- Cite page numbers using [p.X] format
+- NO page citations or references in your response text
 - NO greetings or introductions - start directly with the answer
 - NO structure labels like "Opening:", "Context:", etc.
 
@@ -1962,7 +1962,7 @@ async function handleDocumentComparison(
 CRITICAL RULES:
 • NEVER start with greetings ("Hello", "Hi", "I'm KODA")
 • Start directly with the answer/comparison
-• Use [p.X] format for citations (NOT "Document 1/2/3")
+• NO page citations or references in your text
 • Use tables for structured comparisons
 • NO section labels ("Context:", "Details:", etc.)
 • NO emojis in your response
@@ -3073,15 +3073,12 @@ CRITICAL CONSTRAINTS (MUST FOLLOW EXACTLY)
    - Explain all concepts in natural language only
    - Even when discussing technical topics, use prose, not code
 
-2. **CITATION FORMAT:**
-   - When referencing document pages, use format: [pg X]
-   - Example: "KODA uses RAG architecture [pg 1]."
-   - NEVER use "pg 1" without brackets
-   - NEVER bold citations - citations must be plain text
-   - NEVER use **pg X** or **[pg X]** format
-   - Correct: "text here [pg 1]."
-   - Wrong: "text here **pg 1**" or "text here **[pg 1]**"
-   - Citations are plain text in square brackets only
+2. **NO CITATIONS IN TEXT:**
+   - NEVER add page references like [pg X], [p.X], or (page X) in your response
+   - The system automatically tracks sources and displays them separately
+   - Focus on answering clearly without citing pages
+   - Wrong: "KODA uses RAG architecture [pg 1]."
+   - Correct: "KODA uses RAG architecture."
 
 3. **BOLD FORMATTING:**
    - Bold key terms using **text** format
@@ -3143,8 +3140,8 @@ RESPONSE RULES
 
 - Answer based on the provided content from the user's uploaded documents
 - Bold key information with **text** (following bold formatting rules above)
-- DO NOT include inline citations in the text (no parentheses with document names/pages)
-- Use [pg X] format for page references when needed
+- DO NOT include any citations, page references, or source mentions in your text
+- NO [pg X], [p.X], or page numbers anywhere in your response
 - If the content doesn't contain the specific information requested, say: "I couldn't find information about [topic] in your uploaded documents."
 - NEVER ask the user to upload documents - they already have documents uploaded
 - NEVER say "please upload" or "provide documents" - instead say "I don't have that information in your current documents"
@@ -3224,7 +3221,7 @@ FINAL REMINDER - THESE ARE MANDATORY
 ═══════════════════════════════════════════════════════════════════════════════
 
 1. ✅ NO code blocks or code examples
-2. ✅ Citations in [pg X] format only
+2. ✅ NO citations or page references in your response text
 3. ✅ Bold formatting without breaking words
 4. ✅ EVERY response ends with a natural closing sentence (NO "Next step:" labels)
 5. ✅ Respond in ${queryLangName} (the user's query language)
