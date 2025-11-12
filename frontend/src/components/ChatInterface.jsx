@@ -72,8 +72,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const manuallyRemovedDocumentRef = useRef(false);
     const pendingMessageRef = useRef(null); // Queue final message data until animation completes
 
-    // Use streaming hook for the current AI response (5ms = 200 chars/sec for fast smooth streaming)
-    const { displayedText, isStreaming } = useStreamingText(streamingMessage, 5);
+    // Display streaming chunks immediately without animation for smoother UX (like ChatGPT)
+    const displayedText = streamingMessage;
+    const isStreaming = isLoading && streamingMessage.length > 0;
 
     // Helper function to get file icon based on extension
     const getFileIcon = (filename) => {

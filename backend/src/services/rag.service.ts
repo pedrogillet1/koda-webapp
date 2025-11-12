@@ -2165,13 +2165,12 @@ async function handleDocumentCounting(
     response = `${youHave} **${count}** ${docWord} ${inTotal}.`;
   }
 
-  const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
   const question = lang === 'pt' ? 'O que você gostaria de saber sobre esses documentos?' :
                    lang === 'es' ? '¿Qué te gustaría saber sobre estos documentos?' :
                    lang === 'fr' ? 'Que souhaitez-vous savoir sur ces documents?' :
                    'What would you like to know about these documents?';
 
-  response += `\n\n${nextStep}\n${question}`;
+  response += `\n\n${question}`;
 
   onChunk(response);
 
@@ -2251,13 +2250,13 @@ async function handleDocumentTypes(
                       lang === 'fr' ? 'Vous n\'avez pas encore de documents téléchargés.' :
                       "You don't have any documents uploaded yet.";
 
-    const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
+    // Removed nextStep label for natural endings
     const uploadSome = lang === 'pt' ? 'Envie alguns documentos para começar!' :
                        lang === 'es' ? '¡Sube algunos documentos para comenzar!' :
                        lang === 'fr' ? 'Téléchargez des documents pour commencer!' :
                        'Upload some documents to get started!';
 
-    response = `${noDocsYet}\n\n${nextStep}\n${uploadSome}`;
+    response = `${noDocsYet}\n\n${uploadSome}`;
   } else {
     response = `${basedOn}\n\n`;
 
@@ -2275,13 +2274,13 @@ async function handleDocumentTypes(
       response += '\n';
     });
 
-    const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
+    // Removed nextStep label for natural endings
     const question = lang === 'pt' ? 'O que você gostaria de saber sobre esses documentos?' :
                      lang === 'es' ? '¿Qué te gustaría saber sobre estos documentos?' :
                      lang === 'fr' ? 'Que souhaitez-vous savoir sur ces documents?' :
                      'What would you like to know about these documents?';
 
-    response += `\n${nextStep}\n${question}`;
+    response += `\n${question}`;
   }
 
   onChunk(response);
@@ -2416,13 +2415,13 @@ async function handleDocumentListing(
                       lang === 'fr' ? 'Vous n\'avez pas encore de documents téléchargés.' :
                       "You don't have any documents uploaded yet.";
 
-    const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
+    // Removed nextStep label for natural endings
     const uploadSome = lang === 'pt' ? 'Envie alguns documentos para começar!' :
                        lang === 'es' ? '¡Sube algunos documentos para comenzar!' :
                        lang === 'fr' ? 'Téléchargez des documents pour commencer!' :
                        'Upload some documents to get started!';
 
-    response = `${noDocsYet}\n\n${nextStep}\n${uploadSome}`;
+    response = `${noDocsYet}\n\n${uploadSome}`;
   } else {
     // Header with count
     const youHave = lang === 'pt' ? `Você tem **${totalCount}** documento${totalCount > 1 ? 's' : ''}` :
@@ -2460,7 +2459,7 @@ async function handleDocumentListing(
                      lang === 'fr' ? 'Que souhaitez-vous savoir sur ces documents?' :
                      'What would you like to know about these documents?';
 
-    response += `${nextStep}\n${question}`;
+    response += `${question}`;
   }
 
   onChunk(response);
@@ -3057,11 +3056,7 @@ async function handleRegularQuery(
     console.log('[PROGRESS STREAM] Sending generating message');
     onStage?.('generating', generatingMsg);
 
-    // Determine "Next step" text based on language
-    const nextStepText = queryLang === 'pt' ? 'Próximo passo' :
-                         queryLang === 'es' ? 'Próximo paso' :
-                         queryLang === 'fr' ? 'Prochaine étape' :
-                         'Next step';
+    // Removed nextStepText - using natural endings instead
 
     // ✅ OPTIMIZED: Restructured system prompt with explicit constraints
     const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
@@ -3096,21 +3091,24 @@ CRITICAL CONSTRAINTS (MUST FOLLOW EXACTLY)
    - Only bold the LABEL or KEY TERM, not entire sentences
    - If a bullet point has a label, format as: "• **Label:** description"
 
-4. **MANDATORY "NEXT STEP" SECTION:**
-   - EVERY response MUST end with a "Next step:" section
-   - This is MANDATORY - do not forget it
-   - Format: "**${nextStepText}:** [helpful suggestion]"
-   - The "Next step:" text must be bold
+4. **NATURAL ENDING (CRITICAL):**
+   - End with a natural, helpful closing sentence that flows from your answer
+   - NO "Next step:" label or bold formatting for the ending
+   - Make suggestions contextual to the query type
+   - The closing should feel like part of the conversation, not a separate section
    - Examples:
-     * "**Next step:** Would you like me to explain any of these features in more detail?"
-     * "**Next step:** I can help you compare this with other documents if you'd like."
+     * For document lists: "Let me know which document you'd like to explore, or ask me anything about their content."
+     * For comparisons: "I can dive deeper into any of these differences if you'd like."
+     * For simple facts: "You may want to save this for your records."
+     * For summaries: "Feel free to ask about any specific section or detail."
+   - NEVER use "**Next step:**" or similar labels
 
 ═══════════════════════════════════════════════════════════════════════════════
 LANGUAGE DETECTION (CRITICAL)
 ═══════════════════════════════════════════════════════════════════════════════
 
 - CRITICAL LANGUAGE RULE: The user asked their question in ${queryLangName}
-- You MUST respond entirely in ${queryLangName}, including all text, bullets, and the "Next step" section
+- You MUST respond entirely in ${queryLangName}, including all text, bullets, and closing sentence
 - DO NOT mix languages - if user asks in English, respond in English even if documents are in Portuguese
 - DO NOT match document language - match QUERY language only
 - Example: If user asks "what is this about" (English) and document is in Portuguese, answer in English
@@ -3211,7 +3209,7 @@ IMPORTANT PATTERNS TO FOLLOW
 **For Simple Questions:**
 - Direct answer in 1-2 sentences (NO bullets)
 - ONE blank line
-- "**${nextStepText}:**" section (always bold)
+- Natural closing sentence that flows from your answer
 
 **For Complex Questions:**
 - Opening paragraph (1-2 sentences)
@@ -3219,7 +3217,7 @@ IMPORTANT PATTERNS TO FOLLOW
 - Transition sentence ("The document covers several key areas:")
 - Bullet list with NO blank lines between bullets (use 3-5 bullets, NOT always 5)
 - ONE blank line after last bullet
-- "**${nextStepText}:**" section (always bold)
+- Natural closing sentence that flows from your answer
 
 ═══════════════════════════════════════════════════════════════════════════════
 FINAL REMINDER - THESE ARE MANDATORY
@@ -3228,7 +3226,7 @@ FINAL REMINDER - THESE ARE MANDATORY
 1. ✅ NO code blocks or code examples
 2. ✅ Citations in [pg X] format only
 3. ✅ Bold formatting without breaking words
-4. ✅ EVERY response ends with "**${nextStepText}:**" section
+4. ✅ EVERY response ends with a natural closing sentence (NO "Next step:" labels)
 5. ✅ Respond in ${queryLangName} (the user's query language)
 
 User query: "${query}"`;
