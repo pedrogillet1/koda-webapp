@@ -222,10 +222,13 @@ io.on('connection', (socket) => {
       });
 
       // Signal streaming complete (chunks already sent in real-time above)
+      console.log('🚀🚀🚀 EMITTING message-complete event to room:', `conversation:${conversationId}`);
+      console.log('📊 Sources:', result.sources?.length || 0);
       io.to(`conversation:${conversationId}`).emit('message-complete', {
         conversationId: conversationId,
         sources: result.sources  // ✅ FIX: Include sources for frontend display
       });
+      console.log('✅ message-complete event emitted successfully');
 
       // Update result to match expected format
       const formattedResult = {

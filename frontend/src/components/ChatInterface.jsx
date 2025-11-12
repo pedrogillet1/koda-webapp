@@ -339,8 +339,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             // Listen for message complete event (confirms streaming ended)
             chatService.onMessageComplete((data) => {
-                console.log('✅ Message streaming complete event received:', data.conversationId);
+                console.log('✅✅✅ Message streaming complete event received:', data.conversationId);
                 console.log('📚 Sources received:', data.sources);
+                console.log('🔍 About to call setIsLoading(false)');
 
                 // ✅ FIX: Attach sources to the last assistant message
                 if (data.sources && data.sources.length > 0) {
@@ -357,8 +358,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 }
 
                 // Clear streaming states
+                console.log('🛑🛑🛑 CALLING setIsLoading(false) FROM onMessageComplete');
                 setStreamingMessage('');
                 setIsLoading(false);
+                console.log('✅ setIsLoading(false) called successfully');
             });
         }
 
@@ -1430,8 +1433,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }
 
-                    // Note: streamingMessage will be cleared by the useEffect when backend completes
-                    // Note: isLoading is already false when backend sends completion event
+                    // ✅ CRITICAL FIX: Explicitly set isLoading to false when SSE stream completes
+                    // This prevents the 30-second timeout from being the only way to stop streaming
+                    console.log('🏁 SSE stream completed - setting isLoading to false');
+                    setIsLoading(false);
                     setResearchMode(false);
                 } catch (error) {
                     console.error('❌ Error in RAG streaming:', error);

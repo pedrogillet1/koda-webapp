@@ -2185,6 +2185,7 @@ async function handleDocumentCounting(
   onChunk(response);
 
   const sources = documents.map(doc => ({
+    documentId: doc.id || null,  // ✅ Add documentId for frontend display
     documentName: doc.filename,
     pageNumber: null,
     score: 1.0,
@@ -2296,6 +2297,7 @@ async function handleDocumentTypes(
   onChunk(response);
 
   const sources = documents.map(doc => ({
+    documentId: doc.id || null,  // ✅ Add documentId for frontend display
     documentName: doc.filename,
     pageNumber: null,
     score: 1.0,
@@ -2475,6 +2477,7 @@ async function handleDocumentListing(
   onChunk(response);
 
   const sources = displayDocs.map(doc => ({
+    documentId: doc.id || null,  // ✅ Add documentId for frontend display
     documentName: doc.filename,
     pageNumber: null,
     score: 1.0,
@@ -2670,6 +2673,7 @@ async function handleRegularQuery(
 
       // Build sources from chunks
       const sources = result.chunks.map((chunk: any) => ({
+        documentId: chunk.metadata?.documentId || null,  // ✅ CRITICAL: Frontend needs this to display sources
         documentName: chunk.filename || 'Unknown',
         pageNumber: chunk.metadata?.page || null,
         score: chunk.similarity || 0,
@@ -2766,6 +2770,7 @@ async function handleRegularQuery(
 
     // Build sources from chunks
     const sources = filteredChunks.slice(0, 10).map((chunk: any) => ({
+      documentId: chunk.metadata?.documentId || null,  // ✅ CRITICAL: Frontend needs this to display sources
       documentName: chunk.metadata?.filename || 'Unknown',
       pageNumber: chunk.metadata?.page || null,
       score: chunk.score || 0,
@@ -3246,6 +3251,7 @@ User query: "${query}"`;
 
     // Build sources from reranked chunks
     const sources = rerankedChunks.map((match: any) => ({
+      documentId: match.metadata?.documentId || null,  // ✅ Add documentId for frontend display
       documentName: match.metadata?.filename || 'Unknown',
       pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
       score: match.rerankScore || match.originalScore || 0
@@ -3396,6 +3402,7 @@ User query: "${query}"`;
 
   // Build sources array
   const sources = searchResults.map((match: any) => ({
+    documentId: match.metadata?.documentId || null,  // ✅ Add documentId for frontend display
     documentName: match.metadata?.filename || 'Unknown',
     pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
     score: match.score || 0
