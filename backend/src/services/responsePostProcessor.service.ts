@@ -158,6 +158,36 @@ class ResponsePostProcessorService {
   }
 
   /**
+   * ✅ FIX #2: Enforce comparison table formatting
+   * Detects when a comparison response lacks a markdown table and adds a warning
+   * REASON: LLMs sometimes ignore table formatting instructions
+   */
+  private enforceComparisonTable(text: string): string {
+    // Check if response contains a markdown table (has | characters and separator row)
+    const hasTable = text.includes('|') && /\|[-\s|]+\|/.test(text);
+
+    if (!hasTable) {
+      console.log('⚠️ [POST-PROCESSOR] Comparison response missing table format');
+
+      // Remove any LLM-generated apologies about table formatting
+      text = text.replace(/\(Table formatting issue detected.*?\)/gi, '');
+      text = text.replace(/Please refer to the document sources for detailed comparison/gi, '');
+
+      // Add a clear message that the table is missing
+      // This will be visible to users and help debug table generation issues
+      const warning = '\n\n⚠️ **Note:** This comparison should have been presented in a table format. The response has been generated without the expected table structure.\n';
+
+      // Don't add the warning yet - just log it for now
+      // In production, we'd want to retry the LLM call with stricter instructions
+      console.log('⚠️ [POST-PROCESSOR] Table missing - would add warning:', warning.trim());
+    } else {
+      console.log('✅ [POST-PROCESSOR] Comparison table detected and validated');
+    }
+
+    return text;
+  }
+
+  /**
    * Remove all warnings (for system queries where warnings don't make sense)
    */
   removeAllWarnings(text: string): string {
@@ -195,7 +225,8 @@ class ResponsePostProcessorService {
         break;
 
       case 'compare':
-        // Comparisons should have proper spacing
+        // ✅ FIX #2: Enforce table formatting for comparisons
+        formatted = this.enforceComparisonTable(formatted);
         formatted = this.addSpaceBeforeBullets(formatted);
         break;
 

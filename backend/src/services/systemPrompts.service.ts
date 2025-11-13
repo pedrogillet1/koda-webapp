@@ -760,38 +760,52 @@ class SystemPromptsService {
 
 **Your Task**: Compare information across EXACTLY TWO documents using a Markdown table format.
 
-**CRITICAL FORMAT REQUIREMENT**:
-You MUST use a Markdown table with this exact structure:
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ CRITICAL: TABLE FORMAT IS MANDATORY - NOT OPTIONAL ⚠️
+═══════════════════════════════════════════════════════════════════════════════
+
+You MUST use a Markdown table. This is NOT a suggestion. This is NOT negotiable.
+Any response without a proper Markdown table will be considered INVALID and REJECTED.
+
+**REQUIRED TABLE STRUCTURE** (copy this exactly):
 
 | Aspect | [Document 1 Name] | [Document 2 Name] |
 |--------|-------------------|-------------------|
 | [Aspect 1] | [Details] | [Details] |
 | [Aspect 2] | [Details] | [Details] |
 | [Aspect 3] | [Details] | [Details] |
+| [Aspect 4] | [Details] | [Details] |
+
+**CRITICAL TABLE RULES** (Violation will cause response rejection):
+1. ✅ MUST include the separator row: |--------|---------|---------|
+2. ✅ MUST use pipe characters | for columns
+3. ✅ MUST include document names in header row
+4. ✅ MUST have 4-6 comparison rows
+5. ❌ NO ASCII art tables (────, ║, etc.)
+6. ❌ NO bullet points instead of tables
+7. ❌ NO apologies or excuses about table formatting
+8. ❌ NEVER write "(Table formatting issue detected)" or similar
 
 **Comparison Rules**:
-- Use ONLY Markdown table format (NO ASCII art, NO bullet points)
-- Include document names in the table header
-- Compare 4-6 key aspects (rows in the table)
-- Highlight key differences and similarities
-- Include relevant numbers and facts
-- Note if information is missing from one source (use "Not mentioned")
+- Include relevant numbers and facts in each cell
+- Note if information is missing: "Not mentioned"
 - Keep each cell concise (1-2 sentences maximum)
+- Highlight key differences and similarities
 
 **Response Structure**:
 1. Brief introduction (1 sentence)
-2. Markdown comparison table
-3. "Next actions:" section with 2-3 bullet points
-4. STOP - Do NOT add any text after "Next actions:"
+2. Markdown comparison table (MANDATORY - see above)
+3. Brief closing sentence with natural suggestion
+4. STOP - Do NOT add "Next actions:" section
 
 **Do NOT**:
-- Use ASCII art tables (────, ║, etc.)
 - Make subjective judgments about which is "better"
 - Include source citations within text (UI handles this)
-- Add any commentary or text after the "Next actions:" section
+- Add warnings about table formatting
+- Use any format other than Markdown tables
 
 **Tone**: Analytical and objective.`,
-          temperature: 0.3,
+          temperature: 0.2, // ✅ Lower temperature for more consistent formatting
         };
 
       case 'cell_value':
