@@ -33,27 +33,20 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     // Add new conversation to list when it doesn't exist yet (instead of full reload)
     // ✅ FIX: Also update existing conversations when title changes
     useEffect(() => {
-        if (currentConversation?.id) {
-            const existingIndex = conversations.findIndex(c => c.id === currentConversation.id);
+        if (currentConversation?.id && currentConversation?.title) {
+            setConversations(prevConversations => {
+                const existingIndex = prevConversations.findIndex(c => c.id === currentConversation.id);
 
-            if (existingIndex === -1) {
-                // Conversation doesn't exist - add it
-                console.log('➕ Adding new conversation to list:', currentConversation.id);
-                setConversations(prevConversations => {
-                    // Triple-check it doesn't exist before adding
-                    if (prevConversations.find(c => c.id === currentConversation.id)) {
-                        console.log('⚠️ Conversation already in list, skipping');
-                        return prevConversations;
-                    }
+                if (existingIndex === -1) {
+                    // Conversation doesn't exist - add it
+                    console.log('➕ Adding new conversation to list:', currentConversation.id);
                     const updated = [currentConversation, ...prevConversations];
                     sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
                     return updated;
-                });
-            } else if (conversations[existingIndex].title !== currentConversation.title) {
-                // Conversation exists but title changed - update it
-                console.log('📝 Updating conversation title in list:', currentConversation.id,
-                           `"${conversations[existingIndex].title}" → "${currentConversation.title}"`);
-                setConversations(prevConversations => {
+                } else if (prevConversations[existingIndex].title !== currentConversation.title) {
+                    // Conversation exists but title changed - update it
+                    console.log('📝 Updating conversation title in list:', currentConversation.id,
+                               `"${prevConversations[existingIndex].title}" → "${currentConversation.title}"`);
                     const updated = [...prevConversations];
                     updated[existingIndex] = {
                         ...updated[existingIndex],
@@ -62,10 +55,13 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                     };
                     sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
                     return updated;
-                });
-            }
+                }
+
+                // No changes needed
+                return prevConversations;
+            });
         }
-    }, [currentConversation?.id, currentConversation?.title, conversations]); // ✅ FIX: Monitor ID, title, and conversations
+    }, [currentConversation?.id, currentConversation?.title]); // ✅ FIX: Only monitor ID and title, not conversations array
 
     // Update conversation in the list (used for title updates)
     // Use useCallback to prevent infinite loop

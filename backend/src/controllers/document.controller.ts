@@ -1034,23 +1034,44 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Generate signed URLs for slide images stored in GCS
+    // Generate signed URLs for slide images stored in GCS or Supabase
     const { getSignedUrl } = await import('../config/storage');
     const slidesWithUrls = await Promise.all(
       slidesData.map(async (slide: any) => {
-        if (slide.imageUrl && slide.imageUrl.startsWith('gcs://')) {
+        if (slide.imageUrl) {
           try {
-            // Extract GCS path from gcs://bucket-name/path format
-            const gcsPath = slide.imageUrl.replace(/^gcs:\/\/[^\/]+\//, '');
-            // Generate signed URL valid for 1 hour
-            const signedUrl = await getSignedUrl(gcsPath, 3600);
-            return {
-              ...slide,
-              imageUrl: signedUrl
-            };
+            let filePath: string | null = null;
+
+            // Handle GCS URLs (format: gcs://bucket-name/path)
+            if (slide.imageUrl.startsWith('gcs://')) {
+              filePath = slide.imageUrl.replace(/^gcs:\/\/[^\/]+\//, '');
+            }
+            // Handle Supabase public URLs (format: https://...supabase.co/storage/v1/object/public/bucket-name/path)
+            else if (slide.imageUrl.includes('supabase') && slide.imageUrl.includes('/storage/v1/object/public/')) {
+              const match = slide.imageUrl.match(/\/storage\/v1\/object\/public\/[^\/]+\/(.+)$/);
+              if (match) {
+                filePath = match[1];
+              }
+            }
+            // Handle Supabase authenticated URLs (format: https://...supabase.co/storage/v1/object/sign/bucket-name/path)
+            else if (slide.imageUrl.includes('supabase') && slide.imageUrl.includes('/storage/v1/object/sign/')) {
+              const match = slide.imageUrl.match(/\/storage\/v1\/object\/sign\/[^\/]+\/(.+)\?/);
+              if (match) {
+                filePath = match[1];
+              }
+            }
+
+            // If we extracted a file path, generate a fresh signed URL
+            if (filePath) {
+              console.log(`🔐 Generating signed URL for: ${filePath}`);
+              const signedUrl = await getSignedUrl(filePath, 3600); // 1 hour expiry
+              return {
+                ...slide,
+                imageUrl: signedUrl
+              };
+            }
           } catch (error) {
             console.error(`Failed to generate signed URL for slide ${slide.slideNumber}:`, error);
-            return slide; // Return slide without URL if signing fails
           }
         }
         return slide;
