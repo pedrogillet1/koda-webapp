@@ -89,16 +89,17 @@ export const confirmUpload = async (req: Request, res: Response): Promise<void> 
 
     // ⚡ FIX: Delay event emission to allow Supabase commit to complete
     // This prevents the frontend from fetching before the document is queryable
+    // Increased to 2000ms to handle slower Supabase replication (300-2000ms typical)
     setTimeout(async () => {
       // Emit real-time event for document creation
       emitDocumentEvent(req.user.id, 'created', document.id);
 
       await cacheService.invalidateUserCache(req.user.id);
-      console.log('🗑️ [Cache] Invalidated user cache and emitted document-created after 500ms delay');
+      console.log('🗑️ [Cache] Invalidated user cache and emitted document-created after 2000ms delay');
 
       // Emit folder-tree-updated event to refresh folder tree
       emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
-    }, 500);
+    }, 2000);
 
     res.status(201).json({
       message: 'Document uploaded successfully',
@@ -216,16 +217,17 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
 
     // ⚡ FIX: Delay event emission to allow Supabase commit to complete
     // This prevents the frontend from fetching before the document is queryable
+    // Increased to 2000ms to handle slower Supabase replication (300-2000ms typical)
     setTimeout(async () => {
       // Emit real-time event for document creation
       emitDocumentEvent(req.user.id, 'created', document.id);
 
       await cacheService.invalidateDocumentListCache(req.user.id);
-      console.log('🗑️ [Cache] Invalidated document list cache and emitted document-created after 500ms delay');
+      console.log('🗑️ [Cache] Invalidated document list cache and emitted document-created after 2000ms delay');
 
       // Emit folder-tree-updated event to refresh folder tree
       emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
-    }, 500);
+    }, 2000);
 
     res.status(201).json({
       message: 'Document uploaded successfully',
@@ -304,13 +306,14 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
     });
 
     // ⚡ FIX: Delay cache invalidation to allow Supabase commit to complete
+    // Increased to 2000ms to handle slower Supabase replication (300-2000ms typical)
     setTimeout(async () => {
       await cacheService.invalidateDocumentListCache(req.user.id);
-      console.log('🗑️ [Cache] Invalidated document list cache after 200ms delay');
+      console.log('🗑️ [Cache] Invalidated document list cache after 2000ms delay');
 
       // Emit folder-tree-updated event to refresh folder tree
       emitToUser(req.user.id, 'folder-tree-updated', { documentCount: documents.length });
-    }, 500);
+    }, 2000);
 
     res.status(201).json({
       message: `${documents.length} documents uploaded successfully`,

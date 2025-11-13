@@ -246,32 +246,98 @@ const DocumentViewer = () => {
     setPageNumber(1);
   };
 
-  // Memoize the file and options props to prevent unnecessary reloads
-  const fileConfig = useMemo(() => {
-    if (!documentUrl) return null;
+  // State to hold the actual document URL (with backend URL prepended for API endpoints)
+  const [actualDocumentUrl, setActualDocumentUrl] = useState(null);
+  const [isFetchingImage, setIsFetchingImage] = useState(false);
 
-    // If it's a stream endpoint, we need to include auth headers
+  // Process document URL to use correct backend URL for API endpoints
+  // For encrypted images, fetch with auth and create blob URL
+  useEffect(() => {
+    if (!documentUrl) {
+      setActualDocumentUrl(null);
+      return;
+    }
+
+    // Check if it's a relative API path (starts with /api/) or already a full backend URL
+    const isRelativeApiPath = documentUrl.startsWith('/api/');
+    const isBackendUrl = documentUrl.includes('koda-backend.ngrok.app') || documentUrl.includes('localhost:5000');
+    const isSupabaseUrl = documentUrl.includes('supabase.co');
     const isStreamEndpoint = documentUrl.includes('/stream');
 
-    if (isStreamEndpoint) {
-      // Get the auth token from localStorage
+    // For encrypted images (stream endpoint), fetch with auth and create blob URL
+    if (isStreamEndpoint && document?.mimeType?.startsWith('image/')) {
+      console.log(`🔐 Encrypted image detected, fetching with auth: ${documentUrl}`);
+      setIsFetchingImage(true);
+
+      const token = localStorage.getItem('accessToken');
+      fetch(documentUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          const blobUrl = URL.createObjectURL(blob);
+          console.log(`✅ Created blob URL for encrypted image: ${blobUrl}`);
+          setActualDocumentUrl(blobUrl);
+          setIsFetchingImage(false);
+        })
+        .catch(error => {
+          console.error('❌ Failed to fetch encrypted image:', error);
+          setIsFetchingImage(false);
+          setImageError(true);
+        });
+
+      // Cleanup blob URL when component unmounts or URL changes
+      return () => {
+        if (actualDocumentUrl && actualDocumentUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(actualDocumentUrl);
+        }
+      };
+    } else if (isRelativeApiPath) {
+      // Relative API path - prepend backend URL
+      const API_URL = process.env.REACT_APP_API_URL || 'https://koda-backend.ngrok.app';
+      const fullUrl = `${API_URL}${documentUrl}`;
+      console.log(`🔗 Relative API path detected, using backend URL: ${fullUrl}`);
+      setActualDocumentUrl(fullUrl);
+    } else if (isBackendUrl || isSupabaseUrl) {
+      // Already a full URL (backend or Supabase) - use directly
+      console.log(`🔗 Full URL detected, using directly: ${documentUrl}`);
+      setActualDocumentUrl(documentUrl);
+    } else {
+      // Unknown URL format - use as is
+      console.log(`⚠️ Unknown URL format, using as is: ${documentUrl}`);
+      setActualDocumentUrl(documentUrl);
+    }
+  }, [documentUrl, document?.mimeType]);
+
+  // Memoize the file config for PDF.js
+  const fileConfig = useMemo(() => {
+    if (!actualDocumentUrl) return null;
+
+    // For preview-pdf endpoints, fetch with auth headers
+    if (actualDocumentUrl.includes('/preview-pdf')) {
       const token = localStorage.getItem('accessToken');
       return {
-        url: documentUrl,
+        url: actualDocumentUrl,
         httpHeaders: {
           'Authorization': `Bearer ${token}`
         }
       };
     }
 
-    return { url: documentUrl };
-  }, [documentUrl]);
+    return { url: actualDocumentUrl };
+  }, [actualDocumentUrl]);
 
   const pdfOptions = useMemo(() => ({
     cMapUrl: 'https://unpkg.com/pdfjs-dist@' + pdfjs.version + '/cmaps/',
     cMapPacked: true,
     // Add better error handling for PDF loading
-    withCredentials: true,
     isEvalSupported: false,
   }), []);
 
@@ -1132,10 +1198,15 @@ const DocumentViewer = () => {
                         </div>
                       ) : (
                         <img
-                          src={documentUrl}
+                          src={actualDocumentUrl}
                           alt={document.filename}
-                          onLoad={() => setImageLoading(false)}
-                          onError={() => {
+                          onLoad={() => {
+                            console.log(`✅ Image loaded successfully: ${actualDocumentUrl}`);
+                            setImageLoading(false);
+                          }}
+                          onError={(e) => {
+                            console.error(`❌ Image failed to load: ${actualDocumentUrl}`);
+                            console.error('Image error event:', e);
                             setImageLoading(false);
                             setImageError(true);
                           }}

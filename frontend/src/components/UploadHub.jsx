@@ -701,27 +701,9 @@ const UploadHub = () => {
           } : f
         ));
 
-        // ✅ FIX: Immediately refresh documents so they appear right away
-        console.log('📥 Refreshing documents immediately after upload...');
-        try {
-          await Promise.all([
-            fetchDocuments(), // Update global context
-            fetchFolders()    // Update global context
-          ]);
-
-          // Also update local state for UploadHub display
-          const [docsResponse, foldersResponse] = await Promise.all([
-            api.get('/api/documents'),
-            api.get('/api/folders')
-          ]);
-          setDocuments(docsResponse.data.documents || []);
-          const allFolders = foldersResponse.data.folders || [];
-          setFolders(allFolders.filter(f =>
-            !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
-          ));
-        } catch (refreshError) {
-          console.error('⚠️ Error refreshing after upload:', refreshError);
-        }
+        // ⚡ REMOVED: Don't refresh immediately - causes stale data to overwrite real upload
+        // The WebSocket 'document-created' event will handle the refresh after Supabase replication
+        console.log('✅ Upload completed - waiting for WebSocket event to refresh documents...');
 
         // Wait a moment then remove the completed file from upload area
         await new Promise(resolve => setTimeout(resolve, 500));

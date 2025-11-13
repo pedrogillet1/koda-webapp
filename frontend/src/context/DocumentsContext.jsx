@@ -43,11 +43,41 @@ export const DocumentsProvider = ({ children }) => {
         console.log(`  Folder ${fId}: ${docsByFolder[fId].length} docs -`, docsByFolder[fId].join(', '));
       });
 
-      // Merge with existing optimistic updates (keep uploading/pending documents)
+      // ⚡ FIX: Protect recently uploaded documents from being removed by stale refetches
       setDocuments(prev => {
+        // Keep temp docs (status='uploading' or id starts with 'temp-')
         const tempDocs = prev.filter(doc => doc.status === 'uploading' || doc.id?.startsWith('temp-'));
-        const mergedDocs = [...tempDocs, ...fetchedDocs];
-        console.log(`📄 Merged: ${tempDocs.length} temp docs + ${fetchedDocs.length} fetched = ${mergedDocs.length} total`);
+
+        // ⚡ NEW: Also keep recently uploaded docs that might not be in fetchedDocs yet
+        // (created in last 5 seconds and status='processing' or 'completed')
+        const recentDocs = prev.filter(doc => {
+          if (doc.id?.startsWith('temp-')) return false; // Already in tempDocs
+          if (!doc.createdAt) {
+            console.log(`⚠️ Document ${doc.id} has no createdAt`);
+            return false;
+          }
+
+          const docAge = Date.now() - new Date(doc.createdAt).getTime();
+          const isRecent = docAge < 5000; // Created in last 5 seconds (increased from 3s)
+          const isProcessing = doc.status === 'processing' || doc.status === 'completed';
+          const notInFetched = !fetchedDocs.find(fd => fd.id === doc.id);
+
+          if (isRecent && isProcessing && notInFetched) {
+            console.log(`✅ Protecting recent doc: ${doc.filename} (age: ${docAge}ms, status: ${doc.status})`);
+          }
+
+          return isRecent && isProcessing && notInFetched;
+        });
+
+        // Merge: temp docs + recent docs + fetched docs (deduplicated)
+        const fetchedIds = new Set(fetchedDocs.map(d => d.id));
+        const protectedDocs = [...tempDocs, ...recentDocs].filter(d => !fetchedIds.has(d.id));
+        const mergedDocs = [...protectedDocs, ...fetchedDocs];
+
+        console.log(`📄 Merged: ${tempDocs.length} temp + ${recentDocs.length} recent + ${fetchedDocs.length} fetched = ${mergedDocs.length} total`);
+        if (recentDocs.length > 0) {
+          console.log(`🔍 Recent docs being protected:`, recentDocs.map(d => d.filename));
+        }
         return mergedDocs;
       });
     } catch (error) {
@@ -301,10 +331,15 @@ export const DocumentsProvider = ({ children }) => {
 
     socket.on('document-created', (data) => {
       console.log('➕ Document created event received:', data);
-      // Refresh immediately - optimistic update will be replaced with real document
-      console.log('🔄 Refreshing documents after document-created event...');
-      fetchDocuments();
-      fetchRecentDocuments();
+
+      // ⚡ FIX: Add 1000ms delay to ensure backend delay (2000ms) + Supabase replication completes
+      // Backend emits this event after 2000ms, so total time since upload is ~2000ms
+      // Adding 1000ms here ensures total time is 3000ms, giving Supabase plenty of time
+      setTimeout(() => {
+        console.log('🔄 Refreshing documents after document-created event (with 1000ms safety delay)...');
+        fetchDocuments();
+        fetchRecentDocuments();
+      }, 1000);
     });
 
     socket.on('document-deleted', () => {

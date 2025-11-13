@@ -2748,14 +2748,13 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
 
   if (isDocx) {
     const { convertDocxToPdf } = await import('./docx-converter.service');
-    const supabaseStorageService = await import('./supabaseStorage.service');
 
     // REASON: Use the correct path for the converted PDF
     // WHY: During upload, DOCX is converted to PDF and saved as `${userId}/${documentId}-converted.pdf`
     // This matches the path used in document.queue.ts line 242
     const pdfKey = `${userId}/${documentId}-converted.pdf`;
 
-    const pdfExists = await supabaseStorageService.default.exists(pdfKey);
+    const pdfExists = await fileExists(pdfKey);
 
     if (!pdfExists) {
       console.log('📄 PDF not found, converting DOCX to PDF...');
@@ -2806,14 +2805,13 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
       }
     }
 
-    // Return backend proxy URL instead of direct Supabase URL to avoid CORS issues
-    // The PDF will be streamed through our backend
+    // Return backend preview endpoint URL
+    // PDF.js will fetch from our backend which streams from Supabase
     return {
       previewType: 'pdf',
       previewUrl: `/api/documents/${documentId}/preview-pdf`,
       originalType: document.mimeType,
       filename: document.filename,
-      pdfKey, // Include PDF key for backend to fetch
     };
   }
 
@@ -3577,3 +3575,5 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
     throw error;
   }
 };
+
+ 
