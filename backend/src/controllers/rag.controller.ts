@@ -297,7 +297,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       return res.json({
         success: true,
         answer: filesListAnswer,
-        sources: [],
+        sources: [], // ✅ FIX #1: Always return sources
         expandedQuery: [],
         contextId: 'list-query',
         userMessage,
@@ -871,7 +871,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     res.json({
       success: true,
       answer: result.answer,
-      sources: result.sources,
+      sources: result.sources || [],  // ✅ FIX #1: Always return sources (empty array if none)
       expandedQuery: result.expandedQuery,
       contextId: result.contextId,
       actions: result.actions || [],
@@ -1627,7 +1627,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       formattedAnswer: cleanedAnswer, // ✅ Send post-processed answer (next steps limited)
       userMessageId: userMessage.id,
       assistantMessageId: assistantMessage.id,
-      sources: filteredSources, // ✅ Send deduplicated/filtered sources
+      sources: filteredSources || [], // ✅ FIX #1: Always send sources (empty array if none)
       contextId: result.contextId,
       intent: result.intent,
       confidence: result.confidence,

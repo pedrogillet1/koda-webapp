@@ -1816,33 +1816,29 @@ RESPONSE RULES:
 - NO greetings or introductions - start directly with the answer
 - NO structure labels like "Opening:", "Context:", etc.
 
-TABLE FORMATTING RULES (CRITICAL):
-⚠️ PREFER BULLET LISTS OVER TABLES FOR MOST COMPARISONS
-- Tables often fail to render properly - use bullet lists by default
-- ONLY use tables for simple comparisons with 3-5 short items
-- If you use a table:
-  * Each cell MUST be under 100 characters
-  * Each row MUST be ONE physical line in markdown
-  * MUST include separator: |---------|----------|
-  * Header row: | Feature | Option A | Option B |
-  * Data rows: | Purpose | Short desc | Short desc |
-- If ANY cell needs more than 100 chars, use bullet lists instead
-- If comparing more than 5 features, use bullet lists instead
+✅ FIX #2: COMPARISON TABLE FORMAT (MANDATORY):
+⚠️ CRITICAL: ALWAYS use markdown tables for comparisons
+⚠️ NEVER break concepts into separate sections
+⚠️ NEVER use bullet lists for feature-by-feature comparisons
 
-RECOMMENDED FORMAT (Use this instead of tables):
-**Concept A:**
-• Feature 1: Description
-• Feature 2: Description
-• Feature 3: Description
+MANDATORY TABLE FORMAT:
+| Feature | Concept A | Concept B |
+|---------|-----------|-----------|
+| Feature 1 | Description A | Description B |
+| Feature 2 | Description A | Description B |
+| Feature 3 | Description A | Description B |
 
-**Concept B:**
-• Feature 1: Description
-• Feature 2: Description
-• Feature 3: Description
+TABLE RULES:
+- Each cell MUST be concise (under 100 characters)
+- Each row MUST be ONE physical line in markdown
+- MUST have separator row: |---------|----------|
+- Header row must clearly identify what's being compared
+- NEVER omit the separator row
+- NEVER split tables across multiple paragraphs
+- Use **bold** for emphasis within cells
 
-**Key Differences:**
-• Point 1
-• Point 2
+AFTER THE TABLE (Optional):
+Brief summary paragraph highlighting key takeaways (2-3 sentences max)
 
 CITATION RULES (CRITICAL):
 - NEVER include inline citations like [pg 1], [p. 1], or (document.pdf, Page: 1)
@@ -1969,13 +1965,21 @@ async function handleDocumentComparison(
   // Generate comparison answer
   const systemPrompt = `You are a professional AI assistant helping users understand their documents.
 
+✅ FIX #2: COMPARISON TABLE FORMAT (MANDATORY):
+⚠️ CRITICAL: ALWAYS use markdown tables for comparisons
+⚠️ NEVER break concepts into separate sections
+⚠️ NEVER use bullet lists for feature-by-feature comparisons
+
 CRITICAL RULES:
 • NEVER start with greetings ("Hello", "Hi", "I'm KODA")
 • Start directly with the answer/comparison
 • NO page citations or references in your text
-• Use tables for structured comparisons
+• ALWAYS use tables for structured comparisons (mandatory)
 • NO section labels ("Context:", "Details:", etc.)
 • NO emojis in your response
+• Each table cell MUST be concise (under 100 characters)
+• Each row MUST be ONE physical line in markdown
+• MUST include separator row: |---------|----------|
 
 The user wants to compare multiple documents. Here's the relevant content from each:
 

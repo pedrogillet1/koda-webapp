@@ -1864,10 +1864,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             )}
                                                         </div>
 
-                                                    {/* RAG Sources Display */}
-                                                    {msg.ragSources && msg.ragSources.length > 0 && (() => {
+                                                    {/* ✅ FIX #1: Always Show Document Sources (even if empty) */}
+                                                    {msg.role === 'assistant' && (() => {
+                                                        const sources = msg.ragSources || [];
+
                                                         // Group sources by document ID to show unique documents
-                                                        const uniqueDocuments = msg.ragSources.reduce((acc, source) => {
+                                                        const uniqueDocuments = sources.reduce((acc, source) => {
                                                             // Skip sources without valid document names
                                                             if (!source.documentName || source.documentName === 'Unknown Document') {
                                                                 return acc;
@@ -1885,11 +1887,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                         }, {});
 
                                                         const documentList = Object.values(uniqueDocuments);
-
-                                                        // Don't show document sources if no valid documents
-                                                        if (documentList.length === 0) {
-                                                            return null;
-                                                        }
                                                         const isExpanded = expandedSources[`${msg.id}-rag`];
 
                                                         // Helper function to get file icon based on filename
@@ -1969,7 +1966,19 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 {/* Document Sources List (shown when expanded) */}
                                                                 {isExpanded && (
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-                                                                    {documentList.map((doc, index) => {
+                                                                    {documentList.length === 0 ? (
+                                                                        <div style={{
+                                                                            padding: 16,
+                                                                            background: '#F9FAFB',
+                                                                            borderRadius: 8,
+                                                                            border: '1px solid #E5E7EB',
+                                                                            textAlign: 'center',
+                                                                            color: '#6B7280',
+                                                                            fontSize: 13
+                                                                        }}>
+                                                                            No documents were referenced for this response.
+                                                                        </div>
+                                                                    ) : documentList.map((doc, index) => {
                                                                         // Get the highest similarity chunk for this document
                                                                         const bestChunk = doc.chunks.reduce((best, curr) =>
                                                                             (curr.similarity || 0) > (best.similarity || 0) ? curr : best
@@ -2045,6 +2054,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                     })}
                                                                 </div>
                                                                 )}
+
                                                             </div>
                                                         );
                                                     })()}
