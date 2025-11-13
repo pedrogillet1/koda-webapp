@@ -15,6 +15,7 @@ import { llmIntentDetectorService } from './llmIntentDetector.service';
 import { findBestMatch } from 'string-similarity';
 import fuzzyMatchService from './fuzzy-match.service';
 import { emitDocumentEvent, emitFolderEvent } from './websocket.service';
+import semanticFileMatcher from './semanticFileMatcher.service'; // ✅ FIX #7: Import semantic matcher
 
 /**
  * Enhanced fuzzy matching using our dedicated service
@@ -288,9 +289,27 @@ class FileActionsService {
 
     if (document) return document;
 
-    // REASON: Try enhanced fuzzy matching with our dedicated service
-    // WHY: Improved accuracy from 30-40% to 85-95% with multiple similarity algorithms
-    // HOW: Uses token matching, substring matching, and edit distance
+    // ✅ FIX #7: Try semantic matching FIRST (most accurate for natural language)
+    // REASON: Semantic matching understands meaning, not just character similarity
+    // EXAMPLE: "blueprint" matches "KODA_Product_Blueprint_Final_v2.pdf"
+    // WHY: Uses OpenAI embeddings to understand semantic similarity
+    try {
+      const semanticResult = await semanticFileMatcher.findSingleFile(userId, filename);
+
+      if (semanticResult) {
+        console.log(`🧠 Semantic match: "${filename}" → "${semanticResult.filename}" (confidence: ${semanticResult.confidence})`);
+        document = await prisma.document.findUnique({
+          where: { id: semanticResult.documentId },
+        });
+
+        if (document) return document;
+      }
+    } catch (error) {
+      console.log(`⚠️ Semantic matching failed, falling back to fuzzy matching:`, error);
+      // Fall through to fuzzy matching if semantic fails
+    }
+
+    // FALLBACK: Get all documents for fuzzy/string matching
     const allDocuments = await prisma.document.findMany({
       where: {
         userId: userId,
