@@ -366,27 +366,17 @@ const CategoryDetail = () => {
     fetchDocuments();
   }, [categoryName, folderId, refreshTrigger, contextDocuments, contextFolders]); // Re-fetch when context updates
 
-  // Auto-sync subfolders from context for instant updates with live document counts
+  // ⚡ OPTIMIZED: Auto-sync subfolders from context for instant updates with backend-provided counts
   useEffect(() => {
     if (currentFolderId && contextFolders.length > 0) {
       const subFoldersInCategory = contextFolders.filter(f => f.parentFolderId === currentFolderId);
 
-      // Recalculate document counts in real-time based on contextDocuments
-      const foldersWithCounts = subFoldersInCategory.map(folder => {
-        const docCount = contextDocuments.filter(doc => doc.folderId === folder.id).length;
-        return {
-          ...folder,
-          _count: {
-            ...folder._count,
-            documents: docCount
-          }
-        };
-      });
-
-      setSubFolders(foldersWithCounts);
-      console.log('Auto-synced subfolders with live counts:', foldersWithCounts);
+      // ⚡ USE BACKEND COUNTS: Don't recalculate - use the counts already provided by backend
+      // This ensures instant updates when documents are moved/uploaded/deleted
+      setSubFolders(subFoldersInCategory);
+      console.log('✅ Auto-synced subfolders with backend counts:', subFoldersInCategory);
     }
-  }, [contextFolders, contextDocuments, currentFolderId]);
+  }, [contextFolders, currentFolderId]); // Removed contextDocuments dependency - not needed
 
   // Auto-sync documents from context for instant updates
   useEffect(() => {
@@ -654,8 +644,7 @@ const CategoryDetail = () => {
           )
         );
 
-        // Refresh context
-        await refreshAll();
+        // ⚡ REMOVED: No need to refreshAll() - moveToFolder already updates state optimistically
 
         // Clear selection and exit select mode
         clearSelection();
@@ -674,14 +663,13 @@ const CategoryDetail = () => {
             parentFolderId: selectedCategoryId
           });
 
-          // Refresh context to get updated folder structure
+          // Refresh context to get updated folder structure (needed for folder moves)
           await refreshAll();
         } else {
           // Move document
           await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
 
-          // Refresh context
-          await refreshAll();
+          // ⚡ REMOVED: No need to refreshAll() - moveToFolder already updates state optimistically
         }
       }
 
@@ -1021,12 +1009,11 @@ const CategoryDetail = () => {
           )
         );
 
-        // Refresh context to get latest counts
-        await refreshAll();
+        // ⚡ REMOVED: No need to refreshAll() - moveToFolder already updates state optimistically with instant folder count updates
 
         // Show success modal and deactivate select mode
         setSuccessCount(documentsToMove.length);
-        setSuccessMessage(`${documentsToMove.length} document${documentsToMove.length > 1 ? 's have' : ' has'} been successfully uploaded.`);
+        setSuccessMessage(`${documentsToMove.length} document${documentsToMove.length > 1 ? 's have' : ' has'} been successfully moved.`);
         setShowSuccessModal(true);
 
         // Clear selection and exit select mode

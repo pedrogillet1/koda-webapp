@@ -113,16 +113,19 @@ const DocumentsPage = () => {
 
   // Computed categories (auto-updates when folders or documents change!)
   const categories = useMemo(() => {
-    console.log('🔍 Calculating categories...');
-    console.log('Total folders:', contextFolders.length);
-    console.log('Total documents:', contextDocuments.length);
+    console.log('🔍 [CATEGORIES] Calculating categories...');
+    console.log('🔍 [CATEGORIES] Total folders:', contextFolders.length);
+    console.log('🔍 [CATEGORIES] All folders:', contextFolders.map(f => ({ id: f.id, name: f.name, parentId: f.parentFolderId })));
+    console.log('🔍 [CATEGORIES] Total documents:', contextDocuments.length);
 
     const result = getRootFolders()
       .filter(folder => folder.name.toLowerCase() !== 'recently added')
       .map(folder => {
-        const fileCount = getDocumentCountByFolder(folder.id);
+        // ⚡ OPTIMIZED: Use backend-provided counts directly from folder object
+        const fileCount = folder._count?.totalDocuments ?? folder._count?.documents ?? 0;
         console.log(`📁 Category "${folder.name}" (${folder.id}):`, {
           fileCount,
+          backendCount: folder._count,
           directDocs: contextDocuments.filter(d => d.folderId === folder.id).length,
           subfolders: contextFolders.filter(f => f.parentFolderId === folder.id).length
         });
@@ -139,7 +142,7 @@ const DocumentsPage = () => {
 
     console.log('Final categories:', result);
     return result;
-  }, [contextFolders, contextDocuments, getRootFolders, getDocumentCountByFolder]);
+  }, [contextFolders, contextDocuments, getRootFolders]); // Removed getDocumentCountByFolder dependency
 
   // Computed available categories for modal
   const availableCategories = useMemo(() => {
@@ -745,13 +748,13 @@ const DocumentsPage = () => {
                       if (data.type === 'document') {
                         // Move single document
                         await moveToFolder(data.id, category.id);
-                        console.log(`Moved document ${data.id} to folder ${category.id}`);
+                        console.log(`✅ Moved document ${data.id} to folder ${category.id}`);
                       } else if (data.type === 'documents') {
                         // Move multiple documents
                         await Promise.all(
                           data.documentIds.map(docId => moveToFolder(docId, category.id))
                         );
-                        console.log(`Moved ${data.documentIds.length} documents to folder ${category.id}`);
+                        console.log(`✅ Moved ${data.documentIds.length} documents to folder ${category.id}`);
 
                         // Clear selection and exit select mode
                         if (isSelectMode) {
@@ -760,9 +763,10 @@ const DocumentsPage = () => {
                         }
                       }
 
-                      await refreshAll();
+                      // ⚡ REMOVED: No need to refreshAll() - moveToFolder already updates state optimistically with instant folder count updates
                     } catch (error) {
-                      console.error('Error moving document:', error);
+                      console.error('❌ Error moving document:', error);
+                      // On error, the moveToFolder function will rollback automatically
                     }
                   }}
                   style={{padding: 10, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, transition: 'transform 0.2s ease, box-shadow 0.2s ease', position: 'relative'}}
