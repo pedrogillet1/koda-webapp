@@ -1,9 +1,11 @@
 /**
  * Navigation Service
  * Helps locate files and folders, and provides navigation actions
+ * ✅ FIX #4: Now uses semantic file matching for better accuracy
  */
 
 import prisma from '../config/database';
+import semanticFileMatcher from './semanticFileMatcher.service';
 
 export interface NavigationAction {
   type: 'open_file' | 'navigate_folder';
@@ -21,15 +23,47 @@ export interface NavigationResult {
 
 class NavigationService {
   /**
-   * Find a file by name (fuzzy matching)
+   * Find a file by name using semantic matching
+   * ✅ FIX #4: Uses OpenAI embeddings for better accuracy
+   * ✅ FIX #5: Detects ambiguous matches and provides suggestions
    */
   async findFile(userId: string, filename: string): Promise<NavigationResult> {
-    // Search for files matching the name with full metadata
-    const documents = await prisma.document.findMany({
-      where: {
-        userId,
-        status: 'completed',
-      },
+    console.log(`🔍 [Navigation] Finding file: "${filename}"`);
+
+    // ✅ FIX #4: Use semantic matching instead of fuzzy string matching
+    const semanticResult = await semanticFileMatcher.findFilesSemantically(userId, filename, 3);
+
+    if (semanticResult.matches.length === 0) {
+      return {
+        found: false,
+        message: `I couldn't find a file matching "${filename}". Please check the spelling or try a different search term.`,
+        actions: [],
+      };
+    }
+
+    // ✅ FIX #5: Handle ambiguous matches - provide user with options
+    if (semanticResult.requiresConfirmation) {
+      const matchesList = semanticResult.matches
+        .map((m, i) => `${i + 1}. **${m.filename}** (${(m.similarity * 100).toFixed(0)}% match)`)
+        .join('\n');
+
+      return {
+        found: true,
+        message: `I found ${semanticResult.matches.length} files that might match "${filename}":\n\n${matchesList}\n\nPlease specify which file you meant, or provide more details.`,
+        actions: semanticResult.matches.map(match => ({
+          type: 'open_file' as const,
+          label: match.filename,
+          documentId: match.documentId,
+        })),
+      };
+    }
+
+    // Get the best match
+    const topMatch = semanticResult.matches[0];
+
+    // Fetch full document details
+    const bestMatch = await prisma.document.findUnique({
+      where: { id: topMatch.documentId },
       include: {
         folder: true,
         categories: {
@@ -40,24 +74,13 @@ class NavigationService {
       },
     });
 
-    // Fuzzy match filename
-    const filenameLower = filename.toLowerCase();
-    const matches = documents.filter(doc =>
-      doc.filename.toLowerCase().includes(filenameLower)
-    );
-
-    if (matches.length === 0) {
+    if (!bestMatch) {
       return {
         found: false,
-        message: `I couldn't find a file named "${filename}". Please check the spelling or try a different search term.`,
+        message: `File not found. It may have been deleted.`,
         actions: [],
       };
     }
-
-    // Get the best match (exact match or first result)
-    const bestMatch = matches.find(doc =>
-      doc.filename.toLowerCase() === filenameLower
-    ) || matches[0];
 
     // Build folder path
     const folderPath = await this.getFolderPath(bestMatch.folderId);
@@ -76,9 +99,12 @@ class NavigationService {
       ? `\n\nThis file is tagged as: **${categories.join(', ')}**`
       : '';
 
-    const message = matches.length === 1
-      ? `The file **${bestMatch.filename}** is located ${locationText}.${categoryText}`
-      : `I found ${matches.length} files matching "${filename}". The closest match is **${bestMatch.filename}** located ${locationText}.${categoryText}`;
+    // ✅ FIX #4: Include confidence in message for transparency
+    const confidenceText = topMatch.confidence === 'high'
+      ? '' // Don't mention high confidence (it's expected)
+      : ` (${(topMatch.similarity * 100).toFixed(0)}% match)`;
+
+    const message = `The file **${bestMatch.filename}**${confidenceText} is located ${locationText}.${categoryText}`;
 
     return {
       found: true,
