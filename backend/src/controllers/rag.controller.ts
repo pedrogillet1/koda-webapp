@@ -1546,7 +1546,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
     // Check if query mentions a specific filename
     const mentionedFile = uniqueSources.find((src: any) => {
-      const filename = src.filename?.toLowerCase() || '';
+      // ✅ FIX: Use documentName (consistent with rag.service.ts output)
+      const filename = src.documentName?.toLowerCase() || src.filename?.toLowerCase() || '';
       const cleanFilename = filename.replace(/\.(pdf|docx?|xlsx?|pptx?|txt|csv)$/i, '');
       return lowerQuery.includes(cleanFilename) || lowerQuery.includes(filename);
     });

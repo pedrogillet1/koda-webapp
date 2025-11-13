@@ -430,7 +430,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             // Add final messages to history
             setMessages((prev) => {
                 // Triple-check if message already exists in the array
-                const assistantExists = prev.some(msg => msg.id === pending.assistantMessage.id);
+                // ✅ FIX: Check for ID existence before comparison to avoid undefined errors
+                const assistantExists = pending.assistantMessage?.id && prev.some(msg => msg.id === pending.assistantMessage.id);
 
                 if (assistantExists) {
                     console.log('⚠️ Message already exists in state, skipping:', pending.assistantMessage.id);
@@ -1865,7 +1866,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                         </div>
 
                                                     {/* ✅ FIX #1: Always Show Document Sources (even if empty) */}
-                                                    {msg.role === 'assistant' && (() => {
+                                                    {/* ✅ FIX #6: Hide sources for file actions (they don't use documents) */}
+                                                    {msg.role === 'assistant' && !msg.contextId?.startsWith('action-') && (() => {
                                                         const sources = msg.ragSources || [];
 
                                                         // Group sources by document ID to show unique documents
