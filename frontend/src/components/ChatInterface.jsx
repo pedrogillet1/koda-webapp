@@ -208,6 +208,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 setSocketReady(false);
             });
 
+            // ✅ FIX: Listen for conversation title updates
+            socket.on('conversation:updated', (data) => {
+                console.log('📡 Received conversation update:', data);
+
+                // Update in chat history via callback (parent component manages currentConversation state)
+                if (onConversationUpdate) {
+                    onConversationUpdate({
+                        id: data.conversationId,
+                        title: data.title,
+                        updatedAt: data.updatedAt
+                    });
+                }
+            });
+
             // IMPORTANT: Remove any existing listeners first to prevent duplicates
             chatService.removeMessageListeners();
 
@@ -369,6 +383,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             console.log('🧹 Cleaning up socket listeners (keeping global flag)');
             // Don't reset globalSocketInitialized to prevent re-initialization in StrictMode
             // Only remove listeners for this component instance
+            if (chatService.getSocket()) {
+                chatService.getSocket().off('conversation:updated');
+            }
         };
     }, []);
 

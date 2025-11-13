@@ -31,31 +31,62 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     }, []);
 
     // Add new conversation to list when it doesn't exist yet (instead of full reload)
+    // ✅ FIX: Also update existing conversations when title changes
     useEffect(() => {
-        if (currentConversation && !conversations.find(c => c.id === currentConversation.id)) {
-            // Add the new conversation to the top of the list
-            console.log('➕ Adding new conversation to list:', currentConversation.id);
-            setConversations(prevConversations => {
-                // Double-check it doesn't exist before adding
-                if (prevConversations.find(c => c.id === currentConversation.id)) {
-                    console.log('⚠️ Conversation already in list, skipping');
-                    return prevConversations;
-                }
-                return [currentConversation, ...prevConversations];
-            });
+        if (currentConversation?.id) {
+            const existingIndex = conversations.findIndex(c => c.id === currentConversation.id);
+
+            if (existingIndex === -1) {
+                // Conversation doesn't exist - add it
+                console.log('➕ Adding new conversation to list:', currentConversation.id);
+                setConversations(prevConversations => {
+                    // Triple-check it doesn't exist before adding
+                    if (prevConversations.find(c => c.id === currentConversation.id)) {
+                        console.log('⚠️ Conversation already in list, skipping');
+                        return prevConversations;
+                    }
+                    const updated = [currentConversation, ...prevConversations];
+                    sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
+                    return updated;
+                });
+            } else if (conversations[existingIndex].title !== currentConversation.title) {
+                // Conversation exists but title changed - update it
+                console.log('📝 Updating conversation title in list:', currentConversation.id,
+                           `"${conversations[existingIndex].title}" → "${currentConversation.title}"`);
+                setConversations(prevConversations => {
+                    const updated = [...prevConversations];
+                    updated[existingIndex] = {
+                        ...updated[existingIndex],
+                        ...currentConversation,
+                        updatedAt: new Date().toISOString()
+                    };
+                    sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
+                    return updated;
+                });
+            }
         }
-    }, [currentConversation]);
+    }, [currentConversation?.id, currentConversation?.title, conversations]); // ✅ FIX: Monitor ID, title, and conversations
 
     // Update conversation in the list (used for title updates)
     // Use useCallback to prevent infinite loop
     const updateConversationInList = useCallback((updatedConversation) => {
         console.log('📝 ChatHistory: Updating conversation', updatedConversation);
         setConversations(prevConversations => {
+            // ✅ FIX: Check if conversation exists before updating
+            const exists = prevConversations.some(c => c.id === updatedConversation.id);
+
+            if (!exists) {
+                console.warn('⚠️ Attempted to update non-existent conversation:', updatedConversation.id);
+                // Don't add it here - let the other useEffect handle new conversations
+                return prevConversations;
+            }
+
             const updated = prevConversations.map(conv =>
                 conv.id === updatedConversation.id
                     ? { ...conv, ...updatedConversation, updatedAt: new Date().toISOString() }
                     : conv
             );
+
             // Update cache
             sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
             return updated;
