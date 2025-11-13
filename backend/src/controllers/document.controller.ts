@@ -4,7 +4,7 @@ import { sendDocumentShareEmail } from '../services/email.service';
 import { config } from '../config/env';
 import { getSignedUploadUrl } from '../config/storage';
 import crypto from 'crypto';
-import { emitDocumentEvent } from '../services/websocket.service';
+import { emitDocumentEvent, emitToUser } from '../services/websocket.service';
 import cacheService from '../services/cache.service';
 
 /**
@@ -87,11 +87,18 @@ export const confirmUpload = async (req: Request, res: Response): Promise<void> 
       thumbnailData: thumbnailData || undefined,
     });
 
-    // Emit real-time event for document creation
-    emitDocumentEvent(req.user.id, 'created', document.id);
+    // ⚡ FIX: Delay event emission to allow Supabase commit to complete
+    // This prevents the frontend from fetching before the document is queryable
+    setTimeout(async () => {
+      // Emit real-time event for document creation
+      emitDocumentEvent(req.user.id, 'created', document.id);
 
-    // Invalidate RAG cache (document added, search results may change)
-    await cacheService.invalidateUserCache(req.user.id);
+      await cacheService.invalidateUserCache(req.user.id);
+      console.log('🗑️ [Cache] Invalidated user cache and emitted document-created after 500ms delay');
+
+      // Emit folder-tree-updated event to refresh folder tree
+      emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
+    }, 500);
 
     res.status(201).json({
       message: 'Document uploaded successfully',
@@ -207,11 +214,18 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       plaintextForEmbeddings: plaintextForEmbeddings || undefined, // ⚡ TEXT EXTRACTION: Pass plaintext for embeddings
     });
 
-    // Invalidate document list cache
-    await cacheService.invalidateDocumentListCache(req.user.id);
+    // ⚡ FIX: Delay event emission to allow Supabase commit to complete
+    // This prevents the frontend from fetching before the document is queryable
+    setTimeout(async () => {
+      // Emit real-time event for document creation
+      emitDocumentEvent(req.user.id, 'created', document.id);
 
-    // Emit real-time event for document creation
-    emitDocumentEvent(req.user.id, 'created', document.id);
+      await cacheService.invalidateDocumentListCache(req.user.id);
+      console.log('🗑️ [Cache] Invalidated document list cache and emitted document-created after 500ms delay');
+
+      // Emit folder-tree-updated event to refresh folder tree
+      emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
+    }, 500);
 
     res.status(201).json({
       message: 'Document uploaded successfully',
@@ -284,13 +298,19 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
     console.log(`📤 [Backend] Returning ${documents.length} document(s) to frontend`);
     console.log(`📤 [Backend] Document IDs:`, documents.map(d => d?.id || 'null').join(', '));
 
-    // Invalidate document list cache
-    await cacheService.invalidateDocumentListCache(req.user.id);
-
     // Emit real-time events for all created documents
     documents.forEach(doc => {
       emitDocumentEvent(req.user!.id, 'created', doc.id);
     });
+
+    // ⚡ FIX: Delay cache invalidation to allow Supabase commit to complete
+    setTimeout(async () => {
+      await cacheService.invalidateDocumentListCache(req.user.id);
+      console.log('🗑️ [Cache] Invalidated document list cache after 200ms delay');
+
+      // Emit folder-tree-updated event to refresh folder tree
+      emitToUser(req.user.id, 'folder-tree-updated', { documentCount: documents.length });
+    }, 500);
 
     res.status(201).json({
       message: `${documents.length} documents uploaded successfully`,

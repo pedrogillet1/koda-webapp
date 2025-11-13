@@ -1593,6 +1593,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             assistantMessage: assistantMessage
                         };
                     }
+
+                    // ✅ CRITICAL FIX: Reset loading state after SSE stream completes
+                    console.log('🏁 SSE fallback stream completed - setting isLoading to false');
+                    setIsLoading(false);
                 } catch (error) {
                     console.error('❌ Error in SSE fallback:', error);
                     setIsLoading(false);

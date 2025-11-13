@@ -43,7 +43,13 @@ export const DocumentsProvider = ({ children }) => {
         console.log(`  Folder ${fId}: ${docsByFolder[fId].length} docs -`, docsByFolder[fId].join(', '));
       });
 
-      setDocuments(fetchedDocs);
+      // Merge with existing optimistic updates (keep uploading/pending documents)
+      setDocuments(prev => {
+        const tempDocs = prev.filter(doc => doc.status === 'uploading' || doc.id?.startsWith('temp-'));
+        const mergedDocs = [...tempDocs, ...fetchedDocs];
+        console.log(`📄 Merged: ${tempDocs.length} temp docs + ${fetchedDocs.length} fetched = ${mergedDocs.length} total`);
+        return mergedDocs;
+      });
     } catch (error) {
       console.error('Error fetching documents:', error);
       // If auth error or rate limit, stop making more requests
@@ -137,7 +143,8 @@ export const DocumentsProvider = ({ children }) => {
   useEffect(() => {
     let refreshTimeout = null;
     let lastRefresh = 0;
-    const REFRESH_COOLDOWN = 1000; // Only refresh once every 1 second (reduced from 5s for better UX)
+    const REFRESH_COOLDOWN = 5000; // ⚡ FIX: 5 seconds to prevent overwriting optimistic updates
+    const REFRESH_DELAY = 1000; // ⚡ FIX: Wait 1 second before refreshing to allow Supabase replication
 
     const debouncedRefresh = () => {
       const now = Date.now();
@@ -146,11 +153,15 @@ export const DocumentsProvider = ({ children }) => {
         return;
       }
 
-      lastRefresh = now;
-      console.log('🔄 Refreshing data...');
-      fetchDocuments();
-      fetchFolders();
-      fetchRecentDocuments();
+      // ⚡ FIX: Delay refresh to give Supabase time to replicate data
+      if (refreshTimeout) clearTimeout(refreshTimeout);
+      refreshTimeout = setTimeout(() => {
+        lastRefresh = Date.now();
+        console.log('🔄 Refreshing data (after 1s delay)...');
+        fetchDocuments();
+        fetchFolders();
+        fetchRecentDocuments();
+      }, REFRESH_DELAY);
     };
 
     const handleVisibilityChange = () => {
@@ -245,48 +256,102 @@ export const DocumentsProvider = ({ children }) => {
     socket.on('document-processing-update', (data) => {
       console.log('📄 Document processing update received:', data);
 
-      // Auto-refresh documents when processing completes
+      // ⚡ OPTIMIZED: Update single document in state instead of refetching all
       if (data.status === 'completed' || data.status === 'failed') {
-        debouncedDocumentRefresh();
+        setDocuments((prevDocs) => {
+          return prevDocs.map((doc) => {
+            if (doc.id === data.documentId) {
+              console.log(`✅ Updated document ${doc.name || doc.filename} status to ${data.status}`);
+              return {
+                ...doc,
+                status: data.status,
+                // Remove temporary flag if it exists
+                isTemporary: false,
+              };
+            }
+            return doc;
+          });
+        });
+
+        // Also update recent documents if they're loaded
+        setRecentDocuments((prevRecent) => {
+          return prevRecent.map((doc) => {
+            if (doc.id === data.documentId) {
+              return { ...doc, status: data.status };
+            }
+            return doc;
+          });
+        });
+
+        console.log(`✅ Document ${data.filename} status updated to ${data.status} (no refetch needed)`);
       }
     });
 
-    // Listen for general data changes (we'll add these events to backend)
+    // ⚡ OPTIMIZED: Removed debounced refreshes - we use optimistic updates instead
+    // These WebSocket events are kept for logging but don't trigger refetches
     socket.on('documents-changed', () => {
-      console.log('📚 Documents changed');
-      debouncedDocumentRefresh();
+      console.log('📚 Documents changed (optimistic update already applied)');
+      // No refresh - optimistic update already happened
     });
 
     socket.on('folders-changed', () => {
-      console.log('📁 Folders changed');
-      debouncedFolderRefresh();
+      console.log('📁 Folders changed (optimistic update already applied)');
+      // No refresh - optimistic update already happened
     });
 
-    socket.on('document-created', () => {
-      console.log('➕ Document created');
-      debouncedDocumentRefresh();
+    socket.on('document-created', (data) => {
+      console.log('➕ Document created event received:', data);
+      // Refresh immediately - optimistic update will be replaced with real document
+      console.log('🔄 Refreshing documents after document-created event...');
+      fetchDocuments();
+      fetchRecentDocuments();
     });
 
     socket.on('document-deleted', () => {
-      console.log('🗑️ Document deleted');
-      debouncedDocumentRefresh();
+      console.log('🗑️ Document deleted (optimistic update already applied)');
+      // No refresh - optimistic update already happened
     });
 
     socket.on('document-moved', () => {
-      console.log('📦 Document moved');
-      debouncedDocumentRefresh();
+      console.log('📦 Document moved (optimistic update already applied)');
+      // No refresh - optimistic update already happened in moveToFolder()
     });
 
     socket.on('folder-created', () => {
-      console.log('➕ Folder created');
-      debouncedFolderRefresh();
+      console.log('➕ Folder created (optimistic update already applied)');
+      // No refresh - optimistic update already happened in createFolder()
     });
 
     socket.on('folder-deleted', () => {
-      console.log('🗑️ Folder deleted');
-      debouncedFolderRefresh();
-      debouncedDocumentRefresh(); // Also refresh documents since folder counts changed
+      console.log('🗑️ Folder deleted (optimistic update already applied)');
+      // No refresh - optimistic update already happened in deleteFolder()
     });
+
+    // ⚡ NEW: Listen for folder tree updates (emitted after cache invalidation completes)
+    socket.on('folder-tree-updated', () => {
+      console.log('🌳 Folder tree updated (optimistic update already applied)');
+      // Don't refresh - we already have optimistic updates
+      // Only refresh on window focus or explicit user action
+    });
+
+    // ⚡ NEW: Listen for processing complete events (emitted after Supabase commit completes)
+    socket.on('processing-complete', (data) => {
+      console.log('✅ Processing complete event received:', data);
+      // Don't refresh - folder counts already updated via optimistic updates
+      // Processing status is updated via document-processing-update event
+    });
+
+    // Listen for document uploads from FileContext
+    const handleDocumentUploaded = () => {
+      console.log('📤 Document uploaded, refreshing documents list...');
+      // Small delay to ensure document is queryable in database
+      setTimeout(() => {
+        fetchDocuments();
+        fetchRecentDocuments();
+      }, 1500);
+    };
+
+    window.addEventListener('document-uploaded', handleDocumentUploaded);
 
     return () => {
       console.log('🔌 Cleaning up WebSocket connection');
@@ -298,7 +363,10 @@ export const DocumentsProvider = ({ children }) => {
       socket.off('document-moved');
       socket.off('folder-created');
       socket.off('folder-deleted');
+      socket.off('folder-tree-updated');
+      socket.off('processing-complete');
       socket.disconnect();
+      window.removeEventListener('document-uploaded', handleDocumentUploaded);
     };
   }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments]);
 
@@ -306,17 +374,21 @@ export const DocumentsProvider = ({ children }) => {
   const addDocument = useCallback(async (file, folderId = null) => {
     console.log('🔵 addDocument called for:', file.name, 'folderId:', folderId);
 
-    // Create temporary document object
+    // Create temporary document object (matches backend Document schema)
     const tempId = `temp-${Date.now()}-${Math.random()}`;
     const tempDocument = {
       id: tempId,
-      name: file.name,
-      size: file.size,
+      filename: file.name, // ⚡ FIX: Use 'filename' to match backend schema
+      fileSize: file.size, // ⚡ FIX: Use 'fileSize' to match backend schema
+      mimeType: file.type || 'application/octet-stream', // ⚡ FIX: Use 'mimeType'
       folderId: folderId,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       status: 'uploading',
-      type: file.type || 'application/octet-stream',
-      gcsUrl: null
+      // Legacy fields for backward compatibility (in case UI uses them)
+      name: file.name,
+      size: file.size,
+      type: file.type || 'application/octet-stream'
     };
 
     console.log('🔵 Created temp document:', tempDocument);
@@ -402,6 +474,24 @@ export const DocumentsProvider = ({ children }) => {
         prev.map(doc => doc.id === tempId ? newDocument : doc)
       );
 
+      // ⚡ INSTANT UPDATE: Increment folder count immediately
+      if (newDocument.folderId) {
+        setFolders(prev => prev.map(folder => {
+          if (folder.id === newDocument.folderId) {
+            return {
+              ...folder,
+              _count: {
+                ...folder._count,
+                documents: (folder._count?.documents || 0) + 1,
+                totalDocuments: (folder._count?.totalDocuments || 0) + 1
+              }
+            };
+          }
+          return folder;
+        }));
+        console.log(`✅ Incremented count for folder ${newDocument.folderId}`);
+      }
+
       console.log('🔵 Document upload fully complete, returning:', newDocument);
 
       // Invalidate settings cache (storage stats need to be recalculated)
@@ -442,11 +532,22 @@ export const DocumentsProvider = ({ children }) => {
       throw new Error('Document not found');
     }
 
+    // ⚡ PREVENT DUPLICATE DELETES: Check if document is already being deleted
+    if (documentToDelete.isDeleting) {
+      console.warn('⚠️ [DELETE] Document is already being deleted, skipping:', documentId);
+      return { success: false, message: 'Delete already in progress' };
+    }
+
     console.log('🗑️ [DELETE] Document to delete:', {
       id: documentToDelete.id,
       filename: documentToDelete.filename,
       folderId: documentToDelete.folderId
     });
+
+    // Mark as deleting to prevent duplicate attempts
+    setDocuments(prev => prev.map(doc =>
+      doc.id === documentId ? { ...doc, isDeleting: true } : doc
+    ));
 
     // Remove from UI IMMEDIATELY (optimistic update)
     setDocuments(prev => {
@@ -459,6 +560,24 @@ export const DocumentsProvider = ({ children }) => {
       console.log('🗑️ [DELETE] Optimistic update - removed from recent, count:', updated.length);
       return updated;
     });
+
+    // ⚡ INSTANT UPDATE: Decrement folder count immediately
+    if (documentToDelete.folderId) {
+      setFolders(prev => prev.map(folder => {
+        if (folder.id === documentToDelete.folderId) {
+          return {
+            ...folder,
+            _count: {
+              ...folder._count,
+              documents: Math.max(0, (folder._count?.documents || 0) - 1),
+              totalDocuments: Math.max(0, (folder._count?.totalDocuments || 0) - 1)
+            }
+          };
+        }
+        return folder;
+      }));
+      console.log(`✅ Decremented count for folder ${documentToDelete.folderId}`);
+    }
 
     try {
       // Delete on server
@@ -484,11 +603,13 @@ export const DocumentsProvider = ({ children }) => {
         status: error.response?.status
       });
 
-      // Rollback: Restore document to UI
+      // Rollback: Restore document to UI (clear isDeleting flag)
       console.log('🔄 [DELETE] Rolling back optimistic update...');
       setDocuments(prev => {
         // Insert document back in its original position (at the beginning for simplicity)
-        const restored = [documentToDelete, ...prev];
+        // Clear isDeleting flag so user can retry
+        const restoredDoc = { ...documentToDelete, isDeleting: false };
+        const restored = [restoredDoc, ...prev];
         console.log('🔄 [DELETE] Restored document to state, count:', restored.length);
         return restored;
       });
@@ -497,6 +618,24 @@ export const DocumentsProvider = ({ children }) => {
         console.log('🔄 [DELETE] Restored document to recent, count:', restored.length);
         return restored;
       });
+
+      // ⚡ ROLLBACK: Restore folder count
+      if (documentToDelete.folderId) {
+        setFolders(prev => prev.map(folder => {
+          if (folder.id === documentToDelete.folderId) {
+            return {
+              ...folder,
+              _count: {
+                ...folder._count,
+                documents: (folder._count?.documents || 0) + 1,
+                totalDocuments: (folder._count?.totalDocuments || 0) + 1
+              }
+            };
+          }
+          return folder;
+        }));
+        console.log(`🔄 Restored count for folder ${documentToDelete.folderId}`);
+      }
 
       // Throw error with user-friendly message
       const errorMessage = error.response?.data?.error || error.message || 'Failed to delete document';
@@ -513,6 +652,9 @@ export const DocumentsProvider = ({ children }) => {
   const moveToFolder = useCallback(async (documentId, newFolderId) => {
     // Store old document for rollback
     const oldDocument = documents.find(d => d.id === documentId);
+    const oldFolderId = oldDocument?.folderId;
+
+    console.log(`📦 [MOVE] Moving document ${documentId} from folder ${oldFolderId || 'NONE'} to ${newFolderId || 'NONE'}`);
 
     // Update UI IMMEDIATELY
     setDocuments(prev =>
@@ -530,13 +672,51 @@ export const DocumentsProvider = ({ children }) => {
       )
     );
 
+    // ⚡ INSTANT UPDATE: Update folder counts for both source and destination
+    if (oldFolderId !== newFolderId) {
+      setFolders(prev => prev.map(folder => {
+        // Decrement count from old folder
+        if (folder.id === oldFolderId) {
+          const newCount = Math.max(0, (folder._count?.documents || 0) - 1);
+          const newTotalCount = Math.max(0, (folder._count?.totalDocuments || 0) - 1);
+          console.log(`  📉 Decrementing source folder ${oldFolderId}: ${folder._count?.documents} → ${newCount}`);
+          return {
+            ...folder,
+            _count: {
+              ...folder._count,
+              documents: newCount,
+              totalDocuments: newTotalCount
+            }
+          };
+        }
+
+        // Increment count in new folder
+        if (folder.id === newFolderId) {
+          const newCount = (folder._count?.documents || 0) + 1;
+          const newTotalCount = (folder._count?.totalDocuments || 0) + 1;
+          console.log(`  📈 Incrementing destination folder ${newFolderId}: ${folder._count?.documents} → ${newCount}`);
+          return {
+            ...folder,
+            _count: {
+              ...folder._count,
+              documents: newCount,
+              totalDocuments: newTotalCount
+            }
+          };
+        }
+
+        return folder;
+      }));
+    }
+
     try {
       // Update on server in background
       await api.patch(`/api/documents/${documentId}`, {
         folderId: newFolderId
       });
+      console.log(`✅ [MOVE] Successfully moved document ${documentId} to folder ${newFolderId}`);
     } catch (error) {
-      console.error('Error moving document:', error);
+      console.error('❌ [MOVE] Error moving document:', error);
 
       // Revert on error
       if (oldDocument) {
@@ -550,11 +730,43 @@ export const DocumentsProvider = ({ children }) => {
             doc.id === documentId ? oldDocument : doc
           )
         );
+
+        // ⚡ ROLLBACK: Restore folder counts
+        if (oldFolderId !== newFolderId) {
+          setFolders(prev => prev.map(folder => {
+            // Restore old folder count (increment back)
+            if (folder.id === oldFolderId) {
+              return {
+                ...folder,
+                _count: {
+                  ...folder._count,
+                  documents: (folder._count?.documents || 0) + 1,
+                  totalDocuments: (folder._count?.totalDocuments || 0) + 1
+                }
+              };
+            }
+
+            // Restore new folder count (decrement back)
+            if (folder.id === newFolderId) {
+              return {
+                ...folder,
+                _count: {
+                  ...folder._count,
+                  documents: Math.max(0, (folder._count?.documents || 0) - 1),
+                  totalDocuments: Math.max(0, (folder._count?.totalDocuments || 0) - 1)
+                }
+              };
+            }
+
+            return folder;
+          }));
+          console.log(`🔄 Rolled back folder counts for move operation`);
+        }
       }
 
       throw error;
     }
-  }, [documents]);
+  }, [documents, folders]); // Add folders to dependencies since we're updating it
 
   // Rename document (optimistic)
   const renameDocument = useCallback(async (documentId, newName) => {
@@ -612,10 +824,17 @@ export const DocumentsProvider = ({ children }) => {
       emoji,
       parentFolderId,
       createdAt: new Date().toISOString(),
-      status: 'creating'
+      status: 'creating',
+      // ⚡ Add empty counts for instant display
+      _count: {
+        documents: 0,
+        totalDocuments: 0,
+        subfolders: 0
+      }
     };
 
     // Add to UI IMMEDIATELY
+    console.log(`📁 [CREATE] Adding temp folder "${name}" to UI`);
     setFolders(prev => [tempFolder, ...prev]);
 
     try {
@@ -649,6 +868,7 @@ export const DocumentsProvider = ({ children }) => {
       const newFolder = response.data.folder;
 
       // Replace temp folder with real one
+      console.log(`✅ [CREATE] Folder "${name}" created successfully, replacing temp ID with real ID: ${newFolder.id}`);
       setFolders(prev =>
         prev.map(folder => folder.id === tempId ? newFolder : folder)
       );
@@ -662,7 +882,7 @@ export const DocumentsProvider = ({ children }) => {
 
       throw error;
     }
-  }, []);
+  }, [encryptionPassword]); // Add dependency for encryptionPassword
 
   // Delete folder (optimistic)
   const deleteFolder = useCallback(async (folderId) => {
@@ -712,37 +932,34 @@ export const DocumentsProvider = ({ children }) => {
     }
   }, [folders, documents]);
 
-  // Get document count by folder (including subfolders recursively)
+  // ⚡ OPTIMIZED: Get document count by folder using backend-provided count
+  // Backend already calculated this recursively - no need to recount on frontend!
   const getDocumentCountByFolder = useCallback((folderId) => {
-    // Helper function to get all subfolder IDs recursively
-    const getAllSubfolderIds = (parentId) => {
-      const subfolderIds = [parentId];
-      const directSubfolders = folders.filter(f => f.parentFolderId === parentId);
+    // Find the folder
+    const folder = folders.find(f => f.id === folderId);
 
-      console.log(`  🔄 Getting subfolders for ${parentId}: found ${directSubfolders.length} direct subfolders`);
+    if (!folder) {
+      console.warn(`⚠️ Folder ${folderId} not found`);
+      return 0;
+    }
 
-      directSubfolders.forEach(subfolder => {
-        const nestedIds = getAllSubfolderIds(subfolder.id);
-        console.log(`  ↳ Subfolder ${subfolder.name} (${subfolder.id}) has ${nestedIds.length - 1} nested subfolders`);
-        subfolderIds.push(...nestedIds);
-      });
+    // Use backend-provided totalDocuments count if available
+    if (folder._count?.totalDocuments !== undefined) {
+      console.log(`✅ Using backend count for ${folder.name}: ${folder._count.totalDocuments} documents`);
+      return folder._count.totalDocuments;
+    }
 
-      return subfolderIds;
-    };
+    // Fallback: Use direct document count
+    if (folder._count?.documents !== undefined) {
+      console.log(`⚡ Using direct count for ${folder.name}: ${folder._count.documents} documents`);
+      return folder._count.documents;
+    }
 
-    console.log(`\n📊 Counting documents for folder ${folderId}...`);
-
-    // Get all folder IDs (current folder + all subfolders)
-    const allFolderIds = getAllSubfolderIds(folderId);
-    console.log(`  ✓ Found ${allFolderIds.length} total folders (including nested)`, allFolderIds);
-
-    // Count documents in all these folders
-    const docsInFolders = documents.filter(doc => allFolderIds.includes(doc.folderId));
-    console.log(`  ✓ Found ${docsInFolders.length} documents across all folders`);
-    console.log(`  Documents:`, docsInFolders.map(d => `${d.filename} (folderId: ${d.folderId})`));
-
-    return docsInFolders.length;
-  }, [documents, folders]);
+    // Last resort fallback: Count manually (should rarely happen)
+    const count = documents.filter(doc => doc.folderId === folderId).length;
+    console.log(`⚠️ Manual count fallback for ${folder.name}: ${count} documents`);
+    return count;
+  }, [folders, documents]);
 
   // Get file breakdown
   const getFileBreakdown = useCallback(() => {
