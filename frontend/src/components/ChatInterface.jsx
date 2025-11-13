@@ -485,7 +485,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     pendingMessageRef.current = null;
 
                     setMessages((prev) => {
-                        const assistantExists = prev.some(msg => msg.id === pending.assistantMessage.id);
+                        // ✅ FIX: Check for ID existence before comparison
+                        const assistantExists = pending.assistantMessage?.id && prev.some(msg => msg.id === pending.assistantMessage.id);
                         if (assistantExists) return prev;
 
                         const optimisticMessage = prev.find(m => m.isOptimistic && m.role === 'user');

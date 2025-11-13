@@ -159,7 +159,7 @@ class ResponsePostProcessorService {
 
   /**
    * ✅ FIX #2: Enforce comparison table formatting
-   * Detects when a comparison response lacks a markdown table and adds a warning
+   * Detects when a comparison response lacks a markdown table and adds a helpful message
    * REASON: LLMs sometimes ignore table formatting instructions
    */
   private enforceComparisonTable(text: string): string {
@@ -173,13 +173,19 @@ class ResponsePostProcessorService {
       text = text.replace(/\(Table formatting issue detected.*?\)/gi, '');
       text = text.replace(/Please refer to the document sources for detailed comparison/gi, '');
 
-      // Add a clear message that the table is missing
-      // This will be visible to users and help debug table generation issues
-      const warning = '\n\n⚠️ **Note:** This comparison should have been presented in a table format. The response has been generated without the expected table structure.\n';
+      // ✅ FIX: Add a helpful message with suggestion to retry
+      // This provides immediate feedback to users instead of showing broken response
+      const helpfulMessage = '\n\n⚠️ **Note:** This comparison should be displayed in a table format for easier comparison. Please try asking your question again, or rephrase it as "Create a comparison table between X and Y" for better results.';
 
-      // Don't add the warning yet - just log it for now
-      // In production, we'd want to retry the LLM call with stricter instructions
-      console.log('⚠️ [POST-PROCESSOR] Table missing - would add warning:', warning.trim());
+      // Only add message if text is not empty (avoid adding to completely empty responses)
+      if (text.trim().length > 0) {
+        text = text.trim() + helpfulMessage;
+        console.log('✅ [POST-PROCESSOR] Added helpful message about missing table');
+      } else {
+        // If response is completely empty, provide a more informative message
+        text = '⚠️ **Comparison could not be generated in the expected format.**\n\nPlease try rephrasing your question as: "Compare [document 1] with [document 2]" or "Create a comparison table showing the differences between [topic A] and [topic B]".\n\nMake sure you have attached or specified the documents you want to compare.';
+        console.log('⚠️ [POST-PROCESSOR] Response was empty - added fallback message');
+      }
     } else {
       console.log('✅ [POST-PROCESSOR] Comparison table detected and validated');
     }
