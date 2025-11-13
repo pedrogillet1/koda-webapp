@@ -34,10 +34,18 @@ class LLMIntentDetectorService {
   /**
    * Detect user intent using LLM
    */
-  async detectIntent(query: string): Promise<IntentResult> {
+  async detectIntent(query: string, conversationHistory: Array<{role: string, content: string}> = []): Promise<IntentResult> {
+    // Build conversation context for reference resolution
+    let contextSection = '';
+    if (conversationHistory.length > 0) {
+      const recentMessages = conversationHistory.slice(-5); // Last 5 messages
+      contextSection = `\n**Recent Conversation Context:**\n${recentMessages.map(msg => `${msg.role}: ${msg.content}`).join('\n')}\n`;
+    }
+
     const prompt = `You are an intent detection system for KODA, a document management AI assistant.
 
 Analyze the following user query and determine the intent.
+${contextSection}
 
 **Available Intents:**
 1. **create_folder** - User wants to create a new folder
@@ -70,6 +78,7 @@ Analyze the following user query and determine the intent.
    - Examples (ES): "muéstrame este archivo", "muéstrame el archivo X", "mostrar documento X", "abrir archivo X", "quiero ver este archivo"
    - Examples (FR): "montre-moi ce fichier", "montre-moi le fichier X", "montrer document X", "ouvrir fichier X", "je veux voir ce fichier"
    - Extract: filename (the file name or reference)
+   - ✅ **CONTEXT RESOLUTION**: If user says "this file", "that document", "the file", "it", or similar contextual reference, look at the conversation context above and extract the actual filename from the previous messages. Return the real filename, NOT "this file".
 
 9. **metadata_query** - User wants information about files (size, type, date, count)
    - Examples: "how many files", "what's the size of X", "when was Y uploaded", "file count", "what types of documents"

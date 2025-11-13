@@ -147,6 +147,7 @@ export const getConversation = async (conversationId: string, userId: string) =>
     return cached;
   }
 
+  // ⚡ OPTIMIZED: Single query with selective field loading
   const conversation = await prisma.conversation.findFirst({
     where: {
       id: conversationId,
@@ -155,9 +156,30 @@ export const getConversation = async (conversationId: string, userId: string) =>
     include: {
       messages: {
         orderBy: { createdAt: 'asc' },
-        include: {
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          createdAt: true,
+          conversationId: true,
+          // Only load attachments and documents when they exist
           attachments: true,
-          chatDocuments: true,
+          chatDocuments: {
+            select: {
+              id: true,
+              documentId: true,
+              document: {
+                select: {
+                  id: true,
+                  filename: true,
+                  mimeType: true,
+                  fileSize: true,
+                },
+              },
+            },
+          },
+          // Load metadata (sources) for assistant messages only
+          metadata: true,
         },
       },
     },

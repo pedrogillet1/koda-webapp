@@ -74,27 +74,43 @@ export const getOrCreateFolderByName = async (userId: string, folderName: string
 };
 
 /**
- * Recursively count all documents in a folder and its subfolders
+ * ⚡ OPTIMIZED: Get all folder IDs in a folder tree (including nested subfolders)
+ * Uses iterative approach instead of recursive to avoid N+1 query problem
  */
-const countDocumentsRecursively = async (folderId: string): Promise<number> => {
-  // Count documents in this folder
-  const directDocuments = await prisma.document.count({
-    where: { folderId },
-  });
+const getAllFolderIdsInTree = async (rootFolderId: string): Promise<string[]> => {
+  const folderIds = [rootFolderId];
+  let currentBatch = [rootFolderId];
 
-  // Get subfolders
-  const subfolders = await prisma.folder.findMany({
-    where: { parentFolderId: folderId },
-    select: { id: true },
-  });
+  // Iteratively find all subfolders (breadth-first search)
+  while (currentBatch.length > 0) {
+    const subfolders = await prisma.folder.findMany({
+      where: { parentFolderId: { in: currentBatch } },
+      select: { id: true },
+    });
 
-  // Recursively count documents in subfolders
-  let subfoldersDocumentCount = 0;
-  for (const subfolder of subfolders) {
-    subfoldersDocumentCount += await countDocumentsRecursively(subfolder.id);
+    const subfolderIds = subfolders.map(f => f.id);
+    if (subfolderIds.length === 0) break;
+
+    folderIds.push(...subfolderIds);
+    currentBatch = subfolderIds;
   }
 
-  return directDocuments + subfoldersDocumentCount;
+  return folderIds;
+};
+
+/**
+ * ⚡ OPTIMIZED: Count all documents in a folder tree with a SINGLE query
+ */
+const countDocumentsRecursively = async (folderId: string): Promise<number> => {
+  // Get all folder IDs in this tree (including subfolders)
+  const allFolderIds = await getAllFolderIdsInTree(folderId);
+
+  // Count documents in ALL folders with a single query
+  const totalDocuments = await prisma.document.count({
+    where: { folderId: { in: allFolderIds } },
+  });
+
+  return totalDocuments;
 };
 
 /**

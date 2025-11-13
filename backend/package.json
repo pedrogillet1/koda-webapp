@@ -36,6 +36,7 @@
     "@google-cloud/storage": "^7.17.1",
     "@google-cloud/vision": "^5.3.4",
     "@google/generative-ai": "^0.24.1",
+    "@mistralai/mistralai": "^1.10.0",
     "@mozilla/readability": "^0.6.0",
     "@pinecone-database/pinecone": "^6.1.2",
     "@prisma/client": "^6.16.3",

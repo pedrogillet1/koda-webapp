@@ -56,10 +56,22 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // Get conversation history for context resolution (needed for intent detection)
+    const conversationHistoryForIntent = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        role: true,
+        content: true,
+      }
+    });
+    conversationHistoryForIntent.reverse(); // Chronological order
+
     // ========================================
     // INTENT CLASSIFICATION (✅ FIX #1: LLM-based for flexibility)
     // ========================================
-    const intentResult = await llmIntentDetectorService.detectIntent(query);
+    const intentResult = await llmIntentDetectorService.detectIntent(query, conversationHistoryForIntent);
     console.log(`🎯 [LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
     console.log(`📝 [ENTITIES]`, intentResult.parameters);
 
@@ -1225,7 +1237,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       const result = await fileActionsService.showFile({
         userId,
         filename: intentResult.parameters.filename
-      }, query);
+      }, query, conversationHistoryForIntent);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1516,11 +1528,15 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     console.log('✅ [POST-PROCESSING] Applied responsePostProcessor formatting (warnings, spacing, next steps limiting)');
 
     // ✅ FIX #2: Deduplicate sources by documentId (or filename if documentId is null)
+    console.log(`🔍 [DEBUG - DEDUP] result.sources:`, result.sources);
+    console.log(`🔍 [DEBUG - DEDUP] First source:`, result.sources?.[0]);
+
     const uniqueSources = result.sources ?
-      Array.from(new Map(result.sources.map((src: any) => [
-        src.documentId || src.documentName || `${src.documentName}-${src.pageNumber}`,  // ✅ Fallback to filename if documentId missing
-        src
-      ])).values())
+      Array.from(new Map(result.sources.map((src: any) => {
+        const key = src.documentId || src.documentName || `${src.documentName}-${src.pageNumber}`;
+        console.log(`🔍 [DEBUG - DEDUP] Source: documentId=${src.documentId}, documentName=${src.documentName}, key=${key}`);
+        return [key, src];
+      })).values())
       : [];
     console.log(`✅ [DEDUPLICATION] ${result.sources?.length || 0} sources → ${uniqueSources.length} unique sources`);
 

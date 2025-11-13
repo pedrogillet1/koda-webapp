@@ -167,6 +167,38 @@ export interface ShowFileParams {
 
 class FileActionsService {
   /**
+   * Extract the last mentioned filename from conversation context
+   * Used when user says "this file", "that document", etc.
+   */
+  private extractLastMentionedFile(conversationHistory: Array<{role: string, content: string}>): string | null {
+    // Search backwards through messages for file references
+    for (let i = conversationHistory.length - 1; i >= 0; i--) {
+      const msg = conversationHistory[i];
+
+      // Look for common file patterns in assistant responses
+      const filePatterns = [
+        /Here's the file:\s*\*\*(.+?)\*\*/i,           // "Here's the file: **filename**"
+        /Found file:\s*\*\*(.+?)\*\*/i,                // "Found file: **filename**"
+        /📄\s*(.+?)\.(?:pdf|docx|xlsx|pptx|jpg|png)/i, // "📄 filename.pdf"
+        /File:\s*(.+?)\.(?:pdf|docx|xlsx|pptx|jpg|png)/i, // "File: filename.pdf"
+        /Aqui está o arquivo:\s*\*\*(.+?)\*\*/i,       // Portuguese
+        /Aquí está el archivo:\s*\*\*(.+?)\*\*/i,      // Spanish
+        /Voici le fichier:\s*\*\*(.+?)\*\*/i,          // French
+      ];
+
+      for (const pattern of filePatterns) {
+        const match = msg.content.match(pattern);
+        if (match && match[1]) {
+          console.log(`🔍 [CONTEXT] Extracted filename from context: "${match[1]}"`);
+          return match[1].trim();
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Parse natural language file action query using LLM
    * Replaces rigid regex patterns with flexible AI understanding
    */
@@ -548,14 +580,31 @@ class FileActionsService {
   /**
    * Show/preview a file
    */
-  async showFile(params: ShowFileParams, query: string = ''): Promise<FileActionResult> {
+  async showFile(params: ShowFileParams, query: string = '', conversationHistory: Array<{role: string, content: string}> = []): Promise<FileActionResult> {
     try {
       // Detect language from user query
       const lang = detectLanguage(query);
-      console.log(`👁️ [SHOW_FILE] Looking for file: "${params.filename}" (Language: ${lang})`);
+
+      let searchFilename = params.filename;
+
+      // ✅ CONTEXT RESOLUTION: If user said "this file", "that document", etc., resolve from context
+      const contextualReferences = ['this file', 'that file', 'the file', 'this document', 'that document', 'the document', 'it', 'este arquivo', 'esse arquivo', 'o arquivo', 'este documento', 'ese archivo', 'ce fichier'];
+      if (contextualReferences.some(ref => searchFilename.toLowerCase().includes(ref))) {
+        console.log(`🔍 [SHOW_FILE] Contextual reference detected: "${searchFilename}"`);
+        const lastMentionedFile = this.extractLastMentionedFile(conversationHistory);
+
+        if (lastMentionedFile) {
+          searchFilename = lastMentionedFile;
+          console.log(`✅ [SHOW_FILE] Resolved to: "${searchFilename}"`);
+        } else {
+          console.warn(`⚠️ [SHOW_FILE] Could not resolve contextual reference`);
+        }
+      }
+
+      console.log(`👁️ [SHOW_FILE] Looking for file: "${searchFilename}" (Language: ${lang})`);
 
       // Find document by filename with fuzzy matching
-      const document = await this.findDocumentWithFuzzyMatch(params.filename, params.userId);
+      const document = await this.findDocumentWithFuzzyMatch(searchFilename, params.userId);
 
       if (!document) {
         // Try searching by content keywords

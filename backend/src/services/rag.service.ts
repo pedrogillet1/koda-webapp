@@ -3052,6 +3052,8 @@ async function handleRegularQuery(
     );
 
     console.log(`✅ [FAST PATH] Using ${rerankedChunks.length} reranked chunks for answer`);
+    console.log(`🔍 [DEBUG - RERANK] finalSearchResults had ${finalSearchResults.length} chunks`);
+    console.log(`🔍 [DEBUG - RERANK] After reranking, got ${rerankedChunks.length} chunks`);
 
     // Build context WITHOUT source labels (prevents Gemini from numbering documents)
     const context = rerankedChunks.map((result: any) => {
@@ -3250,12 +3252,18 @@ User query: "${query}"`;
     // ═══════════════════════════════════════════════════════════════════════════
 
     // Build sources from reranked chunks
+    console.log(`🔍 [DEBUG - FAST PATH] rerankedChunks length: ${rerankedChunks.length}`);
+    console.log(`🔍 [DEBUG - FAST PATH] Sample rerankedChunk metadata:`, rerankedChunks[0]?.metadata);
+
     const sources = rerankedChunks.map((match: any) => ({
       documentId: match.metadata?.documentId || null,  // ✅ Add documentId for frontend display
       documentName: match.metadata?.filename || 'Unknown',
       pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
       score: match.rerankScore || match.originalScore || 0
     }));
+
+    console.log(`🔍 [DEBUG - FAST PATH] Built ${sources.length} sources`);
+    console.log(`🔍 [DEBUG - FAST PATH] Sample source:`, sources[0]);
 
     const validation = validateAnswer(fullResponse, query, sources);
 
@@ -3267,7 +3275,8 @@ User query: "${query}"`;
       console.log(`⚠️  [MONITORING] Low quality answer generated for query: "${query}"`);
     }
 
-    console.log('✅ [FAST PATH] Complete');
+    console.log(`✅ [FAST PATH] Complete - returning ${sources.length} sources`);
+    console.log(`🔍 [DEBUG - RETURN] About to return sources:`, JSON.stringify(sources.slice(0, 2), null, 2));
     return { sources };
   }
 
@@ -3401,12 +3410,18 @@ User query: "${query}"`;
   console.log(`✅ Response complete (confidence: ${result.confidence})`);
 
   // Build sources array
+  console.log(`🔍 [DEBUG] searchResults length: ${searchResults.length}`);
+  console.log(`🔍 [DEBUG] Sample searchResult:`, searchResults[0]?.metadata);
+
   const sources = searchResults.map((match: any) => ({
     documentId: match.metadata?.documentId || null,  // ✅ Add documentId for frontend display
     documentName: match.metadata?.filename || 'Unknown',
     pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
     score: match.score || 0
   }));
+
+  console.log(`🔍 [DEBUG] Built ${sources.length} sources from searchResults`);
+  console.log(`🔍 [DEBUG] Sample source:`, sources[0]);
 
   return { sources };
 }

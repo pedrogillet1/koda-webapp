@@ -622,22 +622,22 @@ async function processDocumentWithTimeout(
       fs.writeFileSync(tempPdfPath, fileBuffer);
 
       try {
-        // Import OCR service
-        const ocrService = (await import('./ocr.service')).default;
+        // Import Mistral OCR service
+        const mistralOCR = (await import('./mistral-ocr.service')).default;
 
         // Check if PDF is scanned
-        const isScanned = await ocrService.isScannedPDF(tempPdfPath);
+        const isScanned = await mistralOCR.isScannedPDF(fileBuffer);
 
-        if (isScanned && ocrService.isAvailable()) {
-          // Scanned PDF - use OCR
-          console.log('🔍 Detected scanned PDF - processing with OCR...');
-          extractedText = await ocrService.processScannedPDF(tempPdfPath);
-          ocrConfidence = 0.90; // High confidence for Google Cloud Vision
-          console.log(`✅ OCR complete - extracted ${extractedText.length} characters`);
-        } else if (isScanned && !ocrService.isAvailable()) {
-          // Scanned PDF but OCR not configured - try fallback
-          console.warn('⚠️ Detected scanned PDF but OCR is not configured');
-          console.warn('   Set GOOGLE_CLOUD_VISION_KEY_PATH to enable OCR');
+        if (isScanned && mistralOCR.isAvailable()) {
+          // Scanned PDF - use Mistral OCR
+          console.log('🔍 Detected scanned PDF - processing with Mistral OCR...');
+          extractedText = await mistralOCR.processScannedPDF(fileBuffer);
+          ocrConfidence = 0.95; // High confidence for Mistral OCR (95-98% accuracy)
+          console.log(`✅ Mistral OCR complete - extracted ${extractedText.length} characters`);
+        } else if (isScanned && !mistralOCR.isAvailable()) {
+          // Scanned PDF but Mistral OCR not configured - try fallback
+          console.warn('⚠️ Detected scanned PDF but Mistral OCR is not configured');
+          console.warn('   Set MISTRAL_API_KEY in .env to enable high-quality OCR');
 
           // Try standard extraction (will likely get minimal text)
           const result = await textExtractionService.extractText(fileBuffer, mimeType);
@@ -647,7 +647,7 @@ async function processDocumentWithTimeout(
           wordCount = result.wordCount || null;
 
           if (extractedText.trim().length < 100) {
-            throw new Error('Scanned PDF detected but OCR is not configured. Please configure Google Cloud Vision API.');
+            throw new Error('Scanned PDF detected but Mistral OCR is not configured. Please set MISTRAL_API_KEY in .env to enable OCR.');
           }
         } else {
           // Text-based PDF - use standard extraction
@@ -1061,10 +1061,12 @@ async function processDocumentWithTimeout(
     }
 
     // Update document status to completed (only if verification passed)
+    // Also set renderableContent so the text is available for chat/RAG
     await prisma.document.update({
       where: { id: documentId },
       data: {
         status: 'completed',
+        renderableContent: extractedText || null, // ✨ Copy extracted text to renderableContent for chat
         updatedAt: new Date()
       },
     });
