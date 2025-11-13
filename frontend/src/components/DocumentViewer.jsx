@@ -320,8 +320,8 @@ const DocumentViewer = () => {
   const fileConfig = useMemo(() => {
     if (!actualDocumentUrl) return null;
 
-    // For preview-pdf endpoints, fetch with auth headers
-    if (actualDocumentUrl.includes('/preview-pdf')) {
+    // For preview-pdf and stream endpoints (encrypted files), fetch with auth headers
+    if (actualDocumentUrl.includes('/preview-pdf') || actualDocumentUrl.includes('/stream')) {
       const token = localStorage.getItem('accessToken');
       return {
         url: actualDocumentUrl,
@@ -351,6 +351,7 @@ const DocumentViewer = () => {
   const getFileType = (filename, mimeType) => {
     const extension = filename.split('.').pop().toLowerCase();
 
+    // Try extension first
     // Image formats
     if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp'].includes(extension)) {
       return 'image';
@@ -397,6 +398,34 @@ const DocumentViewer = () => {
     // Archives
     if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension)) {
       return 'archive';
+    }
+
+    // ✅ FALLBACK: If extension detection failed, use mimeType
+    if (mimeType) {
+      // Image types
+      if (mimeType.startsWith('image/')) return 'image';
+
+      // Video types
+      if (mimeType.startsWith('video/')) return 'video';
+
+      // Audio types
+      if (mimeType.startsWith('audio/')) return 'audio';
+
+      // PDF
+      if (mimeType === 'application/pdf') return 'pdf';
+
+      // Microsoft Office documents
+      if (mimeType.includes('msword') || mimeType.includes('wordprocessingml')) return 'word';
+      if (mimeType.includes('excel') || mimeType.includes('spreadsheetml')) return 'excel';
+      if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'powerpoint';
+
+      // Text files
+      if (mimeType.startsWith('text/')) return 'text';
+
+      // Archives
+      if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('7z') || mimeType.includes('tar') || mimeType.includes('gzip')) {
+        return 'archive';
+      }
     }
 
     return 'unknown';
@@ -1024,7 +1053,7 @@ const DocumentViewer = () => {
                 case 'excel': // XLSX - show markdown editor
                   return <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />;
 
-                case 'powerpoint': // PPTX - show PPTX preview
+                case 'powerpoint': // PPTX - show with PPTXPreview component
                   return <PPTXPreview document={document} zoom={zoom} />;
 
                 case 'pdf':

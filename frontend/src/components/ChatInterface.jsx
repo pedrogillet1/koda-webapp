@@ -527,13 +527,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     // Auto-scroll while streaming (only if user is near bottom)
     useEffect(() => {
         if (displayedText && messagesContainerRef.current) {
-            const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-            const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
-
-            // Only auto-scroll if user is already near the bottom
-            if (isNearBottom) {
-                scrollToBottom();
-            }
+            // Always auto-scroll during streaming to show new content
+            // This provides a smooth ChatGPT-like experience
+            scrollToBottom();
         }
     }, [displayedText]);
 
@@ -1866,9 +1862,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             )}
                                                         </div>
 
-                                                    {/* ✅ FIX #1: Always Show Document Sources (even if empty) */}
-                                                    {/* ✅ FIX #6: Hide sources for file actions (they don't use documents) */}
-                                                    {msg.role === 'assistant' && !msg.contextId?.startsWith('action-') && (() => {
+                                                    {/* ✅ Show Document Sources for RAG queries, hide for file actions */}
+                                                    {/* Hide sources if message is a file action (rename, delete, move, create folder) */}
+                                                    {msg.role === 'assistant' && !msg.content?.match(/File (renamed|moved|deleted)|Folder (created|renamed|deleted)|successfully/i) && (() => {
                                                         const sources = msg.ragSources || [];
 
                                                         // Group sources by document ID to show unique documents
@@ -1882,6 +1878,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 acc[source.documentId] = {
                                                                     documentId: source.documentId,
                                                                     documentName: source.documentName,
+                                                                    mimeType: source.mimeType, // ✅ Store mimeType for icon detection
                                                                     chunks: []
                                                                 };
                                                             }
@@ -1893,8 +1890,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                         const isExpanded = expandedSources[`${msg.id}-rag`];
 
                                                         // Helper function to get file icon based on filename
-                                                        const getFileIcon = (filename) => {
+                                                        const getFileIcon = (filename, mimeType) => {
                                                             if (!filename) return docIcon;
+
+                                                            // Try to determine icon from filename extension first
                                                             const ext = filename.toLowerCase();
                                                             if (ext.match(/\.(pdf)$/)) return pdfIcon;
                                                             if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
@@ -1906,6 +1905,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             if (ext.match(/\.(mov)$/)) return movIcon;
                                                             if (ext.match(/\.(mp4)$/)) return mp4Icon;
                                                             if (ext.match(/\.(mp3)$/)) return mp3Icon;
+
+                                                            // If no extension match and mimeType is provided, use mimeType
+                                                            if (mimeType) {
+                                                                if (mimeType.includes('pdf')) return pdfIcon;
+                                                                if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return jpgIcon;
+                                                                if (mimeType.includes('png')) return pngIcon;
+                                                                if (mimeType.includes('msword') || mimeType.includes('wordprocessingml')) return docIcon;
+                                                                if (mimeType.includes('excel') || mimeType.includes('spreadsheetml')) return xlsIcon;
+                                                                if (mimeType.includes('text/plain')) return txtIcon;
+                                                                if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return pptxIcon;
+                                                                if (mimeType.includes('quicktime')) return movIcon;
+                                                                if (mimeType.includes('mp4')) return mp4Icon;
+                                                                if (mimeType.includes('mp3') || mimeType.includes('mpeg')) return mp3Icon;
+                                                            }
+
                                                             return docIcon; // Default icon
                                                         };
 
@@ -2020,7 +2034,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                     gap: 12
                                                                                 }}>
                                                                                     <img
-                                                                                        src={getFileIcon(doc.documentName)}
+                                                                                        src={getFileIcon(doc.documentName, doc.mimeType)}
                                                                                         alt="File icon"
                                                                                         style={{
                                                                                             width: 40,

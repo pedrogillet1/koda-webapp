@@ -14,6 +14,7 @@ import fastPathDetector from './fastPathDetector.service';
 import statusEmitter, { ProcessingStage } from './statusEmitter.service';
 import postProcessor from './postProcessor.service';
 import geminiCache from './geminiCache.service';
+import embeddingService from './embedding.service';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // DELETED DOCUMENT FILTER
@@ -86,7 +87,7 @@ const model = genAI.getGenerativeModel({
   },
 });
 
-const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+// ✅ Removed Google embedding model - now using OpenAI via embedding.service.ts
 
 let pinecone: Pinecone | null = null;
 let pineconeIndex: any = null;
@@ -580,9 +581,9 @@ async function handleMultiStepQuery(
   const subQueryPromises = analysis.subQueries.map(async (subQuery, index) => {
     console.log(`  ${index + 1}. "${subQuery}"`);
 
-    // Generate embedding for sub-query
-    const embeddingResult = await embeddingModel.embedContent(subQuery);
-    const queryEmbedding = embeddingResult.embedding.values;
+    // Generate embedding for sub-query using OpenAI
+    const embeddingResult = await embeddingService.generateEmbedding(subQuery);
+    const queryEmbedding = embeddingResult.embedding;
 
     // Search Pinecone
     const results = await pineconeIndex.query({
@@ -706,8 +707,8 @@ async function iterativeRetrieval(
     // STEP 1: Execute retrieval
     // ─────────────────────────────────────────────────────────────────────────
 
-    const embeddingResult = await embeddingModel.embedContent(currentQuery);
-    const queryEmbedding = embeddingResult.embedding.values;
+    const embeddingResult = await embeddingService.generateEmbedding(currentQuery);
+    const queryEmbedding = embeddingResult.embedding;
 
     const results = await pineconeIndex.query({
       vector: queryEmbedding,
@@ -1722,9 +1723,9 @@ async function handleConceptComparison(
     console.log(`  🔍 Searching for concept: "${concept}"`);
 
     try {
-      // Generate embedding for this concept search
-      const embeddingResult = await embeddingModel.embedContent(searchQuery);
-      const queryEmbedding = embeddingResult.embedding.values;
+      // Generate embedding for this concept search using OpenAI
+      const embeddingResult = await embeddingService.generateEmbedding(searchQuery);
+      const queryEmbedding = embeddingResult.embedding;
 
       // Query Pinecone for this concept
       const rawResults = await pineconeIndex.query({
@@ -1878,9 +1879,9 @@ async function handleDocumentComparison(
   // HOW: Use Promise.all to run queries in parallel
   // IMPACT: 9s → 3s for 3 documents (3× faster)
 
-  // Generate embedding for query (once, reuse for all documents)
-  const embeddingResult = await embeddingModel.embedContent(query);
-  const queryEmbedding = embeddingResult.embedding.values;
+  // Generate embedding for query (once, reuse for all documents) using OpenAI
+  const embeddingResult = await embeddingService.generateEmbedding(query);
+  const queryEmbedding = embeddingResult.embedding;
 
   const queryPromises = documentIds.map(async (docId) => {
     console.log(`  📄 Searching document: ${docId}`);
@@ -2683,6 +2684,25 @@ async function handleRegularQuery(
         score: chunk.similarity || 0,
       }));
 
+      // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
+      const documentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
+      if (documentIds.length > 0) {
+        const documents = await prisma.document.findMany({
+          where: { id: { in: documentIds } },
+          select: { id: true, filename: true, mimeType: true }
+        });
+        const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
+
+        // Update sources with current filenames and mimeType
+        sources.forEach(source => {
+          if (source.documentId && documentMap.has(source.documentId)) {
+            const docData = documentMap.get(source.documentId)!;
+            source.documentName = docData.filename;
+            source.mimeType = docData.mimeType;
+          }
+        });
+      }
+
       console.log(`✅ [AGENT LOOP] Completed in ${result.iterations} iterations`);
       return { sources };
 
@@ -2728,13 +2748,15 @@ async function handleRegularQuery(
 
     searchResults = await handleMultiStepQuery(queryAnalysis, userId, filter, onChunk);
 
-    // Apply BM25 hybrid search to combined results
-    const hybridResults = await bm25RetrievalService.hybridSearch(
-      query,
-      searchResults.matches || [],
-      userId,
-      20
-    );
+    // ✅ DISABLED BM25: document_chunks table doesn't exist, using pure vector search
+    // Convert to hybrid result format for consistency
+    const hybridResults = (searchResults.matches || []).map((match: any) => ({
+      content: match.metadata?.content || match.metadata?.text || '',
+      metadata: match.metadata,
+      vectorScore: match.score || 0,
+      bm25Score: 0,
+      hybridScore: match.score || 0,
+    }));
 
     // Filter by minimum score threshold
     const COMPARISON_MIN_SCORE = 0.65;
@@ -2779,6 +2801,25 @@ async function handleRegularQuery(
       pageNumber: chunk.metadata?.page || null,
       score: chunk.score || 0,
     }));
+
+    // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
+    const documentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
+    if (documentIds.length > 0) {
+      const documents = await prisma.document.findMany({
+        where: { id: { in: documentIds } },
+        select: { id: true, filename: true, mimeType: true }
+      });
+      const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
+
+      // Update sources with current filenames and mimeType
+      sources.forEach(source => {
+        if (source.documentId && documentMap.has(source.documentId)) {
+          const docData = documentMap.get(source.documentId)!;
+          source.documentName = docData.filename;
+          source.mimeType = docData.mimeType;
+        }
+      });
+    }
 
     console.log(`✅ [DECOMPOSE] Generated answer from ${sources.length} sources`);
     return { sources };
@@ -2865,9 +2906,9 @@ async function handleRegularQuery(
       // Hybrid search (vector + keyword) for comparisons
       // ───────────────────────────────────────────────────────────────────
 
-      // First get vector results
-      const embeddingResult = await embeddingModel.embedContent(enhancedQueryText);
-      const queryEmbedding = embeddingResult.embedding.values;
+      // First get vector results using OpenAI
+      const embeddingResult = await embeddingService.generateEmbedding(enhancedQueryText);
+      const queryEmbedding = embeddingResult.embedding;
 
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
@@ -2878,22 +2919,24 @@ async function handleRegularQuery(
 
       console.log(`🔍 [HYBRID] Vector results: ${rawResults.matches?.length || 0} chunks`);
 
-      // Then merge with BM25 keyword search
-      hybridResults = await bm25RetrievalService.hybridSearch(
-        query,
-        rawResults.matches || [],
-        userId,
-        20
-      );
+      // ✅ DISABLED BM25: document_chunks table doesn't exist, using pure vector search
+      // Convert to hybrid result format for consistency (same as pure vector path)
+      hybridResults = (rawResults.matches || []).map((match: any) => ({
+        content: match.metadata?.content || match.metadata?.text || '',
+        metadata: match.metadata,
+        vectorScore: match.score || 0,
+        bm25Score: 0,
+        hybridScore: match.score || 0,
+      }));
 
-      console.log(`✅ [HYBRID] Combined vector + keyword: ${hybridResults.length} chunks`);
+      console.log(`✅ [HYBRID] Using pure vector search: ${hybridResults.length} chunks`);
 
     } else {
       // ───────────────────────────────────────────────────────────────────
       // Pure vector search for semantic understanding (default)
       // ───────────────────────────────────────────────────────────────────
-      const embeddingResult = await embeddingModel.embedContent(enhancedQueryText);
-      const queryEmbedding = embeddingResult.embedding.values;
+      const embeddingResult = await embeddingService.generateEmbedding(enhancedQueryText);
+      const queryEmbedding = embeddingResult.embedding;
 
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
@@ -2929,13 +2972,15 @@ async function handleRegularQuery(
       // Use iterative retrieval instead of single refinement
       const iterativeResults = await iterativeRetrieval(query, userId, filter);
 
-      // Apply BM25 hybrid search to iterative results
-      const iterativeHybridResults = await bm25RetrievalService.hybridSearch(
-        query,
-        iterativeResults.matches || [],
-        userId,
-        20
-      );
+      // ✅ DISABLED BM25: document_chunks table doesn't exist, using pure vector search
+      // Convert to hybrid result format for consistency
+      const iterativeHybridResults = (iterativeResults.matches || []).map((match: any) => ({
+        content: match.metadata?.content || match.metadata?.text || '',
+        metadata: match.metadata,
+        vectorScore: match.score || 0,
+        bm25Score: 0,
+        hybridScore: match.score || 0,
+      }));
 
       // Update results if iterative refinement improved them
       if (iterativeHybridResults.length > 0) {
@@ -3266,6 +3311,25 @@ User query: "${query}"`;
       score: match.rerankScore || match.originalScore || 0
     }));
 
+    // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
+    const documentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
+    if (documentIds.length > 0) {
+      const documents = await prisma.document.findMany({
+        where: { id: { in: documentIds } },
+        select: { id: true, filename: true, mimeType: true }
+      });
+      const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
+
+      // Update sources with current filenames and mimeType
+      sources.forEach(source => {
+        if (source.documentId && documentMap.has(source.documentId)) {
+          const docData = documentMap.get(source.documentId)!;
+          source.documentName = docData.filename;
+          source.mimeType = docData.mimeType;
+        }
+      });
+    }
+
     console.log(`🔍 [DEBUG - FAST PATH] Built ${sources.length} sources`);
     console.log(`🔍 [DEBUG - FAST PATH] Sample source:`, sources[0]);
 
@@ -3315,9 +3379,9 @@ User query: "${query}"`;
   // Initialize Pinecone
   await initializePinecone();
 
-  // Generate embedding
-  const embeddingResult = await embeddingModel.embedContent(query);
-  const queryEmbedding = embeddingResult.embedding.values;
+  // Generate embedding using OpenAI
+  const embeddingResult = await embeddingService.generateEmbedding(query);
+  const queryEmbedding = embeddingResult.embedding;
 
   // filter already declared at top of function, just use it
 
@@ -3423,6 +3487,25 @@ User query: "${query}"`;
     pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
     score: match.score || 0
   }));
+
+  // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
+  const documentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
+  if (documentIds.length > 0) {
+    const documents = await prisma.document.findMany({
+      where: { id: { in: documentIds } },
+      select: { id: true, filename: true, mimeType: true }
+    });
+    const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
+
+    // Update sources with current filenames and mimeType
+    sources.forEach(source => {
+      if (source.documentId && documentMap.has(source.documentId)) {
+        const docData = documentMap.get(source.documentId)!;
+        source.documentName = docData.filename;
+        source.mimeType = docData.mimeType;
+      }
+    });
+  }
 
   console.log(`🔍 [DEBUG] Built ${sources.length} sources from searchResults`);
   console.log(`🔍 [DEBUG] Sample source:`, sources[0]);
