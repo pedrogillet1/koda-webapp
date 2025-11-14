@@ -702,10 +702,25 @@ const UploadHub = () => {
         ));
 
         // ✅ FIX: Fetch documents to show newly uploaded file
-        // NOTE: UploadHub uses direct upload (not optimistic updates like UniversalUploadModal)
-        // So we MUST fetch after upload completes to show the document in the sidebar
+        // NOTE: UploadHub uses LOCAL STATE (not DocumentsContext like other components)
+        // So we need to fetch and update local state, not just the global context
         console.log('✅ Upload completed - fetching documents...');
-        await fetchDocuments();
+        console.log('📊 Document ID:', document.id);
+        console.log('📊 Document details:', document);
+
+        try {
+          // Fetch documents and update LOCAL state
+          const docsResponse = await api.get('/api/documents');
+          const allDocuments = docsResponse.data.documents || [];
+          console.log('📊 Fetched', allDocuments.length, 'documents from backend');
+          setDocuments(allDocuments);
+
+          // Also update global context for other components
+          await fetchDocuments();
+          console.log('✅ Documents fetched and updated successfully');
+        } catch (error) {
+          console.error('❌ Error fetching documents:', error);
+        }
 
         // Wait a moment then remove the completed file from upload area
         await new Promise(resolve => setTimeout(resolve, 500));
