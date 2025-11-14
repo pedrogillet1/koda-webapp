@@ -701,9 +701,11 @@ const UploadHub = () => {
           } : f
         ));
 
-        // ⚡ REMOVED: Don't refresh immediately - causes stale data to overwrite real upload
-        // The WebSocket 'document-created' event will handle the refresh after Supabase replication
-        console.log('✅ Upload completed - waiting for WebSocket event to refresh documents...');
+        // ✅ FIX: Fetch documents to show newly uploaded file
+        // NOTE: UploadHub uses direct upload (not optimistic updates like UniversalUploadModal)
+        // So we MUST fetch after upload completes to show the document in the sidebar
+        console.log('✅ Upload completed - fetching documents...');
+        await fetchDocuments();
 
         // Wait a moment then remove the completed file from upload area
         await new Promise(resolve => setTimeout(resolve, 500));
