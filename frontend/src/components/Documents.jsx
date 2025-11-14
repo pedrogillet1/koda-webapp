@@ -1247,6 +1247,12 @@ const Documents = () => {
               {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).length > 0 ? (
                 <div style={{display: 'flex', flexDirection: 'column', gap: 16, flex: 1, overflowY: 'auto', minHeight: 0}}>
                   {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).map((doc) => {
+                    // ✅ Check document status for visual indicators
+                    const isUploading = doc.status === 'uploading';
+                    const isProcessing = doc.status === 'processing';
+                    const isCompleted = doc.status === 'completed';
+                    const isFailed = doc.status === 'failed';
+
                     const getFileIcon = (doc) => {
                       // Prioritize MIME type over file extension (more reliable for encrypted filenames)
                       const mimeType = doc?.mimeType || '';
@@ -1353,12 +1359,22 @@ const Documents = () => {
                           gap: 12,
                           padding: 12,
                           borderRadius: 12,
-                          background: '#F5F5F5',
+                          background: isUploading ? '#FFF9E6' : (isProcessing ? '#F0F9FF' : '#F5F5F5'),
+                          opacity: isUploading ? 0.8 : 1,
+                          border: isProcessing ? '1px solid #3B82F6' : 'none',
                           cursor: 'grab',
-                          transition: 'background 0.2s ease'
+                          transition: 'all 0.2s ease'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                        onMouseEnter={(e) => {
+                          if (!isUploading && !isProcessing) {
+                            e.currentTarget.style.background = '#E6E6EC';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isUploading && !isProcessing) {
+                            e.currentTarget.style.background = '#F5F5F5';
+                          }
+                        }}
                       >
                         <img
                           src={getFileIcon(doc)}
@@ -1379,6 +1395,55 @@ const Documents = () => {
                           <div style={{color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 4}}>
                             {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
                           </div>
+
+                          {/* ✅ Status indicator */}
+                          {isUploading && (
+                            <div style={{
+                              fontSize: 12,
+                              color: '#F59E0B',
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '600',
+                              marginTop: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}>
+                              <span>⏳</span>
+                              <span>Uploading...</span>
+                            </div>
+                          )}
+
+                          {isProcessing && (
+                            <div style={{
+                              fontSize: 12,
+                              color: '#3B82F6',
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '600',
+                              marginTop: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}>
+                              <span>⚙️</span>
+                              <span>Processing...</span>
+                            </div>
+                          )}
+
+                          {isFailed && (
+                            <div style={{
+                              fontSize: 12,
+                              color: '#EF4444',
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '600',
+                              marginTop: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}>
+                              <span>❌</span>
+                              <span>Failed</span>
+                            </div>
+                          )}
                         </div>
                         <div style={{position: 'relative'}} data-dropdown>
                           <button
