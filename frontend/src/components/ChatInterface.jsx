@@ -611,6 +611,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     //     setShowResearchSuggestion(needsWeb);
     // }, [message, researchMode]);
 
+    // ✅ Auto-delete empty conversations when navigating away
+    useEffect(() => {
+        return () => {
+            // Cleanup function runs when component unmounts
+            if (currentConversation?.id && messages.length === 0) {
+                console.log('🗑️ Deleting empty conversation on unmount:', currentConversation.id);
+
+                // Delete empty conversation
+                chatService.deleteConversation(currentConversation.id)
+                    .then(() => console.log('✅ Empty conversation deleted'))
+                    .catch(err => console.error('Failed to delete empty conversation:', err));
+            }
+        };
+    }, [currentConversation?.id, messages.length]);
+
     // Handle documentId from URL parameter (Ask Koda feature)
     useEffect(() => {
         const searchParams = new URLSearchParams(location.search);
@@ -1129,12 +1144,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         // Store original message text for UI display (files will be shown visually, not as text)
         const displayMessageText = messageText || '';
 
-        // Detect if this should use RAG (question detection)
-        const isQuestion = researchMode ||
-                          messageText.includes('?') ||
-                          /^(what|who|where|when|why|how|is|are|can|could|would|should|does|do|did|find|search|show|tell|explain)/i.test(messageText.trim());
+        // Detect if this should use RAG (improved document-context detection)
+        // Only use RAG when:
+        // 1. Research mode is explicitly enabled, OR
+        // 2. Files/documents are attached, OR
+        // 3. Message contains document-specific keywords
+        const hasDocuments = filesToUpload.length > 0 || documentsToAttach.length > 0;
+        const hasDocumentKeywords = /\b(document|file|pdf|slide|page|presentation|attachment|uploaded|this|these|in the|from the|summarize|analyze|extract|show me|tell me about)\b/i.test(messageText);
 
-        console.log(`🤔 Message analysis: isQuestion=${isQuestion}, researchMode=${researchMode}`);
+        const isQuestion = researchMode || hasDocuments || hasDocumentKeywords;
+
+        console.log(`🤔 Message analysis: isQuestion (use RAG)=${isQuestion}, researchMode=${researchMode}, hasDocuments=${hasDocuments}, hasDocumentKeywords=${hasDocumentKeywords}`);
 
         // Add user message to UI immediately (optimistic update)
         const tempUserId = `temp-${Date.now()}`;
@@ -1904,6 +1924,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                         }, {});
 
                                                         const documentList = Object.values(uniqueDocuments);
+
+                                                        // ✅ FIX: Only render if there are actual documents
+                                                        if (documentList.length === 0) {
+                                                            return null;
+                                                        }
+
                                                         const isExpanded = expandedSources[`${msg.id}-rag`];
 
                                                         // Helper function to get file icon based on filename

@@ -190,9 +190,17 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
         };
 
         conversations
-            .filter((conv) =>
-                (conv.title || 'New Chat').toLowerCase().includes(searchQuery.toLowerCase())
-            )
+            .filter((conv) => {
+                // ✅ FIX: Filter out conversations with no messages
+                const hasMessages = conv._count?.messages > 0;
+
+                // Also apply search filter
+                const matchesSearch = (conv.title || 'New Chat')
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase());
+
+                return hasMessages && matchesSearch;
+            })
             .forEach((conv) => {
                 const convDate = new Date(conv.updatedAt);
                 convDate.setHours(0, 0, 0, 0);

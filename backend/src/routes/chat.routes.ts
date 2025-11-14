@@ -35,5 +35,6 @@ router.post('/transcribe', uploadLimiter, uploadAudio, chatController.transcribe
 // Maintenance routes
 router.delete('/cache/semantic', chatController.clearSemanticCache); // Clear semantic cache for all users
 router.post('/regenerate-titles', chatController.regenerateTitles); // Regenerate titles for "New Chat" conversations
+router.delete('/conversations/empty', chatController.deleteEmptyConversations); // Delete all empty conversations
 
 export default router;

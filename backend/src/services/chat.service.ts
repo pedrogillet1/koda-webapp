@@ -12,6 +12,7 @@ import prisma from '../config/database';
 import { sendMessageToGemini, sendMessageToGeminiStreaming, generateConversationTitle } from './gemini.service';
 import ragService from './rag.service';
 import cacheService from './cache.service';
+import { getIO } from './websocket.service';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -122,13 +123,16 @@ export const getUserConversations = async (userId: string) => {
     },
   });
 
-  console.log(`✅ Found ${conversations.length} conversations`);
+  // ✅ FIX: Filter out conversations with no messages
+  const conversationsWithMessages = conversations.filter(conv => conv._count.messages > 0);
 
-  // ⚡ CACHE: Store result with 2 minute TTL
-  await cacheService.set(cacheKey, conversations, { ttl: 120 });
+  console.log(`✅ Found ${conversations.length} conversations (${conversationsWithMessages.length} with messages, ${conversations.length - conversationsWithMessages.length} empty)`);
+
+  // ⚡ CACHE: Store filtered result with 2 minute TTL
+  await cacheService.set(cacheKey, conversationsWithMessages, { ttl: 120 });
   console.log(`💾 [Cache] Stored conversations list (user: ${userId.substring(0, 8)}...)`);
 
-  return conversations;
+  return conversationsWithMessages;
 };
 
 /**
@@ -167,15 +171,10 @@ export const getConversation = async (conversationId: string, userId: string) =>
           chatDocuments: {
             select: {
               id: true,
-              documentId: true,
-              document: {
-                select: {
-                  id: true,
-                  filename: true,
-                  mimeType: true,
-                  fileSize: true,
-                },
-              },
+              sourceDocumentId: true,
+              title: true,
+              documentType: true,
+              pdfUrl: true,
             },
           },
           // Load metadata (sources) for assistant messages only
@@ -364,7 +363,7 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
 
   // Auto-generate title if this is the first exchange
   if (previousMessages.length <= 1) { // Only user message exists
-    await autoGenerateTitle(conversationId, content);
+    await autoGenerateTitle(conversationId, userId, content);
   }
 
   // ⚡ CACHE: Invalidate conversation cache after new message
@@ -513,7 +512,7 @@ export const sendMessageStreaming = async (
 
   // Auto-generate title if this is the first exchange
   if (previousMessages.length <= 1) {
-    await autoGenerateTitle(conversationId, content);
+    await autoGenerateTitle(conversationId, userId, content);
   }
 
   // ⚡ CACHE: Invalidate conversation cache after new message
@@ -533,7 +532,7 @@ export const sendMessageStreaming = async (
 /**
  * Auto-generate a conversation title based on the first message
  */
-const autoGenerateTitle = async (conversationId: string, firstMessage: string) => {
+const autoGenerateTitle = async (conversationId: string, userId: string, firstMessage: string) => {
   try {
     console.log('🏷️ Auto-generating title for conversation:', conversationId);
 
@@ -549,6 +548,20 @@ const autoGenerateTitle = async (conversationId: string, firstMessage: string) =
     });
 
     console.log('✅ Title generated:', cleanTitle);
+
+    // ✅ EMIT WEBSOCKET EVENT: Notify frontend about title update
+    try {
+      const io = getIO();
+      io.to(`user:${userId}`).emit('conversation:updated', {
+        conversationId,
+        title: cleanTitle,
+        updatedAt: new Date()
+      });
+      console.log(`📡 [AUTO-TITLE] WebSocket event emitted to user:${userId}`);
+    } catch (socketError) {
+      console.error('⚠️ Failed to emit title update event:', socketError);
+      // Non-critical error, don't throw
+    }
   } catch (error) {
     console.error('⚠️ Failed to auto-generate title:', error);
     // Non-critical error, don't throw

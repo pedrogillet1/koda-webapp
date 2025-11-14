@@ -497,3 +497,52 @@ export const sendAdaptiveMessageStreaming = async (req: Request, res: Response) 
     res.end();
   }
 };
+
+/**
+ * Delete all empty conversations (no messages)
+ */
+export const deleteEmptyConversations = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    // Find all conversations with 0 messages
+    const emptyConversations = await prisma.conversation.findMany({
+      where: { userId },
+      include: {
+        _count: {
+          select: { messages: true },
+        },
+      },
+    });
+
+    const emptyIds = emptyConversations
+      .filter(conv => conv._count.messages === 0)
+      .map(conv => conv.id);
+
+    if (emptyIds.length === 0) {
+      res.json({ message: 'No empty conversations found', deletedCount: 0 });
+      return;
+    }
+
+    // Delete all empty conversations
+    await prisma.conversation.deleteMany({
+      where: {
+        id: { in: emptyIds },
+        userId,  // Security: ensure user owns these conversations
+      },
+    });
+
+    // Invalidate cache
+    const cacheKey = cacheService.generateKey('conversations_list', userId);
+    await cacheService.del(cacheKey);
+    console.log(`🗑️ Deleted ${emptyIds.length} empty conversations for user ${userId}`);
+
+    res.json({
+      message: `Deleted ${emptyIds.length} empty conversations`,
+      deletedCount: emptyIds.length,
+    });
+  } catch (error: any) {
+    console.error('Error deleting empty conversations:', error);
+    res.status(500).json({ error: error.message });
+  }
+};

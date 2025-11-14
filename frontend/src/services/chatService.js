@@ -350,6 +350,14 @@ export const deleteAllConversations = async () => {
   return response.data;
 };
 
+/**
+ * Delete all empty conversations
+ */
+export const deleteEmptyConversations = async () => {
+  const response = await api.delete('/conversations/empty');
+  return response.data;
+};
+
 // WebSocket Functions
 
 /**
@@ -555,6 +563,7 @@ export default {
   sendAdaptiveMessageStreaming,
   deleteConversation,
   deleteAllConversations,
+  deleteEmptyConversations,
   joinConversation,
   leaveConversation,
   sendMessageRealtime,
