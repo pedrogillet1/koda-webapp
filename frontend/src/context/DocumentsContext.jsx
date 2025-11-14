@@ -332,14 +332,10 @@ export const DocumentsProvider = ({ children }) => {
     socket.on('document-created', (data) => {
       console.log('➕ Document created event received:', data);
 
-      // ⚡ FIX: Add 1000ms delay to ensure backend delay (2000ms) + Supabase replication completes
-      // Backend emits this event after 2000ms, so total time since upload is ~2000ms
-      // Adding 1000ms here ensures total time is 3000ms, giving Supabase plenty of time
-      setTimeout(() => {
-        console.log('🔄 Refreshing documents after document-created event (with 1000ms safety delay)...');
-        fetchDocuments();
-        fetchRecentDocuments();
-      }, 1000);
+      // ✅ INSTANT UPLOAD FIX: Don't fetch - optimistic update already added the document!
+      // Fetching here would overwrite the optimistic update and make the document disappear
+      // The document will update its status via 'processing-complete' event when ready
+      console.log('✅ Document already in UI via optimistic update - no fetch needed');
     });
 
     socket.on('document-deleted', () => {
