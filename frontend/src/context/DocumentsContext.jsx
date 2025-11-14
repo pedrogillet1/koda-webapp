@@ -374,12 +374,11 @@ export const DocumentsProvider = ({ children }) => {
 
     // Listen for document uploads from FileContext
     const handleDocumentUploaded = () => {
-      console.log('📤 Document uploaded, refreshing documents list...');
-      // Small delay to ensure document is queryable in database
-      setTimeout(() => {
-        fetchDocuments();
-        fetchRecentDocuments();
-      }, 1500);
+      console.log('📤 Document uploaded event received');
+      // ✅ INSTANT UPLOAD FIX: Don't fetch - optimistic update already added the document!
+      // The addDocument() function already handles optimistic updates
+      // Fetching here would overwrite the optimistic update and make the document disappear
+      console.log('✅ Document already in UI via optimistic update - no fetch needed');
     };
 
     window.addEventListener('document-uploaded', handleDocumentUploaded);
