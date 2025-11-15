@@ -74,7 +74,7 @@ const filterMacHiddenFiles = (files) => {
 const UploadHub = () => {
   const navigate = useNavigate();
   const { showSuccess } = useToast();
-  const { fetchDocuments, fetchFolders } = useDocuments(); // Use DocumentsContext
+  const { fetchDocuments, fetchFolders, socket } = useDocuments(); // Use DocumentsContext + shared socket
   const { encryptionPassword } = useAuth(); // ⚡ ZERO-KNOWLEDGE ENCRYPTION
   const [documents, setDocuments] = useState([]);
   const [folders, setFolders] = useState([]); // Track folders
@@ -104,16 +104,19 @@ const UploadHub = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch documents
-        const docsResponse = await api.get('/api/documents');
-        const allDocuments = docsResponse.data.documents || [];
+        // ✅ OPTIMIZATION: Use batched endpoint for faster loading
+        console.log('📦 [UploadHub] Loading data with batch endpoint...');
+        const startTime = Date.now();
+
+        const response = await api.get('/api/batch/initial-data');
+        const { documents: allDocuments, folders: allFolders } = response.data;
+
+        const duration = Date.now() - startTime;
+        console.log(`✅ [UploadHub] Loaded in ${duration}ms`);
         console.log('🔍 Backend returned documents:', allDocuments);
         console.log('🔍 Number of documents from backend:', allDocuments.length);
-        setDocuments(allDocuments);
 
-        // Fetch folders (smart categories)
-        const foldersResponse = await api.get('/api/folders');
-        const allFolders = foldersResponse.data.folders || [];
+        setDocuments(allDocuments);
 
         // Separate top-level folders (for display in Recently Added) and all folders (for categories)
         const topLevelFolders = allFolders.filter(f =>
@@ -137,6 +140,91 @@ const UploadHub = () => {
 
     fetchData();
   }, []);
+
+  // ✅ Listen for document processing updates via WebSocket
+  useEffect(() => {
+    if (!socket) {
+      console.log('⏭️ [UploadHub] Socket not ready yet');
+      return;
+    }
+
+    console.log('✅ [UploadHub] Attaching WebSocket listener to shared socket');
+
+    const handleProcessingUpdate = (data) => {
+      console.log('📊 [UploadHub] Processing update:', data);
+
+      // Update uploadingFiles with processing progress
+      setUploadingFiles(prev => prev.map(file => {
+        if (file.documentId === data.documentId) {
+          // Map backend processing (0-100%) to UI progress (10-100%)
+          // Upload was 0-10%, processing is 10-100%
+          const uiProgress = 10 + Math.round((data.progress * 90) / 100);
+
+          console.log(`📊 Updating upload item ${file.file?.name}: backend ${data.progress}% → UI ${uiProgress}% - ${data.message}`);
+          return {
+            ...file,
+            processingProgress: data.progress,
+            progress: uiProgress, // Map to 10-100% range
+            statusMessage: data.message || file.statusMessage
+          };
+        }
+        return file;
+      }));
+
+      // When processing completes (100%), remove the item and show notification
+      if (data.progress === 100 || data.stage === 'complete' || data.stage === 'completed') {
+        console.log('✅ [UploadHub] Document processing complete, removing from upload list...');
+
+        setTimeout(async () => {
+          // Verify document is in frontend state
+          try {
+            const docsResponse = await api.get('/api/documents');
+            const allDocuments = docsResponse.data.documents || [];
+            const documentInState = allDocuments.some(d => d.id === data.documentId);
+
+            if (documentInState) {
+              console.log('✅ Document confirmed in frontend, updating states...');
+
+              // Update local documents state
+              setDocuments(allDocuments);
+
+              // Remove from uploadingFiles
+              setUploadingFiles(prev => prev.filter(f => f.documentId !== data.documentId));
+
+              // Increment completed count
+              completedFilesCountRef.current += 1;
+              const newCompletedCount = completedFilesCountRef.current;
+              const totalFiles = totalFilesToUploadRef.current;
+
+              console.log(`✅ Completed ${newCompletedCount} of ${totalFiles} files`);
+
+              // Show notification when all files are done
+              if (newCompletedCount === totalFiles) {
+                console.log('🎉 All files processed! Showing notification...');
+                setUploadedCount(newCompletedCount);
+                setNotificationType('success');
+                setShowNotification(true);
+
+                setTimeout(() => {
+                  setShowNotification(false);
+                  setUploadedCount(0);
+                }, 3000);
+              }
+            }
+          } catch (error) {
+            console.error('Error verifying document in frontend:', error);
+          }
+        }, 500);
+      }
+    };
+
+    socket.on('document-processing-update', handleProcessingUpdate);
+
+    return () => {
+      socket.off('document-processing-update', handleProcessingUpdate);
+      // Don't disconnect - it's a shared socket
+    };
+  }, [socket]); // Re-run when socket becomes available
 
   const getEmojiForCategory = (categoryName) => {
     const emojiMap = {
@@ -471,10 +559,10 @@ const UploadHub = () => {
           // Refresh folders and documents to show the newly uploaded data
           console.log('🔄 Refreshing folders and documents...');
           try {
-            const [docsResponse, foldersResponse] = await Promise.all([
-              api.get('/api/documents'),
-              api.get('/api/folders')
-            ]);
+            // ✅ OPTIMIZATION: Use batched endpoint
+            const response = await api.get('/api/batch/initial-data');
+            const docsResponse = { data: { documents: response.data.documents } };
+            const foldersResponse = { data: { folders: response.data.folders } };
 
             setDocuments(docsResponse.data.documents || []);
             const allFolders = foldersResponse.data.folders || [];
@@ -669,85 +757,93 @@ const UploadHub = () => {
             'Content-Type': 'multipart/form-data',
           },
           onUploadProgress: (progressEvent) => {
-            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            // Upload takes 0-10% of total progress (it's fast)
+            const uploadProgress = Math.round((progressEvent.loaded * 10) / progressEvent.total);
             setUploadingFiles(prev => prev.map((f, idx) =>
-              idx === i ? { ...f, progress: Math.min(progress, 95) } : f
+              idx === i ? { ...f, progress: uploadProgress, processingStage: 'Uploading to cloud...' } : f
             ));
           }
         });
 
         const document = uploadResponse.data.document;
 
-        console.log('✅ Direct upload completed for:', file.name);
+        console.log('✅ Upload completed, processing starting:', file.name);
 
-        // Update to final processing stage
-        setUploadingFiles(prev => prev.map((f, idx) =>
-          idx === i ? { ...f, processingStage: 'Finalizing...', progress: 95 } : f
-        ));
-
-        // Complete the progress to 100%
-        setUploadingFiles(prev => prev.map((f, idx) =>
-          idx === i ? { ...f, progress: 100 } : f
-        ));
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        // Mark as completed and store document ID
+        // ✅ Upload complete at 10%, processing will go from 10% → 100%
         setUploadingFiles(prev => prev.map((f, idx) =>
           idx === i ? {
             ...f,
-            status: 'completed',
-            progress: 100,
-            documentId: document.id
+            status: 'processing',
+            progress: 10, // Start processing at 10%
+            documentId: document.id,
+            statusMessage: 'Processing document...'
           } : f
         ));
 
         // ✅ FIX: Fetch documents to show newly uploaded file
         // NOTE: UploadHub uses LOCAL STATE (not DocumentsContext like other components)
         // So we need to fetch and update local state, not just the global context
-        console.log('✅ Upload completed - fetching documents...');
+        console.log('========================================');
+        console.log('✅ Upload completed!');
         console.log('📊 Document ID:', document.id);
-        console.log('📊 Document details:', document);
+        console.log('📊 Document filename:', document.filename);
+        console.log('📊 Current local documents count:', documents.length);
+        console.log('========================================');
+
+        // ✅ FIX: Only show notification after document is confirmed in frontend state
+        let documentInState = false;
 
         try {
           // Fetch documents and update LOCAL state
+          console.log('🔄 Fetching documents from /api/documents...');
           const docsResponse = await api.get('/api/documents');
           const allDocuments = docsResponse.data.documents || [];
-          console.log('📊 Fetched', allDocuments.length, 'documents from backend');
-          setDocuments(allDocuments);
 
-          // Also update global context for other components
-          await fetchDocuments();
-          console.log('✅ Documents fetched and updated successfully');
+          console.log('========================================');
+          console.log('📊 Backend returned', allDocuments.length, 'documents');
+          console.log('📊 Document IDs:', allDocuments.map(d => d.id));
+          console.log('📊 Document filenames:', allDocuments.map(d => d.filename));
+          console.log('📊 Looking for document ID:', document.id);
+
+          // ✅ Check if document is actually in the response
+          documentInState = allDocuments.some(d => d.id === document.id);
+          console.log('📊 Is our document in the list?', documentInState);
+          console.log('========================================');
+
+          if (documentInState) {
+            console.log('🔄 Updating local state with setDocuments()...');
+            setDocuments(allDocuments);
+            console.log('✅ Local state updated!');
+
+            // Also update global context for other components
+            console.log('🔄 Updating global context with fetchDocuments()...');
+            await fetchDocuments();
+            console.log('✅ Global context updated!');
+
+            console.log('========================================');
+            console.log('✅✅✅ ALL UPDATES COMPLETE! ✅✅✅');
+            console.log('========================================');
+          } else {
+            console.warn('⚠️ Document not found in backend response yet, will wait for WebSocket update');
+          }
         } catch (error) {
-          console.error('❌ Error fetching documents:', error);
+          console.error('========================================');
+          console.error('❌❌❌ ERROR FETCHING DOCUMENTS ❌❌❌');
+          console.error('Error details:', error);
+          console.error('Error response:', error.response?.data);
+          console.error('Error status:', error.response?.status);
+          console.error('========================================');
         }
 
-        // Wait a moment then remove the completed file from upload area
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // ✅ FIX: DON'T remove the upload item yet - keep it visible during processing
+        // The item will be removed when processing completes (via WebSocket update handling)
+        console.log('⏳ Upload complete, document now processing. Item will remain visible until processing finishes...');
 
-        setUploadingFiles(prev => prev.filter((f, idx) => idx !== i));
-
-        // Increment completed count and check if all done
-        completedFilesCountRef.current += 1;
-        const newCompletedCount = completedFilesCountRef.current;
-        const totalFiles = totalFilesToUploadRef.current;
-
-        console.log(`✅ Completed ${newCompletedCount} of ${totalFiles} files`);
-
-        // If all files are done, show notification
-        if (newCompletedCount === totalFiles) {
-          console.log('🎉 All files uploaded! Showing notification...');
-
-          setUploadedCount(newCompletedCount);
-          setNotificationType('success');
-          setShowNotification(true);
-
-          setTimeout(() => {
-            console.log('Hiding notification...');
-            setShowNotification(false);
-            setUploadedCount(0);
-          }, 3000);
-        }
+        // Note: The success notification and item removal will happen when:
+        // 1. WebSocket emits 'document-processing-update' with progress: 100
+        // 2. We verify the document is in the frontend state
+        // 3. We remove the item from uploadingFiles
+        // 4. We show the success notification
         } catch (error) {
           console.error('❌ Error uploading file:', error);
           setUploadingFiles(prev => prev.map((f, idx) =>
@@ -2349,13 +2445,15 @@ const UploadHub = () => {
                           `${formatFileSize(f.file.size)} • ${f.category || 'Uncategorized'}`
                         ) : f.status === 'completed' ? (
                           `${formatFileSize(f.file.size)} • ${f.category || 'Uncategorized'}`
+                        ) : f.status === 'processing' ? (
+                          f.statusMessage || 'Processing document...'
                         ) : (
                           f.processingStage || 'Uploading to cloud...'
                         )}
                       </p>
 
-                      {/* Progress Bar - Only show during upload */}
-                      {f.status === 'uploading' && (
+                      {/* Progress Bar - Show during upload AND processing */}
+                      {(f.status === 'uploading' || f.status === 'processing') && (
                         <>
                           <div style={{
                             width: '100%',

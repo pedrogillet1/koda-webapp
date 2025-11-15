@@ -159,15 +159,72 @@ export const DocumentsProvider = ({ children }) => {
     }
   }, []);
 
+  // ✅ OPTIMIZATION: Fetch all initial data in a single batched request
+  const fetchAllData = useCallback(async () => {
+    setLoading(true);
+    try {
+      console.log('📦 [BATCH] Loading all data in single request...');
+      const startTime = Date.now();
+
+      const response = await api.get('/api/batch/initial-data');
+      const { documents: fetchedDocs, folders: fetchedFolders, recentDocuments: fetchedRecent, meta } = response.data;
+
+      const duration = Date.now() - startTime;
+      console.log(`✅ [BATCH] Loaded in ${duration}ms (server: ${meta.loadTime}ms)`);
+      console.log(`   ${fetchedDocs.length} documents, ${fetchedFolders.length} folders, ${fetchedRecent.length} recent`);
+
+      // Decrypt folder names if encryption is enabled
+      let decryptedFolders = fetchedFolders;
+      if (encryptionPassword && fetchedFolders.length > 0) {
+        decryptedFolders = await Promise.all(
+          fetchedFolders.map(async (folder) => {
+            if (folder.nameEncrypted && folder.encryptionSalt) {
+              try {
+                const encryptedData = {
+                  salt: folder.encryptionSalt,
+                  iv: folder.encryptionIV,
+                  ciphertext: folder.nameEncrypted,
+                  authTag: folder.encryptionAuthTag,
+                };
+                const decryptedName = await decryptData(encryptedData, encryptionPassword);
+                return { ...folder, name: decryptedName };
+              } catch (error) {
+                console.error('❌ [Decryption] Failed to decrypt folder name:', error);
+                return folder;
+              }
+            }
+            return folder;
+          })
+        );
+      }
+
+      // Update all state at once
+      setDocuments(fetchedDocs);
+      setFolders(decryptedFolders);
+      setRecentDocuments(fetchedRecent);
+
+    } catch (error) {
+      console.error('❌ [BATCH] Error loading data:', error);
+      // Fallback to individual requests if batch fails
+      console.log('🔄 Falling back to individual requests...');
+      await Promise.all([
+        fetchDocuments(),
+        fetchFolders(),
+        fetchRecentDocuments()
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }, [encryptionPassword, fetchDocuments, fetchFolders, fetchRecentDocuments]);
+
   // Initialize data on mount
   useEffect(() => {
     if (!initialized) {
-      fetchDocuments();
-      fetchFolders();
-      fetchRecentDocuments();
+      // ✅ OPTIMIZATION: Use batched endpoint (1 request instead of 3)
+      fetchAllData();
       setInitialized(true);
     }
-  }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments]);
+  }, [initialized, fetchAllData]);
 
   // Auto-refresh data when window regains focus or becomes visible (with debounce)
   useEffect(() => {
@@ -188,9 +245,8 @@ export const DocumentsProvider = ({ children }) => {
       refreshTimeout = setTimeout(() => {
         lastRefresh = Date.now();
         console.log('🔄 Refreshing data (after 1s delay)...');
-        fetchDocuments();
-        fetchFolders();
-        fetchRecentDocuments();
+        // ✅ OPTIMIZATION: Use batched endpoint for refresh
+        fetchAllData();
       }, REFRESH_DELAY);
     };
 
@@ -286,35 +342,80 @@ export const DocumentsProvider = ({ children }) => {
     socket.on('document-processing-update', (data) => {
       console.log('📄 Document processing update received:', data);
 
-      // ⚡ OPTIMIZED: Update single document in state instead of refetching all
-      if (data.status === 'completed' || data.status === 'failed') {
-        setDocuments((prevDocs) => {
-          return prevDocs.map((doc) => {
-            if (doc.id === data.documentId) {
-              console.log(`✅ Updated document ${doc.name || doc.filename} status to ${data.status}`);
-              return {
-                ...doc,
-                status: data.status,
-                // Remove temporary flag if it exists
-                isTemporary: false,
-              };
-            }
-            return doc;
-          });
+      // ✅ Update document with progress information
+      setDocuments((prevDocs) => {
+        return prevDocs.map((doc) => {
+          if (doc.id === data.documentId) {
+            console.log(`📊 Updating document ${doc.name || doc.filename}: ${data.stage} (${data.progress}%)`);
+            return {
+              ...doc,
+              status: data.status || doc.status,
+              processingProgress: data.progress,
+              processingStage: data.stage,
+              processingMessage: data.message,
+              // Remove temporary flag if completed or failed
+              isTemporary: (data.status === 'completed' || data.status === 'failed') ? false : doc.isTemporary,
+            };
+          }
+          return doc;
         });
+      });
 
-        // Also update recent documents if they're loaded
-        setRecentDocuments((prevRecent) => {
-          return prevRecent.map((doc) => {
-            if (doc.id === data.documentId) {
-              return { ...doc, status: data.status };
-            }
-            return doc;
-          });
+      // Also update recent documents if they're loaded
+      setRecentDocuments((prevRecent) => {
+        return prevRecent.map((doc) => {
+          if (doc.id === data.documentId) {
+            return {
+              ...doc,
+              status: data.status || doc.status,
+              processingProgress: data.progress,
+              processingStage: data.stage,
+              processingMessage: data.message,
+            };
+          }
+          return doc;
         });
+      });
 
-        console.log(`✅ Document ${data.filename} status updated to ${data.status} (no refetch needed)`);
+      // ✅ FIX: If document reaches 100% or 'complete'/'completed' stage, refresh documents
+      if (data.progress === 100 || data.stage === 'complete' || data.stage === 'completed') {
+        console.log('🔄 Document processing reached 100%, refreshing documents list...');
+        setTimeout(() => {
+          fetchDocuments();
+          fetchRecentDocuments();
+        }, 500); // Small delay to ensure backend has finished updating
       }
+    });
+
+    // ✅ NEW: Handle document processing complete
+    socket.on('document-processing-complete', (data) => {
+      console.log('✅ Document processing complete:', data);
+
+      // Refresh document to get updated data
+      fetchDocuments();
+      fetchRecentDocuments();
+    });
+
+    // ✅ NEW: Handle document processing failed
+    socket.on('document-processing-failed', (data) => {
+      console.error('❌ Document processing failed:', data);
+
+      // Update document status to failed
+      setDocuments((prevDocs) =>
+        prevDocs.map((doc) =>
+          doc.id === data.documentId
+            ? { ...doc, status: 'failed', errorMessage: data.error }
+            : doc
+        )
+      );
+
+      setRecentDocuments((prevRecent) =>
+        prevRecent.map((doc) =>
+          doc.id === data.documentId
+            ? { ...doc, status: 'failed', errorMessage: data.error }
+            : doc
+        )
+      );
     });
 
     // ⚡ OPTIMIZED: Removed debounced refreshes - we use optimistic updates instead
@@ -386,6 +487,8 @@ export const DocumentsProvider = ({ children }) => {
     return () => {
       console.log('🔌 Cleaning up WebSocket connection');
       socket.off('document-processing-update');
+      socket.off('document-processing-complete');
+      socket.off('document-processing-failed');
       socket.off('documents-changed');
       socket.off('folders-changed');
       socket.off('document-created');
@@ -1037,6 +1140,7 @@ export const DocumentsProvider = ({ children }) => {
     folders,
     recentDocuments,
     loading,
+    socket: socketRef.current, // ⚡ Expose socket for other components
 
     // Document operations
     addDocument,
