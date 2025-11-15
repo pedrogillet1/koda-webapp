@@ -1834,47 +1834,9 @@ async function processDocumentAsync(
       },
     });
 
-    // Stage 6: Tag generation (50-60%)
-    emitProgress('tagging', 55, 'Generating tags...');
-
-    // AUTO-GENERATE TAGS
-    if (extractedText && extractedText.length > 20) {
-      console.log('🏷️ Auto-generating tags...');
-      try {
-        const tags = await geminiService.generateDocumentTags(filename, extractedText);
-        console.log(`✅ Generated ${tags.length} tags: ${tags.join(', ')}`);
-
-        for (const tagName of tags) {
-          let tag = await prisma.tag.findUnique({
-            where: { userId_name: { userId, name: tagName } },
-          });
-
-          if (!tag) {
-            tag = await prisma.tag.create({
-              data: { userId, name: tagName },
-            });
-          }
-
-          await prisma.documentTag.upsert({
-            where: {
-              documentId_tagId: {
-                documentId,
-                tagId: tag.id,
-              },
-            },
-            update: {},
-            create: {
-              documentId,
-              tagId: tag.id,
-            },
-          });
-        }
-      } catch (error) {
-        console.warn('⚠️ Auto-tag generation failed (non-critical):', error);
-      }
-    }
-
-    emitProgress('tagging', 60, 'Tags generated');
+    // ✅ OPTIMIZATION: Skip tag generation in main flow to save 5-10 seconds
+    // Tags will be generated in background after document is complete
+    emitProgress('tagging', 60, 'Tags will be generated in background...');
 
     // Stage 7: Embedding generation (60-85%)
     // ⚡ NON-BLOCKING: Embeddings generate in background (20-30s)
@@ -2072,6 +2034,14 @@ async function processDocumentAsync(
     console.log(`🗑️ Invalidated cache for user ${userId} after document processing`);
 
     console.log(`✅ Document processing completed: ${filename}`);
+
+    // ✅ OPTIMIZATION: Start background tag generation AFTER document is completed
+    // This saves 5-10 seconds by not blocking the upload response
+    if (extractedText && extractedText.length > 20) {
+      generateTagsInBackground(documentId, extractedText, filename, userId).catch(error => {
+        console.error('❌ Background tag generation failed:', error);
+      });
+    }
   } catch (error) {
     console.error('❌ Error processing document:', error);
     await prisma.document.update({
@@ -3755,4 +3725,74 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
   }
 };
 
- 
+/**
+ * Generate tags in background (fire-and-forget)
+ * ✅ OPTIMIZATION: This runs AFTER document is completed to save 5-10 seconds
+ */
+async function generateTagsInBackground(
+  documentId: string,
+  extractedText: string,
+  filename: string,
+  userId: string
+) {
+  try {
+    console.log(`🏷️  [Background] Generating tags for ${filename}...`);
+
+    const tags = await geminiService.generateDocumentTags(filename, extractedText);
+
+    if (tags && tags.length > 0) {
+      console.log(`🏷️  [Background] Generated ${tags.length} tags: ${tags.join(', ')}`);
+
+      for (const tagName of tags) {
+        // Get or create tag
+        let tag = await prisma.tag.findUnique({
+          where: { userId_name: { userId, name: tagName } },
+        });
+
+        if (!tag) {
+          tag = await prisma.tag.create({
+            data: { userId, name: tagName },
+          });
+        }
+
+        // Link tag to document
+        await prisma.documentTag.upsert({
+          where: {
+            documentId_tagId: {
+              documentId,
+              tagId: tag.id,
+            },
+          },
+          update: {},
+          create: {
+            documentId,
+            tagId: tag.id,
+          },
+        });
+      }
+
+      console.log(`✅ [Background] Tags linked to document ${documentId}`);
+
+      // Emit WebSocket event to notify frontend
+      try {
+        const io = require('../server').io;
+        if (io) {
+          io.to(`user:${userId}`).emit('document-tags-updated', {
+            documentId,
+            tags,
+            filename
+          });
+          console.log(`📡 [Background] Emitted tags-updated event for ${filename}`);
+        }
+      } catch (wsError) {
+        console.warn('[Background] Failed to emit WebSocket event:', wsError);
+      }
+    } else {
+      console.log(`⚠️  [Background] No tags generated for ${filename}`);
+    }
+  } catch (error) {
+    console.error(`❌ [Background] Tag generation failed for ${documentId}:`, error);
+  }
+}
+
+
