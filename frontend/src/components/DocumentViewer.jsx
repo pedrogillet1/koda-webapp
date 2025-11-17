@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../services/api';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import SearchInDocumentModal from './SearchInDocumentModal';
-import MarkdownEditor from './MarkdownEditor';
-import PPTXPreview from './PPTXPreview';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as LogoutWhiteIcon } from '../assets/Logout-white.svg';
+import { ReactComponent as DownloadWhiteIcon } from '../assets/Download 3 white.svg';
 import logoSvg from '../assets/logo.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can.svg';
 import { ReactComponent as PrinterIcon } from '../assets/printer.svg';
@@ -18,10 +17,21 @@ import { ReactComponent as PlusIcon } from '../assets/Plus.svg';
 import { ReactComponent as MinusIcon } from '../assets/Minus.svg';
 import { ReactComponent as StarIcon } from '../assets/Star.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
+import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
+import { ReactComponent as AddIcon } from '../assets/add.svg';
 import folderIcon from '../assets/folder_icon.svg';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import xlsIcon from '../assets/xls.png';
+import jpgIcon from '../assets/jpg-icon.png';
+import pngIcon from '../assets/png-icon.png';
+import txtIcon from '../assets/txt-icon.png';
+import pptxIcon from '../assets/pptx.png';
+import movIcon from '../assets/mov.png';
+import mp4Icon from '../assets/mp4.png';
+import mp3Icon from '../assets/mp3.svg';
+import CategoryIcon from './CategoryIcon';
+import { useDocuments } from '../context/DocumentsContext';
 import {
   isSafari,
   isMacOS,
@@ -31,6 +41,14 @@ import {
   getImageRenderingCSS,
   logBrowserInfo
 } from '../utils/browserUtils';
+
+// ⚡ PERFORMANCE: Code-split MarkdownEditor to reduce initial bundle size
+// react-markdown, remark-gfm, and rehype-raw add ~200KB to the bundle
+// Only load when user opens an Excel file (converted to markdown)
+const MarkdownEditor = lazy(() => import('./MarkdownEditor'));
+
+// ⚡ PERFORMANCE: Code-split PPTXPreview to reduce initial bundle size
+const PPTXPreview = lazy(() => import('./PPTXPreview'));
 
 // Set up the worker for pdf.js - react-pdf comes with its own pdfjs version
 // Use jsdelivr CDN as fallback with the bundled version
@@ -107,6 +125,7 @@ const DocumentViewer = () => {
   const { documentId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { moveToFolder, getRootFolders, getDocumentCountByFolder } = useDocuments();
   const [document, setDocument] = useState(null);
   const [loading, setLoading] = useState(true);
   const [zoom, setZoom] = useState(100);
@@ -124,9 +143,8 @@ const DocumentViewer = () => {
   const [shareEmail, setShareEmail] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [newCategoryName, setNewCategoryName] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [showAskKoda, setShowAskKoda] = useState(true);
   const [showExtractedText, setShowExtractedText] = useState(false);
@@ -431,17 +449,6 @@ const DocumentViewer = () => {
     return 'unknown';
   };
 
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await api.get('/api/folders');
-        setCategories(response.data.folders || []);
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-      }
-    };
-    fetchCategories();
-  }, []);
 
   useEffect(() => {
     const fetchDocument = async () => {
@@ -637,10 +644,10 @@ const DocumentViewer = () => {
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#F5F5F5', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'inline-flex' }}>
-      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
-      <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex' }}>
-        {/* Header */}
-        <div style={{ alignSelf: 'stretch', height: 120, padding: 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
+        <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
+        <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex' }}>
+          {/* Header */}
+          <div style={{ alignSelf: 'stretch', height: 120, padding: 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
           <button
             onClick={() => navigate(-1)}
             style={{
@@ -678,8 +685,9 @@ const DocumentViewer = () => {
                   <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>{breadcrumbStart.label}</div>
                 </div>
                 {/* Category (if document has folderId) */}
-                {document.folderId && categories.length > 0 && (() => {
-                  const category = categories.find(cat => cat.id === document.folderId);
+                {document.folderId && (() => {
+                  const allFolders = getRootFolders();
+                  const category = allFolders.find(cat => cat.id === document.folderId);
                   return category ? (
                     <React.Fragment>
                       <div style={{ color: '#D0D5DD', fontSize: 16 }}>›</div>
@@ -716,63 +724,82 @@ const DocumentViewer = () => {
                 onClick={() => setShowDeleteModal(true)}
                 style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
               >
-                <TrashCanIcon style={{ width: 44, height: 44 }} />
-              </button>
-              <button
-                onClick={() => {
-                  if (documentUrl && document) {
-                    // Create a hidden iframe for printing
-                    const iframe = window.document.createElement('iframe');
-                    iframe.style.position = 'fixed';
-                    iframe.style.right = '0';
-                    iframe.style.bottom = '0';
-                    iframe.style.width = '0';
-                    iframe.style.height = '0';
-                    iframe.style.border = '0';
-                    window.document.body.appendChild(iframe);
-
-                    iframe.onload = () => {
-                      setTimeout(() => {
-                        try {
-                          iframe.contentWindow.focus();
-                          iframe.contentWindow.print();
-                        } catch (e) {
-                          console.error('Print error:', e);
-                        }
-                        // Remove iframe after printing
-                        setTimeout(() => {
-                          window.document.body.removeChild(iframe);
-                        }, 1000);
-                      }, 500);
-                    };
-
-                    iframe.src = documentUrl;
-                  }
-                }}
-                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
-              >
-                <PrinterIcon style={{ width: 44, height: 44 }} />
+                <TrashCanIcon style={{ width: 32, height: 32 }} />
               </button>
               <button
                 onClick={async () => {
                   if (document) {
                     try {
-                      // Call the download endpoint to get the original file
-                      const response = await api.get(`/api/documents/${document.id}/download`);
-                      const downloadUrl = response.data.url;
+                      // Get the decrypted file from the stream endpoint
+                      const response = await api.get(`/api/documents/${documentId}/stream`, {
+                        responseType: 'blob'
+                      });
 
-                      // Use Safari-aware download function with the original file URL
-                      safariDownloadFile(downloadUrl, document.filename);
+                      // Create blob URL from the response
+                      const blobUrl = window.URL.createObjectURL(response.data);
+
+                      // Create a hidden iframe for printing
+                      const iframe = window.document.createElement('iframe');
+                      iframe.style.display = 'none';
+                      window.document.body.appendChild(iframe);
+
+                      iframe.onload = () => {
+                        try {
+                          // Trigger print dialog
+                          iframe.contentWindow.focus();
+                          iframe.contentWindow.print();
+
+                          // Clean up after printing or if user cancels
+                          const cleanup = () => {
+                            setTimeout(() => {
+                              if (iframe.parentNode) {
+                                window.document.body.removeChild(iframe);
+                              }
+                              window.URL.revokeObjectURL(blobUrl);
+                            }, 1000);
+                          };
+
+                          // Listen for afterprint event
+                          if (iframe.contentWindow.matchMedia) {
+                            const mediaQueryList = iframe.contentWindow.matchMedia('print');
+                            mediaQueryList.addListener(() => {
+                              if (!mediaQueryList.matches) {
+                                cleanup();
+                              }
+                            });
+                          }
+
+                          // Fallback cleanup after 60 seconds
+                          setTimeout(cleanup, 60000);
+                        } catch (e) {
+                          console.error('Print error:', e);
+                          if (iframe.parentNode) {
+                            window.document.body.removeChild(iframe);
+                          }
+                          window.URL.revokeObjectURL(blobUrl);
+                          alert('Unable to print. Please try downloading the file instead.');
+                        }
+                      };
+
+                      iframe.onerror = () => {
+                        console.error('Failed to load document in iframe');
+                        if (iframe.parentNode) {
+                          window.document.body.removeChild(iframe);
+                        }
+                        window.URL.revokeObjectURL(blobUrl);
+                        alert('Failed to load document for printing.');
+                      };
+
+                      iframe.src = blobUrl;
                     } catch (error) {
-                      console.error('Download error:', error);
-                      alert('Failed to download document');
+                      console.error('Error preparing document for print:', error);
+                      alert('Failed to load document for printing. Please try again.');
                     }
                   }
                 }}
                 style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
-                title={isSafari() || isIOS() ? 'Open in new tab' : 'Download'}
               >
-                <DownloadIcon style={{ width: 44, height: 44 }} />
+                <PrinterIcon style={{ width: 32, height: 32 }} />
               </button>
               <button
                 onClick={() => {
@@ -786,8 +813,8 @@ const DocumentViewer = () => {
                   src={logoSvg}
                   alt="Profile"
                   style={{
-                    width: 40,
-                    height: 40,
+                    width: 36,
+                    height: 36,
                     objectFit: 'contain',
                     ...getImageRenderingCSS()
                   }}
@@ -798,8 +825,8 @@ const DocumentViewer = () => {
               onClick={() => setShowShareModal(true)}
               style={{ flex: '1 1 0', height: 52, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
             >
-              <LogoutWhiteIcon style={{ width: 24, height: 24 }} />
-              <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Export</div>
+              <DownloadWhiteIcon style={{ width: 24, height: 24 }} />
+              <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Download</div>
             </button>
           </div>
         </div>
@@ -818,7 +845,10 @@ const DocumentViewer = () => {
           <div style={{ width: 1, height: 19, background: '#D9D9D9' }} />
           <div style={{ flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
             <button
-              onClick={() => setShowCategoryModal(true)}
+              onClick={() => {
+                setSelectedDocumentForCategory(document);
+                setShowCategoryModal(true);
+              }}
               style={{
                 paddingLeft: 12,
                 paddingRight: 12,
@@ -1051,10 +1081,42 @@ const DocumentViewer = () => {
                   );
 
                 case 'excel': // XLSX - show markdown editor
-                  return <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />;
+                  return (
+                    <Suspense fallback={
+                      <div style={{
+                        padding: 40,
+                        background: 'white',
+                        borderRadius: 12,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        color: '#6C6B6E',
+                        fontSize: 16,
+                        fontFamily: 'Plus Jakarta Sans'
+                      }}>
+                        Loading preview...
+                      </div>
+                    }>
+                      <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />
+                    </Suspense>
+                  );
 
                 case 'powerpoint': // PPTX - show with PPTXPreview component
-                  return <PPTXPreview document={document} zoom={zoom} />;
+                  return (
+                    <Suspense fallback={
+                      <div style={{
+                        padding: 40,
+                        background: 'white',
+                        borderRadius: 12,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        color: '#6C6B6E',
+                        fontSize: 16,
+                        fontFamily: 'Plus Jakarta Sans'
+                      }}>
+                        Loading preview...
+                      </div>
+                    }>
+                      <PPTXPreview document={document} zoom={zoom} />
+                    </Suspense>
+                  );
 
                 case 'pdf':
                   return (
@@ -1562,28 +1624,26 @@ const DocumentViewer = () => {
                 onClick={async (e) => {
                   e.stopPropagation();
                   console.log('Download button clicked');
-                  if (document) {
+                  const currentDoc = document;
+                  if (currentDoc) {
                     try {
-                      // Call the download endpoint to get the signed URL
-                      const response = await api.get(`/api/documents/${document.id}/download`);
-                      const signedUrl = response.data.url;
-
-                      // Fetch the file as a blob to avoid CORS issues with download attribute
-                      const fileResponse = await fetch(signedUrl);
-                      const blob = await fileResponse.blob();
+                      // Get the decrypted file from the stream endpoint
+                      const response = await api.get(`/api/documents/${currentDoc.id}/stream`, {
+                        responseType: 'blob'
+                      });
 
                       // Create object URL and trigger download
-                      const blobUrl = URL.createObjectURL(blob);
-                      const link = document.createElement('a');
+                      const blobUrl = URL.createObjectURL(response.data);
+                      const link = window.document.createElement('a');
                       link.href = blobUrl;
-                      link.download = document.filename;
+                      link.download = currentDoc.filename;
                       link.style.display = 'none';
-                      document.body.appendChild(link);
+                      window.document.body.appendChild(link);
                       link.click();
 
                       // Clean up
                       setTimeout(() => {
-                        document.body.removeChild(link);
+                        window.document.body.removeChild(link);
                         URL.revokeObjectURL(blobUrl);
                       }, 100);
                     } catch (error) {
@@ -1703,40 +1763,6 @@ const DocumentViewer = () => {
                   <img src={docIcon} alt="DOCX" style={{ width: 30, height: 30, display: 'block', pointerEvents: 'none' }} />
                   Export as DOCX
                 </button>
-
-                {(document.mimeType.includes('spreadsheet') || document.mimeType.includes('excel')) && (
-                  <button
-                    onClick={() => handleExport('xlsx')}
-                    style={{
-                      width: '100%',
-                      padding: 12,
-                      background: 'white',
-                      border: '1px solid #E6E6EC',
-                      borderRadius: 8,
-                      fontSize: 14,
-                      fontWeight: '500',
-                      color: '#32302C',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      fontFamily: 'Plus Jakarta Sans',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = '#F9FAFB';
-                      e.target.style.borderColor = '#D1D5DB';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = 'white';
-                      e.target.style.borderColor = '#E6E6EC';
-                    }}
-                  >
-                    <img src={xlsIcon} alt="Excel" style={{ width: 30, height: 30, display: 'block' }} />
-                    Export as Excel
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -1760,198 +1786,351 @@ const DocumentViewer = () => {
         itemName={document.filename}
       />
 
-      {/* Category Modal */}
+      {/* Add to Category Modal */}
       {showCategoryModal && (
-        <div
-          onClick={() => setShowCategoryModal(false)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
             width: '100%',
-            height: '100%',
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
+            maxWidth: 400,
+            paddingTop: 18,
+            paddingBottom: 18,
+            background: 'white',
+            borderRadius: 14,
+            outline: '1px #E6E6EC solid',
+            outlineOffset: '-1px',
+            flexDirection: 'column',
             justifyContent: 'center',
-            zIndex: 2000
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'white',
-              borderRadius: 16,
-              padding: 32,
-              width: 500,
-              maxWidth: '90%',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
-            }}
-          >
-            <div style={{ fontSize: 20, fontWeight: '700', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 8 }}>
-              Move to Category
-            </div>
-            <div style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', color: '#6C6B6E', marginBottom: 24 }}>
-              {document.filename}
-            </div>
-
-            {/* Create New Category */}
-            <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: '1px solid #E6E6EC' }}>
-              <div style={{ fontSize: 16, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 12 }}>
-                Create New Category
+            alignItems: 'center',
+            gap: 18,
+            display: 'flex'
+          }}>
+            {/* Header */}
+            <div style={{
+              width: '100%',
+              paddingLeft: 24,
+              paddingRight: 24,
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              display: 'flex'
+            }}>
+              <div style={{
+                color: '#32302C',
+                fontSize: 18,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '600',
+                lineHeight: '25.20px'
+              }}>
+                Move to Category
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="Category name..."
-                  style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    borderRadius: 8,
-                    border: '1px solid #E6E6EC',
-                    fontSize: 14,
-                    fontFamily: 'Plus Jakarta Sans',
-                    outline: 'none'
-                  }}
-                />
-                <button
-                  onClick={async () => {
-                    if (!newCategoryName.trim()) {
-                      alert('Please enter a category name');
-                      return;
-                    }
-                    try {
-                      const createResponse = await api.post('/api/folders', { name: newCategoryName });
-                      const newCategory = createResponse.data.folder;
-
-                      // Move document to new category
-                      await api.patch(`/api/documents/${documentId}`, {
-                        folderId: newCategory.id
-                      });
-
-                      alert('Document moved to new category successfully');
-                      setShowCategoryModal(false);
-                      setNewCategoryName('');
-
-                      // Refresh categories
-                      const response = await api.get('/api/folders');
-                      setCategories(response.data.folders || []);
-                    } catch (error) {
-                      console.error('Error creating category:', error);
-                      alert('Failed to create category: ' + (error.response?.data?.error || error.message));
-                    }
-                  }}
-                  style={{
-                    padding: '12px 24px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: '#181818',
-                    color: 'white',
-                    fontSize: 14,
-                    fontWeight: '600',
-                    fontFamily: 'Plus Jakarta Sans',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-
-            {/* Select Existing Category */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 16, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 12 }}>
-                Or Select Existing Category
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto' }}>
-                {categories.length === 0 ? (
-                  <div style={{ padding: 16, textAlign: 'center', color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans' }}>
-                    No categories available. Create one above.
-                  </div>
-                ) : (
-                  categories.map((category) => (
-                    <div
-                      key={category.id}
-                      onClick={() => setSelectedCategory(category.id)}
-                      style={{
-                        padding: 12,
-                        borderRadius: 8,
-                        border: selectedCategory === category.id ? '2px solid #181818' : '1px solid #E6E6EC',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        background: selectedCategory === category.id ? '#F9FAFB' : 'white',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <img src={folderIcon} alt="Folder" style={{ width: 24, height: 24 }} />
-                      <div style={{ fontSize: 14, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232' }}>
-                        {category.name}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => {
                   setShowCategoryModal(false);
-                  setSelectedCategory(null);
-                  setNewCategoryName('');
+                  setSelectedDocumentForCategory(null);
+                  setSelectedCategoryId(null);
                 }}
                 style={{
-                  padding: '12px 24px',
-                  borderRadius: 14,
-                  border: '1px solid #E6E6EC',
-                  background: 'white',
-                  color: '#323232',
-                  fontSize: 14,
-                  fontWeight: '600',
-                  fontFamily: 'Plus Jakarta Sans',
-                  cursor: 'pointer'
+                  width: 32,
+                  height: 32,
+                  background: '#F5F5F5',
+                  border: 'none',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
               >
-                Cancel
+                <CloseIcon style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
+
+            {/* Selected Document Display */}
+            {selectedDocumentForCategory && (
+              <div style={{
+                width: '100%',
+                paddingLeft: 24,
+                paddingRight: 24
+              }}>
+                <div style={{
+                  padding: 12,
+                  background: '#F5F5F5',
+                  borderRadius: 12,
+                  border: '1px #E6E6EC solid',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12
+                }}>
+                  <img
+                    src={(() => {
+                      const filename = selectedDocumentForCategory.filename.toLowerCase();
+                      if (filename.match(/\.(pdf)$/)) return pdfIcon;
+                      if (filename.match(/\.(jpg|jpeg)$/)) return jpgIcon;
+                      if (filename.match(/\.(png)$/)) return pngIcon;
+                      if (filename.match(/\.(doc|docx)$/)) return docIcon;
+                      if (filename.match(/\.(xls|xlsx)$/)) return xlsIcon;
+                      if (filename.match(/\.(txt)$/)) return txtIcon;
+                      if (filename.match(/\.(ppt|pptx)$/)) return pptxIcon;
+                      if (filename.match(/\.(mov)$/)) return movIcon;
+                      if (filename.match(/\.(mp4)$/)) return mp4Icon;
+                      if (filename.match(/\.(mp3)$/)) return mp3Icon;
+                      return docIcon;
+                    })()}
+                    alt="File icon"
+                    style={{
+                      width: 40,
+                      height: 40,
+                      imageRendering: '-webkit-optimize-contrast',
+                      objectFit: 'contain',
+                      shapeRendering: 'geometricPrecision',
+                      flexShrink: 0
+                    }}
+                  />
+                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <div style={{
+                      color: '#32302C',
+                      fontSize: 14,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '600',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {selectedDocumentForCategory.filename}
+                    </div>
+                    <div style={{
+                      color: '#6C6B6E',
+                      fontSize: 12,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '400'
+                    }}>
+                      {((selectedDocumentForCategory.fileSize || 0) / 1024 / 1024).toFixed(2)} MB
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Categories Grid */}
+            <div style={{
+              width: '100%',
+              paddingLeft: 24,
+              paddingRight: 24,
+              paddingTop: 8,
+              paddingBottom: 8,
+              flexDirection: 'column',
+              justifyContent: 'flex-start',
+              alignItems: 'flex-start',
+              gap: 12,
+              display: 'flex',
+              maxHeight: '280px',
+              overflowY: 'auto'
+            }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 12,
+                width: '100%'
+              }}>
+                {getRootFolders().filter(f => f.name.toLowerCase() !== 'recently added').map((category) => {
+                  const fileCount = getDocumentCountByFolder(category.id);
+                  return (
+                    <div
+                      key={category.id}
+                      onClick={() => setSelectedCategoryId(category.id)}
+                      style={{
+                        paddingLeft: 12,
+                        paddingRight: 12,
+                        paddingTop: 12,
+                        paddingBottom: 12,
+                        background: selectedCategoryId === category.id ? '#F5F5F5' : 'white',
+                        borderRadius: 12,
+                        border: selectedCategoryId === category.id ? '2px #32302C solid' : '1px #E6E6EC solid',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        position: 'relative'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedCategoryId !== category.id) {
+                          e.currentTarget.style.background = '#F9FAFB';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedCategoryId !== category.id) {
+                          e.currentTarget.style.background = 'white';
+                        }
+                      }}
+                    >
+                      {/* Emoji */}
+                      <div style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        background: '#F5F5F5',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 20
+                      }}>
+                        <CategoryIcon emoji={category.emoji} style={{width: 18, height: 18}} />
+                      </div>
+
+                      {/* Category Name */}
+                      <div style={{
+                        width: '100%',
+                        color: '#32302C',
+                        fontSize: 14,
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: '600',
+                        lineHeight: '19.60px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        textAlign: 'center'
+                      }}>
+                        {category.name}
+                      </div>
+
+                      {/* File Count */}
+                      <div style={{
+                        color: '#6C6B6E',
+                        fontSize: 12,
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: '500',
+                        lineHeight: '15.40px'
+                      }}>
+                        {fileCount || 0} {fileCount === 1 ? 'File' : 'Files'}
+                      </div>
+
+                      {/* Checkmark */}
+                      {selectedCategoryId === category.id && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8
+                        }}>
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="8" cy="8" r="8" fill="#32302C"/>
+                            <path d="M4.5 8L7 10.5L11.5 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div style={{
+              width: '100%',
+              paddingLeft: 24,
+              paddingRight: 24,
+              justifyContent: 'flex-start',
+              alignItems: 'flex-start',
+              gap: 10,
+              display: 'flex'
+            }}>
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setSelectedDocumentForCategory(null);
+                  setSelectedCategoryId(null);
+                }}
+                style={{
+                  flex: 1,
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  background: 'white',
+                  borderRadius: 100,
+                  border: '1px #E6E6EC solid',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 6,
+                  display: 'flex',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+              >
+                <div style={{
+                  color: '#32302C',
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500',
+                  lineHeight: '24px'
+                }}>
+                  Cancel
+                </div>
               </button>
               <button
                 onClick={async () => {
-                  if (!selectedCategory) {
-                    alert('Please select a category');
-                    return;
-                  }
+                  if (!selectedCategoryId) return;
                   try {
-                    await api.patch(`/api/documents/${documentId}`, {
-                      folderId: selectedCategory
-                    });
-                    alert('Document moved successfully');
+                    await moveToFolder(documentId, selectedCategoryId);
                     setShowCategoryModal(false);
-                    setSelectedCategory(null);
+                    setSelectedDocumentForCategory(null);
+                    setSelectedCategoryId(null);
                   } catch (error) {
                     console.error('Error moving document:', error);
                     alert('Failed to move document: ' + (error.response?.data?.error || error.message));
                   }
                 }}
-                disabled={!selectedCategory}
+                disabled={!selectedCategoryId}
                 style={{
-                  padding: '12px 24px',
-                  borderRadius: 14,
+                  flex: 1,
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  background: selectedCategoryId ? '#32302C' : '#E6E6EC',
+                  borderRadius: 100,
                   border: 'none',
-                  background: selectedCategory ? '#181818' : '#999',
-                  color: 'white',
-                  fontSize: 14,
-                  fontWeight: '600',
-                  fontFamily: 'Plus Jakarta Sans',
-                  cursor: selectedCategory ? 'pointer' : 'not-allowed'
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 6,
+                  display: 'flex',
+                  cursor: selectedCategoryId ? 'pointer' : 'not-allowed',
+                  transition: 'opacity 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedCategoryId) {
+                    e.currentTarget.style.opacity = '0.9';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '1';
                 }}
               >
-                Move to Category
+                <div style={{
+                  color: selectedCategoryId ? 'white' : '#9CA3AF',
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500',
+                  lineHeight: '24px'
+                }}>
+                  Add
+                </div>
               </button>
             </div>
           </div>
