@@ -17,6 +17,9 @@ import ragRoutes from './routes/rag.routes';
 import rbacRoutes from './routes/rbac.routes';
 import healthRoutes from './routes/health.routes';
 import recoveryVerificationRoutes from './routes/recoveryVerification.routes';
+import batchRoutes from './routes/batch.routes';
+import searchRoutes from './routes/search.routes';
+import devRoutes from './routes/dev.routes';
 // TODO: Temporarily disabled routes with deleted service dependencies
 // import dataProtectionRoutes from './routes/dataProtection.routes';
 // import documentGenerationRoutes from './routes/documentGeneration.routes';
@@ -197,6 +200,12 @@ app.use('/api/rag', ragRoutes); // RAG query endpoints with streaming support
 // app.use('/api/security', securityRoutes); // Security monitoring endpoints (temporarily disabled - missing service)
 app.use('/api/rbac', rbacRoutes); // RBAC and access control endpoints
 app.use('/api/recovery-verification', recoveryVerificationRoutes); // Recovery verification endpoints
+app.use('/api/batch', batchRoutes); // Batch API endpoints for optimized data loading (3 requests → 1)
+app.use('/api/search', searchRoutes); // Semantic search endpoints using vector embeddings
+// DEV ONLY: Development endpoints
+if (config.NODE_ENV === 'development') {
+  app.use('/api/dev', devRoutes);
+}
 // TODO: Temporarily disabled route with deleted service dependencies
 // app.use('/api/data-protection', dataProtectionRoutes); // Data protection and privacy endpoints
 

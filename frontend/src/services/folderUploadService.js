@@ -441,19 +441,33 @@ class FolderUploadService {
         console.log(`📂 Creating subfolder "${structure.rootFolderName}" inside existing category: ${existingCategoryId}`);
         onProgress({ stage: 'category', message: `Creating folder "${structure.rootFolderName}"...` });
 
-        // Create the uploaded folder as a SUBFOLDER of the existing location.
-        // The files will go into this new subfolder.
+        // ✅ FIX: Check if subfolder already exists before creating
         try {
-          const createResponse = await api.post('/api/folders', {
-            name: structure.rootFolderName,
-            emoji: null, // FIX for icon bug
-            parentFolderId: existingCategoryId
-          });
-          categoryId = createResponse.data.folder.id; // Files go into the new subfolder
-          categoryName = structure.rootFolderName;
-          console.log(`✅ Created subfolder with ID: ${categoryId}`);
+          // Fetch all folders to check if this subfolder already exists
+          const foldersResponse = await api.get('/api/folders?includeAll=true');
+          const existingSubfolder = foldersResponse.data.folders.find(
+            f => f.name === structure.rootFolderName && f.parentFolderId === existingCategoryId
+          );
+
+          if (existingSubfolder) {
+            // Use existing subfolder instead of creating a duplicate
+            categoryId = existingSubfolder.id;
+            categoryName = structure.rootFolderName;
+            console.log(`✅ Using existing subfolder with ID: ${categoryId}`);
+          } else {
+            // Create the uploaded folder as a SUBFOLDER of the existing location.
+            // The files will go into this new subfolder.
+            const createResponse = await api.post('/api/folders', {
+              name: structure.rootFolderName,
+              emoji: null, // FIX for icon bug
+              parentFolderId: existingCategoryId
+            });
+            categoryId = createResponse.data.folder.id; // Files go into the new subfolder
+            categoryName = structure.rootFolderName;
+            console.log(`✅ Created new subfolder with ID: ${categoryId}`);
+          }
         } catch (error) {
-          console.error('❌ Error creating subfolder:', error);
+          console.error('❌ Error handling subfolder:', error);
           throw error;
         }
       }

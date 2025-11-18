@@ -11,6 +11,7 @@ import encryptionService from './encryption.service';
 import pptxProcessorService from './pptxProcessor.service';
 import nerService from './ner.service';
 import fileValidator from './fileValidator.service';
+import { invalidateUserCache } from '../controllers/batch.controller';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -98,6 +99,8 @@ async function createFoldersFromPath(userId: string, relativePath: string, paren
 export const uploadDocument = async (input: UploadDocumentInput) => {
   const { userId, filename, fileBuffer, mimeType, folderId, fileHash, relativePath, encryptionMetadata } = input;
 
+  const uploadStartTime = Date.now();
+
   console.log(`\n═══════════════════════════════════════════════════════`);
   console.log(`📤 UPLOADING DOCUMENT: ${filename}`);
   console.log(`👤 User: ${userId}`);
@@ -111,25 +114,35 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   // LAYER 2: SERVER-SIDE VALIDATION
   // ════════════════════════════════════════════════════════════════════════════════
 
-  console.log('🔍 Validating file...');
+  // ⚡ SKIP VALIDATION FOR CLIENT-SIDE ENCRYPTED FILES
+  // Encrypted files can't be validated because they're encrypted binary data
+  // Frontend already validated them before encryption
+  if (encryptionMetadata?.isEncrypted) {
+    console.log('⏩ Skipping validation for client-side encrypted file (already validated on frontend)');
+  } else {
+    console.log('🔍 Validating file...');
+    const validationStart = Date.now();
 
-  const validationResult = await fileValidator.validateServerSide(
-    fileBuffer,
-    mimeType,
-    filename
-  );
+    const validationResult = await fileValidator.validateServerSide(
+      fileBuffer,
+      mimeType,
+      filename
+    );
 
-  if (!validationResult.isValid) {
-    console.error(`❌ File validation failed: ${validationResult.error}`);
+    console.log(`⏱️  Validation took: ${Date.now() - validationStart}ms`);
 
-    throw new Error(JSON.stringify({
-      code: validationResult.errorCode,
-      message: validationResult.error,
-      suggestion: validationResult.suggestion,
-    }));
+    if (!validationResult.isValid) {
+      console.error(`❌ File validation failed: ${validationResult.error}`);
+
+      throw new Error(JSON.stringify({
+        code: validationResult.errorCode,
+        message: validationResult.error,
+        suggestion: validationResult.suggestion,
+      }));
+    }
+
+    console.log('✅ File validation passed');
   }
-
-  console.log('✅ File validation passed');
 
   // If relativePath is provided AND contains folders (has /), create nested folders
   // Skip if it's just a filename without folder structure
@@ -205,7 +218,11 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   }
 
   // Upload encrypted file to Supabase Storage
+  console.log(`📤 Uploading to Supabase: ${encryptedFilename} (${encryptedFileBuffer.length} bytes)`);
+  const supabaseStart = Date.now();
   await uploadFile(encryptedFilename, encryptedFileBuffer, mimeType);
+  console.log(`⏱️  Supabase upload took: ${Date.now() - supabaseStart}ms`);
+  console.log(`✅ Uploaded to Supabase: ${encryptedFilename} (${encryptedFileBuffer.length} bytes)`);
 
   // Thumbnail generation disabled - set to null
   const thumbnailUrl: string | null = null;
@@ -268,6 +285,10 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
     // Return immediately - document is already marked as 'ready'
     console.log(`✅ Document uploaded successfully (zero-knowledge encrypted): ${filename}`);
+
+    // ⚡ CACHE: Invalidate Redis cache after document upload
+    await invalidateUserCache(userId);
+
     return document; // Return the already-created document
   }
 
@@ -285,6 +306,10 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
     });
 
   console.log(`✅ Document uploaded successfully, processing in background: ${filename}`);
+  console.log(`⏱️  TOTAL UPLOAD TIME: ${Date.now() - uploadStartTime}ms`);
+
+  // ⚡ CACHE: Invalidate Redis cache after document upload
+  await invalidateUserCache(userId);
 
   // Return immediately with 'processing' status
   return document;
@@ -351,6 +376,7 @@ async function processDocumentWithTimeout(
   thumbnailUrl: string | null
 ) {
   try {
+    const processingStartTime = Date.now();
     console.log(`🔄 Starting document processing pipeline for: ${filename}`);
 
     // Import WebSocket service for progress updates
@@ -373,6 +399,10 @@ async function processDocumentWithTimeout(
     let slidesData: any[] | null = null;
     let pptxMetadata: any | null = null;
     let pptxSlideChunks: any[] | null = null; // For Phase 4C: Slide-level chunks
+
+    // ⏱️ START TEXT EXTRACTION TIMING
+    const extractionStartTime = Date.now();
+    console.log(`⏱️ [TIMING] Starting text extraction for ${mimeType}...`);
 
     // Check if it's a PowerPoint file - use Python PPTX extractor
     const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
@@ -735,6 +765,10 @@ async function processDocumentWithTimeout(
 
     console.log(`✅ Text extracted (${extractedText.length} characters)`);
 
+    // ⏱️ END TEXT EXTRACTION TIMING
+    const extractionTime = Date.now() - extractionStartTime;
+    console.log(`⏱️ [TIMING] Text extraction took: ${extractionTime}ms`);
+
     // Stage 2: Text extraction complete (20%)
     emitToUser(userId, 'document-processing-update', {
       documentId,
@@ -748,6 +782,7 @@ async function processDocumentWithTimeout(
     // CONVERT TO MARKDOWN
     let markdownContent: string | null = null;
     try {
+      const markdownStartTime = Date.now();
       console.log('📝 Converting document to markdown...');
       const markdownResult = await markdownConversionService.convertToMarkdown(
         fileBuffer,
@@ -756,7 +791,9 @@ async function processDocumentWithTimeout(
         documentId
       );
       markdownContent = markdownResult.markdownContent;
+      const markdownTime = Date.now() - markdownStartTime;
       console.log(`✅ Markdown generated (${markdownContent.length} characters)`);
+      console.log(`⏱️ [TIMING] Markdown conversion took: ${markdownTime}ms`);
     } catch (error) {
       console.warn('⚠️ Markdown conversion failed (non-critical):', error);
     }
@@ -764,6 +801,7 @@ async function processDocumentWithTimeout(
     // PRE-GENERATE PDF FOR DOCX FILES (so viewing is instant)
     const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     if (isDocx) {
+      const pdfGenStartTime = Date.now();
       console.log('📄 Pre-generating PDF preview for DOCX...');
       try {
         const { convertDocxToPdf } = await import('./docx-converter.service');
@@ -808,6 +846,8 @@ async function processDocumentWithTimeout(
         } else {
           console.log('✅ PDF preview already exists');
         }
+        const pdfGenTime = Date.now() - pdfGenStartTime;
+        console.log(`⏱️ [TIMING] PDF preview generation took: ${pdfGenTime}ms`);
       } catch (error: any) {
         console.warn('⚠️ PDF preview generation failed (non-critical):', error.message);
       }
@@ -822,12 +862,15 @@ async function processDocumentWithTimeout(
     let entities = null;
 
     if (extractedText && extractedText.length > 0) {
+      const analysisStartTime = Date.now();
       console.log('🤖 Analyzing document with OpenAI...');
       try {
         const analysis = await geminiService.analyzeDocumentWithGemini(extractedText, mimeType);
         classification = analysis.suggestedCategories?.[0] || null;
         entities = JSON.stringify(analysis.keyEntities || {});
+        const analysisTime = Date.now() - analysisStartTime;
         console.log('✅ Document analyzed');
+        console.log(`⏱️ [TIMING] Document analysis took: ${analysisTime}ms`);
       } catch (error) {
         console.warn('⚠️ Document analysis failed (non-critical):', error);
       }
@@ -876,6 +919,7 @@ async function processDocumentWithTimeout(
     }
 
     // Create or update metadata record with enriched data
+    const metadataUpsertStartTime = Date.now();
     await prisma.documentMetadata.upsert({
       where: { documentId },
       create: {
@@ -906,6 +950,8 @@ async function processDocumentWithTimeout(
         pptxMetadata: pptxMetadata ? JSON.stringify(pptxMetadata) : null,
       },
     });
+    const metadataUpsertTime = Date.now() - metadataUpsertStartTime;
+    console.log(`⏱️ [TIMING] Metadata upsert took: ${metadataUpsertTime}ms`);
 
     // ⚡ OPTIMIZATION: AUTO-GENERATE TAGS IN BACKGROUND (NON-BLOCKING)
     // Tag generation takes 10-20s but doesn't block embedding generation
@@ -1075,6 +1121,15 @@ async function processDocumentWithTimeout(
             filename,
             chunksCount: chunks.length
           });
+
+          // ⚡ NOTIFY USER: Embeddings ready for AI chat
+          emitToUserAsync(userId, 'document-embeddings-ready', {
+            documentId,
+            filename,
+            chunksCount: chunks.length,
+            message: `${filename} is now ready for AI chat!`
+          });
+          console.log(`📢 [Background] Notified user that embeddings are ready for ${filename}`);
         } catch (error: any) {
           // Log error but don't fail the document - embeddings can be regenerated later
           console.error('❌ [Background] Vector embedding generation failed (non-critical):', error);
@@ -1090,6 +1145,14 @@ async function processDocumentWithTimeout(
             filename,
             error: error.message
           });
+
+          // ⚡ NOTIFY USER: Embeddings failed
+          emitError(userId, 'document-embeddings-failed', {
+            documentId,
+            filename,
+            error: error.message || 'Unknown error'
+          });
+          console.log(`📢 [Background] Notified user that embeddings failed for ${filename}`);
         }
       });
 
@@ -1104,37 +1167,10 @@ async function processDocumentWithTimeout(
     // const pineconeService = await import('./pinecone.service');
     // const verification = await pineconeService.default.verifyDocument(documentId);
 
-    // 🔍 PHASE 3 WEEK 9-10: Extract entities and auto-tag document
-    console.log('🔍 Step 8: Extracting entities and auto-tagging...');
-    try {
-      if (extractedText && extractedText.trim().length > 0) {
-        // Extract entities using NER
-        const nerResult = await nerService.extractEntities(extractedText, filename);
-
-        // Store entities in database
-        if (nerResult.entities.length > 0) {
-          await nerService.storeEntities(documentId, nerResult.entities);
-        }
-
-        // Auto-tag document based on entities and content
-        await nerService.autoTagDocument(
-          userId,
-          documentId,
-          nerResult.entities,
-          nerResult.suggestedTags
-        );
-
-        console.log(`✅ Entity extraction complete: ${nerResult.entities.length} entities, ${nerResult.suggestedTags.length} tags`);
-      } else {
-        console.log(`⚠️ Skipping NER: No extracted text available`);
-      }
-    } catch (nerError: any) {
-      // NER is not critical - log error but continue
-      console.warn(`⚠️ NER extraction failed (non-critical):`, nerError.message);
-    }
-
-    // Update document status to completed (only if verification passed)
-    // Also set renderableContent so the text is available for chat/RAG
+    // ⚡ CRITICAL: Update document status to completed IMMEDIATELY
+    // This makes the document appear in the UI instantly (2-3s instead of 14-17s)
+    // Background tasks (NER, embeddings) will continue running
+    const statusUpdateStartTime = Date.now();
     await prisma.document.update({
       where: { id: documentId },
       data: {
@@ -1143,12 +1179,59 @@ async function processDocumentWithTimeout(
         updatedAt: new Date()
       },
     });
+    const statusUpdateTime = Date.now() - statusUpdateStartTime;
+    console.log(`⏱️ [TIMING] Status update took: ${statusUpdateTime}ms`);
+
+    // ⚡ OPTIMIZATION: Run NER in BACKGROUND (non-blocking)
+    // This saves 3-5 seconds of processing time
+    console.log('🔍 Starting background NER extraction...');
+    if (extractedText && extractedText.trim().length > 0) {
+      // Run in background - don't await!
+      Promise.resolve().then(async () => {
+        try {
+          const nerStartTime = Date.now();
+          console.log('🔍 [Background] Extracting entities and auto-tagging...');
+
+          // Extract entities using NER
+          const nerResult = await nerService.extractEntities(extractedText, filename);
+
+          // Store entities in database
+          if (nerResult.entities.length > 0) {
+            await nerService.storeEntities(documentId, nerResult.entities);
+          }
+
+          // Auto-tag document based on entities and content
+          await nerService.autoTagDocument(
+            userId,
+            documentId,
+            nerResult.entities,
+            nerResult.suggestedTags
+          );
+
+          const nerTime = Date.now() - nerStartTime;
+          console.log(`✅ [Background] Entity extraction complete: ${nerResult.entities.length} entities, ${nerResult.suggestedTags.length} tags`);
+          console.log(`⏱️ [Background] NER processing took: ${nerTime}ms`);
+        } catch (nerError: any) {
+          // NER is not critical - log error but continue
+          console.warn(`⚠️ [Background] NER extraction failed (non-critical):`, nerError.message);
+        }
+      });
+
+      console.log('✅ NER extraction running in background (non-blocking)');
+    } else {
+      console.log(`⚠️ Skipping NER: No extracted text available`);
+    }
 
     // Invalidate cache for this user after successful processing
     await cacheService.invalidateUserCache(userId);
     console.log(`🗑️ Invalidated cache for user ${userId} after document upload`);
 
+    // ⏱️ TOTAL PROCESSING TIME
+    const totalProcessingTime = Date.now() - processingStartTime;
     console.log(`✅ Document processing completed: ${filename}`);
+    console.log(`⏱️ [TIMING] ========================================`);
+    console.log(`⏱️ [TIMING] TOTAL PROCESSING TIME: ${totalProcessingTime}ms (${(totalProcessingTime/1000).toFixed(2)}s)`);
+    console.log(`⏱️ [TIMING] ========================================`);
 
     // Stage 4: Processing complete! (100%)
     emitToUser(userId, 'document-processing-update', {

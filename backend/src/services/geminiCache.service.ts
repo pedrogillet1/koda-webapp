@@ -1,12 +1,12 @@
 /**
  * Gemini Cache Service
  *
- * Implements Gemini 2.0's context caching for 50-80% faster, 90% cheaper responses.
+ * Implements Gemini 2.5's context caching for 50-80% faster, 90% cheaper responses.
  *
  * CACHING STRATEGIES:
  * 1. Implicit Caching (Automatic):
  *    - Use systemInstruction parameter
- *    - Automatically cached by Gemini 2.0+
+ *    - Automatically cached by Gemini 2.5+
  *    - 5 minute TTL (refresh on access)
  *    - Best for: System prompts, RAG context
  *
@@ -54,7 +54,7 @@ class GeminiCacheService {
    * Generate streaming response with IMPLICIT CACHING
    *
    * Uses systemInstruction parameter for automatic caching.
-   * Gemini 2.0+ automatically caches systemInstruction content.
+   * Gemini 2.5+ automatically caches systemInstruction content.
    *
    * @param params - Configuration object with prompts and callbacks
    * @returns Generated response text
@@ -74,14 +74,14 @@ class GeminiCacheService {
 
     try {
       // Create model with systemInstruction for implicit caching
-      // Gemini 2.0+ automatically caches this - no manual cache management needed
+      // Gemini 2.5+ automatically caches this - no manual cache management needed
       const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           temperature,
           maxOutputTokens: maxTokens,
         },
-        systemInstruction: systemPrompt, // AUTO-CACHED by Gemini 2.0+
+        systemInstruction: systemPrompt, // AUTO-CACHED by Gemini 2.5+
       });
 
       // Build full prompt with document context and conversation history
@@ -166,7 +166,7 @@ class GeminiCacheService {
       console.log(`⏱️ [CACHE] TTL: ${ttlSeconds} seconds`);
 
       const cachedContent = await genAI.cacheManager.create({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.5-flash',
         contents: [
           {
             role: 'user',
@@ -214,7 +214,7 @@ class GeminiCacheService {
 
       // Create model from cached content
       const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.5-flash',
         cachedContent: cachedContent,
       });
 

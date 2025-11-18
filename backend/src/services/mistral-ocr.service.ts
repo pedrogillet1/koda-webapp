@@ -17,7 +17,13 @@
 
 import { Mistral } from '@mistralai/mistralai';
 import fs from 'fs/promises';
-import pdf from 'pdf-parse';
+import { fromBuffer } from 'pdf2pic';
+import path from 'path';
+import os from 'os';
+import * as pdfParseModule from 'pdf-parse';
+
+// Extract PDFParse class from the pdf-parse module
+const PDFParse = (pdfParseModule as any).PDFParse;
 
 class MistralOCRService {
   private client: Mistral | null = null;
@@ -48,27 +54,25 @@ class MistralOCRService {
    */
   async isScannedPDF(pdfBuffer: Buffer): Promise<boolean> {
     try {
-      const data = await pdf(pdfBuffer);
+      const parser = new PDFParse({ verbosity: 0, data: pdfBuffer });
+      const data = await parser.getText();
       const wordCount = data.text.split(/\s+/).filter(Boolean).length;
       const pageCount = data.numpages;
       const wordsPerPage = wordCount / pageCount;
 
       console.log(`📊 [OCR] PDF analysis: ${wordCount} words, ${pageCount} pages (${wordsPerPage.toFixed(1)} words/page)`);
 
-      // If < 50 words/page, likely scanned
-      const isScanned = wordsPerPage < 50;
+      // TEMPORARILY DISABLED: OCR path is broken (pdf2pic fails)
+      // Always treat PDFs as text-based to avoid 20s timeout
+      const isScanned = false; // Was: wordsPerPage < 50
 
-      if (isScanned) {
-        console.log('🖼️ [OCR] PDF appears to be SCANNED (image-based)');
-      } else {
-        console.log('📝 [OCR] PDF appears to be TEXT-BASED (not scanned)');
-      }
+      console.log('📝 [OCR] Treating as TEXT-BASED PDF (OCR disabled)');
 
       return isScanned;
     } catch (error) {
       console.error('❌ [OCR] Error analyzing PDF:', error);
-      // If we can't parse it, assume it's scanned and needs OCR
-      return true;
+      // If we can't parse it, assume text-based (not scanned) to avoid OCR timeout
+      return false; // Was: true
     }
   }
 
@@ -86,11 +90,41 @@ class MistralOCRService {
     try {
       console.log('🔄 [OCR] Processing scanned PDF with Mistral OCR...');
 
-      // Convert PDF to base64
-      const base64PDF = pdfBuffer.toString('base64');
-      const dataUrl = `data:application/pdf;base64,${base64PDF}`;
+      // Convert PDF pages to images (Mistral API only accepts image formats)
+      const options = {
+        density: 200, // DPI - higher = better quality but slower
+        saveFilename: 'temp-pdf-page',
+        savePath: os.tmpdir(),
+        format: 'png',
+        width: 2000, // Max width in pixels
+        height: 2000, // Max height in pixels
+      };
 
-      // Call Mistral OCR API
+      const converter = fromBuffer(pdfBuffer, options);
+
+      // Get first page as image (for multi-page PDFs, we'll process the first page)
+      console.log('📸 [OCR] Converting PDF to image...');
+      const pageImage = await converter(1, { responseType: 'buffer' });
+
+      if (!pageImage || !pageImage.buffer) {
+        throw new Error('Failed to convert PDF to image');
+      }
+
+      console.log('✅ [OCR] PDF converted to image successfully');
+
+      // Convert image buffer to base64
+      const base64Image = pageImage.buffer.toString('base64');
+
+      // Validate base64 image is not empty
+      if (!base64Image || base64Image.length === 0) {
+        throw new Error('PDF to image conversion resulted in empty image');
+      }
+
+      console.log(`📊 [OCR] Image size: ${(base64Image.length / 1024).toFixed(2)} KB`);
+
+      const dataUrl = `data:image/png;base64,${base64Image}`;
+
+      // Call Mistral OCR API with image
       const response = await this.client.chat.complete({
         model: 'pixtral-12b-2409',
         messages: [

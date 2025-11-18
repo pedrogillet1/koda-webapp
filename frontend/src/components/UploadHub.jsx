@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, startTransition, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import LeftNav from './LeftNav';
@@ -13,6 +13,10 @@ import { ReactComponent as SearchIcon} from '../assets/Search.svg';
 import { ReactComponent as CheckIcon} from '../assets/check.svg';
 import { ReactComponent as LogoutBlackIcon } from '../assets/Logout-black.svg';
 import { ReactComponent as ExpandIcon } from '../assets/expand.svg';
+import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
+import { ReactComponent as RenameIcon } from '../assets/Edit 5.svg';
+import { ReactComponent as MoveIcon } from '../assets/add.svg';
+import { ReactComponent as DeleteIcon } from '../assets/Trash can-red.svg';
 import LayeredFolderIcon from './LayeredFolderIcon';
 import api from '../services/api';
 import folderUploadService from '../services/folderUploadService';
@@ -30,6 +34,7 @@ import folderIcon from '../assets/folder_icon.svg';
 import { generateThumbnail, supportsThumbnail } from '../utils/thumbnailGenerator';
 import { encryptFile, encryptData } from '../utils/encryption';
 import { extractText } from '../utils/textExtraction';
+import { encryptionWorkerManager } from '../utils/encryptionWorkerManager';
 import { useAuth } from '../context/AuthContext';
 import pLimit from 'p-limit';
 
@@ -74,10 +79,29 @@ const filterMacHiddenFiles = (files) => {
 const UploadHub = () => {
   const navigate = useNavigate();
   const { showSuccess } = useToast();
-  const { fetchDocuments, fetchFolders, socket } = useDocuments(); // Use DocumentsContext + shared socket
+  // ⚡ PERFORMANCE FIX: Use documents/folders from context (no duplicate API calls)
+  const { documents: contextDocuments, folders: contextFolders, socket, fetchDocuments, fetchFolders } = useDocuments();
   const { encryptionPassword } = useAuth(); // ⚡ ZERO-KNOWLEDGE ENCRYPTION
+
+  // Local state for real-time WebSocket updates (initialized from context)
   const [documents, setDocuments] = useState([]);
-  const [folders, setFolders] = useState([]); // Track folders
+  const [folders, setFolders] = useState([]);
+
+  // ⚡ PERFORMANCE: Initialize local state from context (no API call)
+  useEffect(() => {
+    if (contextDocuments.length > 0 && documents.length === 0) {
+      console.log(`✅ [UploadHub] Initialized with ${contextDocuments.length} documents from context (no API call)`);
+      setDocuments(contextDocuments);
+    }
+  }, [contextDocuments, documents.length]);
+
+  useEffect(() => {
+    if (contextFolders.length > 0 && folders.length === 0) {
+      console.log(`✅ [UploadHub] Initialized with ${contextFolders.length} folders from context (no API call)`);
+      setFolders(contextFolders);
+    }
+  }, [contextFolders, folders.length]);
+
   const [expandedFolders, setExpandedFolders] = useState(new Set()); // Track which folders are expanded
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
@@ -85,7 +109,6 @@ const UploadHub = () => {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationType, setNotificationType] = useState('success');
   const [openDropdownId, setOpenDropdownId] = useState(null);
-  const [categories, setCategories] = useState([]);
   const [showCategoryModal, setShowCategoryModal] = useState(null);
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState({});
@@ -97,49 +120,10 @@ const UploadHub = () => {
   const [itemToRename, setItemToRename] = useState(null);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const [isLibraryExpanded, setIsLibraryExpanded] = useState(true);
+  const [isLibraryExpanded, setIsLibraryExpanded] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [modalSearchQuery, setModalSearchQuery] = useState('');
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // ✅ OPTIMIZATION: Use batched endpoint for faster loading
-        console.log('📦 [UploadHub] Loading data with batch endpoint...');
-        const startTime = Date.now();
-
-        const response = await api.get('/api/batch/initial-data');
-        const { documents: allDocuments, folders: allFolders } = response.data;
-
-        const duration = Date.now() - startTime;
-        console.log(`✅ [UploadHub] Loaded in ${duration}ms`);
-        console.log('🔍 Backend returned documents:', allDocuments);
-        console.log('🔍 Number of documents from backend:', allDocuments.length);
-
-        setDocuments(allDocuments);
-
-        // Separate top-level folders (for display in Recently Added) and all folders (for categories)
-        const topLevelFolders = allFolders.filter(f =>
-          !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
-        );
-        setFolders(topLevelFolders);
-
-        // Convert ALL folders to categories format (for moving documents), excluding "Recently Added"
-        const categoriesData = allFolders
-          .filter(folder => folder.name.toLowerCase() !== 'recently added')
-          .map(folder => ({
-            id: folder.id,
-            name: folder.name,
-            emoji: folder.emoji || getEmojiForCategory(folder.name)
-          }));
-        setCategories(categoriesData);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-
-    fetchData();
-  }, []);
+  const embeddingTimeoutsRef = useRef({}); // Track embedding timeouts for slow processing warnings
 
   // ✅ Listen for document processing updates via WebSocket
   useEffect(() => {
@@ -156,72 +140,112 @@ const UploadHub = () => {
       // Update uploadingFiles with processing progress
       setUploadingFiles(prev => prev.map(file => {
         if (file.documentId === data.documentId) {
-          // Map backend processing (0-100%) to UI progress (10-100%)
-          // Upload was 0-10%, processing is 10-100%
-          const uiProgress = 10 + Math.round((data.progress * 90) / 100);
+          // Use backend progress directly (0-100%)
+          const uiProgress = data.progress;
 
           console.log(`📊 Updating upload item ${file.file?.name}: backend ${data.progress}% → UI ${uiProgress}% - ${data.message}`);
           return {
             ...file,
             processingProgress: data.progress,
-            progress: uiProgress, // Map to 10-100% range
+            progress: uiProgress, // Direct 0-100% mapping
             statusMessage: data.message || file.statusMessage
           };
         }
         return file;
       }));
 
-      // When processing completes (100%), remove the item and show notification
+      // When processing completes (100%), remove the item from upload list
       if (data.progress === 100 || data.stage === 'complete' || data.stage === 'completed') {
-        console.log('✅ [UploadHub] Document processing complete, removing from upload list...');
+        console.log('✅ [UploadHub] Document processing complete (100%), removing from upload list...');
 
-        setTimeout(async () => {
-          // Verify document is in frontend state
-          try {
-            const docsResponse = await api.get('/api/documents');
-            const allDocuments = docsResponse.data.documents || [];
-            const documentInState = allDocuments.some(d => d.id === data.documentId);
+        // Increment completed count
+        completedFilesCountRef.current += 1;
+        const newCompletedCount = completedFilesCountRef.current;
+        const totalFiles = totalFilesToUploadRef.current;
 
-            if (documentInState) {
-              console.log('✅ Document confirmed in frontend, updating states...');
+        console.log(`✅ Completed ${newCompletedCount} of ${totalFiles} files`);
 
-              // Update local documents state
-              setDocuments(allDocuments);
+        // Wait 1 second to show 100% before removing
+        setTimeout(() => {
+          setUploadingFiles(prev => prev.filter(f => f.documentId !== data.documentId));
+          console.log('✅ Removed document from upload list');
 
-              // Remove from uploadingFiles
-              setUploadingFiles(prev => prev.filter(f => f.documentId !== data.documentId));
+          // If all files are done, show notification
+          if (newCompletedCount === totalFiles && totalFiles > 0) {
+            console.log('🎉 All files processed! Showing notification...');
+            setUploadedCount(newCompletedCount);
+            setNotificationType('success');
+            setShowNotification(true);
 
-              // Increment completed count
-              completedFilesCountRef.current += 1;
-              const newCompletedCount = completedFilesCountRef.current;
-              const totalFiles = totalFilesToUploadRef.current;
-
-              console.log(`✅ Completed ${newCompletedCount} of ${totalFiles} files`);
-
-              // Show notification when all files are done
-              if (newCompletedCount === totalFiles) {
-                console.log('🎉 All files processed! Showing notification...');
-                setUploadedCount(newCompletedCount);
-                setNotificationType('success');
-                setShowNotification(true);
-
-                setTimeout(() => {
-                  setShowNotification(false);
-                  setUploadedCount(0);
-                }, 3000);
-              }
-            }
-          } catch (error) {
-            console.error('Error verifying document in frontend:', error);
+            setTimeout(() => {
+              setShowNotification(false);
+              setUploadedCount(0);
+            }, 3000);
           }
-        }, 500);
+        }, 1000);
       }
     };
 
     socket.on('document-processing-update', handleProcessingUpdate);
 
+    // ⚡ NEW: Listen for embedding completion
+    const handleEmbeddingsReady = (data) => {
+      console.log('✅ [UploadHub] Embeddings ready for document:', data.documentId);
+
+      // Clear timeout if it exists
+      if (embeddingTimeoutsRef.current[data.documentId]) {
+        clearTimeout(embeddingTimeoutsRef.current[data.documentId]);
+        delete embeddingTimeoutsRef.current[data.documentId];
+      }
+
+      // Update document in state
+      setDocuments(prev => prev.map(doc =>
+        doc.id === data.documentId
+          ? {
+              ...doc,
+              processingStatus: 'completed',
+              aiChatReady: true
+            }
+          : doc
+      ));
+
+      console.log(`📢 AI chat ready for ${data.filename || 'document'}!`);
+    };
+
+    socket.on('document-embeddings-ready', handleEmbeddingsReady);
+
+    // ⚡ NEW: Listen for embedding failure
+    const handleEmbeddingsFailed = (data) => {
+      console.error('❌ [UploadHub] Embeddings failed for document:', data.documentId);
+
+      // Update document in state
+      setDocuments(prev => prev.map(doc =>
+        doc.id === data.documentId
+          ? {
+              ...doc,
+              processingStatus: 'failed',
+              aiChatReady: false,
+              processingError: data.error
+            }
+          : doc
+      ));
+
+      console.error(`❌ AI chat unavailable for ${data.filename || 'document'}: ${data.error}`);
+    };
+
+    socket.on('document-embeddings-failed', handleEmbeddingsFailed);
+
     return () => {
       socket.off('document-processing-update', handleProcessingUpdate);
+      socket.off('document-embeddings-ready', handleEmbeddingsReady);
+      socket.off('document-embeddings-failed', handleEmbeddingsFailed);
+
+      // Clear all embedding timeouts on unmount
+      Object.values(embeddingTimeoutsRef.current).forEach(timeoutId => {
+        clearTimeout(timeoutId);
+      });
+      embeddingTimeoutsRef.current = {};
+
       // Don't disconnect - it's a shared socket
     };
   }, [socket]); // Re-run when socket becomes available
@@ -247,6 +271,23 @@ const UploadHub = () => {
     };
     return emojiMap[categoryName] || '📁';
   };
+
+  // ⚡ PERFORMANCE: Compute derived data with useMemo (after getEmojiForCategory is defined)
+  const topLevelFolders = useMemo(() => {
+    return folders.filter(f =>
+      !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
+    );
+  }, [folders]);
+
+  const categories = useMemo(() => {
+    return folders
+      .filter(folder => folder.name.toLowerCase() !== 'recently added')
+      .map(folder => ({
+        id: folder.id,
+        name: folder.name,
+        emoji: folder.emoji || getEmojiForCategory(folder.name)
+      }));
+  }, [folders]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -339,6 +380,9 @@ const UploadHub = () => {
 
   const { getRootProps, getInputProps, open} = useDropzone({
     onDrop: (acceptedFiles) => {
+      // ⚡ PERFORMANCE: Start timing
+      const startTime = performance.now();
+
       // ✅ CRITICAL: Filter Mac hidden files (.DS_Store, __MACOSX, etc.)
       const filteredFiles = filterMacHiddenFiles(acceptedFiles);
 
@@ -359,7 +403,18 @@ const UploadHub = () => {
         path: file.path || file.name, // Preserve folder structure
         folderPath: file.path ? file.path.substring(0, file.path.lastIndexOf('/')) : null
       }));
-      setUploadingFiles(prev => [...pendingFiles, ...prev]);
+
+      // ⚡ PERFORMANCE: Use startTransition for non-urgent UI update
+      console.time('📊 File drop → UI render');
+      startTransition(() => {
+        setUploadingFiles(prev => [...pendingFiles, ...prev]);
+
+        // ⚡ PERFORMANCE: Log timing
+        const endTime = performance.now();
+        const totalTime = (endTime - startTime).toFixed(2);
+        console.timeEnd('📊 File drop → UI render');
+        console.log(`⚡ Performance: ${filteredFiles.length} files processed in ${totalTime}ms`);
+      });
     },
     accept: {
       // Documents
@@ -571,14 +626,7 @@ const UploadHub = () => {
             ));
 
             // Update categories with all folders, excluding "Recently Added"
-            const categoriesData = allFolders
-              .filter(folder => folder.name.toLowerCase() !== 'recently added')
-              .map(folder => ({
-                id: folder.id,
-                name: folder.name,
-                emoji: folder.emoji || getEmojiForCategory(folder.name)
-              }));
-            setCategories(categoriesData);
+            // ✅ No need to setCategories - computed automatically from folders via useMemo
           } catch (refreshError) {
             console.error('⚠️ Error refreshing data:', refreshError);
           }
@@ -666,27 +714,47 @@ const UploadHub = () => {
         let encryptedText = null;
 
         if (encryptionPassword) {
-          console.log('🔐 [Encryption] Encrypting file:', file.name);
+          console.log('🔐 [Encryption] Encrypting file with Web Worker:', file.name);
 
           setUploadingFiles(prev => prev.map((f, idx) =>
             idx === i ? { ...f, progress: 10, processingStage: 'Encrypting file...' } : f
           ));
 
           try {
-            // Encrypt file contents
-            const encrypted = await encryptFile(file, encryptionPassword, (progress) => {
-              setUploadingFiles(prev => prev.map((f, idx) =>
-                idx === i ? { ...f, progress: 10 + (progress * 0.15), processingStage: `Encrypting... ${Math.round(progress)}%` } : f
-              ));
-            });
+            // Read file as ArrayBuffer for Web Worker
+            const fileBuffer = await file.arrayBuffer();
+            const fileUint8Array = new Uint8Array(fileBuffer);
 
-            // Encrypt filename
-            const filenameEncrypted = await encryptData(file.name, encryptionPassword);
+            // ⚡ WEB WORKER: Encrypt file contents off the main thread
+            const encrypted = await encryptionWorkerManager.encryptFile(
+              fileUint8Array,
+              encryptionPassword,
+              (operation, progress, message) => {
+                setUploadingFiles(prev => prev.map((f, idx) =>
+                  idx === i ? {
+                    ...f,
+                    progress: 10 + (progress * 0.15),
+                    processingStage: `${message} ${Math.round(progress)}%`
+                  } : f
+                ));
+              }
+            );
 
-            // Encrypt extracted text
+            console.log('✅ [Web Worker] File encryption complete');
+
+            // ⚡ WEB WORKER: Encrypt filename
+            const filenameEncrypted = await encryptionWorkerManager.encryptData(
+              file.name,
+              encryptionPassword
+            );
+
+            // ⚡ WEB WORKER: Encrypt extracted text
             if (extractedText) {
-              console.log('🔐 [Encryption] Encrypting extracted text...');
-              encryptedText = await encryptData(extractedText, encryptionPassword);
+              console.log('🔐 [Web Worker] Encrypting extracted text...');
+              encryptedText = await encryptionWorkerManager.encryptData(
+                extractedText,
+                encryptionPassword
+              );
             }
 
             // Create encrypted file blob
@@ -703,7 +771,7 @@ const UploadHub = () => {
               originalMimeType: file.type
             };
 
-            console.log('✅ [Encryption] File encrypted successfully');
+            console.log('✅ [Encryption] File encrypted successfully (Web Worker)');
           } catch (encryptionError) {
             console.error('❌ [Encryption] Failed to encrypt file:', encryptionError);
             setUploadingFiles(prev => prev.map((f, idx) =>
@@ -757,8 +825,8 @@ const UploadHub = () => {
             'Content-Type': 'multipart/form-data',
           },
           onUploadProgress: (progressEvent) => {
-            // Upload takes 0-10% of total progress (it's fast)
-            const uploadProgress = Math.round((progressEvent.loaded * 10) / progressEvent.total);
+            // Show upload progress (this is just the HTTP upload, very fast)
+            const uploadProgress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
             setUploadingFiles(prev => prev.map((f, idx) =>
               idx === i ? { ...f, progress: uploadProgress, processingStage: 'Uploading to cloud...' } : f
             ));
@@ -766,78 +834,68 @@ const UploadHub = () => {
         });
 
         const document = uploadResponse.data.document;
-
-        console.log('✅ Upload completed, processing starting:', file.name);
-
-        // ✅ Upload complete at 10%, processing will go from 10% → 100%
-        setUploadingFiles(prev => prev.map((f, idx) =>
-          idx === i ? {
-            ...f,
-            status: 'processing',
-            progress: 10, // Start processing at 10%
-            documentId: document.id,
-            statusMessage: 'Processing document...'
-          } : f
-        ));
-
-        // ✅ FIX: Fetch documents to show newly uploaded file
-        // NOTE: UploadHub uses LOCAL STATE (not DocumentsContext like other components)
-        // So we need to fetch and update local state, not just the global context
-        console.log('========================================');
-        console.log('✅ Upload completed!');
-        console.log('📊 Document ID:', document.id);
-        console.log('📊 Document filename:', document.filename);
-        console.log('📊 Current local documents count:', documents.length);
-        console.log('========================================');
-
-        // ✅ FIX: Only show notification after document is confirmed in frontend state
-        let documentInState = false;
+        let documentAdded = false;
 
         try {
-          // Fetch documents and update LOCAL state
-          console.log('🔄 Fetching documents from /api/documents...');
-          const docsResponse = await api.get('/api/documents');
-          const allDocuments = docsResponse.data.documents || [];
+          console.log('✅ Upload completed, adding to UI immediately:', file.name);
 
-          console.log('========================================');
-          console.log('📊 Backend returned', allDocuments.length, 'documents');
-          console.log('📊 Document IDs:', allDocuments.map(d => d.id));
-          console.log('📊 Document filenames:', allDocuments.map(d => d.filename));
-          console.log('📊 Looking for document ID:', document.id);
+          // ⚡ OPTIMISTIC UPDATE: Add document to UI immediately (instant feedback!)
+          setDocuments(prev => [{
+            ...document,
+            // Add processing indicator
+            processingStatus: 'embeddings-pending',
+            aiChatReady: false
+          }, ...prev]);
+          documentAdded = true;
 
-          // ✅ Check if document is actually in the response
-          documentInState = allDocuments.some(d => d.id === document.id);
-          console.log('📊 Is our document in the list?', documentInState);
-          console.log('========================================');
+          // ⚡ EDGE CASE: Set timeout warning for slow embeddings (30 seconds)
+          const timeoutId = setTimeout(() => {
+            console.warn('⚠️ Embeddings taking longer than expected for:', document.id);
+            showSuccess('AI chat processing is taking longer than expected. It will be ready soon.', 'warning');
+          }, 30000); // 30 seconds
 
-          if (documentInState) {
-            console.log('🔄 Updating local state with setDocuments()...');
-            setDocuments(allDocuments);
-            console.log('✅ Local state updated!');
+          embeddingTimeoutsRef.current[document.id] = timeoutId;
 
-            // Also update global context for other components
-            console.log('🔄 Updating global context with fetchDocuments()...');
-            await fetchDocuments();
-            console.log('✅ Global context updated!');
+          // Also update global context for other components to see the document
+          await fetchDocuments();
 
-            console.log('========================================');
-            console.log('✅✅✅ ALL UPDATES COMPLETE! ✅✅✅');
-            console.log('========================================');
-          } else {
-            console.warn('⚠️ Document not found in backend response yet, will wait for WebSocket update');
+          // ⚡ IMPORTANT: Keep item in upload list with documentId so WebSocket can update progress
+          // The WebSocket listener will remove it when backend processing completes (100%)
+          setUploadingFiles(prev => prev.map((f, idx) =>
+            idx === i ? {
+              ...f,
+              documentId: document.id, // Link to backend document
+              progress: 0, // Reset to 0% - backend will send real progress via WebSocket
+              processingStage: 'Backend processing started...'
+            } : f
+          ));
+
+          console.log(`✅ Upload HTTP complete, backend processing started for ${file.name}`);
+
+        } catch (postUploadError) {
+          console.error('❌ Error in post-upload processing:', postUploadError);
+
+          // ⚡ EDGE CASE: Rollback optimistic update if post-processing failed
+          if (documentAdded) {
+            console.log('🔄 Rolling back optimistic update for document:', document.id);
+            setDocuments(prev => prev.filter(doc => doc.id !== document.id));
+
+            // Clear timeout if it exists
+            if (embeddingTimeoutsRef.current[document.id]) {
+              clearTimeout(embeddingTimeoutsRef.current[document.id]);
+              delete embeddingTimeoutsRef.current[document.id];
+            }
           }
-        } catch (error) {
-          console.error('========================================');
-          console.error('❌❌❌ ERROR FETCHING DOCUMENTS ❌❌❌');
-          console.error('Error details:', error);
-          console.error('Error response:', error.response?.data);
-          console.error('Error status:', error.response?.status);
-          console.error('========================================');
-        }
 
-        // ✅ FIX: DON'T remove the upload item yet - keep it visible during processing
-        // The item will be removed when processing completes (via WebSocket update handling)
-        console.log('⏳ Upload complete, document now processing. Item will remain visible until processing finishes...');
+          setUploadingFiles(prev => prev.map((f, idx) =>
+            idx === i ? {
+              ...f,
+              status: 'failed',
+              progress: f.progress,
+              error: postUploadError.message
+            } : f
+          ));
+        }
 
         // Note: The success notification and item removal will happen when:
         // 1. WebSocket emits 'document-processing-update' with progress: 100
@@ -846,6 +904,7 @@ const UploadHub = () => {
         // 4. We show the success notification
         } catch (error) {
           console.error('❌ Error uploading file:', error);
+
           setUploadingFiles(prev => prev.map((f, idx) =>
             idx === i ? {
               ...f,
@@ -1060,7 +1119,7 @@ const UploadHub = () => {
       setFolders(allFolders.filter(f =>
         !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
       ));
-      setCategories(allFolders.filter(f => !f.parentFolderId));
+      // ✅ No need to setCategories - computed automatically from folders via useMemo
 
       // Refresh documents to show they're now in the category
       const docsResponse = await api.get('/api/documents');
@@ -1659,6 +1718,7 @@ const UploadHub = () => {
                               onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             >
+                              <RenameIcon style={{ width: 20, height: 20 }} />
                               Rename Folder
                             </button>
                             <button
@@ -1686,6 +1746,7 @@ const UploadHub = () => {
                               onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'}
                               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             >
+                              <DeleteIcon style={{ width: 20, height: 20 }} />
                               Delete Folder
                             </button>
                           </div>
@@ -1786,18 +1847,67 @@ const UploadHub = () => {
                   onMouseEnter={(e) => e.currentTarget.style.background = '#F3F4F6'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  <img
-                    src={getFileIcon(item.filename)}
-                    alt="File icon"
-                    style={{
-                      width: 56,
-                      height: 56,
-                      imageRendering: '-webkit-optimize-contrast',
-                      objectFit: 'contain',
-                      shapeRendering: 'geometricPrecision',
-                      flexShrink: 0
-                    }}
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <img
+                      src={getFileIcon(item.filename)}
+                      alt="File icon"
+                      style={{
+                        width: 56,
+                        height: 56,
+                        imageRendering: '-webkit-optimize-contrast',
+                        objectFit: 'contain',
+                        shapeRendering: 'geometricPrecision',
+                        flexShrink: 0
+                      }}
+                    />
+                    {/* ✅ Processing badge */}
+                    {item.status === 'processing' && (
+                      <div style={{
+                        position: 'absolute',
+                        bottom: -4,
+                        right: -4,
+                        background: '#3B82F6',
+                        color: 'white',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontSize: '9px',
+                        fontWeight: '600',
+                        fontFamily: 'Plus Jakarta Sans',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                      }}>
+                        <div style={{
+                          width: 6,
+                          height: 6,
+                          border: '1.5px solid white',
+                          borderTopColor: 'transparent',
+                          borderRadius: '50%',
+                          animation: 'spin 0.8s linear infinite'
+                        }} />
+                        {item.processingProgress ? `${item.processingProgress}%` : '...'}
+                      </div>
+                    )}
+                    {/* ✅ Failed badge */}
+                    {item.status === 'failed' && (
+                      <div style={{
+                        position: 'absolute',
+                        bottom: -4,
+                        right: -4,
+                        background: '#EF4444',
+                        color: 'white',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontSize: '9px',
+                        fontWeight: '600',
+                        fontFamily: 'Plus Jakarta Sans',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                      }}>
+                        ⚠️ Failed
+                      </div>
+                    )}
+                  </div>
                   <div style={{flex: 1, minWidth: 0}}>
                     <p style={{
                       fontSize: 14,
@@ -1898,6 +2008,7 @@ const UploadHub = () => {
                             onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
+                            <DownloadIcon style={{ width: 20, height: 20 }} />
                             Download
                           </button>
                           <button
@@ -1926,6 +2037,7 @@ const UploadHub = () => {
                             onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
+                            <RenameIcon style={{ width: 20, height: 20 }} />
                             Rename
                           </button>
                           <button
@@ -1953,6 +2065,7 @@ const UploadHub = () => {
                             onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
+                            <MoveIcon style={{ width: 20, height: 20 }} />
                             Move
                           </button>
                           <button
@@ -1980,6 +2093,7 @@ const UploadHub = () => {
                             onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
+                            <DeleteIcon style={{ width: 20, height: 20 }} />
                             Delete
                           </button>
                         </div>

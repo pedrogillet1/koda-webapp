@@ -278,7 +278,7 @@ class FileActionsService {
     filename: string,
     userId: string
   ): Promise<Document | null> {
-    // Try exact match first
+    // STEP 1: Try exact match first (fastest)
     let document = await prisma.document.findFirst({
       where: {
         filename: filename,
@@ -289,27 +289,8 @@ class FileActionsService {
 
     if (document) return document;
 
-    // ✅ FIX #7: Try semantic matching FIRST (most accurate for natural language)
-    // REASON: Semantic matching understands meaning, not just character similarity
-    // EXAMPLE: "blueprint" matches "KODA_Product_Blueprint_Final_v2.pdf"
-    // WHY: Uses OpenAI embeddings to understand semantic similarity
-    try {
-      const semanticResult = await semanticFileMatcher.findSingleFile(userId, filename);
-
-      if (semanticResult) {
-        console.log(`🧠 Semantic match: "${filename}" → "${semanticResult.filename}" (confidence: ${semanticResult.confidence})`);
-        document = await prisma.document.findUnique({
-          where: { id: semanticResult.documentId },
-        });
-
-        if (document) return document;
-      }
-    } catch (error) {
-      console.log(`⚠️ Semantic matching failed, falling back to fuzzy matching:`, error);
-      // Fall through to fuzzy matching if semantic fails
-    }
-
-    // FALLBACK: Get all documents for fuzzy/string matching
+    // STEP 2: Get all documents for fast local matching
+    // ⚡ PERFORMANCE: Do all fast local operations before calling external APIs
     const allDocuments = await prisma.document.findMany({
       where: {
         userId: userId,
@@ -317,9 +298,29 @@ class FileActionsService {
       },
     });
 
-    // STEP 1: Use enhanced fuzzy matching service
-    // REASON: Better algorithm combines multiple similarity metrics
-    // IMPACT: Handles typos, partial matches, and word reordering
+    // Helper function for normalizing filenames
+    const normalizeFilename = (name: string) => {
+      return name
+        .toLowerCase()
+        .replace(/\.pdf$|\.docx?$|\.xlsx?$|\.pptx?$|\.txt$|\.jpe?g$|\.png$|\.gif$|\.svg$/i, '')
+        .replace(/[_\-\.]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const normalizedInput = normalizeFilename(filename);
+
+    // STEP 3: Try exact normalized match (extension-agnostic, fast)
+    const exactNormalizedMatch = allDocuments.find(
+      d => normalizeFilename(d.filename) === normalizedInput
+    );
+
+    if (exactNormalizedMatch) {
+      console.log(`📄 Exact match (extension-agnostic): "${filename}" → "${exactNormalizedMatch.filename}"`);
+      return exactNormalizedMatch;
+    }
+
+    // STEP 4: Try enhanced fuzzy matching (fast, local)
     const fuzzyMatch = fuzzyMatchService.findBestMatch(
       filename,
       allDocuments,
@@ -329,21 +330,11 @@ class FileActionsService {
     if (fuzzyMatch) {
       document = fuzzyMatch.document;
       console.log(`🎯 Enhanced fuzzy match: "${filename}" → "${document.filename}" (score: ${fuzzyMatch.score.toFixed(3)})`);
+      return document;
     }
 
-    // STEP 2: If still no match with enhanced service, try string-similarity fallback
-    // REASON: Fallback to old algorithm for edge cases
-    if (!document && allDocuments.length > 0) {
-      const normalizeFilename = (name: string) => {
-        return name
-          .toLowerCase()
-          .replace(/\.pdf$|\.docx?$|\.xlsx?$|\.pptx?$|\.txt$/i, '')
-          .replace(/[_\-\.]/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-      };
-
-      const normalizedInput = normalizeFilename(filename);
+    // STEP 5: Try string-similarity fallback (fast, local)
+    if (allDocuments.length > 0) {
       const normalizedFilenames = allDocuments.map(d => normalizeFilename(d.filename));
       const matches = findBestMatch(normalizedInput, normalizedFilenames);
       const bestMatch = matches.bestMatch;
@@ -355,7 +346,26 @@ class FileActionsService {
       }
     }
 
-    return document;
+    // STEP 6: Last resort - semantic matching with embeddings (SLOW - only if nothing else worked)
+    // ⚠️ PERFORMANCE: This calls external API (Pinecone) and processes all documents
+    // Only use when fast local matching fails
+    try {
+      const semanticResult = await semanticFileMatcher.findSingleFile(userId, filename);
+
+      if (semanticResult) {
+        console.log(`🧠 Semantic match (last resort): "${filename}" → "${semanticResult.filename}" (confidence: ${semanticResult.confidence})`);
+        document = await prisma.document.findUnique({
+          where: { id: semanticResult.documentId },
+        });
+
+        if (document) return document;
+      }
+    } catch (error) {
+      console.log(`⚠️ Semantic matching failed:`, error);
+      // Continue - no match found
+    }
+
+    return null;
   }
 
   /**

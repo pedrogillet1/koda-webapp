@@ -137,7 +137,7 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
         },
       },
     },
-    orderBy: { name: 'asc' },
+    orderBy: { createdAt: 'desc' }, // ✅ Newest first
   });
 
   // Add recursive document count (only for root folders to avoid redundancy)

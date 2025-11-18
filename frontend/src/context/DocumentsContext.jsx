@@ -342,13 +342,21 @@ export const DocumentsProvider = ({ children }) => {
 
     console.log('🔌 Setting up WebSocket connection for real-time updates...');
 
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+    const isNgrok = apiUrl.includes('ngrok');
+
+    console.log('🔗 Connecting to:', apiUrl, '(ngrok:', isNgrok, ')');
+
     // Initialize socket connection
-    const socket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000', {
+    // For ngrok, start with polling first due to WebSocket limitations
+    const socket = io(apiUrl, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: isNgrok ? ['polling', 'websocket'] : ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5
+      reconnectionAttempts: 5,
+      timeout: 20000,
+      forceNew: false
     });
 
     socketRef.current = socket;

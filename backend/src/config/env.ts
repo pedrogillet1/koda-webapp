@@ -28,6 +28,8 @@ interface EnvConfig {
   TWILIO_PHONE_NUMBER: string;
   OPENAI_API_KEY: string;
   GEMINI_API_KEY: string;
+  PINECONE_API_KEY: string;
+  PINECONE_INDEX_NAME: string;
   // Live Data APIs
   ALPHA_VANTAGE_API_KEY: string;
   FRED_API_KEY: string;
@@ -68,6 +70,8 @@ export const config: EnvConfig = {
   TWILIO_PHONE_NUMBER: getEnvVar('TWILIO_PHONE_NUMBER', false),
   OPENAI_API_KEY: getEnvVar('OPENAI_API_KEY'),
   GEMINI_API_KEY: getEnvVar('GEMINI_API_KEY', false),
+  PINECONE_API_KEY: getEnvVar('PINECONE_API_KEY'),
+  PINECONE_INDEX_NAME: getEnvVar('PINECONE_INDEX_NAME'),
   // Live Data APIs (optional - graceful degradation)
   ALPHA_VANTAGE_API_KEY: getEnvVar('ALPHA_VANTAGE_API_KEY', false),
   FRED_API_KEY: getEnvVar('FRED_API_KEY', false),

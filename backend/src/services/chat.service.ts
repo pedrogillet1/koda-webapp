@@ -706,7 +706,7 @@ const handleFileActionsIfNeeded = async (
   console.log(`📝 [Entities]`, intentResult.parameters);
 
   // Only process file actions with high confidence
-  const fileActionIntents = ['create_folder', 'list_files', 'search_files', 'file_location', 'rename_file', 'delete_file', 'move_files'];
+  const fileActionIntents = ['create_folder', 'list_files', 'search_files', 'file_location', 'rename_file', 'delete_file', 'move_files', 'metadata_query'];
 
   // Check if this is a file action intent
   // ✅ FIX: Use OR (||) instead of AND (&&) - return null if EITHER condition is true
@@ -896,6 +896,276 @@ const handleFileActionsIfNeeded = async (
     return {
       action: 'move_file',
       message: result.message
+    };
+  }
+
+  // ========================================
+  // LIST FILES
+  // ========================================
+  if (intentResult.intent === 'list_files') {
+    console.log(`📂 [Action] Listing files`);
+
+    const folderName = intentResult.parameters?.folderName;
+    const fileType = intentResult.parameters?.fileType;
+
+    console.log(`🔍 Filters: folder="${folderName || 'all'}", type="${fileType || 'all'}"`);
+
+    // Build query
+    const where: any = { userId };
+
+    // Filter by folder name (fuzzy match)
+    if (folderName) {
+      const normalizedFolderName = folderName.toLowerCase().replace(/[-_]+/g, ' ').trim();
+
+      const folders = await prisma.folder.findMany({
+        where: { userId },
+        select: { id: true, name: true }
+      });
+
+      const matchingFolder = folders.find(f => {
+        const normalized = f.name.toLowerCase().replace(/[-_]+/g, ' ').trim();
+        return normalized.includes(normalizedFolderName) || normalizedFolderName.includes(normalized);
+      });
+
+      if (!matchingFolder) {
+        return {
+          action: 'list_files',
+          message: `❌ No folder found matching "${folderName}". Try listing all folders first with "show my folders".`
+        };
+      }
+
+      where.folderId = matchingFolder.id;
+      console.log(`📁 Matched folder: "${matchingFolder.name}" (${matchingFolder.id.substring(0, 8)})`);
+    }
+
+    // Filter by file type
+    if (fileType) {
+      const typeMap: Record<string, string[]> = {
+        'pdf': ['pdf'],
+        'word': ['doc', 'docx'],
+        'excel': ['xls', 'xlsx'],
+        'powerpoint': ['ppt', 'pptx'],
+        'image': ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'],
+        'text': ['txt', 'md'],
+        'csv': ['csv']
+      };
+
+      const extensions = typeMap[fileType.toLowerCase()] || [fileType.toLowerCase()];
+
+      where.filename = {
+        endsWith: extensions.length === 1 ? `.${extensions[0]}` : undefined
+      };
+
+      if (extensions.length > 1) {
+        where.OR = extensions.map(ext => ({ filename: { endsWith: `.${ext}` } }));
+        delete where.filename;
+      }
+    }
+
+    // Fetch documents
+    const documents = await prisma.document.findMany({
+      where,
+      select: {
+        id: true,
+        filename: true,
+        fileSize: true,
+        createdAt: true,
+        folder: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: [
+        { folder: { name: 'asc' } },
+        { filename: 'asc' }
+      ],
+      take: 100
+    });
+
+    if (documents.length === 0) {
+      let message = `No files found`;
+      if (folderName) message += ` in folder "${folderName}"`;
+      if (fileType) message += ` of type "${fileType}"`;
+      message += `. Try uploading some documents first.`;
+
+      return {
+        action: 'list_files',
+        message
+      };
+    }
+
+    // Group by folder
+    const byFolder: Record<string, typeof documents> = {};
+    documents.forEach(doc => {
+      const folder = doc.folder?.name || 'Uncategorized';
+      if (!byFolder[folder]) byFolder[folder] = [];
+      byFolder[folder].push(doc);
+    });
+
+    // Format response
+    const formatFileSize = (bytes: number | null): string => {
+      if (!bytes) return 'Unknown size';
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    };
+
+    const formatDate = (date: Date): string => {
+      return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
+    let response = `Found **${documents.length}** file(s)`;
+    if (folderName) response += ` in folder **"${folderName}"**`;
+    if (fileType) response += ` of type **${fileType}**`;
+    response += `:\n\n`;
+
+    for (const [folder, files] of Object.entries(byFolder)) {
+      response += `**${folder}** (${files.length} file(s))\n`;
+
+      files.forEach(file => {
+        response += `• ${file.filename} - ${formatFileSize(file.fileSize)} - ${formatDate(file.createdAt)}\n`;
+      });
+
+      response += `\n`;
+    }
+
+    if (documents.length >= 100) {
+      response += `\n*Showing first 100 files. Use filters to narrow results.*`;
+    }
+
+    return {
+      action: 'list_files',
+      message: response.trim()
+    };
+  }
+
+  // ========================================
+  // METADATA QUERY
+  // ========================================
+  if (intentResult.intent === 'metadata_query') {
+    console.log(`📊 [Action] Metadata query`);
+
+    const queryType = intentResult.parameters?.queryType || 'count';
+    const fileTypes = intentResult.parameters?.fileTypes || [];
+    const folderName = intentResult.parameters?.folderName;
+
+    console.log(`🔍 Query: type="${queryType}", fileTypes=[${fileTypes.join(', ')}], folder="${folderName || 'all'}"`);
+
+    // Build base query
+    const where: any = { userId };
+
+    // Filter by folder if specified
+    if (folderName) {
+      const normalizedFolderName = folderName.toLowerCase().replace(/[-_]+/g, ' ').trim();
+
+      const folders = await prisma.folder.findMany({
+        where: { userId },
+        select: { id: true, name: true }
+      });
+
+      const matchingFolder = folders.find(f => {
+        const normalized = f.name.toLowerCase().replace(/[-_]+/g, ' ').trim();
+        return normalized.includes(normalizedFolderName) || normalizedFolderName.includes(normalized);
+      });
+
+      if (matchingFolder) {
+        where.folderId = matchingFolder.id;
+        console.log(`📁 Filtering by folder: "${matchingFolder.name}"`);
+      }
+    }
+
+    // Fetch all documents
+    const documents = await prisma.document.findMany({
+      where,
+      select: {
+        id: true,
+        filename: true,
+        fileSize: true
+      }
+    });
+
+    // Group by file type
+    const typeMap: Record<string, { count: number; size: number; label: string }> = {};
+    const extensionLabels: Record<string, string> = {
+      'pdf': 'PDF',
+      'doc': 'Word',
+      'docx': 'Word',
+      'xls': 'Excel',
+      'xlsx': 'Excel',
+      'ppt': 'PowerPoint',
+      'pptx': 'PowerPoint',
+      'txt': 'Text',
+      'md': 'Markdown',
+      'csv': 'CSV',
+      'jpg': 'Image',
+      'jpeg': 'Image',
+      'png': 'Image',
+      'gif': 'Image'
+    };
+
+    documents.forEach(doc => {
+      const ext = doc.filename.split('.').pop()?.toLowerCase() || 'unknown';
+      const label = extensionLabels[ext] || ext.toUpperCase();
+
+      if (!typeMap[label]) {
+        typeMap[label] = { count: 0, size: 0, label };
+      }
+
+      typeMap[label].count++;
+      typeMap[label].size += doc.fileSize || 0;
+    });
+
+    // If specific file types requested, filter results
+    let relevantTypes = Object.values(typeMap);
+    if (fileTypes.length > 0) {
+      const requestedLabels = fileTypes.map((ft: string) =>
+        extensionLabels[ft.toLowerCase()] || ft
+      );
+      relevantTypes = relevantTypes.filter(t =>
+        requestedLabels.some((label: string) =>
+          t.label.toLowerCase().includes(label.toLowerCase())
+        )
+      );
+    }
+
+    if (relevantTypes.length === 0) {
+      let message = `No files found`;
+      if (fileTypes.length > 0) message += ` of type(s): ${fileTypes.join(', ')}`;
+      if (folderName) message += ` in folder "${folderName}"`;
+
+      return {
+        action: 'metadata_query',
+        message
+      };
+    }
+
+    // Format response
+    const formatSize = (bytes: number): string => {
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    };
+
+    const totalFiles = documents.length;
+    let response = `**File Statistics**\n\n`;
+
+    if (folderName) {
+      response += `📁 Folder: **${folderName}**\n\n`;
+    }
+
+    response += `**Total Files:** ${totalFiles}\n\n`;
+
+    relevantTypes
+      .sort((a, b) => b.count - a.count)
+      .forEach(type => {
+        const percentage = ((type.count / totalFiles) * 100).toFixed(1);
+        response += `**${type.label}:** ${type.count} file(s) (${percentage}%) - ${formatSize(type.size)}\n`;
+      });
+
+    return {
+      action: 'metadata_query',
+      message: response.trim()
     };
   }
 

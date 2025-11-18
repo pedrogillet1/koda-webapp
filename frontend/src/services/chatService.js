@@ -42,10 +42,19 @@ export const initializeSocket = (token) => {
     socket.disconnect();
   }
 
+  const isNgrok = WS_URL.includes('ngrok');
+  console.log('🔗 [ChatService] Connecting to:', WS_URL, '(ngrok:', isNgrok, ')');
+
   socket = io(WS_URL, {
     auth: {
       token,
     },
+    // For ngrok, start with polling first due to WebSocket limitations
+    transports: isNgrok ? ['polling', 'websocket'] : ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionAttempts: 5,
+    timeout: 20000,
   });
 
   return socket;

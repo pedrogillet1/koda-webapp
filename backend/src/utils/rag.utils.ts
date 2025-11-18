@@ -3,10 +3,8 @@
  * Helper functions for formatting, path generation, and metadata extraction
  */
 
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/database';
 import { EnhancedChunkMetadata } from '../types/rag.types';
-
-const prisma = new PrismaClient();
 
 /**
  * Format location string from chunk metadata

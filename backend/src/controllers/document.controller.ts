@@ -87,19 +87,19 @@ export const confirmUpload = async (req: Request, res: Response): Promise<void> 
       thumbnailData: thumbnailData || undefined,
     });
 
-    // ⚡ FIX: Delay event emission to allow Supabase commit to complete
-    // This prevents the frontend from fetching before the document is queryable
-    // Increased to 2000ms to handle slower Supabase replication (300-2000ms typical)
-    setTimeout(async () => {
-      // Emit real-time event for document creation
-      emitDocumentEvent(req.user.id, 'created', document.id);
+    // ✅ CACHE FIX: Invalidate cache BEFORE emitting events
+    // This ensures frontend gets fresh data when it fetches
+    await cacheService.invalidateUserCache(req.user.id);
+    console.log('🗑️ [Cache] Invalidated user cache synchronously');
 
-      await cacheService.invalidateUserCache(req.user.id);
-      console.log('🗑️ [Cache] Invalidated user cache and emitted document-created after 2000ms delay');
+    // ✅ INSTANT UPLOAD FIX: Emit events immediately (no delay!)
+    // Document is created with status: 'processing'
+    // Frontend will show it immediately and update when processing completes
+    emitDocumentEvent(req.user.id, 'created', document.id);
+    console.log('📡 [WebSocket] Emitted document-created event');
 
-      // Emit folder-tree-updated event to refresh folder tree
-      emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
-    }, 2000);
+    // Emit folder-tree-updated event to refresh folder tree
+    emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
 
     res.status(201).json({
       message: 'Document uploaded successfully',
@@ -215,19 +215,17 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       plaintextForEmbeddings: plaintextForEmbeddings || undefined, // ⚡ TEXT EXTRACTION: Pass plaintext for embeddings
     });
 
-    // ⚡ FIX: Delay event emission to allow Supabase commit to complete
-    // This prevents the frontend from fetching before the document is queryable
-    // Increased to 2000ms to handle slower Supabase replication (300-2000ms typical)
-    setTimeout(async () => {
-      // Emit real-time event for document creation
-      emitDocumentEvent(req.user.id, 'created', document.id);
+    // ✅ INSTANT UPLOAD: Emit events immediately (no delay!)
+    // Document is returned with status='processing', frontend will update when complete
+    emitDocumentEvent(req.user.id, 'created', document.id);
+    console.log('📡 [WebSocket] Emitted document-created event immediately');
 
-      await cacheService.invalidateDocumentListCache(req.user.id);
-      console.log('🗑️ [Cache] Invalidated document list cache and emitted document-created after 2000ms delay');
+    // Invalidate cache immediately
+    await cacheService.invalidateDocumentListCache(req.user.id);
+    console.log('🗑️ [Cache] Invalidated document list cache immediately');
 
-      // Emit folder-tree-updated event to refresh folder tree
-      emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
-    }, 2000);
+    // Emit folder-tree-updated event to refresh folder tree
+    emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
 
     res.status(201).json({
       message: 'Document uploaded successfully',
@@ -305,15 +303,12 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
       emitDocumentEvent(req.user!.id, 'created', doc.id);
     });
 
-    // ⚡ FIX: Delay cache invalidation to allow Supabase commit to complete
-    // Increased to 2000ms to handle slower Supabase replication (300-2000ms typical)
-    setTimeout(async () => {
-      await cacheService.invalidateDocumentListCache(req.user.id);
-      console.log('🗑️ [Cache] Invalidated document list cache after 2000ms delay');
+    // ✅ INSTANT UPLOAD: Invalidate cache immediately (no delay!)
+    await cacheService.invalidateDocumentListCache(req.user.id);
+    console.log('🗑️ [Cache] Invalidated document list cache immediately');
 
-      // Emit folder-tree-updated event to refresh folder tree
-      emitToUser(req.user.id, 'folder-tree-updated', { documentCount: documents.length });
-    }, 2000);
+    // Emit folder-tree-updated event to refresh folder tree
+    emitToUser(req.user.id, 'folder-tree-updated', { documentCount: documents.length });
 
     res.status(201).json({
       message: `${documents.length} documents uploaded successfully`,

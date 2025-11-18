@@ -1,11 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 
 function SetNewPassword() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  const urlToken = searchParams.get('token');
+
+  // Store token in sessionStorage to persist across page refreshes on mobile
+  const [token, setToken] = useState(() => {
+    const storedToken = sessionStorage.getItem('passwordResetToken');
+    if (urlToken) {
+      sessionStorage.setItem('passwordResetToken', urlToken);
+      return urlToken;
+    }
+    return storedToken;
+  });
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,12 +31,28 @@ function SetNewPassword() {
     hasSymbolOrNumber: false,
   });
 
-  // Check if token exists
+  // Check if token exists and sync with URL
   useEffect(() => {
-    if (!token) {
-      setError('Invalid reset link. Please request a new one.');
+    console.log('🔍 [SetNewPassword] Component mounted');
+    console.log('🔍 [SetNewPassword] URL Token:', urlToken ? urlToken.substring(0, 20) + '...' : 'null');
+    console.log('🔍 [SetNewPassword] Stored Token:', token ? token.substring(0, 20) + '...' : 'null');
+    console.log('🔍 [SetNewPassword] Full URL:', window.location.href);
+    console.log('🔍 [SetNewPassword] User Agent:', navigator.userAgent);
+
+    // Update token if URL has a new one
+    if (urlToken && urlToken !== token) {
+      console.log('🔄 [SetNewPassword] Updating token from URL');
+      sessionStorage.setItem('passwordResetToken', urlToken);
+      setToken(urlToken);
     }
-  }, [token]);
+
+    if (!token && !urlToken) {
+      console.error('❌ [SetNewPassword] No token found');
+      setError('Invalid reset link. Please request a new one.');
+    } else {
+      console.log('✅ [SetNewPassword] Token found, ready to reset password');
+    }
+  }, [urlToken, token]);
 
   // Real-time password validation
   const validatePassword = (pwd) => {
@@ -76,16 +102,23 @@ function SetNewPassword() {
     setLoading(true);
 
     try {
-      const response = await axios.post('/api/auth/reset-password-with-token', {
+      console.log('🔐 [SetNewPassword] Submitting password reset with token:', token?.substring(0, 20) + '...');
+
+      const response = await api.post('/api/auth/reset-password-with-token', {
         token,
         newPassword: password
       });
 
+      console.log('✅ [SetNewPassword] Password reset successful');
+
+      // Clear the stored token
+      sessionStorage.removeItem('passwordResetToken');
+
       if (response.data.success) {
-        navigate('/login');
+        navigate('/password-changed');
       }
     } catch (error) {
-      console.error('Reset password error:', error);
+      console.error('❌ [SetNewPassword] Reset password error:', error);
 
       if (error.response?.data?.error) {
         setError(error.response.data.error);

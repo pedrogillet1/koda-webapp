@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 /**
  * LLM Intent Detector Service
  *
- * Uses Gemini 2.0 Flash to understand user intent flexibly.
+ * Uses Gemini 2.5 Flash to understand user intent flexibly.
  * Replaces rigid regex patterns with natural language understanding.
  *
  * Handles:
@@ -49,11 +49,18 @@ ${contextSection}
 
 **Available Intents:**
 1. **create_folder** - User wants to create a new folder
-   - Examples: "create folder X", "make folder called Y", "new folder Z", "create a folder named X"
+   - Examples (EN): "create folder X", "make folder called Y", "new folder Z", "create a folder named X"
+   - Examples (PT): "criar pasta X", "fazer pasta chamada Y", "nova pasta Z", "crie uma pasta X"
+   - Examples (ES): "crear carpeta X", "hacer carpeta llamada Y", "nueva carpeta Z", "crea una carpeta X"
+   - Examples (FR): "créer dossier X", "faire dossier nommé Y", "nouveau dossier Z", "crée un dossier X"
    - Extract: folderName
 
 2. **list_files** - User wants to see a list of files
-   - Examples: "show files", "list documents", "what files are there", "give me all pdfs", "show me the documents", "which documents i have"
+   - Examples (EN): "show files", "list documents", "what files are there", "give me all pdfs", "show me the documents", "which documents i have", "show files in folder X", "list all PDFs"
+   - Examples (PT): "mostrar arquivos", "listar documentos", "que arquivos existem", "me dê todos os pdfs", "mostre-me os documentos", "quais documentos eu tenho"
+   - Examples (ES): "mostrar archivos", "listar documentos", "qué archivos hay", "dame todos los pdfs", "muéstrame los documentos", "cuáles documentos tengo"
+   - Examples (FR): "montrer fichiers", "lister documents", "quels fichiers existent", "donne-moi tous les pdfs", "montre-moi les documents", "quels documents j'ai"
+   - Extract: folderName (optional), fileType (optional - e.g., "pdf", "word", "excel")
 
 3. **search_files** - User wants to find files by name/keyword
    - Examples: "find document about X", "search for files containing Y", "locate files with Z in the name"
@@ -62,15 +69,24 @@ ${contextSection}
    - Examples: "where is document X", "what folder is Y in", "location of file Z", "where can I find X"
 
 5. **move_files** - User wants to move files to a folder
-   - Examples: "move X to folder Y", "put document X in folder Y", "transfer X to Y folder"
+   - Examples (EN): "move X to folder Y", "put document X in folder Y", "transfer X to Y folder"
+   - Examples (PT): "mover X para pasta Y", "colocar documento X na pasta Y", "transferir X para pasta Y"
+   - Examples (ES): "mover X a carpeta Y", "poner documento X en carpeta Y", "transferir X a carpeta Y"
+   - Examples (FR): "déplacer X vers dossier Y", "mettre document X dans dossier Y", "transférer X vers dossier Y"
    - Extract: targetFolder, filename (optional)
 
 6. **rename_file** - User wants to rename a file or folder
-   - Examples: "rename X to Y", "change file name from X to Y", "call document X as Y instead", "rename folder X to Y"
+   - Examples (EN): "rename X to Y", "change file name from X to Y", "call document X as Y instead", "rename folder X to Y"
+   - Examples (PT): "renomear X para Y", "mudar nome do arquivo de X para Y", "chamar documento X de Y", "renomear pasta X para Y"
+   - Examples (ES): "renombrar X a Y", "cambiar nombre del archivo de X a Y", "llamar documento X como Y", "renombrar carpeta X a Y"
+   - Examples (FR): "renommer X en Y", "changer nom du fichier de X à Y", "appeler document X comme Y", "renommer dossier X en Y"
    - Extract: oldFilename, newFilename
 
 7. **delete_file** - User wants to delete a file
-   - Examples: "delete document X", "remove file Y", "erase Z", "get rid of X"
+   - Examples (EN): "delete document X", "remove file Y", "erase Z", "get rid of X"
+   - Examples (PT): "excluir documento X", "remover arquivo Y", "apagar Z", "eliminar X"
+   - Examples (ES): "eliminar documento X", "borrar archivo Y", "borrar Z", "deshacerse de X"
+   - Examples (FR): "supprimer document X", "enlever fichier Y", "effacer Z", "se débarrasser de X"
 
 8. **show_file** - User wants to preview/see/view/open a specific file
    - Examples (EN): "show me this file", "show me document X", "show me the file with Y", "take me to file X", "open document X", "I want to see this file", "show me image 1", "let me see the file"
@@ -81,7 +97,8 @@ ${contextSection}
    - ✅ **CONTEXT RESOLUTION**: If user says "this file", "that document", "the file", "it", or similar contextual reference, look at the conversation context above and extract the actual filename from the previous messages. Return the real filename, NOT "this file".
 
 9. **metadata_query** - User wants information about files (size, type, date, count)
-   - Examples: "how many files", "what's the size of X", "when was Y uploaded", "file count", "what types of documents"
+   - Examples: "how many files", "what's the size of X", "when was Y uploaded", "file count", "what types of documents", "how many PDFs do I have", "show me file statistics", "how many Word documents in folder X"
+   - Extract: queryType (optional - "count", "size", "types"), fileTypes (optional array - ["pdf", "word", "excel"]), folderName (optional)
 
 10. **rag_query** - User wants to ask questions about document content (default)
    - Examples: "what does document X say about Y", "explain concept Z", "summarize X"
@@ -111,7 +128,10 @@ ${contextSection}
     "keyword": "search term",
     "oldFilename": "old_name.pdf",
     "newFilename": "new_name.pdf",
-    "targetFolder": "destination folder"
+    "targetFolder": "destination folder",
+    "fileType": "pdf",
+    "queryType": "count",
+    "fileTypes": ["pdf", "word"]
   }
 }
 

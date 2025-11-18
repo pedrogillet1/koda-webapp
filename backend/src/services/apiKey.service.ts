@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/database';
 import crypto from 'crypto';
 import auditLogService, { AuditAction, AuditStatus } from './auditLog.service';
-
-const prisma = new PrismaClient();
 
 /**
  * API Key Management Service

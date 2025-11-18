@@ -50,6 +50,19 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
 
     console.log('🔵 Folder files:', folderFiles.length, 'Regular files:', regularFiles.length);
 
+    // Filter out empty files (0 bytes) which are likely folders dragged incorrectly
+    const validFiles = regularFiles.filter(file => file.size > 0);
+    const invalidFiles = regularFiles.filter(file => file.size === 0);
+
+    if (invalidFiles.length > 0) {
+      console.warn('⚠️ Detected empty files (possibly folders):', invalidFiles);
+      console.warn('⚠️ Use the "Select Folder" button to upload folders');
+
+      // Show error notification to user
+      alert('⚠️ Folder drag-and-drop is not supported by browsers.\n\nPlease use the "Select Folder" button to upload folders with their contents.');
+      return; // Don't add these files to the upload queue
+    }
+
     const newEntries = [];
 
     // Process folder files - group by root folder name
@@ -84,9 +97,9 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       });
     }
 
-    // Process regular files - create individual entries
-    if (regularFiles.length > 0) {
-      regularFiles.forEach(file => {
+    // Process valid regular files only (not empty files)
+    if (validFiles.length > 0) {
+      validFiles.forEach(file => {
         newEntries.push({
           file,
           id: Math.random().toString(36).substr(2, 9),

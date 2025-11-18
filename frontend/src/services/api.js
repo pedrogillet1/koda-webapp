@@ -33,8 +33,18 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If error is 401 and we haven't tried to refresh yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // ✅ Don't try to refresh token for auth endpoints (login, register, refresh)
+    const isAuthEndpoint = originalRequest.url?.includes('/api/auth/login') ||
+                          originalRequest.url?.includes('/api/auth/register') ||
+                          originalRequest.url?.includes('/api/auth/refresh') ||
+                          originalRequest.url?.includes('/api/auth/google') ||
+                          originalRequest.url?.includes('/api/auth/pending') ||
+                          originalRequest.url?.includes('/api/auth/forgot-password') ||
+                          originalRequest.url?.includes('/api/auth/reset-password') ||
+                          originalRequest.url?.includes('/api/auth/send-reset-link');
+
+    // If error is 401 and we haven't tried to refresh yet AND it's not an auth endpoint
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {
@@ -49,8 +59,12 @@ api.interceptors.response.use(
 
           console.log('🔒 No refresh token found. Redirecting to login...');
 
+          // Don't redirect if on password reset or auth pages
+          const publicPaths = ['/login', '/signup', '/register', '/set-new-password', '/forgot-password', '/recover-access', '/password-changed', '/auth', '/verify-email', '/verification'];
+          const isPublicPath = publicPaths.some(path => window.location.pathname.includes(path));
+
           // Redirect to login page
-          if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+          if (!isPublicPath) {
             window.location.href = '/login';
           }
 
@@ -81,8 +95,12 @@ api.interceptors.response.use(
 
         console.log('🔒 Session expired. Please log in again.');
 
+        // Don't redirect if on password reset or auth pages
+        const publicPaths = ['/login', '/signup', '/register', '/set-new-password', '/forgot-password', '/recover-access', '/password-changed', '/auth', '/verify-email', '/verification'];
+        const isPublicPath = publicPaths.some(path => window.location.pathname.includes(path));
+
         // Redirect to login page
-        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+        if (!isPublicPath) {
           window.location.href = '/login';
         }
 
@@ -90,6 +108,7 @@ api.interceptors.response.use(
       }
     }
 
+    // ✅ For auth endpoints or other errors, reject without trying to refresh
     return Promise.reject(error);
   }
 );

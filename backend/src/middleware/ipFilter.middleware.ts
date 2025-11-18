@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/database';
 import securityMonitoringService, { SecurityEventType, ThreatLevel } from '../services/securityMonitoring.service';
-
-const prisma = new PrismaClient();
 
 /**
  * IP Filtering Middleware
