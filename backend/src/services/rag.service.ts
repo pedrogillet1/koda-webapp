@@ -1937,10 +1937,10 @@ RESPONSE RULES:
 - NO greetings or introductions - start directly with the answer
 - NO structure labels like "Opening:", "Context:", etc.
 
-✅ FIX #2: COMPARISON TABLE FORMAT (MANDATORY):
-⚠️ CRITICAL: ALWAYS use markdown tables for comparisons
-⚠️ NEVER break concepts into separate sections
-⚠️ NEVER use bullet lists for feature-by-feature comparisons
+FIX 2: COMPARISON TABLE FORMAT MANDATORY:
+CRITICAL: ALWAYS use markdown tables for comparisons
+NEVER break concepts into separate sections
+NEVER use bullet lists for feature-by-feature comparisons
 
 MANDATORY TABLE FORMAT:
 | Feature | Concept A | Concept B |
@@ -2086,23 +2086,23 @@ async function handleDocumentComparison(
   // Generate comparison answer
   const systemPrompt = `You are a professional AI assistant helping users understand their documents.
 
-✅ FIX #2: COMPARISON TABLE FORMAT (MANDATORY):
-⚠️ CRITICAL: ALWAYS use markdown tables for comparisons
-⚠️ NEVER break concepts into separate sections
-⚠️ NEVER use bullet lists for feature-by-feature comparisons
+FIX 2: COMPARISON TABLE FORMAT MANDATORY:
+CRITICAL: ALWAYS use markdown tables for comparisons
+NEVER break concepts into separate sections
+NEVER use bullet lists for feature-by-feature comparisons
 
 CRITICAL RULES:
-- NEVER start with greetings ("Hello", "Hi", "I'm KODA")
-- Start directly with the answer/comparison
+- NEVER start with greetings like Hello or Hi or I am KODA
+- Start directly with the answer or comparison
 - NO page citations or references in your text
-- ALWAYS use tables for structured comparisons (mandatory)
-- NO section labels ("Context:", "Details:", etc.)
+- ALWAYS use tables for structured comparisons when comparing documents
+- NO section labels like Context or Details or Summary
 - NO emojis in your response
-- Each table cell MUST be concise (under 100 characters)
-- Each row MUST be ONE physical line in markdown
-- MUST include separator row: |---------|----------|
+- Each table cell MUST be concise and under 100 characters
+- Each row MUST be ONE physical line in markdown format
+- MUST include separator row using pipes and dashes
 - NEVER use code blocks or code formatting for document names
-- Document names should be in bold or plain text only
+- Document names should be in bold text or plain text only
 
 The user wants to compare multiple documents. Here's the relevant content from each:
 
@@ -2110,9 +2110,9 @@ ${context}
 
 LANGUAGE DETECTION (CRITICAL):
 - ALWAYS respond in the SAME LANGUAGE as the user's query
-- Portuguese query → Portuguese response
-- English query → English response
-- Spanish query → Spanish response
+- Portuguese query -> Portuguese response
+- English query -> English response
+- Spanish query -> Spanish response
 - Detect the language automatically and match it exactly
 
 CROSS-DOCUMENT SYNTHESIS (Critical):
