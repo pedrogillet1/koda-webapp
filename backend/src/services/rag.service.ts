@@ -1599,11 +1599,20 @@ async function extractDocumentMentions(userId: string, query: string): Promise<s
 function isDocumentMentioned(queryLower: string, documentName: string): boolean {
   const docNameLower = documentName.toLowerCase();
 
-  // Remove file extensions for matching
-  const docNameNoExt = docNameLower.replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv)$/i, '');
+  // Remove file extensions for matching (handle double extensions like .md.pdf)
+  const docNameNoExt = docNameLower
+    .replace(/\.md\.pdf$/i, '')     // Remove .md.pdf
+    .replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv|md)$/i, ''); // Remove other extensions
+
+  // ✅ FIX: Replace hyphens and underscores with spaces before splitting
+  // REASON: Filenames like "KODA-MASTER-GUIDE" should split into ["koda", "master", "guide"]
+  const normalized = docNameNoExt
+    .replace(/[-_]+/g, ' ')  // Replace hyphens and underscores with spaces
+    .replace(/\s+/g, ' ')    // Collapse multiple spaces
+    .trim();
 
   // Split into words
-  const docWords = docNameNoExt.split(/\s+/).filter(w => w.length > 0);
+  const docWords = normalized.split(/\s+/).filter(w => w.length > 0);
 
   // Check if 60% of words are present
   const threshold = Math.ceil(docWords.length * 0.6);
