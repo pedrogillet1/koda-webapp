@@ -2101,8 +2101,8 @@ CRITICAL RULES:
 • Each table cell MUST be concise (under 100 characters)
 • Each row MUST be ONE physical line in markdown
 • MUST include separator row: |---------|----------|
-• ⚠️ NEVER use code blocks (```) or code formatting for document names
-• Document names should be in **bold** or plain text, NEVER in code blocks
+• NEVER use code blocks or code formatting for document names
+• Document names should be in bold or plain text only
 
 The user wants to compare multiple documents. Here's the relevant content from each:
 
