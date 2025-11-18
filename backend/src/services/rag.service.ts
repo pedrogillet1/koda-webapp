@@ -13,8 +13,63 @@ import { bm25RetrievalService } from './bm25-retrieval.service';
 import fastPathDetector from './fastPathDetector.service';
 import statusEmitter, { ProcessingStage } from './statusEmitter.service';
 import postProcessor from './postProcessor.service';
-import geminiCache from './geminiCache.service';
 import embeddingService from './embedding.service';
+import geminiCache from './geminiCache.service';
+
+// ════════════════════════════════════════════════════════════════════════════════
+// INTENT DETECTION CACHE (5min TTL)
+// ════════════════════════════════════════════════════════════════════════════════
+
+interface CachedIntent {
+  result: any;
+  timestamp: number;
+}
+
+const intentCache = new Map<string, CachedIntent>();
+const INTENT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCachedIntent(query: string): any | null {
+  const normalizedQuery = query.toLowerCase().trim();
+  const cached = intentCache.get(normalizedQuery);
+
+  if (!cached) return null;
+
+  const age = Date.now() - cached.timestamp;
+  if (age > INTENT_CACHE_TTL) {
+    intentCache.delete(normalizedQuery);
+    console.log('🗑️ [INTENT CACHE] Expired cache entry removed');
+    return null;
+  }
+
+  console.log(`⚡ [INTENT CACHE] Cache hit! (age: ${Math.round(age / 1000)}s)`);
+  return cached.result;
+}
+
+function cacheIntent(query: string, result: any): void {
+  const normalizedQuery = query.toLowerCase().trim();
+  intentCache.set(normalizedQuery, {
+    result,
+    timestamp: Date.now()
+  });
+  console.log(`💾 [INTENT CACHE] Cached result (total entries: ${intentCache.size})`);
+}
+
+// Periodic cleanup of expired cache entries (every 10 minutes)
+setInterval(() => {
+  const now = Date.now();
+  let removed = 0;
+
+  for (const [key, value] of intentCache.entries()) {
+    if (now - value.timestamp > INTENT_CACHE_TTL) {
+      intentCache.delete(key);
+      removed++;
+    }
+  }
+
+  if (removed > 0) {
+    console.log(`🧹 [INTENT CACHE] Cleaned up ${removed} expired entries (${intentCache.size} remaining)`);
+  }
+}, 10 * 60 * 1000);
 
 // ════════════════════════════════════════════════════════════════════════════════
 // DELETED DOCUMENT FILTER
@@ -74,20 +129,17 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 //
 // ════════════════════════════════════════════════════════════════════════════════
 
+// Initialize Gemini model for RAG queries
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-
-// ✅ OPTIMIZED: Add generation config for consistent formatting
 const model = genAI.getGenerativeModel({
   model: 'gemini-2.5-flash',
   generationConfig: {
-    temperature: 0.7,        // Lower than default for more consistent formatting
-    topP: 0.95,              // Nucleus sampling for coherent responses
-    topK: 40,                // Prevent too-random token selection
-    maxOutputTokens: 2048,   // Reasonable limit for complete responses
+    temperature: 0.7,
+    topP: 0.95,
+    topK: 40,
+    maxOutputTokens: 2048,
   },
 });
-
-// ✅ Removed Google embedding model - now using OpenAI via embedding.service.ts
 
 let pinecone: Pinecone | null = null;
 let pineconeIndex: any = null;
@@ -522,6 +574,7 @@ Rules:
 
 Respond with ONLY the JSON object, no explanation.`;
 
+    // Call Gemini to analyze query
     const result = await model.generateContent(prompt);
     const responseText = result.response.text().trim();
 
@@ -1039,7 +1092,8 @@ export async function generateAnswerStream(
   console.log('🚀 [DEBUG] generateAnswerStream called');
   console.log('🚀 [DEBUG] onChunk is function:', typeof onChunk === 'function');
 
-  await initializePinecone();
+  // ✅ FIX: Initialize Pinecone in parallel with fast checks
+  const pineconePromise = initializePinecone();
 
   console.log('\n════════════════════════════════════════════════════════════════════════════════');
   console.log('🔍 [QUERY ROUTING] Starting query classification');
@@ -1056,18 +1110,15 @@ export async function generateAnswerStream(
     onStage('analyzing', 'Understanding your question...');
   }
 
+  // ✅ FIX: Fast path detection (synchronous checks first)
   const fastPathResult = await fastPathDetector.detect(query);
 
   if (fastPathResult.isFastPath && fastPathResult.response) {
     console.log(`⚡ FAST PATH: ${fastPathResult.type} - Bypassing RAG pipeline`);
 
-    // Stream the fast path response character by character
+    // ✅ FIX: Stream the response immediately without artificial delay
     if (onChunk && fastPathResult.response) {
-      for (const char of fastPathResult.response) {
-        onChunk(char);
-        // Small delay for natural streaming effect
-        await new Promise(resolve => setTimeout(resolve, 5));
-      }
+      onChunk(fastPathResult.response);
     }
 
     // Emit complete status
@@ -1121,10 +1172,18 @@ export async function generateAnswerStream(
     return await handleDocumentListing(userId, query, onChunk);
   }
 
+  // ✅ FIX: Ensure Pinecone is initialized before expensive operations
+  await pineconePromise;
+
+  // ✅ FIX: Parallelize comparison and file action detection
+  const [comparison, fileAction] = await Promise.all([
+    detectComparison(userId, query),
+    detectFileAction(query)
+  ]);
+
   // ──────────────────────────────────────────────────────────────────────────────
   // STEP 5: Comparisons - Moderate (Pinecone queries)
   // ──────────────────────────────────────────────────────────────────────────────
-  const comparison = await detectComparison(userId, query);
   if (comparison) {
     console.log('🔄 [COMPARISON] Detected:', comparison.documents);
     return await handleComparison(userId, query, comparison, onChunk);
@@ -1135,7 +1194,6 @@ export async function generateAnswerStream(
   // ──────────────────────────────────────────────────────────────────────────────
   // REASON: Only check file actions if nothing else matched
   // WHY: LLM intent detection is expensive (20-30s)
-  const fileAction = await detectFileAction(query);
   if (fileAction) {
     console.log('📁 [FILE ACTION] Detected:', fileAction);
     await handleFileAction(userId, query, fileAction, onChunk);
@@ -1198,21 +1256,37 @@ async function detectFileAction(query: string): Promise<string | null> {
 
   const fileActionKeywords = [
     'create', 'make', 'new', 'add', 'cria', 'criar', 'nueva', 'nuevo', 'créer',
-    'rename', 'change name', 'renomear', 'renombrar', 'renommer',
+    'rename', 'change', 'renomear', 'renombrar', 'renommer',
     'delete', 'remove', 'deletar', 'apagar', 'eliminar', 'supprimer',
-    'move', 'relocate', 'mover', 'déplacer',
-    'folder', 'pasta', 'carpeta', 'dossier',
-    'file', 'arquivo', 'archivo', 'fichier'
+    'move', 'relocate', 'mover', 'déplacer'
   ];
 
-  const hasFileActionKeyword = fileActionKeywords.some(keyword =>
-    lower.includes(keyword)
-  );
+  const fileTargetKeywords = [
+    'folder', 'pasta', 'carpeta', 'dossier',
+    'file', 'arquivo', 'archivo', 'fichier',
+    'document', 'doc', 'pdf', 'txt', 'directory', 'dir'
+  ];
 
-  if (!hasFileActionKeyword) {
-    // Query doesn't contain any file action keywords
-    // Skip expensive LLM call
-    console.log('⚡ [FILE ACTION] No file action keywords detected, skipping LLM intent detection');
+  // ✅ IMPROVED: Require BOTH action keyword AND target keyword
+  const hasActionKeyword = fileActionKeywords.some(keyword => lower.includes(keyword));
+  const hasTargetKeyword = fileTargetKeywords.some(keyword => lower.includes(keyword));
+
+  if (!hasActionKeyword || !hasTargetKeyword) {
+    console.log('⚡ [FILE ACTION] No file action pattern detected - skipping LLM intent detection');
+    console.log(`   Action keyword: ${hasActionKeyword}, Target keyword: ${hasTargetKeyword}`);
+    return null; // Skip expensive LLM call
+  }
+
+  // ✅ ADDITIONAL: Skip if query is clearly a question about content
+  const contentQuestionPatterns = [
+    /what (is|are|does|do|can|could|would|should)/i,
+    /how (is|are|does|do|can|could|would|should)/i,
+    /why (is|are|does|do|can|could|would|should)/i,
+    /explain|describe|summarize|compare|analyze|tell me about/i
+  ];
+
+  if (contentQuestionPatterns.some(pattern => pattern.test(query))) {
+    console.log('⚡ [FILE ACTION] Detected content question - skipping LLM intent detection');
     return null;
   }
 
@@ -1223,15 +1297,34 @@ async function detectFileAction(query: string): Promise<string | null> {
   // WHY: LLM is expensive (20-30s) but accurate
   // HOW: Only call if file action keywords detected
 
-  console.log('🤖 [FILE ACTION] File action keywords detected, using LLM intent detection');
+  console.log('🤔 [FILE ACTION] Possible file action detected - proceeding with LLM intent detection');
+
+  // ✅ FIX: Check cache before calling expensive LLM
+  const cachedResult = getCachedIntent(query);
+  if (cachedResult !== null) {
+    return cachedResult; // Return cached result (may be null if previously determined not a file action)
+  }
 
   try {
 
     // Dynamic import to avoid circular dependency
     const { llmIntentDetectorService } = await import('./llmIntentDetector.service');
 
-    const intentResult = await llmIntentDetectorService.detectIntent(query);
-    console.log('🤖 [FILE ACTION] LLM intent:', intentResult);
+    // ✅ FIX: Add 10-second timeout to intent detection
+    const intentPromise = llmIntentDetectorService.detectIntent(query);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Intent detection timeout')), 10000)
+    );
+
+    let intentResult;
+    try {
+      intentResult = await Promise.race([intentPromise, timeoutPromise]);
+      console.log('🤖 [FILE ACTION] LLM intent:', intentResult);
+    } catch (error: any) {
+      console.log('⏱️  [FILE ACTION] Intent detection timed out or failed - assuming not file action');
+      cacheIntent(query, null); // Cache the null result
+      return null;
+    }
 
     // Map LLM intents to file actions
     const fileActionIntents: Record<string, string> = {
@@ -1244,12 +1337,15 @@ async function detectFileAction(query: string): Promise<string | null> {
     if (fileActionIntents[intentResult.intent] && intentResult.confidence > 0.7) {
       const action = fileActionIntents[intentResult.intent];
       console.log(`✅ [FILE ACTION] LLM detected: ${action} (confidence: ${intentResult.confidence})`);
+      cacheIntent(query, action); // Cache the successful detection
       return action;
     }
 
     console.log(`❌ [FILE ACTION] LLM confidence too low or not a file action (confidence: ${intentResult.confidence})`);
+    cacheIntent(query, null); // Cache the negative result
   } catch (error) {
     console.error('❌ [FILE ACTION] LLM intent detection failed:', error);
+    cacheIntent(query, null); // Cache the error result
   }
 
   return null;
@@ -1383,14 +1479,29 @@ async function detectComparison(userId: string, query: string): Promise<{
   // Try to extract document mentions with fuzzy matching
   const documentMentions = await extractDocumentMentions(userId, query);
 
+  console.log(`🔍 [COMPARISON] Query: "${query}"`);
+  console.log(`📊 [COMPARISON] Found ${documentMentions.length} matching documents`);
+
   if (documentMentions.length >= 2) {
     // Document comparison - found 2+ specific documents
     console.log(`✅ [COMPARISON] Document comparison: ${documentMentions.length} documents`);
     console.log(`📄 [COMPARISON] Document IDs: ${documentMentions.join(', ')}`);
+
+    // ✅ DEBUG: Fetch and log actual document names for debugging
+    const docs = await prisma.document.findMany({
+      where: { id: { in: documentMentions } },
+      select: { id: true, filename: true }
+    });
+    console.log(`📝 [COMPARISON] Matched documents:`, docs.map(d => ({ id: d.id.substring(0, 8), name: d.filename })));
+
     return {
       type: 'document',
       documents: documentMentions,
     };
+  } else if (documentMentions.length === 1) {
+    console.log(`⚠️ [COMPARISON] Only found 1 document, need 2+ for comparison`);
+  } else {
+    console.log(`⚠️ [COMPARISON] No specific documents found in query`);
   }
 
   // Concept comparison - no specific documents, extract concepts being compared
@@ -2641,6 +2752,9 @@ async function handleRegularQuery(
   onStage?: (stage: string, message: string) => void
 ): Promise<{ sources: any[] }> {
 
+  // ✅ FIX: Send immediate acknowledgment to establish streaming connection
+  onChunk('');
+
   // ═══════════════════════════════════════════════════════════════════════════
   // CACHE CHECK - Return cached result if available
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2775,6 +2889,11 @@ async function handleRegularQuery(
     const contextText = contextChunks.join('\n\n');
 
     // Generate answer with context (streaming)
+    const comparisonPrompt = queryAnalysis.queryType === 'comparison'
+      ? `You are answering a COMPARISON query. Structure your response to clearly compare the concepts mentioned.\n\nOriginal query: "${queryAnalysis.originalQuery}"\n\nContext from documents:\n${contextText}\n\nProvide a comprehensive comparison addressing all aspects of the query.`
+      : `You are answering a MULTI-PART query. Address each part of the question systematically.\n\nOriginal query: "${queryAnalysis.originalQuery}"\n\nContext from documents:\n${contextText}\n\nProvide a comprehensive answer addressing all parts of the query.`;
+
+    // Stream response from Gemini
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
@@ -2782,10 +2901,6 @@ async function handleRegularQuery(
         maxOutputTokens: 4000,
       },
     });
-
-    const comparisonPrompt = queryAnalysis.queryType === 'comparison'
-      ? `You are answering a COMPARISON query. Structure your response to clearly compare the concepts mentioned.\n\nOriginal query: "${queryAnalysis.originalQuery}"\n\nContext from documents:\n${contextText}\n\nProvide a comprehensive comparison addressing all aspects of the query.`
-      : `You are answering a MULTI-PART query. Address each part of the question systematically.\n\nOriginal query: "${queryAnalysis.originalQuery}"\n\nContext from documents:\n${contextText}\n\nProvide a comprehensive answer addressing all parts of the query.`;
 
     const result = await model.generateContentStream(comparisonPrompt);
 
@@ -3522,17 +3637,16 @@ async function streamLLMResponse(
   context: string,
   onChunk: (chunk: string) => void
 ): Promise<string> {
-  console.log('🌊 [STREAMING] Starting real stream with implicit caching');
+  console.log('🌊 [STREAMING] Starting Gemini streaming');
 
   let fullAnswer = '';
 
   try {
-    // Use Gemini Cache Service with implicit caching
-    // The systemPrompt is automatically cached via systemInstruction parameter
+    // Use Gemini cached streaming for better performance
     fullAnswer = await geminiCache.generateStreamingWithCache({
       systemPrompt,
       documentContext: context,
-      query: '', // Empty query - context already contains full prompt
+      query: '', // Query already included in context
       temperature: 0.4,
       maxTokens: 3000,
       onChunk: (text: string) => {
@@ -3549,7 +3663,7 @@ async function streamLLMResponse(
       }
     });
 
-    console.log('✅ [STREAMING] Complete with caching. Total chars:', fullAnswer.length);
+    console.log('✅ [STREAMING] Complete. Total chars:', fullAnswer.length);
     return fullAnswer;
 
   } catch (error: any) {
