@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")        // Pooled connection (fast, for app queries)
+  directUrl = env("DIRECT_DATABASE_URL") // Direct connection (slow, for migrations only)
 }
 
 // User model
@@ -345,6 +346,10 @@ model PendingUser {
   phoneVerified Boolean  @default(false)
   expiresAt     DateTime // Expires after 24 hours if not verified
   createdAt     DateTime @default(now())
+
+  // Zero-Knowledge Encryption Recovery
+  recoveryKeyHash  String? // Hashed recovery key for account recovery (bcrypt)
+  masterKeyEncrypted String? // Master encryption key encrypted with recovery key
 
   @@index([email])
   @@map("pending_users")

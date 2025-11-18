@@ -48,7 +48,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     console.log('🎯 LOGIN CONTROLLER HIT - Email:', req.body.email);
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.body;
 
     if (!email || !password) {
       console.log('❌ Missing email or password');
@@ -56,8 +56,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    console.log('✅ Calling authService.loginUser');
-    const result = await authService.loginUser({ email, password });
+    console.log('✅ Calling authService.loginUser - Remember Me:', rememberMe);
+    const result = await authService.loginUser({ email, password, rememberMe });
 
     res.status(200).json({
       message: 'Login successful',

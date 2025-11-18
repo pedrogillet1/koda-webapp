@@ -16,6 +16,30 @@ import { generateConversationTitle } from '../services/gemini.service';
  */
 
 /**
+ * Helper function to ensure conversation exists before creating messages
+ */
+async function ensureConversationExists(conversationId: string, userId: string) {
+  let conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId }
+  });
+
+  if (!conversation) {
+    console.log(`⚠️ Conversation ${conversationId} not found, creating it...`);
+    conversation = await prisma.conversation.create({
+      data: {
+        id: conversationId,
+        userId,
+        title: 'New Chat',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    });
+  }
+
+  return conversation;
+}
+
+/**
  * POST /api/rag/query
  * Generate an answer using RAG
  */
@@ -109,6 +133,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       const excelCellReader = await import('../services/excelCellReader.service');
       const cellResult = await excelCellReader.default.readCell(query, userId);
 
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
+
       const userMessage = await prisma.message.create({
         data: {
           conversationId,
@@ -171,6 +198,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         userId
       );
 
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
+
       const userMessage = await prisma.message.create({
         data: {
           conversationId,
@@ -213,6 +243,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       const navResult = await navigationService.findFile(userId, intentResult.entities.documentName);
 
       if (navResult.found) {
+        // Ensure conversation exists before creating messages
+        await ensureConversationExists(conversationId, userId);
+
         const userMessage = await prisma.message.create({
           data: { conversationId, role: 'user', content: query }
         });
@@ -271,6 +304,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       const filesListAnswer = documents.length > 0
         ? `You have ${documents.length} files:\n${documents.map((d, i) => `${i + 1}. ${d.filename}`).join('\n')}`
         : 'You have no files uploaded yet.';
+
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -368,6 +404,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         userId
       );
 
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
+
       const userMessage = await prisma.message.create({
         data: {
           conversationId,
@@ -415,6 +454,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         intentResult.entities.targetName,
         userId
       );
+
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -472,6 +514,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         : undefined;
 
       const result = await fileActionsService.findDuplicates(userId, folderId);
+
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -789,6 +834,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       cleanDocumentId
     );
 
+    console.log(`🔍 [RAG CONTROLLER] result.sources:`, JSON.stringify(result.sources?.slice(0, 3), null, 2));
+    console.log(`🔍 [RAG CONTROLLER] result.sources.length:`, result.sources?.length);
+
     // Save assistant message to database with RAG metadata
     const assistantMessage = await prisma.message.create({
       data: {
@@ -1007,7 +1055,19 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     // ✅ FIX #1: INTENT CLASSIFICATION
     // ========================================
-    const intentResult = await llmIntentDetectorService.detectIntent(query);
+    // Get conversation history for context resolution (needed for intent detection)
+    const conversationHistoryForIntent = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        role: true,
+        content: true,
+      }
+    });
+    conversationHistoryForIntent.reverse(); // Chronological order
+
+    const intentResult = await llmIntentDetectorService.detectIntent(query, conversationHistoryForIntent);
     console.log(`🎯 [STREAMING LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
     console.log(`📝 [STREAMING Entities]`, intentResult.parameters);
 
@@ -1019,10 +1079,23 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     if (intentResult.intent === 'create_folder' && intentResult.parameters.folderName) {
       console.log(`📁 [STREAMING ACTION] Creating folder: "${intentResult.parameters.folderName}"`);
 
+      // ✅ FIX: Set up SSE headers FIRST, before doing work
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      // Send "connected" event immediately
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+
+      // Now execute the action
       const result = await fileActionsService.createFolder({
         userId,
         folderName: intentResult.parameters.folderName
       }, query);
+
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1051,12 +1124,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         data: { updatedAt: new Date() },
       });
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'done',
@@ -1073,11 +1141,21 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     if (intentResult.intent === 'move_files' && intentResult.parameters.filename && intentResult.parameters.targetFolder) {
       console.log(`📁 [STREAMING ACTION] Moving file: "${intentResult.parameters.filename}" to "${intentResult.parameters.targetFolder}"`);
 
-      const result = await fileActionsService.moveFile(
-        userId,
-        intentResult.parameters.filename,
-        intentResult.parameters.targetFolder
-      );
+      // ✅ FIX: Set up SSE headers FIRST, before doing work
+      // This immediately establishes the connection so frontend knows request is being processed
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      // Send "connected" event immediately
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+
+      // Now execute the action (this may take a few seconds)
+      const result = await fileActionsService.executeAction(query, userId);
+
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1105,12 +1183,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         data: { updatedAt: new Date() },
       });
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'done',
@@ -1124,14 +1197,23 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     }
 
     // RENAME_FILE
-    if (intentResult.intent === 'rename_file' && intentResult.parameters.oldName && intentResult.parameters.newName) {
-      console.log(`📁 [STREAMING ACTION] Renaming: "${intentResult.parameters.oldName}" to "${intentResult.parameters.newName}"`);
+    if (intentResult.intent === 'rename_file' && intentResult.parameters.oldFilename && intentResult.parameters.newFilename) {
+      console.log(`📁 [STREAMING ACTION] Renaming: "${intentResult.parameters.oldFilename}" to "${intentResult.parameters.newFilename}"`);
 
-      const result = await fileActionsService.renameFile({
-        userId,
-        oldFilename: intentResult.parameters.oldName,
-        newFilename: intentResult.parameters.newName
-      }, query);
+      // ✅ FIX: Set up SSE headers FIRST, before doing work
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      // Send "connected" event immediately
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+
+      // Now execute the action
+      const result = await fileActionsService.executeAction(query, userId);
+
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1159,12 +1241,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         data: { updatedAt: new Date() },
       });
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'done',
@@ -1181,10 +1258,23 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     if (intentResult.intent === 'delete_file' && intentResult.parameters.filename) {
       console.log(`📁 [STREAMING ACTION] Deleting: "${intentResult.parameters.filename}"`);
 
+      // ✅ FIX: Set up SSE headers FIRST, before doing work
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      // Send "connected" event immediately
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+
+      // Now execute the action
       const result = await fileActionsService.executeAction(
         query,
         userId
       );
+
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1212,12 +1302,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         data: { updatedAt: new Date() },
       });
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'done',
@@ -1234,10 +1319,23 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     if (intentResult.intent === 'show_file' && intentResult.parameters.filename) {
       console.log(`👁️ [STREAMING ACTION] Showing file: "${intentResult.parameters.filename}"`);
 
+      // ✅ FIX: Set up SSE headers FIRST, before doing work
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      // Send "connected" event immediately
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+
+      // Now execute the action
       const result = await fileActionsService.showFile({
         userId,
         filename: intentResult.parameters.filename
       }, query, conversationHistoryForIntent);
+
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1267,12 +1365,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         data: { updatedAt: new Date() },
       });
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'done',
@@ -1289,6 +1382,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     if (intentResult.intent === 'file_location' && intentResult.parameters.filename) {
       console.log(`📍 [STREAMING] Finding: "${intentResult.parameters.filename}"`);
 
+      // ✅ FIX: Set up SSE headers FIRST, before doing work
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      // Send "connected" event immediately
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+
+      // Now execute the action
       const systemMetadataService = require('../services/systemMetadata.service').default;
       const fileLocation = await systemMetadataService.findFileLocation(userId, intentResult.parameters.filename);
 
@@ -1298,6 +1401,9 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       } else {
         responseMessage = `❌ I couldn't find a file named "${intentResult.parameters.filename}" in your library.`;
       }
+
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1325,12 +1431,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         data: { updatedAt: new Date() },
       });
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: responseMessage })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'done',
@@ -1349,6 +1450,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     if (intentResult.intent === 'list_files') {
       console.log(`📋 [STREAMING] Listing files`);
 
+      // ✅ FIX: Set up SSE headers FIRST, before doing work
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      // Send "connected" event immediately
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+
+      // Now execute the action
       const documents = await prisma.document.findMany({
         where: { userId, status: { not: 'deleted' } },
         select: { filename: true, folderId: true },
@@ -1362,6 +1473,9 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       } else {
         responseMessage = '📄 You don\'t have any documents yet. Upload some files to get started!';
       }
+
+      // Ensure conversation exists before creating messages
+      await ensureConversationExists(conversationId, userId);
 
       const userMessage = await prisma.message.create({
         data: {
@@ -1389,12 +1503,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         data: { updatedAt: new Date() }
       });
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: responseMessage })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'done',
@@ -1441,6 +1550,9 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       clearInterval(keepaliveInterval);
     });
 
+    // Ensure conversation exists before creating messages
+    await ensureConversationExists(conversationId, userId);
+
     // Save user message to database with attached files metadata
     const userMessage = await prisma.message.create({
       data: {
@@ -1461,7 +1573,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.log('🚀 [DEBUG] conversationId:', conversationId);
 
       // ✅ FIX: Use NEW generateAnswerStream (hybrid RAG with document detection + post-processing)
-      await ragService.generateAnswerStream(
+      const streamResult = await ragService.generateAnswerStream(
         userId,
         query,
         conversationId,
@@ -1480,11 +1592,12 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       console.log('🚀 [DEBUG] generateAnswerStream completed');
       console.log('🚀 [DEBUG] fullAnswer length:', fullAnswer.length);
+      console.log('🚀 [DEBUG] streamResult.sources length:', streamResult.sources?.length);
 
-      // Set result for post-processing below
+      // ✅ FIX: Use actual sources from generateAnswerStream, not hardcoded empty array!
       result = {
         answer: fullAnswer,
-        sources: [],
+        sources: streamResult.sources || [],
         contextId: undefined
       };
     } catch (ragError: any) {

@@ -1,180 +1,402 @@
-import React, { useState, useEffect } from 'react';
-import { X, Tag, Search } from 'lucide-react';
-import axios from 'axios';
+import React from 'react';
+import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
+import { ReactComponent as AddIcon } from '../assets/add.svg';
+import CategoryIcon from './CategoryIcon';
+import pdfIcon from '../assets/pdf-icon.png';
+import docIcon from '../assets/doc-icon.png';
+import txtIcon from '../assets/txt-icon.png';
+import xlsIcon from '../assets/xls.png';
+import jpgIcon from '../assets/jpg-icon.png';
+import pngIcon from '../assets/png-icon.png';
+import pptxIcon from '../assets/pptx.png';
+import movIcon from '../assets/mov.png';
+import mp4Icon from '../assets/mp4.png';
+import mp3Icon from '../assets/mp3.svg';
 
 /**
- * Modal for selecting a category to move documents to
- * Features category list with emoji and search
+ * Universal Move to Category Modal
+ * Used across Documents, DocumentsPage, DocumentViewer, and UploadHub
  */
-export default function MoveToCategoryModal({ isOpen, onClose, onMove, selectedCount }) {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchCategories();
-    }
-  }, [isOpen]);
-
-  const fetchCategories = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get('/api/categories');
-      setCategories(response.data.categories || []);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMove = () => {
-    if (selectedCategory) {
-      onMove(selectedCategory.id);
-      onClose();
-      setSelectedCategory(null);
-      setSearchQuery('');
-    }
-  };
-
-  const filterCategories = (categories, query) => {
-    if (!query.trim()) return categories;
-
-    const lowerQuery = query.toLowerCase();
-    return categories.filter(category =>
-      category.name.toLowerCase().includes(lowerQuery)
-    );
-  };
-
+export default function MoveToCategoryModal({
+  isOpen,
+  onClose,
+  selectedDocument,
+  categories,
+  selectedCategoryId,
+  onCategorySelect,
+  onCreateNew,
+  onConfirm
+}) {
   if (!isOpen) return null;
 
-  const filteredCategories = filterCategories(categories, searchQuery);
+  const getFileIcon = (filename) => {
+    const lower = filename.toLowerCase();
+    if (lower.match(/\.(pdf)$/)) return pdfIcon;
+    if (lower.match(/\.(jpg|jpeg)$/)) return jpgIcon;
+    if (lower.match(/\.(png)$/)) return pngIcon;
+    if (lower.match(/\.(doc|docx)$/)) return docIcon;
+    if (lower.match(/\.(xls|xlsx)$/)) return xlsIcon;
+    if (lower.match(/\.(txt)$/)) return txtIcon;
+    if (lower.match(/\.(ppt|pptx)$/)) return pptxIcon;
+    if (lower.match(/\.(mov)$/)) return movIcon;
+    if (lower.match(/\.(mp4)$/)) return mp4Icon;
+    if (lower.match(/\.(mp3)$/)) return mp3Icon;
+    return docIcon;
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        width: '100%',
+        maxWidth: 480,
+        paddingTop: 18,
+        paddingBottom: 18,
+        background: 'white',
+        borderRadius: 14,
+        outline: '1px #E6E6EC solid',
+        outlineOffset: '-1px',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 18,
+        display: 'flex'
+      }}>
         {/* Header */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">
-              Move {selectedCount} {selectedCount === 1 ? 'document' : 'documents'} to category
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X size={20} />
-            </button>
+        <div style={{
+          width: '100%',
+          paddingLeft: 24,
+          paddingRight: 24,
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          display: 'flex'
+        }}>
+          <div style={{
+            color: '#32302C',
+            fontSize: 18,
+            fontFamily: 'Plus Jakarta Sans',
+            fontWeight: '600',
+            lineHeight: '25.20px'
+          }}>
+            Move to Category
           </div>
-
-          {/* Search */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search size={18} className="text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search categories..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              background: '#F5F5F5',
+              border: 'none',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'background 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
+            onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+          >
+            <CloseIcon style={{ width: 16, height: 16 }} />
+          </button>
         </div>
 
-        {/* Category List */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        {/* Selected Document Display */}
+        {selectedDocument && (
+          <div style={{
+            width: '100%',
+            paddingLeft: 24,
+            paddingRight: 24
+          }}>
+            <div style={{
+              padding: 12,
+              background: '#F5F5F5',
+              borderRadius: 12,
+              border: '1px #E6E6EC solid',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12
+            }}>
+              <img
+                src={getFileIcon(selectedDocument.filename)}
+                alt="File icon"
+                style={{
+                  width: 40,
+                  height: 40,
+                  imageRendering: '-webkit-optimize-contrast',
+                  objectFit: 'contain',
+                  shapeRendering: 'geometricPrecision',
+                  flexShrink: 0
+                }}
+              />
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{
+                  color: '#32302C',
+                  fontSize: 14,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '600',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {selectedDocument.filename}
+                </div>
+                <div style={{
+                  color: '#6C6B6E',
+                  fontSize: 12,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '400'
+                }}>
+                  {((selectedDocument.fileSize || 0) / 1024 / 1024).toFixed(2)} MB
+                </div>
+              </div>
             </div>
-          ) : filteredCategories.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              {searchQuery ? 'No categories found' : 'No categories available'}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {filteredCategories.map(category => (
+          </div>
+        )}
+
+        {/* Categories Grid */}
+        <div style={{
+          width: '100%',
+          paddingLeft: 24,
+          paddingRight: 24,
+          paddingTop: 8,
+          paddingBottom: 8,
+          flexDirection: 'column',
+          justifyContent: 'flex-start',
+          alignItems: 'flex-start',
+          gap: 12,
+          display: 'flex',
+          maxHeight: '280px',
+          overflowY: 'auto'
+        }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 12,
+            width: '100%'
+          }}>
+            {categories.map((category) => {
+              const fileCount = category._count?.documents || category.fileCount || 0;
+              return (
                 <div
                   key={category.id}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-all ${
-                    selectedCategory?.id === category.id
-                      ? 'bg-blue-100 border-2 border-blue-500'
-                      : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
-                  }`}
+                  onClick={() => onCategorySelect(category.id)}
+                  style={{
+                    paddingLeft: 12,
+                    paddingRight: 12,
+                    paddingTop: 12,
+                    paddingBottom: 12,
+                    background: selectedCategoryId === category.id ? '#F5F5F5' : 'white',
+                    borderRadius: 12,
+                    border: selectedCategoryId === category.id ? '2px #32302C solid' : '1px #E6E6EC solid',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    position: 'relative'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedCategoryId !== category.id) {
+                      e.currentTarget.style.background = '#F9FAFB';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedCategoryId !== category.id) {
+                      e.currentTarget.style.background = 'white';
+                    }
+                  }}
                 >
-                  {/* Category Emoji */}
-                  {category.emoji ? (
-                    <span className="text-2xl">{category.emoji}</span>
-                  ) : (
-                    <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
-                      <Tag size={18} className="text-gray-500" />
-                    </div>
-                  )}
-
-                  {/* Category Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-900 truncate">
-                      {category.name}
-                    </h3>
-                    {category.description && (
-                      <p className="text-sm text-gray-500 truncate">
-                        {category.description}
-                      </p>
-                    )}
+                  {/* Emoji */}
+                  <div style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    background: '#F5F5F5',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 20
+                  }}>
+                    <CategoryIcon emoji={category.emoji} style={{width: 18, height: 18}} />
                   </div>
 
-                  {/* Document Count */}
-                  {category._count?.documents !== undefined && (
-                    <div className="flex-shrink-0">
-                      <span className="px-2 py-1 bg-white text-gray-600 text-xs rounded-full border border-gray-200">
-                        {category._count.documents} docs
-                      </span>
+                  {/* Category Name */}
+                  <div style={{
+                    width: '100%',
+                    color: '#32302C',
+                    fontSize: 14,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600',
+                    lineHeight: '19.60px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    textAlign: 'center'
+                  }}>
+                    {category.name}
+                  </div>
+
+                  {/* File Count */}
+                  <div style={{
+                    color: '#6C6B6E',
+                    fontSize: 12,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '500',
+                    lineHeight: '15.40px'
+                  }}>
+                    {fileCount || 0} {fileCount === 1 ? 'File' : 'Files'}
+                  </div>
+
+                  {/* Checkmark */}
+                  {selectedCategoryId === category.id && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="8" cy="8" r="8" fill="#32302C"/>
+                        <path d="M4.5 8L7 10.5L11.5 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-gray-200 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            {selectedCategory ? (
-              <>
-                Selected:
-                <span className="font-medium ml-1">
-                  {selectedCategory.emoji && `${selectedCategory.emoji} `}
-                  {selectedCategory.name}
-                </span>
-              </>
-            ) : (
-              'Select a category'
-            )}
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-colors"
-            >
+        {/* Create New Category Button */}
+        <div style={{
+          width: '100%',
+          paddingLeft: 24,
+          paddingRight: 24
+        }}>
+          <button
+            onClick={onCreateNew}
+            style={{
+              width: '100%',
+              paddingLeft: 18,
+              paddingRight: 18,
+              paddingTop: 10,
+              paddingBottom: 10,
+              background: '#F5F5F5',
+              borderRadius: 100,
+              border: '1px #E6E6EC solid',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              transition: 'background 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
+            onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+          >
+            <AddIcon style={{ width: 20, height: 20 }} />
+            <div style={{
+              color: '#32302C',
+              fontSize: 16,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '600',
+              lineHeight: '24px'
+            }}>
+              Create New Category
+            </div>
+          </button>
+        </div>
+
+        {/* Buttons */}
+        <div style={{
+          width: '100%',
+          paddingLeft: 24,
+          paddingRight: 24,
+          justifyContent: 'flex-start',
+          alignItems: 'flex-start',
+          gap: 10,
+          display: 'flex'
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              paddingLeft: 18,
+              paddingRight: 18,
+              paddingTop: 10,
+              paddingBottom: 10,
+              background: 'white',
+              borderRadius: 100,
+              border: '1px #E6E6EC solid',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 6,
+              display: 'flex',
+              cursor: 'pointer',
+              transition: 'background 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+          >
+            <div style={{
+              color: '#32302C',
+              fontSize: 16,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '500',
+              lineHeight: '24px'
+            }}>
               Cancel
-            </button>
-            <button
-              onClick={handleMove}
-              disabled={!selectedCategory}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                selectedCategory
-                  ? 'bg-purple-600 text-white hover:bg-purple-700'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              Move
-            </button>
-          </div>
+            </div>
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!selectedCategoryId}
+            style={{
+              flex: 1,
+              paddingLeft: 18,
+              paddingRight: 18,
+              paddingTop: 10,
+              paddingBottom: 10,
+              background: selectedCategoryId ? '#32302C' : '#E6E6EC',
+              borderRadius: 100,
+              border: 'none',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 6,
+              display: 'flex',
+              cursor: selectedCategoryId ? 'pointer' : 'not-allowed',
+              transition: 'opacity 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (selectedCategoryId) {
+                e.currentTarget.style.opacity = '0.9';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = '1';
+            }}
+          >
+            <div style={{
+              color: selectedCategoryId ? 'white' : '#9CA3AF',
+              fontSize: 16,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '500',
+              lineHeight: '24px'
+            }}>
+              Add
+            </div>
+          </button>
         </div>
       </div>
     </div>

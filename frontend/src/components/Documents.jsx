@@ -6,6 +6,7 @@ import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection';
 import { useToast } from '../context/ToastContext';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useSemanticSearch } from '../hooks/useSemanticSearch';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import CreateCategoryModal from './CreateCategoryModal';
@@ -23,7 +24,7 @@ import { ReactComponent as LogoutBlackIcon } from '../assets/Logout-black.svg';
 import { ReactComponent as Document2Icon } from '../assets/Document 2.svg';
 import { ReactComponent as ImageIcon } from '../assets/Image.svg';
 import { ReactComponent as InfoCircleIcon } from '../assets/Info circle.svg';
-import { ReactComponent as VideoIcon } from '../assets/Video.svg';
+import { ReactComponent as SpreadsheetIcon } from '../assets/spreadsheet.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can-red.svg';
 import { ReactComponent as EditIcon } from '../assets/Edit 5.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
@@ -77,6 +78,16 @@ const Documents = () => {
   // Local UI state only
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Semantic search hook
+  const {
+    query: semanticQuery,
+    setQuery: setSemanticQuery,
+    results: semanticResults,
+    isSearching,
+    error: searchError
+  } = useSemanticSearch(300);
+
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
@@ -155,7 +166,7 @@ const Documents = () => {
 
     // Calculate breakdown by type with sizes
     const breakdown = {
-      video: { count: 0, size: 0 },
+      spreadsheet: { count: 0, size: 0 },
       document: { count: 0, size: 0 },
       image: { count: 0, size: 0 },
       other: { count: 0, size: 0 }
@@ -164,6 +175,7 @@ const Documents = () => {
     contextDocuments.forEach(doc => {
       // Safely get filename
       const filename = (doc.filename || doc.name || '').toLowerCase();
+      const mimeType = doc.mimeType || '';
       const size = doc.fileSize || 0;
 
       if (!filename) {
@@ -172,9 +184,10 @@ const Documents = () => {
         return;
       }
 
-      if (filename.match(/\.(mp4|avi|mov|wmv|flv|mkv|webm)$/)) {
-        breakdown.video.count++;
-        breakdown.video.size += size;
+      // Check for Excel/Spreadsheet files (by MIME type or extension)
+      if (mimeType.includes('sheet') || mimeType.includes('excel') || filename.match(/\.(xls|xlsx|csv)$/)) {
+        breakdown.spreadsheet.count++;
+        breakdown.spreadsheet.size += size;
       } else if (filename.match(/\.(pdf|doc|docx|txt|rtf|odt)$/)) {
         breakdown.document.count++;
         breakdown.document.size += size;
@@ -189,7 +202,7 @@ const Documents = () => {
 
     return {
       fileData: [
-        { name: 'Video', value: breakdown.video.count, color: '#181818', size: formatBytes(breakdown.video.size) },
+        { name: 'Spreadsheet', value: breakdown.spreadsheet.count, color: '#181818', size: formatBytes(breakdown.spreadsheet.size) },
         { name: 'Document', value: breakdown.document.count, color: '#000000', size: formatBytes(breakdown.document.size) },
         { name: 'Image', value: breakdown.image.count, color: '#A8A8A8', size: formatBytes(breakdown.image.size) },
         { name: 'Other', value: breakdown.other.count, color: '#D9D9D9', size: formatBytes(breakdown.other.size) }
@@ -387,12 +400,55 @@ const Documents = () => {
     }
   };
 
+  // Sync search query with semantic search
+  useEffect(() => {
+    setSemanticQuery(searchQuery);
+  }, [searchQuery, setSemanticQuery]);
+
   // Filter documents and folders based on search query (auto-updates!)
+  // Hybrid approach: Combine semantic search results with filename matching
   const filteredDocuments = useMemo(() => {
-    return contextDocuments.filter(doc =>
+    if (!searchQuery) {
+      return contextDocuments;
+    }
+
+    // Filename-based filtering
+    const filenameMatches = contextDocuments.filter(doc =>
       doc.filename?.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [contextDocuments, searchQuery]);
+
+    // If we have semantic search results, merge them
+    if (semanticResults && semanticResults.length > 0) {
+      // Create a map of semantic results by ID for quick lookup
+      const semanticMap = new Map(semanticResults.map(result => [result.id, result]));
+
+      // Combine both result sets, preferring semantic search order for matches
+      const combinedIds = new Set();
+      const combined = [];
+
+      // First, add semantic search results (ordered by relevance)
+      semanticResults.forEach(result => {
+        const doc = contextDocuments.find(d => d.id === result.id);
+        if (doc && !combinedIds.has(doc.id)) {
+          combined.push({ ...doc, searchScore: result.score, matchedContent: result.matchedContent });
+          combinedIds.add(doc.id);
+        }
+      });
+
+      // Then add filename matches that weren't in semantic results
+      filenameMatches.forEach(doc => {
+        if (!combinedIds.has(doc.id)) {
+          combined.push(doc);
+          combinedIds.add(doc.id);
+        }
+      });
+
+      return combined;
+    }
+
+    // Fallback to filename matching only
+    return filenameMatches;
+  }, [contextDocuments, searchQuery, semanticResults]);
 
   const filteredFolders = useMemo(() => {
     return allFolders.filter(folder =>
@@ -666,7 +722,46 @@ const Documents = () => {
                   overflowY: 'auto',
                   zIndex: 1000
                 }}>
-                  {(filteredFolders.length > 0 || filteredDocuments.length > 0) ? (
+                  {/* Loading State */}
+                  {isSearching && (
+                    <div style={{padding: 24, textAlign: 'center'}}>
+                      <div style={{
+                        display: 'inline-block',
+                        width: 24,
+                        height: 24,
+                        border: '3px solid #E6E6EC',
+                        borderTop: '3px solid #32302C',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite'
+                      }} />
+                      <div style={{
+                        marginTop: 12,
+                        color: '#6C6B6E',
+                        fontSize: 14,
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: '500'
+                      }}>
+                        Searching...
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error State */}
+                  {searchError && !isSearching && (
+                    <div style={{padding: 24, textAlign: 'center'}}>
+                      <div style={{
+                        color: '#EF4444',
+                        fontSize: 14,
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: '500'
+                      }}>
+                        {searchError}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Results */}
+                  {!isSearching && !searchError && (filteredFolders.length > 0 || filteredDocuments.length > 0) ? (
                     <div style={{padding: 8}}>
                       {/* Folders Section */}
                       {filteredFolders.length > 0 && (
@@ -858,18 +953,67 @@ const Documents = () => {
                                 onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
-                                <img
-                                  src={getFileIcon(doc)}
-                                  alt="File icon"
-                                  style={{
-                                    width: 40,
-                                    height: 40,
-                                    aspectRatio: '1/1',
-                                    imageRendering: '-webkit-optimize-contrast',
-                                    objectFit: 'contain',
-                                    shapeRendering: 'geometricPrecision'
-                                  }}
-                                />
+                                <div style={{ position: 'relative' }}>
+                                  <img
+                                    src={getFileIcon(doc)}
+                                    alt="File icon"
+                                    style={{
+                                      width: 40,
+                                      height: 40,
+                                      aspectRatio: '1/1',
+                                      imageRendering: '-webkit-optimize-contrast',
+                                      objectFit: 'contain',
+                                      shapeRendering: 'geometricPrecision'
+                                    }}
+                                  />
+                                  {/* Processing badge */}
+                                  {doc.status === 'processing' && (
+                                    <div style={{
+                                      position: 'absolute',
+                                      bottom: -4,
+                                      right: -4,
+                                      background: '#3B82F6',
+                                      color: 'white',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '9px',
+                                      fontWeight: '600',
+                                      fontFamily: 'Plus Jakarta Sans',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                    }}>
+                                      <div style={{
+                                        width: 6,
+                                        height: 6,
+                                        border: '1.5px solid white',
+                                        borderTopColor: 'transparent',
+                                        borderRadius: '50%',
+                                        animation: 'spin 0.8s linear infinite'
+                                      }} />
+                                      {doc.processingProgress ? `${doc.processingProgress}%` : '...'}
+                                    </div>
+                                  )}
+                                  {/* Failed badge */}
+                                  {doc.status === 'failed' && (
+                                    <div style={{
+                                      position: 'absolute',
+                                      bottom: -4,
+                                      right: -4,
+                                      background: '#EF4444',
+                                      color: 'white',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '9px',
+                                      fontWeight: '600',
+                                      fontFamily: 'Plus Jakarta Sans',
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                    }}>
+                                      ⚠️ Failed
+                                    </div>
+                                  )}
+                                </div>
                                 <div style={{flex: 1, overflow: 'hidden'}}>
                                   <div style={{
                                     color: '#32302C',
@@ -1211,7 +1355,7 @@ const Documents = () => {
                 {fileData.map((item, index) => (
                   <div key={index} style={{display: 'flex', alignItems: 'center', gap: 12}}>
                     <div style={{width: 40, height: 40, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                      {item.name === 'Video' && <VideoIcon style={{width: 20, height: 20}} />}
+                      {item.name === 'Spreadsheet' && <SpreadsheetIcon style={{width: 20, height: 20}} />}
                       {item.name === 'Document' && <Document2Icon style={{width: 20, height: 20}} />}
                       {item.name === 'Image' && <ImageIcon style={{width: 20, height: 20}} />}
                       {item.name === 'Other' && <InfoCircleIcon style={{width: 20, height: 20}} />}
@@ -1230,10 +1374,10 @@ const Documents = () => {
               </div>
             </div>
 
-            {/* Recently Added - 60% */}
+            {/* Your Files - 60% */}
             <div style={{width: '60%', padding: 24, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24}}>
-                <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Recently Added</div>
+                <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
                 {contextDocuments.length > 6 && (
                   <div
                     onClick={() => navigate('/category/recently-added')}
@@ -1534,6 +1678,7 @@ const Documents = () => {
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
+                                  <DownloadIcon style={{ width: 20, height: 20 }} />
                                   Download
                                 </button>
 
@@ -1561,6 +1706,7 @@ const Documents = () => {
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
+                                  <EditIcon style={{ width: 20, height: 20 }} />
                                   Rename
                                 </button>
 
@@ -1588,6 +1734,7 @@ const Documents = () => {
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
+                                  <AddIcon style={{ width: 20, height: 20 }} />
                                   Move
                                 </button>
 
@@ -1616,6 +1763,7 @@ const Documents = () => {
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
+                                  <TrashCanIcon style={{ width: 20, height: 20 }} />
                                   Delete
                                 </button>
                               </div>
@@ -1747,7 +1895,7 @@ const Documents = () => {
         }}>
           <div style={{
             width: '100%',
-            maxWidth: 400,
+            maxWidth: 480,
             paddingTop: 18,
             paddingBottom: 18,
             background: 'white',

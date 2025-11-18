@@ -14,7 +14,7 @@ import { ReactComponent as BellIcon } from '../assets/Bell-1.svg';
 import { ReactComponent as SettingsFilledIcon } from '../assets/Settings-filled.svg';
 import { ReactComponent as Document2Icon } from '../assets/Document 2.svg';
 import { ReactComponent as ImageIcon } from '../assets/Image.svg';
-import { ReactComponent as VideoIcon } from '../assets/Video.svg';
+import { ReactComponent as SpreadsheetIcon } from '../assets/spreadsheet.svg';
 import { ReactComponent as InfoCircleIcon } from '../assets/Info circle.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as Right3Icon } from '../assets/Right 3.svg';
@@ -40,7 +40,7 @@ const Settings = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const [activeSection, setActiveSection] = useState('general');
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [documents, setDocuments] = useState(() => {
     // Load from cache for instant display
     const cached = sessionStorage.getItem('koda_settings_documents');
@@ -206,7 +206,7 @@ const Settings = () => {
 
         // Calculate file breakdown by type
         const breakdown = {
-          video: { count: 0, size: 0 },
+          spreadsheet: { count: 0, size: 0 },
           document: { count: 0, size: 0 },
           image: { count: 0, size: 0 },
           other: { count: 0, size: 0 }
@@ -214,11 +214,13 @@ const Settings = () => {
 
         docs.forEach(doc => {
           const filename = doc.filename.toLowerCase();
+          const mimeType = doc.mimeType || '';
           const size = doc.fileSize || 0;
 
-          if (filename.match(/\.(mp4|avi|mov|wmv|flv|mkv|webm)$/)) {
-            breakdown.video.count++;
-            breakdown.video.size += size;
+          // Check for Excel/Spreadsheet files (by MIME type or extension)
+          if (mimeType.includes('sheet') || mimeType.includes('excel') || filename.match(/\.(xls|xlsx|csv)$/)) {
+            breakdown.spreadsheet.count++;
+            breakdown.spreadsheet.size += size;
           } else if (filename.match(/\.(pdf|doc|docx|txt|rtf|odt)$/)) {
             breakdown.document.count++;
             breakdown.document.size += size;
@@ -240,7 +242,7 @@ const Settings = () => {
         };
 
         const chartData = [
-          { name: 'Video', value: breakdown.video.count, color: '#181818', size: formatBytes(breakdown.video.size) },
+          { name: 'Spreadsheet', value: breakdown.spreadsheet.count, color: '#181818', size: formatBytes(breakdown.spreadsheet.size) },
           { name: 'Document', value: breakdown.document.count, color: '#000000', size: formatBytes(breakdown.document.size) },
           { name: 'Image', value: breakdown.image.count, color: '#A8A8A8', size: formatBytes(breakdown.image.size) },
           { name: 'Other', value: breakdown.other.count, color: '#D9D9D9', size: formatBytes(breakdown.other.size) }
@@ -1040,7 +1042,7 @@ const Settings = () => {
                 {fileData.map((item, index) => (
                   <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 40, height: 40, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {item.name === 'Video' && <VideoIcon style={{ width: 20, height: 20 }} />}
+                      {item.name === 'Spreadsheet' && <SpreadsheetIcon style={{ width: 20, height: 20 }} />}
                       {item.name === 'Document' && <Document2Icon style={{ width: 20, height: 20 }} />}
                       {item.name === 'Image' && <ImageIcon style={{ width: 20, height: 20 }} />}
                       {item.name === 'Other' && <InfoCircleIcon style={{ width: 20, height: 20 }} />}

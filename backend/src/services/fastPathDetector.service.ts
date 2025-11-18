@@ -143,7 +143,7 @@ Just ask me a question or upload a document to get started!`;
   private async generateGeneralResponse(query: string): Promise<string> {
     try {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           temperature: 0.7,
           maxOutputTokens: 100, // Keep it brief

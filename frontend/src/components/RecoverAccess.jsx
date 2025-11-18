@@ -25,15 +25,23 @@ function RecoverAccess() {
     setLoading(true);
 
     try {
+      console.log('🔐 [RecoverAccess] Calling /api/auth/forgot-password-init with email:', email.toLowerCase());
       const response = await api.post('/api/auth/forgot-password-init', {
         email: email.toLowerCase()
       });
 
+      console.log('✅ [RecoverAccess] API response received:', response.data);
+
       if (response.data.success) {
         if (response.data.sessionToken) {
+          console.log('🔑 [RecoverAccess] Storing sessionToken:', response.data.sessionToken.substring(0, 20) + '...');
           sessionStorage.setItem('resetSessionToken', response.data.sessionToken);
+          console.log('✅ [RecoverAccess] SessionToken stored successfully');
+        } else {
+          console.warn('⚠️  [RecoverAccess] No sessionToken in response!');
         }
 
+        console.log('🔄 [RecoverAccess] Navigating to /forgot-password...');
         navigate('/forgot-password', {
           state: {
             maskedEmail: response.data.maskedEmail,
@@ -46,7 +54,8 @@ function RecoverAccess() {
         });
       }
     } catch (error) {
-      console.error('Recover access error:', error);
+      console.error('❌ [RecoverAccess] Error occurred:', error);
+      console.error('❌ [RecoverAccess] Error response:', error.response?.data);
 
       if (error.response?.data?.needsVerification) {
         setError('Please verify your email first before resetting password');

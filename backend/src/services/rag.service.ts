@@ -2092,17 +2092,17 @@ async function handleDocumentComparison(
 ⚠️ NEVER use bullet lists for feature-by-feature comparisons
 
 CRITICAL RULES:
-• NEVER start with greetings ("Hello", "Hi", "I'm KODA")
-• Start directly with the answer/comparison
-• NO page citations or references in your text
-• ALWAYS use tables for structured comparisons (mandatory)
-• NO section labels ("Context:", "Details:", etc.)
-• NO emojis in your response
-• Each table cell MUST be concise (under 100 characters)
-• Each row MUST be ONE physical line in markdown
-• MUST include separator row: |---------|----------|
-• NEVER use code blocks or code formatting for document names
-• Document names should be in bold or plain text only
+- NEVER start with greetings ("Hello", "Hi", "I'm KODA")
+- Start directly with the answer/comparison
+- NO page citations or references in your text
+- ALWAYS use tables for structured comparisons (mandatory)
+- NO section labels ("Context:", "Details:", etc.)
+- NO emojis in your response
+- Each table cell MUST be concise (under 100 characters)
+- Each row MUST be ONE physical line in markdown
+- MUST include separator row: |---------|----------|
+- NEVER use code blocks or code formatting for document names
+- Document names should be in bold or plain text only
 
 The user wants to compare multiple documents. Here's the relevant content from each:
 
@@ -2151,9 +2151,9 @@ Here's a side-by-side comparison of the two documents:
 | **Key Sections** | Market analysis, user personas, pricing strategy | Core setup, security, documents, AI features |
 
 **Key Differences:**
-• The Blueprint focuses on strategic planning and market positioning, while the Checklist focuses on technical implementation.
-• The Blueprint is designed for external stakeholders, while the Checklist is for internal development teams.
-• The Blueprint provides context and rationale, while the Checklist provides actionable tasks.
+- The Blueprint focuses on strategic planning and market positioning, while the Checklist focuses on technical implementation.
+- The Blueprint is designed for external stakeholders, while the Checklist is for internal development teams.
+- The Blueprint provides context and rationale, while the Checklist provides actionable tasks.
 
 **Next step:** Review both documents together to ensure the development tasks in the Checklist align with the strategic vision in the Blueprint.
 </example_comparison_1>
@@ -2170,9 +2170,9 @@ Here's a comparison of the financial data in both documents:
 | **Avg Deal Size** | $8,000 | $7,500 | -6.25% |
 
 **Key Insights:**
-• Revenue grew significantly (+25%) driven by customer acquisition (+33%).
-• Average deal size decreased slightly (-6.25%), suggesting growth in smaller customers.
-• Profit margin improved from 33% to 40%, indicating better operational efficiency.
+- Revenue grew significantly (+25%) driven by customer acquisition (+33%).
+- Average deal size decreased slightly (-6.25%), suggesting growth in smaller customers.
+- Profit margin improved from 33% to 40%, indicating better operational efficiency.
 
 **Next step:** Analyze the customer segmentation to understand the shift toward smaller deal sizes and assess if this aligns with the growth strategy.
 </example_comparison_2>

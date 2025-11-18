@@ -245,8 +245,7 @@ class PineconeService {
       const documentIds = [...new Set(preliminaryResults.map(r => r.documentId))];
 
       if (documentIds.length > 0) {
-        const { PrismaClient } = await import('@prisma/client');
-        const prisma = new PrismaClient();
+        const prisma = (await import('../config/database')).default;
 
         try {
           const validDocuments = await prisma.document.findMany({
@@ -352,7 +351,7 @@ class PineconeService {
       console.log(`🗑️ [Pinecone] Deleting all vectors for document: ${documentId}`);
 
       // Step 1: Query to find all vector IDs for this document
-      const dummyVector = new Array(768).fill(0);
+      const dummyVector = new Array(1536).fill(0); // ✅ Updated to OpenAI dimensions
       const queryResponse = await index.query({
         vector: dummyVector,
         filter: { documentId: { $eq: documentId } },
@@ -424,7 +423,7 @@ class PineconeService {
       const index = this.pinecone!.index(this.indexName);
 
       // Use a dummy vector (zeros) since we're filtering by metadata only
-      const dummyVector = new Array(768).fill(0);
+      const dummyVector = new Array(1536).fill(0);
 
       // Build filter - always filter by userId and slide, optionally by documentId
       const filterConditions: any[] = [
@@ -508,7 +507,7 @@ class PineconeService {
       const index = this.pinecone!.index(this.indexName);
 
       // Use a dummy vector (zeros) since we're filtering by metadata only
-      const dummyVector = new Array(768).fill(0);
+      const dummyVector = new Array(1536).fill(0);
 
       // Build filter - always filter by userId and sheetNumber, optionally by documentId
       const filterConditions: any[] = [
@@ -602,9 +601,9 @@ class PineconeService {
 
       // Query for vectors with this documentId using a zero vector
       // We only care about the metadata filter, not the actual similarity
-      // Use 768 dimensions to match Gemini embedding model
+      // ✅ Using 1536 dimensions for OpenAI embeddings
       const queryResponse = await index.query({
-        vector: new Array(768).fill(0),
+        vector: new Array(1536).fill(0),
         filter: { documentId: { $eq: documentId } },
         topK: 100,
         includeMetadata: true,

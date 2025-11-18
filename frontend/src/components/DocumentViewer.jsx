@@ -1798,11 +1798,11 @@ const DocumentViewer = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 2000
+          zIndex: 1000
         }}>
           <div style={{
             width: '100%',
-            maxWidth: 400,
+            maxWidth: 480,
             paddingTop: 18,
             paddingBottom: 18,
             background: 'white',
@@ -2036,6 +2036,50 @@ const DocumentViewer = () => {
                   );
                 })}
               </div>
+            </div>
+
+            {/* Create New Category Button */}
+            <div style={{
+              width: '100%',
+              paddingLeft: 24,
+              paddingRight: 24
+            }}>
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  // Note: Create category functionality not yet implemented in DocumentViewer
+                  alert('Create category feature coming soon!');
+                }}
+                style={{
+                  width: '100%',
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  background: '#F5F5F5',
+                  borderRadius: 100,
+                  border: '1px #E6E6EC solid',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+              >
+                <AddIcon style={{ width: 20, height: 20 }} />
+                <div style={{
+                  color: '#32302C',
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '600',
+                  lineHeight: '24px'
+                }}>
+                  Create New Category
+                </div>
+              </button>
             </div>
 
             {/* Buttons */}
