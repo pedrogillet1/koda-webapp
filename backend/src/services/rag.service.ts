@@ -2101,6 +2101,8 @@ CRITICAL RULES:
 • Each table cell MUST be concise (under 100 characters)
 • Each row MUST be ONE physical line in markdown
 • MUST include separator row: |---------|----------|
+• ⚠️ NEVER use code blocks (```) or code formatting for document names
+• Document names should be in **bold** or plain text, NEVER in code blocks
 
 The user wants to compare multiple documents. Here's the relevant content from each:
 
@@ -2203,6 +2205,12 @@ User query: "${query}"`;
     // Log for monitoring (could trigger alert in production)
     console.log(`⚠️  [MONITORING] Low quality answer generated for query: "${query}"`);
   }
+
+  // ✅ DEBUG: Log sources being returned
+  console.log(`📚 [DOCUMENT COMPARISON] Returning ${sources.length} sources:`);
+  sources.forEach((src, idx) => {
+    console.log(`   ${idx + 1}. ${src.documentName} (page: ${src.pageNumber || 'N/A'}, score: ${src.score?.toFixed(3) || 0})`);
+  });
 
   return { sources };
 }
