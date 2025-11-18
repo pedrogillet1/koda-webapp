@@ -83,6 +83,11 @@ export const createConversation = async (params: CreateConversationParams) => {
       createdAt: new Date(),
       updatedAt: new Date(),
     },
+    include: {
+      _count: {
+        select: { messages: true },
+      },
+    },
   });
 
   console.log('✅ Conversation created:', conversation.id);
