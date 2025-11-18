@@ -27,6 +27,8 @@ import mp3Icon from '../assets/mp3.svg';
 import GeneratedDocumentCard from './GeneratedDocumentCard';
 import DocumentCard from './DocumentCard';
 import DocumentPreviewModal from './DocumentPreviewModal';
+import { previewCache } from '../services/previewCache';
+import api from '../services/api';
 import './MarkdownStyles.css';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
@@ -38,13 +40,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const navigate = useNavigate();
     const location = useLocation();
     const isMobile = useIsMobile();
-    // ✅ FIX: Persist draft message across screen changes
-    const [message, setMessage] = useState(() => {
-        // Load draft from localStorage on mount
-        const savedDraft = localStorage.getItem(`koda_draft_${currentConversation?.id || 'new'}`);
-        return savedDraft || '';
-    });
+    // Message state - draft is loaded via useEffect when conversation changes
+    const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
+    const [hasMessages, setHasMessages] = useState(false); // ✅ FIX #4: Track if any messages were sent
     const [isLoading, setIsLoading] = useState(false);
     const [user, setUser] = useState(null);
     const [streamingMessage, setStreamingMessage] = useState('');
@@ -72,10 +71,46 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const abortControllerRef = useRef(null);
     const manuallyRemovedDocumentRef = useRef(false);
     const pendingMessageRef = useRef(null); // Queue final message data until animation completes
+    const isNewlyCreatedConversation = useRef(false); // Track if this is a NEW conversation created in this session
 
     // Display streaming chunks immediately without animation for smoother UX (like ChatGPT)
     const displayedText = streamingMessage;
     const isStreaming = isLoading && streamingMessage.length > 0;
+
+    // ✅ PHASE 2 OPTIMIZATION: Preload preview on hover (makes preview instant on click)
+    const preloadPreview = async (doc) => {
+        // Skip if already cached or not a valid document
+        if (!doc || !doc.id || previewCache.has(doc.id)) {
+            return;
+        }
+
+        try {
+            // Check if DOCX
+            const extension = doc.filename?.split('.').pop()?.toLowerCase();
+            const isDocx = doc.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                           extension === 'docx' || extension === 'doc';
+
+            if (isDocx) {
+                // Preload DOCX preview
+                const previewResponse = await api.get(`/api/documents/${doc.id}/preview`);
+                const { previewUrl: pdfUrl } = previewResponse.data;
+                previewCache.set(doc.id, pdfUrl);
+                console.log('⚡ Preloaded DOCX preview for:', doc.filename);
+            } else {
+                // Preload PDF/other files
+                const response = await api.get(`/api/documents/${doc.id}/stream`, {
+                    responseType: 'blob'
+                });
+                const blob = response.data;
+                const url = URL.createObjectURL(blob);
+                previewCache.set(doc.id, url);
+                console.log('⚡ Preloaded preview for:', doc.filename);
+            }
+        } catch (error) {
+            console.error('Preload failed for:', doc.filename, error);
+            // Fail silently - user can still click to load
+        }
+    };
 
     // Helper function to get file icon based on extension
     const getFileIcon = (filename) => {
@@ -296,7 +331,19 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             if (m.id === data.userMessage?.id || m.id === data.assistantMessage?.id) return false;
                             return true;
                         });
-                        return [...withoutOptimistic, userMessageWithFiles, assistantMessageWithSources];
+
+                        const updatedMessages = [...withoutOptimistic, userMessageWithFiles, assistantMessageWithSources];
+
+                        // ✅ OPTIMIZATION: Update cache immediately when new messages arrive
+                        if (currentConversation?.id) {
+                            const cacheKey = `koda_chat_messages_${currentConversation.id}`;
+                            const cacheTimestampKey = `${cacheKey}_timestamp`;
+                            sessionStorage.setItem(cacheKey, JSON.stringify(updatedMessages));
+                            sessionStorage.setItem(cacheTimestampKey, Date.now().toString());
+                            console.log('💾 Cache updated with new messages');
+                        }
+
+                        return updatedMessages;
                     });
                 });
 
@@ -395,11 +442,19 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         console.log('📌 justCreatedConversationId:', justCreatedConversationId.current);
 
         if (currentConversation?.id) {
+            // CRITICAL: Clear old messages immediately when switching to prevent showing wrong conversation
+            console.log('🧹 Clearing old messages before switching to conversation:', currentConversation.id);
+            setMessages([]);
+            setStreamingMessage('');
+            setIsLoading(false);
+            pendingMessageRef.current = null;
+
             // Skip loading if we just created this conversation
             // We already have the messages locally from the REST API response
             if (justCreatedConversationId.current === currentConversation.id) {
-                console.log('⏭️ Skipping loadConversation - just created this conversation with messages locally');
+                console.log('⏭️ Skipping loadConversation - just created this conversation');
                 justCreatedConversationId.current = null; // Reset flag
+                // Messages should already be in state from the send operation
             } else {
                 console.log('🔃 Loading conversation from server...');
                 loadConversation(currentConversation.id);
@@ -407,15 +462,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             console.log('📡 Joining conversation room:', currentConversation.id);
             chatService.joinConversation(currentConversation.id);
-            // Clear streaming message and reset stage when switching conversations
-            setStreamingMessage('');
+            // Reset stage when switching conversations
             setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
         } else {
-            // No conversation selected - clear messages to show blank new chat
-            console.log('🆕 No conversation - clearing messages for new chat');
+            // No conversation selected - clear ALL state to show blank new chat
+            console.log('🆕 No conversation - clearing ALL state for new chat');
             setMessages([]);
             setStreamingMessage('');
+            setIsLoading(false);
+            setPendingFiles([]);
+            setUploadingFiles([]);
+            setAttachedDocuments([]);
             setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+            pendingMessageRef.current = null;
+            // Clear any cached data to prevent old messages from showing
+            justCreatedConversationId.current = null;
         }
 
         return () => {
@@ -541,6 +602,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     }, [messages, currentConversation]);
 
+    // ✅ FIX #4: Track if any messages were sent (to prevent incorrect cleanup)
+    useEffect(() => {
+        // Don't count optimistic messages
+        const realMessages = messages.filter(m => !m.isOptimistic);
+        if (realMessages.length > 0) {
+            setHasMessages(true);
+            // Once messages exist, this is no longer a "new" conversation
+            isNewlyCreatedConversation.current = false;
+        }
+    }, [messages]);
+
     // Auto-scroll while streaming (only if user is near bottom)
     useEffect(() => {
         if (displayedText && messagesContainerRef.current) {
@@ -574,6 +646,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             inputRef.current.style.height = `${newHeight}px`;
         }
     }, [message]);
+
+    // Load draft message when conversation changes
+    useEffect(() => {
+        const savedDraft = localStorage.getItem(`koda_draft_${currentConversation?.id || 'new'}`);
+        console.log('📝 Loading draft for conversation:', currentConversation?.id, 'Draft:', savedDraft);
+        setMessage(savedDraft || '');
+    }, [currentConversation?.id]);
 
     // Focus input when conversation changes
     useEffect(() => {
@@ -611,20 +690,43 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     //     setShowResearchSuggestion(needsWeb);
     // }, [message, researchMode]);
 
-    // ✅ Auto-delete empty conversations when navigating away
+    // ✅ FIX #4: Auto-delete empty conversations when navigating away
+    // Only delete if this is a NEWLY CREATED conversation AND no messages were sent
     useEffect(() => {
         return () => {
-            // Cleanup function runs when component unmounts
-            if (currentConversation?.id && messages.length === 0) {
-                console.log('🗑️ Deleting empty conversation on unmount:', currentConversation.id);
-
-                // Delete empty conversation
+            // Only delete if this was a NEW conversation created in this session AND no messages were sent
+            if (currentConversation?.id && isNewlyCreatedConversation.current && !hasMessages) {
+                console.log('🗑️ [CLEANUP] Deleting newly created empty conversation:', currentConversation.id, 'hasMessages:', hasMessages, 'isNew:', isNewlyCreatedConversation.current);
                 chatService.deleteConversation(currentConversation.id)
-                    .then(() => console.log('✅ Empty conversation deleted'))
-                    .catch(err => console.error('Failed to delete empty conversation:', err));
+                    .catch(err => {
+                        if (err.response?.status !== 404) {
+                            console.error('Failed to delete empty conversation:', err);
+                        }
+                    });
+            } else if (currentConversation?.id) {
+                console.log('✅ [CLEANUP] Keeping conversation:', currentConversation.id, 'hasMessages:', hasMessages, 'isNew:', isNewlyCreatedConversation.current);
             }
         };
-    }, [currentConversation?.id, messages.length]);
+    }, [currentConversation?.id, hasMessages]); // Re-run when conversation or hasMessages changes
+
+    // Track whether this is a newly created conversation or loaded from database
+    useEffect(() => {
+        if (currentConversation?.id) {
+            // Check if loaded messages exist for this conversation
+            const realMessages = messages.filter(m => !m.isOptimistic);
+            setHasMessages(realMessages.length > 0);
+
+            // If this conversation was just created in this component, it's marked as "newly created"
+            if (currentConversation.id === justCreatedConversationId.current) {
+                isNewlyCreatedConversation.current = true;
+            } else if (realMessages.length > 0) {
+                // If this conversation has messages already, it's not "newly created"
+                isNewlyCreatedConversation.current = false;
+            }
+
+            console.log('🔄 [CONVERSATION CHANGE] conversation:', currentConversation.id.substring(0, 8), 'hasMessages:', realMessages.length > 0, 'isNew:', isNewlyCreatedConversation.current);
+        }
+    }, [currentConversation?.id, messages.length]); // Re-run when conversation or messages change
 
     // Handle documentId from URL parameter (Ask Koda feature)
     useEffect(() => {
@@ -710,20 +812,40 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     const loadConversation = async (conversationId) => {
         try {
-            // Check cache first for instant loading
+            // ✅ OPTIMIZED: Cache-first loading with smart refresh
             const cacheKey = `koda_chat_messages_${conversationId}`;
+            const cacheTimestampKey = `${cacheKey}_timestamp`;
+
+            // 1. Check cache first for instant display
             const cached = sessionStorage.getItem(cacheKey);
+            const cacheTimestamp = sessionStorage.getItem(cacheTimestampKey);
 
             if (cached) {
                 try {
                     const cachedMessages = JSON.parse(cached);
-                    console.log(`⚡ Loaded ${cachedMessages.length} messages from cache`);
+                    console.log(`⚡ Cache HIT for ${conversationId}: ${cachedMessages.length} cached messages`);
+
+                    // ✅ Show cached messages IMMEDIATELY (they're keyed by conversationId so they're the right ones)
                     setMessages(cachedMessages);
+
+                    // 2. Check if cache is fresh (< 30 seconds old)
+                    const cacheAge = Date.now() - parseInt(cacheTimestamp || '0');
+                    const CACHE_FRESH_THRESHOLD = 30 * 1000; // 30 seconds
+
+                    if (cacheAge < CACHE_FRESH_THRESHOLD) {
+                        console.log(`✅ Cache is fresh (${Math.round(cacheAge / 1000)}s old), skipping API call`);
+                        return; // ✅ Skip API call - cache is fresh enough!
+                    }
+
+                    console.log(`🔄 Cache is stale (${Math.round(cacheAge / 1000)}s old), refreshing in background...`);
                 } catch (e) {
                     console.error('Error parsing cached messages:', e);
                 }
+            } else {
+                console.log('📭 No cache found, fetching from API...');
             }
 
+            // 3. Fetch from API (only if cache missing or stale)
             const conversation = await chatService.getConversation(conversationId);
             const loadedMessages = conversation.messages || [];
 
@@ -795,10 +917,19 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             setMessages(uniqueMessages);
             setStreamingMessage(''); // Clear any streaming message when loading conversation
 
-            // Cache messages for instant loading next time
+            // ✅ Cache messages with timestamp for smart refresh
             sessionStorage.setItem(cacheKey, JSON.stringify(uniqueMessages));
+            sessionStorage.setItem(cacheTimestampKey, Date.now().toString());
+            console.log(`💾 Updated cache with ${uniqueMessages.length} messages`);
         } catch (error) {
             console.error('Error loading conversation:', error);
+
+            // If conversation doesn't exist (404), clear it and show empty state
+            if (error.response?.status === 404) {
+                console.log('❌ Conversation not found (404), clearing messages');
+                setMessages([]);
+                setStreamingMessage('');
+            }
         }
     };
 
@@ -809,11 +940,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         if (files.length === 0) return;
 
         manuallyRemovedDocumentRef.current = false; // Reset flag when new file is selected
-        setPendingFiles(prevFiles => {
-            const newFiles = [...prevFiles, ...files];
-            console.log(`📎 Pending files updated: now ${newFiles.length} file(s) total`);
-            return newFiles;
-        });
+
+        // ✅ NEW FLOW: Upload files IMMEDIATELY on attach (like ChatGPT/Gemini/Manus)
+        console.log('🚀 Starting immediate upload on attach...');
+        const uploadedDocs = await uploadMultipleFiles(files);
+
+        if (uploadedDocs.length > 0) {
+            setAttachedDocuments(prev => [...prev, ...uploadedDocs]);
+            console.log(`✅ ${uploadedDocs.length} file(s) uploaded and attached`);
+        }
     };
 
     const handleRemoveAttachment = (indexToRemove = null) => {
@@ -862,7 +997,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         setIsDraggingOver(false);
     };
 
-    const handleDrop = (e) => {
+    const handleDrop = async (e) => {
         e.preventDefault();
         e.stopPropagation();
         setIsDraggingOver(false);
@@ -873,13 +1008,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         if (files.length === 0) return;
 
-        // Use the same logic as handleFileSelect
         manuallyRemovedDocumentRef.current = false;
-        setPendingFiles(prevFiles => {
-            const newFiles = [...prevFiles, ...files];
-            console.log(`📎 Pending files updated: now ${newFiles.length} file(s) total`);
-            return newFiles;
-        });
+
+        // ✅ NEW FLOW: Upload files IMMEDIATELY on drop (like ChatGPT/Gemini/Manus)
+        console.log('🚀 Starting immediate upload on drop...');
+        const uploadedDocs = await uploadMultipleFiles(files);
+
+        if (uploadedDocs.length > 0) {
+            setAttachedDocuments(prev => [...prev, ...uploadedDocs]);
+            console.log(`✅ ${uploadedDocs.length} file(s) uploaded and attached`);
+        }
     };
 
     // Clipboard paste handler for images
@@ -1094,6 +1232,37 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             const data = await response.json();
             console.log(`✅ Successfully uploaded ${data.documents.length} file(s)`);
 
+            // ✅ FIX: Wait for documents to be processed before sending to AI
+            console.log('⏳ Waiting for documents to be processed...');
+            const processedDocuments = await Promise.all(
+                data.documents.map(async (doc) => {
+                    // Poll until status is 'completed' or timeout after 30s
+                    const startTime = Date.now();
+                    while (Date.now() - startTime < 30000) {
+                        try {
+                            const token = localStorage.getItem('accessToken');
+                            const checkResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/documents/${doc.id}`, {
+                                headers: {
+                                    'Authorization': `Bearer ${token}`
+                                }
+                            });
+                            if (checkResponse.ok) {
+                                const docData = await checkResponse.json();
+                                if (docData.status === 'completed') {
+                                    console.log(`✅ Document ${doc.id} processed`);
+                                    return docData;
+                                }
+                            }
+                        } catch (err) {
+                            console.warn(`⚠️ Error checking document ${doc.id}:`, err);
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                    console.warn(`⚠️ Document ${doc.id} still processing after 30s, using anyway`);
+                    return doc;  // Use anyway
+                })
+            );
+
             // Clear uploading state - files are uploaded successfully
             setUploadingFiles([]);
 
@@ -1101,12 +1270,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             setPendingFiles([]);
 
             // Show success notification (same as UniversalUploadModal)
-            setUploadedCount(data.documents.length);
+            setUploadedCount(processedDocuments.length);
             setNotificationType('success');
             setShowNotification(true);
             setTimeout(() => setShowNotification(false), 5000);
 
-            return data.documents;
+            return processedDocuments;
         } catch (error) {
             console.error('❌ Error uploading files:', error);
             // On error, keep files in pending so user can retry
@@ -1124,21 +1293,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     const handleSendMessage = async () => {
         const isUploadingFiles = uploadingFiles.length > 0;
-        if ((!message.trim() && pendingFiles.length === 0 && attachedDocuments.length === 0) || isLoading || isUploadingFiles) return;
+        if ((!message.trim() && attachedDocuments.length === 0) || isLoading || isUploadingFiles) return;
 
         let messageText = message;
-        const filesToUpload = [...pendingFiles]; // Store reference before clearing
+        // ✅ NEW FLOW: Only use attachedDocuments (files were already uploaded on attach)
         const documentsToAttach = [...attachedDocuments]; // Store reference before clearing
 
-        console.log(`📤 handleSendMessage: Preparing to send with ${filesToUpload.length} file(s) and ${documentsToAttach.length} attached document(s)`);
-        console.log(`📤 Files to upload:`, filesToUpload.map(f => f.name).join(', '));
+        console.log(`📤 handleSendMessage: Preparing to send with ${documentsToAttach.length} attached document(s)`);
         console.log(`📤 Attached documents:`, documentsToAttach.map(d => `${d.name} (ID: ${d.id})`).join(', '));
 
         // Clear input immediately
         setMessage('');
         // ✅ FIX: Clear draft from localStorage when message is sent
         localStorage.removeItem(`koda_draft_${currentConversation?.id || 'new'}`);
-        // DON'T clear attachedDocuments or pendingFiles - they're needed for the API request
+        // DON'T clear attachedDocuments - they're needed for the API request
         // The banner will be hidden by checking isLoading state in the JSX
 
         // Store original message text for UI display (files will be shown visually, not as text)
@@ -1149,7 +1317,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         // 1. Research mode is explicitly enabled, OR
         // 2. Files/documents are attached, OR
         // 3. Message contains document-specific keywords
-        const hasDocuments = filesToUpload.length > 0 || documentsToAttach.length > 0;
+        const hasDocuments = documentsToAttach.length > 0;
         const hasDocumentKeywords = /\b(document|file|pdf|slide|page|presentation|attachment|uploaded|this|these|in the|from the|summarize|analyze|extract|show me|tell me about)\b/i.test(messageText);
 
         const isQuestion = researchMode || hasDocuments || hasDocumentKeywords;
@@ -1164,11 +1332,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             content: displayMessageText,
             createdAt: new Date().toISOString(),
             isOptimistic: true,
-            attachedFiles: filesToUpload.length > 0
-                ? filesToUpload.map(f => ({ name: f.name, type: f.type }))
-                : documentsToAttach.length > 0
-                    ? documentsToAttach.map(doc => ({ id: doc.id, name: doc.name, type: doc.type }))
-                    : [],
+            attachedFiles: documentsToAttach.map(doc => ({ id: doc.id, name: doc.name, type: doc.type })),
         };
         setMessages((prev) => {
             // Check if this exact message was just added (prevent double-send)
@@ -1185,49 +1349,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         setIsLoading(true);
 
-        // Upload files in background if attached, or use already-uploaded document
-        let uploadedDocuments = [];
-        if (filesToUpload.length > 0) {
-            // ✅ FIX: Show accurate upload status message
-            setCurrentStage({ stage: 'uploading', message: `Uploading and processing ${filesToUpload.length} file(s)...` });
-            uploadedDocuments = await uploadMultipleFiles(filesToUpload);
-            setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+        // ✅ NEW FLOW: Files were already uploaded on attach, just use them
+        const uploadedDocuments = documentsToAttach.map(doc => ({ id: doc.id }));
 
-            // ✅ FIX: Update optimistic message with document IDs after upload completes
-            if (uploadedDocuments.length > 0) {
-                setMessages((prev) => prev.map(msg => {
-                    if (msg.id === tempUserId && msg.isOptimistic) {
-                        console.log('📎 Updating optimistic message with uploaded document IDs');
-                        return {
-                            ...msg,
-                            attachedFiles: uploadedDocuments.map(doc => ({
-                                id: doc.id,
-                                name: doc.filename || doc.name || filesToUpload.find(f => f.name)?.name,
-                                type: doc.mimeType || doc.type || filesToUpload.find(f => f.type)?.type
-                            }))
-                        };
-                    }
-                    return msg;
-                }));
-            }
-
-            // If no message text was provided, add a default message
-            if (uploadedDocuments.length > 0 && !messageText.trim()) {
-                if (uploadedDocuments.length === 1) {
-                    messageText = `I just uploaded a file called "${filesToUpload[0].name}". Please analyze it and tell me what's in it.`;
-                } else {
-                    messageText = `I just uploaded ${uploadedDocuments.length} files. Please analyze them and tell me what's in them.`;
-                }
-            }
-        } else if (documentsToAttach.length > 0) {
-            // Use the documents that were already uploaded (from URL parameter)
-            uploadedDocuments = documentsToAttach.map(doc => ({ id: doc.id }));
-
-            // If no message text was provided, add a default message
-            if (!messageText.trim()) {
-                const docNames = documentsToAttach.map(d => d.name).join(', ');
-                messageText = `I'd like to ask about ${documentsToAttach.length > 1 ? 'these documents' : 'this document'}: "${docNames}". Please analyze ${documentsToAttach.length > 1 ? 'them' : 'it'} and tell me what's in ${documentsToAttach.length > 1 ? 'them' : 'it'}.`;
-            }
+        // If no message text was provided, add a default message
+        if (documentsToAttach.length > 0 && !messageText.trim()) {
+            const docNames = documentsToAttach.map(d => d.name).join(', ');
+            messageText = `I'd like to ask about ${documentsToAttach.length > 1 ? 'these documents' : 'this document'}: "${docNames}". Please analyze ${documentsToAttach.length > 1 ? 'them' : 'it'} and tell me what's in ${documentsToAttach.length > 1 ? 'them' : 'it'}.`;
         }
 
         // For now, use the first uploaded document for compatibility with existing backend
@@ -1254,6 +1382,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 const newConversation = await chatService.createConversation();
                 console.log('✅ Conversation created:', newConversation);
                 justCreatedConversationId.current = newConversation.id;
+                isNewlyCreatedConversation.current = true; // Mark as newly created
                 onConversationCreated?.(newConversation);
                 conversationId = newConversation.id;
             }
@@ -1758,6 +1887,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             {/* Show File Preview Button */}
                                                             {msg.metadata && msg.metadata.actionType === 'show_file' && msg.metadata.success && msg.metadata.document && (
                                                                 <div
+                                                                    onMouseEnter={() => preloadPreview(msg.metadata.document)}
                                                                     onClick={() => {
                                                                         console.log('👁️ [SHOW_FILE] Opening preview for:', msg.metadata.document);
                                                                         setPreviewDocument({
@@ -2420,6 +2550,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                     {attachedFiles.map((attachedFile, fileIndex) => (
                                                         <div
                                                             key={fileIndex}
+                                                            onMouseEnter={() => {
+                                                                if (attachedFile.id) {
+                                                                    preloadPreview({
+                                                                        id: attachedFile.id,
+                                                                        filename: attachedFile.name,
+                                                                        mimeType: attachedFile.type
+                                                                    });
+                                                                }
+                                                            }}
                                                             onClick={() => {
                                                                 if (attachedFile.id) {
                                                                     // DocumentPreviewModal expects 'filename' property
@@ -2441,6 +2580,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 minWidth: 280,
                                                                 cursor: attachedFile.id ? 'pointer' : 'default',
                                                                 transition: 'all 0.2s',
+                                                                pointerEvents: 'auto',
+                                                                WebkitTapHighlightColor: 'transparent',
+                                                                userSelect: 'none',
                                                             }}
                                                             onMouseEnter={(e) => {
                                                                 if (attachedFile.id) {
@@ -2770,58 +2912,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 )} */}
 
                 {/* File Attachments Preview */}
-                {(pendingFiles.length > 0 || uploadingFiles.length > 0) && (
+                {uploadingFiles.length > 0 && (
                     <div style={{marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
-                        {/* Pending files */}
-                        {pendingFiles.map((file, index) => {
-                            const isImage = isImageFile(file);
-                            const previewUrl = isImage ? URL.createObjectURL(file) : null;
-
-                            return (
-                            <div key={`pending-${index}`} style={{padding: 12, background: '#F5F5F5', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
-                                <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0}}>
-                                    {isImage ? (
-                                        <img
-                                            src={previewUrl}
-                                            alt="Image preview"
-                                            style={{
-                                                width: 40,
-                                                height: 40,
-                                                objectFit: 'cover',
-                                                borderRadius: 6
-                                            }}
-                                        />
-                                    ) : (
-                                        <img
-                                            src={getFileIcon(file.name)}
-                                            alt="File icon"
-                                            style={{
-                                                width: 40,
-                                                height: 40,
-                                                imageRendering: '-webkit-optimize-contrast',
-                                                objectFit: 'contain',
-                                                shapeRendering: 'geometricPrecision'
-                                            }}
-                                        />
-                                    )}
-                                </div>
-                                <div style={{flex: 1}}>
-                                    <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>{file.name}</div>
-                                    <div style={{fontSize: 12, color: '#8E8E93'}}>
-                                        {`${(file.size / 1024).toFixed(2)} KB`}
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => handleRemoveAttachment(index)}
-                                    style={{width: 32, height: 32, background: 'white', border: '1px solid #E6E6EC', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#8E8E93'}}
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                            );
-                        })}
-
-                        {/* Uploading files */}
+                        {/* Uploading files - showing upload progress */}
                         {uploadingFiles.map((file, index) => {
                             const isImage = isImageFile(file);
                             const previewUrl = isImage ? URL.createObjectURL(file) : null;
@@ -2923,8 +3016,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 )}
 
                 {/* Document Attachments Banner - Hide when loading/streaming */}
-                {(attachedDocuments.length > 0 || (messages.length > 0 && messages[messages.length - 1]?.role === 'user' && messages[messages.length - 1]?.attachedFiles?.length > 0)) && !isLoading && !isStreaming && (
+                {(attachedDocuments.length > 0 || (messages.length > 0 && messages[messages.length - 1]?.role === 'user' && messages[messages.length - 1]?.attachedFiles?.length > 0)) && !isLoading && !isStreaming && uploadingFiles.length === 0 && (
                     <div
+                        onMouseEnter={() => {
+                            const docs = attachedDocuments.length > 0
+                                ? attachedDocuments
+                                : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
+                            if (docs.length > 0 && docs[0].id) {
+                                preloadPreview({
+                                    id: docs[0].id,
+                                    filename: docs[0].name,
+                                    mimeType: docs[0].type
+                                });
+                            }
+                        }}
                         onClick={() => {
                             // ✅ FIX #2: Make banner clickable to preview document
                             console.log('🖱️ [BANNER CLICK] Attachment banner clicked');
@@ -2962,7 +3067,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             alignItems: 'center',
                             gap: 12,
                             cursor: 'pointer',  // ✅ Show it's clickable
-                            transition: 'all 0.2s'
+                            transition: 'all 0.2s',
+                            pointerEvents: 'auto',
+                            WebkitTapHighlightColor: 'transparent',
+                            userSelect: 'none',
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.background = '#F9F9FB';

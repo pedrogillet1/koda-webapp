@@ -5,6 +5,7 @@ import ChatHistory from './ChatHistory';
 import ChatInterface from './ChatInterface';
 import NotificationPanel from './NotificationPanel';
 import { useIsMobile } from '../hooks/useIsMobile';
+import chatService from '../services/chatService';
 
 const ChatScreen = () => {
     const location = useLocation();
@@ -44,13 +45,61 @@ const ChatScreen = () => {
         }
     }, [currentConversation]);
 
+    // ✅ FIX #2: Create a new conversation on first visit if none exists
+    useEffect(() => {
+        const initializeChat = async () => {
+            // Only create if no conversation exists and not already loading one
+            if (!currentConversation && !location.state?.newConversation) {
+                try {
+                    console.log('🆕 [ChatScreen] First visit - creating initial conversation...');
+                    const newConversation = await chatService.createConversation();
+                    console.log('✅ [ChatScreen] Initial conversation created:', newConversation.id);
+                    setCurrentConversation(newConversation);
+                } catch (error) {
+                    console.error('❌ [ChatScreen] Error creating initial conversation:', error);
+                }
+            }
+        };
+
+        initializeChat();
+    }, []); // Empty dependency array - only run on mount
+
+    // ✅ FIX: Add initial conversation to history list when updateConversationInList becomes available
+    useEffect(() => {
+        if (currentConversation && updateConversationInList) {
+            console.log('📋 [ChatScreen] Adding conversation to history list:', currentConversation.id.substring(0, 8));
+            updateConversationInList(currentConversation);
+        }
+    }, [updateConversationInList]); // Run when updateConversationInList is registered
+
     const handleSelectConversation = (conversation) => {
         setCurrentConversation(conversation);
     };
 
-    const handleNewChat = () => {
-        // Clear current conversation to show blank new chat screen
-        setCurrentConversation(null);
+    const handleNewChat = async (existingConversation) => {
+        try {
+            // If conversation already created by ChatHistory, use it
+            if (existingConversation) {
+                console.log('✅ [ChatScreen] Using conversation from ChatHistory:', existingConversation.id);
+                setCurrentConversation(existingConversation);
+                return;
+            }
+
+            // Otherwise create a new conversation
+            console.log('🆕 [ChatScreen] Creating new chat...');
+            const newConversation = await chatService.createConversation();
+            console.log('✅ [ChatScreen] New chat created:', newConversation.id);
+            setCurrentConversation(newConversation);
+
+            // Add to conversation list via callback
+            if (updateConversationInList) {
+                updateConversationInList(newConversation);
+            }
+        } catch (error) {
+            console.error('❌ Error creating new chat:', error);
+            // Fallback to clearing conversation
+            setCurrentConversation(null);
+        }
     };
 
     const handleConversationUpdate = (updatedConversation) => {

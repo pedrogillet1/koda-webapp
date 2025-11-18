@@ -151,22 +151,39 @@ export const getConversation = async (conversationId: string, userId: string) =>
     return cached;
   }
 
-  // ⚡ OPTIMIZED: Single query with selective field loading
+  // ⚡ OPTIMIZED: Load only recent messages for instant display
+  // Older messages can be loaded on-demand (lazy loading)
+  const INITIAL_MESSAGE_LIMIT = 100; // Load last 100 messages for instant display
+
   const conversation = await prisma.conversation.findFirst({
     where: {
       id: conversationId,
       userId,
     },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      createdAt: true,
+      updatedAt: true,
+      titleEncrypted: true,
+      encryptionSalt: true,
+      encryptionIV: true,
+      encryptionAuthTag: true,
+      contextType: true,
+      contextId: true,
+      contextName: true,
+      contextMeta: true,
+      // ✅ OPTIMIZATION: Load only last N messages (DESC order, then reverse)
       messages: {
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
+        take: INITIAL_MESSAGE_LIMIT,
         select: {
           id: true,
           role: true,
           content: true,
           createdAt: true,
           conversationId: true,
-          // Only load attachments and documents when they exist
+          // Load attachments and documents with essential fields only
           attachments: true,
           chatDocuments: {
             select: {
@@ -177,7 +194,7 @@ export const getConversation = async (conversationId: string, userId: string) =>
               pdfUrl: true,
             },
           },
-          // Load metadata (sources) for assistant messages only
+          // Load metadata (sources) for assistant messages
           metadata: true,
         },
       },
@@ -187,6 +204,9 @@ export const getConversation = async (conversationId: string, userId: string) =>
   if (!conversation) {
     throw new Error('Conversation not found or access denied');
   }
+
+  // ✅ Reverse messages to get chronological order (oldest to newest)
+  conversation.messages = conversation.messages.reverse();
 
   // ⚡ CACHE: Store result with 2 minute TTL
   await cacheService.set(cacheKey, conversation, { ttl: 120 });
@@ -212,7 +232,8 @@ export const deleteConversation = async (conversationId: string, userId: string)
   });
 
   if (!conversation) {
-    throw new Error('Conversation not found or access denied');
+    console.log('⚠️ Conversation not found, already deleted or access denied');
+    return; // Silently return instead of throwing error
   }
 
   // Delete all messages first (cascade should handle this, but being explicit)
@@ -361,9 +382,17 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
     data: { updatedAt: new Date() },
   });
 
-  // Auto-generate title if this is the first exchange
-  if (previousMessages.length <= 1) { // Only user message exists
-    await autoGenerateTitle(conversationId, userId, content);
+  // ✅ FIX #5: Auto-generate title after SECOND user message (not first)
+  const userMessageCount = previousMessages.filter(m => m.role === 'user').length;
+  if (userMessageCount === 2) {  // Exactly 2 user messages (first + second)
+    // Get full conversation context for better titles
+    const allMessages = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const conversationContext = allMessages.map(m => `${m.role}: ${m.content}`).join('\n');
+    await autoGenerateTitle(conversationId, userId, conversationContext, fullResponse);
   }
 
   // ⚡ CACHE: Invalidate conversation cache after new message
@@ -394,36 +423,39 @@ export const sendMessageStreaming = async (
 
   console.log('💬 Sending streaming message in conversation:', conversationId);
 
-  // Verify conversation ownership
-  const conversation = await prisma.conversation.findFirst({
-    where: {
-      id: conversationId,
-      userId,
-    },
-  });
+  // ✅ FIX: Parallelize all database operations
+  const [conversation, userMessage, previousMessages] = await Promise.all([
+    // Verify conversation ownership
+    prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        userId,
+      },
+    }),
+
+    // Create user message
+    prisma.message.create({
+      data: {
+        conversationId,
+        role: 'user',
+        content,
+        createdAt: new Date(),
+      },
+    }),
+
+    // Get conversation history for context
+    prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
+    })
+  ]);
 
   if (!conversation) {
     throw new Error('Conversation not found or access denied');
   }
 
-  // Create user message
-  const userMessage = await prisma.message.create({
-    data: {
-      conversationId,
-      role: 'user',
-      content,
-      createdAt: new Date(),
-    },
-  });
-
   console.log('✅ User message saved:', userMessage.id);
-
-  // Get conversation history for context
-  const previousMessages = await prisma.message.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: 'asc' },
-    take: 20,
-  });
 
   // Build conversation history array
   const conversationHistory = previousMessages.map((msg) => ({
@@ -510,9 +542,17 @@ export const sendMessageStreaming = async (
     data: { updatedAt: new Date() },
   });
 
-  // Auto-generate title if this is the first exchange
-  if (previousMessages.length <= 1) {
-    await autoGenerateTitle(conversationId, userId, content);
+  // ✅ FIX #5: Auto-generate title after SECOND user message (not first)
+  const userMessageCount = previousMessages.filter(m => m.role === 'user').length;
+  if (userMessageCount === 2) {  // Exactly 2 user messages (first + second)
+    // Get full conversation context for better titles
+    const allMessages = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const conversationContext = allMessages.map(m => `${m.role}: ${m.content}`).join('\n');
+    await autoGenerateTitle(conversationId, userId, conversationContext, fullResponse);
   }
 
   // ⚡ CACHE: Invalidate conversation cache after new message
@@ -530,14 +570,26 @@ export const sendMessageStreaming = async (
 // ============================================================================
 
 /**
- * Auto-generate a conversation title based on the first message
+ * Auto-generate a conversation title based on the first message and response
+ * @param firstResponse - Optional assistant response for better context
  */
-const autoGenerateTitle = async (conversationId: string, userId: string, firstMessage: string) => {
+const autoGenerateTitle = async (
+  conversationId: string,
+  userId: string,
+  firstMessage: string,
+  firstResponse?: string
+) => {
   try {
     console.log('🏷️ Auto-generating title for conversation:', conversationId);
 
-    // Generate a short title using the Gemini service
-    const title = await generateConversationTitle(firstMessage);
+    // Skip title generation for very short messages without response
+    if (!firstResponse && firstMessage.length < 10) {
+      console.log('⏭️ Skipping title generation for very short message without response');
+      return;
+    }
+
+    // Generate a short title using the Gemini service with full context
+    const title = await generateConversationTitle(firstMessage, firstResponse);
 
     // Clean up the title (remove quotes, trim, limit length)
     const cleanTitle = title.replace(/['"]/g, '').trim().substring(0, 100);
@@ -652,7 +704,8 @@ const handleFileActionsIfNeeded = async (
   const fileActionIntents = ['create_folder', 'list_files', 'search_files', 'file_location', 'rename_file', 'delete_file', 'move_files'];
 
   // Check if this is a file action intent
-  if (!fileActionIntents.includes(intentResult.intent) && intentResult.confidence < 0.7) {
+  // ✅ FIX: Use OR (||) instead of AND (&&) - return null if EITHER condition is true
+  if (!fileActionIntents.includes(intentResult.intent) || intentResult.confidence < 0.7) {
     // Not a file action - return null to continue with RAG
     return null;
   }
@@ -797,10 +850,10 @@ const handleFileActionsIfNeeded = async (
   // RENAME FILE
   // ========================================
   if (intentResult.intent === 'rename_file' &&
-      intentResult.parameters?.oldName &&
-      intentResult.parameters?.newName) {
+      intentResult.parameters?.oldFilename &&
+      intentResult.parameters?.newFilename) {
 
-    console.log(`✏️ [Action] Renaming: "${intentResult.parameters.oldName}" → "${intentResult.parameters.newName}"`);
+    console.log(`✏️ [Action] Renaming: "${intentResult.parameters.oldFilename}" → "${intentResult.parameters.newFilename}"`);
 
     const result = await fileActionsService.executeAction(message, userId);
 
@@ -827,25 +880,18 @@ const handleFileActionsIfNeeded = async (
   // ========================================
   // MOVE FILE
   // ========================================
-  const movePatterns = [
-    /move\s+["']?([^"']+?)["']?\s+to\s+["']?([^"']+?)["']?(?:\s+folder)?/i,
-  ];
+  if (intentResult.intent === 'move_files' &&
+      intentResult.parameters?.filename &&
+      intentResult.parameters?.targetFolder) {
 
-  for (const pattern of movePatterns) {
-    const match = message.match(pattern);
-    if (match) {
-      const filename = match[1].trim();
-      const targetFolder = match[2].trim();
+    console.log(`📦 [Action] Moving: "${intentResult.parameters.filename}" → "${intentResult.parameters.targetFolder}"`);
 
-      console.log(`📦 [Action] Moving: "${filename}" → "${targetFolder}"`);
+    const result = await fileActionsService.executeAction(message, userId);
 
-      const result = await fileActionsService.executeAction(message, userId);
-
-      return {
-        action: 'move_file',
-        message: result.message
-      };
-    }
+    return {
+      action: 'move_file',
+      message: result.message
+    };
   }
 
   // Not a file action - return null to continue with RAG
