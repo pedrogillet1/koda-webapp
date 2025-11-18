@@ -134,6 +134,12 @@ const ChatScreen = () => {
 
     const handleConversationCreated = (newConversation) => {
         setCurrentConversation(newConversation);
+
+        // Add to conversation list
+        if (updateConversationInList) {
+            console.log('📋 [ChatScreen] Adding newly created conversation to history list:', newConversation.id.substring(0, 8));
+            updateConversationInList(newConversation);
+        }
     };
 
     // Receive the update function from ChatHistory
