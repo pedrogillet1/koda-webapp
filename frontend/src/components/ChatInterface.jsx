@@ -924,11 +924,22 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         } catch (error) {
             console.error('Error loading conversation:', error);
 
-            // If conversation doesn't exist (404), clear it and show empty state
+            // If conversation doesn't exist (404), clear it and create new conversation
             if (error.response?.status === 404) {
-                console.log('❌ Conversation not found (404), clearing messages');
+                console.log('❌ Conversation not found (404), clearing stale data and creating new conversation');
+
+                // Clear messages
                 setMessages([]);
                 setStreamingMessage('');
+
+                // Clear sessionStorage to prevent reload loop
+                sessionStorage.removeItem('currentConversationId');
+                sessionStorage.removeItem(`koda_chat_messages_${conversationId}`);
+                sessionStorage.removeItem(`koda_chat_messages_${conversationId}_timestamp`);
+
+                // Notify ChatScreen that conversation doesn't exist
+                // ChatScreen will create a new conversation automatically
+                onConversationUpdate?.(null);
             }
         }
     };

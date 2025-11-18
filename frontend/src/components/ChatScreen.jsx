@@ -102,7 +102,27 @@ const ChatScreen = () => {
         }
     };
 
-    const handleConversationUpdate = (updatedConversation) => {
+    const handleConversationUpdate = async (updatedConversation) => {
+        // If updatedConversation is null, it means the conversation was not found (404)
+        // Create a new conversation automatically
+        if (updatedConversation === null) {
+            console.log('⚠️ [ChatScreen] Conversation not found, creating new one...');
+            try {
+                const newConversation = await chatService.createConversation();
+                console.log('✅ [ChatScreen] New conversation created after 404:', newConversation.id);
+                setCurrentConversation(newConversation);
+
+                // Add to conversation list
+                if (updateConversationInList) {
+                    updateConversationInList(newConversation);
+                }
+            } catch (error) {
+                console.error('❌ [ChatScreen] Error creating new conversation after 404:', error);
+                setCurrentConversation(null);
+            }
+            return;
+        }
+
         // Update current conversation state
         setCurrentConversation(prev => prev ? { ...prev, ...updatedConversation } : null);
 
