@@ -1055,20 +1055,70 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     // ✅ FIX #1: INTENT CLASSIFICATION
     // ========================================
-    // Get conversation history for context resolution (needed for intent detection)
-    const conversationHistoryForIntent = await prisma.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: {
-        role: true,
-        content: true,
-      }
-    });
-    conversationHistoryForIntent.reverse(); // Chronological order
+    // ⚡ PERFORMANCE: Do fast keyword detection FIRST, only fetch conversation history if needed
+    const lowerQuery = query.toLowerCase();
+    let intentResult: any = null;
+    let conversationHistoryForIntent: any[] = [];
 
-    const intentResult = await llmIntentDetectorService.detectIntent(query, conversationHistoryForIntent);
-    console.log(`🎯 [STREAMING LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
+    // Simple greetings - skip LLM and skip conversation history fetch
+    if (/^(hi|hello|hey|good morning|good afternoon|good evening|olá|hola|bonjour)[\s!?]*$/i.test(lowerQuery.trim())) {
+      intentResult = {
+        intent: 'greeting',
+        confidence: 1.0,
+        parameters: {}
+      };
+      console.log(`⚡ [FAST KEYWORD] Detected greeting (skipped LLM + DB)`);
+    }
+    // List files - skip LLM and skip conversation history fetch
+    else if (/\b(list|show|what|which)\b.*\b(files?|documents?|pdfs?|docx|xlsx)\b/i.test(lowerQuery)) {
+      // Extract file types if present
+      const fileTypes: string[] = [];
+      if (/\bpdf/i.test(lowerQuery)) fileTypes.push('pdf');
+      if (/\bdocx?\b/i.test(lowerQuery)) fileTypes.push('docx');
+      if (/\bxlsx?\b/i.test(lowerQuery)) fileTypes.push('xlsx');
+      if (/\btxt\b/i.test(lowerQuery)) fileTypes.push('txt');
+
+      intentResult = {
+        intent: 'list_files',
+        confidence: 0.95,
+        parameters: fileTypes.length > 0 ? { fileTypes } : {}
+      };
+      console.log(`⚡ [FAST KEYWORD] Detected list_files (skipped LLM + DB)`);
+    }
+    // Create folder - skip LLM and skip conversation history fetch
+    else if (/\b(create|make|new)\b.*\bfolder/i.test(lowerQuery)) {
+      // Extract folder name (basic - LLM will handle complex cases)
+      const match = lowerQuery.match(/(?:folder|pasta|carpeta|dossier)\s+(?:called|named)?\s*["']?([^"']+)["']?/i);
+      const folderName = match ? match[1].trim() : null;
+
+      if (folderName) {
+        intentResult = {
+          intent: 'create_folder',
+          confidence: 0.95,
+          parameters: { folderName }
+        };
+        console.log(`⚡ [FAST KEYWORD] Detected create_folder (skipped LLM + DB)`);
+      }
+    }
+
+    // ⚡ PERFORMANCE: Only fetch conversation history if we need LLM (saves 50-150ms DB query)
+    if (!intentResult) {
+      console.log(`🔍 [OPTIMIZATION] No fast match - fetching conversation history for LLM`);
+      conversationHistoryForIntent = await prisma.message.findMany({
+        where: { conversationId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          role: true,
+          content: true,
+        }
+      });
+      conversationHistoryForIntent.reverse(); // Chronological order
+
+      intentResult = await llmIntentDetectorService.detectIntent(query, conversationHistoryForIntent);
+      console.log(`🧠 [LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
+    }
+
     console.log(`📝 [STREAMING Entities]`, intentResult.parameters);
 
     // ========================================
@@ -1447,10 +1497,73 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     }
 
     // ========================================
+    // LIST_FILES and METADATA_QUERY Handlers
+    // ========================================
+    if (intentResult.intent === 'list_files' || intentResult.intent === 'metadata_query') {
+      console.log(`📊 [STREAMING] Handling ${intentResult.intent}`);
+
+      // Call the handler from chat.service.ts
+      const { handleFileActionsIfNeeded } = require('../services/chat.service');
+      const result = await handleFileActionsIfNeeded(userId, query, conversationId);
+
+      if (result) {
+        // Set up SSE headers
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+
+        // Send connected event
+        res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+
+        // Ensure conversation exists before creating messages
+        await ensureConversationExists(conversationId, userId);
+
+        const userMessage = await prisma.message.create({
+          data: {
+            conversationId,
+            role: 'user',
+            content: query,
+            metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
+          },
+        });
+
+        const assistantMessage = await prisma.message.create({
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: result.message,
+            metadata: JSON.stringify({
+              actionType: result.action,
+              success: true
+            })
+          },
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() },
+        });
+
+        // Send the response content
+        res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({
+          type: 'done',
+          userMessage,
+          assistantMessage,
+          sources: []
+        })}\n\n`);
+        res.end();
+        console.timeEnd('⚡ RAG Streaming Response Time');
+        return;
+      }
+    }
+
+    // ========================================
     // ✅ FIX #8: FALLBACK TO RAG
     // ========================================
     // If no file action matched above, fall through to RAG query
-    // This handles: rag_query, greeting, metadata_query, and unknown intents
+    // This handles: rag_query, greeting, and unknown intents
     console.log(`📚 [FALLBACK] Falling through to RAG query for intent: ${intentResult.intent}`);
 
     // Validate answerLength parameter
@@ -1583,7 +1696,6 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
     // ✅ FIX #7: Filter sources for query-specific documents
     let filteredSources = uniqueSources;
-    const lowerQuery = query.toLowerCase();
 
     // Check if query mentions a specific filename
     const mentionedFile = uniqueSources.find((src: any) => {
