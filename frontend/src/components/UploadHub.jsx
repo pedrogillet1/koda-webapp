@@ -76,6 +76,125 @@ const filterMacHiddenFiles = (files) => {
   return filtered;
 };
 
+/**
+ * Check if file is Mac hidden file
+ */
+const isMacHiddenFile = (fileName) => {
+  const macHiddenPatterns = [
+    /^\./,
+    /__MACOSX/,
+    /\.DS_Store$/,
+    /Thumbs\.db$/,
+    /desktop\.ini$/,
+  ];
+
+  return macHiddenPatterns.some(pattern => pattern.test(fileName));
+};
+
+/**
+ * Get File object from FileSystemFileEntry
+ */
+const getFileFromEntry = (fileEntry) => {
+  return new Promise((resolve, reject) => {
+    fileEntry.file(resolve, reject);
+  });
+};
+
+/**
+ * Read folder recursively and preserve structure
+ */
+const readFolderRecursively = async (directoryEntry, path = '') => {
+  const files = [];
+  const reader = directoryEntry.createReader();
+
+  const readEntries = () => {
+    return new Promise((resolve, reject) => {
+      reader.readEntries(resolve, reject);
+    });
+  };
+
+  let entries = await readEntries();
+
+  // Keep reading until no more entries (some browsers return in batches)
+  while (entries.length > 0) {
+    for (const entry of entries) {
+      if (entry.isFile) {
+        const file = await getFileFromEntry(entry);
+        if (file && !isMacHiddenFile(file.name)) {
+          const relativePath = path ? `${path}/${entry.name}` : entry.name;
+          files.push({
+            file: file,
+            relativePath: relativePath
+          });
+        }
+      } else if (entry.isDirectory) {
+        const subPath = path ? `${path}/${entry.name}` : entry.name;
+        const subFiles = await readFolderRecursively(entry, subPath);
+        files.push(...subFiles);
+      }
+    }
+    entries = await readEntries();
+  }
+
+  return files;
+};
+
+/**
+ * Process dropped entries (files or folders)
+ */
+const processDroppedEntries = async (entries) => {
+  const items = [];
+
+  for (const entry of entries) {
+    if (entry.isFile) {
+      // Single file
+      const file = await getFileFromEntry(entry);
+      if (file && !isMacHiddenFile(file.name)) {
+        items.push({
+          file,
+          status: 'pending',
+          progress: 0,
+          error: null,
+          category: 'Uncategorized'
+        });
+      }
+    } else if (entry.isDirectory) {
+      // Folder
+      console.log('📁 Processing folder:', entry.name);
+      const folderFiles = await readFolderRecursively(entry);
+
+      if (folderFiles.length > 0) {
+        // Calculate total size
+        const totalSize = folderFiles.reduce((sum, f) => sum + f.file.size, 0);
+
+        items.push({
+          isFolder: true,
+          folderName: entry.name,
+          files: folderFiles,
+          status: 'pending',
+          progress: 0,
+          error: null,
+          totalSize: totalSize,
+          fileCount: folderFiles.length
+        });
+      }
+    }
+  }
+
+  return items;
+};
+
+/**
+ * Format file size in human-readable format
+ */
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+};
+
 const UploadHub = () => {
   const navigate = useNavigate();
   const { showSuccess } = useToast();
@@ -489,35 +608,66 @@ const UploadHub = () => {
     }
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingOver(false);
 
-    const files = Array.from(e.dataTransfer.files);
-    console.log(`📎 Drag-and-drop: ${files.length} file(s) dropped`);
+    console.log('📎 Drag-and-drop detected');
 
-    if (files.length === 0) return;
+    // ✅ NEW: Check if items are folders using DataTransferItemList
+    const items = e.dataTransfer.items;
 
-    // Filter Mac hidden files
-    const filteredFiles = filterMacHiddenFiles(files);
+    if (items && items.length > 0) {
+      const entries = [];
 
-    if (filteredFiles.length === 0) {
-      console.warn('⚠️ No valid files after filtering hidden files');
-      return;
+      // Convert DataTransferItemList to array
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+          const entry = item.webkitGetAsEntry();
+          if (entry) {
+            entries.push(entry);
+          }
+        }
+      }
+
+      // Process entries (files or folders)
+      const processedItems = await processDroppedEntries(entries);
+
+      if (processedItems.length === 0) {
+        console.warn('⚠️ No valid items after processing');
+        return;
+      }
+
+      console.log(`✅ Processed ${processedItems.length} item(s) from drag-and-drop`);
+      setUploadingFiles(prev => [...processedItems, ...prev]);
+    } else {
+      // Fallback to old behavior for browsers that don't support DataTransferItemList
+      const files = Array.from(e.dataTransfer.files);
+      console.log(`📎 Drag-and-drop (fallback): ${files.length} file(s) dropped`);
+
+      if (files.length === 0) return;
+
+      const filteredFiles = filterMacHiddenFiles(files);
+
+      if (filteredFiles.length === 0) {
+        console.warn('⚠️ No valid files after filtering hidden files');
+        return;
+      }
+
+      const pendingFiles = filteredFiles.map(file => ({
+        file,
+        status: 'pending',
+        progress: 0,
+        error: null,
+        category: 'Uncategorized',
+        path: file.path || file.name,
+        folderPath: file.path ? file.path.substring(0, file.path.lastIndexOf('/')) : null
+      }));
+
+      setUploadingFiles(prev => [...pendingFiles, ...prev]);
     }
-
-    // Add files to the upload queue
-    const pendingFiles = filteredFiles.map(file => ({
-      file,
-      status: 'pending',
-      progress: 0,
-      error: null,
-      category: 'Uncategorized',
-      path: file.path || file.name,
-      folderPath: file.path ? file.path.substring(0, file.path.lastIndexOf('/')) : null
-    }));
-    setUploadingFiles(prev => [...pendingFiles, ...prev]);
   };
 
   const handleConfirmUpload = async () => {

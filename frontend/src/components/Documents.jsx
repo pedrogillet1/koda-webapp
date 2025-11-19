@@ -490,6 +490,11 @@ const Documents = () => {
     setIsDraggingOver(false);
   };
 
+  // ✅ Show loading skeleton during initial data fetch
+  if (loading && contextDocuments.length === 0 && contextFolders.length === 0) {
+    return <DocumentsSkeleton />;
+  }
+
   return (
     <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
       {!isMobile && <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />}
@@ -2491,6 +2496,70 @@ const Documents = () => {
           <div style={{ width: 7, height: 7, right: 33, top: 0, position: 'absolute', background: '#171717', borderRadius: 9999 }} />
         </div>
       )}
+    </div>
+  );
+};
+
+// ✅ Loading Skeleton Component
+const DocumentsSkeleton = () => {
+  return (
+    <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
+      <LeftNav />
+
+      <div style={{flex: 1, height: '100%', display: 'flex', flexDirection: 'column'}}>
+        {/* Header Skeleton */}
+        <div style={{height: 84, paddingLeft: 20, paddingRight: 20, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <div style={{width: 200, height: 36, background: '#E5E7EB', borderRadius: 8, animation: 'pulse 1.5s ease-in-out infinite'}} />
+          <div style={{display: 'flex', gap: 12}}>
+            <div style={{width: 120, height: 40, background: '#E5E7EB', borderRadius: 8, animation: 'pulse 1.5s ease-in-out infinite'}} />
+            <div style={{width: 120, height: 40, background: '#E5E7EB', borderRadius: 8, animation: 'pulse 1.5s ease-in-out infinite'}} />
+          </div>
+        </div>
+
+        {/* Content Skeleton */}
+        <div style={{flex: 1, padding: '32px 20px', overflowY: 'auto'}}>
+          {/* Search Bar Skeleton */}
+          <div style={{width: '100%', maxWidth: 600, height: 44, background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, marginBottom: 24, animation: 'pulse 1.5s ease-in-out infinite'}} />
+
+          {/* Grid Skeleton */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: 16
+          }}>
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+              <div key={i} style={{
+                background: 'white',
+                border: '1px solid #E5E7EB',
+                borderRadius: 12,
+                padding: 16,
+                height: 100,
+                animation: 'pulse 1.5s ease-in-out infinite',
+                animationDelay: `${i * 0.1}s`
+              }}>
+                <div style={{display: 'flex', gap: 12, alignItems: 'center'}}>
+                  <div style={{width: 48, height: 48, background: '#E5E7EB', borderRadius: 8}} />
+                  <div style={{flex: 1}}>
+                    <div style={{width: '80%', height: 16, background: '#E5E7EB', borderRadius: 4, marginBottom: 8}} />
+                    <div style={{width: '60%', height: 12, background: '#E5E7EB', borderRadius: 4}} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+        }
+      `}</style>
     </div>
   );
 };

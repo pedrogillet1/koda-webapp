@@ -60,6 +60,7 @@ model User {
   insights             UserInsight[]
   conversationSummaries ConversationSummary[]
   interactionMetadata  InteractionMetadata[]
+  memories             Memory[]
 
   @@map("users")
 }
@@ -1225,4 +1226,39 @@ model InteractionMetadata {
   @@unique([userId, metadataType])
   @@index([userId])
   @@map("interaction_metadata")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// CROSS-SESSION MEMORY SYSTEM - ChatGPT-style Memory (Phase 3 Feature 3.1)
+// ════════════════════════════════════════════════════════════════════════════════
+
+enum MemorySection {
+  USER_PREFERENCES
+  WORK_CONTEXT
+  PERSONAL_FACTS
+  GOALS
+  COMMUNICATION_STYLE
+  RELATIONSHIPS
+}
+
+model Memory {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  section       MemorySection
+  content       String        @db.Text
+  importance    Int           @default(5)
+
+  createdAt     DateTime      @default(now())
+  lastAccessed  DateTime      @default(now())
+  accessCount   Int           @default(0)
+
+  source        String?
+  metadata      Json?
+
+  @@index([userId, section])
+  @@index([userId, importance])
+  @@index([lastAccessed])
+  @@map("memories")
 }

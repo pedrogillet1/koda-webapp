@@ -204,6 +204,42 @@
   border-bottom: none !important;
 }
 
+/* Comparison table styling - optimized for fast rendering */
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 14px;
+  animation: fadeIn 0.3s ease-in;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  background: white;
+}
+
+.comparison-table thead {
+  background-color: #f3f4f6;
+}
+
+.comparison-table th {
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.comparison-table td {
+  padding: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.comparison-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* Excel-specific table styling (green gradient) */
 .excel-table-container {
   margin: 24px 0 !important;

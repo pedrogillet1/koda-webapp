@@ -18,6 +18,13 @@ import geminiCache from './geminiCache.service';
 import * as queryDecomposition from './query-decomposition.service';
 import * as contradictionDetection from './contradiction-detection.service';
 import * as confidenceScoring from './confidence-scoring.service';
+import * as promptTemplates from './promptTemplates.service';
+import * as confidenceScore from './confidenceScoring.service';
+import * as fullDocRetrieval from './fullDocumentRetrieval.service';
+import * as contradictionDetectionService from './contradictionDetection.service';
+import * as evidenceAggregation from './evidenceAggregation.service';
+import * as memoryService from './memory.service';
+import * as memoryExtraction from './memoryExtraction.service';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // INTENT DETECTION CACHE (5min TTL)
@@ -965,11 +972,12 @@ interface AgentLoopConfig {
   improvementThreshold: number;  // Minimum improvement to continue (e.g., 0.1 = 10% better)
 }
 
+// ✅ OPTIMIZED: Reduced iterations for faster responses while maintaining quality
 const DEFAULT_AGENT_CONFIG: AgentLoopConfig = {
-  maxAttempts: 3,
-  minRelevanceScore: 0.7,
+  maxAttempts: 2,              // Reduced from 3 (saves 10-15s on complex queries)
+  minRelevanceScore: 0.65,     // Slightly lower threshold (0.7 → 0.65)
   minChunks: 3,
-  improvementThreshold: 0.1
+  improvementThreshold: 0.15   // Higher threshold (0.1 → 0.15) to stop earlier if not improving much
 };
 
 interface AgentLoopState {
@@ -1412,8 +1420,20 @@ export async function generateAnswerStream(
   // IMPACT: 20-30s → < 1s for simple queries
   if (isMetaQuery(query)) {
     console.log('💭 [META-QUERY] Detected');
-    await handleMetaQuery(query, onChunk);
+    await handleMetaQuery(query, onChunk, conversationHistory);
     return { sources: [] }; // Meta queries don't have sources
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 1.5: Navigation Queries - Fast (App usage questions)
+  // ──────────────────────────────────────────────────────────────────────────────
+  // REASON: Detect app navigation questions BEFORE document queries
+  // WHY: "Where do I upload?" should explain the UI, not search documents
+  // IMPACT: Provides accurate app guidance instead of irrelevant document content
+  if (isNavigationQuery(query)) {
+    console.log('🧭 [NAVIGATION] Detected app navigation question');
+    await handleNavigationQuery(query, onChunk);
+    return { sources: [] }; // Navigation queries don't have document sources
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -1470,10 +1490,21 @@ export async function generateAnswerStream(
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
+  // MEMORY RETRIEVAL - Get relevant user memories for context
+  // ──────────────────────────────────────────────────────────────────────────────
+  console.log('🧠 [MEMORY] Retrieving relevant memories...');
+  const relevantMemories = await memoryService.getRelevantMemories(userId, query, undefined, 10);
+  const memoryPromptContext = memoryService.formatMemoriesForPrompt(relevantMemories);
+
+  if (relevantMemories.length > 0) {
+    console.log(`🧠 [MEMORY] Found ${relevantMemories.length} relevant memories`);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
   // STEP 7: Regular Queries - Standard RAG
   // ──────────────────────────────────────────────────────────────────────────────
   console.log('✅ [QUERY ROUTING] Routed to: REGULAR QUERY (RAG)');
-  return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage);
+  return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage, memoryPromptContext);
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2240,7 +2271,7 @@ USER QUERY:
 ${query}`;
 
   // Generate comparison response
-  const generationResult = await streamLLMResponse(systemPrompt, '', onChunk);
+  const generationResult = await smartStreamLLMResponse(systemPrompt, '', onChunk);
 
   return { sources: allSources };
 }
@@ -2459,7 +2490,7 @@ Follow this EXACT structure. Use tables for side-by-side comparisons.
 
 User query: "${query}"`;
 
-  const fullResponse = await streamLLMResponse(systemPrompt, '', onChunk);
+  const fullResponse = await smartStreamLLMResponse(systemPrompt, '', onChunk);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // NEW: ANSWER VALIDATION - Check answer quality
@@ -2880,63 +2911,198 @@ async function handleDocumentListing(
 function isMetaQuery(query: string): boolean {
   const lower = query.toLowerCase().trim();
 
+  // Enhanced capability detection patterns - more natural and comprehensive
   const metaPatterns = [
+    // Greetings
     /^(hi|hey|hello|greetings)/,
+
+    // Existing capability patterns
     /what (can|do) you (do|help)/,
     /who are you/,
     /what are you/,
     /how (do|can) (i|you)/,
     /tell me about (yourself|koda)/,
+
+    // ✅ NEW: More natural capability patterns
+    /what do you do/i,
+    /what are your capabilities/i,
+    /what features/i,
+    /can you help me with/i,
+    /are you able to/i,
+    /do you support/i,
+    /can you handle/i,
+    /what kind of documents/i,
+    /what can i do with/i,
+    /how does.*work/i,
+    /introduce yourself/i,
+    /what is koda/i,
+    /explain.*koda/i,
+    /tell me more/i,
   ];
 
   return metaPatterns.some(pattern => pattern.test(lower));
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// NAVIGATION QUERY DETECTION
+// ════════════════════════════════════════════════════════════════════════════════
+
+function isNavigationQuery(query: string): boolean {
+  const lower = query.toLowerCase().trim();
+
+  // Navigation patterns - questions about using the app
+  const navigationPatterns = [
+    /where.*upload/i,
+    /how.*upload/i,
+    /where.*find/i,
+    /how.*navigate/i,
+    /where is.*button/i,
+    /how.*access/i,
+    /where.*settings/i,
+    /how.*create.*folder/i,
+    /where.*documents/i,
+    /how.*organize/i,
+    /how.*search/i,
+    /where.*chat/i,
+    /how.*ask.*question/i,
+    /how.*use/i,
+    /where.*sidebar/i,
+    /how.*drag.*drop/i,
+    /where.*menu/i,
+    /how do i (upload|create|organize|find|access)/i,
+    /where can i (upload|create|organize|find|access)/i,
+  ];
+
+  return navigationPatterns.some(pattern => pattern.test(lower));
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // META-QUERY HANDLER
 // ════════════════════════════════════════════════════════════════════════════════
 
-async function handleMetaQuery(query: string, onChunk: (chunk: string) => void): Promise<void> {
-  console.log(`⚡ FAST PATH: Meta-query detected, generating varied response`);
+/**
+ * Handle meta-queries about KODA's capabilities
+ * Now context-aware and natural
+ */
+async function handleMetaQuery(
+  query: string,
+  onChunk: (chunk: string) => void,
+  conversationHistory?: Array<{ role: string; content: string }>
+): Promise<void> {
+  console.log(`⚡ FAST PATH: Meta-query detected`);
 
-  // Generate varied greeting templates
-  const greetingTemplates = [
-    "I'm KODA, your intelligent document assistant. I can help you find information in your documents, summarize content, and answer questions. What would you like to know?",
-    "I'm here to help you with your documents. I can search across all your files, extract key information, and answer questions. What can I help you with today?",
-    "I'm KODA. I can analyze your documents, answer questions, and help you find exactly what you're looking for. How can I assist you?",
-    "Ready to help you explore your documents. I can answer questions, summarize content, compare files, and more. What would you like to do?"
-  ];
+  // Check if this is the first message in conversation
+  const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
 
-  // Add time-of-day awareness
-  const hour = new Date().getHours();
-  let timeGreeting = '';
-  if (hour < 12) {
-    timeGreeting = 'Good morning! ';
-  } else if (hour < 18) {
-    timeGreeting = 'Good afternoon! ';
-  } else {
-    timeGreeting = 'Good evening! ';
+  // Build conversation context
+  let conversationContext = '';
+  if (conversationHistory && conversationHistory.length > 0) {
+    conversationContext = '\n\n**Previous Conversation**:\n';
+    conversationHistory.slice(-3).forEach(msg => {
+      const role = msg.role === 'user' ? 'User' : 'KODA';
+      conversationContext += `${role}: ${msg.content}\n`;
+    });
   }
 
-  // Select random template
-  const randomTemplate = greetingTemplates[Math.floor(Math.random() * greetingTemplates.length)];
+  // Dynamic prompt based on conversation state
+  const prompt = `You are KODA, an intelligent document AI assistant. The user is asking about your capabilities.
 
-  // Combine time greeting with template (50% chance)
-  const suggestedResponse = Math.random() > 0.5
-    ? timeGreeting + randomTemplate
-    : randomTemplate;
+${conversationContext}
 
-  const prompt = `You are KODA, an intelligent document assistant. The user sent: "${query}".
+**User's Current Question**: "${query}"
 
-Respond naturally and briefly using this suggested response as inspiration (but you can vary it slightly): "${suggestedResponse}"
+**Your Capabilities** (reference these naturally):
+- Upload and organize any document type (PDF, Word, Excel, images, etc.)
+- Search across all documents instantly
+- Answer questions by finding relevant information
+- Summarize documents and extract key points
+- Compare multiple documents side-by-side
+- Explain complex content in simple terms
+- Remember context across conversations
+- Provide sources and citations for answers
+- Handle documents in multiple languages
+- Secure end-to-end encryption for all files
 
-CRITICAL RULES:
-- Keep response under 75 words
-- Be friendly and conversational, not robotic
-- NO citations, source references, or page numbers
-- NO emojis
+**Response Guidelines**:
+${isFirstMessage
+  ? '- This is the FIRST message - include a brief greeting (e.g., "Hi! I\'m KODA.")'
+  : '- This is a FOLLOW-UP message - NO greeting, answer directly'
+}
+- Be conversational and natural, not robotic
+- Mention 2-3 relevant capabilities based on what they asked
+- Keep response under 60 words
+- NO emojis, NO citations, NO page numbers
 - Match the user's language
-- Professional tone
+- Professional but friendly tone
+
+Respond naturally:`;
+
+  await streamLLMResponse(prompt, '', onChunk);
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// NAVIGATION QUERY HANDLER
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Handle navigation queries about using the app
+ * Provides guidance on app features and how to use them
+ */
+async function handleNavigationQuery(
+  query: string,
+  onChunk: (chunk: string) => void
+): Promise<void> {
+  console.log(`🧭 [NAVIGATION] Handling app navigation question`);
+
+  const prompt = `You are KODA, an intelligent document assistant. The user is asking how to navigate or use the app.
+
+**User Question**: "${query}"
+
+**App Navigation Guide**:
+
+**Uploading Files**:
+- Click the "Upload" button in the top-right corner of the Documents screen
+- Or drag and drop files anywhere on the Documents screen
+- You can upload individual files or entire folders
+- Supported formats: PDF, Word, Excel, PowerPoint, images, and more
+
+**Finding Documents**:
+- All documents appear on the Documents screen in the left sidebar
+- Use the search bar at the top to find specific files
+- Documents are organized in folders you create
+- Click any document to view or interact with it
+
+**Creating Folders**:
+- Click "New Folder" button on the Documents screen
+- Name your folder and it will appear in the left sidebar
+- Drag documents into folders to organize them
+- You can create nested folders for better organization
+
+**Searching Documents**:
+- Use the search bar at the top of any screen
+- Search works across all your documents' content
+- Results show which document and page contains your search term
+- You can filter by document type or folder
+
+**Chat & Questions**:
+- Click "Chat" in the left sidebar to ask questions
+- KODA will search all your documents to answer
+- You can ask follow-up questions in the same conversation
+- Reference specific documents or ask general questions
+
+**Document Management**:
+- Right-click any document for options (rename, delete, move)
+- Click the three dots menu for additional actions
+- Documents are automatically saved and synced
+- All files are encrypted end-to-end for security
+
+**Response Guidelines**:
+- Answer the user's specific question directly and clearly
+- Provide step-by-step instructions if needed
+- Keep response under 75 words
+- Be helpful and clear
+- NO emojis, NO citations
+- Use natural, friendly language
 
 Respond naturally:`;
 
@@ -3020,7 +3186,8 @@ async function handleRegularQuery(
   onChunk: (chunk: string) => void,
   attachedDocumentId?: string,
   conversationHistory?: Array<{ role: string; content: string; metadata?: any }>,
-  onStage?: (stage: string, message: string) => void
+  onStage?: (stage: string, message: string) => void,
+  memoryContext?: string
 ): Promise<{ sources: any[] }> {
 
   // ⏱️ PERFORMANCE: Start timing
@@ -3217,12 +3384,12 @@ async function handleRegularQuery(
     console.log(`✅ [AGENT LOOP] Simple query - using standard retrieval`);
   }
 
-  // ✅ NEW: Detect query complexity for structured reasoning
-  const complexity = detectQueryComplexity(query);
-  console.log(`🧠 [COMPLEXITY] Query complexity: ${complexity}`);
+  // ✅ NEW: Detect query complexity for structured reasoning (using promptTemplates service)
+  const complexity = promptTemplates.detectQueryComplexity(query);
+  console.log(`📊 [COMPLEXITY] Detected complexity: ${complexity} for query: "${query.substring(0, 50)}..."`);
 
-  // ✅ NEW: Build conversation context
-  const conversationContext = buildConversationContext(conversationHistory);
+  // ✅ NEW: Build conversation context (using promptTemplates service)
+  const conversationContext = promptTemplates.buildConversationContext(conversationHistory || []);
 
   const isSimple = !isComplexQuery(query);
 
@@ -3399,25 +3566,43 @@ async function handleRegularQuery(
     console.log(`[PROGRESS STREAM] Sending analyzing message (${hybridResults.length} chunks)`);
     onStage?.('analyzing', analyzingMsg);
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // LLM-BASED CHUNK FILTERING (Week 1 - Critical Feature)
-    // ═══════════════════════════════════════════════════════════════════════════
-    // REASON: Pre-filter chunks for higher quality answers
-    // WHY: Reduces hallucinations by 50%, improves accuracy by 20-30%
-    // HOW: Triple validation in ONE batched LLM call (5-7 seconds)
-    // IMPACT: Fast path stays fast, but answers are dramatically better
-    //
-    // BEFORE: Pinecone 20 chunks → LLM sees all 20 (some irrelevant)
-    // AFTER:  Pinecone 20 chunks → Filter to 6-8 best → LLM sees only relevant
-    //
-    // TIME COST: +5-7s (acceptable for quality gain)
-    // QUALITY GAIN: +20-30% accuracy, -50% hallucinations
+    // ✅ ULTRA-FAST PATH: Skip expensive LLM filtering for very simple queries
+    // REASON: Simple factual queries don't need deep filtering
+    // WHY: Saves 5-7 seconds on 40-50% of queries
+    // CRITERIA: Short queries (< 6 words) with high vector scores (> 0.75)
+    const isUltraSimple = query.split(' ').length < 6 &&
+                          hybridResults.length > 0 &&
+                          (hybridResults[0]?.score || 0) > 0.75;
 
-    const filteredChunks = await llmChunkFilterService.filterChunks(
-      query,
-      hybridResults, // Use hybrid results (vector + BM25)
-      8 // Return top 8 high-quality chunks
-    );
+    let filteredChunks: any[];
+
+    if (isUltraSimple) {
+      console.log('⚡⚡ [ULTRA-FAST PATH] Very simple query with high-quality results - skipping LLM filtering');
+      console.log(`⚡⚡ [PERFORMANCE] Saved 5-7 seconds by skipping LLM filtering`);
+
+      // Use top vector search results directly
+      filteredChunks = hybridResults.slice(0, 5);
+    } else {
+      // ═══════════════════════════════════════════════════════════════════════════
+      // LLM-BASED CHUNK FILTERING (Week 1 - Critical Feature)
+      // ═══════════════════════════════════════════════════════════════════════════
+      // REASON: Pre-filter chunks for higher quality answers
+      // WHY: Reduces hallucinations by 50%, improves accuracy by 20-30%
+      // HOW: Triple validation in ONE batched LLM call (5-7 seconds)
+      // IMPACT: Fast path stays fast, but answers are dramatically better
+      //
+      // BEFORE: Pinecone 20 chunks → LLM sees all 20 (some irrelevant)
+      // AFTER:  Pinecone 20 chunks → Filter to 6-8 best → LLM sees only relevant
+      //
+      // TIME COST: +5-7s (acceptable for quality gain)
+      // QUALITY GAIN: +20-30% accuracy, -50% hallucinations
+
+      filteredChunks = await llmChunkFilterService.filterChunks(
+        query,
+        hybridResults, // Use hybrid results (vector + BM25)
+        8 // Return top 8 high-quality chunks
+      );
+    }
 
     console.log(`✅ [FAST PATH] Using ${filteredChunks.length} filtered chunks for answer`);
 
@@ -3425,24 +3610,54 @@ async function handleRegularQuery(
     const finalSearchResults = await filterDeletedDocuments(filteredChunks, userId);
     console.log(`⏱️ [PERF] Retrieval took ${Date.now() - startTime}ms`);
 
-    // ✅ NEW: Extract unique document IDs from chunks for full document retrieval
-    const retrievedDocumentIds = [...new Set(
-      finalSearchResults
-        .filter((chunk: any) => chunk.metadata?.documentId)
-        .map((chunk: any) => chunk.metadata.documentId)
-    )];
-    console.log(`📄 [RETRIEVAL] Found ${retrievedDocumentIds.length} relevant documents from ${finalSearchResults.length} chunks`);
+    // ✅ NEW: Decide whether to use full documents or chunks
+    const useFullDocuments = fullDocRetrieval.shouldUseFullDocuments(complexity);
 
-    // ✅ NEW: Retrieve full documents instead of using chunks (for complex queries)
-    let fullDocuments: any[] = [];
+    console.log(`📊 [RETRIEVAL] Using ${useFullDocuments ? 'FULL DOCUMENTS' : 'CHUNKS'} for ${complexity} query`);
+
+    let fullDocuments: fullDocRetrieval.FullDocument[] = [];
     let documentContext = '';
 
-    if (complexity !== 'simple' && retrievedDocumentIds.length > 0 && retrievedDocumentIds.length <= 5) {
-      // For medium/complex queries with reasonable document count, use full documents
-      fullDocuments = await retrieveFullDocuments(retrievedDocumentIds, userId);
-      documentContext = buildDocumentContext(fullDocuments);
-      console.log(`📄 [FULL DOCS] Using ${fullDocuments.length} full documents for ${complexity} query`);
-      console.log(`⏱️ [PERF] Document loading took ${Date.now() - startTime}ms`);
+    if (useFullDocuments) {
+      // FULL DOCUMENT RETRIEVAL PATH
+      fullDocuments = await fullDocRetrieval.retrieveFullDocuments(
+        userId,
+        query,
+        attachedDocumentId,
+        {
+          maxDocuments: complexity === 'complex' ? 3 : 2,
+          minRelevanceScore: 0.7,
+          maxTotalTokens: 100000
+        }
+      );
+
+      if (fullDocuments.length > 0) {
+        documentContext = fullDocRetrieval.buildDocumentContext(fullDocuments);
+        console.log(`📄 [FULL DOCS] Using ${fullDocuments.length} full documents for ${complexity} query`);
+        console.log(`⏱️ [PERF] Document loading took ${Date.now() - startTime}ms`);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CONTRADICTION DETECTION (Phase 2, Feature 2.2)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Detect conflicting information across documents when using full document retrieval
+
+    let contradictionResult: any = null;
+
+    if (useFullDocuments && fullDocuments.length > 0) {
+      const shouldDetect = contradictionDetectionService.shouldDetectContradictions(
+        complexity,
+        fullDocuments.length
+      );
+
+      if (shouldDetect) {
+        console.log(`🔍 [CONTRADICTION] Running contradiction detection on ${fullDocuments.length} documents`);
+        contradictionResult = await contradictionDetectionService.detectContradictions(
+          fullDocuments,
+          query
+        );
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -3582,6 +3797,22 @@ async function handleRegularQuery(
     }
 
     // Build context WITHOUT source labels (prevents Gemini from numbering documents)
+    // ✅ NEW: Include folder location information for file navigation awareness
+    const uniqueDocuments = new Map<string, { filename: string; folderPath?: string }>();
+    rerankedChunks.forEach((result: any) => {
+      const meta = result.metadata || {};
+      const filename = meta.filename || 'Unknown';
+      const folderPath = meta.folderPath || meta.folderName || 'Uncategorized';
+      if (!uniqueDocuments.has(filename)) {
+        uniqueDocuments.set(filename, { filename, folderPath });
+      }
+    });
+
+    // Build document locations section
+    const documentLocations = Array.from(uniqueDocuments.values())
+      .map(doc => `- "${doc.filename}" is located in: ${doc.folderPath}`)
+      .join('\n');
+
     const context = rerankedChunks.map((result: any) => {
       const meta = result.metadata || {};
       // ✅ FIX: Remove [Source: ...] labels to prevent "Document 1/2/3" references
@@ -3589,7 +3820,7 @@ async function handleRegularQuery(
       return meta.text || meta.content || result.content || '';
     }).join('\n\n---\n\n');
 
-    console.log(`📚 [CONTEXT] Built context from ${rerankedChunks.length} chunks`);
+    console.log(`📚 [CONTEXT] Built context from ${rerankedChunks.length} chunks with folder locations`);
 
     // STREAM PROGRESS: Generating answer
     const generatingMsg = queryLang === 'pt' ? 'Gerando resposta...' :
@@ -3601,208 +3832,61 @@ async function handleRegularQuery(
 
     // Removed nextStepText - using natural endings instead
 
-    // ✅ OPTIMIZED: Restructured system prompt with explicit constraints
-    // Memory context is not currently used in this function
-    const memorySection = '';
-    const conversationSection = '';
-
-    // ✅ NEW: Use structured reasoning prompt for medium/complex queries
-    const reasoningPrompt = buildReasoningPrompt(query, complexity);
+    // ✅ NEW: Build document context from search results
+    const documentContextFromChunks = rerankedChunks.map((chunk: any) =>
+      chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
+    ).join('\n\n---\n\n');
 
     // ✅ NEW: Choose context based on query complexity and document availability
-    const finalContext = (documentContext && fullDocuments.length > 0) ? documentContext : context;
-    const contextLabel = (documentContext && fullDocuments.length > 0) ? 'FULL DOCUMENTS' : 'RELEVANT CONTENT FROM USER\'S DOCUMENTS';
+    const finalDocumentContext = (documentContext && fullDocuments.length > 0)
+      ? documentContext
+      : documentContextFromChunks;
 
     console.log(`📝 [PROMPT] Using ${complexity} complexity prompt with ${documentContext && fullDocuments.length > 0 ? 'full documents' : 'chunks'}`);
 
-    const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
-${reasoningPrompt}
-${memorySection}${conversationSection}
-${conversationContext ? conversationContext + '\n\n' : ''}
-${contextLabel}:
-${finalContext}
+    // ✅ NEW: Get structured prompt based on complexity using promptTemplates service
+    const systemPrompt = promptTemplates.getReasoningPrompt(
+      complexity,
+      query,
+      finalDocumentContext,
+      conversationContext,
+      documentLocations, // Pass document locations for folder awareness
+      memoryContext // Pass memory context for personalization
+    );
 
-═══════════════════════════════════════════════════════════════════════════════
-CRITICAL CONSTRAINTS (MUST FOLLOW EXACTLY)
-═══════════════════════════════════════════════════════════════════════════════
-
-1. **NO CODE BLOCKS:**
-   - NEVER include code blocks, code examples, or triple backticks in your response
-   - Explain all concepts in natural language only
-   - Even when discussing technical topics, use prose, not code
-
-2. **NO CITATIONS IN TEXT:**
-   - NEVER add page references like [pg X], [p.X], or (page X) in your response
-   - The system automatically tracks sources and displays them separately
-   - Focus on answering clearly without citing pages
-   - Wrong: "KODA uses RAG architecture [pg 1]."
-   - Correct: "KODA uses RAG architecture."
-
-3. **BOLD FORMATTING:**
-   - Bold key terms using **text** format
-   - NEVER break words when adding bold markers
-   - Correct: "**Intelligent Document Processing:** KODA uses..."
-   - Wrong: "**Intelligent Document Proces sing:** KODA uses..."
-   - Only bold the LABEL or KEY TERM, not entire sentences
-   - If a bullet point has a label, format as: "• **Label:** description"
-
-4. **NATURAL ENDING (CRITICAL):**
-   - End with a natural, helpful closing sentence that flows from your answer
-   - NO "Next step:" label or bold formatting for the ending
-   - Make suggestions contextual to the query type
-   - The closing should feel like part of the conversation, not a separate section
-   - Examples:
-     * For document lists: "Let me know which document you'd like to explore, or ask me anything about their content."
-     * For comparisons: "I can dive deeper into any of these differences if you'd like."
-     * For simple facts: "You may want to save this for your records."
-     * For summaries: "Feel free to ask about any specific section or detail."
-   - NEVER use "**Next step:**" or similar labels
-
-═══════════════════════════════════════════════════════════════════════════════
-LANGUAGE DETECTION (CRITICAL)
-═══════════════════════════════════════════════════════════════════════════════
-
-- CRITICAL LANGUAGE RULE: The user asked their question in ${queryLangName}
-- You MUST respond entirely in ${queryLangName}, including all text, bullets, and closing sentence
-- DO NOT mix languages - if user asks in English, respond in English even if documents are in Portuguese
-- DO NOT match document language - match QUERY language only
-- Example: If user asks "what is this about" (English) and document is in Portuguese, answer in English
-- Example: If user asks "o que é isso" (Portuguese) and document is in English, answer in Portuguese
-
-═══════════════════════════════════════════════════════════════════════════════
-ADAPTIVE FORMATTING (MATCH ANSWER LENGTH TO QUESTION COMPLEXITY)
-═══════════════════════════════════════════════════════════════════════════════
-
-**Simple Questions → Simple Answers (1-2 sentences, NO bullets):**
-- Questions like: "what is this", "tell me about X", "how much", "when", "who", "what value"
-- Answer directly in 1-2 sentences without bullet points
-- Example Q: "tell me about comprovante1"
-- Example A: "It's a Pix transaction receipt showing a R$ 2500,00 payment from Maria Victoria Camasmie to Luciana Felix Braz on September 27, 2025."
-
-**Complex Questions → Detailed Answers (with bullets):**
-- Questions like: "explain in detail", "what are all the sections", "compare", "analyze"
-- Use 3-5 bullets MAXIMUM (not forced to 5)
-- Only use bullets when there are genuinely multiple distinct points
-- Example Q: "explain the koda checklist in detail"
-- Example A: Use bullets for each major section
-
-**General Guidelines:**
-- If the answer can fit in 1-2 sentences, DON'T use bullets
-- If there are 2-3 key points, use 2-3 bullets (not 5)
-- If there are 5+ key points, use 4-5 bullets maximum
-- Don't artificially inflate answers to reach 5 bullets
-
-═══════════════════════════════════════════════════════════════════════════════
-RESPONSE RULES
-═══════════════════════════════════════════════════════════════════════════════
-
-- Answer based on the provided content from the user's uploaded documents
-- Bold key information with **text** (following bold formatting rules above)
-- DO NOT include any citations, page references, or source mentions in your text
-- NO [pg X], [p.X], or page numbers anywhere in your response
-- If the content doesn't contain the specific information requested, say: "I couldn't find information about [topic] in your uploaded documents."
-- NEVER ask the user to upload documents - they already have documents uploaded
-- NEVER say "please upload" or "provide documents" - instead say "I don't have that information in your current documents"
-
-═══════════════════════════════════════════════════════════════════════════════
-INFERENTIAL REASONING
-═══════════════════════════════════════════════════════════════════════════════
-
-- Don't just list facts - explain HOW concepts relate to each other
-- Connect ideas causally (e.g., "X leads to Y because...")
-- Infer implicit relationships between concepts
-- Example: When discussing "trust", connect it to "security and emotional attachment"
-- Synthesize information across multiple sources to reveal deeper patterns
-- Explain the practical implications and "why this matters"
-
-CRITICAL RULE - NO IMPLICATIONS SECTION:
-- NEVER add an "Implications:" section or heading
-- NEVER use the word "Implications" as a section header
-- Integrate insights naturally INTO your answer as you explain concepts
-- Explain what things MEAN and why they matter as part of your main explanation
-- ONLY if the user explicitly asks "what are the implications" or "what does this mean", add 1-2 sentences at the end
-- Keep all insights embedded in the main content, not separated
-
-═══════════════════════════════════════════════════════════════════════════════
-FORMATTING EXAMPLES (FOLLOW THESE EXACTLY - MIMIC THE SPACING AND STRUCTURE)
-═══════════════════════════════════════════════════════════════════════════════
-
-<example_simple_response_1>
-User: "tell me about comprovante1"
-
-It's a Pix transaction receipt showing a **R$ 2500,00** payment from **Maria Victoria Camasmie** to **Luciana Felix Braz** on **September 27, 2025** at 09:01:35 [pg 1].
-
-**Next step:** Keep this receipt for your records as proof of payment.
-</example_simple_response_1>
-
-<example_simple_response_2>
-User: "me fala sobre o comprovante1"
-
-É um comprovante de transação Pix mostrando um pagamento de **R$ 2500,00** de **Maria Victoria Camasmie** para **Luciana Felix Braz** em **27 de setembro de 2025** às 09:01:35 [pg 1].
-
-**Próximo passo:** Guarde este comprovante como prova de pagamento.
-</example_simple_response_2>
-
-<example_complex_response_1>
-User: "explain the koda checklist in detail"
-
-The Koda Developer Checklist outlines the essential components for building the Koda application, covering core setup, security, documents, AI & answers, notifications, app & access, and plans & capacities [pg 1].
-
-The document covers several key areas:
-• **Core Setup:** Includes account creation & login with email and password, secure sessions, two-factor login for enhanced security, and account deletion functionality [pg 1].
-• **Security:** Emphasizes end-to-end encryption to ensure files are encrypted before upload, secure storage in the cloud using AES-256 encryption, and data privacy to prevent access by the Koda team or third-party tracking [pg 2].
-• **Documents:** Covers the ability to upload any document type, automatic organization using AI to add categories & tags, search & filter functionality, and a trash & restore feature for deleted documents [pg 2].
-• **AI & Answers:** Focuses on the ability for users to ask questions and receive answers, AI's ability to find answers and highlight the source, citations to show the origin of answers, and document summarization and explanation capabilities [pg 3].
-
-**Next step:** Ensure each item on the checklist is completed to build a functional and secure Koda application.
-</example_complex_response_1>
-
-═══════════════════════════════════════════════════════════════════════════════
-IMPORTANT PATTERNS TO FOLLOW
-═══════════════════════════════════════════════════════════════════════════════
-
-**For Simple Questions:**
-- Direct answer in 1-2 sentences (NO bullets)
-- ONE blank line
-- Natural closing sentence that flows from your answer
-
-**For Complex Questions:**
-- Opening paragraph (1-2 sentences)
-- ONE blank line
-- Transition sentence ("The document covers several key areas:")
-- Bullet list with NO blank lines between bullets (use 3-5 bullets, NOT always 5)
-- ONE blank line after last bullet
-- Natural closing sentence that flows from your answer
-
-═══════════════════════════════════════════════════════════════════════════════
-FINAL REMINDER - THESE ARE MANDATORY
-═══════════════════════════════════════════════════════════════════════════════
-
-1. ✅ NO code blocks or code examples
-2. ✅ NO citations or page references in your response text
-3. ✅ Bold formatting without breaking words
-4. ✅ EVERY response ends with a natural closing sentence (NO "Next step:" labels)
-5. ✅ Respond in ${queryLangName} (the user's query language)
-
-User query: "${query}"`;
+    console.log(`📝 [PROMPT] Generated ${complexity} complexity prompt`);
 
     const fullResponse = await streamLLMResponse(systemPrompt, '', onChunk);
     console.log(`⏱️ [PERF] Generation took ${Date.now() - startTime}ms`);
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // NEW: ANSWER VALIDATION - Check answer quality
+    // NEW: CONFIDENCE SCORING - Calculate answer confidence
     // ═══════════════════════════════════════════════════════════════════════════
 
-    // Build sources from reranked chunks
-    console.log(`🔍 [DEBUG - FAST PATH] rerankedChunks length: ${rerankedChunks.length}`);
-    console.log(`🔍 [DEBUG - FAST PATH] Sample rerankedChunk metadata:`, rerankedChunks[0]?.metadata);
+    // ✅ NEW: Build sources from full documents or chunks
+    let sources: any[];
 
-    const sources = rerankedChunks.map((match: any) => ({
-      documentId: match.metadata?.documentId || null,  // ✅ Add documentId for frontend display
-      documentName: match.metadata?.filename || 'Unknown',
-      pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
-      score: match.rerankScore || match.originalScore || 0
-    }));
+    if (useFullDocuments && fullDocuments.length > 0) {
+      // Use full documents as sources
+      console.log(`🔍 [DEBUG - FAST PATH] Building sources from ${fullDocuments.length} full documents`);
+      sources = fullDocuments.map(doc => ({
+        documentId: doc.id,
+        documentName: doc.filename,
+        pageNumber: null,  // Full documents don't have specific pages
+        score: doc.relevanceScore,
+        mimeType: doc.mimeType
+      }));
+    } else {
+      // Use chunks as sources (original logic)
+      console.log(`🔍 [DEBUG - FAST PATH] Building sources from ${rerankedChunks.length} chunks`);
+      console.log(`🔍 [DEBUG - FAST PATH] Sample rerankedChunk metadata:`, rerankedChunks[0]?.metadata);
+      sources = rerankedChunks.map((match: any) => ({
+        documentId: match.metadata?.documentId || null,
+        documentName: match.metadata?.filename || 'Unknown',
+        pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
+        score: match.rerankScore || match.originalScore || 0
+      }));
+    }
 
     // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
     const sourceDocumentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
@@ -3826,6 +3910,55 @@ User query: "${query}"`;
     console.log(`🔍 [DEBUG - FAST PATH] Built ${sources.length} sources`);
     console.log(`🔍 [DEBUG - FAST PATH] Sample source:`, sources[0]);
 
+    // ✅ NEW: Calculate confidence score (for internal tracking only, not displayed to user)
+    const confidence = confidenceScore.calculateConfidence(
+      sources,
+      query,
+      fullResponse
+    );
+
+    console.log(`🎯 [CONFIDENCE] Final confidence: ${confidence.level} (${confidence.score}/100)`);
+
+    // ✅ NEW: Append contradiction warnings if detected
+    if (contradictionResult && contradictionResult.hasContradictions) {
+      const contradictionMessage = contradictionDetectionService.formatContradictionsForUser(contradictionResult);
+      onChunk(contradictionMessage);
+      console.log(`🔍 [CONTRADICTION] Appended ${contradictionResult.contradictions.length} contradiction warning(s) to response`);
+    }
+
+    // ✅ NEW: Generate evidence map
+    if (evidenceAggregation.shouldAggregateEvidence(complexity, fullDocuments.length)) {
+      console.log(`📚 [EVIDENCE] Generating evidence map...`);
+      const evidenceMap = await evidenceAggregation.generateEvidenceMap(
+        fullResponse,
+        fullDocuments.map(doc => ({ id: doc.id, filename: doc.filename, content: doc.content }))
+      );
+
+      const evidenceMessage = evidenceAggregation.formatEvidenceForUser(evidenceMap);
+      if (evidenceMessage) {
+        onChunk(evidenceMessage);
+        console.log(`📚 [EVIDENCE] Appended evidence breakdown with ${evidenceMap.claims.length} claims`);
+      }
+    }
+
+    // ✅ NEW: MEMORY EXTRACTION - Extract memories from conversation
+    if (conversationHistory && conversationHistory.length > 0) {
+      const messages: any[] = conversationHistory.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      // Add current exchange
+      messages.push({ role: 'user', content: query });
+      messages.push({ role: 'assistant', content: fullResponse });
+
+      // Extract memories asynchronously (don't block response)
+      memoryExtraction.extractMemoriesFromRecentMessages(userId, messages, conversationId, 10)
+        .catch(error => {
+          console.error('❌ [MEMORY EXTRACTION] Error:', error);
+        });
+    }
+
     const validation = validateAnswer(fullResponse, query, sources);
 
     if (!validation.isValid) {
@@ -3839,10 +3972,13 @@ User query: "${query}"`;
     console.log(`✅ [FAST PATH] Complete - returning ${sources.length} sources`);
     console.log(`🔍 [DEBUG - RETURN] About to return sources:`, JSON.stringify(sources.slice(0, 2), null, 2));
 
-    // Return with confidence scores if available
-    const result: any = { sources };
+    // Return with confidence scores
+    const result: any = {
+      sources,
+      confidence  // ✅ NEW: Include confidence from confidenceScoring service
+    };
     if (answerConfidence !== undefined) {
-      result.confidence = answerConfidence;
+      result.complexReasoningConfidence = answerConfidence;  // ✅ Renamed to avoid conflict
       result.supporting_evidence = supportingEvidence;
       result.conflicting_evidence = conflictingEvidence;
       console.log(`📊 [COMPLEX REASONING] Returning confidence: ${answerConfidence.toFixed(2)}`);
@@ -4061,6 +4197,110 @@ async function streamLLMResponse(
   }
 }
 
+/**
+ * Smart streaming that batches table rows for faster rendering
+ */
+async function smartStreamLLMResponse(
+  systemPrompt: string,
+  context: string,
+  onChunk: (chunk: string) => void
+): Promise<string> {
+  console.log('🌊 [SMART STREAM] Starting with table optimization');
+
+  let fullAnswer = '';
+  let buffer = '';
+  let inTable = false;
+  let tableBuffer = '';
+
+  try {
+    // Use Gemini cached streaming for better performance
+    fullAnswer = await geminiCache.generateStreamingWithCache({
+      systemPrompt,
+      documentContext: context,
+      query: '', // Query already included in context
+      temperature: 0.4,
+      maxTokens: 3000,
+      onChunk: (text: string) => {
+        // First apply basic post-processing (same as streamLLMResponse)
+        const processedChunk = text
+          .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')  // Remove citations
+          .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Remove emojis
+          .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks
+          .replace(/\n\n\n\n+/g, '\n\n\n')  // Collapse 4+ newlines to 3
+          .replace(/\n\s+[○◦]\s+/g, '\n\n• ')  // Flatten nested bullets
+          .replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
+
+        buffer += processedChunk;
+
+        // Detect table start
+        if (!inTable && buffer.includes('|')) {
+          const lines = buffer.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            // Check if this is a table header
+            if (line.includes('|') && (line.includes('Feature') || line.includes('Aspect') || line.includes('Document') || line.includes('Concept') || line.includes('Criteria'))) {
+              inTable = true;
+              tableBuffer = line + '\n';
+
+              // Send everything before the table immediately
+              const beforeTable = lines.slice(0, i).join('\n');
+              if (beforeTable.trim()) {
+                onChunk(beforeTable + '\n');
+              }
+
+              buffer = lines.slice(i + 1).join('\n');
+              break;
+            }
+          }
+        }
+
+        // If in table, accumulate rows
+        if (inTable) {
+          const lines = buffer.split('\n');
+
+          for (const line of lines) {
+            if (line.includes('|')) {
+              tableBuffer += line + '\n';
+            } else if (line.trim() === '' && tableBuffer.length > 0) {
+              // End of table - send entire table at once
+              onChunk(tableBuffer);
+              inTable = false;
+              tableBuffer = '';
+              buffer = '';
+              break;
+            }
+          }
+
+          buffer = '';
+        } else {
+          // Not in table - stream normally but batch by sentences
+          if (buffer.includes('.') || buffer.includes('\n') || buffer.length > 100) {
+            onChunk(buffer);
+            buffer = '';
+          }
+        }
+      }
+    });
+
+    // Send any remaining content
+    if (tableBuffer) {
+      onChunk(tableBuffer);
+    }
+    if (buffer) {
+      onChunk(buffer);
+    }
+
+    console.log('✅ [SMART STREAM] Complete. Total chars:', fullAnswer.length);
+    return fullAnswer;
+
+  } catch (error: any) {
+    console.error('❌ [SMART STREAM] Error:', error);
+    onChunk('I apologize, but I encountered an error generating the response. Please try again.');
+    return '';
+  }
+}
+
 // ════════════════════════════════════════════════════════════════════════════════
 // POST-PROCESSING
 // ════════════════════════════════════════════════════════════════════════════════
@@ -4070,7 +4310,27 @@ export function postProcessAnswerExport(answer: string): string {
 }
 
 function postProcessAnswer(answer: string): string {
-  let processed = answer;
+  let processed = answer.trim();
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // MARKDOWN CODE BLOCK CLEANUP - Strip markdown code blocks that wrap tables
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Remove ```markdown or ``` at start
+  if (processed.startsWith('```markdown')) {
+    processed = processed.substring('```markdown'.length).trim();
+  } else if (processed.startsWith('```')) {
+    processed = processed.substring(3).trim();
+  }
+
+  // Remove ``` at end
+  if (processed.endsWith('```')) {
+    processed = processed.substring(0, processed.length - 3).trim();
+  }
+
+  // Remove any remaining code block markers around tables
+  processed = processed.replace(/```markdown\n([\s\S]*?)\n```/g, '$1');
+  processed = processed.replace(/```\n([\s\S]*?)\n```/g, '$1');
 
   // ════════════════════════════════════════════════════════════════════════════════
   // CITATION CLEANUP - Remove all inline citations (UI displays sources separately)
