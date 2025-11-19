@@ -338,18 +338,8 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
 
   console.log('✅ User message saved:', userMessage.id);
 
-  // Get conversation history for context
-  const previousMessages = await prisma.message.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: 'asc' },
-    take: 20, // Last 20 messages for context
-  });
-
-  // Build conversation history array
-  const conversationHistory = previousMessages.map((msg) => ({
-    role: msg.role,
-    content: msg.content,
-  }));
+  // ✅ NEW: Fetch conversation history using helper function
+  const conversationHistory = await getConversationHistory(conversationId);
 
   // ✅ FIX: Use RAG service instead of calling Gemini directly
   console.log('🤖 Generating RAG response...');
@@ -431,7 +421,7 @@ export const sendMessageStreaming = async (
 
   // ⚡ PERFORMANCE: Start DB writes async - don't block streaming
   // Only await conversation check and history (needed for processing)
-  const [conversation, previousMessages] = await Promise.all([
+  const [conversation, conversationHistory] = await Promise.all([
     // Verify conversation ownership
     prisma.conversation.findFirst({
       where: {
@@ -440,12 +430,8 @@ export const sendMessageStreaming = async (
       },
     }),
 
-    // Get conversation history for context
-    prisma.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: 'asc' },
-      take: 20,
-    })
+    // ✅ NEW: Fetch conversation history using helper function
+    getConversationHistory(conversationId)
   ]);
 
   if (!conversation) {
@@ -463,12 +449,6 @@ export const sendMessageStreaming = async (
   });
 
   console.log('⚡ User message creation started (async)');
-
-  // Build conversation history array
-  const conversationHistory = previousMessages.map((msg) => ({
-    role: msg.role,
-    content: msg.content,
-  }));
 
   // ✅ FIX #2: Check for file actions FIRST (before RAG)
   const fileActionResult = await handleFileActionsIfNeeded(
@@ -1311,6 +1291,32 @@ const formatDocumentSources = (sources: any[], attachedDocId?: string): string =
 
   return lines.join('\n');
 };
+
+// ============================================================================
+// CONVERSATION HISTORY HELPERS
+// ============================================================================
+
+/**
+ * Get conversation history for context
+ */
+async function getConversationHistory(
+  conversationId: string
+): Promise<Array<{ role: string; content: string }>> {
+  const messages = await prisma.message.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      role: true,
+      content: true
+    },
+    take: 10 // Last 10 messages
+  });
+
+  return messages.map(msg => ({
+    role: msg.role,
+    content: msg.content
+  }));
+}
 
 // ============================================================================
 // EXPORTS

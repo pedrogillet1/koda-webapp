@@ -285,7 +285,7 @@ class VectorEmbeddingService {
     userId: string,
     queryText: string,
     topK: number = 5,
-    minSimilarity: number = 0.5
+    minSimilarity: number = 0.3  // Lowered from 0.5 to improve recall for PDF content
   ) {
     try {
       console.log('\n🔍 === SEARCH DEBUG START ===');
