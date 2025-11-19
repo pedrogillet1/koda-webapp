@@ -15,6 +15,9 @@ import statusEmitter, { ProcessingStage } from './statusEmitter.service';
 import postProcessor from './postProcessor.service';
 import embeddingService from './embedding.service';
 import geminiCache from './geminiCache.service';
+import * as queryDecomposition from './query-decomposition.service';
+import * as contradictionDetection from './contradiction-detection.service';
+import * as confidenceScoring from './confidence-scoring.service';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // INTENT DETECTION CACHE (5min TTL)
@@ -109,6 +112,266 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// FULL DOCUMENT RETRIEVAL - Enhanced Context Management
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Retrieve full documents instead of chunks
+ */
+async function retrieveFullDocuments(
+  documentIds: string[],
+  userId: string
+): Promise<{ id: string; title: string; content: string; metadata?: any }[]> {
+
+  console.log(`📄 [FULL DOCS] Retrieving ${documentIds.length} full documents`);
+
+  // Remove duplicates
+  const uniqueDocIds = [...new Set(documentIds)];
+
+  const documents = await prisma.document.findMany({
+    where: {
+      id: { in: uniqueDocIds },
+      userId: userId,
+      status: 'completed'
+    },
+    include: {
+      metadata: {
+        select: {
+          extractedText: true,
+          markdownContent: true,
+          pageCount: true,
+          wordCount: true
+        }
+      }
+    }
+  });
+
+  const fullDocs = documents.map(doc => ({
+    id: doc.id,
+    title: doc.filename,
+    content: doc.metadata?.markdownContent || doc.metadata?.extractedText || '',
+    metadata: {
+      pageCount: doc.metadata?.pageCount,
+      wordCount: doc.metadata?.wordCount
+    }
+  }));
+
+  // Calculate total tokens (rough estimate: 1 token ≈ 4 characters)
+  const totalTokens = fullDocs.reduce((sum, doc) => sum + (doc.content.length / 4), 0);
+  console.log(`📄 [FULL DOCS] Retrieved ${fullDocs.length} documents (~${Math.floor(totalTokens)} tokens)`);
+
+  // Warn if approaching context limit
+  if (totalTokens > 800000) { // 800K tokens, leaving room for prompt and response
+    console.warn(`⚠️ [FULL DOCS] Large context size (${Math.floor(totalTokens)} tokens) - may need truncation`);
+  }
+
+  return fullDocs;
+}
+
+/**
+ * Build document context from full documents
+ */
+function buildDocumentContext(
+  documents: { id: string; title: string; content: string; metadata?: any }[]
+): string {
+
+  if (documents.length === 0) {
+    return '';
+  }
+
+  let context = '## Relevant Documents\n\n';
+
+  for (const doc of documents) {
+    context += `### Document: ${doc.title}\n\n`;
+
+    // Add metadata if available
+    if (doc.metadata) {
+      const meta = [];
+      if (doc.metadata.pageCount) meta.push(`${doc.metadata.pageCount} pages`);
+      if (doc.metadata.wordCount) meta.push(`${doc.metadata.wordCount} words`);
+      if (meta.length > 0) {
+        context += `*[${meta.join(', ')}]*\n\n`;
+      }
+    }
+
+    context += `${doc.content}\n\n`;
+    context += `---\n\n`;
+  }
+
+  return context;
+}
+
+/**
+ * Build conversation context from message history
+ */
+function buildConversationContext(
+  conversationHistory?: Array<{ role: string; content: string }>,
+  maxTokens: number = 50000
+): string {
+
+  if (!conversationHistory || conversationHistory.length === 0) {
+    return '';
+  }
+
+  console.log(`📚 [CONTEXT] Building conversation history (${conversationHistory.length} messages)`);
+
+  let context = '## Conversation History\n\n';
+  let tokenCount = 0;
+
+  // Start from most recent and work backwards
+  const reversedHistory = [...conversationHistory].reverse();
+  const includedMessages = [];
+
+  for (const message of reversedHistory) {
+    const messageText = `**${message.role === 'user' ? 'User' : 'KODA'}**: ${message.content}\n\n`;
+
+    // Rough token estimation (1 token ≈ 4 characters)
+    const messageTokens = messageText.length / 4;
+
+    if (tokenCount + messageTokens > maxTokens) {
+      console.log(`📚 [CONTEXT] Reached token limit, truncating history`);
+      break;
+    }
+
+    includedMessages.unshift(messageText); // Add to beginning to maintain order
+    tokenCount += messageTokens;
+  }
+
+  context += includedMessages.join('');
+
+  console.log(`📚 [CONTEXT] Built history with ${includedMessages.length} messages (~${Math.floor(tokenCount)} tokens)`);
+
+  return context;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// STRUCTURED REASONING PROMPTS - Complex Query Analysis
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect query complexity
+ */
+function detectQueryComplexity(query: string): 'simple' | 'medium' | 'complex' {
+  const lowerQuery = query.toLowerCase();
+
+  // Simple queries (fact retrieval, simple questions)
+  const simpleIndicators = [
+    'what is', 'who is', 'when did', 'where is',
+    'show me', 'find', 'list', 'display',
+    'get', 'retrieve', 'fetch'
+  ];
+
+  // Complex queries (multi-document analysis, synthesis)
+  const complexIndicators = [
+    'compare', 'analyze', 'synthesize', 'evaluate',
+    'all documents', 'across all', 'every document',
+    'contradiction', 'conflict', 'disagree',
+    'relationship between', 'timeline', 'changes over time',
+    'evolution', 'trend', 'pattern',
+    'why', 'how does', 'explain the difference',
+    'summarize all', 'overview of all'
+  ];
+
+  // Check for simple patterns
+  if (simpleIndicators.some(indicator => lowerQuery.includes(indicator))) {
+    // But check if it's actually complex despite simple wording
+    if (complexIndicators.some(indicator => lowerQuery.includes(indicator))) {
+      return 'complex';
+    }
+    return 'simple';
+  }
+
+  // Check for complex patterns
+  if (complexIndicators.some(indicator => lowerQuery.includes(indicator))) {
+    return 'complex';
+  }
+
+  // Default to medium
+  return 'medium';
+}
+
+/**
+ * Build structured reasoning prompt for better synthesis
+ */
+function buildReasoningPrompt(query: string, complexity: 'simple' | 'medium' | 'complex'): string {
+
+  const baseInstructions = `
+Answer the user's question based on the provided documents and conversation history.
+
+**CRITICAL RULES:**
+1. Only use information from the provided documents
+2. Cite sources for every claim using document titles in **bold**
+3. If information is missing or unclear, state this explicitly
+4. If documents contradict each other, point this out clearly
+5. Use Markdown formatting (bold, lists, etc.)
+`;
+
+  if (complexity === 'simple') {
+    return baseInstructions + `
+**TASK:** Provide a direct, concise answer to the question.
+
+**FORMAT:**
+- Start with the direct answer
+- Cite the source document in **bold**
+- Keep it brief (2-3 sentences)
+`;
+  }
+
+  if (complexity === 'medium') {
+    return baseInstructions + `
+**TASK:** Analyze the documents and provide a comprehensive answer.
+
+**REASONING PROCESS:**
+1. Identify relevant information in each document
+2. Compare information across documents if multiple sources exist
+3. Synthesize a coherent answer
+4. Cite sources for each claim
+
+**FORMAT:**
+- Start with a clear summary answer
+- Provide supporting details with citations
+- Use bullet points for multiple items
+- End with source list if using multiple documents
+`;
+  }
+
+  // Complex
+  return baseInstructions + `
+**TASK:** Conduct a thorough multi-document analysis.
+
+**REASONING PROCESS:**
+1. **Identify**: List all relevant documents and their key information
+2. **Extract**: Pull out specific facts, figures, and claims from each document
+3. **Compare**: Identify similarities and differences across documents
+4. **Validate**: Check for contradictions or inconsistencies
+5. **Synthesize**: Combine information into a coherent answer
+6. **Cite**: Provide specific sources for each claim
+
+**OUTPUT FORMAT:**
+## Summary
+[Brief 2-3 sentence answer]
+
+## Detailed Analysis
+[Comprehensive analysis with inline citations in **bold**]
+
+### Key Findings
+- Finding 1 (from **Document Name**)
+- Finding 2 (from **Document Name**)
+- [etc.]
+
+### Contradictions or Uncertainties
+[If any contradictions found, list them here]
+
+## Sources Consulted
+1. **Document Name** - [brief description of what was found]
+2. **Document Name** - [brief description of what was found]
+
+## Confidence Assessment
+[Rate confidence 0-100% and explain why]
+`;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // HYBRID RAG SERVICE - Simple, Reliable, 95%+ Success Rate
 // ════════════════════════════════════════════════════════════════════════════════
 //
@@ -129,6 +392,10 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 //
 // ════════════════════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════════════════════
+// GEMINI MODEL CONFIGURATION - Enhanced for Long Context
+// ════════════════════════════════════════════════════════════════════════════════
+
 // Initialize Gemini model for RAG queries
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({
@@ -137,7 +404,7 @@ const model = genAI.getGenerativeModel({
     temperature: 0.7,
     topP: 0.95,
     topK: 40,
-    maxOutputTokens: 2048,
+    maxOutputTokens: 8192, // ✅ Increased from 2048 for comprehensive responses
   },
 });
 
@@ -1087,7 +1354,9 @@ export async function generateAnswerStream(
   onChunk: (chunk: string) => void,
   attachedDocumentId?: string,
   conversationHistory?: Array<{ role: string; content: string }>,
-  onStage?: (stage: string, message: string) => void
+  onStage?: (stage: string, message: string) => void,
+  memoryContext?: string,
+  fullConversationContext?: string
 ): Promise<{ sources: any[] }> {
   console.log('🚀 [DEBUG] generateAnswerStream called');
   console.log('🚀 [DEBUG] onChunk is function:', typeof onChunk === 'function');
@@ -2317,14 +2586,9 @@ async function handleDocumentCounting(
 
   onChunk(response);
 
-  const sources = documents.map(doc => ({
-    documentId: doc.id || null,  // ✅ Add documentId for frontend display
-    documentName: doc.filename,
-    pageNumber: null,
-    score: 1.0,
-  }));
-
-  return { sources };
+  // ❌ NO SOURCES: Document counting queries don't use document CONTENT
+  // We're just counting rows in the database, not reading/analyzing documents
+  return { sources: [] };
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2429,14 +2693,9 @@ async function handleDocumentTypes(
 
   onChunk(response);
 
-  const sources = documents.map(doc => ({
-    documentId: doc.id || null,  // ✅ Add documentId for frontend display
-    documentName: doc.filename,
-    pageNumber: null,
-    score: 1.0,
-  }));
-
-  return { sources };
+  // ❌ NO SOURCES: Document types queries don't use document CONTENT
+  // We're just grouping files by extension, not reading/analyzing documents
+  return { sources: [] };
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2609,14 +2868,9 @@ async function handleDocumentListing(
 
   onChunk(response);
 
-  const sources = displayDocs.map(doc => ({
-    documentId: doc.id || null,  // ✅ Add documentId for frontend display
-    documentName: doc.filename,
-    pageNumber: null,
-    score: 1.0,
-  }));
-
-  return { sources };
+  // ❌ NO SOURCES: Document listing queries don't use document CONTENT
+  // We're just listing filenames from the database, not reading/analyzing documents
+  return { sources: [] };
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2768,6 +3022,9 @@ async function handleRegularQuery(
   conversationHistory?: Array<{ role: string; content: string; metadata?: any }>,
   onStage?: (stage: string, message: string) => void
 ): Promise<{ sources: any[] }> {
+
+  // ⏱️ PERFORMANCE: Start timing
+  const startTime = Date.now();
 
   // ✅ FIX: Send immediate acknowledgment to establish streaming connection
   onChunk('');
@@ -2935,10 +3192,10 @@ async function handleRegularQuery(
     }));
 
     // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
-    const documentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
-    if (documentIds.length > 0) {
+    const sourceDocumentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
+    if (sourceDocumentIds.length > 0) {
       const documents = await prisma.document.findMany({
-        where: { id: { in: documentIds } },
+        where: { id: { in: sourceDocumentIds } },
         select: { id: true, filename: true, mimeType: true }
       });
       const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
@@ -2959,6 +3216,13 @@ async function handleRegularQuery(
     // Simple query - proceed with normal flow
     console.log(`✅ [AGENT LOOP] Simple query - using standard retrieval`);
   }
+
+  // ✅ NEW: Detect query complexity for structured reasoning
+  const complexity = detectQueryComplexity(query);
+  console.log(`🧠 [COMPLEXITY] Query complexity: ${complexity}`);
+
+  // ✅ NEW: Build conversation context
+  const conversationContext = buildConversationContext(conversationHistory);
 
   const isSimple = !isComplexQuery(query);
 
@@ -3159,6 +3423,27 @@ async function handleRegularQuery(
 
     // Filter deleted documents
     const finalSearchResults = await filterDeletedDocuments(filteredChunks, userId);
+    console.log(`⏱️ [PERF] Retrieval took ${Date.now() - startTime}ms`);
+
+    // ✅ NEW: Extract unique document IDs from chunks for full document retrieval
+    const retrievedDocumentIds = [...new Set(
+      finalSearchResults
+        .filter((chunk: any) => chunk.metadata?.documentId)
+        .map((chunk: any) => chunk.metadata.documentId)
+    )];
+    console.log(`📄 [RETRIEVAL] Found ${retrievedDocumentIds.length} relevant documents from ${finalSearchResults.length} chunks`);
+
+    // ✅ NEW: Retrieve full documents instead of using chunks (for complex queries)
+    let fullDocuments: any[] = [];
+    let documentContext = '';
+
+    if (complexity !== 'simple' && retrievedDocumentIds.length > 0 && retrievedDocumentIds.length <= 5) {
+      // For medium/complex queries with reasonable document count, use full documents
+      fullDocuments = await retrieveFullDocuments(retrievedDocumentIds, userId);
+      documentContext = buildDocumentContext(fullDocuments);
+      console.log(`📄 [FULL DOCS] Using ${fullDocuments.length} full documents for ${complexity} query`);
+      console.log(`⏱️ [PERF] Document loading took ${Date.now() - startTime}ms`);
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // GRACEFUL DEGRADATION (Week 3-4 - Critical Feature)
@@ -3236,6 +3521,66 @@ async function handleRegularQuery(
     console.log(`🔍 [DEBUG - RERANK] finalSearchResults had ${finalSearchResults.length} chunks`);
     console.log(`🔍 [DEBUG - RERANK] After reranking, got ${rerankedChunks.length} chunks`);
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COMPLEX REASONING: Claim Extraction and Contradiction Detection
+    // ═══════════════════════════════════════════════════════════════════════════
+    let answerConfidence: number | undefined;
+    let supportingEvidence: confidenceScoring.Evidence[] | undefined;
+    let conflictingEvidence: confidenceScoring.Evidence[] | undefined;
+
+    if (queryDecomposition.needsDecomposition(query)) {
+      console.log('🧠 [COMPLEX REASONING] Query requires complex reasoning');
+
+      // Extract document information for claim extraction
+      const documentChunks = rerankedChunks.slice(0, 5).map((chunk: any) => ({
+        document_id: chunk.metadata?.documentId || 'unknown',
+        document_title: chunk.metadata?.filename || 'Unknown',
+        content: chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
+      }));
+
+      // Extract claims from documents
+      const claims = await contradictionDetection.extractClaims(documentChunks);
+
+      // Detect contradictions
+      const contradictions = await contradictionDetection.detectContradictions(claims);
+
+      if (contradictions.length > 0) {
+        console.log(`⚠️  [COMPLEX REASONING] Found ${contradictions.length} contradictions`);
+        contradictions.forEach(c => {
+          console.log(`   - ${c.contradiction_type}: ${c.explanation}`);
+        });
+      }
+
+      // Build evidence for confidence scoring
+      const evidence = rerankedChunks.map((chunk: any) => ({
+        document_id: chunk.metadata?.documentId || 'unknown',
+        document_title: chunk.metadata?.filename || 'Unknown',
+        relevant_passage: chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
+        support_strength: confidenceScoring.scoreEvidence(
+          query,
+          chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
+          chunk.rerankScore || chunk.originalScore || 0
+        ),
+        relevance_score: chunk.rerankScore || chunk.originalScore || 0
+      }));
+
+      // Calculate confidence
+      const supporting = evidence.filter(e => e.support_strength > 0.5);
+      const conflicting = contradictions.map(c => ({
+        document_id: c.claim2.document_id,
+        document_title: c.claim2.source,
+        relevant_passage: c.claim2.text,
+        support_strength: 0,
+        relevance_score: 0.5
+      }));
+
+      answerConfidence = confidenceScoring.calculateConfidence(supporting, conflicting);
+      supportingEvidence = supporting;
+      conflictingEvidence = conflicting;
+
+      console.log(`📊 [COMPLEX REASONING] Confidence: ${answerConfidence.toFixed(2)}`);
+    }
+
     // Build context WITHOUT source labels (prevents Gemini from numbering documents)
     const context = rerankedChunks.map((result: any) => {
       const meta = result.metadata || {};
@@ -3257,10 +3602,25 @@ async function handleRegularQuery(
     // Removed nextStepText - using natural endings instead
 
     // ✅ OPTIMIZED: Restructured system prompt with explicit constraints
-    const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
+    // Memory context is not currently used in this function
+    const memorySection = '';
+    const conversationSection = '';
 
-RELEVANT CONTENT FROM USER'S DOCUMENTS:
-${context}
+    // ✅ NEW: Use structured reasoning prompt for medium/complex queries
+    const reasoningPrompt = buildReasoningPrompt(query, complexity);
+
+    // ✅ NEW: Choose context based on query complexity and document availability
+    const finalContext = (documentContext && fullDocuments.length > 0) ? documentContext : context;
+    const contextLabel = (documentContext && fullDocuments.length > 0) ? 'FULL DOCUMENTS' : 'RELEVANT CONTENT FROM USER\'S DOCUMENTS';
+
+    console.log(`📝 [PROMPT] Using ${complexity} complexity prompt with ${documentContext && fullDocuments.length > 0 ? 'full documents' : 'chunks'}`);
+
+    const systemPrompt = `You are KODA, a professional AI assistant helping users understand their documents.
+${reasoningPrompt}
+${memorySection}${conversationSection}
+${conversationContext ? conversationContext + '\n\n' : ''}
+${contextLabel}:
+${finalContext}
 
 ═══════════════════════════════════════════════════════════════════════════════
 CRITICAL CONSTRAINTS (MUST FOLLOW EXACTLY)
@@ -3427,6 +3787,7 @@ FINAL REMINDER - THESE ARE MANDATORY
 User query: "${query}"`;
 
     const fullResponse = await streamLLMResponse(systemPrompt, '', onChunk);
+    console.log(`⏱️ [PERF] Generation took ${Date.now() - startTime}ms`);
 
     // ═══════════════════════════════════════════════════════════════════════════
     // NEW: ANSWER VALIDATION - Check answer quality
@@ -3444,10 +3805,10 @@ User query: "${query}"`;
     }));
 
     // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
-    const documentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
-    if (documentIds.length > 0) {
+    const sourceDocumentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
+    if (sourceDocumentIds.length > 0) {
       const documents = await prisma.document.findMany({
-        where: { id: { in: documentIds } },
+        where: { id: { in: sourceDocumentIds } },
         select: { id: true, filename: true, mimeType: true }
       });
       const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
@@ -3477,7 +3838,17 @@ User query: "${query}"`;
 
     console.log(`✅ [FAST PATH] Complete - returning ${sources.length} sources`);
     console.log(`🔍 [DEBUG - RETURN] About to return sources:`, JSON.stringify(sources.slice(0, 2), null, 2));
-    return { sources };
+
+    // Return with confidence scores if available
+    const result: any = { sources };
+    if (answerConfidence !== undefined) {
+      result.confidence = answerConfidence;
+      result.supporting_evidence = supportingEvidence;
+      result.conflicting_evidence = conflictingEvidence;
+      console.log(`📊 [COMPLEX REASONING] Returning confidence: ${answerConfidence.toFixed(2)}`);
+    }
+    console.log(`⏱️ [PERF] Total time: ${Date.now() - startTime}ms`);
+    return result;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
