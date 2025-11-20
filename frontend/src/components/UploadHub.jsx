@@ -163,21 +163,44 @@ const processDroppedEntries = async (entries) => {
       console.log('📁 Processing folder:', entry.name);
       const folderFiles = await readFolderRecursively(entry);
 
-      if (folderFiles.length > 0) {
-        // Calculate total size
-        const totalSize = folderFiles.reduce((sum, f) => sum + f.file.size, 0);
-
-        items.push({
-          isFolder: true,
-          folderName: entry.name,
-          files: folderFiles,
-          status: 'pending',
-          progress: 0,
-          error: null,
-          totalSize: totalSize,
-          fileCount: folderFiles.length
-        });
+      if (folderFiles.length === 0) {
+        console.warn(`⚠️ Folder "${entry.name}" is empty, skipping`);
+        continue;
       }
+
+      // ✅ FIX: Normalize to match button upload structure
+      // Convert wrapped objects { file: File, relativePath: "..." } to File objects with webkitRelativePath
+      const normalizedFiles = folderFiles.map(({ file, relativePath }) => {
+        // Create new File object with webkitRelativePath property
+        const newFile = new File([file], file.name, {
+          type: file.type,
+          lastModified: file.lastModified
+        });
+
+        // Add webkitRelativePath property (non-standard but needed for compatibility)
+        Object.defineProperty(newFile, 'webkitRelativePath', {
+          value: `${entry.name}/${relativePath}`,
+          writable: false,
+          enumerable: true,
+          configurable: true
+        });
+
+        return newFile;
+      });
+
+      // Calculate total size from normalized files
+      const totalSize = normalizedFiles.reduce((sum, f) => sum + f.size, 0);
+
+      items.push({
+        isFolder: true,
+        folderName: entry.name,
+        files: normalizedFiles,  // ✅ Now matches button upload structure
+        status: 'pending',
+        progress: 0,
+        error: null,
+        totalSize: totalSize,
+        fileCount: normalizedFiles.length
+      });
     }
   }
 
@@ -676,8 +699,28 @@ const UploadHub = () => {
 
     console.log('📤 Starting upload for', pendingItems.length, 'item(s)');
 
-    // Count total files for notification (including files inside folders)
-    const totalFiles = pendingItems.reduce((count, item) => {
+    // ✅ FIX: Filter hidden files before counting and update items
+    const filteredItems = pendingItems.map(item => {
+      if (item.isFolder) {
+        const validFiles = item.files.filter(f => !isMacHiddenFile(f.name));
+        return {
+          ...item,
+          files: validFiles,
+          fileCount: validFiles.length,
+          totalSize: validFiles.reduce((sum, f) => sum + f.size, 0)
+        };
+      }
+      return item;
+    });
+
+    // Update state with filtered items
+    setUploadingFiles(prev => prev.map(item => {
+      const filtered = filteredItems.find(fi => fi === item || (fi.isFolder && fi.folderName === item.folderName));
+      return filtered || item;
+    }));
+
+    // Count valid files only (excluding hidden files)
+    const totalFiles = filteredItems.reduce((count, item) => {
       if (item.isFolder) {
         return count + item.files.length;
       }
@@ -696,8 +739,8 @@ const UploadHub = () => {
     ));
 
     // ⚡ PARALLEL UPLOAD OPTIMIZATION: Use p-limit for concurrent uploads
-    // Limit to 3 concurrent uploads (encryption is CPU-intensive)
-    const limit = pLimit(3);
+    // ✅ OPTIMIZED: Increased to 10 concurrent uploads for better performance
+    const limit = pLimit(10);
 
     // Create upload promises for all items
     const uploadPromises = itemsToUpload.map((item, i) => {

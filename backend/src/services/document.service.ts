@@ -3,6 +3,7 @@ import prisma from '../config/database';
 import { uploadFile, downloadFile, getSignedUrl, deleteFile, bucket, fileExists } from '../config/storage';
 import { config } from '../config/env';
 import * as textExtractionService from './textExtraction.service';
+import * as visionService from './vision.service';
 import * as geminiService from './gemini.service';
 import * as folderService from './folder.service';
 import markdownConversionService from './markdownConversion.service';
@@ -684,11 +685,31 @@ async function processDocumentWithTimeout(
         }
 
         if (isScanned && mistralOCR.isAvailable()) {
-          // Scanned PDF - use Mistral OCR
+          // Scanned PDF - try Mistral OCR first, fallback to Google Cloud Vision
           console.log('🔍 Detected scanned PDF - processing with Mistral OCR...');
-          extractedText = await mistralOCR.processScannedPDF(fileBuffer);
-          ocrConfidence = 0.95; // High confidence for Mistral OCR (95-98% accuracy)
-          console.log(`✅ Mistral OCR complete - extracted ${extractedText.length} characters`);
+          try {
+            extractedText = await mistralOCR.processScannedPDF(fileBuffer);
+            ocrConfidence = 0.95; // High confidence for Mistral OCR (95-98% accuracy)
+            console.log(`✅ Mistral OCR complete - extracted ${extractedText.length} characters`);
+          } catch (mistralError: any) {
+            console.error('❌ Mistral OCR failed:', mistralError.message);
+            console.log('🔄 Falling back to Google Cloud Vision OCR...');
+
+            // Fallback to Google Cloud Vision directly (force OCR, skip native extraction)
+            const ocrResult = await visionService.extractTextFromScannedPDF(fileBuffer);
+            extractedText = ocrResult.text;
+            ocrConfidence = ocrResult.confidence || 0.85; // Google Cloud Vision confidence
+
+            // Since Vision API doesn't return page/word counts, calculate them
+            wordCount = extractedText ? extractedText.split(/\s+/).filter((w: string) => w.length > 0).length : 0;
+
+            if (extractedText && extractedText.length > 100) {
+              console.log(`✅ Google Cloud Vision OCR complete - extracted ${extractedText.length} characters, ${wordCount} words`);
+            } else {
+              console.warn('⚠️ Google Cloud Vision returned minimal text - PDF may be unreadable or corrupted');
+              console.warn(`   Only extracted ${extractedText.length} characters`);
+            }
+          }
         } else if (isScanned && !mistralOCR.isAvailable()) {
           // Scanned PDF but Mistral OCR not configured - try fallback
           console.warn('⚠️ Detected scanned PDF but Mistral OCR is not configured');

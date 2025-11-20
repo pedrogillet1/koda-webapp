@@ -21,7 +21,7 @@ import { ReactComponent as EditIcon } from '../assets/Edit 5.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as DotsIcon } from '../assets/dots.svg';
-import { ReactComponent as UploadIconMenu } from '../assets/Logout-black.svg';
+import { ReactComponent as UploadIconMenu } from '../assets/upload.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import logoSvg from '../assets/logo.svg';
@@ -38,6 +38,7 @@ import movIcon from '../assets/mov.png';
 import mp4Icon from '../assets/mp4.png';
 import mp3Icon from '../assets/mp3.svg';
 import CategoryIcon from './CategoryIcon';
+import DocumentsLoadingSkeleton from './DocumentsLoadingSkeleton';
 
 const DocumentsPage = () => {
   const navigate = useNavigate();
@@ -49,6 +50,7 @@ const DocumentsPage = () => {
   const {
     documents: contextDocuments,
     folders: contextFolders,
+    loading,
     deleteDocument,
     renameDocument,
     moveToFolder,
@@ -396,6 +398,18 @@ const DocumentsPage = () => {
     setIsDraggingOver(false);
   };
 
+  // ✅ Show loading skeleton on first load (when loading and no data)
+  if (loading && contextDocuments.length === 0 && contextFolders.length === 0) {
+    return (
+      <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
+        <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
+        <div style={{flex: 1, overflow: 'hidden'}}>
+          <DocumentsLoadingSkeleton />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
@@ -719,8 +733,8 @@ const DocumentsPage = () => {
         <div style={{flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20}}>
           {/* Smart Categories */}
           <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12}}>
-              <div onClick={() => setIsModalOpen(true)} style={{padding: 14, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12}}>
+              <div onClick={() => setIsModalOpen(true)} style={{padding: 14, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', minHeight: 72, width: '100%', boxSizing: 'border-box'}}>
                 <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                   <AddIcon style={{ width: 20, height: 20 }} />
                 </div>
@@ -770,7 +784,7 @@ const DocumentsPage = () => {
                       // On error, the moveToFolder function will rollback automatically
                     }
                   }}
-                  style={{padding: 10, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, transition: 'transform 0.2s ease, box-shadow 0.2s ease', position: 'relative'}}
+                  style={{padding: 10, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, transition: 'transform 0.2s ease, box-shadow 0.2s ease', position: 'relative', minHeight: 72, width: '100%', boxSizing: 'border-box', zIndex: categoryMenuOpen === category.id ? 99999 : 1}}
                 >
                   <div onClick={() => {
                     console.log('📁 DocumentsPage - Clicking folder:', category.name, 'ID:', category.id);
@@ -809,19 +823,26 @@ const DocumentsPage = () => {
                       <DotsIcon style={{width: 16, height: 16}} />
                     </button>
                     {categoryMenuOpen === category.id && (
-                      <div style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: '100%',
-                        marginTop: 4,
-                        background: 'white',
-                        borderRadius: 12,
-                        border: '1px solid #E6E6EC',
-                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                        zIndex: 1000,
-                        minWidth: 160,
-                        overflow: 'hidden'
-                      }}>
+                      <div
+                        style={{
+                          position: 'fixed',
+                          background: 'white',
+                          borderRadius: 12,
+                          border: '1px solid #E6E6EC',
+                          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                          zIndex: 99999,
+                          minWidth: 160,
+                          overflow: 'hidden'
+                        }}
+                        ref={(el) => {
+                          if (el) {
+                            const button = el.previousElementSibling;
+                            const rect = button.getBoundingClientRect();
+                            el.style.top = `${rect.bottom + 4}px`;
+                            el.style.right = `${window.innerWidth - rect.right}px`;
+                          }
+                        }}
+                      >
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -920,7 +941,7 @@ const DocumentsPage = () => {
           {/* Recently Added - Full Width */}
           <div style={{padding: 24, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column'}}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24}}>
-              <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Recently Added</div>
+              <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
               <div
                 onClick={() => navigate('/category/recently-added')}
                 style={{color: '#171717', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '22.40px', cursor: 'pointer'}}

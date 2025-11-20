@@ -119,7 +119,16 @@ const CategoryDetail = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showSuccess } = useToast();
-  const { documents: contextDocuments, folders: contextFolders, createFolder, moveToFolder, refreshAll } = useDocuments();
+  const {
+    documents: contextDocuments,
+    folders: contextFolders,
+    createFolder,
+    moveToFolder,
+    refreshAll,
+    deleteDocument,   // ✅ For optimistic document deletion
+    deleteFolder,     // ✅ For optimistic folder deletion
+    renameDocument    // ✅ For optimistic document rename
+  } = useDocuments();
 
   // State declarations
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
@@ -408,15 +417,13 @@ const CategoryDetail = () => {
     if (!newFileName.trim()) return;
 
     try {
-      await api.patch(`/api/documents/${docId}`, {
-        filename: newFileName
-      });
-
-      // ✅ No need to fetch - context will auto-update via refreshAll
-      await refreshAll();
+      // ✅ FAST: Use context for optimistic rename
+      await renameDocument(docId, newFileName);
 
       setRenamingDocId(null);
       setNewFileName('');
+
+      // ✅ NO refreshAll() - context handles updates automatically
     } catch (error) {
       console.error('Error renaming document:', error);
       alert('Failed to rename document');
@@ -429,18 +436,19 @@ const CategoryDetail = () => {
 
     try {
       if (itemToRename.type === 'document') {
-        await api.patch(`/api/documents/${itemToRename.id}`, {
-          filename: newName
-        });
+        // ✅ FAST: Use context for optimistic document rename
+        await renameDocument(itemToRename.id, newName);
       } else if (itemToRename.type === 'folder') {
+        // Folder rename - manual API call (no context method yet)
         await api.patch(`/api/folders/${itemToRename.id}`, { name: newName });
+        // ⚠️ Folder rename requires refreshAll (no optimistic method)
+        await refreshAll();
       }
-
-      // ✅ No need to fetch - context will auto-update via refreshAll
-      await refreshAll();
 
       setShowRenameModal(false);
       setItemToRename(null);
+
+      // ✅ NO refreshAll() for documents - context handles updates automatically
     } catch (error) {
       console.error('Error renaming:', error);
       alert(`Failed to rename ${itemToRename.type}`);
@@ -534,7 +542,7 @@ const CategoryDetail = () => {
     // Save reference before clearing state
     const itemToDeleteCopy = itemToDelete;
 
-    // Close modal immediately
+    // Close modal IMMEDIATELY for instant feedback
     setShowDeleteModal(false);
     setItemToDelete(null);
 
@@ -549,47 +557,65 @@ const CategoryDetail = () => {
         // Handle bulk deletion of selected documents
         const deleteCount = itemToDeleteCopy.count;
 
-        // Show success message
-        showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
-
-        // Delete on server
-        await Promise.all(
-          itemToDeleteCopy.ids.map(docId =>
-            api.delete(`/api/documents/${docId}`).catch(error => {
-              console.error(`Error deleting document ${docId}:`, error);
-            })
-          )
+        // ✅ FAST: Delete each document using context (optimistic updates)
+        const deletePromises = itemToDeleteCopy.ids.map(docId =>
+          deleteDocument(docId).catch(error => {
+            console.error(`Error deleting document ${docId}:`, error);
+            return { success: false, error };
+          })
         );
 
-        // ✅ Context will auto-update after deletion
-        await refreshAll();
-      } else if (itemToDeleteCopy.type === 'document') {
-        // Show success notification
-        showSuccess('1 file has been deleted');
+        const results = await Promise.all(deletePromises);
 
+        // Count successful deletions
+        const successCount = results.filter(r => r && r.success).length;
+
+        if (successCount > 0) {
+          showSuccess(`${successCount} file${successCount > 1 ? 's have' : ' has'} been deleted`);
+        }
+
+        if (successCount < deleteCount) {
+          const failedCount = deleteCount - successCount;
+          alert(`${failedCount} file${failedCount > 1 ? 's' : ''} failed to delete`);
+        }
+
+        // ✅ NO refreshAll() - context handles updates automatically
+
+      } else if (itemToDeleteCopy.type === 'document') {
+        // ✅ FAST: Use context for single document deletion (optimistic update)
         setOpenDropdownId(null);
 
-        // Delete on server
-        await api.delete(`/api/documents/${itemToDeleteCopy.id}`);
+        const result = await deleteDocument(itemToDeleteCopy.id);
 
-        // ✅ Context will auto-update after deletion
-        await refreshAll();
+        // Show success message after optimistic update
+        if (result && result.success) {
+          showSuccess('1 file has been deleted');
+        }
+
+        // ✅ NO refreshAll() - context handles updates automatically
+
       } else if (itemToDeleteCopy.type === 'folder') {
-        // Show notification immediately for instant feedback
+        // ✅ FAST: Use context for folder deletion (optimistic update)
+        await deleteFolder(itemToDeleteCopy.id);
+
         showSuccess('1 folder has been deleted');
-
-        await api.delete(`/api/folders/${itemToDeleteCopy.id}`);
-
-        // ✅ Context will auto-update after deletion
-        await refreshAll();
 
         // Navigate back after deletion
         navigate(-1);
+
+        // ✅ NO refreshAll() - context handles updates automatically
       }
     } catch (error) {
       console.error('Error deleting:', error);
-      // ✅ Refresh context to restore correct state on error
-      await refreshAll();
+
+      // ✅ NO refreshAll() - context already rolled back on error
+
+      // Show user-friendly error message
+      const errorMessage = error.filename
+        ? `Failed to delete "${error.filename}": ${error.message}`
+        : error.message || 'Failed to delete item';
+
+      alert(errorMessage);
     }
   };
 
@@ -1612,7 +1638,7 @@ const CategoryDetail = () => {
                               borderRadius: 8,
                               outline: '1px #E6E6EC solid',
                               minWidth: 150,
-                              zIndex: 10000
+                              zIndex: 99999  // ✅ FIX: Increased from 10000 to ensure dropdown appears above folder blocks
                             }}>
                               <button
                                 onClick={(e) => {

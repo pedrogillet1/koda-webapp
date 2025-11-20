@@ -46,22 +46,27 @@ const ChatScreen = () => {
     }, [currentConversation]);
 
     // ✅ FIX #2: Create a new conversation on first visit if none exists
+    // ✅ OPTIMISTIC LOADING: Non-blocking conversation creation
+    // Greeting shows immediately, conversation creates in background
     useEffect(() => {
-        const initializeChat = async () => {
+        const initializeChat = () => {
             // Only create if no conversation exists and not already loading one
             if (!currentConversation && !location.state?.newConversation) {
-                try {
-                    console.log('🆕 [ChatScreen] First visit - creating initial conversation...');
-                    const newConversation = await chatService.createConversation();
-                    console.log('✅ [ChatScreen] Initial conversation created:', newConversation.id);
-                    setCurrentConversation(newConversation);
-                } catch (error) {
-                    console.error('❌ [ChatScreen] Error creating initial conversation:', error);
-                }
+                console.log('🆕 [ChatScreen] First visit - creating initial conversation...');
+
+                // Create conversation in background (non-blocking)
+                chatService.createConversation()
+                    .then(newConversation => {
+                        console.log('✅ [ChatScreen] Initial conversation created:', newConversation.id);
+                        setCurrentConversation(newConversation);
+                    })
+                    .catch(error => {
+                        console.error('❌ [ChatScreen] Error creating initial conversation:', error);
+                    });
             }
         };
 
-        initializeChat();
+        initializeChat(); // Non-blocking
     }, []); // Empty dependency array - only run on mount
 
     // ✅ FIX: Add initial conversation to history list when updateConversationInList becomes available

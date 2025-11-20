@@ -14,8 +14,55 @@ export const createFolder = async (
     encryptionIV?: string;
     encryptionAuthTag?: string;
     isEncrypted?: boolean;
+  },
+  options?: {
+    reuseExisting?: boolean;  // ✅ NEW: Option to reuse existing folder
+    autoRename?: boolean;     // ✅ NEW: Option to auto-rename (default: false)
   }
 ) => {
+  // ✅ FIX: Check for existing folder
+  const existingFolder = await prisma.folder.findFirst({
+    where: {
+      userId,
+      name,
+      parentFolderId: parentFolderId || null,
+    },
+    include: {
+      parentFolder: true,
+      subfolders: true,
+      _count: {
+        select: {
+          documents: true,
+        },
+      },
+    },
+  });
+
+  if (existingFolder) {
+    // ✅ FIX: Check options
+    if (options?.reuseExisting) {
+      console.log(`✅ Reusing existing folder: ${name} (${existingFolder.id})`);
+      return existingFolder;  // ✅ Return existing folder
+    }
+
+    if (options?.autoRename) {
+      // Auto-rename if requested
+      let counter = 1;
+      let newName = `${name} (${counter})`;
+      while (await prisma.folder.findFirst({
+        where: { userId, name: newName, parentFolderId: parentFolderId || null }
+      })) {
+        counter++;
+        newName = `${name} (${counter})`;
+      }
+      console.log(`⚠️ Folder "${name}" exists, creating as "${newName}"`);
+      name = newName;
+    } else {
+      // ✅ DEFAULT: Throw error
+      throw new Error(`Folder "${name}" already exists in this location`);
+    }
+  }
+
   const folder = await prisma.folder.create({
     data: {
       userId,

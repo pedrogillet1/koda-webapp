@@ -1072,45 +1072,17 @@ const Documents = () => {
 
         {/* Scrollable Content */}
         <div style={{flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20}}>
-          {/* Premium Banner */}
-          <div
-            style={{
-              alignSelf: 'stretch',
-              padding: '20px 60px',
-              position: 'relative',
-              background: '#181818',
-              overflow: 'hidden',
-              borderRadius: 20,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: 'auto'
-            }}
-          >
-            {/* KODA Logo CENTERED */}
-            <img
-              src={logoCopyWhite}
-              alt="KODA"
-              style={{
-                position: 'relative',
-                zIndex: 10,
-                height: '90px',
-                width: 'auto',
-                objectFit: 'contain'
-              }}
-            />
-          </div>
-
           {/* Smart Categories */}
           <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+            {/* First Row: Add New + First 5 Categories */}
             <div style={{display: 'flex', gap: 12}}>
-              <div onClick={() => setIsModalOpen(true)} style={{flex: 1, padding: 14, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
-                <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                  <AddIcon style={{ width: 20, height: 20 }} />
+              <div onClick={() => setIsModalOpen(true)} style={{minWidth: 0, flex: '1 1 0', height: 72, padding: 12, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10, cursor: 'pointer'}}>
+                <div style={{width: 48, height: 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                  <AddIcon style={{ width: 24, height: 24 }} />
                 </div>
-                <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: 1}}>Add New Smart Category</span>
+                <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.6px', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>Add New Smart Category</span>
               </div>
-              {(showAllCategories ? categories : categories.slice(0, 4)).map((category, index) => (
+              {categories.slice(0, 5).map((category, index) => (
                 <div
                   key={`${category.id}-${category.emoji}`}
                   onDragOver={(e) => {
@@ -1151,8 +1123,8 @@ const Documents = () => {
                     position: 'relative'
                   }}
                 >
-                  <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 8, flex: 1, cursor: 'pointer'}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
-                    <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0}}>
+                  <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
+                    <div style={{width: 48, height: 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0}}>
                       <CategoryIcon emoji={category.emoji} />
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: 4, flex: 1}}>
@@ -1289,31 +1261,215 @@ const Documents = () => {
                   </div>
                 </div>
               ))}
-              {categories.length > 4 && (
+            </div>
+
+            {/* Second Row: Next 5 Categories + See All */}
+            {categories.length > 5 && (
+              <div style={{display: 'flex', gap: 12}}>
+                {categories.slice(5, 10).map((category, index) => (
+                  <div
+                    key={`${category.id}-${category.emoji}`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragOverCategoryId(category.id);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragOverCategoryId(null);
+                    }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragOverCategoryId(null);
+
+                      try {
+                        const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                        if (data.type === 'document') {
+                          await moveToFolder(data.id, category.id);
+                        }
+                      } catch (error) {
+                        console.error('Error handling drop:', error);
+                      }
+                    }}
+                    style={{
+                      minWidth: 0,
+                      flex: '1 1 0',
+                      height: 72,
+                      padding: 12,
+                      background: dragOverCategoryId === category.id ? '#F0F0F0' : 'white',
+                      borderRadius: 14,
+                      border: dragOverCategoryId === category.id ? '2px dashed #32302C' : '1px #E6E6EC solid',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease',
+                      position: 'relative'
+                    }}
+                  >
+                    <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
+                      <div style={{width: 48, height: 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0}}>
+                        <CategoryIcon emoji={category.emoji} />
+                      </div>
+                      <div style={{display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0}}>
+                        <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{category.name}</div>
+                        <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '19.6px'}}>
+                          {category.fileCount || 0} {category.fileCount === 1 ? 'File' : 'Files'}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{position: 'relative'}} data-category-menu>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCategoryMenuOpen(categoryMenuOpen === category.id ? null : category.id);
+                        }}
+                        style={{
+                          width: 28,
+                          height: 28,
+                          background: '#F5F5F5',
+                          borderRadius: '50%',
+                          border: '1px solid #E6E6EC',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          flexShrink: 0
+                        }}
+                      >
+                        <DotsIcon style={{width: 16, height: 16}} />
+                      </button>
+                      {categoryMenuOpen === category.id && (
+                        <div style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: '100%',
+                          marginTop: 4,
+                          background: 'white',
+                          borderRadius: 12,
+                          border: '1px solid #E6E6EC',
+                          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                          zIndex: 1000,
+                          minWidth: 160,
+                          overflow: 'hidden'
+                        }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingCategory(category);
+                              setCategoryMenuOpen(null);
+                            }}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '10px 14px',
+                              background: 'transparent',
+                              border: 'none',
+                              borderBottom: '1px solid #F5F5F5',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '500',
+                              color: '#32302C',
+                              transition: 'background 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <EditIcon style={{width: 16, height: 16}} />
+                            Edit
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setUploadCategoryId(category.id);
+                              setShowUploadModal(true);
+                              setCategoryMenuOpen(null);
+                            }}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '10px 14px',
+                              background: 'transparent',
+                              border: 'none',
+                              borderBottom: '1px solid #F5F5F5',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '500',
+                              color: '#32302C',
+                              transition: 'background 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <UploadIconMenu style={{width: 16, height: 16}} />
+                            Upload
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setItemToDelete({ type: 'category', id: category.id, name: category.name });
+                              setShowDeleteModal(true);
+                              setCategoryMenuOpen(null);
+                            }}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '10px 14px',
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '500',
+                              color: '#D92D20',
+                              transition: 'background 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#FEF3F2'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <TrashCanIcon style={{width: 16, height: 16}} />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
                 <div
                   onClick={() => navigate('/documents')}
                   style={{
-                    flex: 1,
-                    padding: 10,
+                    minWidth: 0,
+                    flex: '1 1 0',
+                    height: 72,
+                    padding: 12,
                     background: 'white',
                     borderRadius: 14,
                     border: '1px #E6E6EC solid',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 8,
+                    gap: 10,
                     cursor: 'pointer',
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease'
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
                   onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                 >
-                  <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600'}}>
+                  <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
                     See All ({categories.length})
                   </span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* File Breakdown + Upcoming Actions (Side by Side) */}
@@ -1505,9 +1661,9 @@ const Documents = () => {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 12,
-                          padding: 12,
-                          borderRadius: 12,
+                          gap: 14,
+                          padding: 14,
+                          borderRadius: 14,
                           background: isUploading ? '#FFF9E6' : (isProcessing ? '#F0F9FF' : '#F5F5F5'),
                           opacity: isUploading ? 0.8 : 1,
                           border: isProcessing ? '1px solid #3B82F6' : 'none',
@@ -1529,8 +1685,8 @@ const Documents = () => {
                           src={getFileIcon(doc)}
                           alt="File icon"
                           style={{
-                            width: 40,
-                            height: 40,
+                            width: 48,
+                            height: 48,
                             aspectRatio: '1/1',
                             imageRendering: '-webkit-optimize-contrast',
                             objectFit: 'contain',
@@ -1538,10 +1694,10 @@ const Documents = () => {
                           }}
                         />
                         <div style={{flex: 1, overflow: 'hidden'}}>
-                          <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                          <div style={{color: '#32302C', fontSize: 17, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                             {doc.filename}
                           </div>
-                          <div style={{color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 4}}>
+                          <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 5}}>
                             {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
                           </div>
 

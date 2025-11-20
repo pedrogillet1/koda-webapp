@@ -5,13 +5,10 @@ import { ReactComponent as AttachmentIcon } from '../assets/Paperclip.svg';
 import { ReactComponent as SendIcon } from '../assets/arrow-narrow-up.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import { ReactComponent as UploadIconDrag } from '../assets/Logout-black.svg';
-import logo from '../assets/logo1.svg';
-import kodaLogoSvg from '../assets/koda-logo_1.svg';
 import sphere from '../assets/sphere.svg';
 import * as chatService from '../services/chatService';
 // REMOVED: import useStreamingText from '../hooks/useStreamingText';
 // Character animation caused infinite generation bugs - now displaying chunks directly
-import VoiceInput from './VoiceInput';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useIsMobile } from '../hooks/useIsMobile';
 import pdfIcon from '../assets/pdf-icon.png';
@@ -45,7 +42,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [messages, setMessages] = useState([]);
     const [hasMessages, setHasMessages] = useState(false); // ✅ FIX #4: Track if any messages were sent
     const [isLoading, setIsLoading] = useState(false);
-    const [user, setUser] = useState(null);
+    // ✅ OPTIMISTIC LOADING: Load user from localStorage immediately (synchronous, < 10ms)
+    // This makes greeting appear instantly, then fetch fresh data in background
+    const [user, setUser] = useState(() => {
+        const cached = localStorage.getItem('user');
+        if (cached) {
+            try {
+                return JSON.parse(cached);
+            } catch (error) {
+                console.error('❌ Error parsing cached user:', error);
+                return null;
+            }
+        }
+        return null;
+    });
     const [streamingMessage, setStreamingMessage] = useState('');
     const [pendingFiles, setPendingFiles] = useState([]);      // Files attached but not yet sent
     const [uploadingFiles, setUploadingFiles] = useState([]);  // Files currently being uploaded
@@ -191,7 +201,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     };
 
     useEffect(() => {
-        // Fetch fresh user info from API
+        // ✅ OPTIMISTIC LOADING: Fetch fresh user info in background (non-blocking)
+        // User is already loaded from localStorage, this just updates with fresh data
         const fetchUserInfo = async () => {
             const token = localStorage.getItem('accessToken');
             if (token) {
@@ -203,20 +214,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     });
                     if (response.ok) {
                         const data = await response.json();
-                        setUser(data.user);
+                        setUser(data.user);  // Update with fresh data
                         localStorage.setItem('user', JSON.stringify(data.user));
                     }
                 } catch (error) {
-                    console.error('Error fetching user info:', error);
-                    // Fallback to localStorage
-                    const userInfo = localStorage.getItem('user');
-                    if (userInfo) {
-                        setUser(JSON.parse(userInfo));
-                    }
+                    console.error('❌ Error fetching user info:', error);
+                    // Keep cached user if fetch fails (no fallback needed)
                 }
             }
         };
 
+        // Fetch in background (non-blocking)
         fetchUserInfo();
 
         // Initialize socket connection ONLY ONCE using global variable
@@ -1077,17 +1085,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     };
 
-    const handleVoiceTranscript = (transcript) => {
-        // Set the transcript as the message input
-        setMessage(transcript);
-        // ✅ FIX: Save voice transcript to localStorage
-        localStorage.setItem(`koda_draft_${currentConversation?.id || 'new'}`, transcript);
-        // Optionally auto-focus the input
-        setTimeout(() => {
-            inputRef.current?.focus();
-        }, 100);
-    };
-
     const handleCopyMessage = async (messageId, content) => {
         try {
             await navigator.clipboard.writeText(content);
@@ -1796,11 +1793,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     return (
         <div style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column'}}>
-            {/* Header */}
-            <div style={{height: 84, padding: '0 20px', background: 'white', borderBottom: '1px solid #E6E6EC', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                <img style={{height: 65, marginLeft: isMobile ? '50px' : '0'}} src={kodaLogoSvg} alt="Logo" />
-            </div>
-
             {/* Messages Area */}
             <div
                 ref={messagesContainerRef}
@@ -1844,11 +1836,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', maxWidth: '75%'}}>
                                         <div style={{padding: 12, background: 'white', borderRadius: 18, border: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                             <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
-                                                <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex'}}>
-                                                    <div style={{width: 34, height: 34, minWidth: 34, minHeight: 34, background: 'white', borderRadius: '50%', border: '1px solid #F1F0EF', justifyContent: 'center', alignItems: 'center', gap: 10, display: 'flex', overflow: 'hidden'}}>
-                                                        <img style={{width: '100%', height: '100%', objectFit: 'cover'}} src={logo} alt="KODA" />
-                                                    </div>
-                                                    <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
+                                                <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
                                                         <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
                                                             <div className="markdown-preview-container" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
                                                                 <ReactMarkdown
@@ -2490,10 +2478,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-
-                                    {/* Copy button - outside the message bubble */}
-                                    <button
+                                        <button
                                         onClick={() => handleCopyMessage(msg.id, msg.content)}
                                         style={{
                                             padding: 6,
@@ -2667,11 +2652,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             <div style={{marginBottom: 16, display: 'flex', justifyContent: 'flex-start'}}>
                                 <div style={{maxWidth: '70%', padding: 12, background: 'white', borderRadius: 18, border: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                     <div style={{overflow: 'hidden', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
-                                        <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex'}}>
-                                            <div style={{width: 34, height: 34, minWidth: 34, minHeight: 34, background: 'white', borderRadius: '50%', border: '1px solid #F1F0EF', justifyContent: 'center', alignItems: 'center', gap: 10, display: 'flex', overflow: 'hidden'}}>
-                                                <img style={{width: '100%', height: '100%', objectFit: 'cover'}} src={logo} alt="KODA" />
-                                            </div>
-                                            <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
+                                        <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
                                                 <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4, display: 'flex'}}>
                                                     <div className="markdown-preview-container streaming" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word'}}>
                                                         <ReactMarkdown
@@ -2705,7 +2686,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                         {isStreaming && <span className="cursor">▋</span>}
                                                     </div>
                                                 </div>
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -3158,13 +3138,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }}
                     style={{
-                        padding: 16,
+                        padding: 13,
                         background: '#F5F5F5',
                         borderRadius: 18,
                         border: '1px solid #E6E6EC',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 16,
+                        gap: 13,
                         cursor: 'text'
                     }}
                 >
@@ -3200,14 +3180,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             background: 'transparent',
                             border: 'none',
                             outline: 'none',
-                            fontSize: 16,
+                            fontSize: 14,
                             color: '#32302C',
                             cursor: 'text',
                             resize: 'none',
                             overflow: 'auto',
-                            minHeight: '24px',
+                            minHeight: '20px',
                             maxHeight: '200px',
-                            lineHeight: '24px',
+                            lineHeight: '20px',
                             fontFamily: 'inherit',
                             transition: 'height 0.1s ease',
                             padding: 0,
@@ -3226,10 +3206,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         <AttachmentIcon
                             onClick={() => fileInputRef.current?.click()}
                             style={{width: 24, height: 24, color: '#171717', cursor: 'pointer', flexShrink: 0}}
-                        />
-                        <VoiceInput
-                            onTranscript={handleVoiceTranscript}
-                            disabled={isLoading}
                         />
                     </div>
                     <div style={{width: 1, height: 24, background: 'rgba(85, 83, 78, 0.20)'}} />
@@ -3278,13 +3254,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
                 {/* TASK #10: Trust & Security Footer */}
                 <div style={{
-                    marginTop: 16,
-                    paddingTop: 12,
+                    marginTop: 14,
+                    paddingTop: 11,
                     borderTop: '1px solid rgba(0,0,0,0.06)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 8,
+                    gap: 7,
                     fontSize: 12,
                     color: '#8E8E93'
                 }}>

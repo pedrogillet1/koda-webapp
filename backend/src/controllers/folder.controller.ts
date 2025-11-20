@@ -22,7 +22,10 @@ export const createFolder = async (req: Request, res: Response): Promise<void> =
       encryptionSalt,
       encryptionIV,
       encryptionAuthTag,
-      isEncrypted
+      isEncrypted,
+      // ✅ NEW: Extract options for duplicate handling
+      reuseExisting,
+      autoRename
     } = req.body;
 
     if (!name || !name.trim()) {
@@ -49,6 +52,11 @@ export const createFolder = async (req: Request, res: Response): Promise<void> =
         encryptionIV,
         encryptionAuthTag,
         isEncrypted: isEncrypted === true || isEncrypted === 'true',
+      },
+      // ✅ NEW: Pass options for duplicate handling
+      {
+        reuseExisting: reuseExisting === true || reuseExisting === 'true',
+        autoRename: autoRename === true || autoRename === 'true',
       }
     );
 
