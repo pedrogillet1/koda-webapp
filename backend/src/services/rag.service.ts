@@ -25,6 +25,7 @@ import * as contradictionDetectionService from './contradictionDetection.service
 import * as evidenceAggregation from './evidenceAggregation.service';
 import * as memoryService from './memory.service';
 import * as memoryExtraction from './memoryExtraction.service';
+import * as citationTracking from './citation-tracking.service';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // INTENT DETECTION CACHE (5min TTL)
@@ -311,6 +312,22 @@ Answer the user's question based on the provided documents and conversation hist
 3. If information is missing or unclear, state this explicitly
 4. If documents contradict each other, point this out clearly
 5. Use Markdown formatting (bold, lists, etc.)
+
+**CITATION REQUIREMENT (CRITICAL):**
+At the end of your answer, you MUST include a hidden citation block listing which documents you used:
+
+---CITATIONS---
+documentId: abc123, pages: [1, 3, 5]
+documentId: def456, pages: [2]
+---END_CITATIONS---
+
+Rules for citations:
+- Only list documents you actually referenced in your answer
+- Include the documentId exactly as provided in the context (e.g., "documentId: clm123abc")
+- List the page numbers you referenced (if available)
+- If you didn't use any documents, write: ---CITATIONS---\nNONE\n---END_CITATIONS---
+- This section will be hidden from the user, so don't mention it in your answer
+- Do NOT include inline citations like [pg 1] or (document.pdf, page 2) in your answer text
 `;
 
   if (complexity === 'simple') {
@@ -1464,6 +1481,26 @@ export async function generateAnswerStream(
   // ✅ FIX: Ensure Pinecone is initialized before expensive operations
   await pineconePromise;
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 5.5: Folder Listing Queries - Direct DB Lookup
+  // ──────────────────────────────────────────────────────────────────────────────
+  // ✅ NEW: Handle "which folders do I have?" queries
+  const isFolderListingQuery = detectFolderListingQuery(query);
+  if (isFolderListingQuery) {
+    console.log('📂 [FOLDER LISTING] Detected folder listing query');
+    return await handleFolderListingQuery(userId, onChunk);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 5.6: Folder Content Queries - Direct DB Lookup
+  // ──────────────────────────────────────────────────────────────────────────────
+  // ✅ MOVED UP: Handle "what's in Finance folder?" queries BEFORE file actions
+  const isFolderContentQuery = detectFolderContentQuery(query);
+  if (isFolderContentQuery) {
+    console.log('📁 [FOLDER CONTENT] Detected folder content query');
+    return await handleFolderContentQuery(query, userId, onChunk);
+  }
+
   // ✅ FIX: Parallelize comparison and file action detection
   const [comparison, fileAction] = await Promise.all([
     detectComparison(userId, query),
@@ -1497,16 +1534,6 @@ export async function generateAnswerStream(
   if (isFileLocationQuery) {
     console.log('📍 [FILE LOCATION] Detected file location query');
     return await handleFileLocationQuery(query, userId, onChunk);
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────────
-  // STEP 6.6: Folder Content Queries - Direct DB Lookup
-  // ──────────────────────────────────────────────────────────────────────────────
-  // ✅ NEW: Handle "what's in Finance folder?" queries with direct database lookup
-  const isFolderContentQuery = detectFolderContentQuery(query);
-  if (isFolderContentQuery) {
-    console.log('📁 [FOLDER CONTENT] Detected folder content query');
-    return await handleFolderContentQuery(query, userId, onChunk);
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -1597,12 +1624,15 @@ async function detectFileAction(query: string): Promise<string | null> {
     return null; // Skip expensive LLM call
   }
 
-  // ✅ ADDITIONAL: Skip if query is clearly a question about content
+  // ✅ IMPROVED: More comprehensive content question detection
   const contentQuestionPatterns = [
     /what (is|are|does|do|can|could|would|should)/i,
     /how (is|are|does|do|can|could|would|should)/i,
     /why (is|are|does|do|can|could|would|should)/i,
-    /explain|describe|summarize|compare|analyze|tell me about/i
+    /which (is|are|does|do|can|could|would|should|folders?|files?)/i,  // ✅ NEW
+    /explain|describe|summarize|compare|analyze|tell me about/i,
+    /show\s+(me|my)/i,  // ✅ NEW: "show me" is usually a query, not an action
+    /list\s+(my|all|the)/i  // ✅ NEW: "list my" is usually a query, not an action
   ];
 
   if (contentQuestionPatterns.some(pattern => pattern.test(query))) {
@@ -2364,44 +2394,8 @@ async function handleDocumentComparison(
     })
     .join('\n\n---\n\n');
 
-  // Build sources array - GUARANTEE all compared documents appear
-  // First, get unique documents from chunks
-  const chunksMap = new Map<string, any>();
-  allChunks.forEach((match: any) => {
-    const docName = match.metadata?.filename || 'Unknown';
-    if (!chunksMap.has(docName)) {
-      chunksMap.set(docName, match);
-    }
-  });
-
-  // Then, ensure ALL comparison documents are in sources (even if no chunks)
-  const sources: any[] = [];
-
-  // Add documents that had chunks
-  for (const [docName, match] of chunksMap.entries()) {
-    sources.push({
-      documentName: docName,
-      pageNumber: match.metadata?.page || null,
-      score: match.score || 0
-    });
-  }
-
-  // Add any missing documents from the comparison list
-  for (const docId of documentIds) {
-    // Get document info from database
-    const doc = await prisma.document.findUnique({
-      where: { id: docId },
-      select: { filename: true }
-    });
-
-    if (doc && !sources.find(s => s.documentName === doc.filename)) {
-      sources.push({
-        documentName: doc.filename,
-        pageNumber: null,
-        score: 0
-      });
-    }
-  }
+  // Build sources array - Will be updated after LLM response
+  let sources: any[] = [];
 
   // Generate comparison answer
   const systemPrompt = `You are a professional AI assistant helping users understand their documents.
@@ -2512,11 +2506,40 @@ User query: "${query}"`;
 
   const fullResponse = await smartStreamLLMResponse(systemPrompt, '', onChunk);
 
+  // Build ACCURATE sources from LLM citations
+  console.log(`🔍 [DOCUMENT COMPARISON] Building accurate sources from LLM response`);
+
+  // Remove citation block from response
+  const cleanResponse = citationTracking.removeCitationBlock(fullResponse);
+
+  // Use citation extraction
+  sources = await citationTracking.buildAccurateSources(cleanResponse, allChunks);
+
+  // SPECIAL CASE: For document comparison, if no sources found, assume all compared docs were used
+  if (sources.length === 0 && documentIds.length > 0) {
+    console.log('⚠️ [DOCUMENT COMPARISON] No citations found, assuming all compared documents were used');
+
+    const documents = await prisma.document.findMany({
+      where: { id: { in: documentIds } },
+      select: { id: true, filename: true, mimeType: true }
+    });
+
+    sources.push(...documents.map(doc => ({
+      documentId: doc.id,
+      documentName: doc.filename,
+      pageNumber: null,
+      score: 1.0,
+      mimeType: doc.mimeType
+    })));
+  }
+
+  console.log(`✅ [DOCUMENT COMPARISON] Built ${sources.length} accurate sources`);
+
   // ═══════════════════════════════════════════════════════════════════════════
   // NEW: ANSWER VALIDATION - Check answer quality
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const validation = validateAnswer(fullResponse, query, sources);
+  const validation = validateAnswer(cleanResponse, query, sources);
 
   if (!validation.isValid) {
     console.log(`⚠️  [AGENT LOOP] Answer validation failed - issues detected`);
@@ -3275,35 +3298,19 @@ async function handleRegularQuery(
     try {
       const result = await agentLoopService.processQuery(query, userId, conversationId);
 
-      // Stream the answer
-      onChunk(result.answer);
+      // Build ACCURATE sources from LLM citations
+      console.log(`🔍 [AGENT LOOP] Building accurate sources from LLM response`);
 
-      // Build sources from chunks
-      const sources = result.chunks.map((chunk: any) => ({
-        documentId: chunk.metadata?.documentId || null,  // ✅ CRITICAL: Frontend needs this to display sources
-        documentName: chunk.filename || 'Unknown',
-        pageNumber: chunk.metadata?.page || null,
-        score: chunk.similarity || 0,
-      }));
+      // Remove citation block from answer
+      const cleanAnswer = citationTracking.removeCitationBlock(result.answer);
 
-      // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
-      const agentLoopDocumentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
-      if (agentLoopDocumentIds.length > 0) {
-        const documents = await prisma.document.findMany({
-          where: { id: { in: agentLoopDocumentIds } },
-          select: { id: true, filename: true, mimeType: true }
-        });
-        const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
+      // Stream the clean answer
+      onChunk(cleanAnswer);
 
-        // Update sources with current filenames and mimeType
-        sources.forEach(source => {
-          if (source.documentId && documentMap.has(source.documentId)) {
-            const docData = documentMap.get(source.documentId)!;
-            source.documentName = docData.filename;
-            source.mimeType = docData.mimeType;
-          }
-        });
-      }
+      // Use citation extraction
+      const sources = await citationTracking.buildAccurateSources(cleanAnswer, result.chunks);
+
+      console.log(`✅ [AGENT LOOP] Built ${sources.length} accurate sources`);
 
       console.log(`✅ [AGENT LOOP] Completed in ${result.iterations} iterations`);
       return { sources };
@@ -3882,11 +3889,14 @@ async function handleRegularQuery(
       .map(doc => `- "${doc.filename}" is located in: ${doc.folderPath}`)
       .join('\n');
 
-    const context = rerankedChunks.map((result: any) => {
+    const context = rerankedChunks.map((result: any, idx: number) => {
       const meta = result.metadata || {};
-      // ✅ FIX: Remove [Source: ...] labels to prevent "Document 1/2/3" references
-      // Gemini will use page numbers from our citation instructions instead
-      return meta.text || meta.content || result.content || '';
+      const documentId = meta.documentId || 'unknown';
+      const filename = meta.filename || 'Unknown';
+      const page = meta.page || meta.pageNumber || 'N/A';
+
+      // ✅ Include documentId for citation tracking
+      return `[Document ${idx + 1}] ${filename} (documentId: ${documentId}, Page: ${page}):\n${meta.text || meta.content || result.content || ''}`;
     }).join('\n\n---\n\n');
 
     console.log(`📚 [CONTEXT] Built context from ${rerankedChunks.length} chunks with folder locations`);
@@ -3933,52 +3943,36 @@ async function handleRegularQuery(
     // NEW: CONFIDENCE SCORING - Calculate answer confidence
     // ═══════════════════════════════════════════════════════════════════════════
 
-    // ✅ NEW: Build sources from full documents or chunks
+    // ✅ NEW: Build ACCURATE sources from LLM citations
     let sources: any[];
 
+    // Remove citation block from response before sending to user
+    const cleanResponse = citationTracking.removeCitationBlock(fullResponse);
+    fullResponse = cleanResponse;
+
     if (useFullDocuments && fullDocuments.length > 0) {
-      // Use full documents as sources
-      console.log(`🔍 [DEBUG - FAST PATH] Building sources from ${fullDocuments.length} full documents`);
-      sources = fullDocuments.map(doc => ({
-        documentId: doc.id,
-        documentName: doc.filename,
-        pageNumber: null,  // Full documents don't have specific pages
-        score: doc.relevanceScore,
-        mimeType: doc.mimeType
+      // For full documents, use citation extraction
+      console.log(`🔍 [FAST PATH] Building accurate sources from full documents`);
+
+      // Build "chunks" array from full documents for citation matching
+      const pseudoChunks = fullDocuments.map(doc => ({
+        metadata: {
+          documentId: doc.id,
+          filename: doc.filename,
+          mimeType: doc.mimeType,
+          page: null
+        },
+        score: doc.relevanceScore || 1.0
       }));
+
+      sources = await citationTracking.buildAccurateSources(fullResponse, pseudoChunks);
     } else {
-      // Use chunks as sources (original logic)
-      console.log(`🔍 [DEBUG - FAST PATH] Building sources from ${rerankedChunks.length} chunks`);
-      console.log(`🔍 [DEBUG - FAST PATH] Sample rerankedChunk metadata:`, rerankedChunks[0]?.metadata);
-      sources = rerankedChunks.map((match: any) => ({
-        documentId: match.metadata?.documentId || null,
-        documentName: match.metadata?.filename || 'Unknown',
-        pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
-        score: match.rerankScore || match.originalScore || 0
-      }));
+      // For chunks, use citation extraction
+      console.log(`🔍 [FAST PATH] Building accurate sources from chunks`);
+      sources = await citationTracking.buildAccurateSources(fullResponse, rerankedChunks);
     }
 
-    // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
-    const sourceDocumentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
-    if (sourceDocumentIds.length > 0) {
-      const documents = await prisma.document.findMany({
-        where: { id: { in: sourceDocumentIds } },
-        select: { id: true, filename: true, mimeType: true }
-      });
-      const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
-
-      // Update sources with current filenames and mimeType
-      sources.forEach(source => {
-        if (source.documentId && documentMap.has(source.documentId)) {
-          const docData = documentMap.get(source.documentId)!;
-          source.documentName = docData.filename;
-          source.mimeType = docData.mimeType;
-        }
-      });
-    }
-
-    console.log(`🔍 [DEBUG - FAST PATH] Built ${sources.length} sources`);
-    console.log(`🔍 [DEBUG - FAST PATH] Sample source:`, sources[0]);
+    console.log(`✅ [FAST PATH] Built ${sources.length} accurate sources (only documents used in answer)`);
 
     // ✅ NEW: Calculate confidence score (for internal tracking only, not displayed to user)
     const confidence = confidenceScore.calculateConfidence(
@@ -4180,44 +4174,22 @@ async function handleRegularQuery(
     finalAnswer += disclaimer;
   }
 
-  // Post-process and stream
-  const processedAnswer = postProcessAnswer(finalAnswer);
-  onChunk(processedAnswer);
+  // Build ACCURATE sources from LLM citations
+  console.log(`🔍 [SLOW PATH] Building accurate sources from LLM response`);
+
+  // Remove citation block from response
+  const cleanResponse = citationTracking.removeCitationBlock(finalAnswer);
+  const finalProcessedAnswer = postProcessAnswer(cleanResponse);
+
+  // Stream the clean response
+  onChunk(finalProcessedAnswer);
 
   console.log(`✅ Response complete (confidence: ${result.confidence})`);
 
-  // Build sources array
-  console.log(`🔍 [DEBUG] searchResults length: ${searchResults.length}`);
-  console.log(`🔍 [DEBUG] Sample searchResult:`, searchResults[0]?.metadata);
+  // Use citation extraction
+  const sources = await citationTracking.buildAccurateSources(cleanResponse, searchResults);
 
-  const sources = searchResults.map((match: any) => ({
-    documentId: match.metadata?.documentId || null,  // ✅ Add documentId for frontend display
-    documentName: match.metadata?.filename || 'Unknown',
-    pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
-    score: match.score || 0
-  }));
-
-  // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
-  const slowPathDocumentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
-  if (slowPathDocumentIds.length > 0) {
-    const documents = await prisma.document.findMany({
-      where: { id: { in: slowPathDocumentIds } },
-      select: { id: true, filename: true, mimeType: true }
-    });
-    const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
-
-    // Update sources with current filenames and mimeType
-    sources.forEach(source => {
-      if (source.documentId && documentMap.has(source.documentId)) {
-        const docData = documentMap.get(source.documentId)!;
-        source.documentName = docData.filename;
-        source.mimeType = docData.mimeType;
-      }
-    });
-  }
-
-  console.log(`🔍 [DEBUG] Built ${sources.length} sources from searchResults`);
-  console.log(`🔍 [DEBUG] Sample source:`, sources[0]);
+  console.log(`✅ [SLOW PATH] Built ${sources.length} accurate sources (only documents used in answer)`);
 
   return { sources };
 }
@@ -4787,16 +4759,59 @@ async function handleFileLocationQuery(
 
 /**
  * Detect if query is asking for folder contents
- * Examples: "what's in Finance folder?", "show me Legal folder files"
+ * Supports both "Finance folder" and "folder Finance" phrasings
  */
 function detectFolderContentQuery(query: string): boolean {
   const lower = query.toLowerCase();
 
   const patterns = [
-    /what('s|\s+is)\s+in\s+(my\s+)?(\w+)\s+folder/i,
+    // ═══════════════════════════════════════════════════════════
+    // "what is in..." patterns
+    // ═══════════════════════════════════════════════════════════
+
+    // "what is in folder X" or "what's in folder X"
+    /what('s|\s+is)\s+(in|inside)\s+(my\s+)?folder\s+(\w+)/i,
+
+    // "what is in X folder" or "what's in X folder"
+    /what('s|\s+is)\s+(in|inside)\s+(my\s+)?(\w+)\s+folder/i,
+
+    // ═══════════════════════════════════════════════════════════
+    // "show me..." patterns
+    // ═══════════════════════════════════════════════════════════
+
+    // "show me folder X" or "show folder X"
+    /show\s+(me\s+)?(my\s+)?folder\s+(\w+)/i,
+
+    // "show me X folder" or "show X folder"
     /show\s+(me\s+)?(my\s+)?(\w+)\s+folder/i,
+
+    // ═══════════════════════════════════════════════════════════
+    // "list..." patterns
+    // ═══════════════════════════════════════════════════════════
+
+    // "list folder X" or "list files in folder X"
+    /list\s+(files\s+in\s+)?folder\s+(\w+)/i,
+
+    // "list X folder" or "list files in X folder"
     /list\s+(files\s+in\s+)?(\w+)\s+folder/i,
-    /(\w+)\s+folder\s+(contents?|files?)/i
+
+    // ═══════════════════════════════════════════════════════════
+    // "folder contents/files" patterns
+    // ═══════════════════════════════════════════════════════════
+
+    // "folder X contents" or "folder X files"
+    /folder\s+(\w+)\s+(contents?|files?)/i,
+
+    // "X folder contents" or "X folder files"
+    /(\w+)\s+folder\s+(contents?|files?)/i,
+
+    // ═══════════════════════════════════════════════════════════
+    // Direct folder queries
+    // ═══════════════════════════════════════════════════════════
+
+    // "inside folder X" or "inside X folder"
+    /inside\s+(my\s+)?folder\s+(\w+)/i,
+    /inside\s+(my\s+)?(\w+)\s+folder/i
   ];
 
   return patterns.some(pattern => pattern.test(lower));
@@ -4812,9 +4827,20 @@ async function handleFolderContentQuery(
 ): Promise<{ sources: any[] }> {
   console.log('📁 [FOLDER CONTENT] Searching for folder...');
 
-  // Extract folder name from query
-  const folderMatch = query.match(/\b(in|show|list|what)\s+(me\s+)?(my\s+|is\s+)?\s*(\w+)\s+folder/i);
-  const folderName = folderMatch ? folderMatch[4] : null;
+  // Extract folder name - try multiple patterns to support both word orders
+  const folderMatch =
+    // "folder X" format (most common now)
+    query.match(/folder\s+(\w+)/i) ||
+    // "X folder" format (legacy)
+    query.match(/\b(in|inside|show|list|what|my)\s+(?:me\s+)?(?:my\s+)?(?:is\s+)?(\w+)\s+folder/i);
+
+  // Extract folder name from appropriate capture group
+  let folderName = null;
+  if (folderMatch) {
+    // For "folder X" patterns, name is in group 1
+    // For "X folder" patterns, name is in group 2
+    folderName = folderMatch[1] || folderMatch[2] || null;
+  }
 
   if (!folderName) {
     onChunk('I couldn\'t identify which folder you\'re asking about. Could you specify the folder name?');
@@ -4895,6 +4921,146 @@ async function handleFolderContentQuery(
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// FOLDER LISTING QUERY DETECTION & HANDLING
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect if query is asking for a list of all folders
+ * Examples: "which folders do I have?", "show my folders", "list all folders"
+ */
+function detectFolderListingQuery(query: string): boolean {
+  const lower = query.toLowerCase();
+
+  const patterns = [
+    // "which/what folders..."
+    /(which|what)\s+(folders|directories)\s+(do\s+i\s+have|exist|are\s+there)/i,
+
+    // "show/list my folders"
+    /(show|list|display)\s+(me\s+)?(my\s+|all\s+)?(folders|directories)/i,
+
+    // "do I have folders" / "are there folders"
+    /(do\s+i\s+have|are\s+there)\s+(any\s+)?(folders|directories)/i,
+
+    // "my folders" (standalone)
+    /^(my\s+)?(folders|directories)$/i,
+
+    // "all folders"
+    /^all\s+(folders|directories)$/i
+  ];
+
+  return patterns.some(pattern => pattern.test(lower));
+}
+
+/**
+ * Handle folder listing queries by fetching all user folders from database
+ */
+async function handleFolderListingQuery(
+  userId: string,
+  onChunk: (chunk: string) => void
+): Promise<{ sources: any[] }> {
+  try {
+    // Fetch all folders for user
+    const folders = await prisma.folder.findMany({
+      where: { userId },
+      include: {
+        _count: {
+          select: { documents: true }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    if (folders.length === 0) {
+      const response = "You don't have any folders yet. You can create folders to organize your documents by saying:\n\n\"Create folder Finance\"";
+      onChunk(response);
+      return { sources: [] };
+    }
+
+    // Build folder tree (handle nested folders)
+    const folderTree = buildFolderTree(folders);
+
+    // Format response
+    let response = `You have **${folders.length}** folder${folders.length > 1 ? 's' : ''}:\n\n`;
+
+    folderTree.forEach(folder => {
+      response += formatFolderTreeItem(folder, 0);
+    });
+
+    // Add helpful examples
+    const firstFolderName = folderTree[0].name;
+    response += `\n\nYou can ask me about any folder's contents, like:\n- "What's in ${firstFolderName} folder?"\n- "Show me folder ${firstFolderName}"`;
+
+    onChunk(response);
+    return { sources: [] };
+
+  } catch (error) {
+    console.error('[FOLDER LISTING] Error:', error);
+    onChunk('I encountered an error while fetching your folders. Please try again.');
+    return { sources: [] };
+  }
+}
+
+/**
+ * Build folder tree from flat folder list
+ */
+function buildFolderTree(folders: any[]): any[] {
+  const folderMap = new Map();
+  const rootFolders: any[] = [];
+
+  // Create map of all folders
+  folders.forEach(folder => {
+    folderMap.set(folder.id, { ...folder, children: [] });
+  });
+
+  // Build tree structure
+  folders.forEach(folder => {
+    const folderNode = folderMap.get(folder.id);
+    if (folder.parentFolderId) {
+      const parent = folderMap.get(folder.parentFolderId);
+      if (parent) {
+        parent.children.push(folderNode);
+      } else {
+        rootFolders.push(folderNode);
+      }
+    } else {
+      rootFolders.push(folderNode);
+    }
+  });
+
+  return rootFolders;
+}
+
+/**
+ * Format folder for display with proper Markdown list indentation
+ */
+function formatFolderTreeItem(folder: any, depth: number): string {
+  const indent = '  '.repeat(depth);
+
+  // Sanitize emoji - replace "FOLDER_SVG", "__FOLDER_SVG__", or invalid values with 📁
+  let emoji = folder.emoji || '📁';
+  if (emoji === 'FOLDER_SVG' || emoji === '__FOLDER_SVG__' || emoji.trim() === '') {
+    emoji = '📁';
+  }
+
+  const docCount = folder._count?.documents || 0;
+  const docText = docCount === 1 ? '1 document' : `${docCount} documents`;
+
+  // Use proper Markdown list format with dash bullets
+  const prefix = depth === 0 ? '-' : '  -';
+
+  let result = `${indent}${prefix} ${emoji} **${folder.name}** (${docText})\n`;
+
+  // Add children recursively
+  if (folder.children && folder.children.length > 0) {
+    folder.children.forEach((child: any) => {
+      result += formatFolderTreeItem(child, depth + 1);
+    });
+  }
+
+  return result;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // FOLDER TREE CONTEXT BUILDER
 // ════════════════════════════════════════════════════════════════════════════════
 
@@ -4915,7 +5081,12 @@ function buildFolderTreeContext(folders: any[]): string {
 
   // Recursive function to build tree
   const buildTree = (folder: any, indent: string = ''): string => {
-    const emoji = folder.emoji || '📁';
+    // Sanitize emoji - replace "FOLDER_SVG", "__FOLDER_SVG__", or invalid values with 📁
+    let emoji = folder.emoji || '📁';
+    if (emoji === 'FOLDER_SVG' || emoji === '__FOLDER_SVG__' || emoji.trim() === '') {
+      emoji = '📁';
+    }
+
     const docCount = folder._count?.documents || 0;
 
     let result = `${indent}${emoji} **${folder.name}** (${docCount} ${docCount === 1 ? 'file' : 'files'})`;

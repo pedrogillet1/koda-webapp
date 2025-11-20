@@ -754,15 +754,30 @@ const UploadHub = () => {
         console.log('📁 Uploading folder:', item.folderName);
 
         try {
-          // Extract just the file objects from fileEntry array
-          const files = item.files.map(fe => {
-            const file = fe.file;
-            // Attach webkitRelativePath for folder structure processing
-            Object.defineProperty(file, 'webkitRelativePath', {
-              value: fe.relativePath,
-              writable: false
-            });
-            return file;
+          // ✅ FIX: Handle both File objects (drag-and-drop) and wrapped objects (legacy)
+          const files = item.files.map(fileOrWrapper => {
+            // Check if it's already a File object with webkitRelativePath (drag-and-drop)
+            if (fileOrWrapper instanceof File) {
+              // File object from drag-and-drop - already has webkitRelativePath
+              return fileOrWrapper;
+            }
+
+            // Legacy wrapped structure: {file: File, relativePath: "..."}
+            if (fileOrWrapper.file) {
+              const file = fileOrWrapper.file;
+              // Attach webkitRelativePath if not already present
+              if (!file.webkitRelativePath && fileOrWrapper.relativePath) {
+                Object.defineProperty(file, 'webkitRelativePath', {
+                  value: fileOrWrapper.relativePath,
+                  writable: false
+                });
+              }
+              return file;
+            }
+
+            // Fallback: return as-is
+            console.warn('⚠️ Unknown file structure:', fileOrWrapper);
+            return fileOrWrapper;
           });
 
           // Use the folder upload service which handles:
