@@ -47,7 +47,7 @@ class MistralOCRService {
   /**
    * Detect if PDF is scanned (image-based) vs text-based
    *
-   * Strategy: Count text content. If < 50 words per page, likely scanned.
+   * Strategy: Count text content. If < 100 chars per page, likely scanned.
    *
    * @param pdfBuffer - PDF file buffer
    * @returns true if scanned, false if text-based
@@ -56,23 +56,49 @@ class MistralOCRService {
     try {
       const parser = new PDFParse({ verbosity: 0, data: pdfBuffer });
       const data = await parser.getText();
-      const wordCount = data.text.split(/\s+/).filter(Boolean).length;
+
+      const textLength = data.text ? data.text.length : 0;
+      const wordCount = data.text ? data.text.split(/\s+/).filter(Boolean).length : 0;
       const pageCount = data.numpages;
+
+      // Handle undefined page count - if we can't determine pages, check total text
+      if (!pageCount || pageCount === 0 || isNaN(pageCount)) {
+        console.log(`📊 [OCR] PDF analysis: ${textLength} chars, ${wordCount} words, page count unknown`);
+
+        // If very little text overall (< 1000 chars), likely scanned
+        // OR if mainly page markers (< 10 words per page marker pattern)
+        const isScanned = textLength < 1000;
+
+        if (isScanned) {
+          console.log(`✅ [OCR] Detected SCANNED PDF - only ${textLength} chars extracted (threshold: < 1000)`);
+        } else {
+          console.log(`📝 [OCR] Treating as TEXT-BASED PDF - ${textLength} chars extracted`);
+        }
+
+        return isScanned;
+      }
+
+      // Calculate chars per page (more reliable than words per page)
+      const charsPerPage = textLength / pageCount;
       const wordsPerPage = wordCount / pageCount;
 
-      console.log(`📊 [OCR] PDF analysis: ${wordCount} words, ${pageCount} pages (${wordsPerPage.toFixed(1)} words/page)`);
+      console.log(`📊 [OCR] PDF analysis: ${textLength} chars, ${wordCount} words, ${pageCount} pages (${charsPerPage.toFixed(1)} chars/page, ${wordsPerPage.toFixed(1)} words/page)`);
 
-      // TEMPORARILY DISABLED: OCR path is broken (pdf2pic fails)
-      // Always treat PDFs as text-based to avoid 20s timeout
-      const isScanned = false; // Was: wordsPerPage < 50
+      // If < 100 chars per page, likely scanned (page markers, headers only)
+      const isScanned = charsPerPage < 100;
 
-      console.log('📝 [OCR] Treating as TEXT-BASED PDF (OCR disabled)');
+      if (isScanned) {
+        console.log(`✅ [OCR] Detected SCANNED PDF - ${charsPerPage.toFixed(1)} chars/page < 100 threshold`);
+      } else {
+        console.log(`📝 [OCR] Detected TEXT-BASED PDF - ${charsPerPage.toFixed(1)} chars/page >= 100 threshold`);
+      }
 
       return isScanned;
     } catch (error) {
       console.error('❌ [OCR] Error analyzing PDF:', error);
-      // If we can't parse it, assume text-based (not scanned) to avoid OCR timeout
-      return false; // Was: true
+      // If we can't parse it, assume scanned to trigger OCR
+      console.log('⚠️ [OCR] Parse error - treating as SCANNED PDF (will attempt OCR)');
+      return true;
     }
   }
 

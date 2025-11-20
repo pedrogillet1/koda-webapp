@@ -33,7 +33,7 @@ import api from './api';
 
 class FolderUploadService {
   constructor() {
-    this.maxConcurrentUploads = 5;
+    this.maxConcurrentUploads = 10;  // ✅ OPTIMIZED: Increased from 5 to 10
     this.uploadProgress = {
       totalFiles: 0,
       uploadedFiles: 0,
@@ -166,26 +166,17 @@ class FolderUploadService {
     }
 
     try {
-      // Check if category exists (root folders have no parent)
-      const response = await api.get('/api/folders');
-      const existingCategory = response.data.folders.find(
-        f => f.name === trimmedName && !f.parentFolderId
-      );
-
-      if (existingCategory) {
-        console.log(`✅ Category already exists with ID: ${existingCategory.id}`);
-        return existingCategory.id;
-      }
-
-      // Create new category
-      console.log(`📝 Creating new category with name: "${trimmedName}"`);
+      // ✅ FIX: Use backend's reuseExisting option to prevent duplicates
+      console.log(`📝 Creating/reusing category with name: "${trimmedName}"`);
       const createResponse = await api.post('/api/folders', {
         name: trimmedName,
-        emoji: null // Use null to allow default SVG icon
+        emoji: null, // Use null to allow default SVG icon
+        reuseExisting: true  // ✅ Reuse if exists instead of creating duplicate
       });
 
-      console.log(`✅ Created category with ID: ${createResponse.data.folder.id}`);
-      return createResponse.data.folder.id;
+      const folderId = createResponse.data.folder.id;
+      console.log(`✅ Category ensured with ID: ${folderId}`);
+      return folderId;
     } catch (error) {
       console.error('❌ Error ensuring category:', error);
       throw error;

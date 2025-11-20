@@ -1432,7 +1432,7 @@ export async function generateAnswerStream(
   // IMPACT: Provides accurate app guidance instead of irrelevant document content
   if (isNavigationQuery(query)) {
     console.log('🧭 [NAVIGATION] Detected app navigation question');
-    await handleNavigationQuery(query, onChunk);
+    await handleNavigationQuery(query, userId, onChunk);
     return { sources: [] }; // Navigation queries don't have document sources
   }
 
@@ -1487,6 +1487,26 @@ export async function generateAnswerStream(
     console.log('📁 [FILE ACTION] Detected:', fileAction);
     await handleFileAction(userId, query, fileAction, onChunk);
     return { sources: [] }; // File actions don't have sources
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 6.5: File Location Queries - Direct DB Lookup
+  // ──────────────────────────────────────────────────────────────────────────────
+  // ✅ NEW: Handle "where is myfile.pdf?" queries with direct database lookup
+  const isFileLocationQuery = detectFileLocationQuery(query);
+  if (isFileLocationQuery) {
+    console.log('📍 [FILE LOCATION] Detected file location query');
+    return await handleFileLocationQuery(query, userId, onChunk);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 6.6: Folder Content Queries - Direct DB Lookup
+  // ──────────────────────────────────────────────────────────────────────────────
+  // ✅ NEW: Handle "what's in Finance folder?" queries with direct database lookup
+  const isFolderContentQuery = detectFolderContentQuery(query);
+  if (isFolderContentQuery) {
+    console.log('📁 [FOLDER CONTENT] Detected folder content query');
+    return await handleFolderContentQuery(query, userId, onChunk);
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -3050,20 +3070,46 @@ Respond naturally:`;
  */
 async function handleNavigationQuery(
   query: string,
+  userId: string,
   onChunk: (chunk: string) => void
 ): Promise<void> {
   console.log(`🧭 [NAVIGATION] Handling app navigation question`);
 
+  // ✅ PERSONALIZATION: Fetch user's folders and document count
+  const folders = await prisma.folder.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      name: true,
+      emoji: true,
+      _count: { select: { documents: true } }
+    },
+    orderBy: { name: 'asc' }
+  });
+
+  const documentCount = await prisma.document.count({
+    where: { userId }
+  });
+
+  // Build folder list for context
+  const folderList = folders.length > 0
+    ? folders.map(f => `${f.emoji || '📁'} **${f.name}** (${f._count.documents} files)`).join(', ')
+    : 'No folders created yet';
+
   const prompt = `You are KODA, an intelligent document assistant. The user is asking how to navigate or use the app.
 
 **User Question**: "${query}"
+
+**User's Current Library**:
+- **Total Documents**: ${documentCount}
+- **Folders**: ${folderList}
 
 **App Navigation Guide**:
 
 **Uploading Files**:
 - Click the "Upload" button in the top-right corner of the Documents screen
 - Or drag and drop files anywhere on the Documents screen
-- You can upload individual files or entire folders
+- You can upload individual files or entire folders${folders.length > 0 ? `\n- Upload directly to existing folders like: ${folders.slice(0, 3).map(f => f.name).join(', ')}` : ''}
 - Supported formats: PDF, Word, Excel, PowerPoint, images, and more
 
 **Finding Documents**:
@@ -3103,6 +3149,7 @@ async function handleNavigationQuery(
 - Be helpful and clear
 - NO emojis, NO citations
 - Use natural, friendly language
+- **PERSONALIZE**: Reference the user's actual folders when relevant (e.g., "You can upload to your Finance folder")
 
 Respond naturally:`;
 
@@ -3240,10 +3287,10 @@ async function handleRegularQuery(
       }));
 
       // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
-      const documentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
-      if (documentIds.length > 0) {
+      const agentLoopDocumentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
+      if (agentLoopDocumentIds.length > 0) {
         const documents = await prisma.document.findMany({
-          where: { id: { in: documentIds } },
+          where: { id: { in: agentLoopDocumentIds } },
           select: { id: true, filename: true, mimeType: true }
         });
         const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
@@ -3390,6 +3437,28 @@ async function handleRegularQuery(
 
   // ✅ NEW: Build conversation context (using promptTemplates service)
   const conversationContext = promptTemplates.buildConversationContext(conversationHistory || []);
+
+  // ✅ NEW: Fetch user's folder tree for navigation awareness
+  console.log('📁 [FOLDER CONTEXT] Fetching folder tree...');
+  const folders = await prisma.folder.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      name: true,
+      emoji: true,
+      parentFolderId: true,
+      _count: {
+        select: {
+          documents: true,
+          subfolders: true
+        }
+      }
+    },
+    orderBy: { name: 'asc' }
+  });
+
+  const folderTreeContext = buildFolderTreeContext(folders);
+  console.log(`📁 [FOLDER CONTEXT] Built context for ${folders.length} folders`);
 
   const isSimple = !isComplexQuery(query);
 
@@ -3851,7 +3920,8 @@ async function handleRegularQuery(
       finalDocumentContext,
       conversationContext,
       documentLocations, // Pass document locations for folder awareness
-      memoryContext // Pass memory context for personalization
+      memoryContext, // Pass memory context for personalization
+      folderTreeContext // ✅ NEW: Pass folder tree for navigation awareness
     );
 
     console.log(`📝 [PROMPT] Generated ${complexity} complexity prompt`);
@@ -4128,10 +4198,10 @@ async function handleRegularQuery(
   }));
 
   // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
-  const documentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
-  if (documentIds.length > 0) {
+  const slowPathDocumentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
+  if (slowPathDocumentIds.length > 0) {
     const documents = await prisma.document.findMany({
-      where: { id: { in: documentIds } },
+      where: { id: { in: slowPathDocumentIds } },
       select: { id: true, filename: true, mimeType: true }
     });
     const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
@@ -4625,6 +4695,244 @@ export async function generateAnswerStreaming(
     answer: fullAnswer,
     sources: result.sources,  // ✅ FIXED: Return actual sources
   };
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// FILE LOCATION QUERY DETECTION & HANDLING
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect if query is asking for file location
+ * Examples: "where is contract.pdf?", "find invoice_2024.xlsx"
+ */
+function detectFileLocationQuery(query: string): boolean {
+  const lower = query.toLowerCase();
+
+  // Check for location keywords + filename pattern
+  const hasLocationKeyword = /\b(where|find|locate|location of)\b/.test(lower);
+  const hasFilenamePattern = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|png|jpe?g|gif)\b/i.test(query);
+
+  return hasLocationKeyword && hasFilenamePattern;
+}
+
+/**
+ * Handle file location queries with direct database lookup
+ */
+async function handleFileLocationQuery(
+  query: string,
+  userId: string,
+  onChunk: (chunk: string) => void
+): Promise<{ sources: any[] }> {
+  console.log('📍 [FILE LOCATION] Searching database for file...');
+
+  // Extract filename from query
+  const filenameMatch = query.match(/([a-zA-Z0-9_\-\.]+\.(pdf|docx?|xlsx?|pptx?|txt|csv|png|jpe?g|gif))/i);
+  const filename = filenameMatch ? filenameMatch[1] : null;
+
+  if (!filename) {
+    onChunk('I couldn\'t identify a specific filename in your question. Could you provide the exact filename?');
+    return { sources: [] };
+  }
+
+  // Query database for file
+  const documents = await prisma.document.findMany({
+    where: {
+      userId,
+      filename: { contains: filename, mode: 'insensitive' }
+    },
+    include: {
+      folder: {
+        select: {
+          id: true,
+          name: true,
+          emoji: true,
+          parentFolderId: true
+        }
+      }
+    }
+  });
+
+  if (documents.length === 0) {
+    onChunk(`I couldn't find **${filename}** in your library. It may have been deleted or the filename might be slightly different.`);
+    return { sources: [] };
+  }
+
+  if (documents.length === 1) {
+    const doc = documents[0];
+    const folderName = doc.folder ? `${doc.folder.emoji || '📁'} **${doc.folder.name}**` : '**Uncategorized**';
+    onChunk(`**${doc.filename}** is located in: ${folderName}`);
+    return { sources: [{ documentId: doc.id, documentName: doc.filename, score: 1.0 }] };
+  }
+
+  // Multiple files with same name
+  const locations = documents.map(doc => {
+    const folderName = doc.folder ? `${doc.folder.emoji || '📁'} **${doc.folder.name}**` : '**Uncategorized**';
+    return `- **${doc.filename}** in ${folderName}`;
+  }).join('\n');
+
+  onChunk(`I found ${documents.length} files with that name:\n\n${locations}`);
+
+  const sources = documents.map(doc => ({
+    documentId: doc.id,
+    documentName: doc.filename,
+    score: 1.0
+  }));
+
+  return { sources };
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// FOLDER CONTENT QUERY DETECTION & HANDLING
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect if query is asking for folder contents
+ * Examples: "what's in Finance folder?", "show me Legal folder files"
+ */
+function detectFolderContentQuery(query: string): boolean {
+  const lower = query.toLowerCase();
+
+  const patterns = [
+    /what('s|\s+is)\s+in\s+(my\s+)?(\w+)\s+folder/i,
+    /show\s+(me\s+)?(my\s+)?(\w+)\s+folder/i,
+    /list\s+(files\s+in\s+)?(\w+)\s+folder/i,
+    /(\w+)\s+folder\s+(contents?|files?)/i
+  ];
+
+  return patterns.some(pattern => pattern.test(lower));
+}
+
+/**
+ * Handle folder content queries with direct database lookup
+ */
+async function handleFolderContentQuery(
+  query: string,
+  userId: string,
+  onChunk: (chunk: string) => void
+): Promise<{ sources: any[] }> {
+  console.log('📁 [FOLDER CONTENT] Searching for folder...');
+
+  // Extract folder name from query
+  const folderMatch = query.match(/\b(in|show|list|what)\s+(me\s+)?(my\s+|is\s+)?\s*(\w+)\s+folder/i);
+  const folderName = folderMatch ? folderMatch[4] : null;
+
+  if (!folderName) {
+    onChunk('I couldn\'t identify which folder you\'re asking about. Could you specify the folder name?');
+    return { sources: [] };
+  }
+
+  // Query database for folder
+  const folder = await prisma.folder.findFirst({
+    where: {
+      userId,
+      name: { contains: folderName, mode: 'insensitive' }
+    },
+    include: {
+      documents: {
+        select: {
+          id: true,
+          filename: true,
+          mimeType: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' }
+      },
+      subfolders: {
+        select: {
+          id: true,
+          name: true,
+          emoji: true,
+          _count: {
+            select: { documents: true }
+          }
+        }
+      }
+    }
+  });
+
+  if (!folder) {
+    onChunk(`I couldn't find a folder named **${folderName}**. You can check your folder list or create a new folder.`);
+    return { sources: [] };
+  }
+
+  // Build response
+  const emoji = folder.emoji || '📁';
+  let response = `Your ${emoji} **${folder.name}** folder contains:\n\n`;
+
+  // List documents
+  if (folder.documents.length === 0) {
+    response += `No files yet. You can upload files to this folder.`;
+  } else {
+    response += `**Files** (${folder.documents.length}):\n`;
+    folder.documents.slice(0, 20).forEach(doc => {
+      response += `• ${doc.filename}\n`;
+    });
+
+    if (folder.documents.length > 20) {
+      response += `\n...and ${folder.documents.length - 20} more files`;
+    }
+  }
+
+  // List subfolders
+  if (folder.subfolders.length > 0) {
+    response += `\n\n**Subfolders** (${folder.subfolders.length}):\n`;
+    folder.subfolders.forEach(sf => {
+      const sfEmoji = sf.emoji || '📁';
+      const docCount = sf._count?.documents || 0;
+      response += `${sfEmoji} ${sf.name} (${docCount} ${docCount === 1 ? 'file' : 'files'})\n`;
+    });
+  }
+
+  onChunk(response);
+
+  const sources = folder.documents.map(doc => ({
+    documentId: doc.id,
+    documentName: doc.filename,
+    score: 1.0
+  }));
+
+  return { sources };
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// FOLDER TREE CONTEXT BUILDER
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Build folder tree context for AI
+ * Converts flat folder list to hierarchical tree structure
+ *
+ * @param folders - Array of folders with id, name, emoji, parentFolderId, and counts
+ * @returns Formatted folder tree string for AI context
+ */
+function buildFolderTreeContext(folders: any[]): string {
+  if (folders.length === 0) {
+    return '**User\'s Folders**: No folders created yet. User can create folders to organize documents.';
+  }
+
+  // Build parent-child map
+  const rootFolders = folders.filter(f => !f.parentFolderId);
+
+  // Recursive function to build tree
+  const buildTree = (folder: any, indent: string = ''): string => {
+    const emoji = folder.emoji || '📁';
+    const docCount = folder._count?.documents || 0;
+
+    let result = `${indent}${emoji} **${folder.name}** (${docCount} ${docCount === 1 ? 'file' : 'files'})`;
+
+    // Add subfolders
+    const subfolders = folders.filter(f => f.parentFolderId === folder.id);
+    if (subfolders.length > 0) {
+      result += '\n' + subfolders.map(sf => buildTree(sf, indent + '  ')).join('\n');
+    }
+
+    return result;
+  };
+
+  // Build tree for all root folders
+  const tree = rootFolders.map(f => buildTree(f)).join('\n');
+
+  return `**User's Folder Structure**:\n${tree}\n\n**Important**: When users ask about folders or file locations, refer to this structure.`;
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
