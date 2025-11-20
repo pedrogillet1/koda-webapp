@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { ReactComponent as AttachmentIcon } from '../assets/Paperclip.svg';
 import { ReactComponent as SendIcon } from '../assets/arrow-narrow-up.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
-import { ReactComponent as UploadIconDrag } from '../assets/Logout-black.svg';
+import { ReactComponent as UploadIconDrag } from '../assets/upload.svg';
 import sphere from '../assets/sphere.svg';
 import * as chatService from '../services/chatService';
 // REMOVED: import useStreamingText from '../hooks/useStreamingText';

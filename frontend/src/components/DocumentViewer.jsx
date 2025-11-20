@@ -647,12 +647,12 @@ const DocumentViewer = () => {
         <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
         <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex' }}>
           {/* Header */}
-          <div style={{ alignSelf: 'stretch', height: 120, padding: 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
+          <div style={{ alignSelf: 'stretch', height: 96, padding: 16, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
           <button
             onClick={() => navigate(-1)}
             style={{
-              width: 52,
-              height: 52,
+              width: 42,
+              height: 42,
               background: 'white',
               borderRadius: 100,
               outline: '1px #E6E6EC solid',
@@ -671,7 +671,7 @@ const DocumentViewer = () => {
               e.currentTarget.style.background = 'white';
             }}
           >
-            <ArrowLeftIcon style={{ width: 20, height: 20, stroke: '#55534E' }} />
+            <ArrowLeftIcon style={{ width: 18, height: 18, stroke: '#55534E' }} />
           </button>
 
           <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'inline-flex' }}>
@@ -722,9 +722,9 @@ const DocumentViewer = () => {
             <div style={{ justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex' }}>
               <button
                 onClick={() => setShowDeleteModal(true)}
-                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                style={{ width: 42, height: 42, paddingLeft: 14, paddingRight: 14, paddingTop: 8, paddingBottom: 8, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
               >
-                <TrashCanIcon style={{ width: 32, height: 32 }} />
+                <TrashCanIcon style={{ width: 26, height: 26 }} />
               </button>
               <button
                 onClick={async () => {
@@ -797,9 +797,9 @@ const DocumentViewer = () => {
                     }
                   }
                 }}
-                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                style={{ width: 42, height: 42, paddingLeft: 14, paddingRight: 14, paddingTop: 8, paddingBottom: 8, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
               >
-                <PrinterIcon style={{ width: 32, height: 32 }} />
+                <PrinterIcon style={{ width: 26, height: 26 }} />
               </button>
               <button
                 onClick={() => {
@@ -807,14 +807,14 @@ const DocumentViewer = () => {
                   sessionStorage.removeItem('currentConversationId');
                   navigate(`/chat?documentId=${documentId}`, { state: { newConversation: true } });
                 }}
-                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                style={{ width: 42, height: 42, paddingLeft: 14, paddingRight: 14, paddingTop: 8, paddingBottom: 8, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
               >
                 <img
                   src={logoSvg}
                   alt="Profile"
                   style={{
-                    width: 36,
-                    height: 36,
+                    width: 29,
+                    height: 29,
                     objectFit: 'contain',
                     ...getImageRenderingCSS()
                   }}
@@ -823,16 +823,16 @@ const DocumentViewer = () => {
             </div>
             <button
               onClick={() => setShowShareModal(true)}
-              style={{ flex: '1 1 0', height: 52, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+              style={{ flex: '0.8 1 0', height: 42, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
             >
-              <DownloadWhiteIcon style={{ width: 24, height: 24 }} />
+              <DownloadWhiteIcon style={{ width: 19, height: 19 }} />
               <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Download</div>
             </button>
           </div>
         </div>
 
         {/* Toolbar */}
-        <div style={{ alignSelf: 'stretch', paddingLeft: 20, paddingRight: 20, paddingTop: 16, paddingBottom: 16, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
+        <div style={{ alignSelf: 'stretch', paddingLeft: 16, paddingRight: 16, paddingTop: 13, paddingBottom: 13, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
           <div style={{ color: '#323232', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px', wordWrap: 'break-word' }}>
             {(() => {
               const fileType = document ? getFileType(document.filename, document.mimeType) : 'unknown';
@@ -1291,8 +1291,9 @@ const DocumentViewer = () => {
                         <img
                           src={actualDocumentUrl}
                           alt={document.filename}
-                          onLoad={() => {
+                          onLoad={(e) => {
                             console.log(`✅ Image loaded successfully: ${actualDocumentUrl}`);
+                            console.log(`📐 Original dimensions: ${e.target.naturalWidth}x${e.target.naturalHeight}`);
                             setImageLoading(false);
                           }}
                           onError={(e) => {
@@ -1302,13 +1303,17 @@ const DocumentViewer = () => {
                             setImageError(true);
                           }}
                           style={{
-                            maxWidth: `${zoom}%`,
+                            width: 'auto',
                             height: 'auto',
+                            maxWidth: '100%',
+                            maxHeight: '80vh',
+                            transform: `scale(${zoom / 100})`,
+                            transformOrigin: 'top left',
                             objectFit: 'contain',
                             borderRadius: 8,
                             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                             background: 'white',
-                            transition: 'max-width 0.2s ease',
+                            transition: 'transform 0.2s ease',
                             display: imageLoading ? 'none' : 'block'
                           }}
                         />
@@ -1318,25 +1323,33 @@ const DocumentViewer = () => {
 
                 case 'video':
                   return (
-                    <div style={{ maxWidth: '900px', width: '100%' }}>
+                    <div style={{
+                      display: 'inline-block',
+                      maxWidth: '100%',
+                      maxHeight: '80vh'
+                    }}>
                       <video
                         src={documentUrl}
                         controls
                         preload="metadata"
                         playsInline
-                        style={{
-                          width: '100%',
-                          borderRadius: 8,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                          background: 'black'
+                        onLoadedMetadata={(e) => {
+                          console.log('📐 Video dimensions:', e.target.videoWidth, 'x', e.target.videoHeight);
+                          console.log('Video duration:', e.target.duration);
                         }}
                         onError={(e) => {
                           console.error('Video loading error:', e);
                           console.error('Video source:', documentUrl);
                           console.error('Document MIME type:', document.mimeType);
                         }}
-                        onLoadedMetadata={(e) => {
-                          console.log('Video metadata loaded:', e.target.duration);
+                        style={{
+                          width: 'auto',
+                          height: 'auto',
+                          maxWidth: '100%',
+                          maxHeight: '80vh',
+                          borderRadius: 8,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          background: 'black'
                         }}
                       >
                         <source src={documentUrl} type={document.mimeType || 'video/mp4'} />

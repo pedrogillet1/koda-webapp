@@ -31,7 +31,7 @@ import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg'
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as DotsIcon } from '../assets/dots.svg';
-import { ReactComponent as UploadIconMenu } from '../assets/Logout-black.svg';
+import { ReactComponent as UploadIconMenu } from '../assets/upload.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import logoSvg from '../assets/logo.svg';
 import kodaLogo from '../assets/koda-logo_1.svg';
