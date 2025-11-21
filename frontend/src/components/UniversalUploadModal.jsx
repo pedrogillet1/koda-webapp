@@ -6,7 +6,7 @@ import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import { useDocuments } from '../context/DocumentsContext';
 import api from '../services/api';
 import { generateThumbnail, supportsThumbnail } from '../utils/thumbnailGenerator';
-import folderUploadService from '../services/folderUploadService';
+import presignedUploadService from '../services/presignedUploadService';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -293,9 +293,9 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
     let totalFailureCount = 0;
 
     try {
-      // Process folders using folderUploadService
+      // Process folders using presignedUploadService (direct-to-S3 upload)
       if (folderEntries.length > 0) {
-        console.log('🚀 Uploading folders using parallel processing');
+        console.log('🚀 Uploading folders using presigned URLs (direct-to-S3)');
 
         for (const folderEntry of folderEntries) {
           try {
@@ -308,9 +308,10 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
             let lastStageTime = Date.now();
             const minStageDisplayTime = 600;
 
-            const results = await folderUploadService.uploadFolder(
+            const results = await presignedUploadService.uploadFolder(
               folderEntry.allFiles,
-              async (progress) => {
+              categoryId,
+              async (percentage, fileName, stage) => {
                 // Ensure minimum display time for previous stage
                 const elapsed = Date.now() - lastStageTime;
                 if (elapsed < minStageDisplayTime) {
@@ -318,22 +319,15 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                 }
                 lastStageTime = Date.now();
 
-                // Update folder entry progress
-                if (progress.stage === 'analyzing') {
-                  setUploadingFiles(prev => prev.map(f =>
-                    f.id === folderEntry.id ? { ...f, progress: 10, processingStage: 'Preparing...' } : f
-                  ));
-                } else if (progress.stage === 'uploading') {
-                  setUploadingFiles(prev => prev.map(f =>
-                    f.id === folderEntry.id ? { ...f, progress: progress.percentage || 50, processingStage: 'Uploading to cloud...' } : f
-                  ));
-                } else if (progress.stage === 'complete') {
-                  setUploadingFiles(prev => prev.map(f =>
-                    f.id === folderEntry.id ? { ...f, progress: 95, processingStage: 'Finalizing...' } : f
-                  ));
-                }
-              },
-              categoryId
+                // Update folder entry progress based on presigned upload service stages
+                setUploadingFiles(prev => prev.map(f =>
+                  f.id === folderEntry.id ? {
+                    ...f,
+                    progress: percentage || 50,
+                    processingStage: stage === 'Complete' ? 'Finalizing...' : 'Uploading to S3...'
+                  } : f
+                ));
+              }
             );
 
             // Show finalizing stage for at least 400ms
@@ -344,8 +338,11 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
               f.id === folderEntry.id ? { ...f, status: 'completed', progress: 100, processingStage: null } : f
             ));
 
-            totalSuccessCount += results.successCount;
-            totalFailureCount += results.failureCount;
+            // Calculate success/failure counts from presigned upload results
+            const successCount = results.filter(r => r.success).length;
+            const failureCount = results.filter(r => !r.success).length;
+            totalSuccessCount += successCount;
+            totalFailureCount += failureCount;
           } catch (error) {
             console.error('❌ Error uploading folder:', error);
             setUploadingFiles(prev => prev.map(f =>

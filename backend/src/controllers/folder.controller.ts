@@ -60,6 +60,9 @@ export const createFolder = async (req: Request, res: Response): Promise<void> =
       }
     );
 
+    // Invalidate user cache to ensure new folder appears immediately
+    await cacheService.invalidateUserCache(req.user.id);
+
     // Emit real-time event for folder creation
     emitFolderEvent(req.user.id, 'created', folder.id);
 
@@ -140,6 +143,9 @@ export const updateFolder = async (req: Request, res: Response): Promise<void> =
 
     const folder = await folderService.updateFolder(id, req.user.id, name, emoji, parentFolderId);
 
+    // Invalidate user cache to ensure updated folder appears immediately
+    await cacheService.invalidateUserCache(req.user.id);
+
     // Emit real-time event for folder update
     emitFolderEvent(req.user.id, 'updated', id);
 
@@ -183,6 +189,9 @@ export const bulkCreateFolders = async (req: Request, res: Response): Promise<vo
     console.log(`✅ [${requestId}] Successfully created ${Object.keys(folderMap).length} folders`);
     console.log(`🆔 [${requestId}] ===== REQUEST COMPLETE =====\n`);
 
+    // Invalidate user cache to ensure new folders appear immediately
+    await cacheService.invalidateUserCache(req.user.id);
+
     // Emit real-time event for bulk folder creation (emit generic folders-changed)
     emitFolderEvent(req.user.id, 'created');
 
@@ -214,6 +223,9 @@ export const deleteFolder = async (req: Request, res: Response): Promise<void> =
     const { id } = req.params;
 
     await folderService.deleteFolder(id, req.user.id);
+
+    // Invalidate user cache to ensure deleted folder and documents disappear immediately
+    await cacheService.invalidateUserCache(req.user.id);
 
     // Emit real-time event for folder deletion
     emitFolderEvent(req.user.id, 'deleted', id);

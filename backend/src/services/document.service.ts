@@ -220,12 +220,12 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
     console.log(`✅ [Server-Side] File encrypted successfully (${encryptedFileBuffer.length} bytes)`);
   }
 
-  // Upload encrypted file to Supabase Storage
-  console.log(`📤 Uploading to Supabase: ${encryptedFilename} (${encryptedFileBuffer.length} bytes)`);
-  const supabaseStart = Date.now();
+  // Upload encrypted file to S3 Storage
+  console.log(`📤 Uploading to S3: ${encryptedFilename} (${encryptedFileBuffer.length} bytes)`);
+  const s3Start = Date.now();
   await uploadFile(encryptedFilename, encryptedFileBuffer, mimeType);
-  console.log(`⏱️  Supabase upload took: ${Date.now() - supabaseStart}ms`);
-  console.log(`✅ Uploaded to Supabase: ${encryptedFilename} (${encryptedFileBuffer.length} bytes)`);
+  console.log(`⏱️  S3 upload took: ${Date.now() - s3Start}ms`);
+  console.log(`✅ Uploaded to S3: ${encryptedFilename} (${encryptedFileBuffer.length} bytes)`);
 
   // Thumbnail generation disabled - set to null
   const thumbnailUrl: string | null = null;

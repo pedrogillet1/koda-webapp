@@ -19,7 +19,6 @@ import { ReactComponent as MoveIcon } from '../assets/add.svg';
 import { ReactComponent as DeleteIcon } from '../assets/Trash can-red.svg';
 import LayeredFolderIcon from './LayeredFolderIcon';
 import api from '../services/api';
-import folderUploadService from '../services/folderUploadService';
 import presignedUploadService from '../services/presignedUploadService';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
@@ -780,7 +779,7 @@ const UploadHub = () => {
           return fileOrWrapper;
         });
 
-        // ✅ OPTIMIZATION: Use presigned URLs for direct-to-Supabase upload
+        // ✅ OPTIMIZATION: Use presigned URLs for direct-to-S3 upload
         presignedUploadService.uploadFolder(files, null, (progress, fileName, stage) => {
           // Update progress in UI using folderName to identify the correct item
           setUploadingFiles(prev => prev.map((f) => {
