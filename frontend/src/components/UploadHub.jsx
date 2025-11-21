@@ -20,6 +20,7 @@ import { ReactComponent as DeleteIcon } from '../assets/Trash can-red.svg';
 import LayeredFolderIcon from './LayeredFolderIcon';
 import api from '../services/api';
 import folderUploadService from '../services/folderUploadService';
+import presignedUploadService from '../services/presignedUploadService';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -753,102 +754,100 @@ const UploadHub = () => {
         // Handle folder upload using the dedicated folder upload service
         console.log('📁 Uploading folder:', item.folderName);
 
-        try {
-          // ✅ FIX: Handle both File objects (drag-and-drop) and wrapped objects (legacy)
-          const files = item.files.map(fileOrWrapper => {
-            // Check if it's already a File object with webkitRelativePath (drag-and-drop)
-            if (fileOrWrapper instanceof File) {
-              // File object from drag-and-drop - already has webkitRelativePath
-              return fileOrWrapper;
-            }
-
-            // Legacy wrapped structure: {file: File, relativePath: "..."}
-            if (fileOrWrapper.file) {
-              const file = fileOrWrapper.file;
-              // Attach webkitRelativePath if not already present
-              if (!file.webkitRelativePath && fileOrWrapper.relativePath) {
-                Object.defineProperty(file, 'webkitRelativePath', {
-                  value: fileOrWrapper.relativePath,
-                  writable: false
-                });
-              }
-              return file;
-            }
-
-            // Fallback: return as-is
-            console.warn('⚠️ Unknown file structure:', fileOrWrapper);
+        // ✅ FIX: Handle both File objects (drag-and-drop) and wrapped objects (legacy)
+        const files = item.files.map(fileOrWrapper => {
+          // Check if it's already a File object with webkitRelativePath (drag-and-drop)
+          if (fileOrWrapper instanceof File) {
+            // File object from drag-and-drop - already has webkitRelativePath
             return fileOrWrapper;
-          });
-
-          // Use the folder upload service which handles:
-          // 1. Building folder tree (including root folder)
-          // 2. Creating all folders in bulk (preserving hierarchy)
-          // 3. Uploading files in parallel to correct folders
-          // DO NOT create root category manually - let the service handle it
-          await folderUploadService.uploadFolder(files, (progressData) => {
-            // Update progress in UI using folderName to identify the correct item
-            setUploadingFiles(prev => prev.map((f) => {
-              if (f.isFolder && f.folderName === item.folderName) {
-                if (progressData.stage === 'uploading') {
-                  completedFilesCountRef.current = progressData.uploaded || 0;
-                  return {
-                    ...f,
-                    progress: progressData.percentage || 0,
-                    status: 'uploading'
-                  };
-                } else if (progressData.stage === 'complete') {
-                  return {
-                    ...f,
-                    progress: 100,
-                    status: 'completed'
-                  };
-                }
-                return f;
-              }
-              return f;
-            }));
-          }, null); // Pass null - service will create root folder from the folder tree
-
-          // Mark folder as completed
-          setUploadingFiles(prev => prev.map((f) =>
-            (f.isFolder && f.folderName === item.folderName) ? { ...f, status: 'completed', progress: 100 } : f
-          ));
-
-          await new Promise(resolve => setTimeout(resolve, 500));
-
-          // Remove folder from upload list
-          setUploadingFiles(prev => prev.filter((f) => !(f.isFolder && f.folderName === item.folderName)));
-
-          // Refresh folders and documents to show the newly uploaded data
-          console.log('🔄 Refreshing folders and documents...');
-          try {
-            // ✅ OPTIMIZATION: Use batched endpoint
-            const response = await api.get('/api/batch/initial-data');
-            const docsResponse = { data: { documents: response.data.documents } };
-            const foldersResponse = { data: { folders: response.data.folders } };
-
-            setDocuments(docsResponse.data.documents || []);
-            const allFolders = foldersResponse.data.folders || [];
-            setFolders(allFolders.filter(f =>
-              !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
-            ));
-
-            // Update categories with all folders, excluding "Recently Added"
-            // ✅ No need to setCategories - computed automatically from folders via useMemo
-          } catch (refreshError) {
-            console.error('⚠️ Error refreshing data:', refreshError);
           }
 
-        } catch (error) {
-          console.error('❌ Error uploading folder:', error);
-          setUploadingFiles(prev => prev.map((f, idx) =>
-            idx === i ? {
-              ...f,
-              status: 'failed',
-              error: error.message || 'Upload failed'
-            } : f
-          ));
-        }
+          // Legacy wrapped structure: {file: File, relativePath: "..."}
+          if (fileOrWrapper.file) {
+            const file = fileOrWrapper.file;
+            // Attach webkitRelativePath if not already present
+            if (!file.webkitRelativePath && fileOrWrapper.relativePath) {
+              Object.defineProperty(file, 'webkitRelativePath', {
+                value: fileOrWrapper.relativePath,
+                writable: false
+              });
+            }
+            return file;
+          }
+
+          // Fallback: return as-is
+          console.warn('⚠️ Unknown file structure:', fileOrWrapper);
+          return fileOrWrapper;
+        });
+
+        // ✅ OPTIMIZATION: Use presigned URLs for direct-to-Supabase upload
+        presignedUploadService.uploadFolder(files, null, (progress, fileName, stage) => {
+          // Update progress in UI using folderName to identify the correct item
+          setUploadingFiles(prev => prev.map((f) => {
+            if (f.isFolder && f.folderName === item.folderName) {
+              return {
+                ...f,
+                progress: Math.round(progress),
+                currentFile: fileName,
+                stage: stage || 'Uploading...',
+                status: progress >= 100 ? 'completed' : 'uploading'
+              };
+            }
+            return f;
+          }));
+        })
+          .then(async (results) => {
+            // Check upload results
+            const succeeded = results.filter(r => r.success);
+            const failed = results.filter(r => !r.success);
+
+            console.log(`✅ Upload complete: ${succeeded.length}/${results.length} files succeeded`);
+
+            if (failed.length > 0) {
+              console.warn(`⚠️ ${failed.length} files failed:`, failed.map(f => f.fileName));
+            }
+
+            // SUCCESS: Mark folder as completed
+            setUploadingFiles(prev => prev.map((f) =>
+              (f.isFolder && f.folderName === item.folderName) ? { ...f, status: 'completed', progress: 100 } : f
+            ));
+
+            // Refresh folders and documents to show the newly uploaded data
+            console.log('🔄 Refreshing folders and documents...');
+            try {
+              // ✅ OPTIMIZATION: Use batched endpoint
+              const response = await api.get('/api/batch/initial-data');
+              const docsResponse = { data: { documents: response.data.documents } };
+              const foldersResponse = { data: { folders: response.data.folders } };
+
+              setDocuments(docsResponse.data.documents || []);
+              const allFolders = foldersResponse.data.folders || [];
+              setFolders(allFolders.filter(f =>
+                !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
+              ));
+
+              // Update categories with all folders, excluding "Recently Added"
+              // ✅ No need to setCategories - computed automatically from folders via useMemo
+            } catch (refreshError) {
+              console.error('⚠️ Error refreshing data:', refreshError);
+            }
+          })
+          .catch((error) => {
+            // ERROR: Mark folder as failed
+            console.error('❌ Error uploading folder:', error);
+            setUploadingFiles(prev => prev.map((f) =>
+              (f.isFolder && f.folderName === item.folderName) ? {
+                ...f,
+                status: 'failed',
+                error: error.message || 'Upload failed'
+              } : f
+            ));
+          })
+          .finally(async () => {
+            // ✅ CLEANUP: ALWAYS remove item from list after delay (success or failure)
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            setUploadingFiles(prev => prev.filter((f) => !(f.isFolder && f.folderName === item.folderName)));
+          });
       } else {
         // Handle individual file upload - DIRECT TO GCS!
         const file = item.file;
@@ -1265,16 +1264,33 @@ const UploadHub = () => {
   };
 
   const handleDeleteFolder = async (folderId) => {
-    // Save folder and related documents for potential rollback
-    const folderToDelete = folders.find(f => f.id === folderId);
-    const docsInFolder = documents.filter(doc => doc.folderId === folderId);
+    // ✅ FIX: Recursively find all subfolders and their documents
+    const getAllSubfolderIds = (parentId) => {
+      const subfolders = folders.filter(f => f.parentFolderId === parentId);
+      let allIds = [parentId];
+
+      subfolders.forEach(subfolder => {
+        allIds = [...allIds, ...getAllSubfolderIds(subfolder.id)];
+      });
+
+      return allIds;
+    };
+
+    // Get all folder IDs that will be deleted (parent + all descendants)
+    const allFolderIdsToDelete = getAllSubfolderIds(folderId);
+
+    console.log('🗑️ Deleting folder and subfolders:', allFolderIdsToDelete);
+
+    // Save folder, subfolders, and ALL related documents for potential rollback
+    const foldersToDelete = folders.filter(f => allFolderIdsToDelete.includes(f.id));
+    const docsInFolders = documents.filter(doc => allFolderIdsToDelete.includes(doc.folderId));
 
     try {
-      console.log('🗑️ Deleting folder:', folderId);
+      console.log(`🗑️ Deleting ${foldersToDelete.length} folder(s) and ${docsInFolders.length} document(s)`);
 
       // Remove from UI IMMEDIATELY (optimistic update)
-      setFolders(prev => prev.filter(f => f.id !== folderId));
-      setDocuments(prev => prev.filter(doc => doc.folderId !== folderId));
+      setFolders(prev => prev.filter(f => !allFolderIdsToDelete.includes(f.id)));
+      setDocuments(prev => prev.filter(doc => !allFolderIdsToDelete.includes(doc.folderId)));
       setOpenDropdownId(null);
 
       // Show notification immediately for instant feedback
@@ -1287,12 +1303,12 @@ const UploadHub = () => {
     } catch (error) {
       console.error('❌ Error deleting folder:', error);
 
-      // Restore folder and documents on error (rollback)
-      if (folderToDelete) {
-        setFolders(prev => [folderToDelete, ...prev]);
+      // Restore folders and documents on error (rollback)
+      if (foldersToDelete.length > 0) {
+        setFolders(prev => [...foldersToDelete, ...prev]);
       }
-      if (docsInFolder.length > 0) {
-        setDocuments(prev => [...docsInFolder, ...prev]);
+      if (docsInFolders.length > 0) {
+        setDocuments(prev => [...docsInFolders, ...prev]);
       }
 
       alert('Failed to delete folder. Please try again.');

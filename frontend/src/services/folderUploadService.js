@@ -136,6 +136,20 @@ class FolderUploadService {
     console.log(`  - Root level (direct in category): ${rootFiles.length} files`);
     console.log(`  - Nested (in subfolders): ${nestedFiles.length} files`);
 
+    // ✅ DEBUG: Show detailed breakdown of nested files
+    if (nestedFiles.length > 0) {
+      console.log(`\n🔍 DEBUG - Nested Files Details:`);
+      nestedFiles.forEach((f, idx) => {
+        console.log(`  ${idx + 1}. "${f.fileName}"`);
+        console.log(`     - Full Path: ${f.fullPath}`);
+        console.log(`     - Relative Path: ${f.relativePath}`);
+        console.log(`     - Folder Path: ${f.folderPath}`);
+        console.log(`     - Depth: ${f.depth}`);
+      });
+    } else {
+      console.log(`\n⚠️ DEBUG: NO nested files detected! All files are at root level.`);
+    }
+
     if (fileList.length > 0) {
       console.log(`\nFirst file in fileList:`, fileList[0]);
     } else {
@@ -206,6 +220,19 @@ class FolderUploadService {
       console.log(`✅ Created ${response.data.count} subfolders`);
       console.log(`Folder mapping:`, response.data.folderMap);
 
+      // ✅ DEBUG: Verify all subfolders were mapped correctly
+      const folderMap = response.data.folderMap;
+      console.log(`\n🔍 DEBUG - Folder Map Verification:`);
+      console.log(`Expected ${subfolders.length} mappings, received ${Object.keys(folderMap).length}`);
+
+      subfolders.forEach(sf => {
+        if (folderMap[sf.path]) {
+          console.log(`  ✅ "${sf.path}" → Folder ID: ${folderMap[sf.path]}`);
+        } else {
+          console.error(`  ❌ MISSING: "${sf.path}" has NO folder ID in folderMap!`);
+        }
+      });
+
       return response.data.folderMap;
     } catch (error) {
       console.error('❌ Error creating subfolders:', error);
@@ -243,11 +270,32 @@ class FolderUploadService {
         file,
         fileName,
         folderId,
-        relativePath: fileInfo.relativePath
+        relativePath: fileInfo.relativePath,
+        depth: fileInfo.depth,
+        folderPath: fileInfo.folderPath
       };
     });
 
     console.log(`✅ Mapped ${fileMapping.length} files`);
+
+    // ✅ DEBUG: Verify all files have folder IDs
+    const filesWithFolderId = fileMapping.filter(f => f.folderId);
+    const filesWithoutFolderId = fileMapping.filter(f => !f.folderId);
+
+    console.log(`\n🔍 DEBUG - File Mapping Verification:`);
+    console.log(`  ✅ ${filesWithFolderId.length} files have folder IDs`);
+    console.log(`  ❌ ${filesWithoutFolderId.length} files MISSING folder IDs`);
+
+    if (filesWithoutFolderId.length > 0) {
+      console.error(`\n⚠️ FILES WITHOUT FOLDER IDs (WILL FAIL TO UPLOAD):`);
+      filesWithoutFolderId.forEach(f => {
+        console.error(`  - "${f.fileName}"`);
+        console.error(`    Folder Path: ${f.folderPath}`);
+        console.error(`    Depth: ${f.depth}`);
+        console.error(`    Expected folderMap key: "${f.folderPath}"`);
+      });
+    }
+
     return fileMapping;
   }
 
@@ -274,10 +322,21 @@ class FolderUploadService {
     const { file, fileName, folderId, relativePath } = fileObj;
 
     try {
-      console.log(`📤 Uploading "${fileName}" to folder ${folderId}...`);
+      console.log(`📤 Uploading "${fileName}" (${(file.size / 1024).toFixed(2)}KB) to folder ${folderId}...`);
 
-      // Calculate file hash
-      const fileHash = await this.calculateFileHash(file);
+      // ✅ FIX: Calculate file hash with timeout to prevent hanging
+      console.log(`🔐 Calculating hash for "${fileName}"...`);
+      const hashStart = Date.now();
+
+      const fileHash = await Promise.race([
+        this.calculateFileHash(file),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Hash calculation timeout after 30s for "${fileName}"`)), 30000)
+        )
+      ]);
+
+      const hashDuration = Date.now() - hashStart;
+      console.log(`✅ Hash calculated for "${fileName}" in ${hashDuration}ms`);
 
       const formData = new FormData();
       formData.append('file', file);
@@ -293,6 +352,9 @@ class FolderUploadService {
         formData.append('relativePath', relativePath);
       }
 
+      console.log(`📡 Sending "${fileName}" to API...`);
+      const uploadStart = Date.now();
+
       const response = await api.post('/api/documents/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
@@ -304,10 +366,17 @@ class FolderUploadService {
         }
       });
 
-      console.log(`✅ Uploaded "${fileName}"`);
+      const uploadDuration = Date.now() - uploadStart;
+      console.log(`✅ Uploaded "${fileName}" in ${uploadDuration}ms (total: ${hashDuration + uploadDuration}ms)`);
       return { success: true, fileId: response.data.document?.id, fileName };
     } catch (error) {
       console.error(`❌ Failed to upload "${fileName}":`, error);
+      console.error(`   Error details:`, {
+        message: error.message,
+        code: error.code,
+        status: error.response?.status,
+        data: error.response?.data
+      });
       return { success: false, fileName, error: error.message };
     }
   }
@@ -317,6 +386,20 @@ class FolderUploadService {
    */
   async uploadFilesInParallel(fileMapping, onOverallProgress) {
     console.log(`\n📤 ===== UPLOADING ${fileMapping.length} FILES =====`);
+
+    // ✅ DEBUG: Verify files to be uploaded
+    const rootLevelFiles = fileMapping.filter(f => f.depth === 0);
+    const nestedFiles = fileMapping.filter(f => f.depth > 0);
+    console.log(`🔍 DEBUG - Upload Queue:`);
+    console.log(`  - Root level files: ${rootLevelFiles.length}`);
+    console.log(`  - Nested files: ${nestedFiles.length}`);
+
+    if (nestedFiles.length > 0) {
+      console.log(`\n🔍 DEBUG - Nested Files in Upload Queue:`);
+      nestedFiles.forEach(f => {
+        console.log(`  - "${f.fileName}" → Folder ID: ${f.folderId || 'MISSING!'} (depth: ${f.depth})`);
+      });
+    }
 
     const totalFiles = fileMapping.length;
     let uploadedFiles = 0;
@@ -384,6 +467,24 @@ class FolderUploadService {
     const failureCount = results.filter(r => !r.success).length;
 
     console.log(`\n✅ Upload complete: ${successCount}/${totalFiles} succeeded, ${failureCount} failed`);
+
+    // ✅ DEBUG: Show which nested files succeeded/failed
+    if (nestedFiles.length > 0) {
+      const nestedFileNames = nestedFiles.map(f => f.fileName);
+      const succeededNested = results.filter(r => r.success && nestedFileNames.includes(r.fileName));
+      const failedNested = results.filter(r => !r.success && nestedFileNames.includes(r.fileName));
+
+      console.log(`\n🔍 DEBUG - Nested Files Upload Results:`);
+      console.log(`  ✅ Succeeded: ${succeededNested.length}/${nestedFiles.length}`);
+      console.log(`  ❌ Failed: ${failedNested.length}/${nestedFiles.length}`);
+
+      if (failedNested.length > 0) {
+        console.error(`\n⚠️ NESTED FILES THAT FAILED:`);
+        failedNested.forEach(f => {
+          console.error(`  - "${f.fileName}": ${f.error}`);
+        });
+      }
+    }
 
     return {
       results,
