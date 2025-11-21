@@ -384,17 +384,31 @@ export const bulkCreateFolders = async (
         }
       }
 
-      // Create the folder within transaction
-      const folder = await tx.folder.create({
-        data: {
+      // ✅ FIX: Check if folder already exists before creating (prevents duplicates on retry)
+      const existingFolder = await tx.folder.findFirst({
+        where: {
           userId,
           name,
-          emoji: defaultEmoji,
           parentFolderId: resolvedParentFolderId,
         },
       });
 
-      console.log(`     ✅ Created with ID: ${folder.id}`);
+      let folder;
+      if (existingFolder) {
+        console.log(`     ♻️ Reusing existing folder: ${name} (${existingFolder.id})`);
+        folder = existingFolder;
+      } else {
+        // Create the folder within transaction
+        folder = await tx.folder.create({
+          data: {
+            userId,
+            name,
+            emoji: defaultEmoji,
+            parentFolderId: resolvedParentFolderId,
+          },
+        });
+        console.log(`     ✅ Created with ID: ${folder.id}`);
+      }
 
       // Store the mapping
       folderMap[path] = folder.id;

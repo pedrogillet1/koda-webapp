@@ -153,10 +153,12 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   }
 
   // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded to the SAME folder
+  // ✅ FIX: Also check filename to allow identical files with different names (e.g., copy1.png, copy2.png)
   const existingDoc = await prisma.document.findFirst({
     where: {
       userId,
       fileHash,
+      filename,  // ✅ CRITICAL FIX: Check filename too! Allows uploading identical content with different names
       status: 'completed',
       // Allow same file in different folders
       folderId: finalFolderId,
