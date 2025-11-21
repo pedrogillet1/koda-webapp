@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
 import sharp from 'sharp';
-import supabaseStorageService from './supabaseStorage.service';
+import s3StorageService from './s3Storage.service';
 
 interface ExtractedImage {
   slideNumber: number;
@@ -133,14 +133,11 @@ export class PPTXImageExtractorService {
               // Read the file buffer
               const fileBuffer = await fs.promises.readFile(image.localPath);
 
-              // Upload to Supabase
-              await supabaseStorageService.upload(storagePath, fileBuffer, {
-                contentType: 'image/png',
-                cacheControl: '3600'
-              });
+              // Upload to S3
+              await s3StorageService.uploadFile(storagePath, fileBuffer, 'image/png');
 
               image.gcsPath = storagePath;
-              image.imageUrl = await supabaseStorageService.getSignedUrl(storagePath, signedUrlExpiration);
+              image.imageUrl = await s3StorageService.generatePresignedDownloadUrl(storagePath, signedUrlExpiration);
               console.log(`   ✅ Uploaded: ${storagePath}`);
             } catch (uploadError) {
               console.error(`   ❌ Failed to upload ${storagePath}:`, uploadError);
@@ -197,13 +194,10 @@ export class PPTXImageExtractorService {
                   // Read the composite file buffer
                   const compositeBuffer = await fs.promises.readFile(compositePath);
 
-                  // Upload to Supabase
-                  await supabaseStorageService.upload(compositeStoragePath, compositeBuffer, {
-                    contentType: 'image/png',
-                    cacheControl: '3600'
-                  });
+                  // Upload to S3
+                  await s3StorageService.uploadFile(compositeStoragePath, compositeBuffer, 'image/png');
 
-                  slide.compositeImageUrl = await supabaseStorageService.getSignedUrl(compositeStoragePath, signedUrlExpiration);
+                  slide.compositeImageUrl = await s3StorageService.generatePresignedDownloadUrl(compositeStoragePath, signedUrlExpiration);
                   console.log(`   ✅ Uploaded composite: ${compositeStoragePath}`);
                 } catch (uploadError) {
                   console.error(`   ❌ Failed to upload composite:`, uploadError);
