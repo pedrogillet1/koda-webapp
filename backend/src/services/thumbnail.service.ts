@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import crypto from 'crypto';
 import { Canvas, createCanvas } from 'canvas';
-import supabaseStorageService from './supabaseStorage.service';
+import s3StorageService from './s3Storage.service';
 
 // Polyfill DOM APIs for pdfjs-dist in Node.js environment
 if (typeof globalThis.DOMMatrix === 'undefined') {
@@ -83,13 +83,11 @@ export const generatePDFThumbnail = async (
       .jpeg({ quality })
       .toBuffer();
 
-    // Upload thumbnail to Supabase
+    // Upload thumbnail to S3
     const storagePath = `thumbnails/${thumbnailFilename}`;
-    await supabaseStorageService.upload(storagePath, thumbnailBuffer, {
-      contentType: 'image/jpeg',
-    });
+    await s3StorageService.uploadFile(storagePath, thumbnailBuffer, 'image/jpeg');
 
-    return storagePath; // Store the Supabase path
+    return storagePath; // Store the S3 path
   } catch (error) {
     console.error('Error generating PDF thumbnail:', error);
     return null;
@@ -120,13 +118,11 @@ export const generateImageThumbnail = async (
       .jpeg({ quality })
       .toBuffer();
 
-    // Upload thumbnail to Supabase
+    // Upload thumbnail to S3
     const storagePath = `thumbnails/${thumbnailFilename}`;
-    await supabaseStorageService.upload(storagePath, thumbnailBuffer, {
-      contentType: 'image/jpeg',
-    });
+    await s3StorageService.uploadFile(storagePath, thumbnailBuffer, 'image/jpeg');
 
-    return storagePath; // Store the Supabase path
+    return storagePath; // Store the S3 path
   } catch (error) {
     console.error('Error generating image thumbnail:', error);
     return null;
@@ -176,13 +172,13 @@ export const getThumbnailUrl = async (thumbnailPath: string): Promise<string | n
   if (!thumbnailPath) return null;
 
   try {
-    const exists = await supabaseStorageService.exists(thumbnailPath);
+    const exists = await s3StorageService.fileExists(thumbnailPath);
 
     if (!exists) {
       return null;
     }
 
-    const url = await supabaseStorageService.getSignedUrl(thumbnailPath, 7 * 24 * 60 * 60); // 7 days
+    const url = await s3StorageService.generatePresignedDownloadUrl(thumbnailPath, 7 * 24 * 60 * 60); // 7 days
 
     return url;
   } catch (error) {
@@ -198,10 +194,10 @@ export const deleteThumbnail = async (thumbnailPath: string): Promise<boolean> =
   if (!thumbnailPath) return true;
 
   try {
-    const exists = await supabaseStorageService.exists(thumbnailPath);
+    const exists = await s3StorageService.fileExists(thumbnailPath);
 
     if (exists) {
-      await supabaseStorageService.delete(thumbnailPath);
+      await s3StorageService.deleteFile(thumbnailPath);
     }
 
     return true;

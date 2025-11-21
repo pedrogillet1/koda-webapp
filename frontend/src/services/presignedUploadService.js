@@ -5,8 +5,8 @@ import axios from 'axios';
 /**
  * Presigned Upload Service
  *
- * Handles file uploads using Supabase Storage presigned URLs.
- * Files are uploaded directly to Supabase, bypassing the backend.
+ * Handles file uploads using AWS S3 presigned URLs.
+ * Files are uploaded directly to S3, bypassing the backend.
  */
 class PresignedUploadService {
   constructor() {
@@ -49,7 +49,7 @@ class PresignedUploadService {
       console.log(`✅ Received ${presignedUrls.length} presigned URLs in ${urlDuration}ms`);
       console.log(`📊 [METRICS] URL generation speed: ${(presignedUrls.length / (urlDuration / 1000)).toFixed(2)} URLs/second`);
 
-      // Step 2: Upload files directly to Supabase in batches
+      // Step 2: Upload files directly to AWS S3 in batches
       const uploadStartTime = Date.now();
       console.log(`🚀 Starting upload of ${files.length} files (${this.maxConcurrentUploads} concurrent)...`);
       const results = await this.uploadInBatches(
@@ -142,7 +142,7 @@ class PresignedUploadService {
   }
 
   /**
-   * Upload single file directly to Supabase Storage
+   * Upload single file directly to AWS S3
    * @private
    */
   async uploadSingleFile(file, presignedUrl, documentId, encryptedFilename, onProgress) {
@@ -160,14 +160,14 @@ class PresignedUploadService {
         // const encryptTime = Date.now() - startEncrypt;
         // console.log(`🔐 Encrypted "${file.name}" in ${encryptTime}ms`);
 
-        // Step 2: Upload file DIRECTLY to Supabase (bypasses backend!)
+        // Step 2: Upload file DIRECTLY to AWS S3 (bypasses backend!)
         if (onProgress) onProgress(10, 'Uploading...');
         const startUpload = Date.now();
 
         const response = await axios.put(presignedUrl, file, {
           headers: {
-            'Content-Type': file.type,
-            'x-upsert': 'false'
+            'Content-Type': file.type
+            // No additional headers needed for S3
           },
           onUploadProgress: (progressEvent) => {
             if (onProgress && progressEvent.total) {
