@@ -234,6 +234,10 @@ model Document {
   @@index([userId, updatedAt])
   @@index([folderId, status]) // ✅ Composite index for folder contents filtering
   @@index([userId, folderId, status]) // ✅ Composite index for user's folder document queries
+  @@index([filename]) // ✅ For filename search
+  @@index([userId, filename]) // ✅ For user-specific filename search
+  @@index([fileHash]) // ✅ For duplicate detection
+  @@index([userId, fileHash, filename]) // ✅ For idempotency check (allows identical files with different names)
   @@map("documents")
 }
 
