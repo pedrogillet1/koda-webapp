@@ -33,7 +33,6 @@
   "type": "commonjs",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
-    "@aws-sdk/client-s3": "^3.937.0",
     "@aws-sdk/s3-request-presigner": "^3.937.0",
     "@cantoo/pdf-lib": "^2.5.3",
     "@google-cloud/documentai": "^9.5.0",
@@ -111,6 +110,7 @@
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.937.0",
     "@eslint/js": "^9.36.0",
     "@types/adm-zip": "^0.5.7",
     "@types/bcrypt": "^6.0.0",

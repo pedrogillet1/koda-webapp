@@ -74,6 +74,11 @@ export const getSignedUploadUrl = async (
 };
 
 /**
+ * Alias for getSignedUploadUrl (for backward compatibility)
+ */
+export const generatePresignedUploadUrl = getSignedUploadUrl;
+
+/**
  * Delete a file from AWS S3
  */
 export const deleteFile = async (fileName: string): Promise<void> => {
