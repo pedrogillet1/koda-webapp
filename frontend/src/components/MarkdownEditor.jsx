@@ -200,22 +200,7 @@ const MarkdownEditor = ({ document, zoom, onSave }) => {
         <div style={{ display: 'flex', gap: 8 }}>
           {!isEditing ? (
             <>
-              <button
-                onClick={handleExport}
-                style={{
-                  padding: '6px 12px',
-                  background: '#F5F5F5',
-                  color: '#32302C',
-                  border: '1px solid #E6E6EC',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '500'
-                }}
-              >
-                Export
-              </button>
+              {/* Export button hidden per user request */}
               {/* Edit button hidden per user request */}
             </>
           ) : (

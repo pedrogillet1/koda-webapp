@@ -1,12 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/database';
 import cacheService from './cache.service';
 import pineconeService from './pinecone.service';
+import embeddingService from './embedding.service';
 
-const prisma = new PrismaClient();
-
-// Initialize Gemini API
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+// ✅ Now using OpenAI embeddings via embedding.service.ts (1536 dimensions)
 
 interface EmbeddingMetadata {
   page?: number;
@@ -28,42 +25,19 @@ interface ChunkWithMetadata {
 
 class VectorEmbeddingService {
   /**
-   * Generate embedding for a text using Gemini API
+   * Generate embedding for a text using OpenAI API
    * @param text - Text to embed
-   * @returns Array of 768 floats
+   * @returns Array of 1536 floats (OpenAI text-embedding-3-small)
    */
   async generateEmbedding(text: string): Promise<number[]> {
     try {
       console.time('⏱️ [Embedding] Total time');
 
-      // Check cache first
-      console.time('⏱️ [Embedding] Check cache');
-      const cachedEmbedding = await cacheService.getCachedEmbedding(text);
-      console.timeEnd('⏱️ [Embedding] Check cache');
-
-      if (cachedEmbedding) {
-        console.log('✅ [Embedding] Cache HIT (fast cache)');
-        console.timeEnd('⏱️ [Embedding] Total time');
-        return cachedEmbedding;
-      }
-
-      // Skip Redis cache check if Redis is unavailable (saves 10+ seconds!)
-      console.log('⚠️ [Embedding] Cache MISS - generating new embedding...');
-
-      // Use text-embedding-004 - Google's latest multilingual embedding model
-      console.time('⏱️ [Embedding] Gemini API call');
-      const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
-      const result = await model.embedContent(text);
-      const embedding = result.embedding;
-      console.timeEnd('⏱️ [Embedding] Gemini API call');
-
-      // Cache the result
-      console.time('⏱️ [Embedding] Cache result');
-      await cacheService.cacheEmbedding(text, embedding.values);
-      console.timeEnd('⏱️ [Embedding] Cache result');
+      // Use the centralized embedding service (which handles caching internally)
+      const result = await embeddingService.generateEmbedding(text);
 
       console.timeEnd('⏱️ [Embedding] Total time');
-      return embedding.values;
+      return result.embedding;
     } catch (error) {
       console.error('Error generating embedding:', error);
       throw new Error('Failed to generate embedding');
@@ -72,90 +46,22 @@ class VectorEmbeddingService {
 
   /**
    * Generate embeddings for multiple texts in batch (parallel processing)
-   * 🚀 PERFORMANCE OPTIMIZATION: 17x faster than sequential processing
+   * 🚀 PERFORMANCE OPTIMIZATION: Using OpenAI batch embedding API
    * @param texts - Array of texts to embed
    * @returns Array of embeddings
    */
   async generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
     try {
-      console.log(`⚡ [Batch Embedding] Processing ${texts.length} chunks in parallel...`);
+      console.log(`⚡ [Batch Embedding] Processing ${texts.length} chunks with OpenAI...`);
       const startTime = Date.now();
 
-      // Check cache
-      const cachedResults: (number[] | null)[] = await Promise.all(
-        texts.map(async text => {
-          const cached = await cacheService.getCachedEmbedding(text);
-          return cached;
-        })
-      );
-
-      // Separate cached and uncached texts
-      const uncachedIndices: number[] = [];
-      const uncachedTexts: string[] = [];
-
-      cachedResults.forEach((cached, i) => {
-        if (!cached) {
-          uncachedIndices.push(i);
-          uncachedTexts.push(texts[i]);
-        }
-      });
-
-      console.log(`📦 [Batch Embedding] Cache hits: ${texts.length - uncachedTexts.length}/${texts.length}`);
-
-      // ⚡ PERFORMANCE FIX: Use Gemini batch API to process all texts in ONE API call
-      const BATCH_SIZE = 100; // Gemini max batch size
-      // Use text-embedding-004 - Google's latest multilingual embedding model
-      const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
-      const uncachedEmbeddings: number[][] = [];
-
-      for (let i = 0; i < uncachedTexts.length; i += BATCH_SIZE) {
-        const batch = uncachedTexts.slice(i, Math.min(i + BATCH_SIZE, uncachedTexts.length));
-
-        console.log(`   🔮 Generating batch embeddings for ${batch.length} chunks in ONE API call...`);
-        const batchStartTime = Date.now();
-
-        // ⚡ CRITICAL FIX: Use batchEmbedContents to send ALL texts in ONE API call
-        const result = await model.batchEmbedContents({
-          requests: batch.map(text => ({
-            content: {
-              role: 'user' as const,
-              parts: [{ text }]
-            },
-            taskType: 'RETRIEVAL_DOCUMENT' as any,
-          }))
-        });
-
-        // Extract embeddings from batch result
-        const batchResults = result.embeddings.map(e => e.values);
-        uncachedEmbeddings.push(...batchResults);
-
-        // Cache the new embeddings
-        await Promise.all(
-          batch.map(async (text, batchIdx) => {
-            await cacheService.cacheEmbedding(text, batchResults[batchIdx]);
-          })
-        );
-
-        const batchDuration = ((Date.now() - batchStartTime) / 1000).toFixed(1);
-        console.log(`   ✅ Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(uncachedTexts.length / BATCH_SIZE)} completed in ${batchDuration}s`);
-      }
-
-      // Merge cached and newly generated embeddings
-      const finalEmbeddings: number[][] = new Array(texts.length);
-      let uncachedIdx = 0;
-
-      for (let i = 0; i < texts.length; i++) {
-        if (cachedResults[i]) {
-          finalEmbeddings[i] = cachedResults[i]!;
-        } else {
-          finalEmbeddings[i] = uncachedEmbeddings[uncachedIdx++];
-        }
-      }
+      // Use the centralized embedding service which handles batching and caching
+      const result = await embeddingService.generateBatchEmbeddings(texts);
 
       const duration = Date.now() - startTime;
       console.log(`⚡ [Batch Embedding] Completed in ${duration}ms (${(duration / texts.length).toFixed(0)}ms per chunk)`);
 
-      return finalEmbeddings;
+      return result.embeddings.map(e => e.embedding);
     } catch (error) {
       console.error('Error generating batch embeddings:', error);
       throw new Error('Failed to generate batch embeddings');
@@ -379,7 +285,7 @@ class VectorEmbeddingService {
     userId: string,
     queryText: string,
     topK: number = 5,
-    minSimilarity: number = 0.5
+    minSimilarity: number = 0.3  // Lowered from 0.5 to improve recall for PDF content
   ) {
     try {
       console.log('\n🔍 === SEARCH DEBUG START ===');

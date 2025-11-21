@@ -98,7 +98,7 @@ const authService = {
 
   /**
    * Login user
-   * @param {Object} credentials - { email, password }
+   * @param {Object} credentials - { email, password, rememberMe }
    * @returns {Promise<Object>} - User data or 2FA requirement
    */
   async login(credentials) {

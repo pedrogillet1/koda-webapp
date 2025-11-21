@@ -16,6 +16,8 @@ import { ReactComponent as SettingsFilledIcon } from '../assets/Settings-filled.
 import { ReactComponent as SignoutIcon } from '../assets/signout.svg';
 import LogoutModal from './LogoutModal';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useDocuments } from '../context/DocumentsContext';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import logo from '../assets/logo.png';
 
@@ -23,10 +25,31 @@ const LeftNav = ({ onNotificationClick }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const isMobile = useIsMobile();
+    const { refreshAll } = useDocuments();
+    const { user } = useAuth(); // ✅ Check if user is authenticated
     const [isExpanded, setIsExpanded] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+
+    // ✅ Handle auth button click - Sign In or Sign Out based on authentication
+    const handleAuthButtonClick = () => {
+        if (user) {
+            // User is logged in - show logout modal
+            setShowLogoutModal(true);
+            setIsMobileMenuOpen(false);
+        } else {
+            // User is not logged in - navigate to login
+            navigate('/login');
+            setIsMobileMenuOpen(false);
+        }
+    };
+
+    // ✅ PREFETCH: Load documents data when user hovers over Documents nav item
+    // This makes the Documents page appear instantly when clicked
+    const handleDocumentsHover = () => {
+        refreshAll();
+    };
 
     // Close mobile menu when route changes
     useEffect(() => {
@@ -138,7 +161,11 @@ const LeftNav = ({ onNotificationClick }) => {
                                 {location.pathname === '/home' ? <HouseFilledIcon style={{width: 20, height: 20}} /> : <HouseIcon style={{width: 20, height: 20}} />}
                                 <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Home</span>
                             </div>
-                            <div onClick={() => handleMobileNavigate('/documents')} style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/documents' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12}}>
+                            <div
+                                onClick={() => handleMobileNavigate('/documents')}
+                                onMouseEnter={handleDocumentsHover}
+                                style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/documents' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12}}
+                            >
                                 {location.pathname === '/documents' ? <Folder1FilledIcon style={{width: 20, height: 20}} /> : <Folder1Icon style={{width: 20, height: 20}} />}
                                 <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Documents</span>
                             </div>
@@ -166,9 +193,11 @@ const LeftNav = ({ onNotificationClick }) => {
                             {location.pathname === '/settings' ? <SettingsFilledIcon style={{width: 20, height: 20, fill: 'white'}} /> : <SettingsIcon style={{width: 20, height: 20, fill: 'white'}} />}
                             <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Settings</span>
                         </div>
-                        <div onClick={() => { setShowLogoutModal(true); setIsMobileMenuOpen(false); }} style={{padding: 8, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer'}}>
+                        <div onClick={handleAuthButtonClick} style={{padding: 8, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer'}}>
                             <SignoutIcon style={{width: 20, height: 20, fill: 'white'}} />
-                            <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Sign Out</span>
+                            <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>
+                                {user ? 'Sign Out' : 'Sign In'}
+                            </span>
                         </div>
                     </div>
 
@@ -202,7 +231,11 @@ const LeftNav = ({ onNotificationClick }) => {
                         )}
                         {isExpanded && <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Home</span>}
                     </div>
-                    <div onClick={() => navigate('/documents')} style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/documents' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12, justifyContent: isExpanded ? 'flex-start' : 'center'}}>
+                    <div
+                        onClick={() => navigate('/documents')}
+                        onMouseEnter={handleDocumentsHover}
+                        style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/documents' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12, justifyContent: isExpanded ? 'flex-start' : 'center'}}
+                    >
                         {location.pathname === '/documents' ? (
                             <Folder1FilledIcon style={{width: 20, height: 20}} />
                         ) : (
@@ -251,13 +284,15 @@ const LeftNav = ({ onNotificationClick }) => {
                     {isExpanded && <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Settings</span>}
                 </div>
                 <div
-                    onClick={() => setShowLogoutModal(true)}
+                    onClick={handleAuthButtonClick}
                     style={{padding: 8, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: 12, cursor: 'pointer', minWidth: 36}}
                 >
                     <div style={{width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                         <SignoutIcon style={{width: 20, height: 20, fill: 'white'}} />
                     </div>
-                    {isExpanded && <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Sign Out</span>}
+                    {isExpanded && <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>
+                        {user ? 'Sign Out' : 'Sign In'}
+                    </span>}
                 </div>
             </div>
 

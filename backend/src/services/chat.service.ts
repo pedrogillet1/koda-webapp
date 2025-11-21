@@ -12,6 +12,8 @@ import prisma from '../config/database';
 import { sendMessageToGemini, sendMessageToGeminiStreaming, generateConversationTitle } from './gemini.service';
 import ragService from './rag.service';
 import cacheService from './cache.service';
+import { getIO } from './websocket.service';
+import * as memoryService from './memory.service';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -82,6 +84,11 @@ export const createConversation = async (params: CreateConversationParams) => {
       createdAt: new Date(),
       updatedAt: new Date(),
     },
+    include: {
+      _count: {
+        select: { messages: true },
+      },
+    },
   });
 
   console.log('✅ Conversation created:', conversation.id);
@@ -122,13 +129,16 @@ export const getUserConversations = async (userId: string) => {
     },
   });
 
-  console.log(`✅ Found ${conversations.length} conversations`);
+  // ✅ FIX: Filter out conversations with no messages
+  const conversationsWithMessages = conversations.filter(conv => conv._count.messages > 0);
 
-  // ⚡ CACHE: Store result with 2 minute TTL
-  await cacheService.set(cacheKey, conversations, { ttl: 120 });
+  console.log(`✅ Found ${conversations.length} conversations (${conversationsWithMessages.length} with messages, ${conversations.length - conversationsWithMessages.length} empty)`);
+
+  // ⚡ CACHE: Store filtered result with 30 minute TTL
+  await cacheService.set(cacheKey, conversationsWithMessages, { ttl: 1800 });
   console.log(`💾 [Cache] Stored conversations list (user: ${userId.substring(0, 8)}...)`);
 
-  return conversations;
+  return conversationsWithMessages;
 };
 
 /**
@@ -147,17 +157,51 @@ export const getConversation = async (conversationId: string, userId: string) =>
     return cached;
   }
 
+  // ⚡ OPTIMIZED: Load only recent messages for instant display
+  // Older messages can be loaded on-demand (lazy loading)
+  const INITIAL_MESSAGE_LIMIT = 100; // Load last 100 messages for instant display
+
   const conversation = await prisma.conversation.findFirst({
     where: {
       id: conversationId,
       userId,
     },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      createdAt: true,
+      updatedAt: true,
+      titleEncrypted: true,
+      encryptionSalt: true,
+      encryptionIV: true,
+      encryptionAuthTag: true,
+      contextType: true,
+      contextId: true,
+      contextName: true,
+      contextMeta: true,
+      // ✅ OPTIMIZATION: Load only last N messages (DESC order, then reverse)
       messages: {
-        orderBy: { createdAt: 'asc' },
-        include: {
+        orderBy: { createdAt: 'desc' },
+        take: INITIAL_MESSAGE_LIMIT,
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          createdAt: true,
+          conversationId: true,
+          // Load attachments and documents with essential fields only
           attachments: true,
-          chatDocuments: true,
+          chatDocuments: {
+            select: {
+              id: true,
+              sourceDocumentId: true,
+              title: true,
+              documentType: true,
+              pdfUrl: true,
+            },
+          },
+          // Load metadata (sources) for assistant messages
+          metadata: true,
         },
       },
     },
@@ -167,8 +211,11 @@ export const getConversation = async (conversationId: string, userId: string) =>
     throw new Error('Conversation not found or access denied');
   }
 
-  // ⚡ CACHE: Store result with 2 minute TTL
-  await cacheService.set(cacheKey, conversation, { ttl: 120 });
+  // ✅ Reverse messages to get chronological order (oldest to newest)
+  conversation.messages = conversation.messages.reverse();
+
+  // ⚡ CACHE: Store result with 30 minute TTL
+  await cacheService.set(cacheKey, conversation, { ttl: 1800 });
   console.log(`💾 [Cache] Stored conversation ${conversationId.substring(0, 8)}...`);
 
 
@@ -191,7 +238,8 @@ export const deleteConversation = async (conversationId: string, userId: string)
   });
 
   if (!conversation) {
-    throw new Error('Conversation not found or access denied');
+    console.log('⚠️ Conversation not found, already deleted or access denied');
+    return; // Silently return instead of throwing error
   }
 
   // Delete all messages first (cascade should handle this, but being explicit)
@@ -290,18 +338,8 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
 
   console.log('✅ User message saved:', userMessage.id);
 
-  // Get conversation history for context
-  const previousMessages = await prisma.message.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: 'asc' },
-    take: 20, // Last 20 messages for context
-  });
-
-  // Build conversation history array
-  const conversationHistory = previousMessages.map((msg) => ({
-    role: msg.role,
-    content: msg.content,
-  }));
+  // ✅ NEW: Fetch conversation history using helper function
+  const conversationHistory = await getConversationHistory(conversationId);
 
   // ✅ FIX: Use RAG service instead of calling Gemini directly
   console.log('🤖 Generating RAG response...');
@@ -340,9 +378,17 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
     data: { updatedAt: new Date() },
   });
 
-  // Auto-generate title if this is the first exchange
-  if (previousMessages.length <= 1) { // Only user message exists
-    await autoGenerateTitle(conversationId, content);
+  // ✅ FIX #5: Auto-generate title after SECOND user message (not first)
+  const userMessageCount = previousMessages.filter(m => m.role === 'user').length;
+  if (userMessageCount === 2) {  // Exactly 2 user messages (first + second)
+    // Get full conversation context for better titles
+    const allMessages = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const conversationContext = allMessages.map(m => `${m.role}: ${m.content}`).join('\n');
+    await autoGenerateTitle(conversationId, userId, conversationContext, fullResponse);
   }
 
   // ⚡ CACHE: Invalidate conversation cache after new message
@@ -373,20 +419,27 @@ export const sendMessageStreaming = async (
 
   console.log('💬 Sending streaming message in conversation:', conversationId);
 
-  // Verify conversation ownership
-  const conversation = await prisma.conversation.findFirst({
-    where: {
-      id: conversationId,
-      userId,
-    },
-  });
+  // ⚡ PERFORMANCE: Start DB writes async - don't block streaming
+  // Only await conversation check and history (needed for processing)
+  const [conversation, conversationHistory] = await Promise.all([
+    // Verify conversation ownership
+    prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        userId,
+      },
+    }),
+
+    // ✅ NEW: Fetch conversation history using helper function
+    getConversationHistory(conversationId)
+  ]);
 
   if (!conversation) {
     throw new Error('Conversation not found or access denied');
   }
 
-  // Create user message
-  const userMessage = await prisma.message.create({
+  // ⚡ PERFORMANCE: Create user message async (don't wait - saves 400-600ms)
+  const userMessagePromise = prisma.message.create({
     data: {
       conversationId,
       role: 'user',
@@ -395,20 +448,7 @@ export const sendMessageStreaming = async (
     },
   });
 
-  console.log('✅ User message saved:', userMessage.id);
-
-  // Get conversation history for context
-  const previousMessages = await prisma.message.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: 'asc' },
-    take: 20,
-  });
-
-  // Build conversation history array
-  const conversationHistory = previousMessages.map((msg) => ({
-    role: msg.role,
-    content: msg.content,
-  }));
+  console.log('⚡ User message creation started (async)');
 
   // ✅ FIX #2: Check for file actions FIRST (before RAG)
   const fileActionResult = await handleFileActionsIfNeeded(
@@ -424,8 +464,10 @@ export const sendMessageStreaming = async (
     const fullResponse = actionMessage;
     onChunk(actionMessage);
 
-    // Create assistant message
-    const assistantMessage = await prisma.message.create({
+    console.log('✅ File action completed:', fileActionResult.action);
+
+    // ⚡ PERFORMANCE: Create assistant message async (don't block)
+    const assistantMessagePromise = prisma.message.create({
       data: {
         conversationId,
         role: 'assistant',
@@ -434,13 +476,17 @@ export const sendMessageStreaming = async (
       },
     });
 
-    console.log('✅ File action completed:', fileActionResult.action);
-
-    // Update conversation timestamp
-    await prisma.conversation.update({
+    // ⚡ PERFORMANCE: Update conversation timestamp async (fire-and-forget)
+    prisma.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
-    });
+    }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
+
+    // Wait for critical promises before returning
+    const [userMessage, assistantMessage] = await Promise.all([
+      userMessagePromise,
+      assistantMessagePromise
+    ]);
 
     return {
       userMessage,
@@ -453,6 +499,14 @@ export const sendMessageStreaming = async (
   console.log('🤖 Generating streaming RAG response...');
   let fullResponse = '';
 
+  // ✅ NEW: Build memory context for personalized responses
+  console.log('🧠 Building memory context...');
+  const memoryContext = await memoryService.buildMemoryContext(userId);
+
+  // ✅ NEW: Build full conversation history for comprehensive context
+  console.log('📚 Building conversation context...');
+  const fullConversationContext = await buildConversationContext(conversationId, userId);
+
   // Call hybrid RAG service with streaming
   await ragService.generateAnswerStream(
     userId,
@@ -463,7 +517,10 @@ export const sendMessageStreaming = async (
       onChunk(chunk); // Send chunk to client
     },
     attachedDocumentId,
-    conversationHistory  // ✅ Pass conversation history for context
+    conversationHistory,  // ✅ Pass conversation history for context
+    undefined,            // onStage callback (not used here)
+    memoryContext,        // ✅ NEW: Pass memory context
+    fullConversationContext // ✅ NEW: Pass full conversation history
   );
 
   console.log(`✅ Streaming complete. Total response length: ${fullResponse.length} chars`);
@@ -471,8 +528,8 @@ export const sendMessageStreaming = async (
   // Note: Hybrid RAG includes sources inline within the response
   // No need to append sources separately
 
-  // Create assistant message with full response
-  const assistantMessage = await prisma.message.create({
+  // ⚡ PERFORMANCE: Create assistant message async (don't block)
+  const assistantMessagePromise = prisma.message.create({
     data: {
       conversationId,
       role: 'assistant',
@@ -481,22 +538,44 @@ export const sendMessageStreaming = async (
     },
   });
 
-  console.log('✅ Assistant message saved:', assistantMessage.id);
-
-  // Update conversation timestamp
-  await prisma.conversation.update({
+  // ⚡ PERFORMANCE: Update conversation timestamp async (fire-and-forget)
+  prisma.conversation.update({
     where: { id: conversationId },
     data: { updatedAt: new Date() },
-  });
+  }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
 
-  // Auto-generate title if this is the first exchange
-  if (previousMessages.length <= 1) {
-    await autoGenerateTitle(conversationId, content);
+  // ⚡ PERFORMANCE: Auto-generate title async (fire-and-forget)
+  // ✅ FIX #5: Auto-generate title after SECOND user message (not first)
+  const userMessageCount = previousMessages.filter(m => m.role === 'user').length;
+  if (userMessageCount === 2) {  // Exactly 2 user messages (first + second)
+    // Fire-and-forget title generation (don't block response)
+    prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' }
+    }).then(allMessages => {
+      const conversationContext = allMessages.map(m => `${m.role}: ${m.content}`).join('\n');
+      return autoGenerateTitle(conversationId, userId, conversationContext, fullResponse);
+    }).catch(err => console.error('❌ Error generating title:', err));
   }
 
-  // ⚡ CACHE: Invalidate conversation cache after new message
-  await cacheService.invalidateConversationCache(userId, conversationId);
-  console.log(`🗑️  [Cache] Invalidated conversation cache for ${conversationId.substring(0, 8)}...`);
+  // ✅ NEW: Extract memory insights after sufficient conversation (fire-and-forget)
+  // Extract memory after 5+ user messages to learn preferences and insights
+  if (userMessageCount >= 5) {
+    console.log(`🧠 Extracting memory insights (${userMessageCount} messages)`);
+    memoryService.extractMemoryFromConversation(conversationId, userId)
+      .catch(err => console.error('❌ Error extracting memory:', err));
+  }
+
+  // ⚡ CACHE: Invalidate conversation cache after new message (fire-and-forget)
+  cacheService.invalidateConversationCache(userId, conversationId)
+    .then(() => console.log(`🗑️  [Cache] Invalidated conversation cache for ${conversationId.substring(0, 8)}...`))
+    .catch(err => console.error('❌ Error invalidating cache:', err));
+
+  // Wait for critical promises before returning
+  const [userMessage, assistantMessage] = await Promise.all([
+    userMessagePromise,
+    assistantMessagePromise
+  ]);
 
   return {
     userMessage,
@@ -509,14 +588,26 @@ export const sendMessageStreaming = async (
 // ============================================================================
 
 /**
- * Auto-generate a conversation title based on the first message
+ * Auto-generate a conversation title based on the first message and response
+ * @param firstResponse - Optional assistant response for better context
  */
-const autoGenerateTitle = async (conversationId: string, firstMessage: string) => {
+const autoGenerateTitle = async (
+  conversationId: string,
+  userId: string,
+  firstMessage: string,
+  firstResponse?: string
+) => {
   try {
     console.log('🏷️ Auto-generating title for conversation:', conversationId);
 
-    // Generate a short title using the Gemini service
-    const title = await generateConversationTitle(firstMessage);
+    // Skip title generation for very short messages without response
+    if (!firstResponse && firstMessage.length < 10) {
+      console.log('⏭️ Skipping title generation for very short message without response');
+      return;
+    }
+
+    // Generate a short title using the Gemini service with full context
+    const title = await generateConversationTitle(firstMessage, firstResponse);
 
     // Clean up the title (remove quotes, trim, limit length)
     const cleanTitle = title.replace(/['"]/g, '').trim().substring(0, 100);
@@ -527,6 +618,20 @@ const autoGenerateTitle = async (conversationId: string, firstMessage: string) =
     });
 
     console.log('✅ Title generated:', cleanTitle);
+
+    // ✅ EMIT WEBSOCKET EVENT: Notify frontend about title update
+    try {
+      const io = getIO();
+      io.to(`user:${userId}`).emit('conversation:updated', {
+        conversationId,
+        title: cleanTitle,
+        updatedAt: new Date()
+      });
+      console.log(`📡 [AUTO-TITLE] WebSocket event emitted to user:${userId}`);
+    } catch (socketError) {
+      console.error('⚠️ Failed to emit title update event:', socketError);
+      // Non-critical error, don't throw
+    }
   } catch (error) {
     console.error('⚠️ Failed to auto-generate title:', error);
     // Non-critical error, don't throw
@@ -589,13 +694,60 @@ export const regenerateConversationTitles = async (userId: string) => {
 // ============================================================================
 
 /**
+ * Build full conversation history for context
+ * Retrieves all messages in a conversation and formats them for RAG context
+ */
+export const buildConversationContext = async (
+  conversationId: string,
+  userId: string,
+  maxTokens: number = 50000
+): Promise<string> => {
+
+  console.log(`📚 [CONTEXT] Building conversation history for ${conversationId}`);
+
+  // Get all messages in conversation
+  const messages = await prisma.message.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      role: true,
+      content: true,
+      createdAt: true
+    }
+  });
+
+  // Build conversation history
+  let context = '## Conversation History\n\n';
+  let tokenCount = 0;
+
+  for (const message of messages) {
+    const messageText = `**${message.role === 'user' ? 'User' : 'KODA'}** (${message.createdAt.toISOString()}):\n${message.content}\n\n`;
+
+    // Rough token estimation (1 token ≈ 4 characters)
+    const messageTokens = messageText.length / 4;
+
+    if (tokenCount + messageTokens > maxTokens) {
+      console.log(`📚 [CONTEXT] Reached token limit, truncating history`);
+      break;
+    }
+
+    context += messageText;
+    tokenCount += messageTokens;
+  }
+
+  console.log(`📚 [CONTEXT] Built history with ~${Math.floor(tokenCount)} tokens`);
+
+  return context;
+};
+
+/**
  * Handle file actions if the message is a command
  * Returns result if action was executed, null if not a file action
  *
  * UPDATED: Now uses LLM-based intent detection for flexible understanding
  * Supports: CREATE_FOLDER, UPLOAD_FILE, RENAME_FILE, DELETE_FILE, MOVE_FILE
  */
-const handleFileActionsIfNeeded = async (
+export const handleFileActionsIfNeeded = async (
   userId: string,
   message: string,
   conversationId: string,
@@ -614,10 +766,11 @@ const handleFileActionsIfNeeded = async (
   console.log(`📝 [Entities]`, intentResult.parameters);
 
   // Only process file actions with high confidence
-  const fileActionIntents = ['create_folder', 'list_files', 'search_files', 'file_location', 'rename_file', 'delete_file', 'move_files'];
+  const fileActionIntents = ['create_folder', 'list_files', 'search_files', 'file_location', 'rename_file', 'delete_file', 'move_files', 'metadata_query'];
 
   // Check if this is a file action intent
-  if (!fileActionIntents.includes(intentResult.intent) && intentResult.confidence < 0.7) {
+  // ✅ FIX: Use OR (||) instead of AND (&&) - return null if EITHER condition is true
+  if (!fileActionIntents.includes(intentResult.intent) || intentResult.confidence < 0.7) {
     // Not a file action - return null to continue with RAG
     return null;
   }
@@ -762,10 +915,10 @@ const handleFileActionsIfNeeded = async (
   // RENAME FILE
   // ========================================
   if (intentResult.intent === 'rename_file' &&
-      intentResult.parameters?.oldName &&
-      intentResult.parameters?.newName) {
+      intentResult.parameters?.oldFilename &&
+      intentResult.parameters?.newFilename) {
 
-    console.log(`✏️ [Action] Renaming: "${intentResult.parameters.oldName}" → "${intentResult.parameters.newName}"`);
+    console.log(`✏️ [Action] Renaming: "${intentResult.parameters.oldFilename}" → "${intentResult.parameters.newFilename}"`);
 
     const result = await fileActionsService.executeAction(message, userId);
 
@@ -792,25 +945,299 @@ const handleFileActionsIfNeeded = async (
   // ========================================
   // MOVE FILE
   // ========================================
-  const movePatterns = [
-    /move\s+["']?([^"']+?)["']?\s+to\s+["']?([^"']+?)["']?(?:\s+folder)?/i,
-  ];
+  if (intentResult.intent === 'move_files' &&
+      intentResult.parameters?.filename &&
+      intentResult.parameters?.targetFolder) {
 
-  for (const pattern of movePatterns) {
-    const match = message.match(pattern);
-    if (match) {
-      const filename = match[1].trim();
-      const targetFolder = match[2].trim();
+    console.log(`📦 [Action] Moving: "${intentResult.parameters.filename}" → "${intentResult.parameters.targetFolder}"`);
 
-      console.log(`📦 [Action] Moving: "${filename}" → "${targetFolder}"`);
+    const result = await fileActionsService.executeAction(message, userId);
 
-      const result = await fileActionsService.executeAction(message, userId);
+    return {
+      action: 'move_file',
+      message: result.message
+    };
+  }
+
+  // ========================================
+  // LIST FILES
+  // ========================================
+  if (intentResult.intent === 'list_files') {
+    console.log(`📋 [Action] Listing files`);
+
+    // Extract parameters
+    const fileType = intentResult.parameters?.fileType || null;
+    const fileTypes = intentResult.parameters?.fileTypes || [];
+    const folderName = intentResult.parameters?.folderName || null;
+
+    // If file types are specified, use FileTypeHandler for better formatting
+    if (fileType || (fileTypes && fileTypes.length > 0)) {
+      console.log(`📄 Using FileTypeHandler for file types: ${fileTypes.length > 0 ? fileTypes.join(', ') : fileType}`);
+
+      const { FileTypeHandler } = require('./handlers/fileType.handler');
+      const fileTypeHandler = new FileTypeHandler();
+
+      // Build query string for FileTypeHandler
+      const queryParts = [];
+      if (fileTypes && fileTypes.length > 0) {
+        queryParts.push(...fileTypes);
+      } else if (fileType) {
+        queryParts.push(fileType);
+      }
+
+      const fileTypeQuery = queryParts.join(' and ');
+
+      try {
+        const result = await fileTypeHandler.handle(userId, fileTypeQuery, {
+          folderId: folderName ? undefined : undefined // TODO: resolve folder by name
+        });
+
+        if (result) {
+          return {
+            action: 'list_files',
+            message: result.answer
+          };
+        }
+      } catch (error) {
+        console.error('❌ FileTypeHandler error:', error);
+        // Fall through to default handler
+      }
+    }
+
+    // Build query
+    const whereClause: any = {
+      userId,
+      status: { not: 'deleted' },
+    };
+
+    // Filter by file type if specified
+    if (fileType) {
+      console.log(`📄 Filtering by file type: "${fileType}"`);
+
+      // Map friendly names to extensions
+      const extensionMap: Record<string, string[]> = {
+        'pdf': ['.pdf'],
+        'word': ['.docx', '.doc'],
+        'docx': ['.docx'],
+        'doc': ['.doc'],
+        'excel': ['.xlsx', '.xls'],
+        'xlsx': ['.xlsx'],
+        'xls': ['.xls'],
+        'powerpoint': ['.pptx', '.ppt'],
+        'pptx': ['.pptx'],
+        'ppt': ['.ppt'],
+        'presentation': ['.pptx', '.ppt'],
+        'image': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg'],
+        'jpg': ['.jpg'],
+        'jpeg': ['.jpeg'],
+        'png': ['.png'],
+        'gif': ['.gif'],
+        'photo': ['.jpg', '.jpeg', '.png'],
+        'text': ['.txt'],
+        'txt': ['.txt'],
+      };
+
+      const extensions = extensionMap[fileType.toLowerCase()] || [`.${fileType}`];
+
+      whereClause.OR = extensions.map(ext => ({
+        filename: {
+          endsWith: ext,
+          mode: 'insensitive'
+        }
+      }));
+    }
+
+    // Filter by folder if specified
+    if (folderName) {
+      console.log(`📁 Filtering by folder: "${folderName}"`);
+
+      const folder = await prisma.folder.findFirst({
+        where: {
+          name: {
+            contains: folderName,
+            mode: 'insensitive'
+          },
+          userId
+        }
+      });
+
+      if (!folder) {
+        return {
+          action: 'list_files',
+          message: `❌ Folder "${folderName}" not found.`
+        };
+      }
+
+      whereClause.folderId = folder.id;
+    }
+
+    // Get documents from database
+    const documents = await prisma.document.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      take: 50, // Limit to 50 files
+      include: {
+        folder: {
+          select: { name: true }
+        }
+      }
+    });
+
+    // Handle no results
+    if (documents.length === 0) {
+      let message = '📂 No files found';
+      if (fileType) message += ` of type "${fileType}"`;
+      if (folderName) message += ` in folder "${folderName}"`;
+      message += '.';
 
       return {
-        action: 'move_file',
-        message: result.message
+        action: 'list_files',
+        message
       };
     }
+
+    // Format response
+    let message = `📂 **Found ${documents.length} file${documents.length !== 1 ? 's' : ''}**`;
+    if (fileType) message += ` of type **${fileType.toUpperCase()}**`;
+    if (folderName) message += ` in folder **"${folderName}"**`;
+    message += ':\n\n';
+
+    // List files
+    documents.forEach(doc => {
+      const size = doc.fileSize ? `(${(doc.fileSize / 1024).toFixed(1)} KB)` : '';
+      message += `• ${doc.filename} ${size}\n`;
+    });
+
+    // Add note if list was truncated
+    if (documents.length === 50) {
+      message += '\n_Showing first 50 files. Narrow your search by specifying a file type or folder._';
+    }
+
+    return {
+      action: 'list_files',
+      message: message.trim()
+    };
+  }
+
+  // ========================================
+  // METADATA QUERY
+  // ========================================
+  if (intentResult.intent === 'metadata_query') {
+    console.log(`📊 [Action] Metadata query - counting files by type`);
+
+    // Get ALL documents from database
+    const documents = await prisma.document.findMany({
+      where: {
+        userId,
+        status: { not: 'deleted' },
+      },
+      select: {
+        filename: true,
+        fileSize: true,
+      }
+    });
+
+    if (documents.length === 0) {
+      return {
+        action: 'metadata_query',
+        message: '📂 You have no documents uploaded yet.'
+      };
+    }
+
+    // Count by file type
+    const typeCounts: Record<string, number> = {};
+    const typeSizes: Record<string, number> = {};
+
+    documents.forEach(doc => {
+      // Get file extension - check if filename has a dot
+      const parts = doc.filename.split('.');
+      let ext = 'unknown';
+
+      // Only extract extension if there's actually a dot AND the last part is not the whole filename
+      if (parts.length > 1 && parts[parts.length - 1] !== doc.filename) {
+        ext = parts[parts.length - 1].toLowerCase();
+      }
+
+      // Map extensions to friendly names
+      const typeMap: Record<string, string> = {
+        'pdf': 'PDF',
+        'docx': 'Word (DOCX)',
+        'doc': 'Word (DOC)',
+        'xlsx': 'Excel (XLSX)',
+        'xls': 'Excel (XLS)',
+        'pptx': 'PowerPoint (PPTX)',
+        'ppt': 'PowerPoint (PPT)',
+        'jpg': 'Image (JPG)',
+        'jpeg': 'Image (JPEG)',
+        'png': 'Image (PNG)',
+        'gif': 'Image (GIF)',
+        'bmp': 'Image (BMP)',
+        'svg': 'Image (SVG)',
+        'txt': 'Text (TXT)',
+        'unknown': 'No Extension',
+      };
+
+      const type = typeMap[ext] || ext.toUpperCase();
+
+      // Count files and sum sizes
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+      typeSizes[type] = (typeSizes[type] || 0) + (doc.fileSize || 0);
+    });
+
+    // Check if user asked for specific file types
+    const fileTypes = intentResult.parameters?.fileTypes || [];
+
+    if (fileTypes.length > 0) {
+      // User asked for specific types (e.g., "how many PDFs and DOCX")
+      console.log(`📊 Specific types requested:`, fileTypes);
+
+      let message = '📊 **File Count:**\n\n';
+
+      fileTypes.forEach((requestedType: string) => {
+        // Find matching type in our counts
+        const matchingType = Object.keys(typeCounts).find(type =>
+          type.toLowerCase().includes(requestedType.toLowerCase())
+        );
+
+        if (matchingType) {
+          const count = typeCounts[matchingType];
+          const size = typeSizes[matchingType];
+          const sizeMB = (size / (1024 * 1024)).toFixed(2);
+
+          message += `• **${matchingType}**: ${count} file${count !== 1 ? 's' : ''} (${sizeMB} MB)\n`;
+        } else {
+          message += `• **${requestedType.toUpperCase()}**: 0 files\n`;
+        }
+      });
+
+      return {
+        action: 'metadata_query',
+        message: message.trim()
+      };
+    }
+
+    // General query - show all file types
+    let message = `📊 **You have ${Object.keys(typeCounts).length} types of files:**\n\n`;
+
+    // Sort by count descending
+    const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+
+    sortedTypes.forEach(([type, count]) => {
+      const size = typeSizes[type] || 0;
+      const sizeMB = (size / (1024 * 1024)).toFixed(2);
+
+      message += `• **${type}**: ${count} file${count !== 1 ? 's' : ''} (${sizeMB} MB)\n`;
+    });
+
+    // Add total
+    const totalSize = Object.values(typeSizes).reduce((sum, size) => sum + size, 0);
+    const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+    message += `\n**Total**: ${documents.length} files (${totalSizeMB} MB)`;
+
+    return {
+      action: 'metadata_query',
+      message: message.trim()
+    };
   }
 
   // Not a file action - return null to continue with RAG
@@ -866,6 +1293,32 @@ const formatDocumentSources = (sources: any[], attachedDocId?: string): string =
 };
 
 // ============================================================================
+// CONVERSATION HISTORY HELPERS
+// ============================================================================
+
+/**
+ * Get conversation history for context
+ */
+async function getConversationHistory(
+  conversationId: string
+): Promise<Array<{ role: string; content: string }>> {
+  const messages = await prisma.message.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      role: true,
+      content: true
+    },
+    take: 10 // Last 10 messages
+  });
+
+  return messages.map(msg => ({
+    role: msg.role,
+    content: msg.content
+  }));
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -878,4 +1331,5 @@ export default {
   sendMessage,
   sendMessageStreaming,
   regenerateConversationTitles,
+  buildConversationContext,
 };

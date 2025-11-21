@@ -8,19 +8,23 @@ export interface JWTPayload {
 
 /**
  * Generate access token (short-lived)
+ * @param payload - JWT payload containing userId and email
+ * @param expiresIn - Optional custom expiration time (e.g., '30d' for 30 days)
  */
-export const generateAccessToken = (payload: JWTPayload): string => {
+export const generateAccessToken = (payload: JWTPayload, expiresIn?: string): string => {
   return jwt.sign(payload, config.JWT_ACCESS_SECRET, {
-    expiresIn: config.JWT_ACCESS_EXPIRY as string,
+    expiresIn: expiresIn || (config.JWT_ACCESS_EXPIRY as string),
   } as jwt.SignOptions);
 };
 
 /**
  * Generate refresh token (long-lived)
+ * @param payload - JWT payload containing userId and email
+ * @param expiresIn - Optional custom expiration time (e.g., '30d' for 30 days)
  */
-export const generateRefreshToken = (payload: JWTPayload): string => {
+export const generateRefreshToken = (payload: JWTPayload, expiresIn?: string): string => {
   return jwt.sign(payload, config.JWT_REFRESH_SECRET, {
-    expiresIn: config.JWT_REFRESH_EXPIRY as string,
+    expiresIn: expiresIn || (config.JWT_REFRESH_EXPIRY as string),
   } as jwt.SignOptions);
 };
 

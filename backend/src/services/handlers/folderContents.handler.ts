@@ -3,11 +3,9 @@
  * Handles "what's in X folder?" queries for Issue #2
  */
 
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../config/database';
 import { RAGResponse, ActionType } from '../../types/rag.types';
 import { getFolderPath, formatFileSize, formatDate, calculateTextSimilarity } from '../../utils/rag.utils';
-
-const prisma = new PrismaClient();
 
 class FolderContentsHandler {
   /**

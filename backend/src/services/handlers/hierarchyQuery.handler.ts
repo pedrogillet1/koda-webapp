@@ -3,11 +3,9 @@
  * Handles "show me my document structure" queries for Issue #2
  */
 
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../config/database';
 import { RAGResponse, ActionType } from '../../types/rag.types';
 import { getFolderPath } from '../../utils/rag.utils';
-
-const prisma = new PrismaClient();
 
 class HierarchyQueryHandler {
   /**

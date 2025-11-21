@@ -17,6 +17,7 @@ export interface RegisterInput {
 export interface LoginInput {
   email: string;
   password: string;
+  rememberMe?: boolean;
 }
 
 export interface AuthTokens {
@@ -47,11 +48,13 @@ export const registerUser = async ({ email, password, firstName, lastName, name,
   }
 
   // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Hash recovery key for storage
-  let hashedRecoveryKey = null;
+  let hashedRecoveryKey: string | null = null;
   if (recoveryKeyHash) {
     console.log('🔐 [Recovery] Hashing recovery key for storage...');
-    hashedRecoveryKey = await hashPassword(recoveryKeyHash);
-    console.log('✅ [Recovery] Recovery key hashed successfully');
+    const { hash } = await hashPassword(recoveryKeyHash);
+    hashedRecoveryKey = hash; // ✅ FIX: Store only the hash string, not the object
+    console.log('✅ [Recovery] Recovery key hashed successfully. Hash type:', typeof hashedRecoveryKey);
+    console.log('✅ [Recovery] Hash value preview:', hashedRecoveryKey?.substring(0, 20));
   }
 
   // Validate email format
@@ -135,7 +138,7 @@ export const registerUser = async ({ email, password, firstName, lastName, name,
 /**
  * Login user
  */
-export const loginUser = async ({ email, password }: LoginInput) => {
+export const loginUser = async ({ email, password, rememberMe }: LoginInput) => {
   // Find user
   const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
@@ -146,6 +149,7 @@ export const loginUser = async ({ email, password }: LoginInput) => {
   console.log('👤 User found:', !!user);
   console.log('🔑 Has passwordHash:', !!user?.passwordHash);
   console.log('🧂 Has salt:', !!user?.salt);
+  console.log('⏰ Remember Me:', rememberMe);
 
   if (!user || !user.passwordHash || !user.salt) {
     throw new Error('Invalid credentials');
@@ -162,14 +166,16 @@ export const loginUser = async ({ email, password }: LoginInput) => {
   // Check if 2FA is enabled
   const requires2FA = user.twoFactorAuth?.isEnabled || false;
 
-  // Generate tokens
-  const accessToken = generateAccessToken({ userId: user.id, email: user.email });
-  const refreshToken = generateRefreshToken({ userId: user.id, email: user.email });
+  // Generate tokens with custom expiration if rememberMe is true
+  // Remember Me: 30 days, Normal: default expiry (15 minutes for access, 7 days for refresh)
+  const tokenExpiry = rememberMe ? '30d' : undefined;
+  const accessToken = generateAccessToken({ userId: user.id, email: user.email }, tokenExpiry);
+  const refreshToken = generateRefreshToken({ userId: user.id, email: user.email }, tokenExpiry);
 
-  // Store refresh token
+  // Store refresh token with expiration matching the rememberMe preference
   const refreshTokenHash = hashToken(refreshToken);
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7);
+  expiresAt.setDate(expiresAt.getDate() + (rememberMe ? 30 : 7)); // 30 days if rememberMe, else 7 days
 
   await prisma.session.create({
     data: {
@@ -850,25 +856,50 @@ import { redisConnection } from '../config/redis';
 import { generateSecureToken, maskEmail, maskPhone } from '../utils/maskingUtils';
 import bcrypt from 'bcrypt';
 
+// In-memory fallback storage when Redis is not available
+const memoryStore = new Map<string, { value: string; expiresAt: number }>();
+
+// Clean up expired entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, data] of memoryStore.entries()) {
+    if (data.expiresAt < now) {
+      memoryStore.delete(key);
+    }
+  }
+}, 60000); // Clean up every minute
+
 /**
- * Store reset token in Redis (15 minute expiry)
+ * Store reset token in Redis or memory fallback (15 minute expiry)
  */
 export async function storeResetToken(token: string, userId: string): Promise<void> {
-  if (!redisConnection) {
-    throw new Error('Redis not available');
-  }
   const RESET_TOKEN_EXPIRY = 900; // 15 minutes in seconds
-  await redisConnection.setex(`pwd-reset:${token}`, RESET_TOKEN_EXPIRY, userId);
+
+  if (redisConnection && redisConnection.status === 'ready') {
+    await redisConnection.setex(`pwd-reset:${token}`, RESET_TOKEN_EXPIRY, userId);
+  } else {
+    // Fallback to in-memory storage
+    memoryStore.set(`pwd-reset:${token}`, {
+      value: userId,
+      expiresAt: Date.now() + (RESET_TOKEN_EXPIRY * 1000)
+    });
+  }
 }
 
 /**
  * Retrieve user ID from reset token
  */
 export async function getUserFromResetToken(token: string): Promise<string | null> {
-  if (!redisConnection) {
+  if (redisConnection && redisConnection.status === 'ready') {
+    return await redisConnection.get(`pwd-reset:${token}`);
+  } else {
+    // Fallback to in-memory storage
+    const data = memoryStore.get(`pwd-reset:${token}`);
+    if (data && data.expiresAt > Date.now()) {
+      return data.value;
+    }
     return null;
   }
-  return await redisConnection.get(`pwd-reset:${token}`);
 }
 
 /**
@@ -885,21 +916,33 @@ export async function deleteResetToken(token: string): Promise<void> {
  * Store temporary session for method selection (5 minute expiry)
  */
 export async function storeResetSession(sessionToken: string, userId: string): Promise<void> {
-  if (!redisConnection) {
-    throw new Error('Redis not available');
-  }
   const SESSION_EXPIRY = 300; // 5 minutes in seconds
-  await redisConnection.setex(`reset-session:${sessionToken}`, SESSION_EXPIRY, userId);
+
+  if (redisConnection && redisConnection.status === 'ready') {
+    await redisConnection.setex(`reset-session:${sessionToken}`, SESSION_EXPIRY, userId);
+  } else {
+    // Fallback to in-memory storage
+    memoryStore.set(`reset-session:${sessionToken}`, {
+      value: userId,
+      expiresAt: Date.now() + (SESSION_EXPIRY * 1000)
+    });
+  }
 }
 
 /**
  * Get user ID from session token
  */
 export async function getUserFromSessionToken(sessionToken: string): Promise<string | null> {
-  if (!redisConnection) {
+  if (redisConnection && redisConnection.status === 'ready') {
+    return await redisConnection.get(`reset-session:${sessionToken}`);
+  } else {
+    // Fallback to in-memory storage
+    const data = memoryStore.get(`reset-session:${sessionToken}`);
+    if (data && data.expiresAt > Date.now()) {
+      return data.value;
+    }
     return null;
   }
-  return await redisConnection.get(`reset-session:${sessionToken}`);
 }
 
 /**

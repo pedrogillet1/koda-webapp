@@ -50,6 +50,19 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
 
     console.log('🔵 Folder files:', folderFiles.length, 'Regular files:', regularFiles.length);
 
+    // Filter out empty files (0 bytes) which are likely folders dragged incorrectly
+    const validFiles = regularFiles.filter(file => file.size > 0);
+    const invalidFiles = regularFiles.filter(file => file.size === 0);
+
+    if (invalidFiles.length > 0) {
+      console.warn('⚠️ Detected empty files (possibly folders):', invalidFiles);
+      console.warn('⚠️ Use the "Select Folder" button to upload folders');
+
+      // Show error notification to user
+      alert('⚠️ Folder drag-and-drop is not supported by browsers.\n\nPlease use the "Select Folder" button to upload folders with their contents.');
+      return; // Don't add these files to the upload queue
+    }
+
     const newEntries = [];
 
     // Process folder files - group by root folder name
@@ -84,9 +97,9 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       });
     }
 
-    // Process regular files - create individual entries
-    if (regularFiles.length > 0) {
-      regularFiles.forEach(file => {
+    // Process valid regular files only (not empty files)
+    if (validFiles.length > 0) {
+      validFiles.forEach(file => {
         newEntries.push({
           file,
           id: Math.random().toString(36).substr(2, 9),
@@ -109,6 +122,95 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       return updated;
     });
   }, []);
+
+  /**
+   * Custom drag and drop handler for folders
+   * Uses webkitGetAsEntry() to traverse folder structure
+   */
+  const handleDragDrop = useCallback(async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    console.log('🎯 Custom drag drop handler triggered');
+
+    const items = Array.from(e.dataTransfer.items);
+    console.log(`📦 Dropped ${items.length} items`);
+
+    // Check if any item is a folder
+    const hasFolder = items.some(item => {
+      const entry = item.webkitGetAsEntry?.();
+      return entry && entry.isDirectory;
+    });
+
+    if (!hasFolder) {
+      // No folders - let react-dropzone handle it
+      console.log('📄 No folders detected, using react-dropzone');
+      return;
+    }
+
+    console.log('📁 Folder detected, using custom handler');
+
+    // Process all items (files and folders)
+    const allFiles = [];
+
+    for (const item of items) {
+      if (item.kind === 'file') {
+        const entry = item.webkitGetAsEntry();
+        if (entry) {
+          await traverseFileTree(entry, '', allFiles);
+        }
+      }
+    }
+
+    console.log(`✅ Collected ${allFiles.length} files from drag and drop`);
+
+    // Pass to existing onDrop function
+    if (allFiles.length > 0) {
+      onDrop(allFiles);
+    }
+  }, [onDrop]);
+
+  /**
+   * Recursively traverse file tree and collect all files with paths
+   */
+  async function traverseFileTree(item, path, allFiles) {
+    return new Promise((resolve) => {
+      if (item.isFile) {
+        // It's a file - get the File object
+        item.file((file) => {
+          // Add webkitRelativePath to match <input webkitdirectory> behavior
+          const relativePath = path + file.name;
+
+          // Create a new File object with webkitRelativePath
+          const fileWithPath = new File([file], file.name, {
+            type: file.type,
+            lastModified: file.lastModified
+          });
+
+          // Add webkitRelativePath property
+          Object.defineProperty(fileWithPath, 'webkitRelativePath', {
+            value: relativePath,
+            writable: false
+          });
+
+          allFiles.push(fileWithPath);
+          resolve();
+        });
+      } else if (item.isDirectory) {
+        // It's a directory - traverse it
+        const dirReader = item.createReader();
+        const dirPath = path + item.name + '/';
+
+        dirReader.readEntries(async (entries) => {
+          // Process all entries in this directory
+          for (const entry of entries) {
+            await traverseFileTree(entry, dirPath, allFiles);
+          }
+          resolve();
+        });
+      }
+    });
+  }
 
   // Process initial files when modal opens with dropped files
   useEffect(() => {
@@ -147,6 +249,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
     maxSize: 500 * 1024 * 1024, // 500MB
     multiple: true,
     noClick: true, // Disable click on root div, we'll use manual button
+    noDrag: true, // Disable react-dropzone drag handling, we'll use custom handler for folders
   });
 
   const formatFileSize = (bytes) => {
@@ -473,6 +576,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
         }}>
           <div
             {...getRootProps()}
+            onDrop={handleDragDrop}
             style={{
               alignSelf: 'stretch',
               height: 320,

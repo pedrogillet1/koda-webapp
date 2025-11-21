@@ -10,6 +10,77 @@ import { gracefulDegradationService } from './graceful-degradation.service';
 import { rerankingService } from './reranking.service';
 import { queryEnhancementService } from './query-enhancement.service';
 import { bm25RetrievalService } from './bm25-retrieval.service';
+import fastPathDetector from './fastPathDetector.service';
+import statusEmitter, { ProcessingStage } from './statusEmitter.service';
+import postProcessor from './postProcessor.service';
+import embeddingService from './embedding.service';
+import geminiCache from './geminiCache.service';
+import * as queryDecomposition from './query-decomposition.service';
+import * as contradictionDetection from './contradiction-detection.service';
+import * as confidenceScoring from './confidence-scoring.service';
+import * as promptTemplates from './promptTemplates.service';
+import * as confidenceScore from './confidenceScoring.service';
+import * as fullDocRetrieval from './fullDocumentRetrieval.service';
+import * as contradictionDetectionService from './contradictionDetection.service';
+import * as evidenceAggregation from './evidenceAggregation.service';
+import * as memoryService from './memory.service';
+import * as memoryExtraction from './memoryExtraction.service';
+import * as citationTracking from './citation-tracking.service';
+
+// ════════════════════════════════════════════════════════════════════════════════
+// INTENT DETECTION CACHE (5min TTL)
+// ════════════════════════════════════════════════════════════════════════════════
+
+interface CachedIntent {
+  result: any;
+  timestamp: number;
+}
+
+const intentCache = new Map<string, CachedIntent>();
+const INTENT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCachedIntent(query: string): any | null {
+  const normalizedQuery = query.toLowerCase().trim();
+  const cached = intentCache.get(normalizedQuery);
+
+  if (!cached) return null;
+
+  const age = Date.now() - cached.timestamp;
+  if (age > INTENT_CACHE_TTL) {
+    intentCache.delete(normalizedQuery);
+    console.log('🗑️ [INTENT CACHE] Expired cache entry removed');
+    return null;
+  }
+
+  console.log(`⚡ [INTENT CACHE] Cache hit! (age: ${Math.round(age / 1000)}s)`);
+  return cached.result;
+}
+
+function cacheIntent(query: string, result: any): void {
+  const normalizedQuery = query.toLowerCase().trim();
+  intentCache.set(normalizedQuery, {
+    result,
+    timestamp: Date.now()
+  });
+  console.log(`💾 [INTENT CACHE] Cached result (total entries: ${intentCache.size})`);
+}
+
+// Periodic cleanup of expired cache entries (every 10 minutes)
+setInterval(() => {
+  const now = Date.now();
+  let removed = 0;
+
+  for (const [key, value] of intentCache.entries()) {
+    if (now - value.timestamp > INTENT_CACHE_TTL) {
+      intentCache.delete(key);
+      removed++;
+    }
+  }
+
+  if (removed > 0) {
+    console.log(`🧹 [INTENT CACHE] Cleaned up ${removed} expired entries (${intentCache.size} remaining)`);
+  }
+}, 10 * 60 * 1000);
 
 // ════════════════════════════════════════════════════════════════════════════════
 // DELETED DOCUMENT FILTER
@@ -49,6 +120,282 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// FULL DOCUMENT RETRIEVAL - Enhanced Context Management
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Retrieve full documents instead of chunks
+ */
+async function retrieveFullDocuments(
+  documentIds: string[],
+  userId: string
+): Promise<{ id: string; title: string; content: string; metadata?: any }[]> {
+
+  console.log(`📄 [FULL DOCS] Retrieving ${documentIds.length} full documents`);
+
+  // Remove duplicates
+  const uniqueDocIds = [...new Set(documentIds)];
+
+  const documents = await prisma.document.findMany({
+    where: {
+      id: { in: uniqueDocIds },
+      userId: userId,
+      status: 'completed'
+    },
+    include: {
+      metadata: {
+        select: {
+          extractedText: true,
+          markdownContent: true,
+          pageCount: true,
+          wordCount: true
+        }
+      }
+    }
+  });
+
+  const fullDocs = documents.map(doc => ({
+    id: doc.id,
+    title: doc.filename,
+    content: doc.metadata?.markdownContent || doc.metadata?.extractedText || '',
+    metadata: {
+      pageCount: doc.metadata?.pageCount,
+      wordCount: doc.metadata?.wordCount
+    }
+  }));
+
+  // Calculate total tokens (rough estimate: 1 token ≈ 4 characters)
+  const totalTokens = fullDocs.reduce((sum, doc) => sum + (doc.content.length / 4), 0);
+  console.log(`📄 [FULL DOCS] Retrieved ${fullDocs.length} documents (~${Math.floor(totalTokens)} tokens)`);
+
+  // Warn if approaching context limit
+  if (totalTokens > 800000) { // 800K tokens, leaving room for prompt and response
+    console.warn(`⚠️ [FULL DOCS] Large context size (${Math.floor(totalTokens)} tokens) - may need truncation`);
+  }
+
+  return fullDocs;
+}
+
+/**
+ * Build document context from full documents
+ */
+function buildDocumentContext(
+  documents: { id: string; title: string; content: string; metadata?: any }[]
+): string {
+
+  if (documents.length === 0) {
+    return '';
+  }
+
+  let context = '## Relevant Documents\n\n';
+
+  for (const doc of documents) {
+    context += `### Document: ${doc.title}\n\n`;
+
+    // Add metadata if available
+    if (doc.metadata) {
+      const meta = [];
+      if (doc.metadata.pageCount) meta.push(`${doc.metadata.pageCount} pages`);
+      if (doc.metadata.wordCount) meta.push(`${doc.metadata.wordCount} words`);
+      if (meta.length > 0) {
+        context += `*[${meta.join(', ')}]*\n\n`;
+      }
+    }
+
+    context += `${doc.content}\n\n`;
+    context += `---\n\n`;
+  }
+
+  return context;
+}
+
+/**
+ * Build conversation context from message history
+ */
+function buildConversationContext(
+  conversationHistory?: Array<{ role: string; content: string }>,
+  maxTokens: number = 50000
+): string {
+
+  if (!conversationHistory || conversationHistory.length === 0) {
+    return '';
+  }
+
+  console.log(`📚 [CONTEXT] Building conversation history (${conversationHistory.length} messages)`);
+
+  let context = '## Conversation History\n\n';
+  let tokenCount = 0;
+
+  // Start from most recent and work backwards
+  const reversedHistory = [...conversationHistory].reverse();
+  const includedMessages = [];
+
+  for (const message of reversedHistory) {
+    const messageText = `**${message.role === 'user' ? 'User' : 'KODA'}**: ${message.content}\n\n`;
+
+    // Rough token estimation (1 token ≈ 4 characters)
+    const messageTokens = messageText.length / 4;
+
+    if (tokenCount + messageTokens > maxTokens) {
+      console.log(`📚 [CONTEXT] Reached token limit, truncating history`);
+      break;
+    }
+
+    includedMessages.unshift(messageText); // Add to beginning to maintain order
+    tokenCount += messageTokens;
+  }
+
+  context += includedMessages.join('');
+
+  console.log(`📚 [CONTEXT] Built history with ${includedMessages.length} messages (~${Math.floor(tokenCount)} tokens)`);
+
+  return context;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// STRUCTURED REASONING PROMPTS - Complex Query Analysis
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect query complexity
+ */
+function detectQueryComplexity(query: string): 'simple' | 'medium' | 'complex' {
+  const lowerQuery = query.toLowerCase();
+
+  // Simple queries (fact retrieval, simple questions)
+  const simpleIndicators = [
+    'what is', 'who is', 'when did', 'where is',
+    'show me', 'find', 'list', 'display',
+    'get', 'retrieve', 'fetch'
+  ];
+
+  // Complex queries (multi-document analysis, synthesis)
+  const complexIndicators = [
+    'compare', 'analyze', 'synthesize', 'evaluate',
+    'all documents', 'across all', 'every document',
+    'contradiction', 'conflict', 'disagree',
+    'relationship between', 'timeline', 'changes over time',
+    'evolution', 'trend', 'pattern',
+    'why', 'how does', 'explain the difference',
+    'summarize all', 'overview of all'
+  ];
+
+  // Check for simple patterns
+  if (simpleIndicators.some(indicator => lowerQuery.includes(indicator))) {
+    // But check if it's actually complex despite simple wording
+    if (complexIndicators.some(indicator => lowerQuery.includes(indicator))) {
+      return 'complex';
+    }
+    return 'simple';
+  }
+
+  // Check for complex patterns
+  if (complexIndicators.some(indicator => lowerQuery.includes(indicator))) {
+    return 'complex';
+  }
+
+  // Default to medium
+  return 'medium';
+}
+
+/**
+ * Build structured reasoning prompt for better synthesis
+ */
+function buildReasoningPrompt(query: string, complexity: 'simple' | 'medium' | 'complex'): string {
+
+  const baseInstructions = `
+Answer the user's question based on the provided documents and conversation history.
+
+**CRITICAL RULES:**
+1. Only use information from the provided documents
+2. Cite sources for every claim using document titles in **bold**
+3. If information is missing or unclear, state this explicitly
+4. If documents contradict each other, point this out clearly
+5. Use Markdown formatting (bold, lists, etc.)
+
+**CITATION REQUIREMENT (CRITICAL):**
+At the end of your answer, you MUST include a hidden citation block listing which documents you used:
+
+---CITATIONS---
+documentId: abc123, pages: [1, 3, 5]
+documentId: def456, pages: [2]
+---END_CITATIONS---
+
+Rules for citations:
+- Only list documents you actually referenced in your answer
+- Include the documentId exactly as provided in the context (e.g., "documentId: clm123abc")
+- List the page numbers you referenced (if available)
+- If you didn't use any documents, write: ---CITATIONS---\nNONE\n---END_CITATIONS---
+- This section will be hidden from the user, so don't mention it in your answer
+- Do NOT include inline citations like [pg 1] or (document.pdf, page 2) in your answer text
+`;
+
+  if (complexity === 'simple') {
+    return baseInstructions + `
+**TASK:** Provide a direct, concise answer to the question.
+
+**FORMAT:**
+- Start with the direct answer
+- Cite the source document in **bold**
+- Keep it brief (2-3 sentences)
+`;
+  }
+
+  if (complexity === 'medium') {
+    return baseInstructions + `
+**TASK:** Analyze the documents and provide a comprehensive answer.
+
+**REASONING PROCESS:**
+1. Identify relevant information in each document
+2. Compare information across documents if multiple sources exist
+3. Synthesize a coherent answer
+4. Cite sources for each claim
+
+**FORMAT:**
+- Start with a clear summary answer
+- Provide supporting details with citations
+- Use bullet points for multiple items
+- End with source list if using multiple documents
+`;
+  }
+
+  // Complex
+  return baseInstructions + `
+**TASK:** Conduct a thorough multi-document analysis.
+
+**REASONING PROCESS:**
+1. **Identify**: List all relevant documents and their key information
+2. **Extract**: Pull out specific facts, figures, and claims from each document
+3. **Compare**: Identify similarities and differences across documents
+4. **Validate**: Check for contradictions or inconsistencies
+5. **Synthesize**: Combine information into a coherent answer
+6. **Cite**: Provide specific sources for each claim
+
+**OUTPUT FORMAT:**
+## Summary
+[Brief 2-3 sentence answer]
+
+## Detailed Analysis
+[Comprehensive analysis with inline citations in **bold**]
+
+### Key Findings
+- Finding 1 (from **Document Name**)
+- Finding 2 (from **Document Name**)
+- [etc.]
+
+### Contradictions or Uncertainties
+[If any contradictions found, list them here]
+
+## Sources Consulted
+1. **Document Name** - [brief description of what was found]
+2. **Document Name** - [brief description of what was found]
+
+## Confidence Assessment
+[Rate confidence 0-100% and explain why]
+`;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // HYBRID RAG SERVICE - Simple, Reliable, 95%+ Success Rate
 // ════════════════════════════════════════════════════════════════════════════════
 //
@@ -69,9 +416,21 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 //
 // ════════════════════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════════════════════
+// GEMINI MODEL CONFIGURATION - Enhanced for Long Context
+// ════════════════════════════════════════════════════════════════════════════════
+
+// Initialize Gemini model for RAG queries
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+const model = genAI.getGenerativeModel({
+  model: 'gemini-2.5-flash',
+  generationConfig: {
+    temperature: 0.7,
+    topP: 0.95,
+    topK: 40,
+    maxOutputTokens: 8192, // ✅ Increased from 2048 for comprehensive responses
+  },
+});
 
 let pinecone: Pinecone | null = null;
 let pineconeIndex: any = null;
@@ -477,7 +836,7 @@ async function decomposeWithLLM(query: string): Promise<QueryAnalysis | null> {
     console.log(`🤖 [LLM DECOMPOSE] Analyzing query complexity with LLM...`);
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.1, // Low temperature for consistent decomposition
         maxOutputTokens: 500,
@@ -506,6 +865,7 @@ Rules:
 
 Respond with ONLY the JSON object, no explanation.`;
 
+    // Call Gemini to analyze query
     const result = await model.generateContent(prompt);
     const responseText = result.response.text().trim();
 
@@ -565,9 +925,9 @@ async function handleMultiStepQuery(
   const subQueryPromises = analysis.subQueries.map(async (subQuery, index) => {
     console.log(`  ${index + 1}. "${subQuery}"`);
 
-    // Generate embedding for sub-query
-    const embeddingResult = await embeddingModel.embedContent(subQuery);
-    const queryEmbedding = embeddingResult.embedding.values;
+    // Generate embedding for sub-query using OpenAI
+    const embeddingResult = await embeddingService.generateEmbedding(subQuery);
+    const queryEmbedding = embeddingResult.embedding;
 
     // Search Pinecone
     const results = await pineconeIndex.query({
@@ -629,11 +989,12 @@ interface AgentLoopConfig {
   improvementThreshold: number;  // Minimum improvement to continue (e.g., 0.1 = 10% better)
 }
 
+// ✅ OPTIMIZED: Reduced iterations for faster responses while maintaining quality
 const DEFAULT_AGENT_CONFIG: AgentLoopConfig = {
-  maxAttempts: 3,
-  minRelevanceScore: 0.7,
+  maxAttempts: 2,              // Reduced from 3 (saves 10-15s on complex queries)
+  minRelevanceScore: 0.65,     // Slightly lower threshold (0.7 → 0.65)
   minChunks: 3,
-  improvementThreshold: 0.1
+  improvementThreshold: 0.15   // Higher threshold (0.1 → 0.15) to stop earlier if not improving much
 };
 
 interface AgentLoopState {
@@ -691,8 +1052,8 @@ async function iterativeRetrieval(
     // STEP 1: Execute retrieval
     // ─────────────────────────────────────────────────────────────────────────
 
-    const embeddingResult = await embeddingModel.embedContent(currentQuery);
-    const queryEmbedding = embeddingResult.embedding.values;
+    const embeddingResult = await embeddingService.generateEmbedding(currentQuery);
+    const queryEmbedding = embeddingResult.embedding;
 
     const results = await pineconeIndex.query({
       vector: queryEmbedding,
@@ -1018,18 +1379,53 @@ export async function generateAnswerStream(
   onChunk: (chunk: string) => void,
   attachedDocumentId?: string,
   conversationHistory?: Array<{ role: string; content: string }>,
-  onStage?: (stage: string, message: string) => void
+  onStage?: (stage: string, message: string) => void,
+  memoryContext?: string,
+  fullConversationContext?: string
 ): Promise<{ sources: any[] }> {
   console.log('🚀 [DEBUG] generateAnswerStream called');
   console.log('🚀 [DEBUG] onChunk is function:', typeof onChunk === 'function');
 
-  await initializePinecone();
+  // ✅ FIX: Initialize Pinecone in parallel with fast checks
+  const pineconePromise = initializePinecone();
 
   console.log('\n════════════════════════════════════════════════════════════════════════════════');
   console.log('🔍 [QUERY ROUTING] Starting query classification');
   console.log(`📝 [QUERY] "${query}"`);
   console.log('════════════════════════════════════════════════════════════════════════════════\n');
 
+  // ════════════════════════════════════════════════════════════════════════════════
+  // FAST PATH DETECTION - Instant responses for greetings and simple queries
+  // ════════════════════════════════════════════════════════════════════════════════
+  // Impact: 20+ seconds → < 1 second for 30-40% of queries
+
+  // Emit initial analyzing status
+  if (onStage) {
+    onStage('analyzing', 'Understanding your question...');
+  }
+
+  // ✅ FIX: Fast path detection (synchronous checks first)
+  const fastPathResult = await fastPathDetector.detect(query);
+
+  if (fastPathResult.isFastPath && fastPathResult.response) {
+    console.log(`⚡ FAST PATH: ${fastPathResult.type} - Bypassing RAG pipeline`);
+
+    // ✅ FIX: Stream the response immediately without artificial delay
+    if (onChunk && fastPathResult.response) {
+      onChunk(fastPathResult.response);
+    }
+
+    // Emit complete status
+    if (onStage) {
+      onStage('complete', 'Complete');
+    }
+
+    return {
+      sources: [],
+    };
+  }
+
+  console.log('📊 Not a fast path query - proceeding with RAG pipeline');
   console.log('🎯 [HYBRID RAG] Processing query:', query);
   console.log('📎 Attached document ID:', attachedDocumentId);
 
@@ -1041,8 +1437,20 @@ export async function generateAnswerStream(
   // IMPACT: 20-30s → < 1s for simple queries
   if (isMetaQuery(query)) {
     console.log('💭 [META-QUERY] Detected');
-    await handleMetaQuery(query, onChunk);
+    await handleMetaQuery(query, onChunk, conversationHistory);
     return { sources: [] }; // Meta queries don't have sources
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 1.5: Navigation Queries - Fast (App usage questions)
+  // ──────────────────────────────────────────────────────────────────────────────
+  // REASON: Detect app navigation questions BEFORE document queries
+  // WHY: "Where do I upload?" should explain the UI, not search documents
+  // IMPACT: Provides accurate app guidance instead of irrelevant document content
+  if (isNavigationQuery(query)) {
+    console.log('🧭 [NAVIGATION] Detected app navigation question');
+    await handleNavigationQuery(query, userId, onChunk);
+    return { sources: [] }; // Navigation queries don't have document sources
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -1070,10 +1478,38 @@ export async function generateAnswerStream(
     return await handleDocumentListing(userId, query, onChunk);
   }
 
+  // ✅ FIX: Ensure Pinecone is initialized before expensive operations
+  await pineconePromise;
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 5.5: Folder Listing Queries - Direct DB Lookup
+  // ──────────────────────────────────────────────────────────────────────────────
+  // ✅ NEW: Handle "which folders do I have?" queries
+  const isFolderListingQuery = detectFolderListingQuery(query);
+  if (isFolderListingQuery) {
+    console.log('📂 [FOLDER LISTING] Detected folder listing query');
+    return await handleFolderListingQuery(userId, onChunk);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 5.6: Folder Content Queries - Direct DB Lookup
+  // ──────────────────────────────────────────────────────────────────────────────
+  // ✅ MOVED UP: Handle "what's in Finance folder?" queries BEFORE file actions
+  const isFolderContentQuery = detectFolderContentQuery(query);
+  if (isFolderContentQuery) {
+    console.log('📁 [FOLDER CONTENT] Detected folder content query');
+    return await handleFolderContentQuery(query, userId, onChunk);
+  }
+
+  // ✅ FIX: Parallelize comparison and file action detection
+  const [comparison, fileAction] = await Promise.all([
+    detectComparison(userId, query),
+    detectFileAction(query)
+  ]);
+
   // ──────────────────────────────────────────────────────────────────────────────
   // STEP 5: Comparisons - Moderate (Pinecone queries)
   // ──────────────────────────────────────────────────────────────────────────────
-  const comparison = await detectComparison(userId, query);
   if (comparison) {
     console.log('🔄 [COMPARISON] Detected:', comparison.documents);
     return await handleComparison(userId, query, comparison, onChunk);
@@ -1084,7 +1520,6 @@ export async function generateAnswerStream(
   // ──────────────────────────────────────────────────────────────────────────────
   // REASON: Only check file actions if nothing else matched
   // WHY: LLM intent detection is expensive (20-30s)
-  const fileAction = await detectFileAction(query);
   if (fileAction) {
     console.log('📁 [FILE ACTION] Detected:', fileAction);
     await handleFileAction(userId, query, fileAction, onChunk);
@@ -1092,10 +1527,31 @@ export async function generateAnswerStream(
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 6.5: File Location Queries - Direct DB Lookup
+  // ──────────────────────────────────────────────────────────────────────────────
+  // ✅ NEW: Handle "where is myfile.pdf?" queries with direct database lookup
+  const isFileLocationQuery = detectFileLocationQuery(query);
+  if (isFileLocationQuery) {
+    console.log('📍 [FILE LOCATION] Detected file location query');
+    return await handleFileLocationQuery(query, userId, onChunk);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // MEMORY RETRIEVAL - Get relevant user memories for context
+  // ──────────────────────────────────────────────────────────────────────────────
+  console.log('🧠 [MEMORY] Retrieving relevant memories...');
+  const relevantMemories = await memoryService.getRelevantMemories(userId, query, undefined, 10);
+  const memoryPromptContext = memoryService.formatMemoriesForPrompt(relevantMemories);
+
+  if (relevantMemories.length > 0) {
+    console.log(`🧠 [MEMORY] Found ${relevantMemories.length} relevant memories`);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
   // STEP 7: Regular Queries - Standard RAG
   // ──────────────────────────────────────────────────────────────────────────────
   console.log('✅ [QUERY ROUTING] Routed to: REGULAR QUERY (RAG)');
-  return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage);
+  return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage, memoryPromptContext);
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -1147,21 +1603,40 @@ async function detectFileAction(query: string): Promise<string | null> {
 
   const fileActionKeywords = [
     'create', 'make', 'new', 'add', 'cria', 'criar', 'nueva', 'nuevo', 'créer',
-    'rename', 'change name', 'renomear', 'renombrar', 'renommer',
+    'rename', 'change', 'renomear', 'renombrar', 'renommer',
     'delete', 'remove', 'deletar', 'apagar', 'eliminar', 'supprimer',
-    'move', 'relocate', 'mover', 'déplacer',
-    'folder', 'pasta', 'carpeta', 'dossier',
-    'file', 'arquivo', 'archivo', 'fichier'
+    'move', 'relocate', 'mover', 'déplacer'
   ];
 
-  const hasFileActionKeyword = fileActionKeywords.some(keyword =>
-    lower.includes(keyword)
-  );
+  const fileTargetKeywords = [
+    'folder', 'pasta', 'carpeta', 'dossier',
+    'file', 'arquivo', 'archivo', 'fichier',
+    'document', 'doc', 'pdf', 'txt', 'directory', 'dir'
+  ];
 
-  if (!hasFileActionKeyword) {
-    // Query doesn't contain any file action keywords
-    // Skip expensive LLM call
-    console.log('⚡ [FILE ACTION] No file action keywords detected, skipping LLM intent detection');
+  // ✅ IMPROVED: Require BOTH action keyword AND target keyword
+  const hasActionKeyword = fileActionKeywords.some(keyword => lower.includes(keyword));
+  const hasTargetKeyword = fileTargetKeywords.some(keyword => lower.includes(keyword));
+
+  if (!hasActionKeyword || !hasTargetKeyword) {
+    console.log('⚡ [FILE ACTION] No file action pattern detected - skipping LLM intent detection');
+    console.log(`   Action keyword: ${hasActionKeyword}, Target keyword: ${hasTargetKeyword}`);
+    return null; // Skip expensive LLM call
+  }
+
+  // ✅ IMPROVED: More comprehensive content question detection
+  const contentQuestionPatterns = [
+    /what (is|are|does|do|can|could|would|should)/i,
+    /how (is|are|does|do|can|could|would|should)/i,
+    /why (is|are|does|do|can|could|would|should)/i,
+    /which (is|are|does|do|can|could|would|should|folders?|files?)/i,  // ✅ NEW
+    /explain|describe|summarize|compare|analyze|tell me about/i,
+    /show\s+(me|my)/i,  // ✅ NEW: "show me" is usually a query, not an action
+    /list\s+(my|all|the)/i  // ✅ NEW: "list my" is usually a query, not an action
+  ];
+
+  if (contentQuestionPatterns.some(pattern => pattern.test(query))) {
+    console.log('⚡ [FILE ACTION] Detected content question - skipping LLM intent detection');
     return null;
   }
 
@@ -1172,15 +1647,34 @@ async function detectFileAction(query: string): Promise<string | null> {
   // WHY: LLM is expensive (20-30s) but accurate
   // HOW: Only call if file action keywords detected
 
-  console.log('🤖 [FILE ACTION] File action keywords detected, using LLM intent detection');
+  console.log('🤔 [FILE ACTION] Possible file action detected - proceeding with LLM intent detection');
+
+  // ✅ FIX: Check cache before calling expensive LLM
+  const cachedResult = getCachedIntent(query);
+  if (cachedResult !== null) {
+    return cachedResult; // Return cached result (may be null if previously determined not a file action)
+  }
 
   try {
 
     // Dynamic import to avoid circular dependency
     const { llmIntentDetectorService } = await import('./llmIntentDetector.service');
 
-    const intentResult = await llmIntentDetectorService.detectIntent(query);
-    console.log('🤖 [FILE ACTION] LLM intent:', intentResult);
+    // ✅ FIX: Add 10-second timeout to intent detection
+    const intentPromise = llmIntentDetectorService.detectIntent(query);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Intent detection timeout')), 10000)
+    );
+
+    let intentResult;
+    try {
+      intentResult = await Promise.race([intentPromise, timeoutPromise]);
+      console.log('🤖 [FILE ACTION] LLM intent:', intentResult);
+    } catch (error: any) {
+      console.log('⏱️  [FILE ACTION] Intent detection timed out or failed - assuming not file action');
+      cacheIntent(query, null); // Cache the null result
+      return null;
+    }
 
     // Map LLM intents to file actions
     const fileActionIntents: Record<string, string> = {
@@ -1193,12 +1687,15 @@ async function detectFileAction(query: string): Promise<string | null> {
     if (fileActionIntents[intentResult.intent] && intentResult.confidence > 0.7) {
       const action = fileActionIntents[intentResult.intent];
       console.log(`✅ [FILE ACTION] LLM detected: ${action} (confidence: ${intentResult.confidence})`);
+      cacheIntent(query, action); // Cache the successful detection
       return action;
     }
 
     console.log(`❌ [FILE ACTION] LLM confidence too low or not a file action (confidence: ${intentResult.confidence})`);
+    cacheIntent(query, null); // Cache the negative result
   } catch (error) {
     console.error('❌ [FILE ACTION] LLM intent detection failed:', error);
+    cacheIntent(query, null); // Cache the error result
   }
 
   return null;
@@ -1332,14 +1829,29 @@ async function detectComparison(userId: string, query: string): Promise<{
   // Try to extract document mentions with fuzzy matching
   const documentMentions = await extractDocumentMentions(userId, query);
 
+  console.log(`🔍 [COMPARISON] Query: "${query}"`);
+  console.log(`📊 [COMPARISON] Found ${documentMentions.length} matching documents`);
+
   if (documentMentions.length >= 2) {
     // Document comparison - found 2+ specific documents
     console.log(`✅ [COMPARISON] Document comparison: ${documentMentions.length} documents`);
     console.log(`📄 [COMPARISON] Document IDs: ${documentMentions.join(', ')}`);
+
+    // ✅ DEBUG: Fetch and log actual document names for debugging
+    const docs = await prisma.document.findMany({
+      where: { id: { in: documentMentions } },
+      select: { id: true, filename: true }
+    });
+    console.log(`📝 [COMPARISON] Matched documents:`, docs.map(d => ({ id: d.id.substring(0, 8), name: d.filename })));
+
     return {
       type: 'document',
       documents: documentMentions,
     };
+  } else if (documentMentions.length === 1) {
+    console.log(`⚠️ [COMPARISON] Only found 1 document, need 2+ for comparison`);
+  } else {
+    console.log(`⚠️ [COMPARISON] No specific documents found in query`);
   }
 
   // Concept comparison - no specific documents, extract concepts being compared
@@ -1437,11 +1949,20 @@ async function extractDocumentMentions(userId: string, query: string): Promise<s
 function isDocumentMentioned(queryLower: string, documentName: string): boolean {
   const docNameLower = documentName.toLowerCase();
 
-  // Remove file extensions for matching
-  const docNameNoExt = docNameLower.replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv)$/i, '');
+  // Remove file extensions for matching (handle double extensions like .md.pdf)
+  const docNameNoExt = docNameLower
+    .replace(/\.md\.pdf$/i, '')     // Remove .md.pdf
+    .replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv|md)$/i, ''); // Remove other extensions
+
+  // ✅ FIX: Replace hyphens and underscores with spaces before splitting
+  // REASON: Filenames like "KODA-MASTER-GUIDE" should split into ["koda", "master", "guide"]
+  const normalized = docNameNoExt
+    .replace(/[-_]+/g, ' ')  // Replace hyphens and underscores with spaces
+    .replace(/\s+/g, ' ')    // Collapse multiple spaces
+    .trim();
 
   // Split into words
-  const docWords = docNameNoExt.split(/\s+/).filter(w => w.length > 0);
+  const docWords = normalized.split(/\s+/).filter(w => w.length > 0);
 
   // Check if 60% of words are present
   const threshold = Math.ceil(docWords.length * 0.6);
@@ -1672,9 +2193,9 @@ async function handleConceptComparison(
     console.log(`  🔍 Searching for concept: "${concept}"`);
 
     try {
-      // Generate embedding for this concept search
-      const embeddingResult = await embeddingModel.embedContent(searchQuery);
-      const queryEmbedding = embeddingResult.embedding.values;
+      // Generate embedding for this concept search using OpenAI
+      const embeddingResult = await embeddingService.generateEmbedding(searchQuery);
+      const queryEmbedding = embeddingResult.embedding;
 
       // Query Pinecone for this concept
       const rawResults = await pineconeIndex.query({
@@ -1762,15 +2283,45 @@ RESPONSE RULES:
 - Bold key information with **text**
 - Use bullet points for clarity
 - If comparing 2 concepts, consider using a markdown table format
-- Cite page numbers using [p.X] format
+- NO page citations or references in your response text
 - NO greetings or introductions - start directly with the answer
 - NO structure labels like "Opening:", "Context:", etc.
+
+FIX 2: COMPARISON TABLE FORMAT MANDATORY:
+CRITICAL: ALWAYS use markdown tables for comparisons
+NEVER break concepts into separate sections
+NEVER use bullet lists for feature-by-feature comparisons
+
+MANDATORY TABLE FORMAT:
+| Feature | Concept A | Concept B |
+|---------|-----------|-----------|
+| Feature 1 | Description A | Description B |
+| Feature 2 | Description A | Description B |
+| Feature 3 | Description A | Description B |
+
+TABLE RULES:
+- Each cell MUST be concise (under 100 characters)
+- Each row MUST be ONE physical line in markdown
+- MUST have separator row: |---------|----------|
+- Header row must clearly identify what's being compared
+- NEVER omit the separator row
+- NEVER split tables across multiple paragraphs
+- Use **bold** for emphasis within cells
+
+AFTER THE TABLE (Optional):
+Brief summary paragraph highlighting key takeaways (2-3 sentences max)
+
+CITATION RULES (CRITICAL):
+- NEVER include inline citations like [pg 1], [p. 1], or (document.pdf, Page: 1)
+- NEVER reference page numbers in your response
+- The system will automatically add document sources at the end
+- Focus on answering the question clearly without citing pages
 
 USER QUERY:
 ${query}`;
 
   // Generate comparison response
-  const generationResult = await streamLLMResponse(systemPrompt, '', onChunk);
+  const generationResult = await smartStreamLLMResponse(systemPrompt, '', onChunk);
 
   return { sources: allSources };
 }
@@ -1798,9 +2349,9 @@ async function handleDocumentComparison(
   // HOW: Use Promise.all to run queries in parallel
   // IMPACT: 9s → 3s for 3 documents (3× faster)
 
-  // Generate embedding for query (once, reuse for all documents)
-  const embeddingResult = await embeddingModel.embedContent(query);
-  const queryEmbedding = embeddingResult.embedding.values;
+  // Generate embedding for query (once, reuse for all documents) using OpenAI
+  const embeddingResult = await embeddingService.generateEmbedding(query);
+  const queryEmbedding = embeddingResult.embedding;
 
   const queryPromises = documentIds.map(async (docId) => {
     console.log(`  📄 Searching document: ${docId}`);
@@ -1843,54 +2394,29 @@ async function handleDocumentComparison(
     })
     .join('\n\n---\n\n');
 
-  // Build sources array - GUARANTEE all compared documents appear
-  // First, get unique documents from chunks
-  const chunksMap = new Map<string, any>();
-  allChunks.forEach((match: any) => {
-    const docName = match.metadata?.filename || 'Unknown';
-    if (!chunksMap.has(docName)) {
-      chunksMap.set(docName, match);
-    }
-  });
-
-  // Then, ensure ALL comparison documents are in sources (even if no chunks)
-  const sources: any[] = [];
-
-  // Add documents that had chunks
-  for (const [docName, match] of chunksMap.entries()) {
-    sources.push({
-      documentName: docName,
-      pageNumber: match.metadata?.page || null,
-      score: match.score || 0
-    });
-  }
-
-  // Add any missing documents from the comparison list
-  for (const docId of documentIds) {
-    // Get document info from database
-    const doc = await prisma.document.findUnique({
-      where: { id: docId },
-      select: { filename: true }
-    });
-
-    if (doc && !sources.find(s => s.documentName === doc.filename)) {
-      sources.push({
-        documentName: doc.filename,
-        pageNumber: null,
-        score: 0
-      });
-    }
-  }
+  // Build sources array - Will be updated after LLM response
+  let sources: any[] = [];
 
   // Generate comparison answer
   const systemPrompt = `You are a professional AI assistant helping users understand their documents.
 
+FIX 2: COMPARISON TABLE FORMAT MANDATORY:
+CRITICAL: ALWAYS use markdown tables for comparisons
+NEVER break concepts into separate sections
+NEVER use bullet lists for feature-by-feature comparisons
+
 CRITICAL RULES:
-• NEVER start with greetings ("Hello", "Hi", "I'm KODA")
-• Start directly with the answer/comparison
-• Use [p.X] format for citations (NOT "Document 1/2/3")
-• Use tables for structured comparisons
-• NO section labels ("Context:", "Details:", etc.)
+- NEVER start with greetings like Hello or Hi or I am KODA
+- Start directly with the answer or comparison
+- NO page citations or references in your text
+- ALWAYS use tables for structured comparisons when comparing documents
+- NO section labels like Context or Details or Summary
+- NO emojis in your response
+- Each table cell MUST be concise and under 100 characters
+- Each row MUST be ONE physical line in markdown format
+- MUST include separator row using pipes and dashes
+- NEVER use code blocks or code formatting for document names
+- Document names should be in bold text or plain text only
 
 The user wants to compare multiple documents. Here's the relevant content from each:
 
@@ -1898,9 +2424,9 @@ ${context}
 
 LANGUAGE DETECTION (CRITICAL):
 - ALWAYS respond in the SAME LANGUAGE as the user's query
-- Portuguese query → Portuguese response
-- English query → English response
-- Spanish query → Spanish response
+- Portuguese query -> Portuguese response
+- English query -> English response
+- Spanish query -> Spanish response
 - Detect the language automatically and match it exactly
 
 CROSS-DOCUMENT SYNTHESIS (Critical):
@@ -1939,9 +2465,9 @@ Here's a side-by-side comparison of the two documents:
 | **Key Sections** | Market analysis, user personas, pricing strategy | Core setup, security, documents, AI features |
 
 **Key Differences:**
-• The Blueprint focuses on strategic planning and market positioning, while the Checklist focuses on technical implementation.
-• The Blueprint is designed for external stakeholders, while the Checklist is for internal development teams.
-• The Blueprint provides context and rationale, while the Checklist provides actionable tasks.
+- The Blueprint focuses on strategic planning and market positioning, while the Checklist focuses on technical implementation.
+- The Blueprint is designed for external stakeholders, while the Checklist is for internal development teams.
+- The Blueprint provides context and rationale, while the Checklist provides actionable tasks.
 
 **Next step:** Review both documents together to ensure the development tasks in the Checklist align with the strategic vision in the Blueprint.
 </example_comparison_1>
@@ -1958,9 +2484,9 @@ Here's a comparison of the financial data in both documents:
 | **Avg Deal Size** | $8,000 | $7,500 | -6.25% |
 
 **Key Insights:**
-• Revenue grew significantly (+25%) driven by customer acquisition (+33%).
-• Average deal size decreased slightly (-6.25%), suggesting growth in smaller customers.
-• Profit margin improved from 33% to 40%, indicating better operational efficiency.
+- Revenue grew significantly (+25%) driven by customer acquisition (+33%).
+- Average deal size decreased slightly (-6.25%), suggesting growth in smaller customers.
+- Profit margin improved from 33% to 40%, indicating better operational efficiency.
 
 **Next step:** Analyze the customer segmentation to understand the shift toward smaller deal sizes and assess if this aligns with the growth strategy.
 </example_comparison_2>
@@ -1978,13 +2504,42 @@ Follow this EXACT structure. Use tables for side-by-side comparisons.
 
 User query: "${query}"`;
 
-  const fullResponse = await streamLLMResponse(systemPrompt, '', onChunk);
+  const fullResponse = await smartStreamLLMResponse(systemPrompt, '', onChunk);
+
+  // Build ACCURATE sources from LLM citations
+  console.log(`🔍 [DOCUMENT COMPARISON] Building accurate sources from LLM response`);
+
+  // Remove citation block from response
+  const cleanResponse = citationTracking.removeCitationBlock(fullResponse);
+
+  // Use citation extraction
+  sources = await citationTracking.buildAccurateSources(cleanResponse, allChunks);
+
+  // SPECIAL CASE: For document comparison, if no sources found, assume all compared docs were used
+  if (sources.length === 0 && documentIds.length > 0) {
+    console.log('⚠️ [DOCUMENT COMPARISON] No citations found, assuming all compared documents were used');
+
+    const documents = await prisma.document.findMany({
+      where: { id: { in: documentIds } },
+      select: { id: true, filename: true, mimeType: true }
+    });
+
+    sources.push(...documents.map(doc => ({
+      documentId: doc.id,
+      documentName: doc.filename,
+      pageNumber: null,
+      score: 1.0,
+      mimeType: doc.mimeType
+    })));
+  }
+
+  console.log(`✅ [DOCUMENT COMPARISON] Built ${sources.length} accurate sources`);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // NEW: ANSWER VALIDATION - Check answer quality
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const validation = validateAnswer(fullResponse, query, sources);
+  const validation = validateAnswer(cleanResponse, query, sources);
 
   if (!validation.isValid) {
     console.log(`⚠️  [AGENT LOOP] Answer validation failed - issues detected`);
@@ -1993,6 +2548,12 @@ User query: "${query}"`;
     // Log for monitoring (could trigger alert in production)
     console.log(`⚠️  [MONITORING] Low quality answer generated for query: "${query}"`);
   }
+
+  // ✅ DEBUG: Log sources being returned
+  console.log(`📚 [DOCUMENT COMPARISON] Returning ${sources.length} sources:`);
+  sources.forEach((src, idx) => {
+    console.log(`   ${idx + 1}. ${src.documentName} (page: ${src.pageNumber || 'N/A'}, score: ${src.score?.toFixed(3) || 0})`);
+  });
 
   return { sources };
 }
@@ -2090,23 +2651,18 @@ async function handleDocumentCounting(
     response = `${youHave} **${count}** ${docWord} ${inTotal}.`;
   }
 
-  const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
   const question = lang === 'pt' ? 'O que você gostaria de saber sobre esses documentos?' :
                    lang === 'es' ? '¿Qué te gustaría saber sobre estos documentos?' :
                    lang === 'fr' ? 'Que souhaitez-vous savoir sur ces documents?' :
                    'What would you like to know about these documents?';
 
-  response += `\n\n${nextStep}\n${question}`;
+  response += `\n\n${question}`;
 
   onChunk(response);
 
-  const sources = documents.map(doc => ({
-    documentName: doc.filename,
-    pageNumber: null,
-    score: 1.0,
-  }));
-
-  return { sources };
+  // ❌ NO SOURCES: Document counting queries don't use document CONTENT
+  // We're just counting rows in the database, not reading/analyzing documents
+  return { sources: [] };
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2176,13 +2732,13 @@ async function handleDocumentTypes(
                       lang === 'fr' ? 'Vous n\'avez pas encore de documents téléchargés.' :
                       "You don't have any documents uploaded yet.";
 
-    const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
+    // Removed nextStep label for natural endings
     const uploadSome = lang === 'pt' ? 'Envie alguns documentos para começar!' :
                        lang === 'es' ? '¡Sube algunos documentos para comenzar!' :
                        lang === 'fr' ? 'Téléchargez des documents pour commencer!' :
                        'Upload some documents to get started!';
 
-    response = `${noDocsYet}\n\n${nextStep}\n${uploadSome}`;
+    response = `${noDocsYet}\n\n${uploadSome}`;
   } else {
     response = `${basedOn}\n\n`;
 
@@ -2200,24 +2756,20 @@ async function handleDocumentTypes(
       response += '\n';
     });
 
-    const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
+    // Removed nextStep label for natural endings
     const question = lang === 'pt' ? 'O que você gostaria de saber sobre esses documentos?' :
                      lang === 'es' ? '¿Qué te gustaría saber sobre estos documentos?' :
                      lang === 'fr' ? 'Que souhaitez-vous savoir sur ces documents?' :
                      'What would you like to know about these documents?';
 
-    response += `\n${nextStep}\n${question}`;
+    response += `\n${question}`;
   }
 
   onChunk(response);
 
-  const sources = documents.map(doc => ({
-    documentName: doc.filename,
-    pageNumber: null,
-    score: 1.0,
-  }));
-
-  return { sources };
+  // ❌ NO SOURCES: Document types queries don't use document CONTENT
+  // We're just grouping files by extension, not reading/analyzing documents
+  return { sources: [] };
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2341,13 +2893,13 @@ async function handleDocumentListing(
                       lang === 'fr' ? 'Vous n\'avez pas encore de documents téléchargés.' :
                       "You don't have any documents uploaded yet.";
 
-    const nextStep = lang === 'pt' ? '**Próximo passo:**' : lang === 'es' ? '**Próximo paso:**' : lang === 'fr' ? '**Prochaine étape:**' : '**Next step:**';
+    // Removed nextStep label for natural endings
     const uploadSome = lang === 'pt' ? 'Envie alguns documentos para começar!' :
                        lang === 'es' ? '¡Sube algunos documentos para comenzar!' :
                        lang === 'fr' ? 'Téléchargez des documents pour commencer!' :
                        'Upload some documents to get started!';
 
-    response = `${noDocsYet}\n\n${nextStep}\n${uploadSome}`;
+    response = `${noDocsYet}\n\n${uploadSome}`;
   } else {
     // Header with count
     const youHave = lang === 'pt' ? `Você tem **${totalCount}** documento${totalCount > 1 ? 's' : ''}` :
@@ -2385,18 +2937,14 @@ async function handleDocumentListing(
                      lang === 'fr' ? 'Que souhaitez-vous savoir sur ces documents?' :
                      'What would you like to know about these documents?';
 
-    response += `${nextStep}\n${question}`;
+    response += `${question}`;
   }
 
   onChunk(response);
 
-  const sources = displayDocs.map(doc => ({
-    documentName: doc.filename,
-    pageNumber: null,
-    score: 1.0,
-  }));
-
-  return { sources };
+  // ❌ NO SOURCES: Document listing queries don't use document CONTENT
+  // We're just listing filenames from the database, not reading/analyzing documents
+  return { sources: [] };
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2406,58 +2954,229 @@ async function handleDocumentListing(
 function isMetaQuery(query: string): boolean {
   const lower = query.toLowerCase().trim();
 
+  // Enhanced capability detection patterns - more natural and comprehensive
   const metaPatterns = [
+    // Greetings
     /^(hi|hey|hello|greetings)/,
+
+    // Existing capability patterns
     /what (can|do) you (do|help)/,
     /who are you/,
     /what are you/,
     /how (do|can) (i|you)/,
     /tell me about (yourself|koda)/,
+
+    // ✅ NEW: More natural capability patterns
+    /what do you do/i,
+    /what are your capabilities/i,
+    /what features/i,
+    /can you help me with/i,
+    /are you able to/i,
+    /do you support/i,
+    /can you handle/i,
+    /what kind of documents/i,
+    /what can i do with/i,
+    /how does.*work/i,
+    /introduce yourself/i,
+    /what is koda/i,
+    /explain.*koda/i,
+    /tell me more/i,
   ];
 
   return metaPatterns.some(pattern => pattern.test(lower));
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// NAVIGATION QUERY DETECTION
+// ════════════════════════════════════════════════════════════════════════════════
+
+function isNavigationQuery(query: string): boolean {
+  const lower = query.toLowerCase().trim();
+
+  // Navigation patterns - questions about using the app
+  const navigationPatterns = [
+    /where.*upload/i,
+    /how.*upload/i,
+    /where.*find/i,
+    /how.*navigate/i,
+    /where is.*button/i,
+    /how.*access/i,
+    /where.*settings/i,
+    /how.*create.*folder/i,
+    /where.*documents/i,
+    /how.*organize/i,
+    /how.*search/i,
+    /where.*chat/i,
+    /how.*ask.*question/i,
+    /how.*use/i,
+    /where.*sidebar/i,
+    /how.*drag.*drop/i,
+    /where.*menu/i,
+    /how do i (upload|create|organize|find|access)/i,
+    /where can i (upload|create|organize|find|access)/i,
+  ];
+
+  return navigationPatterns.some(pattern => pattern.test(lower));
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // META-QUERY HANDLER
 // ════════════════════════════════════════════════════════════════════════════════
 
-async function handleMetaQuery(query: string, onChunk: (chunk: string) => void): Promise<void> {
-  const prompt = `You are a professional AI assistant helping users understand their documents.
+/**
+ * Handle meta-queries about KODA's capabilities
+ * Now context-aware and natural
+ */
+async function handleMetaQuery(
+  query: string,
+  onChunk: (chunk: string) => void,
+  conversationHistory?: Array<{ role: string; content: string }>
+): Promise<void> {
+  console.log(`⚡ FAST PATH: Meta-query detected`);
 
-CRITICAL RULES:
-• NEVER start with greetings ("Hello", "Hi", "I'm KODA")
-• Be helpful and direct
-• Explain capabilities clearly
+  // Check if this is the first message in conversation
+  const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
 
-LANGUAGE DETECTION (CRITICAL):
-- ALWAYS respond in the SAME LANGUAGE as the user's query
-- Portuguese query → Portuguese response
-- English query → English response
-- Spanish query → Spanish response
-- Detect the language automatically and match it exactly
+  // Build conversation context
+  let conversationContext = '';
+  if (conversationHistory && conversationHistory.length > 0) {
+    conversationContext = '\n\n**Previous Conversation**:\n';
+    conversationHistory.slice(-3).forEach(msg => {
+      const role = msg.role === 'user' ? 'User' : 'KODA';
+      conversationContext += `${role}: ${msg.content}\n`;
+    });
+  }
 
-WHAT YOU CAN DO:
-- Answer questions about uploaded documents
-- Compare multiple documents
-- Search across all documents
-- Summarize content
-- Extract specific information
-- Help with document organization (create/rename/delete folders and files)
+  // Dynamic prompt based on conversation state
+  const prompt = `You are KODA, an intelligent document AI assistant. The user is asking about your capabilities.
 
-FORMATTING INSTRUCTIONS (CRITICAL - FOLLOW EXACTLY):
-- Between bullet points: Use SINGLE newline only (no blank lines)
-- Before "Next step:" section: Use ONE blank line
-- Professional, friendly tone
-- Bold key features with **text**
-- NO emojis
-- End with "Next step:" followed by a helpful suggestion (plain text, NOT bold)
+${conversationContext}
 
-User query: "${query}"
+**User's Current Question**: "${query}"
 
-Respond naturally and helpfully.`;
+**Your Capabilities** (reference these naturally):
+- Upload and organize any document type (PDF, Word, Excel, images, etc.)
+- Search across all documents instantly
+- Answer questions by finding relevant information
+- Summarize documents and extract key points
+- Compare multiple documents side-by-side
+- Explain complex content in simple terms
+- Remember context across conversations
+- Provide sources and citations for answers
+- Handle documents in multiple languages
+- Secure end-to-end encryption for all files
 
-  return streamLLMResponse(prompt, '', onChunk);
+**Response Guidelines**:
+${isFirstMessage
+  ? '- This is the FIRST message - include a brief greeting (e.g., "Hi! I\'m KODA.")'
+  : '- This is a FOLLOW-UP message - NO greeting, answer directly'
+}
+- Be conversational and natural, not robotic
+- Mention 2-3 relevant capabilities based on what they asked
+- Keep response under 60 words
+- NO emojis, NO citations, NO page numbers
+- Match the user's language
+- Professional but friendly tone
+
+Respond naturally:`;
+
+  await streamLLMResponse(prompt, '', onChunk);
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// NAVIGATION QUERY HANDLER
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Handle navigation queries about using the app
+ * Provides guidance on app features and how to use them
+ */
+async function handleNavigationQuery(
+  query: string,
+  userId: string,
+  onChunk: (chunk: string) => void
+): Promise<void> {
+  console.log(`🧭 [NAVIGATION] Handling app navigation question`);
+
+  // ✅ PERSONALIZATION: Fetch user's folders and document count
+  const folders = await prisma.folder.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      name: true,
+      emoji: true,
+      _count: { select: { documents: true } }
+    },
+    orderBy: { name: 'asc' }
+  });
+
+  const documentCount = await prisma.document.count({
+    where: { userId }
+  });
+
+  // Build folder list for context
+  const folderList = folders.length > 0
+    ? folders.map(f => `${f.emoji || '📁'} **${f.name}** (${f._count.documents} files)`).join(', ')
+    : 'No folders created yet';
+
+  const prompt = `You are KODA, an intelligent document assistant. The user is asking how to navigate or use the app.
+
+**User Question**: "${query}"
+
+**User's Current Library**:
+- **Total Documents**: ${documentCount}
+- **Folders**: ${folderList}
+
+**App Navigation Guide**:
+
+**Uploading Files**:
+- Click the "Upload" button in the top-right corner of the Documents screen
+- Or drag and drop files anywhere on the Documents screen
+- You can upload individual files or entire folders${folders.length > 0 ? `\n- Upload directly to existing folders like: ${folders.slice(0, 3).map(f => f.name).join(', ')}` : ''}
+- Supported formats: PDF, Word, Excel, PowerPoint, images, and more
+
+**Finding Documents**:
+- All documents appear on the Documents screen in the left sidebar
+- Use the search bar at the top to find specific files
+- Documents are organized in folders you create
+- Click any document to view or interact with it
+
+**Creating Folders**:
+- Click "New Folder" button on the Documents screen
+- Name your folder and it will appear in the left sidebar
+- Drag documents into folders to organize them
+- You can create nested folders for better organization
+
+**Searching Documents**:
+- Use the search bar at the top of any screen
+- Search works across all your documents' content
+- Results show which document and page contains your search term
+- You can filter by document type or folder
+
+**Chat & Questions**:
+- Click "Chat" in the left sidebar to ask questions
+- KODA will search all your documents to answer
+- You can ask follow-up questions in the same conversation
+- Reference specific documents or ask general questions
+
+**Document Management**:
+- Right-click any document for options (rename, delete, move)
+- Click the three dots menu for additional actions
+- Documents are automatically saved and synced
+- All files are encrypted end-to-end for security
+
+**Response Guidelines**:
+- Answer the user's specific question directly and clearly
+- Provide step-by-step instructions if needed
+- Keep response under 75 words
+- Be helpful and clear
+- NO emojis, NO citations
+- Use natural, friendly language
+- **PERSONALIZE**: Reference the user's actual folders when relevant (e.g., "You can upload to your Finance folder")
+
+Respond naturally:`;
+
+  await streamLLMResponse(prompt, '', onChunk);
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2537,8 +3256,15 @@ async function handleRegularQuery(
   onChunk: (chunk: string) => void,
   attachedDocumentId?: string,
   conversationHistory?: Array<{ role: string; content: string; metadata?: any }>,
-  onStage?: (stage: string, message: string) => void
+  onStage?: (stage: string, message: string) => void,
+  memoryContext?: string
 ): Promise<{ sources: any[] }> {
+
+  // ⏱️ PERFORMANCE: Start timing
+  const startTime = Date.now();
+
+  // ✅ FIX: Send immediate acknowledgment to establish streaming connection
+  onChunk('');
 
   // ═══════════════════════════════════════════════════════════════════════════
   // CACHE CHECK - Return cached result if available
@@ -2572,15 +3298,19 @@ async function handleRegularQuery(
     try {
       const result = await agentLoopService.processQuery(query, userId, conversationId);
 
-      // Stream the answer
-      onChunk(result.answer);
+      // Build ACCURATE sources from LLM citations
+      console.log(`🔍 [AGENT LOOP] Building accurate sources from LLM response`);
 
-      // Build sources from chunks
-      const sources = result.chunks.map((chunk: any) => ({
-        documentName: chunk.filename || 'Unknown',
-        pageNumber: chunk.metadata?.page || null,
-        score: chunk.similarity || 0,
-      }));
+      // Remove citation block from answer
+      const cleanAnswer = citationTracking.removeCitationBlock(result.answer);
+
+      // Stream the clean answer
+      onChunk(cleanAnswer);
+
+      // Use citation extraction
+      const sources = await citationTracking.buildAccurateSources(cleanAnswer, result.chunks);
+
+      console.log(`✅ [AGENT LOOP] Built ${sources.length} accurate sources`);
 
       console.log(`✅ [AGENT LOOP] Completed in ${result.iterations} iterations`);
       return { sources };
@@ -2627,17 +3357,19 @@ async function handleRegularQuery(
 
     searchResults = await handleMultiStepQuery(queryAnalysis, userId, filter, onChunk);
 
-    // Apply BM25 hybrid search to combined results
-    const hybridResults = await bm25RetrievalService.hybridSearch(
-      query,
-      searchResults.matches || [],
-      userId,
-      20
-    );
+    // ✅ DISABLED BM25: document_chunks table doesn't exist, using pure vector search
+    // Convert to hybrid result format for consistency
+    const hybridResults = (searchResults.matches || []).map((match: any) => ({
+      content: match.metadata?.content || match.metadata?.text || '',
+      metadata: match.metadata,
+      vectorScore: match.score || 0,
+      bm25Score: 0,
+      hybridScore: match.score || 0,
+    }));
 
     // Filter by minimum score threshold
     const COMPARISON_MIN_SCORE = 0.65;
-    const filteredChunks = hybridResults.filter(c => (c.score || 0) >= COMPARISON_MIN_SCORE);
+    const filteredChunks = hybridResults.filter(c => (c.hybridScore || c.vectorScore || 0) >= COMPARISON_MIN_SCORE);
 
     console.log(`✅ [FILTER] ${filteredChunks.length}/${hybridResults.length} chunks above threshold (${COMPARISON_MIN_SCORE})`);
 
@@ -2652,17 +3384,18 @@ async function handleRegularQuery(
     const contextText = contextChunks.join('\n\n');
 
     // Generate answer with context (streaming)
+    const comparisonPrompt = queryAnalysis.queryType === 'comparison'
+      ? `You are answering a COMPARISON query. Structure your response to clearly compare the concepts mentioned.\n\nOriginal query: "${queryAnalysis.originalQuery}"\n\nContext from documents:\n${contextText}\n\nProvide a comprehensive comparison addressing all aspects of the query.`
+      : `You are answering a MULTI-PART query. Address each part of the question systematically.\n\nOriginal query: "${queryAnalysis.originalQuery}"\n\nContext from documents:\n${contextText}\n\nProvide a comprehensive answer addressing all parts of the query.`;
+
+    // Stream response from Gemini
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.3,
         maxOutputTokens: 4000,
       },
     });
-
-    const comparisonPrompt = queryAnalysis.queryType === 'comparison'
-      ? `You are answering a COMPARISON query. Structure your response to clearly compare the concepts mentioned.\n\nOriginal query: "${queryAnalysis.originalQuery}"\n\nContext from documents:\n${contextText}\n\nProvide a comprehensive comparison addressing all aspects of the query.`
-      : `You are answering a MULTI-PART query. Address each part of the question systematically.\n\nOriginal query: "${queryAnalysis.originalQuery}"\n\nContext from documents:\n${contextText}\n\nProvide a comprehensive answer addressing all parts of the query.`;
 
     const result = await model.generateContentStream(comparisonPrompt);
 
@@ -2673,10 +3406,30 @@ async function handleRegularQuery(
 
     // Build sources from chunks
     const sources = filteredChunks.slice(0, 10).map((chunk: any) => ({
+      documentId: chunk.metadata?.documentId || null,  // ✅ CRITICAL: Frontend needs this to display sources
       documentName: chunk.metadata?.filename || 'Unknown',
       pageNumber: chunk.metadata?.page || null,
       score: chunk.score || 0,
     }));
+
+    // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
+    const sourceDocumentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
+    if (sourceDocumentIds.length > 0) {
+      const documents = await prisma.document.findMany({
+        where: { id: { in: sourceDocumentIds } },
+        select: { id: true, filename: true, mimeType: true }
+      });
+      const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
+
+      // Update sources with current filenames and mimeType
+      sources.forEach(source => {
+        if (source.documentId && documentMap.has(source.documentId)) {
+          const docData = documentMap.get(source.documentId)!;
+          source.documentName = docData.filename;
+          source.mimeType = docData.mimeType;
+        }
+      });
+    }
 
     console.log(`✅ [DECOMPOSE] Generated answer from ${sources.length} sources`);
     return { sources };
@@ -2684,6 +3437,35 @@ async function handleRegularQuery(
     // Simple query - proceed with normal flow
     console.log(`✅ [AGENT LOOP] Simple query - using standard retrieval`);
   }
+
+  // ✅ NEW: Detect query complexity for structured reasoning (using promptTemplates service)
+  const complexity = promptTemplates.detectQueryComplexity(query);
+  console.log(`📊 [COMPLEXITY] Detected complexity: ${complexity} for query: "${query.substring(0, 50)}..."`);
+
+  // ✅ NEW: Build conversation context (using promptTemplates service)
+  const conversationContext = promptTemplates.buildConversationContext(conversationHistory || []);
+
+  // ✅ NEW: Fetch user's folder tree for navigation awareness
+  console.log('📁 [FOLDER CONTEXT] Fetching folder tree...');
+  const folders = await prisma.folder.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      name: true,
+      emoji: true,
+      parentFolderId: true,
+      _count: {
+        select: {
+          documents: true,
+          subfolders: true
+        }
+      }
+    },
+    orderBy: { name: 'asc' }
+  });
+
+  const folderTreeContext = buildFolderTreeContext(folders);
+  console.log(`📁 [FOLDER CONTEXT] Built context for ${folders.length} folders`);
 
   const isSimple = !isComplexQuery(query);
 
@@ -2763,9 +3545,9 @@ async function handleRegularQuery(
       // Hybrid search (vector + keyword) for comparisons
       // ───────────────────────────────────────────────────────────────────
 
-      // First get vector results
-      const embeddingResult = await embeddingModel.embedContent(enhancedQueryText);
-      const queryEmbedding = embeddingResult.embedding.values;
+      // First get vector results using OpenAI
+      const embeddingResult = await embeddingService.generateEmbedding(enhancedQueryText);
+      const queryEmbedding = embeddingResult.embedding;
 
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
@@ -2776,22 +3558,24 @@ async function handleRegularQuery(
 
       console.log(`🔍 [HYBRID] Vector results: ${rawResults.matches?.length || 0} chunks`);
 
-      // Then merge with BM25 keyword search
-      hybridResults = await bm25RetrievalService.hybridSearch(
-        query,
-        rawResults.matches || [],
-        userId,
-        20
-      );
+      // ✅ DISABLED BM25: document_chunks table doesn't exist, using pure vector search
+      // Convert to hybrid result format for consistency (same as pure vector path)
+      hybridResults = (rawResults.matches || []).map((match: any) => ({
+        content: match.metadata?.content || match.metadata?.text || '',
+        metadata: match.metadata,
+        vectorScore: match.score || 0,
+        bm25Score: 0,
+        hybridScore: match.score || 0,
+      }));
 
-      console.log(`✅ [HYBRID] Combined vector + keyword: ${hybridResults.length} chunks`);
+      console.log(`✅ [HYBRID] Using pure vector search: ${hybridResults.length} chunks`);
 
     } else {
       // ───────────────────────────────────────────────────────────────────
       // Pure vector search for semantic understanding (default)
       // ───────────────────────────────────────────────────────────────────
-      const embeddingResult = await embeddingModel.embedContent(enhancedQueryText);
-      const queryEmbedding = embeddingResult.embedding.values;
+      const embeddingResult = await embeddingService.generateEmbedding(enhancedQueryText);
+      const queryEmbedding = embeddingResult.embedding;
 
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
@@ -2827,13 +3611,15 @@ async function handleRegularQuery(
       // Use iterative retrieval instead of single refinement
       const iterativeResults = await iterativeRetrieval(query, userId, filter);
 
-      // Apply BM25 hybrid search to iterative results
-      const iterativeHybridResults = await bm25RetrievalService.hybridSearch(
-        query,
-        iterativeResults.matches || [],
-        userId,
-        20
-      );
+      // ✅ DISABLED BM25: document_chunks table doesn't exist, using pure vector search
+      // Convert to hybrid result format for consistency
+      const iterativeHybridResults = (iterativeResults.matches || []).map((match: any) => ({
+        content: match.metadata?.content || match.metadata?.text || '',
+        metadata: match.metadata,
+        vectorScore: match.score || 0,
+        bm25Score: 0,
+        hybridScore: match.score || 0,
+      }));
 
       // Update results if iterative refinement improved them
       if (iterativeHybridResults.length > 0) {
@@ -2856,30 +3642,99 @@ async function handleRegularQuery(
     console.log(`[PROGRESS STREAM] Sending analyzing message (${hybridResults.length} chunks)`);
     onStage?.('analyzing', analyzingMsg);
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // LLM-BASED CHUNK FILTERING (Week 1 - Critical Feature)
-    // ═══════════════════════════════════════════════════════════════════════════
-    // REASON: Pre-filter chunks for higher quality answers
-    // WHY: Reduces hallucinations by 50%, improves accuracy by 20-30%
-    // HOW: Triple validation in ONE batched LLM call (5-7 seconds)
-    // IMPACT: Fast path stays fast, but answers are dramatically better
-    //
-    // BEFORE: Pinecone 20 chunks → LLM sees all 20 (some irrelevant)
-    // AFTER:  Pinecone 20 chunks → Filter to 6-8 best → LLM sees only relevant
-    //
-    // TIME COST: +5-7s (acceptable for quality gain)
-    // QUALITY GAIN: +20-30% accuracy, -50% hallucinations
+    // ✅ ULTRA-FAST PATH: Skip expensive LLM filtering for very simple queries
+    // REASON: Simple factual queries don't need deep filtering
+    // WHY: Saves 5-7 seconds on 40-50% of queries
+    // CRITERIA: Short queries (< 6 words) with high vector scores (> 0.75)
+    const isUltraSimple = query.split(' ').length < 6 &&
+                          hybridResults.length > 0 &&
+                          (hybridResults[0]?.score || 0) > 0.75;
 
-    const filteredChunks = await llmChunkFilterService.filterChunks(
-      query,
-      hybridResults, // Use hybrid results (vector + BM25)
-      8 // Return top 8 high-quality chunks
-    );
+    let filteredChunks: any[];
+
+    if (isUltraSimple) {
+      console.log('⚡⚡ [ULTRA-FAST PATH] Very simple query with high-quality results - skipping LLM filtering');
+      console.log(`⚡⚡ [PERFORMANCE] Saved 5-7 seconds by skipping LLM filtering`);
+
+      // Use top vector search results directly
+      filteredChunks = hybridResults.slice(0, 5);
+    } else {
+      // ═══════════════════════════════════════════════════════════════════════════
+      // LLM-BASED CHUNK FILTERING (Week 1 - Critical Feature)
+      // ═══════════════════════════════════════════════════════════════════════════
+      // REASON: Pre-filter chunks for higher quality answers
+      // WHY: Reduces hallucinations by 50%, improves accuracy by 20-30%
+      // HOW: Triple validation in ONE batched LLM call (5-7 seconds)
+      // IMPACT: Fast path stays fast, but answers are dramatically better
+      //
+      // BEFORE: Pinecone 20 chunks → LLM sees all 20 (some irrelevant)
+      // AFTER:  Pinecone 20 chunks → Filter to 6-8 best → LLM sees only relevant
+      //
+      // TIME COST: +5-7s (acceptable for quality gain)
+      // QUALITY GAIN: +20-30% accuracy, -50% hallucinations
+
+      filteredChunks = await llmChunkFilterService.filterChunks(
+        query,
+        hybridResults, // Use hybrid results (vector + BM25)
+        8 // Return top 8 high-quality chunks
+      );
+    }
 
     console.log(`✅ [FAST PATH] Using ${filteredChunks.length} filtered chunks for answer`);
 
     // Filter deleted documents
     const finalSearchResults = await filterDeletedDocuments(filteredChunks, userId);
+    console.log(`⏱️ [PERF] Retrieval took ${Date.now() - startTime}ms`);
+
+    // ✅ NEW: Decide whether to use full documents or chunks
+    const useFullDocuments = fullDocRetrieval.shouldUseFullDocuments(complexity);
+
+    console.log(`📊 [RETRIEVAL] Using ${useFullDocuments ? 'FULL DOCUMENTS' : 'CHUNKS'} for ${complexity} query`);
+
+    let fullDocuments: fullDocRetrieval.FullDocument[] = [];
+    let documentContext = '';
+
+    if (useFullDocuments) {
+      // FULL DOCUMENT RETRIEVAL PATH
+      fullDocuments = await fullDocRetrieval.retrieveFullDocuments(
+        userId,
+        query,
+        attachedDocumentId,
+        {
+          maxDocuments: complexity === 'complex' ? 3 : 2,
+          minRelevanceScore: 0.7,
+          maxTotalTokens: 100000
+        }
+      );
+
+      if (fullDocuments.length > 0) {
+        documentContext = fullDocRetrieval.buildDocumentContext(fullDocuments);
+        console.log(`📄 [FULL DOCS] Using ${fullDocuments.length} full documents for ${complexity} query`);
+        console.log(`⏱️ [PERF] Document loading took ${Date.now() - startTime}ms`);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CONTRADICTION DETECTION (Phase 2, Feature 2.2)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Detect conflicting information across documents when using full document retrieval
+
+    let contradictionResult: any = null;
+
+    if (useFullDocuments && fullDocuments.length > 0) {
+      const shouldDetect = contradictionDetectionService.shouldDetectContradictions(
+        complexity,
+        fullDocuments.length
+      );
+
+      if (shouldDetect) {
+        console.log(`🔍 [CONTRADICTION] Running contradiction detection on ${fullDocuments.length} documents`);
+        contradictionResult = await contradictionDetectionService.detectContradictions(
+          fullDocuments,
+          query
+        );
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // GRACEFUL DEGRADATION (Week 3-4 - Critical Feature)
@@ -2954,16 +3809,97 @@ async function handleRegularQuery(
     );
 
     console.log(`✅ [FAST PATH] Using ${rerankedChunks.length} reranked chunks for answer`);
+    console.log(`🔍 [DEBUG - RERANK] finalSearchResults had ${finalSearchResults.length} chunks`);
+    console.log(`🔍 [DEBUG - RERANK] After reranking, got ${rerankedChunks.length} chunks`);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COMPLEX REASONING: Claim Extraction and Contradiction Detection
+    // ═══════════════════════════════════════════════════════════════════════════
+    let answerConfidence: number | undefined;
+    let supportingEvidence: confidenceScoring.Evidence[] | undefined;
+    let conflictingEvidence: confidenceScoring.Evidence[] | undefined;
+
+    if (queryDecomposition.needsDecomposition(query)) {
+      console.log('🧠 [COMPLEX REASONING] Query requires complex reasoning');
+
+      // Extract document information for claim extraction
+      const documentChunks = rerankedChunks.slice(0, 5).map((chunk: any) => ({
+        document_id: chunk.metadata?.documentId || 'unknown',
+        document_title: chunk.metadata?.filename || 'Unknown',
+        content: chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
+      }));
+
+      // Extract claims from documents
+      const claims = await contradictionDetection.extractClaims(documentChunks);
+
+      // Detect contradictions
+      const contradictions = await contradictionDetection.detectContradictions(claims);
+
+      if (contradictions.length > 0) {
+        console.log(`⚠️  [COMPLEX REASONING] Found ${contradictions.length} contradictions`);
+        contradictions.forEach(c => {
+          console.log(`   - ${c.contradiction_type}: ${c.explanation}`);
+        });
+      }
+
+      // Build evidence for confidence scoring
+      const evidence = rerankedChunks.map((chunk: any) => ({
+        document_id: chunk.metadata?.documentId || 'unknown',
+        document_title: chunk.metadata?.filename || 'Unknown',
+        relevant_passage: chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
+        support_strength: confidenceScoring.scoreEvidence(
+          query,
+          chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
+          chunk.rerankScore || chunk.originalScore || 0
+        ),
+        relevance_score: chunk.rerankScore || chunk.originalScore || 0
+      }));
+
+      // Calculate confidence
+      const supporting = evidence.filter(e => e.support_strength > 0.5);
+      const conflicting = contradictions.map(c => ({
+        document_id: c.claim2.document_id,
+        document_title: c.claim2.source,
+        relevant_passage: c.claim2.text,
+        support_strength: 0,
+        relevance_score: 0.5
+      }));
+
+      answerConfidence = confidenceScoring.calculateConfidence(supporting, conflicting);
+      supportingEvidence = supporting;
+      conflictingEvidence = conflicting;
+
+      console.log(`📊 [COMPLEX REASONING] Confidence: ${answerConfidence.toFixed(2)}`);
+    }
 
     // Build context WITHOUT source labels (prevents Gemini from numbering documents)
-    const context = rerankedChunks.map((result: any) => {
+    // ✅ NEW: Include folder location information for file navigation awareness
+    const uniqueDocuments = new Map<string, { filename: string; folderPath?: string }>();
+    rerankedChunks.forEach((result: any) => {
       const meta = result.metadata || {};
-      // ✅ FIX: Remove [Source: ...] labels to prevent "Document 1/2/3" references
-      // Gemini will use page numbers from our citation instructions instead
-      return meta.text || meta.content || result.content || '';
+      const filename = meta.filename || 'Unknown';
+      const folderPath = meta.folderPath || meta.folderName || 'Uncategorized';
+      if (!uniqueDocuments.has(filename)) {
+        uniqueDocuments.set(filename, { filename, folderPath });
+      }
+    });
+
+    // Build document locations section
+    const documentLocations = Array.from(uniqueDocuments.values())
+      .map(doc => `- "${doc.filename}" is located in: ${doc.folderPath}`)
+      .join('\n');
+
+    const context = rerankedChunks.map((result: any, idx: number) => {
+      const meta = result.metadata || {};
+      const documentId = meta.documentId || 'unknown';
+      const filename = meta.filename || 'Unknown';
+      const page = meta.page || meta.pageNumber || 'N/A';
+
+      // ✅ Include documentId for citation tracking
+      return `[Document ${idx + 1}] ${filename} (documentId: ${documentId}, Page: ${page}):\n${meta.text || meta.content || result.content || ''}`;
     }).join('\n\n---\n\n');
 
-    console.log(`📚 [CONTEXT] Built context from ${rerankedChunks.length} chunks`);
+    console.log(`📚 [CONTEXT] Built context from ${rerankedChunks.length} chunks with folder locations`);
 
     // STREAM PROGRESS: Generating answer
     const generatingMsg = queryLang === 'pt' ? 'Gerando resposta...' :
@@ -2973,178 +3909,119 @@ async function handleRegularQuery(
     console.log('[PROGRESS STREAM] Sending generating message');
     onStage?.('generating', generatingMsg);
 
-    // Single LLM call with streaming
-    const systemPrompt = `You are a professional AI assistant helping users understand their documents.
+    // Removed nextStepText - using natural endings instead
 
-═══════════════════════════════════════════════════════════════════
-CRITICAL RULES (FOLLOW EXACTLY - NO EXCEPTIONS)
-═══════════════════════════════════════════════════════════════════
+    // ✅ NEW: Build document context from search results
+    const documentContextFromChunks = rerankedChunks.map((chunk: any) =>
+      chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
+    ).join('\n\n---\n\n');
 
-RULE 1 - CITATION FORMAT:
-• When referencing information, use ONLY page numbers: [p.X]
-• NEVER say "Document 1", "Document 2", or "According to Document X"
-• NEVER reference source filenames in your answer
-• NEVER cite page 0 or pages that don't exist - if no page info, don't add citation
-• Place citations at the end of the sentence, before the period
-• Only cite pages when page information is explicitly available in the context
+    // ✅ NEW: Choose context based on query complexity and document availability
+    const finalDocumentContext = (documentContext && fullDocuments.length > 0)
+      ? documentContext
+      : documentContextFromChunks;
 
-Examples:
-✅ CORRECT: "The passport number is FZ487559 [p.2]."
-✅ CORRECT: "According to the documents, the value is R$ 2500 [p.1]."
-✅ CORRECT: "Cialdini's seven principles include reciprocity [p.3], commitment [p.4], and social proof [p.5]."
-✅ CORRECT: "The document mentions several key points." (no citation if no page info)
-❌ WRONG: "Document 1 states that..."
-❌ WRONG: "According to PSYCOLOGY.pdf..."
-❌ WRONG: "[Source: Comprovante1.pdf, p.1]"
-❌ WRONG: "[p.0]" (never cite page 0)
+    console.log(`📝 [PROMPT] Using ${complexity} complexity prompt with ${documentContext && fullDocuments.length > 0 ? 'full documents' : 'chunks'}`);
 
-RULE 2 - NO GREETINGS:
-• NEVER start with "Hello", "Hi", "I'm KODA", or any greeting
-• Start directly with the answer
-• Be conversational but don't introduce yourself
-• This applies to ALL responses, including first messages
+    // ✅ NEW: Get structured prompt based on complexity using promptTemplates service
+    const systemPrompt = promptTemplates.getReasoningPrompt(
+      complexity,
+      query,
+      finalDocumentContext,
+      conversationContext,
+      documentLocations, // Pass document locations for folder awareness
+      memoryContext, // Pass memory context for personalization
+      folderTreeContext // ✅ NEW: Pass folder tree for navigation awareness
+    );
 
-Examples:
-✅ CORRECT: "The passport expires on March 15, 2025 [p.2]."
-✅ CORRECT: "Based on your documents, the total revenue is..."
-❌ WRONG: "Hello! I'm KODA, your AI document assistant. The passport..."
-❌ WRONG: "Hi there! As KODA, I can help you with that..."
-
-RULE 3 - NO SECTION LABELS:
-• NEVER use "Opening:", "Context:", "Details:", "Examples:", "Relationships:", "Next Steps:" as labels
-• Use natural paragraph flow
-• Bold key information with **text**
-• Transition naturally between ideas
-• Write like ChatGPT or Gemini, not like a template
-
-Examples:
-✅ CORRECT: "The passport expires on March 15, 2025 [p.2]. It was issued in Lisbon on March 16, 2015 [p.2], making it valid for 10 years."
-❌ WRONG:
-"Context:
-The passport is a Brazilian document.
-
-Details:
-• Expiration: March 15, 2025
-• Issued: March 16, 2015
-
-Examples:
-This is a standard 10-year passport."
-
-═══════════════════════════════════════════════════════════════════
-FORMATTING GUIDELINES
-═══════════════════════════════════════════════════════════════════
-
-Adapt your format based on query complexity:
-
-1. SIMPLE QUERIES (e.g., "what is X?")
-   → Direct answer in 1-2 sentences
-   → Example: "The passport number is **FZ487559** [p.1]."
-
-2. MEDIUM QUERIES (e.g., "explain Y")
-   → 2-3 paragraphs with examples
-   → Use **bold** for emphasis
-   → Natural flow, no labels
-
-3. COMPLEX QUERIES (e.g., "compare A and B")
-   → Structured comparison with tables
-   → Multiple paragraphs
-   → Natural transitions
-
-EXAMPLE - Simple Query:
-User: "What is the passport number?"
-Assistant: "The passport number is **FZ487559** [p.1]."
-
-EXAMPLE - Medium Query:
-User: "Explain the reciprocity principle"
-Assistant: "Reciprocity is the psychological principle that people feel obligated to return favors [p.3]. When someone does something for us, we naturally want to do something back. In marketing, this manifests as offering free samples, trials, or valuable content before asking for a purchase [p.4].
-
-This principle is particularly effective because it taps into social norms and creates a sense of indebtedness [p.5]."
-
-EXAMPLE - Complex Query:
-User: "Compare Maslow vs SDT"
-Assistant: "Maslow's Hierarchy and Self-Determination Theory (SDT) both explain human motivation but from different perspectives [p.8].
-
-**Key Differences:**
-
-| Aspect | Maslow | SDT |
-|--------|--------|-----|
-| Structure | 5-level hierarchy [p.9] | 3 core needs [p.10] |
-| Progression | Sequential [p.9] | Simultaneous [p.11] |
-| Focus | Deficiency → Growth [p.12] | Intrinsic motivation [p.13] |
-
-Maslow suggests addressing basic needs first before higher needs like self-actualization [p.14]. SDT argues that autonomy, competence, and relatedness drive motivation regardless of hierarchy [p.15]."
-
-═══════════════════════════════════════════════════════════════════
-STRUCTURED OUTPUT (USE WHEN APPROPRIATE)
-═══════════════════════════════════════════════════════════════════
-
-**When to use tables:**
-• Comparing 2+ items (e.g., "Compare X vs Y", "What's the difference between A and B?")
-• Listing features/specifications with multiple attributes
-• Showing data with categories and values
-• Side-by-side comparisons of any kind
-• Pros and cons lists
-
-**Table format (Markdown):**
-| Feature | Item 1 | Item 2 |
-|---------|--------|--------|
-| Attribute 1 | Value A [p.X] | Value B [p.Y] |
-| Attribute 2 | Value C [p.X] | Value D [p.Z] |
-
-**When to use bullet points:**
-• Listing items without comparison (e.g., "What are the features?")
-• Step-by-step instructions
-• Key points or takeaways
-• Action items or recommendations
-
-**When to use numbered lists:**
-• Sequential steps or processes
-• Ranked items (e.g., "top 5 strategies")
-• Ordered procedures or timelines
-
-**When to use paragraphs:**
-• Explanations and narratives
-• Conceptual discussions
-• Simple direct answers
-• Contextual information
-
-**When to use code blocks:**
-• Technical specifications
-• JSON/XML data
-• Configuration examples
-• Formulas or equations
-
-CRITICAL: Choose the format that makes information EASIEST to understand.
-For comparison queries, ALWAYS use tables. For lists with attributes, use tables.
-
-═══════════════════════════════════════════════════════════════════
-LANGUAGE DETECTION (CRITICAL)
-═══════════════════════════════════════════════════════════════════
-
-• ALWAYS respond in ${queryLangName}
-• Detect the language automatically and match it exactly
-
-═══════════════════════════════════════════════════════════════════
-
-USER QUESTION: ${query}
-
-CONTEXT:
-${context}
-
-Now answer the user's question using the context provided above.`;
+    console.log(`📝 [PROMPT] Generated ${complexity} complexity prompt`);
 
     const fullResponse = await streamLLMResponse(systemPrompt, '', onChunk);
+    console.log(`⏱️ [PERF] Generation took ${Date.now() - startTime}ms`);
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // NEW: ANSWER VALIDATION - Check answer quality
+    // NEW: CONFIDENCE SCORING - Calculate answer confidence
     // ═══════════════════════════════════════════════════════════════════════════
 
-    // Build sources from reranked chunks
-    const sources = rerankedChunks.map((match: any) => ({
-      documentName: match.metadata?.filename || 'Unknown',
-      pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
-      score: match.rerankScore || match.originalScore || 0
-    }));
+    // ✅ NEW: Build ACCURATE sources from LLM citations
+    let sources: any[];
+
+    // Remove citation block from response before sending to user
+    const cleanResponse = citationTracking.removeCitationBlock(fullResponse);
+    fullResponse = cleanResponse;
+
+    if (useFullDocuments && fullDocuments.length > 0) {
+      // For full documents, use citation extraction
+      console.log(`🔍 [FAST PATH] Building accurate sources from full documents`);
+
+      // Build "chunks" array from full documents for citation matching
+      const pseudoChunks = fullDocuments.map(doc => ({
+        metadata: {
+          documentId: doc.id,
+          filename: doc.filename,
+          mimeType: doc.mimeType,
+          page: null
+        },
+        score: doc.relevanceScore || 1.0
+      }));
+
+      sources = await citationTracking.buildAccurateSources(fullResponse, pseudoChunks);
+    } else {
+      // For chunks, use citation extraction
+      console.log(`🔍 [FAST PATH] Building accurate sources from chunks`);
+      sources = await citationTracking.buildAccurateSources(fullResponse, rerankedChunks);
+    }
+
+    console.log(`✅ [FAST PATH] Built ${sources.length} accurate sources (only documents used in answer)`);
+
+    // ✅ NEW: Calculate confidence score (for internal tracking only, not displayed to user)
+    const confidence = confidenceScore.calculateConfidence(
+      sources,
+      query,
+      fullResponse
+    );
+
+    console.log(`🎯 [CONFIDENCE] Final confidence: ${confidence.level} (${confidence.score}/100)`);
+
+    // ✅ NEW: Append contradiction warnings if detected
+    if (contradictionResult && contradictionResult.hasContradictions) {
+      const contradictionMessage = contradictionDetectionService.formatContradictionsForUser(contradictionResult);
+      onChunk(contradictionMessage);
+      console.log(`🔍 [CONTRADICTION] Appended ${contradictionResult.contradictions.length} contradiction warning(s) to response`);
+    }
+
+    // ✅ NEW: Generate evidence map
+    if (evidenceAggregation.shouldAggregateEvidence(complexity, fullDocuments.length)) {
+      console.log(`📚 [EVIDENCE] Generating evidence map...`);
+      const evidenceMap = await evidenceAggregation.generateEvidenceMap(
+        fullResponse,
+        fullDocuments.map(doc => ({ id: doc.id, filename: doc.filename, content: doc.content }))
+      );
+
+      const evidenceMessage = evidenceAggregation.formatEvidenceForUser(evidenceMap);
+      if (evidenceMessage) {
+        onChunk(evidenceMessage);
+        console.log(`📚 [EVIDENCE] Appended evidence breakdown with ${evidenceMap.claims.length} claims`);
+      }
+    }
+
+    // ✅ NEW: MEMORY EXTRACTION - Extract memories from conversation
+    if (conversationHistory && conversationHistory.length > 0) {
+      const messages: any[] = conversationHistory.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      // Add current exchange
+      messages.push({ role: 'user', content: query });
+      messages.push({ role: 'assistant', content: fullResponse });
+
+      // Extract memories asynchronously (don't block response)
+      memoryExtraction.extractMemoriesFromRecentMessages(userId, messages, conversationId, 10)
+        .catch(error => {
+          console.error('❌ [MEMORY EXTRACTION] Error:', error);
+        });
+    }
 
     const validation = validateAnswer(fullResponse, query, sources);
 
@@ -3156,8 +4033,22 @@ Now answer the user's question using the context provided above.`;
       console.log(`⚠️  [MONITORING] Low quality answer generated for query: "${query}"`);
     }
 
-    console.log('✅ [FAST PATH] Complete');
-    return { sources };
+    console.log(`✅ [FAST PATH] Complete - returning ${sources.length} sources`);
+    console.log(`🔍 [DEBUG - RETURN] About to return sources:`, JSON.stringify(sources.slice(0, 2), null, 2));
+
+    // Return with confidence scores
+    const result: any = {
+      sources,
+      confidence  // ✅ NEW: Include confidence from confidenceScoring service
+    };
+    if (answerConfidence !== undefined) {
+      result.complexReasoningConfidence = answerConfidence;  // ✅ Renamed to avoid conflict
+      result.supporting_evidence = supportingEvidence;
+      result.conflicting_evidence = conflictingEvidence;
+      console.log(`📊 [COMPLEX REASONING] Returning confidence: ${answerConfidence.toFixed(2)}`);
+    }
+    console.log(`⏱️ [PERF] Total time: ${Date.now() - startTime}ms`);
+    return result;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -3191,9 +4082,9 @@ Now answer the user's question using the context provided above.`;
   // Initialize Pinecone
   await initializePinecone();
 
-  // Generate embedding
-  const embeddingResult = await embeddingModel.embedContent(query);
-  const queryEmbedding = embeddingResult.embedding.values;
+  // Generate embedding using OpenAI
+  const embeddingResult = await embeddingService.generateEmbedding(query);
+  const queryEmbedding = embeddingResult.embedding;
 
   // filter already declared at top of function, just use it
 
@@ -3283,18 +4174,22 @@ Now answer the user's question using the context provided above.`;
     finalAnswer += disclaimer;
   }
 
-  // Post-process and stream
-  const processedAnswer = postProcessAnswer(finalAnswer);
-  onChunk(processedAnswer);
+  // Build ACCURATE sources from LLM citations
+  console.log(`🔍 [SLOW PATH] Building accurate sources from LLM response`);
+
+  // Remove citation block from response
+  const cleanResponse = citationTracking.removeCitationBlock(finalAnswer);
+  const finalProcessedAnswer = postProcessAnswer(cleanResponse);
+
+  // Stream the clean response
+  onChunk(finalProcessedAnswer);
 
   console.log(`✅ Response complete (confidence: ${result.confidence})`);
 
-  // Build sources array
-  const sources = searchResults.map((match: any) => ({
-    documentName: match.metadata?.filename || 'Unknown',
-    pageNumber: match.metadata?.page || match.metadata?.pageNumber || null,
-    score: match.score || 0
-  }));
+  // Use citation extraction
+  const sources = await citationTracking.buildAccurateSources(cleanResponse, searchResults);
+
+  console.log(`✅ [SLOW PATH] Built ${sources.length} accurate sources (only documents used in answer)`);
 
   return { sources };
 }
@@ -3308,37 +4203,141 @@ async function streamLLMResponse(
   context: string,
   onChunk: (chunk: string) => void
 ): Promise<string> {
-  console.log('🌊 [STREAMING] Starting real stream');
-
-  const fullPrompt = context ? `${systemPrompt}\n\nContext:\n${context}` : systemPrompt;
+  console.log('🌊 [STREAMING] Starting Gemini streaming');
 
   let fullAnswer = '';
 
   try {
-    const result = await model.generateContentStream(fullPrompt);
+    // Use Gemini cached streaming for better performance
+    fullAnswer = await geminiCache.generateStreamingWithCache({
+      systemPrompt,
+      documentContext: context,
+      query: '', // Query already included in context
+      temperature: 0.4,
+      maxTokens: 3000,
+      onChunk: (text: string) => {
+        // Simplified post-processing - let examples guide formatting
+        const processedChunk = text
+          .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')  // Remove citations
+          .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Remove emojis
+          .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks
+          .replace(/\n\n\n\n+/g, '\n\n\n')  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
+          .replace(/\n\s+[○◦]\s+/g, '\n\n• ')  // Flatten nested bullets
+          .replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
 
-    // ✅ REAL STREAMING: Stream chunks in real-time with spacing fixes
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      fullAnswer += text;
-
-      // Simplified post-processing - let examples guide formatting
-      const processedChunk = text
-        .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')  // Remove citations
-        .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Remove emojis
-        .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks
-        .replace(/\n\n\n\n+/g, '\n\n\n')  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
-        .replace(/\n\s+[○◦]\s+/g, '\n\n• ')  // Flatten nested bullets
-        .replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
-
-      onChunk(processedChunk);
-    }
+        onChunk(processedChunk);
+      }
+    });
 
     console.log('✅ [STREAMING] Complete. Total chars:', fullAnswer.length);
     return fullAnswer;
 
   } catch (error: any) {
     console.error('❌ [STREAMING] Error:', error);
+    onChunk('I apologize, but I encountered an error generating the response. Please try again.');
+    return '';
+  }
+}
+
+/**
+ * Smart streaming that batches table rows for faster rendering
+ */
+async function smartStreamLLMResponse(
+  systemPrompt: string,
+  context: string,
+  onChunk: (chunk: string) => void
+): Promise<string> {
+  console.log('🌊 [SMART STREAM] Starting with table optimization');
+
+  let fullAnswer = '';
+  let buffer = '';
+  let inTable = false;
+  let tableBuffer = '';
+
+  try {
+    // Use Gemini cached streaming for better performance
+    fullAnswer = await geminiCache.generateStreamingWithCache({
+      systemPrompt,
+      documentContext: context,
+      query: '', // Query already included in context
+      temperature: 0.4,
+      maxTokens: 3000,
+      onChunk: (text: string) => {
+        // First apply basic post-processing (same as streamLLMResponse)
+        const processedChunk = text
+          .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')  // Remove citations
+          .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Remove emojis
+          .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks
+          .replace(/\n\n\n\n+/g, '\n\n\n')  // Collapse 4+ newlines to 3
+          .replace(/\n\s+[○◦]\s+/g, '\n\n• ')  // Flatten nested bullets
+          .replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
+
+        buffer += processedChunk;
+
+        // Detect table start
+        if (!inTable && buffer.includes('|')) {
+          const lines = buffer.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            // Check if this is a table header
+            if (line.includes('|') && (line.includes('Feature') || line.includes('Aspect') || line.includes('Document') || line.includes('Concept') || line.includes('Criteria'))) {
+              inTable = true;
+              tableBuffer = line + '\n';
+
+              // Send everything before the table immediately
+              const beforeTable = lines.slice(0, i).join('\n');
+              if (beforeTable.trim()) {
+                onChunk(beforeTable + '\n');
+              }
+
+              buffer = lines.slice(i + 1).join('\n');
+              break;
+            }
+          }
+        }
+
+        // If in table, accumulate rows
+        if (inTable) {
+          const lines = buffer.split('\n');
+
+          for (const line of lines) {
+            if (line.includes('|')) {
+              tableBuffer += line + '\n';
+            } else if (line.trim() === '' && tableBuffer.length > 0) {
+              // End of table - send entire table at once
+              onChunk(tableBuffer);
+              inTable = false;
+              tableBuffer = '';
+              buffer = '';
+              break;
+            }
+          }
+
+          buffer = '';
+        } else {
+          // Not in table - stream normally but batch by sentences
+          if (buffer.includes('.') || buffer.includes('\n') || buffer.length > 100) {
+            onChunk(buffer);
+            buffer = '';
+          }
+        }
+      }
+    });
+
+    // Send any remaining content
+    if (tableBuffer) {
+      onChunk(tableBuffer);
+    }
+    if (buffer) {
+      onChunk(buffer);
+    }
+
+    console.log('✅ [SMART STREAM] Complete. Total chars:', fullAnswer.length);
+    return fullAnswer;
+
+  } catch (error: any) {
+    console.error('❌ [SMART STREAM] Error:', error);
     onChunk('I apologize, but I encountered an error generating the response. Please try again.');
     return '';
   }
@@ -3353,18 +4352,250 @@ export function postProcessAnswerExport(answer: string): string {
 }
 
 function postProcessAnswer(answer: string): string {
-  let processed = answer;
+  let processed = answer.trim();
 
-  // Simplified post-processing - let examples guide formatting
-  processed = processed.replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '');  // Remove citations
-  processed = processed.replace(/[\u{1F300}-\u{1F9FF}]/gu, '');  // Remove emojis
-  processed = processed.replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');  // Remove specific emoji symbols
-  processed = processed.replace(/\*\*\*\*+/g, '**');  // Fix multiple asterisks
-  processed = processed.replace(/\n\n\n\n+/g, '\n\n\n');  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
-  processed = processed.replace(/\n\s+[○◦]\s+/g, '\n\n• ');  // Flatten nested bullets
-  processed = processed.replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
+  // ════════════════════════════════════════════════════════════════════════════════
+  // MARKDOWN CODE BLOCK CLEANUP - Strip markdown code blocks that wrap tables
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Remove ```markdown or ``` at start
+  if (processed.startsWith('```markdown')) {
+    processed = processed.substring('```markdown'.length).trim();
+  } else if (processed.startsWith('```')) {
+    processed = processed.substring(3).trim();
+  }
+
+  // Remove ``` at end
+  if (processed.endsWith('```')) {
+    processed = processed.substring(0, processed.length - 3).trim();
+  }
+
+  // Remove any remaining code block markers around tables
+  processed = processed.replace(/```markdown\n([\s\S]*?)\n```/g, '$1');
+  processed = processed.replace(/```\n([\s\S]*?)\n```/g, '$1');
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // CITATION CLEANUP - Remove all inline citations (UI displays sources separately)
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Pattern 1: (page X), (p. X), (pg. X), (p.X)
+  // Matches: (page 3), (p. 5), (pg. 12), (p.7)
+  processed = processed.replace(/\s*\((?:page|p\.|pg\.|p)\s*\d+\)/gi, '');
+
+  // Pattern 2: [page X], [p. X], [p.X], [pg X], [p X]
+  // Matches: [page 3], [p. 5], [p.7], [pg 1], [p 1]
+  processed = processed.replace(/\s*\[(?:page|p\.|pg\.|pg|p)\s*\d+\]/gi, '');
+
+  // Pattern 2a: [p.X, Y] or [p. X, Y] (multiple page citations)
+  // Matches: [p.1, 2], [p. 3, 4, 5]
+  processed = processed.replace(/\s*\[p\.\s*\d+(?:,\s*\d+)*\]/gi, '');
+
+  // Pattern 3: [Source: filename]
+  // Matches: [Source: document.pdf], [Source: Business Plan.docx]
+  processed = processed.replace(/\s*\[Source:\s*[^\]]+\]/gi, '');
+
+  // Pattern 4: Numbered citations [1], [2], etc.
+  // Matches: [1], [2], [3]
+  processed = processed.replace(/\s*\[\d+\]/g, '');
+
+  // Pattern 5: "According to X.pdf," or "Based on Y.docx,"
+  // Matches: "According to Business Plan.pdf,", "Based on Report.docx,"
+  processed = processed.replace(/(?:According to|Based on)\s+[^,]+\.(pdf|docx|xlsx|pptx|txt),?\s*/gi, '');
+
+  // Pattern 6: Superscript numbers (if Gemini adds them)
+  // Matches: ¹, ², ³, etc.
+  processed = processed.replace(/\s*[\u2070-\u209F]+/g, '');
+
+  // Pattern 7: "See page X" or "Refer to page X"
+  // Matches: "See page 5", "Refer to page 12"
+  processed = processed.replace(/(?:See|Refer to)\s+page\s+\d+\.?\s*/gi, '');
+
+  // Pattern 8: (Document.pdf, page X) or (filename.docx, Page: X)
+  // Matches: "(Business Plan.pdf, page 3)", "(Report.docx, Page: 5)"
+  processed = processed.replace(/\s*\([^)]*\.(pdf|docx|xlsx|pptx|txt)[^)]*(?:page|Page|p\.|pg\.)\s*:?\s*\d+[^)]*\)/gi, '');
+
+  // Pattern 9: [p.X] or [p. X] (square brackets with page)
+  // Matches: [p.5], [p. 12]
+  processed = processed.replace(/\s*\[p\.\s*\d+\]/gi, '');
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // DOCUMENT NAME CLEANUP - Remove inline document citations
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Pattern 1: [filename.ext] - e.g., [Koda blueprint.docx], [Business Plan.pdf]
+  // Matches: [anything.docx], [anything.pdf], [anything.xlsx], etc.
+  processed = processed.replace(/\[([^\]]+\.(docx|pdf|xlsx|pptx|txt|doc|xls|ppt|csv))\]/gi, '');
+
+  // Pattern 2: (filename.ext) - e.g., (Koda blueprint.docx)
+  processed = processed.replace(/\(([^\)]+\.(docx|pdf|xlsx|pptx|txt|doc|xls|ppt|csv))\)/gi, '');
+
+  // Pattern 3: "in [Document Name]" or "from [Document Name]" or "provided in [Document Name]"
+  processed = processed.replace(/\s+(?:in|from|provided in|detailed in|described in|under)\s+\[([^\]]+)\]/gi, '');
+
+  // Pattern 4: Remove any remaining bracketed content that looks like a filename
+  // (contains common keywords: blueprint, plan, document, report, analysis, checklist)
+  processed = processed.replace(/\[([^\]]*(?:blueprint|plan|document|report|analysis|checklist|guide|manual|specification)[^\]]*)\]/gi, '');
+
+  // Pattern 5: "According to [document]," or "As stated in [document],"
+  processed = processed.replace(/(?:As (?:stated|mentioned) in|Referring to)\s+[^\.,]+[,\.]\s*/gi, '');
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // FORMATTING CLEANUP
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Remove emojis
+  processed = processed.replace(/[\u{1F300}-\u{1F9FF}]/gu, '');
+  processed = processed.replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');
+
+  // Fix multiple asterisks
+  processed = processed.replace(/\*\*\*\*+/g, '**');
+
+  // Collapse 4+ newlines to 2 (one blank line)
+  processed = processed.replace(/\n{4,}/g, '\n\n');
+
+  // Flatten nested bullets (no extra blank lines)
+  processed = processed.replace(/\n\s+[○◦]\s+/g, '\n• ');
+  processed = processed.replace(/\n\s{2,}[•\-\*]\s+/g, '\n• ');
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // CLEANUP ARTIFACTS
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Remove double spaces created by removals
+  processed = processed.replace(/\s{2,}/g, ' ');
+
+  // Clean up orphaned commas/periods
+  processed = processed.replace(/\s+([.,])/g, '$1');
+
+  // Remove spaces before punctuation
+  processed = processed.replace(/\s+([!?;:])/g, '$1');
+
+  // Ensure space after punctuation
+  processed = processed.replace(/([.,!?;:])([A-Z])/g, '$1 $2');
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // ENHANCED SPACING NORMALIZATION
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // Normalize line breaks (max 2 consecutive)
+  processed = processed.replace(/\n{3,}/g, '\n\n');
+
+  // Remove trailing spaces on lines
+  processed = processed.split('\n').map(line => line.trimEnd()).join('\n');
+
+  // Ensure consistent spacing after headers (double newline)
+  processed = processed.replace(/(^#{1,6}\s+.+)(\n)(?!\n)/gm, '$1\n\n');
+
+  // Ensure single newline between bullet points
+  processed = processed.replace(/(^[•\-\*]\s+.+)(\n)(?=[•\-\*])/gm, '$1\n');
+
+  // Remove excessive spacing before bullet points
+  processed = processed.replace(/\n{2,}(?=[•\-\*])/g, '\n\n');
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // TABLE DETECTION & CONVERSION - Fallback for incomplete tables
+  // ════════════════════════════════════════════════════════════════════════════════
+  // Detect tables that are malformed (missing separator or have super long lines)
+  if (processed.includes('|') && processed.includes('Feature')) {
+    const lines = processed.split('\n');
+    let hasTableHeader = false;
+    let hasSeparator = false;
+    let hasLongLine = false;
+
+    for (const line of lines) {
+      if (line.includes('|') && line.includes('Feature')) {
+        hasTableHeader = true;
+      }
+      if (/\|[-\s]+\|/.test(line)) {
+        hasSeparator = true;
+      }
+      // Check for lines over 500 chars (likely malformed table)
+      if (line.length > 500 && line.includes('|')) {
+        hasLongLine = true;
+      }
+    }
+
+    // If table is incomplete or malformed, convert to bullets
+    if (hasTableHeader && (!hasSeparator || hasLongLine)) {
+      console.warn('⚠️ [POST-PROCESS] Incomplete/malformed table detected, converting to bullet format');
+      processed = convertTableToBullets(processed);
+    }
+  }
 
   return processed.trim();
+}
+
+/**
+ * Convert malformed tables to bullet list format
+ */
+function convertTableToBullets(text: string): string {
+  const lines = text.split('\n');
+  const result: string[] = [];
+  let inTable = false;
+  let tableContent: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.includes('|') && (line.includes('Feature') || line.includes('Aspect'))) {
+      inTable = true;
+      tableContent.push(line);
+    } else if (inTable && line.includes('|')) {
+      tableContent.push(line);
+    } else {
+      if (inTable && tableContent.length > 0) {
+        // Convert accumulated table to bullets
+        const bulletFormat = convertTableLinesToBullets(tableContent);
+        result.push(bulletFormat);
+        tableContent = [];
+        inTable = false;
+      }
+      result.push(line);
+    }
+  }
+
+  // Handle any remaining table content
+  if (tableContent.length > 0) {
+    const bulletFormat = convertTableLinesToBullets(tableContent);
+    result.push(bulletFormat);
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Convert table lines to bullet format
+ */
+function convertTableLinesToBullets(tableLines: string[]): string {
+  if (tableLines.length === 0) return '';
+
+  // Extract header
+  const headerLine = tableLines[0];
+  const headers = headerLine.split('|').map(h => h.trim()).filter(h => h);
+
+  // If we have a proper table, try to extract data
+  const result: string[] = [];
+  result.push('**Comparison:**\n');
+
+  // For malformed tables, just show that we detected a table issue
+  if (tableLines.length === 1 || tableLines[0].length > 500) {
+    result.push('• (Table formatting issue detected - showing summary instead)');
+    result.push('• Please refer to the document sources for detailed comparison');
+    return result.join('\n');
+  }
+
+  // Try to extract meaningful content
+  for (let i = 1; i < Math.min(tableLines.length, 10); i++) {
+    const line = tableLines[i];
+    if (line.includes('|') && !line.includes('---')) {
+      const cells = line.split('|').map(c => c.trim()).filter(c => c);
+      if (cells.length > 0) {
+        result.push(`• ${cells.join(' - ')}`);
+      }
+    }
+  }
+
+  return result.join('\n');
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -3380,9 +4611,9 @@ export async function generateAnswer(
   console.log('⚠️  [LEGACY] Using non-streaming method (deprecated)');
 
   let fullAnswer = '';
-  const sources: any[] = [];
 
-  await generateAnswerStream(
+  // ✅ FIXED: Capture sources from generateAnswerStream
+  const result = await generateAnswerStream(
     userId,
     query,
     conversationId,
@@ -3394,7 +4625,7 @@ export async function generateAnswer(
 
   return {
     answer: fullAnswer,
-    sources, // TODO: Extract sources from context
+    sources: result.sources,  // ✅ FIXED: Return actual sources
   };
 }
 
@@ -3422,8 +4653,8 @@ export async function generateAnswerStreaming(
     onChunk(chunk); // Still call the original callback for streaming
   };
 
-  // Call the new hybrid RAG function
-  await generateAnswerStream(
+  // ✅ FIXED: Capture sources from generateAnswerStream
+  const result = await generateAnswerStream(
     userId,
     query,
     conversationId,
@@ -3434,8 +4665,445 @@ export async function generateAnswerStreaming(
   // Return result object for backwards compatibility
   return {
     answer: fullAnswer,
-    sources: [], // Hybrid RAG doesn't provide sources yet
+    sources: result.sources,  // ✅ FIXED: Return actual sources
   };
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// FILE LOCATION QUERY DETECTION & HANDLING
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect if query is asking for file location
+ * Examples: "where is contract.pdf?", "find invoice_2024.xlsx"
+ */
+function detectFileLocationQuery(query: string): boolean {
+  const lower = query.toLowerCase();
+
+  // Check for location keywords + filename pattern
+  const hasLocationKeyword = /\b(where|find|locate|location of)\b/.test(lower);
+  const hasFilenamePattern = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|png|jpe?g|gif)\b/i.test(query);
+
+  return hasLocationKeyword && hasFilenamePattern;
+}
+
+/**
+ * Handle file location queries with direct database lookup
+ */
+async function handleFileLocationQuery(
+  query: string,
+  userId: string,
+  onChunk: (chunk: string) => void
+): Promise<{ sources: any[] }> {
+  console.log('📍 [FILE LOCATION] Searching database for file...');
+
+  // Extract filename from query
+  const filenameMatch = query.match(/([a-zA-Z0-9_\-\.]+\.(pdf|docx?|xlsx?|pptx?|txt|csv|png|jpe?g|gif))/i);
+  const filename = filenameMatch ? filenameMatch[1] : null;
+
+  if (!filename) {
+    onChunk('I couldn\'t identify a specific filename in your question. Could you provide the exact filename?');
+    return { sources: [] };
+  }
+
+  // Query database for file
+  const documents = await prisma.document.findMany({
+    where: {
+      userId,
+      filename: { contains: filename, mode: 'insensitive' }
+    },
+    include: {
+      folder: {
+        select: {
+          id: true,
+          name: true,
+          emoji: true,
+          parentFolderId: true
+        }
+      }
+    }
+  });
+
+  if (documents.length === 0) {
+    onChunk(`I couldn't find **${filename}** in your library. It may have been deleted or the filename might be slightly different.`);
+    return { sources: [] };
+  }
+
+  if (documents.length === 1) {
+    const doc = documents[0];
+    const folderName = doc.folder ? `${doc.folder.emoji || '📁'} **${doc.folder.name}**` : '**Uncategorized**';
+    onChunk(`**${doc.filename}** is located in: ${folderName}`);
+    return { sources: [{ documentId: doc.id, documentName: doc.filename, score: 1.0 }] };
+  }
+
+  // Multiple files with same name
+  const locations = documents.map(doc => {
+    const folderName = doc.folder ? `${doc.folder.emoji || '📁'} **${doc.folder.name}**` : '**Uncategorized**';
+    return `- **${doc.filename}** in ${folderName}`;
+  }).join('\n');
+
+  onChunk(`I found ${documents.length} files with that name:\n\n${locations}`);
+
+  const sources = documents.map(doc => ({
+    documentId: doc.id,
+    documentName: doc.filename,
+    score: 1.0
+  }));
+
+  return { sources };
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// FOLDER CONTENT QUERY DETECTION & HANDLING
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect if query is asking for folder contents
+ * Supports both "Finance folder" and "folder Finance" phrasings
+ */
+function detectFolderContentQuery(query: string): boolean {
+  const lower = query.toLowerCase();
+
+  const patterns = [
+    // ═══════════════════════════════════════════════════════════
+    // "what is in..." patterns
+    // ═══════════════════════════════════════════════════════════
+
+    // "what is in folder X" or "what's in folder X"
+    /what('s|\s+is)\s+(in|inside)\s+(my\s+)?folder\s+(\w+)/i,
+
+    // "what is in X folder" or "what's in X folder"
+    /what('s|\s+is)\s+(in|inside)\s+(my\s+)?(\w+)\s+folder/i,
+
+    // ═══════════════════════════════════════════════════════════
+    // "show me..." patterns
+    // ═══════════════════════════════════════════════════════════
+
+    // "show me folder X" or "show folder X"
+    /show\s+(me\s+)?(my\s+)?folder\s+(\w+)/i,
+
+    // "show me X folder" or "show X folder"
+    /show\s+(me\s+)?(my\s+)?(\w+)\s+folder/i,
+
+    // ═══════════════════════════════════════════════════════════
+    // "list..." patterns
+    // ═══════════════════════════════════════════════════════════
+
+    // "list folder X" or "list files in folder X"
+    /list\s+(files\s+in\s+)?folder\s+(\w+)/i,
+
+    // "list X folder" or "list files in X folder"
+    /list\s+(files\s+in\s+)?(\w+)\s+folder/i,
+
+    // ═══════════════════════════════════════════════════════════
+    // "folder contents/files" patterns
+    // ═══════════════════════════════════════════════════════════
+
+    // "folder X contents" or "folder X files"
+    /folder\s+(\w+)\s+(contents?|files?)/i,
+
+    // "X folder contents" or "X folder files"
+    /(\w+)\s+folder\s+(contents?|files?)/i,
+
+    // ═══════════════════════════════════════════════════════════
+    // Direct folder queries
+    // ═══════════════════════════════════════════════════════════
+
+    // "inside folder X" or "inside X folder"
+    /inside\s+(my\s+)?folder\s+(\w+)/i,
+    /inside\s+(my\s+)?(\w+)\s+folder/i
+  ];
+
+  return patterns.some(pattern => pattern.test(lower));
+}
+
+/**
+ * Handle folder content queries with direct database lookup
+ */
+async function handleFolderContentQuery(
+  query: string,
+  userId: string,
+  onChunk: (chunk: string) => void
+): Promise<{ sources: any[] }> {
+  console.log('📁 [FOLDER CONTENT] Searching for folder...');
+
+  // Extract folder name - try multiple patterns to support both word orders
+  const folderMatch =
+    // "folder X" format (most common now)
+    query.match(/folder\s+(\w+)/i) ||
+    // "X folder" format (legacy)
+    query.match(/\b(in|inside|show|list|what|my)\s+(?:me\s+)?(?:my\s+)?(?:is\s+)?(\w+)\s+folder/i);
+
+  // Extract folder name from appropriate capture group
+  let folderName = null;
+  if (folderMatch) {
+    // For "folder X" patterns, name is in group 1
+    // For "X folder" patterns, name is in group 2
+    folderName = folderMatch[1] || folderMatch[2] || null;
+  }
+
+  if (!folderName) {
+    onChunk('I couldn\'t identify which folder you\'re asking about. Could you specify the folder name?');
+    return { sources: [] };
+  }
+
+  // Query database for folder
+  const folder = await prisma.folder.findFirst({
+    where: {
+      userId,
+      name: { contains: folderName, mode: 'insensitive' }
+    },
+    include: {
+      documents: {
+        select: {
+          id: true,
+          filename: true,
+          mimeType: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' }
+      },
+      subfolders: {
+        select: {
+          id: true,
+          name: true,
+          emoji: true,
+          _count: {
+            select: { documents: true }
+          }
+        }
+      }
+    }
+  });
+
+  if (!folder) {
+    onChunk(`I couldn't find a folder named **${folderName}**. You can check your folder list or create a new folder.`);
+    return { sources: [] };
+  }
+
+  // Build response
+  const emoji = folder.emoji || '📁';
+  let response = `Your ${emoji} **${folder.name}** folder contains:\n\n`;
+
+  // List documents
+  if (folder.documents.length === 0) {
+    response += `No files yet. You can upload files to this folder.`;
+  } else {
+    response += `**Files** (${folder.documents.length}):\n`;
+    folder.documents.slice(0, 20).forEach(doc => {
+      response += `• ${doc.filename}\n`;
+    });
+
+    if (folder.documents.length > 20) {
+      response += `\n...and ${folder.documents.length - 20} more files`;
+    }
+  }
+
+  // List subfolders
+  if (folder.subfolders.length > 0) {
+    response += `\n\n**Subfolders** (${folder.subfolders.length}):\n`;
+    folder.subfolders.forEach(sf => {
+      const sfEmoji = sf.emoji || '📁';
+      const docCount = sf._count?.documents || 0;
+      response += `${sfEmoji} ${sf.name} (${docCount} ${docCount === 1 ? 'file' : 'files'})\n`;
+    });
+  }
+
+  onChunk(response);
+
+  const sources = folder.documents.map(doc => ({
+    documentId: doc.id,
+    documentName: doc.filename,
+    score: 1.0
+  }));
+
+  return { sources };
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// FOLDER LISTING QUERY DETECTION & HANDLING
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect if query is asking for a list of all folders
+ * Examples: "which folders do I have?", "show my folders", "list all folders"
+ */
+function detectFolderListingQuery(query: string): boolean {
+  const lower = query.toLowerCase();
+
+  const patterns = [
+    // "which/what folders..."
+    /(which|what)\s+(folders|directories)\s+(do\s+i\s+have|exist|are\s+there)/i,
+
+    // "show/list my folders"
+    /(show|list|display)\s+(me\s+)?(my\s+|all\s+)?(folders|directories)/i,
+
+    // "do I have folders" / "are there folders"
+    /(do\s+i\s+have|are\s+there)\s+(any\s+)?(folders|directories)/i,
+
+    // "my folders" (standalone)
+    /^(my\s+)?(folders|directories)$/i,
+
+    // "all folders"
+    /^all\s+(folders|directories)$/i
+  ];
+
+  return patterns.some(pattern => pattern.test(lower));
+}
+
+/**
+ * Handle folder listing queries by fetching all user folders from database
+ */
+async function handleFolderListingQuery(
+  userId: string,
+  onChunk: (chunk: string) => void
+): Promise<{ sources: any[] }> {
+  try {
+    // Fetch all folders for user
+    const folders = await prisma.folder.findMany({
+      where: { userId },
+      include: {
+        _count: {
+          select: { documents: true }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    if (folders.length === 0) {
+      const response = "You don't have any folders yet. You can create folders to organize your documents by saying:\n\n\"Create folder Finance\"";
+      onChunk(response);
+      return { sources: [] };
+    }
+
+    // Build folder tree (handle nested folders)
+    const folderTree = buildFolderTree(folders);
+
+    // Format response
+    let response = `You have **${folders.length}** folder${folders.length > 1 ? 's' : ''}:\n\n`;
+
+    folderTree.forEach(folder => {
+      response += formatFolderTreeItem(folder, 0);
+    });
+
+    // Add helpful examples
+    const firstFolderName = folderTree[0].name;
+    response += `\n\nYou can ask me about any folder's contents, like:\n- "What's in ${firstFolderName} folder?"\n- "Show me folder ${firstFolderName}"`;
+
+    onChunk(response);
+    return { sources: [] };
+
+  } catch (error) {
+    console.error('[FOLDER LISTING] Error:', error);
+    onChunk('I encountered an error while fetching your folders. Please try again.');
+    return { sources: [] };
+  }
+}
+
+/**
+ * Build folder tree from flat folder list
+ */
+function buildFolderTree(folders: any[]): any[] {
+  const folderMap = new Map();
+  const rootFolders: any[] = [];
+
+  // Create map of all folders
+  folders.forEach(folder => {
+    folderMap.set(folder.id, { ...folder, children: [] });
+  });
+
+  // Build tree structure
+  folders.forEach(folder => {
+    const folderNode = folderMap.get(folder.id);
+    if (folder.parentFolderId) {
+      const parent = folderMap.get(folder.parentFolderId);
+      if (parent) {
+        parent.children.push(folderNode);
+      } else {
+        rootFolders.push(folderNode);
+      }
+    } else {
+      rootFolders.push(folderNode);
+    }
+  });
+
+  return rootFolders;
+}
+
+/**
+ * Format folder for display with proper Markdown list indentation
+ */
+function formatFolderTreeItem(folder: any, depth: number): string {
+  const indent = '  '.repeat(depth);
+
+  // Sanitize emoji - replace "FOLDER_SVG", "__FOLDER_SVG__", or invalid values with 📁
+  let emoji = folder.emoji || '📁';
+  if (emoji === 'FOLDER_SVG' || emoji === '__FOLDER_SVG__' || emoji.trim() === '') {
+    emoji = '📁';
+  }
+
+  const docCount = folder._count?.documents || 0;
+  const docText = docCount === 1 ? '1 document' : `${docCount} documents`;
+
+  // Use proper Markdown list format with dash bullets
+  const prefix = depth === 0 ? '-' : '  -';
+
+  let result = `${indent}${prefix} ${emoji} **${folder.name}** (${docText})\n`;
+
+  // Add children recursively
+  if (folder.children && folder.children.length > 0) {
+    folder.children.forEach((child: any) => {
+      result += formatFolderTreeItem(child, depth + 1);
+    });
+  }
+
+  return result;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// FOLDER TREE CONTEXT BUILDER
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Build folder tree context for AI
+ * Converts flat folder list to hierarchical tree structure
+ *
+ * @param folders - Array of folders with id, name, emoji, parentFolderId, and counts
+ * @returns Formatted folder tree string for AI context
+ */
+function buildFolderTreeContext(folders: any[]): string {
+  if (folders.length === 0) {
+    return '**User\'s Folders**: No folders created yet. User can create folders to organize documents.';
+  }
+
+  // Build parent-child map
+  const rootFolders = folders.filter(f => !f.parentFolderId);
+
+  // Recursive function to build tree
+  const buildTree = (folder: any, indent: string = ''): string => {
+    // Sanitize emoji - replace "FOLDER_SVG", "__FOLDER_SVG__", or invalid values with 📁
+    let emoji = folder.emoji || '📁';
+    if (emoji === 'FOLDER_SVG' || emoji === '__FOLDER_SVG__' || emoji.trim() === '') {
+      emoji = '📁';
+    }
+
+    const docCount = folder._count?.documents || 0;
+
+    let result = `${indent}${emoji} **${folder.name}** (${docCount} ${docCount === 1 ? 'file' : 'files'})`;
+
+    // Add subfolders
+    const subfolders = folders.filter(f => f.parentFolderId === folder.id);
+    if (subfolders.length > 0) {
+      result += '\n' + subfolders.map(sf => buildTree(sf, indent + '  ')).join('\n');
+    }
+
+    return result;
+  };
+
+  // Build tree for all root folders
+  const tree = rootFolders.map(f => buildTree(f)).join('\n');
+
+  return `**User's Folder Structure**:\n${tree}\n\n**Important**: When users ask about folders or file locations, refer to this structure.`;
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

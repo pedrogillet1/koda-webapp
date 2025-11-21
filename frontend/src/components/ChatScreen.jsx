@@ -1,28 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import LeftNav from './LeftNav';
 import ChatHistory from './ChatHistory';
 import ChatInterface from './ChatInterface';
 import NotificationPanel from './NotificationPanel';
 import { useIsMobile } from '../hooks/useIsMobile';
+import chatService from '../services/chatService';
 
 const ChatScreen = () => {
     const location = useLocation();
     const isMobile = useIsMobile();
     const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
     const [showMobileChatHistory, setShowMobileChatHistory] = useState(false);
+    const initialConversationAddedRef = useRef(false); // Track if initial conversation was added to history
+    const hadInitialConversationRef = useRef(false); // Track if there was a conversation on mount
 
     // Load current conversation from sessionStorage on mount (persists during session)
     const [currentConversation, setCurrentConversation] = useState(() => {
         // Check if a new conversation was passed via navigation state
         if (location.state?.newConversation) {
+            hadInitialConversationRef.current = true; // Had a conversation on mount
             return location.state.newConversation;
         }
 
-        const saved = sessionStorage.getItem('currentConversationId');
-        if (saved) {
-            return { id: saved }; // Will be fully loaded by ChatInterface
-        }
+        // DON'T load from sessionStorage on mount - always start fresh
+        // This ensures a new conversation is created every time the user visits
+        sessionStorage.removeItem('currentConversationId'); // Clean up old data
         return null;
     });
 
@@ -35,25 +38,124 @@ const ChatScreen = () => {
         }
     }, [location.state]);
 
-    // Save current conversation ID to sessionStorage whenever it changes
+    // DON'T save conversation to sessionStorage - always start fresh on page visit
+    // This ensures users get a new "New Chat" every time they visit
+    // useEffect(() => {
+    //     if (currentConversation?.id) {
+    //         sessionStorage.setItem('currentConversationId', currentConversation.id);
+    //     } else {
+    //         sessionStorage.removeItem('currentConversationId');
+    //     }
+    // }, [currentConversation]);
+
+    // ✅ FIX #2: Create a new conversation on first visit if none exists
+    // ✅ OPTIMISTIC LOADING: Non-blocking conversation creation
+    // Greeting shows immediately, conversation creates in background
     useEffect(() => {
-        if (currentConversation?.id) {
-            sessionStorage.setItem('currentConversationId', currentConversation.id);
-        } else {
-            sessionStorage.removeItem('currentConversationId');
+        const initializeChat = async () => {
+            // Only create if no conversation exists and not already loading one
+            if (!currentConversation && !location.state?.newConversation) {
+                console.log('🆕 [ChatScreen] First visit - creating initial conversation...');
+
+                try {
+                    // Create conversation in background (non-blocking)
+                    const newConversation = await chatService.createConversation('New Chat');
+                    console.log('✅ [ChatScreen] Initial conversation created:', newConversation);
+                    console.log('📋 [ChatScreen] Conversation details:', {
+                        id: newConversation.id,
+                        title: newConversation.title,
+                        hasTitle: !!newConversation.title
+                    });
+                    setCurrentConversation(newConversation);
+                } catch (error) {
+                    console.error('❌ [ChatScreen] Error creating initial conversation:', error);
+                }
+            } else {
+                console.log('⏭️ [ChatScreen] Skipping conversation creation:', {
+                    hasCurrentConversation: !!currentConversation,
+                    hasNavigationState: !!location.state?.newConversation
+                });
+            }
+        };
+
+        initializeChat(); // Non-blocking
+    }, []); // Only run on mount
+
+    // ✅ FIX: Add initial conversation to history when both conversation and update function are available
+    useEffect(() => {
+        console.log('🔍 [ChatScreen] useEffect triggered - checking if should add to history:', {
+            hasConversation: !!currentConversation,
+            conversationId: currentConversation?.id?.substring(0, 8),
+            hasUpdateFunction: !!updateConversationInList,
+            alreadyAdded: initialConversationAddedRef.current,
+            hadInitialConversation: hadInitialConversationRef.current
+        });
+
+        if (currentConversation && updateConversationInList && !initialConversationAddedRef.current) {
+            // Only add if there was NO conversation on mount (meaning it was newly created)
+            if (!hadInitialConversationRef.current) {
+                console.log('📋 [ChatScreen] Adding initial conversation to history list:', currentConversation.id.substring(0, 8));
+                console.log('📋 [ChatScreen] Conversation to add:', currentConversation);
+                updateConversationInList(currentConversation);
+            } else {
+                console.log('⏭️ [ChatScreen] Skipping add - conversation existed on mount:', currentConversation.id.substring(0, 8));
+            }
+
+            initialConversationAddedRef.current = true; // Mark as handled to prevent duplicate checks
         }
-    }, [currentConversation]);
+    }, [currentConversation, updateConversationInList]); // Run when either becomes available
 
     const handleSelectConversation = (conversation) => {
         setCurrentConversation(conversation);
     };
 
-    const handleNewChat = () => {
-        // Clear current conversation to show blank new chat screen
-        setCurrentConversation(null);
+    const handleNewChat = async (existingConversation) => {
+        try {
+            // If conversation already created by ChatHistory, use it
+            if (existingConversation) {
+                console.log('✅ [ChatScreen] Using conversation from ChatHistory:', existingConversation.id);
+                setCurrentConversation(existingConversation);
+                return;
+            }
+
+            // Otherwise create a new conversation
+            console.log('🆕 [ChatScreen] Creating new chat...');
+            const newConversation = await chatService.createConversation();
+            console.log('✅ [ChatScreen] New chat created:', newConversation.id);
+            setCurrentConversation(newConversation);
+
+            // Add to conversation list via callback
+            if (updateConversationInList) {
+                updateConversationInList(newConversation);
+            }
+        } catch (error) {
+            console.error('❌ Error creating new chat:', error);
+            // Fallback to clearing conversation
+            setCurrentConversation(null);
+        }
     };
 
-    const handleConversationUpdate = (updatedConversation) => {
+    const handleConversationUpdate = async (updatedConversation) => {
+        // If updatedConversation is null, it means the conversation was not found (404)
+        // Create a new conversation automatically
+        if (updatedConversation === null) {
+            console.log('⚠️ [ChatScreen] Conversation not found, creating new one...');
+            try {
+                const newConversation = await chatService.createConversation();
+                console.log('✅ [ChatScreen] New conversation created after 404:', newConversation.id);
+                setCurrentConversation(newConversation);
+
+                // Add to conversation list
+                if (updateConversationInList) {
+                    updateConversationInList(newConversation);
+                }
+            } catch (error) {
+                console.error('❌ [ChatScreen] Error creating new conversation after 404:', error);
+                setCurrentConversation(null);
+            }
+            return;
+        }
+
         // Update current conversation state
         setCurrentConversation(prev => prev ? { ...prev, ...updatedConversation } : null);
 
@@ -65,6 +167,14 @@ const ChatScreen = () => {
 
     const handleConversationCreated = (newConversation) => {
         setCurrentConversation(newConversation);
+
+        // Add to conversation list
+        if (updateConversationInList) {
+            console.log('📋 [ChatScreen] Adding newly created conversation to history list:', newConversation.id.substring(0, 8));
+            updateConversationInList(newConversation);
+            // Prevent the useEffect from trying to add the initial conversation later
+            initialConversationAddedRef.current = true;
+        }
     };
 
     // Receive the update function from ChatHistory

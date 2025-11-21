@@ -3,9 +3,7 @@
  * Matches extracted document references to actual documents in the database using fuzzy matching
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../../../config/database';
 
 export interface DocumentMatch {
   matched: boolean;

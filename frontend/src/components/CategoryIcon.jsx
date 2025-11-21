@@ -43,7 +43,19 @@ const CategoryIcon = ({ emoji, style = {}, className = '' }) => {
     );
   }
 
-  return <span className={className} style={style}>{emoji}</span>;
+  return (
+    <span
+      className={className}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...style
+      }}
+    >
+      {emoji}
+    </span>
+  );
 };
 
 export default CategoryIcon;

@@ -64,7 +64,8 @@ async function regeneratePPTXSlides() {
 
         console.log('   ⬇️  Downloading from GCS...');
         const file = bucket.file(document.encryptedFilename);
-        await file.download({ destination: tempFilePath });
+        const [fileBuffer] = await file.download();
+        fs.writeFileSync(tempFilePath, fileBuffer);
         console.log(`   ✅ Downloaded to: ${tempFilePath}`);
 
         // Generate slide images

@@ -54,7 +54,11 @@ function App() {
           <Router>
             <div style={{ width: '100vw', height: '100vh' }}>
               <Routes>
-            <Route path="/" element={<Login />} />
+            {/* ✅ DEFAULT ROUTE: Chat screen is the first page users see */}
+            <Route path="/" element={<ChatScreen />} />
+            <Route path="/chat" element={<ChatScreen />} />
+
+            {/* AUTH ROUTES */}
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/authentication" element={<Authentication />} />
@@ -77,12 +81,6 @@ function App() {
             {/* RECOVERY VERIFICATION ROUTES */}
             <Route path="/verify-recovery-email" element={<VerifyRecoveryEmail />} />
             <Route path="/verify-recovery-phone" element={<VerifyRecoveryPhone />} />
-
-            {/* OLD PASSWORD RECOVERY (CODE-BASED - DEPRECATED) */}
-            <Route path="/forgot-password-code" element={<ForgotPasswordCode />} />
-            <Route path="/forgot-password-email-sent" element={<ForgotPasswordEmailSent />} />
-            <Route path="/reset-password" element={<SetNewPassword />} />
-            <Route path="/chat" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />
             <Route path="/home" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
             <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
             <Route path="/category/:categoryName" element={<ProtectedRoute><CategoryDetail /></ProtectedRoute>} />

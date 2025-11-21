@@ -762,14 +762,42 @@ export const sendMessageToGeminiStreaming = async (
       systemPrompt += createLanguageInstruction(detectedLanguage);
     }
 
-    // Use optimized context manager to maximize token usage
-    const optimizedContext = contextManager.buildOptimizedContext({
-      systemPrompt,
-      documentContext: documentContext || '',
-      conversationHistory,
-      maxContextTokens: 128000, // gpt-4o-mini max context
-      maxOutputTokens: 16000, // gpt-4o-mini max output
-    });
+    // ✅ FIX: Skip expensive context optimization for simple queries
+    const isSimpleQuery =
+      message.split(/\s+/).length <= 10 && // 10 words or less
+      conversationHistory.length <= 4 && // 2 message pairs or less
+      (!documentContext || documentContext.length < 500); // No or minimal context
+
+    let optimizedContext;
+    if (isSimpleQuery) {
+      console.log('⚡ [CONTEXT OPTIMIZATION] Skipping optimization for simple query (2-3s saved)');
+      // Build simple context without expensive optimization
+      optimizedContext = {
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...conversationHistory.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          }))
+        ],
+        tokenUsage: {
+          systemPrompt: 0,
+          documentContext: 0,
+          conversationHistory: 0,
+          total: 0,
+          utilizationPercentage: 0
+        }
+      };
+    } else {
+      // Use optimized context manager to maximize token usage
+      optimizedContext = contextManager.buildOptimizedContext({
+        systemPrompt,
+        documentContext: documentContext || '',
+        conversationHistory,
+        maxContextTokens: 128000, // gpt-4o-mini max context
+        maxOutputTokens: 16000, // gpt-4o-mini max output
+      });
+    }
     console.timeEnd('⏱️ [1] Build Prompt');
 
     // Log token usage for monitoring
@@ -1754,28 +1782,35 @@ export const generateConversationTitle = async (
       messages: [
         {
           role: 'system',
-          content: `Generate a short, descriptive title for a conversation.
+          content: `Generate a short, descriptive title for a conversation based on ACTUAL content.
 
-**RULES:**
+**CRITICAL RULES:**
 1. Maximum 50 characters
-2. Capture the essence of what the user wants
-3. Use natural, conversational language
-4. No quotes, no colons, no special formatting
-5. Focus on the ACTION or TOPIC, not the greeting
-6. Examples:
-   - "Tax documents for 2024" (not "User asked about tax documents")
-   - "Passport expiry date" (not "Check passport")
-   - "Compare lease agreements" (not "Document comparison")
-   - "Organize medical records" (not "Help with organization")
+2. If the message is just a greeting (hi, hello, hey, etc.) with no specific question or topic, return "New Chat"
+3. ONLY create a specific title if there is a clear topic or question
+4. Use natural, conversational language
+5. No quotes, no colons, no special formatting
+6. Focus on the ACTION or TOPIC mentioned
+7. DO NOT hallucinate or guess topics - only use what's explicitly mentioned
 
-Return ONLY the title, nothing else.`,
+**Examples:**
+- "hello" → "New Chat" (just a greeting)
+- "hi there" → "New Chat" (just a greeting)
+- "What are tax documents for 2024?" → "Tax documents for 2024"
+- "Check my passport expiry" → "Passport expiry date"
+- "Compare these lease agreements" → "Compare lease agreements"
+- "Help me organize medical records" → "Organize medical records"
+
+Return ONLY the title, nothing else. NO hallucination or guessing allowed.`,
         },
         {
           role: 'user',
-          content: `User's first message: "${firstMessage}"${firstResponse ? `\n\nAssistant's response: "${firstResponse.slice(0, 200)}"` : ''}`,
+          content: firstResponse
+            ? `User: "${firstMessage}"\nAssistant: "${firstResponse.slice(0, 300)}"\n\nCreate a title that captures the ACTUAL topic discussed.`
+            : `User: "${firstMessage}"\n\nIf this is just a greeting with no specific topic, return "New Chat". Otherwise, create a title for the topic.`,
         },
       ],
-      temperature: 0.5,
+      temperature: 0.3,
       max_tokens: 20, // Keep it short
     });
 

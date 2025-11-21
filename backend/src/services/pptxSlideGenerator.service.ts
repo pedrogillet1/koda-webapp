@@ -145,22 +145,38 @@ export class PPTXSlideGeneratorService {
 
       // Use Impress PDF Export filter to preserve PowerPoint design, layout, colors, and images
       // Use --headless --invisible --nologo --norestore to prevent any windows from appearing
-      // Use enhanced export options to preserve images and graphics
+      // CRITICAL: Enhanced export options to ensure images and graphics are properly captured
       const exportOptions = [
-        'EmbedStandardFonts=true',
-        'Quality=90',
-        'ReduceImageResolution=false',
-        'MaxImageResolution=300',
-        'ImageResolution=300',
+        // Image preservation settings (CRITICAL for capturing embedded images)
+        'ReduceImageResolution=false',        // DO NOT reduce image resolution
+        'MaxImageResolution=600',             // Increased from 300 to 600 DPI for better quality
+        'EmbedStandardFonts=true',            // Embed fonts for consistent rendering
+        'Quality=100',                        // Maximum quality (increased from 90)
+
+        // Export settings
         'ExportFormFields=false',
-        'UseTransitionEffects=true',
+        'UseTransitionEffects=false',         // Changed to false - transitions can cause issues
         'ExportHiddenSlides=false',
         'ExportNotes=false',
         'ExportNotesPages=false',
-        'SelectPdfVersion=1', // PDF 1.6 for better image support
-        'IsCollectImageResolution=false',
+        'ExportBookmarks=false',
+        'ExportPlaceholders=false',
+
+        // PDF version and compression
+        'SelectPdfVersion=1',                 // PDF 1.6 for better image support
         'UseTaggedPDF=false',
-        'UseReferenceXObject=false'
+        'ExportBookmarksToPDFDestination=false',
+
+        // Image handling (CRITICAL)
+        'IsSkipEmptyPages=false',             // Don't skip any pages
+        'IsAddStream=false',
+        'EmbedStandardFonts=true',
+        'FormsType=0',
+
+        // Lossless image export
+        'UseLosslessCompression=true',        // CRITICAL: Use lossless compression for images
+        'Quality=100',                        // Redundant but ensuring maximum quality
+        'ReduceImageResolution=false'         // Redundant but critical to emphasize
       ].join('&');
 
       await execAsync(
@@ -196,11 +212,12 @@ export class PPTXSlideGeneratorService {
 
           // Convert each page of PDF to PNG using Ghostscript
           // -dNOPAUSE -dBATCH: Non-interactive mode
-          // -sDEVICE=png16m: 24-bit PNG output
-          // -r150: 150 DPI resolution
-          // -dTextAlphaBits=4 -dGraphicsAlphaBits=4: Anti-aliasing
+          // -sDEVICE=png16m: 24-bit PNG output (16 million colors)
+          // -r300: 300 DPI resolution (increased from 150 for better image quality)
+          // -dTextAlphaBits=4 -dGraphicsAlphaBits=4: 4-bit anti-aliasing for smooth rendering
+          // -dUseCropBox: Use PDF CropBox for accurate slide dimensions
           await execAsync(
-            `"${gsPath}" -dNOPAUSE -dBATCH -sDEVICE=png16m -r150 -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -sOutputFile="${path.join(tempDir, 'slide-%d.png')}" "${pdfPath}"`,
+            `"${gsPath}" -dNOPAUSE -dBATCH -sDEVICE=png16m -r300 -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -dUseCropBox -sOutputFile="${path.join(tempDir, 'slide-%d.png')}" "${pdfPath}"`,
             {
               timeout: 120000,
               maxBuffer: 50 * 1024 * 1024
@@ -259,12 +276,12 @@ export class PPTXSlideGeneratorService {
         console.log('   Using ImageMagick for better font rendering...');
 
         // Convert each page of PDF to PNG using ImageMagick
-        // -density 150: High quality (150 DPI)
-        // -quality 90: PNG compression quality
+        // -density 300: High quality (300 DPI, increased from 150)
+        // -quality 100: Maximum PNG compression quality
         // -alpha remove: Remove transparency
         // -background white: Set white background
         await execAsync(
-          `${magickCommand} -density 150 -quality 90 -alpha remove -background white "${pdfPath}" "${path.join(tempDir, 'slide-%d.png')}"`,
+          `${magickCommand} -density 300 -quality 100 -alpha remove -background white "${pdfPath}" "${path.join(tempDir, 'slide-%d.png')}"`,
           {
             timeout: 120000,
             maxBuffer: 50 * 1024 * 1024

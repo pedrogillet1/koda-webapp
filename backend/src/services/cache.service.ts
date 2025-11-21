@@ -217,6 +217,25 @@ class CacheService {
   }
 
   /**
+   * ⚡ OPTIMIZED: Invalidate cache for SPECIFIC conversation only (not all conversations)
+   */
+  async invalidateConversationCache(userId: string, conversationId: string): Promise<void> {
+    try {
+      // Only invalidate THIS conversation's cache
+      const conversationKey = this.generateKey('conversation', conversationId, userId);
+      this.cache.del(conversationKey);
+
+      // Also invalidate conversation list cache (it shows message counts)
+      const listKey = this.generateKey('conversations_list', userId);
+      this.cache.del(listKey);
+
+      console.log(`🗑️  [Cache] Invalidated cache for conversation ${conversationId.substring(0, 8)}... (user: ${userId.substring(0, 8)}...)`);
+    } catch (error) {
+      console.error('❌ [Cache] Error invalidating conversation cache:', error);
+    }
+  }
+
+  /**
    * Invalidate document list cache for a user
    */
   async invalidateDocumentListCache(userId: string): Promise<void> {

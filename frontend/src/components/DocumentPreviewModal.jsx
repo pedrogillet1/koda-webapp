@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../services/api';
+import { previewCache } from '../services/previewCache';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import { downloadFile } from '../utils/browserUtils';
@@ -40,6 +41,14 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
     if (!isOpen || !document) return;
 
     const loadPreview = async () => {
+      // ✅ PHASE 1 OPTIMIZATION: Check cache first (instant - <50ms)
+      if (previewCache.has(document.id)) {
+        console.log('⚡ Using cached preview for:', document.filename);
+        setPreviewUrl(previewCache.get(document.id));
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
         // Check if document is DOCX - use preview endpoint for PDF conversion
@@ -70,6 +79,9 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
 
             const { previewUrl: pdfUrl } = previewResponse.data;
             console.log('✅ DOCX preview received:', pdfUrl?.substring(0, 100));
+
+            // ✅ Cache the preview URL
+            previewCache.set(document.id, pdfUrl);
             setPreviewUrl(pdfUrl);
           } catch (docxError) {
             console.error('❌ DOCX preview failed:', docxError);
@@ -86,9 +98,12 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
           // Create blob URL for the document
           const blob = response.data;
           const url = URL.createObjectURL(blob);
+
+          // ✅ Cache the blob URL
+          previewCache.set(document.id, url);
           setPreviewUrl(url);
 
-          console.log('📄 Document preview loaded:', url);
+          console.log('📄 Document preview loaded and cached:', url);
         }
       } catch (error) {
         console.error('❌ Error loading document preview:', error);

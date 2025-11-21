@@ -415,7 +415,7 @@ export class SemanticChunkingService {
    * HOW: Use LLM to generate concise summary
    */
   private async addTopicSummaries(chunks: SemanticChunk[]): Promise<SemanticChunk[]> {
-    const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     // REASON: Generate summaries in batch for efficiency
     const summaryPromises = chunks.map(async (chunk) => {

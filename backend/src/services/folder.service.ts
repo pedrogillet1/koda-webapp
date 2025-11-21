@@ -14,8 +14,55 @@ export const createFolder = async (
     encryptionIV?: string;
     encryptionAuthTag?: string;
     isEncrypted?: boolean;
+  },
+  options?: {
+    reuseExisting?: boolean;  // ✅ NEW: Option to reuse existing folder
+    autoRename?: boolean;     // ✅ NEW: Option to auto-rename (default: false)
   }
 ) => {
+  // ✅ FIX: Check for existing folder
+  const existingFolder = await prisma.folder.findFirst({
+    where: {
+      userId,
+      name,
+      parentFolderId: parentFolderId || null,
+    },
+    include: {
+      parentFolder: true,
+      subfolders: true,
+      _count: {
+        select: {
+          documents: true,
+        },
+      },
+    },
+  });
+
+  if (existingFolder) {
+    // ✅ FIX: Check options
+    if (options?.reuseExisting) {
+      console.log(`✅ Reusing existing folder: ${name} (${existingFolder.id})`);
+      return existingFolder;  // ✅ Return existing folder
+    }
+
+    if (options?.autoRename) {
+      // Auto-rename if requested
+      let counter = 1;
+      let newName = `${name} (${counter})`;
+      while (await prisma.folder.findFirst({
+        where: { userId, name: newName, parentFolderId: parentFolderId || null }
+      })) {
+        counter++;
+        newName = `${name} (${counter})`;
+      }
+      console.log(`⚠️ Folder "${name}" exists, creating as "${newName}"`);
+      name = newName;
+    } else {
+      // ✅ DEFAULT: Throw error
+      throw new Error(`Folder "${name}" already exists in this location`);
+    }
+  }
+
   const folder = await prisma.folder.create({
     data: {
       userId,
@@ -74,27 +121,43 @@ export const getOrCreateFolderByName = async (userId: string, folderName: string
 };
 
 /**
- * Recursively count all documents in a folder and its subfolders
+ * ⚡ OPTIMIZED: Get all folder IDs in a folder tree (including nested subfolders)
+ * Uses iterative approach instead of recursive to avoid N+1 query problem
  */
-const countDocumentsRecursively = async (folderId: string): Promise<number> => {
-  // Count documents in this folder
-  const directDocuments = await prisma.document.count({
-    where: { folderId },
-  });
+const getAllFolderIdsInTree = async (rootFolderId: string): Promise<string[]> => {
+  const folderIds = [rootFolderId];
+  let currentBatch = [rootFolderId];
 
-  // Get subfolders
-  const subfolders = await prisma.folder.findMany({
-    where: { parentFolderId: folderId },
-    select: { id: true },
-  });
+  // Iteratively find all subfolders (breadth-first search)
+  while (currentBatch.length > 0) {
+    const subfolders = await prisma.folder.findMany({
+      where: { parentFolderId: { in: currentBatch } },
+      select: { id: true },
+    });
 
-  // Recursively count documents in subfolders
-  let subfoldersDocumentCount = 0;
-  for (const subfolder of subfolders) {
-    subfoldersDocumentCount += await countDocumentsRecursively(subfolder.id);
+    const subfolderIds = subfolders.map(f => f.id);
+    if (subfolderIds.length === 0) break;
+
+    folderIds.push(...subfolderIds);
+    currentBatch = subfolderIds;
   }
 
-  return directDocuments + subfoldersDocumentCount;
+  return folderIds;
+};
+
+/**
+ * ⚡ OPTIMIZED: Count all documents in a folder tree with a SINGLE query
+ */
+const countDocumentsRecursively = async (folderId: string): Promise<number> => {
+  // Get all folder IDs in this tree (including subfolders)
+  const allFolderIds = await getAllFolderIdsInTree(folderId);
+
+  // Count documents in ALL folders with a single query
+  const totalDocuments = await prisma.document.count({
+    where: { folderId: { in: allFolderIds } },
+  });
+
+  return totalDocuments;
 };
 
 /**
@@ -121,7 +184,7 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
         },
       },
     },
-    orderBy: { name: 'asc' },
+    orderBy: { createdAt: 'desc' }, // ✅ Newest first
   });
 
   // Add recursive document count (only for root folders to avoid redundancy)
@@ -321,17 +384,31 @@ export const bulkCreateFolders = async (
         }
       }
 
-      // Create the folder within transaction
-      const folder = await tx.folder.create({
-        data: {
+      // ✅ FIX: Check if folder already exists before creating (prevents duplicates on retry)
+      const existingFolder = await tx.folder.findFirst({
+        where: {
           userId,
           name,
-          emoji: defaultEmoji,
           parentFolderId: resolvedParentFolderId,
         },
       });
 
-      console.log(`     ✅ Created with ID: ${folder.id}`);
+      let folder;
+      if (existingFolder) {
+        console.log(`     ♻️ Reusing existing folder: ${name} (${existingFolder.id})`);
+        folder = existingFolder;
+      } else {
+        // Create the folder within transaction
+        folder = await tx.folder.create({
+          data: {
+            userId,
+            name,
+            emoji: defaultEmoji,
+            parentFolderId: resolvedParentFolderId,
+          },
+        });
+        console.log(`     ✅ Created with ID: ${folder.id}`);
+      }
 
       // Store the mapping
       folderMap[path] = folder.id;

@@ -158,6 +158,42 @@ class ResponsePostProcessorService {
   }
 
   /**
+   * ✅ FIX #2: Enforce comparison table formatting
+   * Detects when a comparison response lacks a markdown table and adds a helpful message
+   * REASON: LLMs sometimes ignore table formatting instructions
+   */
+  private enforceComparisonTable(text: string): string {
+    // Check if response contains a markdown table (has | characters and separator row)
+    const hasTable = text.includes('|') && /\|[-\s|]+\|/.test(text);
+
+    if (!hasTable) {
+      console.log('⚠️ [POST-PROCESSOR] Comparison response missing table format');
+
+      // Remove any LLM-generated apologies about table formatting
+      text = text.replace(/\(Table formatting issue detected.*?\)/gi, '');
+      text = text.replace(/Please refer to the document sources for detailed comparison/gi, '');
+
+      // ✅ FIX: Add a helpful message with suggestion to retry
+      // This provides immediate feedback to users instead of showing broken response
+      const helpfulMessage = '\n\n⚠️ **Note:** This comparison should be displayed in a table format for easier comparison. Please try asking your question again, or rephrase it as "Create a comparison table between X and Y" for better results.';
+
+      // Only add message if text is not empty (avoid adding to completely empty responses)
+      if (text.trim().length > 0) {
+        text = text.trim() + helpfulMessage;
+        console.log('✅ [POST-PROCESSOR] Added helpful message about missing table');
+      } else {
+        // If response is completely empty, provide a more informative message
+        text = '⚠️ **Comparison could not be generated in the expected format.**\n\nPlease try rephrasing your question as: "Compare [document 1] with [document 2]" or "Create a comparison table showing the differences between [topic A] and [topic B]".\n\nMake sure you have attached or specified the documents you want to compare.';
+        console.log('⚠️ [POST-PROCESSOR] Response was empty - added fallback message');
+      }
+    } else {
+      console.log('✅ [POST-PROCESSOR] Comparison table detected and validated');
+    }
+
+    return text;
+  }
+
+  /**
    * Remove all warnings (for system queries where warnings don't make sense)
    */
   removeAllWarnings(text: string): string {
@@ -195,7 +231,8 @@ class ResponsePostProcessorService {
         break;
 
       case 'compare':
-        // Comparisons should have proper spacing
+        // ✅ FIX #2: Enforce table formatting for comparisons
+        formatted = this.enforceComparisonTable(formatted);
         formatted = this.addSpaceBeforeBullets(formatted);
         break;
 

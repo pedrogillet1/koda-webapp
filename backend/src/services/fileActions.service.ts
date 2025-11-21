@@ -15,6 +15,7 @@ import { llmIntentDetectorService } from './llmIntentDetector.service';
 import { findBestMatch } from 'string-similarity';
 import fuzzyMatchService from './fuzzy-match.service';
 import { emitDocumentEvent, emitFolderEvent } from './websocket.service';
+import semanticFileMatcher from './semanticFileMatcher.service'; // ✅ FIX #7: Import semantic matcher
 
 /**
  * Enhanced fuzzy matching using our dedicated service
@@ -167,6 +168,38 @@ export interface ShowFileParams {
 
 class FileActionsService {
   /**
+   * Extract the last mentioned filename from conversation context
+   * Used when user says "this file", "that document", etc.
+   */
+  private extractLastMentionedFile(conversationHistory: Array<{role: string, content: string}>): string | null {
+    // Search backwards through messages for file references
+    for (let i = conversationHistory.length - 1; i >= 0; i--) {
+      const msg = conversationHistory[i];
+
+      // Look for common file patterns in assistant responses
+      const filePatterns = [
+        /Here's the file:\s*\*\*(.+?)\*\*/i,           // "Here's the file: **filename**"
+        /Found file:\s*\*\*(.+?)\*\*/i,                // "Found file: **filename**"
+        /📄\s*(.+?)\.(?:pdf|docx|xlsx|pptx|jpg|png)/i, // "📄 filename.pdf"
+        /File:\s*(.+?)\.(?:pdf|docx|xlsx|pptx|jpg|png)/i, // "File: filename.pdf"
+        /Aqui está o arquivo:\s*\*\*(.+?)\*\*/i,       // Portuguese
+        /Aquí está el archivo:\s*\*\*(.+?)\*\*/i,      // Spanish
+        /Voici le fichier:\s*\*\*(.+?)\*\*/i,          // French
+      ];
+
+      for (const pattern of filePatterns) {
+        const match = msg.content.match(pattern);
+        if (match && match[1]) {
+          console.log(`🔍 [CONTEXT] Extracted filename from context: "${match[1]}"`);
+          return match[1].trim();
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Parse natural language file action query using LLM
    * Replaces rigid regex patterns with flexible AI understanding
    */
@@ -245,7 +278,7 @@ class FileActionsService {
     filename: string,
     userId: string
   ): Promise<Document | null> {
-    // Try exact match first
+    // STEP 1: Try exact match first (fastest)
     let document = await prisma.document.findFirst({
       where: {
         filename: filename,
@@ -256,9 +289,8 @@ class FileActionsService {
 
     if (document) return document;
 
-    // REASON: Try enhanced fuzzy matching with our dedicated service
-    // WHY: Improved accuracy from 30-40% to 85-95% with multiple similarity algorithms
-    // HOW: Uses token matching, substring matching, and edit distance
+    // STEP 2: Get all documents for fast local matching
+    // ⚡ PERFORMANCE: Do all fast local operations before calling external APIs
     const allDocuments = await prisma.document.findMany({
       where: {
         userId: userId,
@@ -266,9 +298,29 @@ class FileActionsService {
       },
     });
 
-    // STEP 1: Use enhanced fuzzy matching service
-    // REASON: Better algorithm combines multiple similarity metrics
-    // IMPACT: Handles typos, partial matches, and word reordering
+    // Helper function for normalizing filenames
+    const normalizeFilename = (name: string) => {
+      return name
+        .toLowerCase()
+        .replace(/\.pdf$|\.docx?$|\.xlsx?$|\.pptx?$|\.txt$|\.jpe?g$|\.png$|\.gif$|\.svg$/i, '')
+        .replace(/[_\-\.]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const normalizedInput = normalizeFilename(filename);
+
+    // STEP 3: Try exact normalized match (extension-agnostic, fast)
+    const exactNormalizedMatch = allDocuments.find(
+      d => normalizeFilename(d.filename) === normalizedInput
+    );
+
+    if (exactNormalizedMatch) {
+      console.log(`📄 Exact match (extension-agnostic): "${filename}" → "${exactNormalizedMatch.filename}"`);
+      return exactNormalizedMatch;
+    }
+
+    // STEP 4: Try enhanced fuzzy matching (fast, local)
     const fuzzyMatch = fuzzyMatchService.findBestMatch(
       filename,
       allDocuments,
@@ -278,21 +330,11 @@ class FileActionsService {
     if (fuzzyMatch) {
       document = fuzzyMatch.document;
       console.log(`🎯 Enhanced fuzzy match: "${filename}" → "${document.filename}" (score: ${fuzzyMatch.score.toFixed(3)})`);
+      return document;
     }
 
-    // STEP 2: If still no match with enhanced service, try string-similarity fallback
-    // REASON: Fallback to old algorithm for edge cases
-    if (!document && allDocuments.length > 0) {
-      const normalizeFilename = (name: string) => {
-        return name
-          .toLowerCase()
-          .replace(/\.pdf$|\.docx?$|\.xlsx?$|\.pptx?$|\.txt$/i, '')
-          .replace(/[_\-\.]/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-      };
-
-      const normalizedInput = normalizeFilename(filename);
+    // STEP 5: Try string-similarity fallback (fast, local)
+    if (allDocuments.length > 0) {
       const normalizedFilenames = allDocuments.map(d => normalizeFilename(d.filename));
       const matches = findBestMatch(normalizedInput, normalizedFilenames);
       const bestMatch = matches.bestMatch;
@@ -304,7 +346,26 @@ class FileActionsService {
       }
     }
 
-    return document;
+    // STEP 6: Last resort - semantic matching with embeddings (SLOW - only if nothing else worked)
+    // ⚠️ PERFORMANCE: This calls external API (Pinecone) and processes all documents
+    // Only use when fast local matching fails
+    try {
+      const semanticResult = await semanticFileMatcher.findSingleFile(userId, filename);
+
+      if (semanticResult) {
+        console.log(`🧠 Semantic match (last resort): "${filename}" → "${semanticResult.filename}" (confidence: ${semanticResult.confidence})`);
+        document = await prisma.document.findUnique({
+          where: { id: semanticResult.documentId },
+        });
+
+        if (document) return document;
+      }
+    } catch (error) {
+      console.log(`⚠️ Semantic matching failed:`, error);
+      // Continue - no match found
+    }
+
+    return null;
   }
 
   /**
@@ -548,14 +609,31 @@ class FileActionsService {
   /**
    * Show/preview a file
    */
-  async showFile(params: ShowFileParams, query: string = ''): Promise<FileActionResult> {
+  async showFile(params: ShowFileParams, query: string = '', conversationHistory: Array<{role: string, content: string}> = []): Promise<FileActionResult> {
     try {
       // Detect language from user query
       const lang = detectLanguage(query);
-      console.log(`👁️ [SHOW_FILE] Looking for file: "${params.filename}" (Language: ${lang})`);
+
+      let searchFilename = params.filename;
+
+      // ✅ CONTEXT RESOLUTION: If user said "this file", "that document", etc., resolve from context
+      const contextualReferences = ['this file', 'that file', 'the file', 'this document', 'that document', 'the document', 'it', 'este arquivo', 'esse arquivo', 'o arquivo', 'este documento', 'ese archivo', 'ce fichier'];
+      if (contextualReferences.some(ref => searchFilename.toLowerCase().includes(ref))) {
+        console.log(`🔍 [SHOW_FILE] Contextual reference detected: "${searchFilename}"`);
+        const lastMentionedFile = this.extractLastMentionedFile(conversationHistory);
+
+        if (lastMentionedFile) {
+          searchFilename = lastMentionedFile;
+          console.log(`✅ [SHOW_FILE] Resolved to: "${searchFilename}"`);
+        } else {
+          console.warn(`⚠️ [SHOW_FILE] Could not resolve contextual reference`);
+        }
+      }
+
+      console.log(`👁️ [SHOW_FILE] Looking for file: "${searchFilename}" (Language: ${lang})`);
 
       // Find document by filename with fuzzy matching
-      const document = await this.findDocumentWithFuzzyMatch(params.filename, params.userId);
+      const document = await this.findDocumentWithFuzzyMatch(searchFilename, params.userId);
 
       if (!document) {
         // Try searching by content keywords
@@ -1058,6 +1136,288 @@ class FileActionsService {
       return {
         success: false,
         message: 'Failed to find duplicates',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * List files with optional filtering by folder and/or file type
+   */
+  async listFiles(userId: string, folderName?: string, fileType?: string): Promise<FileActionResult> {
+    try {
+      console.log(`📂 [LIST_FILES] Listing files - folder: "${folderName || 'all'}", type: "${fileType || 'all'}"`);
+
+      // Build query
+      const where: any = { userId, status: { not: 'deleted' } };
+
+      // Filter by folder name (fuzzy match)
+      if (folderName) {
+        const normalizedFolderName = folderName.toLowerCase().replace(/[-_]+/g, ' ').trim();
+
+        const folders = await prisma.folder.findMany({
+          where: { userId },
+          select: { id: true, name: true }
+        });
+
+        const matchingFolder = folders.find(f => {
+          const normalized = f.name.toLowerCase().replace(/[-_]+/g, ' ').trim();
+          return normalized.includes(normalizedFolderName) || normalizedFolderName.includes(normalized);
+        });
+
+        if (!matchingFolder) {
+          return {
+            success: false,
+            message: `No folder found matching "${folderName}". Try listing all folders first with "show my folders".`,
+            error: 'FOLDER_NOT_FOUND'
+          };
+        }
+
+        where.folderId = matchingFolder.id;
+        console.log(`📁 Matched folder: "${matchingFolder.name}" (${matchingFolder.id.substring(0, 8)})`);
+      }
+
+      // Filter by file type
+      if (fileType) {
+        const typeMap: Record<string, string[]> = {
+          'pdf': ['pdf'],
+          'word': ['doc', 'docx'],
+          'excel': ['xls', 'xlsx'],
+          'powerpoint': ['ppt', 'pptx'],
+          'image': ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'],
+          'text': ['txt', 'md'],
+          'csv': ['csv']
+        };
+
+        const extensions = typeMap[fileType.toLowerCase()] || [fileType.toLowerCase()];
+
+        where.filename = {
+          endsWith: extensions.length === 1 ? `.${extensions[0]}` : undefined
+        };
+
+        if (extensions.length > 1) {
+          where.OR = extensions.map(ext => ({ filename: { endsWith: `.${ext}` } }));
+          delete where.filename;
+        }
+      }
+
+      // Fetch documents
+      const documents = await prisma.document.findMany({
+        where,
+        select: {
+          id: true,
+          filename: true,
+          fileSize: true,
+          createdAt: true,
+          folder: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        },
+        orderBy: [
+          { folder: { name: 'asc' } },
+          { filename: 'asc' }
+        ],
+        take: 100
+      });
+
+      if (documents.length === 0) {
+        let message = `No files found`;
+        if (folderName) message += ` in folder "${folderName}"`;
+        if (fileType) message += ` of type "${fileType}"`;
+        message += `. Try uploading some documents first.`;
+
+        return {
+          success: true,
+          message,
+          data: { documents: [] }
+        };
+      }
+
+      // Group by folder
+      const byFolder: Record<string, typeof documents> = {};
+      documents.forEach(doc => {
+        const folder = doc.folder?.name || 'Uncategorized';
+        if (!byFolder[folder]) byFolder[folder] = [];
+        byFolder[folder].push(doc);
+      });
+
+      // Format response
+      const formatFileSize = (bytes: number | null): string => {
+        if (!bytes) return 'Unknown size';
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      };
+
+      const formatDate = (date: Date): string => {
+        return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      };
+
+      let response = `Found **${documents.length}** file(s)`;
+      if (folderName) response += ` in folder **"${folderName}"**`;
+      if (fileType) response += ` of type **${fileType}**`;
+      response += `:\n\n`;
+
+      for (const [folder, files] of Object.entries(byFolder)) {
+        response += `**${folder}** (${files.length} file(s))\n`;
+
+        files.forEach(file => {
+          response += `- ${file.filename} - ${formatFileSize(file.fileSize)} - ${formatDate(file.createdAt)}\n`;
+        });
+
+        response += `\n`;
+      }
+
+      if (documents.length >= 100) {
+        response += `\n*Showing first 100 files. Use filters to narrow results.*`;
+      }
+
+      return {
+        success: true,
+        message: response.trim(),
+        data: { documents, count: documents.length }
+      };
+    } catch (error: any) {
+      console.error('❌ List files failed:', error);
+      return {
+        success: false,
+        message: 'Failed to list files',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get metadata and statistics about files
+   */
+  async metadataQuery(userId: string, queryType: string = 'count', fileTypes?: string[], folderName?: string): Promise<FileActionResult> {
+    try {
+      console.log(`📊 [METADATA_QUERY] Query type: "${queryType}", fileTypes: [${fileTypes?.join(', ') || 'all'}], folder: "${folderName || 'all'}"`);
+
+      // Build base query
+      const where: any = { userId, status: { not: 'deleted' } };
+
+      // Filter by folder if specified
+      if (folderName) {
+        const normalizedFolderName = folderName.toLowerCase().replace(/[-_]+/g, ' ').trim();
+
+        const folders = await prisma.folder.findMany({
+          where: { userId },
+          select: { id: true, name: true }
+        });
+
+        const matchingFolder = folders.find(f => {
+          const normalized = f.name.toLowerCase().replace(/[-_]+/g, ' ').trim();
+          return normalized.includes(normalizedFolderName) || normalizedFolderName.includes(normalized);
+        });
+
+        if (matchingFolder) {
+          where.folderId = matchingFolder.id;
+          console.log(`📁 Filtering by folder: "${matchingFolder.name}"`);
+        }
+      }
+
+      // Fetch all documents
+      const documents = await prisma.document.findMany({
+        where,
+        select: {
+          id: true,
+          filename: true,
+          fileSize: true
+        }
+      });
+
+      // Group by file type
+      const typeMap: Record<string, { count: number; size: number; label: string }> = {};
+      const extensionLabels: Record<string, string> = {
+        'pdf': 'PDF',
+        'doc': 'Word',
+        'docx': 'Word',
+        'xls': 'Excel',
+        'xlsx': 'Excel',
+        'ppt': 'PowerPoint',
+        'pptx': 'PowerPoint',
+        'txt': 'Text',
+        'md': 'Markdown',
+        'csv': 'CSV',
+        'jpg': 'Image',
+        'jpeg': 'Image',
+        'png': 'Image',
+        'gif': 'Image'
+      };
+
+      documents.forEach(doc => {
+        const ext = doc.filename.split('.').pop()?.toLowerCase() || 'unknown';
+        const label = extensionLabels[ext] || ext.toUpperCase();
+
+        if (!typeMap[label]) {
+          typeMap[label] = { count: 0, size: 0, label };
+        }
+
+        typeMap[label].count++;
+        typeMap[label].size += doc.fileSize || 0;
+      });
+
+      // If specific file types requested, filter results
+      let relevantTypes = Object.values(typeMap);
+      if (fileTypes && fileTypes.length > 0) {
+        const requestedLabels = fileTypes.map((ft: string) =>
+          extensionLabels[ft.toLowerCase()] || ft
+        );
+        relevantTypes = relevantTypes.filter(t =>
+          requestedLabels.some((label: string) =>
+            t.label.toLowerCase().includes(label.toLowerCase())
+          )
+        );
+      }
+
+      if (relevantTypes.length === 0) {
+        let message = `No files found`;
+        if (fileTypes && fileTypes.length > 0) message += ` of type(s): ${fileTypes.join(', ')}`;
+        if (folderName) message += ` in folder "${folderName}"`;
+
+        return {
+          success: true,
+          message,
+          data: { types: [], totalCount: 0 }
+        };
+      }
+
+      // Format response
+      const formatSize = (bytes: number): string => {
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      };
+
+      const totalFiles = documents.length;
+      let response = `**File Statistics**\n\n`;
+
+      if (folderName) {
+        response += `📁 Folder: **${folderName}**\n\n`;
+      }
+
+      response += `**Total Files:** ${totalFiles}\n\n`;
+
+      relevantTypes
+        .sort((a, b) => b.count - a.count)
+        .forEach(type => {
+          const percentage = ((type.count / totalFiles) * 100).toFixed(1);
+          response += `**${type.label}:** ${type.count} file(s) (${percentage}%) - ${formatSize(type.size)}\n`;
+        });
+
+      return {
+        success: true,
+        message: response.trim(),
+        data: { types: relevantTypes, totalCount: totalFiles }
+      };
+    } catch (error: any) {
+      console.error('❌ Metadata query failed:', error);
+      return {
+        success: false,
+        message: 'Failed to get file metadata',
         error: error.message
       };
     }

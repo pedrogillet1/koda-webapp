@@ -4,7 +4,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  background: #F8F8F8;
+  background: #FFFFFF;
   border-radius: 12px;
   padding: 16px 20px;
   margin-bottom: 16px;
@@ -161,13 +161,13 @@
 }
 
 .phone-modal {
-  background: #1A1A1A;
-  border: 1px solid #2A2A2A;
+  background: #FFFFFF;
+  border: 1px solid #E6E6EC;
   border-radius: 16px;
   padding: 32px;
   max-width: 480px;
   width: 90%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   animation: scaleIn 0.2s ease;
 }
 
@@ -193,14 +193,14 @@
   font-size: 20px;
   font-weight: 600;
   margin: 0;
-  color: #FFF;
+  color: #000000;
 }
 
 .close-button {
   background: none;
   border: none;
   font-size: 28px;
-  color: #999;
+  color: #666666;
   cursor: pointer;
   padding: 0;
   width: 32px;
@@ -213,8 +213,8 @@
 }
 
 .close-button:hover {
-  background: #2A2A2A;
-  color: #FFF;
+  background: #F5F5F5;
+  color: #000000;
 }
 
 .form-group {
@@ -226,29 +226,29 @@
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 8px;
-  color: #FFF;
+  color: #000000;
 }
 
 .form-group input {
   width: 100%;
   padding: 12px 16px;
-  background: #0A0A0A;
-  border: 1px solid #2A2A2A;
+  background: #FFFFFF;
+  border: 1px solid #E6E6EC;
   border-radius: 8px;
   font-size: 14px;
-  color: #FFF;
+  color: #000000;
   transition: all 0.2s ease;
   box-sizing: border-box;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #FFF;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
 }
 
 .form-group input:disabled {
-  background: #1A1A1A;
+  background: #F5F5F5;
   cursor: not-allowed;
 }
 
@@ -263,26 +263,35 @@
   display: flex;
   gap: 12px;
   justify-content: flex-end;
+  align-items: flex-end;
 }
 
 .button-primary,
 .button-secondary {
-  padding: 10px 20px;
+  padding: 0 24px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: none;
+  flex: 0 0 auto;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  line-height: 1;
 }
 
 .button-primary {
-  background: #FFF;
-  color: #000;
+  background: #000000;
+  color: #FFFFFF;
+  border: 1px solid #000000;
 }
 
 .button-primary:hover:not(:disabled) {
-  background: #E6E6E6;
+  background: #333333;
+  border-color: #333333;
 }
 
 .button-primary:disabled {
@@ -292,13 +301,13 @@
 
 .button-secondary {
   background: transparent;
-  color: #999;
-  border: 1px solid #2A2A2A;
+  color: #666666;
+  border: 1px solid #D0D5DD;
 }
 
 .button-secondary:hover:not(:disabled) {
-  background: #2A2A2A;
-  color: #FFF;
+  background: #F5F5F5;
+  color: #000000;
 }
 
 .button-secondary:disabled {
@@ -309,48 +318,56 @@
 /* Phone Input Styles */
 .phone-input-field {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .phone-input-field .PhoneInputInput {
   width: 100%;
   padding: 12px 16px;
-  background: #0A0A0A;
-  border: 1px solid #2A2A2A;
+  background: #FFFFFF;
+  border: 1px solid #D0D5DD !important;
   border-radius: 8px;
   font-size: 14px;
-  color: #FFF;
+  color: #000000;
   transition: all 0.2s ease;
   box-sizing: border-box;
+  height: 48px;
 }
 
 .phone-input-field .PhoneInputInput:focus {
   outline: none;
-  border-color: #FFF;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
 }
 
 .phone-input-field .PhoneInputInput:disabled {
-  background: #1A1A1A;
+  background: #F5F5F5;
   cursor: not-allowed;
 }
 
 .phone-input-field .PhoneInputInput::placeholder {
-  color: #666;
+  color: #999999;
 }
 
 .phone-input-field .PhoneInputCountry {
-  margin-right: 12px;
-  padding: 8px;
-  background: #0A0A0A;
-  border: 1px solid #2A2A2A;
+  margin-right: 0px;
+  padding: 12px;
+  background: #FFFFFF;
+  border: 1px solid #D0D5DD;
   border-radius: 8px;
   transition: all 0.2s ease;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
 }
 
 .phone-input-field .PhoneInputCountrySelect {
-  background: #0A0A0A;
+  background: #FFFFFF;
   border: none;
-  color: #FFF;
+  color: #000000;
   font-size: 14px;
   cursor: pointer;
 }
@@ -362,12 +379,12 @@
 .phone-input-field .PhoneInputCountryIcon {
   width: 24px;
   height: 18px;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
   border-radius: 2px;
 }
 
 .phone-input-field .PhoneInputCountrySelectArrow {
-  color: #999;
+  color: #666666;
   margin-left: 6px;
   border: none;
   width: 0.3em;
@@ -391,11 +408,12 @@
   }
 
   .modal-actions {
-    flex-direction: column-reverse;
+    flex-direction: row;
+    justify-content: space-between;
   }
 
   .button-primary,
   .button-secondary {
-    width: 100%;
+    flex: 1;
   }
 }

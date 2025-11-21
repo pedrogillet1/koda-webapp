@@ -71,6 +71,12 @@ export const FileProvider = ({ children }) => {
                 };
                 return updated;
             });
+
+            // Emit custom event to notify DocumentsContext
+            window.dispatchEvent(new CustomEvent('document-uploaded', {
+                detail: { document: result.document || result }
+            }));
+
             return { success: true, result };
         } catch (error) {
             setFiles(prev => {

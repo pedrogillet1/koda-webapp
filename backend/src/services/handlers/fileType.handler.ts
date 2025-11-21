@@ -264,7 +264,37 @@ export class FileTypeHandler {
   }
 
   /**
-   * Handle file type queries
+   * Detect ALL file types from query
+   */
+  detectFileTypes(query: string): Array<{ mimeTypes: string[], emoji: string, label: string, detectedTerm: string }> {
+    const lowerQuery = query.toLowerCase();
+    const detectedTypes: Array<{ mimeTypes: string[], emoji: string, label: string, detectedTerm: string }> = [];
+
+    // Sort by length (longest first) to match more specific terms first
+    const sortedTerms = Object.keys(this.fileTypeMap).sort((a, b) => b.length - a.length);
+
+    const matchedTerms = new Set<string>(); // Track matched terms to avoid duplicates
+
+    for (const term of sortedTerms) {
+      // Skip if we already matched a more specific version of this term
+      if (matchedTerms.has(term)) continue;
+
+      // Check if the term appears as a whole word
+      const wordBoundaryRegex = new RegExp(`\\b${term}\\b`, 'i');
+      if (wordBoundaryRegex.test(lowerQuery)) {
+        detectedTypes.push({
+          ...this.fileTypeMap[term],
+          detectedTerm: term
+        });
+        matchedTerms.add(term);
+      }
+    }
+
+    return detectedTypes;
+  }
+
+  /**
+   * Handle file type queries (supports multiple types)
    */
   async handle(
     userId: string,
@@ -277,21 +307,24 @@ export class FileTypeHandler {
   ): Promise<FileTypeResult | null> {
     console.log(`\n📁 FILE TYPE QUERY: "${query}"`);
 
-    // Detect file type
-    const fileTypeInfo = this.detectFileType(query);
-    if (!fileTypeInfo) {
+    // Detect ALL file types in query
+    const fileTypeInfos = this.detectFileTypes(query);
+    if (fileTypeInfos.length === 0) {
       console.log('   ❌ No file type detected');
       return null;
     }
 
-    console.log(`   📋 Detected file type: ${fileTypeInfo.label} (term: "${fileTypeInfo.detectedTerm}")`);
-    console.log(`   🔍 Searching MIME types: ${fileTypeInfo.mimeTypes.join(', ')}`);
+    console.log(`   📋 Detected ${fileTypeInfos.length} file type(s): ${fileTypeInfos.map(f => f.label).join(', ')}`);
+
+    // Collect all MIME types from all detected file types
+    const allMimeTypes = fileTypeInfos.flatMap(info => info.mimeTypes);
+    console.log(`   🔍 Searching MIME types: ${allMimeTypes.join(', ')}`);
 
     // Build query filter
     const where: any = {
       userId,
       status: 'completed',
-      OR: fileTypeInfo.mimeTypes.map(mimeType => ({
+      OR: allMimeTypes.map(mimeType => ({
         mimeType: { contains: mimeType }
       }))
     };
@@ -328,11 +361,12 @@ export class FileTypeHandler {
     console.log(`   ✅ Found ${documents.length} documents`);
 
     if (documents.length === 0) {
+      const typeLabels = fileTypeInfos.map(f => f.label).join(' and ');
       return {
-        answer: `${fileTypeInfo.emoji} **${fileTypeInfo.label.charAt(0).toUpperCase() + fileTypeInfo.label.slice(1)}s**\n\nNo ${fileTypeInfo.label}s found in your library.\n\nTry uploading some files! 📤`,
+        answer: `📂 **No ${typeLabels}s found**\n\nNo ${typeLabels}s found in your library.\n\nTry uploading some files! 📤`,
         documents: [],
         totalCount: 0,
-        fileType: fileTypeInfo.label
+        fileType: typeLabels
       };
     }
 
@@ -347,7 +381,13 @@ export class FileTypeHandler {
       status: doc.status
     }));
 
-    // Build answer
+    // If multiple types requested, group by file type
+    if (fileTypeInfos.length > 1) {
+      return this.formatMultipleTypes(formattedDocs, fileTypeInfos);
+    }
+
+    // Single type - use existing format
+    const fileTypeInfo = fileTypeInfos[0];
     let answer = `${fileTypeInfo.emoji} **${fileTypeInfo.label.charAt(0).toUpperCase() + fileTypeInfo.label.slice(1)}s**\n\n`;
     answer += `Found **${documents.length}** ${fileTypeInfo.label}${documents.length === 1 ? '' : 's'}:\n\n`;
 
@@ -387,6 +427,73 @@ export class FileTypeHandler {
       documents: formattedDocs,
       totalCount: documents.length,
       fileType: fileTypeInfo.label
+    };
+  }
+
+  /**
+   * Format response for multiple file types
+   */
+  private formatMultipleTypes(
+    documents: FileTypeDocument[],
+    fileTypeInfos: Array<{ mimeTypes: string[], emoji: string, label: string, detectedTerm: string }>
+  ): FileTypeResult {
+    let answer = `📂 **Found ${documents.length} file${documents.length === 1 ? '' : 's'}:**\n\n`;
+
+    // Group documents by file type
+    const groupedByType: Record<string, FileTypeDocument[]> = {};
+
+    for (const doc of documents) {
+      // Find which file type this document belongs to
+      let matchedType: string | null = null;
+
+      for (const typeInfo of fileTypeInfos) {
+        for (const mimeType of typeInfo.mimeTypes) {
+          if (doc.mimeType.includes(mimeType)) {
+            matchedType = typeInfo.label;
+            break;
+          }
+        }
+        if (matchedType) break;
+      }
+
+      if (matchedType) {
+        if (!groupedByType[matchedType]) {
+          groupedByType[matchedType] = [];
+        }
+        groupedByType[matchedType].push(doc);
+      }
+    }
+
+    // Format each type group
+    for (const typeInfo of fileTypeInfos) {
+      const docs = groupedByType[typeInfo.label] || [];
+
+      if (docs.length > 0) {
+        answer += `**${typeInfo.label.toUpperCase()} (${docs.length} file${docs.length === 1 ? '' : 's'}):**\n`;
+
+        docs.forEach(doc => {
+          const fileSize = doc.fileSize ? ` (${this.formatFileSize(doc.fileSize)})` : '';
+          answer += `• ${doc.filename}${fileSize}\n`;
+        });
+
+        answer += `\n`;
+      } else {
+        answer += `**${typeInfo.label.toUpperCase()}:** No files\n\n`;
+      }
+    }
+
+    // Calculate total size
+    const totalSize = documents.reduce((sum, doc) => sum + (doc.fileSize || 0), 0);
+    if (totalSize > 0) {
+      answer += `*Total size: ${this.formatFileSize(totalSize)}*`;
+    }
+
+    const typeLabels = fileTypeInfos.map(f => f.label).join(' and ');
+    return {
+      answer,
+      documents,
+      totalCount: documents.length,
+      fileType: typeLabels
     };
   }
 

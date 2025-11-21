@@ -441,6 +441,20 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
     });
     console.log(`✅ [DOC:${documentId}] Status updated to completed (after embeddings stored)`);
 
+    // ⚡ FIX: Emit processing-complete event with delay to ensure Supabase commit completes
+    setTimeout(() => {
+      const socketIO = getIO();
+      if (socketIO) {
+        socketIO.to(`user:${userId}`).emit('processing-complete', {
+          documentId,
+          classification,
+          hasText: !!extractedText,
+          hasThumbnail: !!thumbnailUrl,
+        });
+        console.log(`📡 [DOC:${documentId}] Emitted processing-complete event after 500ms delay`);
+      }
+    }, 500);
+
     await job.updateProgress(100);
     emitProcessingUpdate(userId, documentId, {
       progress: 100,

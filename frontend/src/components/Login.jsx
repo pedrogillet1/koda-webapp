@@ -28,7 +28,7 @@ const Login = () => {
     setLoginError({ type: null, message: '' });
 
     try {
-      const response = await login({ email, password });
+      const response = await login({ email, password, rememberMe });
 
       // If 2FA is required, navigate to 2FA verification page
       if (response.requires2FA) {
@@ -108,11 +108,6 @@ const Login = () => {
                       placeholder="Enter your email"
                       style={{flex: '1 1 0', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '24px', background: 'transparent', border: 'none', outline: 'none', width: '100%'}}
                     />
-                    {loginError.type === 'email' && (
-                      <div style={{width: 20, height: 20, position: 'relative', background: 'rgba(255, 255, 255, 0)', overflow: 'hidden'}}>
-                          <div style={{width: 16.67, height: 16.67, left: 1.67, top: 1.67, position: 'absolute', outline: '1.67px #D92D20 solid', outlineOffset: '-0.83px'}} />
-                      </div>
-                    )}
                   </div>
                 </div>
                 {loginError.type === 'email' && (
@@ -147,6 +142,12 @@ const Login = () => {
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleLogin(e);
+                        }
+                      }}
                       placeholder="••••••••"
                       style={{flex: '1 1 0', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '24px', background: 'transparent', border: 'none', outline: 'none', width: '100%'}}
                     />

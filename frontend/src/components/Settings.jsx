@@ -14,7 +14,7 @@ import { ReactComponent as BellIcon } from '../assets/Bell-1.svg';
 import { ReactComponent as SettingsFilledIcon } from '../assets/Settings-filled.svg';
 import { ReactComponent as Document2Icon } from '../assets/Document 2.svg';
 import { ReactComponent as ImageIcon } from '../assets/Image.svg';
-import { ReactComponent as VideoIcon } from '../assets/Video.svg';
+import { ReactComponent as SpreadsheetIcon } from '../assets/spreadsheet.svg';
 import { ReactComponent as InfoCircleIcon } from '../assets/Info circle.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as Right3Icon } from '../assets/Right 3.svg';
@@ -40,7 +40,7 @@ const Settings = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const [activeSection, setActiveSection] = useState('general');
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [documents, setDocuments] = useState(() => {
     // Load from cache for instant display
     const cached = sessionStorage.getItem('koda_settings_documents');
@@ -206,7 +206,7 @@ const Settings = () => {
 
         // Calculate file breakdown by type
         const breakdown = {
-          video: { count: 0, size: 0 },
+          spreadsheet: { count: 0, size: 0 },
           document: { count: 0, size: 0 },
           image: { count: 0, size: 0 },
           other: { count: 0, size: 0 }
@@ -214,11 +214,13 @@ const Settings = () => {
 
         docs.forEach(doc => {
           const filename = doc.filename.toLowerCase();
+          const mimeType = doc.mimeType || '';
           const size = doc.fileSize || 0;
 
-          if (filename.match(/\.(mp4|avi|mov|wmv|flv|mkv|webm)$/)) {
-            breakdown.video.count++;
-            breakdown.video.size += size;
+          // Check for Excel/Spreadsheet files (by MIME type or extension)
+          if (mimeType.includes('sheet') || mimeType.includes('excel') || filename.match(/\.(xls|xlsx|csv)$/)) {
+            breakdown.spreadsheet.count++;
+            breakdown.spreadsheet.size += size;
           } else if (filename.match(/\.(pdf|doc|docx|txt|rtf|odt)$/)) {
             breakdown.document.count++;
             breakdown.document.size += size;
@@ -240,7 +242,7 @@ const Settings = () => {
         };
 
         const chartData = [
-          { name: 'Video', value: breakdown.video.count, color: '#181818', size: formatBytes(breakdown.video.size) },
+          { name: 'Spreadsheet', value: breakdown.spreadsheet.count, color: '#181818', size: formatBytes(breakdown.spreadsheet.size) },
           { name: 'Document', value: breakdown.document.count, color: '#000000', size: formatBytes(breakdown.document.size) },
           { name: 'Image', value: breakdown.image.count, color: '#A8A8A8', size: formatBytes(breakdown.image.size) },
           { name: 'Other', value: breakdown.other.count, color: '#D9D9D9', size: formatBytes(breakdown.other.size) }
@@ -773,51 +775,6 @@ const Settings = () => {
               </div>
             )}
 
-            {/* Notifications */}
-            {isExpanded ? (
-              <div
-                onClick={() => setActiveSection('notifications')}
-                style={{
-                  alignSelf: 'stretch',
-                  height: 44,
-                  paddingLeft: 14,
-                  paddingRight: 14,
-                  paddingTop: 12,
-                  paddingBottom: 12,
-                  background: activeSection === 'notifications' ? '#F5F5F5' : 'transparent',
-                  borderRadius: 12,
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  display: 'flex',
-                  cursor: 'pointer',
-                  gap: 8
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <BellIcon style={{ width: 16, height: 16 }} />
-                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Notifications</div>
-                </div>
-                <Right3Icon style={{ width: 16, height: 16 }} />
-              </div>
-            ) : (
-              <div
-                onClick={() => setActiveSection('notifications')}
-                style={{
-                  width: 44,
-                  height: 44,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  background: activeSection === 'notifications' ? '#F5F5F5' : 'transparent',
-                  borderRadius: 12,
-                  transition: 'background 0.2s ease-in-out',
-                  alignSelf: 'center'
-                }}
-              >
-                <BellIcon style={{ width: 20, height: 20 }} />
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -1040,7 +997,7 @@ const Settings = () => {
                 {fileData.map((item, index) => (
                   <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 40, height: 40, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {item.name === 'Video' && <VideoIcon style={{ width: 20, height: 20 }} />}
+                      {item.name === 'Spreadsheet' && <SpreadsheetIcon style={{ width: 20, height: 20 }} />}
                       {item.name === 'Document' && <Document2Icon style={{ width: 20, height: 20 }} />}
                       {item.name === 'Image' && <ImageIcon style={{ width: 20, height: 20 }} />}
                       {item.name === 'Other' && <InfoCircleIcon style={{ width: 20, height: 20 }} />}
@@ -1384,179 +1341,6 @@ const Settings = () => {
               <div style={{ alignSelf: 'stretch', height: 52, borderRadius: 14, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                 <div
                   onClick={handlePasswordChange}
-                  style={{ flex: '1 1 0', height: 52, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
-                >
-                  <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>Save changes</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Notifications Section */}
-        {activeSection === 'notifications' && (
-          <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: 20, overflow: 'hidden', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 20, display: 'flex' }}>
-            <div style={{ alignSelf: 'stretch', flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 32, display: 'flex' }}>
-              <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 20, display: 'flex' }}>
-
-                {/* Account Updates */}
-                <div style={{ alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'flex-start', display: 'flex' }}>
-                  <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 4, display: 'flex' }}>
-                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '24px' }}>Account updates</div>
-                    <div style={{ alignSelf: 'stretch', color: 'rgba(50, 48, 44, 0.60)', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>Get notified about important changes to your account</div>
-                  </div>
-                  <div
-                    onClick={() => setAccountUpdates(!accountUpdates)}
-                    style={{
-                      width: 48,
-                      height: 28,
-                      padding: 2,
-                      background: accountUpdates ? '#181818' : '#E6E6EC',
-                      borderRadius: 100,
-                      justifyContent: accountUpdates ? 'flex-end' : 'flex-start',
-                      alignItems: 'center',
-                      display: 'flex',
-                      cursor: 'pointer',
-                      transition: 'background 0.3s ease'
-                    }}
-                  >
-                    <div style={{ width: 24, height: 24, background: 'white', borderRadius: 9999 }} />
-                  </div>
-                </div>
-
-                {/* Security Alerts */}
-                <div style={{ alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'flex-start', display: 'flex' }}>
-                  <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 4, display: 'flex' }}>
-                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '24px' }}>Security alerts</div>
-                    <div style={{ alignSelf: 'stretch', color: 'rgba(50, 48, 44, 0.60)', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>Receive alerts about suspicious activity on your account</div>
-                  </div>
-                  <div
-                    onClick={() => setSecurityAlerts(!securityAlerts)}
-                    style={{
-                      width: 48,
-                      height: 28,
-                      padding: 2,
-                      background: securityAlerts ? '#181818' : '#E6E6EC',
-                      borderRadius: 100,
-                      justifyContent: securityAlerts ? 'flex-end' : 'flex-start',
-                      alignItems: 'center',
-                      display: 'flex',
-                      cursor: 'pointer',
-                      transition: 'background 0.3s ease'
-                    }}
-                  >
-                    <div style={{ width: 24, height: 24, background: 'white', borderRadius: 9999 }} />
-                  </div>
-                </div>
-
-                {/* Chat Document Links */}
-                <div style={{ alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'flex-start', display: 'flex' }}>
-                  <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 4, display: 'flex' }}>
-                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '24px' }}>Chat document links</div>
-                    <div style={{ alignSelf: 'stretch', color: 'rgba(50, 48, 44, 0.60)', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>Be notified when documents are mentioned in chats</div>
-                  </div>
-                  <div
-                    onClick={() => setChatDocumentLinks(!chatDocumentLinks)}
-                    style={{
-                      width: 48,
-                      height: 28,
-                      padding: 2,
-                      background: chatDocumentLinks ? '#181818' : '#E6E6EC',
-                      borderRadius: 100,
-                      justifyContent: chatDocumentLinks ? 'flex-end' : 'flex-start',
-                      alignItems: 'center',
-                      display: 'flex',
-                      cursor: 'pointer',
-                      transition: 'background 0.3s ease'
-                    }}
-                  >
-                    <div style={{ width: 24, height: 24, background: 'white', borderRadius: 9999 }} />
-                  </div>
-                </div>
-
-                {/* Upload Confirmations */}
-                <div style={{ alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'flex-start', display: 'flex' }}>
-                  <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 4, display: 'flex' }}>
-                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '24px' }}>Upload confirmations</div>
-                    <div style={{ alignSelf: 'stretch', color: 'rgba(50, 48, 44, 0.60)', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>Get confirmations when files are successfully uploaded</div>
-                  </div>
-                  <div
-                    onClick={() => setUploadConfirmations(!uploadConfirmations)}
-                    style={{
-                      width: 48,
-                      height: 28,
-                      padding: 2,
-                      background: uploadConfirmations ? '#181818' : '#E6E6EC',
-                      borderRadius: 100,
-                      justifyContent: uploadConfirmations ? 'flex-end' : 'flex-start',
-                      alignItems: 'center',
-                      display: 'flex',
-                      cursor: 'pointer',
-                      transition: 'background 0.3s ease'
-                    }}
-                  >
-                    <div style={{ width: 24, height: 24, background: 'white', borderRadius: 9999 }} />
-                  </div>
-                </div>
-
-                {/* Encryption Alerts */}
-                <div style={{ alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'flex-start', display: 'flex' }}>
-                  <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 4, display: 'flex' }}>
-                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '24px' }}>Encryption alerts</div>
-                    <div style={{ alignSelf: 'stretch', color: 'rgba(50, 48, 44, 0.60)', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>Stay informed about encryption status and key changes</div>
-                  </div>
-                  <div
-                    onClick={() => setEncryptionAlerts(!encryptionAlerts)}
-                    style={{
-                      width: 48,
-                      height: 28,
-                      padding: 2,
-                      background: encryptionAlerts ? '#181818' : '#E6E6EC',
-                      borderRadius: 100,
-                      justifyContent: encryptionAlerts ? 'flex-end' : 'flex-start',
-                      alignItems: 'center',
-                      display: 'flex',
-                      cursor: 'pointer',
-                      transition: 'background 0.3s ease'
-                    }}
-                  >
-                    <div style={{ width: 24, height: 24, background: 'white', borderRadius: 9999 }} />
-                  </div>
-                </div>
-
-                {/* Feature Announcements */}
-                <div style={{ alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'flex-start', display: 'flex' }}>
-                  <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 4, display: 'flex' }}>
-                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '24px' }}>Feature announcements</div>
-                    <div style={{ alignSelf: 'stretch', color: 'rgba(50, 48, 44, 0.60)', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>Learn about new features and improvements as they launch</div>
-                  </div>
-                  <div
-                    onClick={() => setFeatureAnnouncements(!featureAnnouncements)}
-                    style={{
-                      width: 48,
-                      height: 28,
-                      padding: 2,
-                      background: featureAnnouncements ? '#181818' : '#E6E6EC',
-                      borderRadius: 100,
-                      justifyContent: featureAnnouncements ? 'flex-end' : 'flex-start',
-                      alignItems: 'center',
-                      display: 'flex',
-                      cursor: 'pointer',
-                      transition: 'background 0.3s ease'
-                    }}
-                  >
-                    <div style={{ width: 24, height: 24, background: 'white', borderRadius: 9999 }} />
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            {/* Save Button */}
-            <div style={{ alignSelf: 'stretch', borderRadius: 12, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 24, display: 'flex' }}>
-              <div style={{ alignSelf: 'stretch', height: 52, borderRadius: 14, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
-                <div
-                  onClick={handleSaveNotificationPreferences}
                   style={{ flex: '1 1 0', height: 52, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
                 >
                   <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>Save changes</div>

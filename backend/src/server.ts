@@ -28,6 +28,8 @@ export const io = new Server(httpServer, {
       const allowedOrigins = [config.FRONTEND_URL, 'https://koda-frontend.ngrok.app'];
       const isNgrokDomain = origin && (origin.includes('.ngrok.app') || origin.includes('.ngrok-free.dev'));
 
+      console.log('🔍 CORS Check - Origin:', origin, 'isNgrokDomain:', isNgrokDomain, 'allowed:', !origin || allowedOrigins.includes(origin || '') || isNgrokDomain);
+
       if (!origin || allowedOrigins.includes(origin || '') || isNgrokDomain) {
         // Return the actual origin to set Access-Control-Allow-Origin header
         callback(null, origin || '*');
@@ -39,6 +41,11 @@ export const io = new Server(httpServer, {
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   },
+  // Add transport options for better ngrok compatibility
+  transports: ['websocket', 'polling'],
+  allowEIO3: true, // Allow Engine.IO v3 clients
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 // Initialize WebSocket service with Socket.IO instance
@@ -146,6 +153,21 @@ io.on('connection', (socket) => {
         },
       });
 
+      // ✅ FIX: Create assistant message placeholder BEFORE streaming
+      // This prevents it from disappearing if user refreshes during streaming
+      const assistantMessagePlaceholder = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: '', // Empty initially
+          isDocument: false,
+          metadata: JSON.stringify({
+            status: 'streaming',
+            startedAt: new Date().toISOString()
+          }),
+        },
+      });
+
       // Use NEW Hybrid RAG service with streaming
       let fullResponse = '';
 
@@ -184,14 +206,14 @@ io.on('connection', (socket) => {
         actions: []
       };
 
-      // Save assistant message with RAG metadata
-      const assistantMessage = await prisma.message.create({
+      // ✅ FIX: Update placeholder message with final content instead of creating new one
+      const assistantMessage = await prisma.message.update({
+        where: { id: assistantMessagePlaceholder.id },
         data: {
-          conversationId,
-          role: 'assistant',
           content: result.answer,
-          isDocument: false,
           metadata: JSON.stringify({
+            status: 'complete',
+            completedAt: new Date().toISOString(),
             ragSources: result.sources,
             expandedQuery: result.expandedQuery,
             contextId: result.contextId,
@@ -207,10 +229,13 @@ io.on('connection', (socket) => {
       });
 
       // Signal streaming complete (chunks already sent in real-time above)
+      console.log('🚀🚀🚀 EMITTING message-complete event to room:', `conversation:${conversationId}`);
+      console.log('📊 Sources:', result.sources?.length || 0);
       io.to(`conversation:${conversationId}`).emit('message-complete', {
         conversationId: conversationId,
         sources: result.sources  // ✅ FIX: Include sources for frontend display
       });
+      console.log('✅ message-complete event emitted successfully');
 
       // Update result to match expected format
       const formattedResult = {
@@ -294,9 +319,24 @@ httpServer.listen(portConfig.httpsPort, () => {
     try {
       isProcessing = true;
 
-      // Find pending documents
+      // Find pending documents OR documents stuck in processing for >3 minutes
+      const STUCK_THRESHOLD = 3 * 60 * 1000; // 3 minutes
+      const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD);
+
       const pendingDocs = await prisma.document.findMany({
-        where: { status: 'pending' },
+        where: {
+          OR: [
+            // Pick up pending documents immediately
+            { status: 'pending' },
+            // Only pick up processing documents that are stuck (>3 min old)
+            {
+              status: 'processing',
+              updatedAt: {
+                lt: stuckCutoff
+              }
+            }
+          ]
+        },
         orderBy: { createdAt: 'asc' },
         take: 5, // Process 5 at a time
       });
@@ -398,4 +438,7 @@ if (redirectServer && portConfig.httpPort) {
 
  
  
+
+
+
 

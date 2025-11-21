@@ -23,7 +23,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     const [hoveredConversation, setHoveredConversation] = useState(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
-    const [isExpanded, setIsExpanded] = useState(true);
+    const [isExpanded, setIsExpanded] = useState(false);
     const [showSearchModal, setShowSearchModal] = useState(false);
 
     useEffect(() => {
@@ -31,31 +31,61 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     }, []);
 
     // Add new conversation to list when it doesn't exist yet (instead of full reload)
+    // ✅ FIX: Also update existing conversations when title changes
     useEffect(() => {
-        if (currentConversation && !conversations.find(c => c.id === currentConversation.id)) {
-            // Add the new conversation to the top of the list
-            console.log('➕ Adding new conversation to list:', currentConversation.id);
+        if (currentConversation?.id && currentConversation?.title) {
             setConversations(prevConversations => {
-                // Double-check it doesn't exist before adding
-                if (prevConversations.find(c => c.id === currentConversation.id)) {
-                    console.log('⚠️ Conversation already in list, skipping');
-                    return prevConversations;
+                const existingIndex = prevConversations.findIndex(c => c.id === currentConversation.id);
+
+                if (existingIndex === -1) {
+                    // Conversation doesn't exist - add it
+                    console.log('➕ Adding new conversation to list:', currentConversation.id);
+                    const updated = [currentConversation, ...prevConversations];
+                    sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
+                    return updated;
+                } else if (prevConversations[existingIndex].title !== currentConversation.title) {
+                    // Conversation exists but title changed - update it
+                    console.log('📝 Updating conversation title in list:', currentConversation.id,
+                               `"${prevConversations[existingIndex].title}" → "${currentConversation.title}"`);
+                    const updated = [...prevConversations];
+                    updated[existingIndex] = {
+                        ...updated[existingIndex],
+                        ...currentConversation,
+                        updatedAt: new Date().toISOString()
+                    };
+                    sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
+                    return updated;
                 }
-                return [currentConversation, ...prevConversations];
+
+                // No changes needed
+                return prevConversations;
             });
         }
-    }, [currentConversation]);
+    }, [currentConversation?.id, currentConversation?.title]); // ✅ FIX: Only monitor ID and title, not conversations array
 
     // Update conversation in the list (used for title updates)
     // Use useCallback to prevent infinite loop
     const updateConversationInList = useCallback((updatedConversation) => {
         console.log('📝 ChatHistory: Updating conversation', updatedConversation);
         setConversations(prevConversations => {
+            // ✅ FIX: Check if conversation exists before updating
+            const existingIndex = prevConversations.findIndex(c => c.id === updatedConversation.id);
+
+            if (existingIndex === -1) {
+                // Conversation doesn't exist - add it at the beginning
+                console.log('➕ Adding new conversation to list via update function:', updatedConversation.id);
+                const updated = [updatedConversation, ...prevConversations];
+                sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
+                return updated;
+            }
+
+            // Conversation exists - update it
             const updated = prevConversations.map(conv =>
                 conv.id === updatedConversation.id
                     ? { ...conv, ...updatedConversation, updatedAt: new Date().toISOString() }
                     : conv
             );
+
             // Update cache
             sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
             return updated;
@@ -69,24 +99,113 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
         }
     }, [onConversationUpdate, updateConversationInList]);
 
-    const loadConversations = async () => {
+    const loadConversations = async (mergePending = false) => {
         try {
+            console.log('📥 [ChatHistory] Loading conversations from API...');
             const data = await chatService.getConversations();
-            setConversations(data);
-            // Cache conversations for instant loading
-            sessionStorage.setItem('koda_chat_conversations', JSON.stringify(data));
+            const apiConversations = data.conversations || data;
+            console.log(`✅ [ChatHistory] Loaded ${apiConversations.length} conversations from API`);
+
+            if (mergePending) {
+                // Merge mode: keep any conversations not in API response (recently created)
+                setConversations(prev => {
+                    const apiIds = new Set(apiConversations.map(c => c.id));
+                    const pendingConversations = prev.filter(c => !apiIds.has(c.id));
+
+                    if (pendingConversations.length > 0) {
+                        console.log(`📌 [ChatHistory] Keeping ${pendingConversations.length} pending conversations`);
+                        const merged = [...pendingConversations, ...apiConversations];
+                        sessionStorage.setItem('koda_chat_conversations', JSON.stringify(merged));
+                        return merged;
+                    }
+
+                    sessionStorage.setItem('koda_chat_conversations', JSON.stringify(apiConversations));
+                    return apiConversations;
+                });
+            } else {
+                // Replace mode: use API response as source of truth
+                setConversations(apiConversations);
+                sessionStorage.setItem('koda_chat_conversations', JSON.stringify(apiConversations));
+            }
         } catch (error) {
-            console.error('Error loading conversations:', error);
+            console.error('❌ [ChatHistory] Error loading conversations:', error);
+        }
+    };
+
+    // ⚡ PERFORMANCE: Preload conversation messages on hover for instant switching
+    const preloadConversation = async (conversationId) => {
+        const cacheKey = `koda_chat_messages_${conversationId}`;
+        const cacheTimestampKey = `${cacheKey}_timestamp`;
+
+        // Skip if already cached and fresh (< 30 seconds old)
+        const cached = sessionStorage.getItem(cacheKey);
+        const cacheTimestamp = sessionStorage.getItem(cacheTimestampKey);
+
+        if (cached && cacheTimestamp) {
+            const cacheAge = Date.now() - parseInt(cacheTimestamp);
+            if (cacheAge < 30 * 1000) {
+                console.log(`⚡ Conversation ${conversationId} already preloaded`);
+                return; // Already fresh in cache
+            }
+        }
+
+        try {
+            console.log(`⚡ Preloading conversation ${conversationId}...`);
+            const conversation = await chatService.getConversation(conversationId);
+            const messages = conversation.messages || [];
+
+            // Cache the messages for instant display later
+            sessionStorage.setItem(cacheKey, JSON.stringify(messages));
+            sessionStorage.setItem(cacheTimestampKey, Date.now().toString());
+
+            console.log(`✅ Preloaded ${messages.length} messages for conversation ${conversationId}`);
+        } catch (error) {
+            console.error(`❌ Failed to preload conversation ${conversationId}:`, error);
+
+            // If conversation doesn't exist (404), remove it from the list
+            if (error.response?.status === 404) {
+                console.log(`🗑️ Removing non-existent conversation ${conversationId} from list`);
+                setConversations(prev => {
+                    const updated = prev.filter(c => c.id !== conversationId);
+                    sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
+                    return updated;
+                });
+            }
         }
     };
 
     const handleNewChat = async () => {
         try {
+            console.log('🔵 [ChatHistory] Creating new conversation via API...');
             const newConversation = await chatService.createConversation();
-            // Don't add to conversations list here - the useEffect will handle it when onNewChat triggers currentConversation change
+            console.log('✅ [ChatHistory] New chat created from API:', newConversation);
+
+            // Add to conversations list immediately BEFORE notifying parent
+            setConversations(prevConversations => {
+                console.log('📝 [ChatHistory] Current list has', prevConversations.length, 'conversations');
+
+                // Check if already exists (avoid duplicates)
+                const exists = prevConversations.some(c => c.id === newConversation.id);
+                if (exists) {
+                    console.log('⚠️ Conversation already in list, skipping');
+                    return prevConversations;
+                }
+
+                console.log('➕ Adding new conversation to beginning of list');
+                const updated = [newConversation, ...prevConversations];
+                sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
+                console.log('✅ List now has', updated.length, 'conversations');
+                return updated;
+            });
+
+            // Small delay to ensure state update completes
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // Notify parent component
+            console.log('📢 [ChatHistory] Notifying parent component via onNewChat');
             onNewChat?.(newConversation);
         } catch (error) {
-            console.error('Error creating conversation:', error);
+            console.error('❌ [ChatHistory] Error creating conversation:', error);
         }
     };
 
@@ -163,9 +282,15 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
         };
 
         conversations
-            .filter((conv) =>
-                (conv.title || 'New Chat').toLowerCase().includes(searchQuery.toLowerCase())
-            )
+            .filter((conv) => {
+                // ✅ SHOW empty conversations (they'll be cleaned up when user navigates away)
+                // Only filter by search query
+                const matchesSearch = (conv.title || 'New Chat')
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase());
+
+                return matchesSearch;
+            })
             .forEach((conv) => {
                 const convDate = new Date(conv.updatedAt);
                 convDate.setHours(0, 0, 0, 0);
@@ -575,7 +700,10 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                                     <div
                                         key={convo.id}
                                         onClick={() => onSelectConversation?.(convo)}
-                                        onMouseEnter={() => setHoveredConversation(convo.id)}
+                                        onMouseEnter={() => {
+                                            setHoveredConversation(convo.id);
+                                            preloadConversation(convo.id);
+                                        }}
                                         onMouseLeave={() => setHoveredConversation(null)}
                                         style={{
                                             padding: '12px 14px',

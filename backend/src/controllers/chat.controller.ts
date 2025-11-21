@@ -184,7 +184,17 @@ export const sendMessageStreaming = async (req: Request, res: Response) => {
       return;
     }
 
-    // Lazy chat creation
+    // ✅ FIX: Set up SSE headers IMMEDIATELY (before any async operations)
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    res.flushHeaders(); // ← Force headers to be sent immediately
+
+    // ✅ FIX: Send immediate acknowledgment (establishes connection)
+    res.write(`data: ${JSON.stringify({ type: 'thinking', message: 'Processing your question...' })}\n\n`);
+
+    // Lazy chat creation (moved after headers)
     if (conversationId === 'new' || !conversationId) {
       const newConversation = await chatService.createConversation({
         userId,
@@ -192,16 +202,12 @@ export const sendMessageStreaming = async (req: Request, res: Response) => {
       });
       conversationId = newConversation.id;
       console.log('🆕 Created new conversation for streaming:', conversationId);
+
+      // Send conversation ID immediately
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+    } else {
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
     }
-
-    // Set up SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
-
-    // Send initial connection confirmation
-    res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
 
     // Call streaming service with chunk callback
     const result = await chatService.sendMessageStreaming(
@@ -495,5 +501,54 @@ export const sendAdaptiveMessageStreaming = async (req: Request, res: Response) 
       })}\n\n`
     );
     res.end();
+  }
+};
+
+/**
+ * Delete all empty conversations (no messages)
+ */
+export const deleteEmptyConversations = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    // Find all conversations with 0 messages
+    const emptyConversations = await prisma.conversation.findMany({
+      where: { userId },
+      include: {
+        _count: {
+          select: { messages: true },
+        },
+      },
+    });
+
+    const emptyIds = emptyConversations
+      .filter(conv => conv._count.messages === 0)
+      .map(conv => conv.id);
+
+    if (emptyIds.length === 0) {
+      res.json({ message: 'No empty conversations found', deletedCount: 0 });
+      return;
+    }
+
+    // Delete all empty conversations
+    await prisma.conversation.deleteMany({
+      where: {
+        id: { in: emptyIds },
+        userId,  // Security: ensure user owns these conversations
+      },
+    });
+
+    // Invalidate cache
+    const cacheKey = cacheService.generateKey('conversations_list', userId);
+    await cacheService.del(cacheKey);
+    console.log(`🗑️ Deleted ${emptyIds.length} empty conversations for user ${userId}`);
+
+    res.json({
+      message: `Deleted ${emptyIds.length} empty conversations`,
+      deletedCount: emptyIds.length,
+    });
+  } catch (error: any) {
+    console.error('Error deleting empty conversations:', error);
+    res.status(500).json({ error: error.message });
   }
 };

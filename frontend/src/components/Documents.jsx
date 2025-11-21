@@ -6,6 +6,7 @@ import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection';
 import { useToast } from '../context/ToastContext';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useSemanticSearch } from '../hooks/useSemanticSearch';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import CreateCategoryModal from './CreateCategoryModal';
@@ -23,14 +24,14 @@ import { ReactComponent as LogoutBlackIcon } from '../assets/Logout-black.svg';
 import { ReactComponent as Document2Icon } from '../assets/Document 2.svg';
 import { ReactComponent as ImageIcon } from '../assets/Image.svg';
 import { ReactComponent as InfoCircleIcon } from '../assets/Info circle.svg';
-import { ReactComponent as VideoIcon } from '../assets/Video.svg';
+import { ReactComponent as SpreadsheetIcon } from '../assets/spreadsheet.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can-red.svg';
 import { ReactComponent as EditIcon } from '../assets/Edit 5.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as DotsIcon } from '../assets/dots.svg';
-import { ReactComponent as UploadIconMenu } from '../assets/Logout-black.svg';
+import { ReactComponent as UploadIconMenu } from '../assets/upload.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import logoSvg from '../assets/logo.svg';
 import kodaLogo from '../assets/koda-logo_1.svg';
@@ -77,6 +78,16 @@ const Documents = () => {
   // Local UI state only
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Semantic search hook
+  const {
+    query: semanticQuery,
+    setQuery: setSemanticQuery,
+    results: semanticResults,
+    isSearching,
+    error: searchError
+  } = useSemanticSearch(300);
+
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
@@ -155,7 +166,7 @@ const Documents = () => {
 
     // Calculate breakdown by type with sizes
     const breakdown = {
-      video: { count: 0, size: 0 },
+      spreadsheet: { count: 0, size: 0 },
       document: { count: 0, size: 0 },
       image: { count: 0, size: 0 },
       other: { count: 0, size: 0 }
@@ -164,6 +175,7 @@ const Documents = () => {
     contextDocuments.forEach(doc => {
       // Safely get filename
       const filename = (doc.filename || doc.name || '').toLowerCase();
+      const mimeType = doc.mimeType || '';
       const size = doc.fileSize || 0;
 
       if (!filename) {
@@ -172,9 +184,10 @@ const Documents = () => {
         return;
       }
 
-      if (filename.match(/\.(mp4|avi|mov|wmv|flv|mkv|webm)$/)) {
-        breakdown.video.count++;
-        breakdown.video.size += size;
+      // Check for Excel/Spreadsheet files (by MIME type or extension)
+      if (mimeType.includes('sheet') || mimeType.includes('excel') || filename.match(/\.(xls|xlsx|csv)$/)) {
+        breakdown.spreadsheet.count++;
+        breakdown.spreadsheet.size += size;
       } else if (filename.match(/\.(pdf|doc|docx|txt|rtf|odt)$/)) {
         breakdown.document.count++;
         breakdown.document.size += size;
@@ -189,7 +202,7 @@ const Documents = () => {
 
     return {
       fileData: [
-        { name: 'Video', value: breakdown.video.count, color: '#181818', size: formatBytes(breakdown.video.size) },
+        { name: 'Spreadsheet', value: breakdown.spreadsheet.count, color: '#181818', size: formatBytes(breakdown.spreadsheet.size) },
         { name: 'Document', value: breakdown.document.count, color: '#000000', size: formatBytes(breakdown.document.size) },
         { name: 'Image', value: breakdown.image.count, color: '#A8A8A8', size: formatBytes(breakdown.image.size) },
         { name: 'Other', value: breakdown.other.count, color: '#D9D9D9', size: formatBytes(breakdown.other.size) }
@@ -387,12 +400,55 @@ const Documents = () => {
     }
   };
 
+  // Sync search query with semantic search
+  useEffect(() => {
+    setSemanticQuery(searchQuery);
+  }, [searchQuery, setSemanticQuery]);
+
   // Filter documents and folders based on search query (auto-updates!)
+  // Hybrid approach: Combine semantic search results with filename matching
   const filteredDocuments = useMemo(() => {
-    return contextDocuments.filter(doc =>
+    if (!searchQuery) {
+      return contextDocuments;
+    }
+
+    // Filename-based filtering
+    const filenameMatches = contextDocuments.filter(doc =>
       doc.filename?.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [contextDocuments, searchQuery]);
+
+    // If we have semantic search results, merge them
+    if (semanticResults && semanticResults.length > 0) {
+      // Create a map of semantic results by ID for quick lookup
+      const semanticMap = new Map(semanticResults.map(result => [result.id, result]));
+
+      // Combine both result sets, preferring semantic search order for matches
+      const combinedIds = new Set();
+      const combined = [];
+
+      // First, add semantic search results (ordered by relevance)
+      semanticResults.forEach(result => {
+        const doc = contextDocuments.find(d => d.id === result.id);
+        if (doc && !combinedIds.has(doc.id)) {
+          combined.push({ ...doc, searchScore: result.score, matchedContent: result.matchedContent });
+          combinedIds.add(doc.id);
+        }
+      });
+
+      // Then add filename matches that weren't in semantic results
+      filenameMatches.forEach(doc => {
+        if (!combinedIds.has(doc.id)) {
+          combined.push(doc);
+          combinedIds.add(doc.id);
+        }
+      });
+
+      return combined;
+    }
+
+    // Fallback to filename matching only
+    return filenameMatches;
+  }, [contextDocuments, searchQuery, semanticResults]);
 
   const filteredFolders = useMemo(() => {
     return allFolders.filter(folder =>
@@ -433,6 +489,11 @@ const Documents = () => {
     e.stopPropagation();
     setIsDraggingOver(false);
   };
+
+  // ✅ Show loading skeleton during initial data fetch
+  if (loading && contextDocuments.length === 0 && contextFolders.length === 0) {
+    return <DocumentsSkeleton />;
+  }
 
   return (
     <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
@@ -666,7 +727,46 @@ const Documents = () => {
                   overflowY: 'auto',
                   zIndex: 1000
                 }}>
-                  {(filteredFolders.length > 0 || filteredDocuments.length > 0) ? (
+                  {/* Loading State */}
+                  {isSearching && (
+                    <div style={{padding: 24, textAlign: 'center'}}>
+                      <div style={{
+                        display: 'inline-block',
+                        width: 24,
+                        height: 24,
+                        border: '3px solid #E6E6EC',
+                        borderTop: '3px solid #32302C',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite'
+                      }} />
+                      <div style={{
+                        marginTop: 12,
+                        color: '#6C6B6E',
+                        fontSize: 14,
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: '500'
+                      }}>
+                        Searching...
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error State */}
+                  {searchError && !isSearching && (
+                    <div style={{padding: 24, textAlign: 'center'}}>
+                      <div style={{
+                        color: '#EF4444',
+                        fontSize: 14,
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: '500'
+                      }}>
+                        {searchError}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Results */}
+                  {!isSearching && !searchError && (filteredFolders.length > 0 || filteredDocuments.length > 0) ? (
                     <div style={{padding: 8}}>
                       {/* Folders Section */}
                       {filteredFolders.length > 0 && (
@@ -858,18 +958,67 @@ const Documents = () => {
                                 onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
-                                <img
-                                  src={getFileIcon(doc)}
-                                  alt="File icon"
-                                  style={{
-                                    width: 40,
-                                    height: 40,
-                                    aspectRatio: '1/1',
-                                    imageRendering: '-webkit-optimize-contrast',
-                                    objectFit: 'contain',
-                                    shapeRendering: 'geometricPrecision'
-                                  }}
-                                />
+                                <div style={{ position: 'relative' }}>
+                                  <img
+                                    src={getFileIcon(doc)}
+                                    alt="File icon"
+                                    style={{
+                                      width: 40,
+                                      height: 40,
+                                      aspectRatio: '1/1',
+                                      imageRendering: '-webkit-optimize-contrast',
+                                      objectFit: 'contain',
+                                      shapeRendering: 'geometricPrecision'
+                                    }}
+                                  />
+                                  {/* Processing badge */}
+                                  {doc.status === 'processing' && (
+                                    <div style={{
+                                      position: 'absolute',
+                                      bottom: -4,
+                                      right: -4,
+                                      background: '#3B82F6',
+                                      color: 'white',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '9px',
+                                      fontWeight: '600',
+                                      fontFamily: 'Plus Jakarta Sans',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                    }}>
+                                      <div style={{
+                                        width: 6,
+                                        height: 6,
+                                        border: '1.5px solid white',
+                                        borderTopColor: 'transparent',
+                                        borderRadius: '50%',
+                                        animation: 'spin 0.8s linear infinite'
+                                      }} />
+                                      {doc.processingProgress ? `${doc.processingProgress}%` : '...'}
+                                    </div>
+                                  )}
+                                  {/* Failed badge */}
+                                  {doc.status === 'failed' && (
+                                    <div style={{
+                                      position: 'absolute',
+                                      bottom: -4,
+                                      right: -4,
+                                      background: '#EF4444',
+                                      color: 'white',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '9px',
+                                      fontWeight: '600',
+                                      fontFamily: 'Plus Jakarta Sans',
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                                    }}>
+                                      ⚠️ Failed
+                                    </div>
+                                  )}
+                                </div>
                                 <div style={{flex: 1, overflow: 'hidden'}}>
                                   <div style={{
                                     color: '#32302C',
@@ -923,45 +1072,17 @@ const Documents = () => {
 
         {/* Scrollable Content */}
         <div style={{flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20}}>
-          {/* Premium Banner */}
-          <div
-            style={{
-              alignSelf: 'stretch',
-              padding: '20px 60px',
-              position: 'relative',
-              background: '#181818',
-              overflow: 'hidden',
-              borderRadius: 20,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: 'auto'
-            }}
-          >
-            {/* KODA Logo CENTERED */}
-            <img
-              src={logoCopyWhite}
-              alt="KODA"
-              style={{
-                position: 'relative',
-                zIndex: 10,
-                height: '90px',
-                width: 'auto',
-                objectFit: 'contain'
-              }}
-            />
-          </div>
-
           {/* Smart Categories */}
           <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+            {/* First Row: Add New + First 5 Categories */}
             <div style={{display: 'flex', gap: 12}}>
-              <div onClick={() => setIsModalOpen(true)} style={{flex: 1, padding: 14, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
-                <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                  <AddIcon style={{ width: 20, height: 20 }} />
+              <div onClick={() => setIsModalOpen(true)} style={{minWidth: 0, flex: '1 1 0', height: 72, padding: 12, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10, cursor: 'pointer'}}>
+                <div style={{width: 48, height: 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                  <AddIcon style={{ width: 24, height: 24 }} />
                 </div>
-                <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: 1}}>Add New Smart Category</span>
+                <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.6px', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>Add New Smart Category</span>
               </div>
-              {(showAllCategories ? categories : categories.slice(0, 4)).map((category, index) => (
+              {categories.slice(0, 5).map((category, index) => (
                 <div
                   key={`${category.id}-${category.emoji}`}
                   onDragOver={(e) => {
@@ -1002,8 +1123,8 @@ const Documents = () => {
                     position: 'relative'
                   }}
                 >
-                  <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 8, flex: 1, cursor: 'pointer'}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
-                    <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0}}>
+                  <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
+                    <div style={{width: 48, height: 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0}}>
                       <CategoryIcon emoji={category.emoji} />
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: 4, flex: 1}}>
@@ -1140,31 +1261,215 @@ const Documents = () => {
                   </div>
                 </div>
               ))}
-              {categories.length > 4 && (
+            </div>
+
+            {/* Second Row: Next 5 Categories + See All */}
+            {categories.length > 5 && (
+              <div style={{display: 'flex', gap: 12}}>
+                {categories.slice(5, 10).map((category, index) => (
+                  <div
+                    key={`${category.id}-${category.emoji}`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragOverCategoryId(category.id);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragOverCategoryId(null);
+                    }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragOverCategoryId(null);
+
+                      try {
+                        const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                        if (data.type === 'document') {
+                          await moveToFolder(data.id, category.id);
+                        }
+                      } catch (error) {
+                        console.error('Error handling drop:', error);
+                      }
+                    }}
+                    style={{
+                      minWidth: 0,
+                      flex: '1 1 0',
+                      height: 72,
+                      padding: 12,
+                      background: dragOverCategoryId === category.id ? '#F0F0F0' : 'white',
+                      borderRadius: 14,
+                      border: dragOverCategoryId === category.id ? '2px dashed #32302C' : '1px #E6E6EC solid',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease',
+                      position: 'relative'
+                    }}
+                  >
+                    <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
+                      <div style={{width: 48, height: 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0}}>
+                        <CategoryIcon emoji={category.emoji} />
+                      </div>
+                      <div style={{display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0}}>
+                        <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{category.name}</div>
+                        <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '19.6px'}}>
+                          {category.fileCount || 0} {category.fileCount === 1 ? 'File' : 'Files'}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{position: 'relative'}} data-category-menu>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCategoryMenuOpen(categoryMenuOpen === category.id ? null : category.id);
+                        }}
+                        style={{
+                          width: 28,
+                          height: 28,
+                          background: '#F5F5F5',
+                          borderRadius: '50%',
+                          border: '1px solid #E6E6EC',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          flexShrink: 0
+                        }}
+                      >
+                        <DotsIcon style={{width: 16, height: 16}} />
+                      </button>
+                      {categoryMenuOpen === category.id && (
+                        <div style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: '100%',
+                          marginTop: 4,
+                          background: 'white',
+                          borderRadius: 12,
+                          border: '1px solid #E6E6EC',
+                          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                          zIndex: 1000,
+                          minWidth: 160,
+                          overflow: 'hidden'
+                        }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingCategory(category);
+                              setCategoryMenuOpen(null);
+                            }}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '10px 14px',
+                              background: 'transparent',
+                              border: 'none',
+                              borderBottom: '1px solid #F5F5F5',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '500',
+                              color: '#32302C',
+                              transition: 'background 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <EditIcon style={{width: 16, height: 16}} />
+                            Edit
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setUploadCategoryId(category.id);
+                              setShowUploadModal(true);
+                              setCategoryMenuOpen(null);
+                            }}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '10px 14px',
+                              background: 'transparent',
+                              border: 'none',
+                              borderBottom: '1px solid #F5F5F5',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '500',
+                              color: '#32302C',
+                              transition: 'background 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <UploadIconMenu style={{width: 16, height: 16}} />
+                            Upload
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setItemToDelete({ type: 'category', id: category.id, name: category.name });
+                              setShowDeleteModal(true);
+                              setCategoryMenuOpen(null);
+                            }}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '10px 14px',
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '500',
+                              color: '#D92D20',
+                              transition: 'background 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#FEF3F2'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <TrashCanIcon style={{width: 16, height: 16}} />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
                 <div
                   onClick={() => navigate('/documents')}
                   style={{
-                    flex: 1,
-                    padding: 10,
+                    minWidth: 0,
+                    flex: '1 1 0',
+                    height: 72,
+                    padding: 12,
                     background: 'white',
                     borderRadius: 14,
                     border: '1px #E6E6EC solid',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 8,
+                    gap: 10,
                     cursor: 'pointer',
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease'
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
                   onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                 >
-                  <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600'}}>
+                  <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
                     See All ({categories.length})
                   </span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* File Breakdown + Upcoming Actions (Side by Side) */}
@@ -1211,7 +1516,7 @@ const Documents = () => {
                 {fileData.map((item, index) => (
                   <div key={index} style={{display: 'flex', alignItems: 'center', gap: 12}}>
                     <div style={{width: 40, height: 40, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                      {item.name === 'Video' && <VideoIcon style={{width: 20, height: 20}} />}
+                      {item.name === 'Spreadsheet' && <SpreadsheetIcon style={{width: 20, height: 20}} />}
                       {item.name === 'Document' && <Document2Icon style={{width: 20, height: 20}} />}
                       {item.name === 'Image' && <ImageIcon style={{width: 20, height: 20}} />}
                       {item.name === 'Other' && <InfoCircleIcon style={{width: 20, height: 20}} />}
@@ -1230,10 +1535,10 @@ const Documents = () => {
               </div>
             </div>
 
-            {/* Recently Added - 60% */}
+            {/* Your Files - 60% */}
             <div style={{width: '60%', padding: 24, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24}}>
-                <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Recently Added</div>
+                <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
                 {contextDocuments.length > 6 && (
                   <div
                     onClick={() => navigate('/category/recently-added')}
@@ -1247,6 +1552,12 @@ const Documents = () => {
               {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).length > 0 ? (
                 <div style={{display: 'flex', flexDirection: 'column', gap: 16, flex: 1, overflowY: 'auto', minHeight: 0}}>
                   {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).map((doc) => {
+                    // ✅ Check document status for visual indicators
+                    const isUploading = doc.status === 'uploading';
+                    const isProcessing = doc.status === 'processing';
+                    const isCompleted = doc.status === 'completed';
+                    const isFailed = doc.status === 'failed';
+
                     const getFileIcon = (doc) => {
                       // Prioritize MIME type over file extension (more reliable for encrypted filenames)
                       const mimeType = doc?.mimeType || '';
@@ -1350,22 +1661,32 @@ const Documents = () => {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 12,
-                          padding: 12,
-                          borderRadius: 12,
-                          background: '#F5F5F5',
+                          gap: 14,
+                          padding: 14,
+                          borderRadius: 14,
+                          background: isUploading ? '#FFF9E6' : (isProcessing ? '#F0F9FF' : '#F5F5F5'),
+                          opacity: isUploading ? 0.8 : 1,
+                          border: isProcessing ? '1px solid #3B82F6' : 'none',
                           cursor: 'grab',
-                          transition: 'background 0.2s ease'
+                          transition: 'all 0.2s ease'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                        onMouseEnter={(e) => {
+                          if (!isUploading && !isProcessing) {
+                            e.currentTarget.style.background = '#E6E6EC';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isUploading && !isProcessing) {
+                            e.currentTarget.style.background = '#F5F5F5';
+                          }
+                        }}
                       >
                         <img
                           src={getFileIcon(doc)}
                           alt="File icon"
                           style={{
-                            width: 40,
-                            height: 40,
+                            width: 48,
+                            height: 48,
                             aspectRatio: '1/1',
                             imageRendering: '-webkit-optimize-contrast',
                             objectFit: 'contain',
@@ -1373,12 +1694,61 @@ const Documents = () => {
                           }}
                         />
                         <div style={{flex: 1, overflow: 'hidden'}}>
-                          <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                          <div style={{color: '#32302C', fontSize: 17, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                             {doc.filename}
                           </div>
-                          <div style={{color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 4}}>
+                          <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 5}}>
                             {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
                           </div>
+
+                          {/* ✅ Status indicator */}
+                          {isUploading && (
+                            <div style={{
+                              fontSize: 12,
+                              color: '#F59E0B',
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '600',
+                              marginTop: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}>
+                              <span>⏳</span>
+                              <span>Uploading...</span>
+                            </div>
+                          )}
+
+                          {isProcessing && (
+                            <div style={{
+                              fontSize: 12,
+                              color: '#3B82F6',
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '600',
+                              marginTop: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}>
+                              <span>⚙️</span>
+                              <span>Processing...</span>
+                            </div>
+                          )}
+
+                          {isFailed && (
+                            <div style={{
+                              fontSize: 12,
+                              color: '#EF4444',
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '600',
+                              marginTop: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}>
+                              <span>❌</span>
+                              <span>Failed</span>
+                            </div>
+                          )}
                         </div>
                         <div style={{position: 'relative'}} data-dropdown>
                           <button
@@ -1469,6 +1839,7 @@ const Documents = () => {
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
+                                  <DownloadIcon style={{ width: 20, height: 20 }} />
                                   Download
                                 </button>
 
@@ -1496,6 +1867,7 @@ const Documents = () => {
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
+                                  <EditIcon style={{ width: 20, height: 20 }} />
                                   Rename
                                 </button>
 
@@ -1523,6 +1895,7 @@ const Documents = () => {
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
+                                  <AddIcon style={{ width: 20, height: 20 }} />
                                   Move
                                 </button>
 
@@ -1551,6 +1924,7 @@ const Documents = () => {
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
+                                  <TrashCanIcon style={{ width: 20, height: 20 }} />
                                   Delete
                                 </button>
                               </div>
@@ -1682,7 +2056,7 @@ const Documents = () => {
         }}>
           <div style={{
             width: '100%',
-            maxWidth: 400,
+            maxWidth: 480,
             paddingTop: 18,
             paddingBottom: 18,
             background: 'white',
@@ -2278,6 +2652,70 @@ const Documents = () => {
           <div style={{ width: 7, height: 7, right: 33, top: 0, position: 'absolute', background: '#171717', borderRadius: 9999 }} />
         </div>
       )}
+    </div>
+  );
+};
+
+// ✅ Loading Skeleton Component
+const DocumentsSkeleton = () => {
+  return (
+    <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
+      <LeftNav />
+
+      <div style={{flex: 1, height: '100%', display: 'flex', flexDirection: 'column'}}>
+        {/* Header Skeleton */}
+        <div style={{height: 84, paddingLeft: 20, paddingRight: 20, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <div style={{width: 200, height: 36, background: '#E5E7EB', borderRadius: 8, animation: 'pulse 1.5s ease-in-out infinite'}} />
+          <div style={{display: 'flex', gap: 12}}>
+            <div style={{width: 120, height: 40, background: '#E5E7EB', borderRadius: 8, animation: 'pulse 1.5s ease-in-out infinite'}} />
+            <div style={{width: 120, height: 40, background: '#E5E7EB', borderRadius: 8, animation: 'pulse 1.5s ease-in-out infinite'}} />
+          </div>
+        </div>
+
+        {/* Content Skeleton */}
+        <div style={{flex: 1, padding: '32px 20px', overflowY: 'auto'}}>
+          {/* Search Bar Skeleton */}
+          <div style={{width: '100%', maxWidth: 600, height: 44, background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, marginBottom: 24, animation: 'pulse 1.5s ease-in-out infinite'}} />
+
+          {/* Grid Skeleton */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: 16
+          }}>
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+              <div key={i} style={{
+                background: 'white',
+                border: '1px solid #E5E7EB',
+                borderRadius: 12,
+                padding: 16,
+                height: 100,
+                animation: 'pulse 1.5s ease-in-out infinite',
+                animationDelay: `${i * 0.1}s`
+              }}>
+                <div style={{display: 'flex', gap: 12, alignItems: 'center'}}>
+                  <div style={{width: 48, height: 48, background: '#E5E7EB', borderRadius: 8}} />
+                  <div style={{flex: 1}}>
+                    <div style={{width: '80%', height: 16, background: '#E5E7EB', borderRadius: 4, marginBottom: 8}} />
+                    <div style={{width: '60%', height: 12, background: '#E5E7EB', borderRadius: 4}} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+        }
+      `}</style>
     </div>
   );
 };

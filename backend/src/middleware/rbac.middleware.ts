@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../config/database';
 import auditLogService, { AuditAction, AuditStatus } from '../services/auditLog.service';
-
-const prisma = new PrismaClient();
 
 /**
  * Role-Based Access Control (RBAC) Middleware

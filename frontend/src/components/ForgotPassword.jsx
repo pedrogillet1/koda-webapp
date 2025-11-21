@@ -13,10 +13,19 @@ function ForgotPassword() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    console.log('🔐 [ForgotPassword] Component mounted');
+    console.log('📧 [ForgotPassword] maskedEmail:', maskedEmail);
+    console.log('📱 [ForgotPassword] maskedPhone:', maskedPhone);
+    console.log('🔑 [ForgotPassword] location.state:', location.state);
+
+    const sessionToken = sessionStorage.getItem('resetSessionToken');
+    console.log('🗝️  [ForgotPassword] sessionToken in sessionStorage:', sessionToken ? sessionToken.substring(0, 20) + '...' : 'NOT FOUND');
+
     if (!maskedEmail) {
+      console.warn('⚠️  [ForgotPassword] No maskedEmail found, redirecting to /recover-access');
       navigate('/recover-access');
     }
-  }, [maskedEmail, navigate]);
+  }, [maskedEmail, navigate, maskedPhone, location.state]);
 
   const handleContinue = async () => {
     if (!selectedMethod) {
