@@ -1,20 +1,15 @@
 import { Request, Response } from 'express';
-import { createClient } from '@supabase/supabase-js';
 import prisma from '../config/database';
 import { addDocumentProcessingJob } from '../queues/document.queue';
+import { generatePresignedUploadUrl } from '../config/storage';
 
-// Initialize Supabase client with error handling
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment');
-  throw new Error('Supabase configuration is missing');
+// Validate AWS S3 configuration
+if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+  console.error('❌ Missing AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY in environment');
+  throw new Error('AWS S3 configuration is missing');
 }
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
-console.log('✅ Supabase client initialized for presigned URLs');
+console.log('✅ AWS S3 client initialized for presigned URLs');
 
 /**
  * Generate presigned URLs for bulk file upload
@@ -72,16 +67,12 @@ export const generateBulkPresignedUrls = async (
           const randomSuffix = Math.random().toString(36).substring(2, 15);
           const encryptedFilename = `${userId}/${timestamp}-${randomSuffix}-${fileName}`;
 
-          // Generate presigned upload URL (expires in 1 hour)
-          const { data, error } = await supabase.storage
-            .from('documents')
-            .createSignedUploadUrl(encryptedFilename, {
-              upsert: false
-            });
-
-          if (error) {
-            throw new Error(`Failed to generate presigned URL for ${fileName}: ${error.message}`);
-          }
+          // Generate presigned upload URL for S3 (expires in 1 hour)
+          const presignedUrl = await generatePresignedUploadUrl(
+            encryptedFilename,
+            fileType,
+            3600 // 1 hour
+          );
 
           // Create document record with "uploading" status
           const document = await prisma.document.create({
@@ -101,7 +92,7 @@ export const generateBulkPresignedUrls = async (
           });
 
           return {
-            presignedUrl: data.signedUrl,
+            presignedUrl,
             documentId: document.id,
             encryptedFilename
           };
