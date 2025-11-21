@@ -14,7 +14,7 @@ const s3Client = new S3Client({
   }
 });
 
-const bucketName = process.env.AWS_S3_BUCKET_NAME || 'koda-user-file';
+const bucketName = process.env.AWS_S3_BUCKET || process.env.AWS_S3_BUCKET_NAME || 'koda-user-file';
 
 console.log('✅ AWS S3 initialized');
 
@@ -139,5 +139,8 @@ export const bucket = {
     exists: async () => [await fileExists(fileName)]
   })
 };
+
+// Export alias for presigned-url.controller.ts compatibility
+export const generatePresignedUploadUrl = getSignedUploadUrl;
 
 export default s3Client;
