@@ -1,45 +1,60 @@
 /**
- * Storage Configuration - Google Cloud Storage
+ * Storage Configuration - AWS S3
  */
 
-import { Storage } from '@google-cloud/storage';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl as getS3SignedUrl } from '@aws-sdk/s3-request-presigner';
 
-// Initialize GCS
-const storage = new Storage({
-  projectId: process.env.GCS_PROJECT_ID,
-  keyFilename: process.env.GCS_KEY_FILE
+// Initialize S3 Client
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
+  }
 });
 
-const bucketName = process.env.GCS_BUCKET_NAME || 'koda-documents-dev';
-export const bucket = storage.bucket(bucketName);
+const bucketName = process.env.AWS_S3_BUCKET_NAME || 'koda-user-file';
 
-console.log('✅ GCS initialized');
+console.log('✅ AWS S3 initialized');
 
 /**
- * Upload a file to Google Cloud Storage
+ * Upload a file to AWS S3
  */
 export const uploadFile = async (
   fileName: string,
   fileBuffer: Buffer,
   mimeType: string
 ): Promise<string> => {
-  const file = bucket.file(fileName);
-  await file.save(fileBuffer, {
-    contentType: mimeType,
-    metadata: {
-      cacheControl: 'public, max-age=3600'
-    }
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: fileName,
+    Body: fileBuffer,
+    ContentType: mimeType,
+    CacheControl: 'public, max-age=3600'
   });
+
+  await s3Client.send(command);
   return fileName;
 };
 
 /**
- * Download a file from Google Cloud Storage
+ * Download a file from AWS S3
  */
 export const downloadFile = async (fileName: string): Promise<Buffer> => {
-  const file = bucket.file(fileName);
-  const [buffer] = await file.download();
-  return buffer;
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: fileName
+  });
+
+  const response = await s3Client.send(command);
+
+  // Convert stream to buffer
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of response.Body as any) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 };
 
 /**
@@ -51,57 +66,78 @@ export const getSignedUrl = async (
   forceDownload: boolean = false,
   downloadFilename?: string
 ): Promise<string> => {
-  const file = bucket.file(fileName);
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: fileName,
+    ...(forceDownload && downloadFilename ? {
+      ResponseContentDisposition: `attachment; filename="${downloadFilename}"`
+    } : {})
+  });
 
-  const options: any = {
-    version: 'v4',
-    action: 'read',
-    expires: Date.now() + expiresIn * 1000
-  };
-
-  if (forceDownload && downloadFilename) {
-    options.responseDisposition = `attachment; filename="${downloadFilename}"`;
-  }
-
-  const [url] = await file.getSignedUrl(options);
+  const url = await getS3SignedUrl(s3Client, command, { expiresIn });
   return url;
 };
 
 /**
- * Generate a signed URL for direct upload to GCS
+ * Generate a signed URL for direct upload to S3
  */
 export const getSignedUploadUrl = async (
   fileName: string,
   mimeType: string,
   expiresIn: number = 600 // 10 minutes for upload
 ): Promise<string> => {
-  const file = bucket.file(fileName);
-
-  const [url] = await file.getSignedUrl({
-    version: 'v4',
-    action: 'write',
-    expires: Date.now() + expiresIn * 1000,
-    contentType: mimeType
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: fileName,
+    ContentType: mimeType
   });
 
+  const url = await getS3SignedUrl(s3Client, command, { expiresIn });
   return url;
 };
 
 /**
- * Delete a file from Google Cloud Storage
+ * Delete a file from AWS S3
  */
 export const deleteFile = async (fileName: string): Promise<void> => {
-  const file = bucket.file(fileName);
-  await file.delete();
+  const command = new DeleteObjectCommand({
+    Bucket: bucketName,
+    Key: fileName
+  });
+
+  await s3Client.send(command);
 };
 
 /**
- * Check if a file exists in Google Cloud Storage
+ * Check if a file exists in AWS S3
  */
 export const fileExists = async (fileName: string): Promise<boolean> => {
-  const file = bucket.file(fileName);
-  const [exists] = await file.exists();
-  return exists;
+  try {
+    const command = new HeadObjectCommand({
+      Bucket: bucketName,
+      Key: fileName
+    });
+
+    await s3Client.send(command);
+    return true;
+  } catch (error: any) {
+    if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+      return false;
+    }
+    throw error;
+  }
 };
 
-export default storage;
+// Export the bucket for backward compatibility
+export const bucket = {
+  name: bucketName,
+  file: (fileName: string) => ({
+    save: async (buffer: Buffer, options: any) => uploadFile(fileName, buffer, options.contentType),
+    download: async () => [await downloadFile(fileName)],
+    getSignedUrl: async (options: any) => [await getSignedUrl(fileName, options.expires || 3600)],
+    delete: async () => deleteFile(fileName),
+    exists: async () => [await fileExists(fileName)]
+  })
+};
+
+export default s3Client;

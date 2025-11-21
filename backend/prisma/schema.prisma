@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -345,6 +345,10 @@ model PendingUser {
   phoneVerified Boolean  @default(false)
   expiresAt     DateTime // Expires after 24 hours if not verified
   createdAt     DateTime @default(now())
+
+  // Zero-Knowledge Encryption Recovery (same as User model)
+  recoveryKeyHash    String? // Hashed recovery key for account recovery (bcrypt)
+  masterKeyEncrypted String? // Master encryption key encrypted with recovery key
 
   @@index([email])
   @@map("pending_users")
