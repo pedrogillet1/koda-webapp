@@ -1,9 +1,9 @@
+// Document Service - handles document upload and processing
 import crypto from 'crypto';
 import prisma from '../config/database';
 import { uploadFile, downloadFile, getSignedUrl, deleteFile, bucket, fileExists } from '../config/storage';
 import { config } from '../config/env';
 import * as textExtractionService from './textExtraction.service';
-import * as visionService from './vision.service';
 import * as geminiService from './gemini.service';
 import * as folderService from './folder.service';
 import markdownConversionService from './markdownConversion.service';
@@ -11,8 +11,7 @@ import cacheService from './cache.service';
 import encryptionService from './encryption.service';
 import pptxProcessorService from './pptxProcessor.service';
 import nerService from './ner.service';
-import fileValidator from './fileValidator.service';
-import { invalidateUserCache } from '../controllers/batch.controller';
+import { convertOfficeToPdf } from './office-converter.service';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -100,8 +99,6 @@ async function createFoldersFromPath(userId: string, relativePath: string, paren
 export const uploadDocument = async (input: UploadDocumentInput) => {
   const { userId, filename, fileBuffer, mimeType, folderId, fileHash, relativePath, encryptionMetadata } = input;
 
-  const uploadStartTime = Date.now();
-
   console.log(`\n═══════════════════════════════════════════════════════`);
   console.log(`📤 UPLOADING DOCUMENT: ${filename}`);
   console.log(`👤 User: ${userId}`);
@@ -111,40 +108,6 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   }
   console.log(`═══════════════════════════════════════════════════════\n`);
 
-  // ════════════════════════════════════════════════════════════════════════════════
-  // LAYER 2: SERVER-SIDE VALIDATION
-  // ════════════════════════════════════════════════════════════════════════════════
-
-  // ⚡ SKIP VALIDATION FOR CLIENT-SIDE ENCRYPTED FILES
-  // Encrypted files can't be validated because they're encrypted binary data
-  // Frontend already validated them before encryption
-  if (encryptionMetadata?.isEncrypted) {
-    console.log('⏩ Skipping validation for client-side encrypted file (already validated on frontend)');
-  } else {
-    console.log('🔍 Validating file...');
-    const validationStart = Date.now();
-
-    const validationResult = await fileValidator.validateServerSide(
-      fileBuffer,
-      mimeType,
-      filename
-    );
-
-    console.log(`⏱️  Validation took: ${Date.now() - validationStart}ms`);
-
-    if (!validationResult.isValid) {
-      console.error(`❌ File validation failed: ${validationResult.error}`);
-
-      throw new Error(JSON.stringify({
-        code: validationResult.errorCode,
-        message: validationResult.error,
-        suggestion: validationResult.suggestion,
-      }));
-    }
-
-    console.log('✅ File validation passed');
-  }
-
   // If relativePath is provided AND contains folders (has /), create nested folders
   // Skip if it's just a filename without folder structure
   let finalFolderId = folderId;
@@ -153,12 +116,10 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   }
 
   // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded to the SAME folder
-  // ✅ FIX: Also check filename to allow identical files with different names (e.g., copy1.png, copy2.png)
   const existingDoc = await prisma.document.findFirst({
     where: {
       userId,
       fileHash,
-      filename,  // ✅ CRITICAL FIX: Check filename too! Allows uploading identical content with different names
       status: 'completed',
       // Allow same file in different folders
       folderId: finalFolderId,
@@ -288,33 +249,20 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
     // Return immediately - document is already marked as 'ready'
     console.log(`✅ Document uploaded successfully (zero-knowledge encrypted): ${filename}`);
-
-    // ⚡ CACHE: Invalidate Redis cache after document upload
-    await invalidateUserCache(userId);
-
     return document; // Return the already-created document
   }
 
-  // ⚡ ASYNCHRONOUS PROCESSING: Return immediately, process in background
-  console.log(`🚀 Starting async processing for: ${filename} (Document ID: ${document.id})`);
-
-  // Process in background without blocking the response
+  // Start processing in the background without awaiting (for server-side encrypted files)
   processDocumentInBackground(document.id, fileBuffer, filename, mimeType, userId, thumbnailUrl)
     .then(() => {
-      console.log(`✅ Background processing completed: ${filename}`);
+      console.log(`✅ Document processing complete: ${filename}`);
     })
-    .catch(error => {
-      console.error(`❌ Background processing failed for ${filename}:`, error);
-      // Error handling is already done inside processDocumentInBackground
+    .catch((error: any) => {
+      console.error('❌ Document processing failed:', error.message);
     });
 
-  console.log(`✅ Document uploaded successfully, processing in background: ${filename}`);
-  console.log(`⏱️  TOTAL UPLOAD TIME: ${Date.now() - uploadStartTime}ms`);
-
-  // ⚡ CACHE: Invalidate Redis cache after document upload
-  await invalidateUserCache(userId);
-
-  // Return immediately with 'processing' status
+  // Return immediately with the document in 'processing' status
+  console.log(`✅ Document created, processing in background: ${filename}`);
   return document;
 };
 
@@ -347,20 +295,18 @@ export async function processDocumentInBackground(
   } catch (error: any) {
     console.error('❌ Error processing document:', error);
 
-    // ⚡ NEW BEHAVIOR: Delete document instead of marking as failed
-    // Failed documents should never appear in UI - instant processing only shows completed docs
+    // ALWAYS update status to failed, even if database update fails
     try {
-      await prisma.document.delete({
-        where: { id: documentId },
-      });
-      console.log(`🗑️  Deleted failed document: ${filename}`);
-    } catch (deleteError) {
-      console.error('❌ CRITICAL: Failed to delete document:', deleteError);
-      // Fallback: mark as failed if deletion fails
       await prisma.document.update({
         where: { id: documentId },
-        data: { status: 'failed', updatedAt: new Date() }
-      }).catch(err => console.error('Failed to mark as failed:', err));
+        data: {
+          status: 'failed',
+          updatedAt: new Date() // Ensure timestamp is updated
+        },
+      });
+      console.log(`✅ Status updated to 'failed' for ${filename}`);
+    } catch (updateError) {
+      console.error('❌ CRITICAL: Failed to update document status:', updateError);
     }
 
     throw error;
@@ -379,20 +325,7 @@ async function processDocumentWithTimeout(
   thumbnailUrl: string | null
 ) {
   try {
-    const processingStartTime = Date.now();
     console.log(`🔄 Starting document processing pipeline for: ${filename}`);
-
-    // Import WebSocket service for progress updates
-    const { emitToUser } = await import('./websocket.service');
-
-    // Stage 1: Starting (0%)
-    emitToUser(userId, 'document-processing-update', {
-      documentId,
-      stage: 'starting',
-      progress: 0,
-      message: 'Processing started...',
-      filename
-    });
 
     // Extract text based on file type
     let extractedText = '';
@@ -402,10 +335,8 @@ async function processDocumentWithTimeout(
     let slidesData: any[] | null = null;
     let pptxMetadata: any | null = null;
     let pptxSlideChunks: any[] | null = null; // For Phase 4C: Slide-level chunks
-
-    // ⏱️ START TEXT EXTRACTION TIMING
-    const extractionStartTime = Date.now();
-    console.log(`⏱️ [TIMING] Starting text extraction for ${mimeType}...`);
+    let pdfPreviewPath: string | null = null; // For PPTX PDF preview
+    let pdfPreviewUrl: string | null = null; // For PPTX PDF preview
 
     // Check if it's a PowerPoint file - use Python PPTX extractor
     const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
@@ -446,6 +377,9 @@ async function processDocumentWithTimeout(
           } else {
             console.warn(`⚠️ PowerPoint processor failed: ${pptxProcessResult.error}`);
           }
+
+          // NOTE: PDF preview generation now handled by unified office converter above
+          // This ensures consistent PDF generation for both DOCX and PPTX files
 
           // ✅ FIX: PROACTIVE image extraction approach - Always extract images first
           console.log('📊 Starting PPTX image processing in background...');
@@ -674,48 +608,22 @@ async function processDocumentWithTimeout(
       fs.writeFileSync(tempPdfPath, fileBuffer);
 
       try {
-        // Import Mistral OCR service
-        const mistralOCR = (await import('./mistral-ocr.service')).default;
+        // Import OCR service
+        const ocrService = (await import('./ocr.service')).default;
 
-        // Check if PDF is scanned (with fallback if check fails)
-        let isScanned = false;
-        try {
-          isScanned = await mistralOCR.isScannedPDF(fileBuffer);
-        } catch (scanCheckError: any) {
-          console.warn('⚠️ Failed to check if PDF is scanned, assuming text-based PDF:', scanCheckError.message);
-          isScanned = false; // Assume text-based if check fails
-        }
+        // Check if PDF is scanned
+        const isScanned = await ocrService.isScannedPDF(tempPdfPath);
 
-        if (isScanned && mistralOCR.isAvailable()) {
-          // Scanned PDF - try Mistral OCR first, fallback to Google Cloud Vision
-          console.log('🔍 Detected scanned PDF - processing with Mistral OCR...');
-          try {
-            extractedText = await mistralOCR.processScannedPDF(fileBuffer);
-            ocrConfidence = 0.95; // High confidence for Mistral OCR (95-98% accuracy)
-            console.log(`✅ Mistral OCR complete - extracted ${extractedText.length} characters`);
-          } catch (mistralError: any) {
-            console.error('❌ Mistral OCR failed:', mistralError.message);
-            console.log('🔄 Falling back to Google Cloud Vision OCR...');
-
-            // Fallback to Google Cloud Vision directly (force OCR, skip native extraction)
-            const ocrResult = await visionService.extractTextFromScannedPDF(fileBuffer);
-            extractedText = ocrResult.text;
-            ocrConfidence = ocrResult.confidence || 0.85; // Google Cloud Vision confidence
-
-            // Since Vision API doesn't return page/word counts, calculate them
-            wordCount = extractedText ? extractedText.split(/\s+/).filter((w: string) => w.length > 0).length : 0;
-
-            if (extractedText && extractedText.length > 100) {
-              console.log(`✅ Google Cloud Vision OCR complete - extracted ${extractedText.length} characters, ${wordCount} words`);
-            } else {
-              console.warn('⚠️ Google Cloud Vision returned minimal text - PDF may be unreadable or corrupted');
-              console.warn(`   Only extracted ${extractedText.length} characters`);
-            }
-          }
-        } else if (isScanned && !mistralOCR.isAvailable()) {
-          // Scanned PDF but Mistral OCR not configured - try fallback
-          console.warn('⚠️ Detected scanned PDF but Mistral OCR is not configured');
-          console.warn('   Set MISTRAL_API_KEY in .env to enable high-quality OCR');
+        if (isScanned && ocrService.isAvailable()) {
+          // Scanned PDF - use OCR
+          console.log('🔍 Detected scanned PDF - processing with OCR...');
+          extractedText = await ocrService.processScannedPDF(tempPdfPath);
+          ocrConfidence = 0.90; // High confidence for Google Cloud Vision
+          console.log(`✅ OCR complete - extracted ${extractedText.length} characters`);
+        } else if (isScanned && !ocrService.isAvailable()) {
+          // Scanned PDF but OCR not configured - try fallback
+          console.warn('⚠️ Detected scanned PDF but OCR is not configured');
+          console.warn('   Set GOOGLE_CLOUD_VISION_KEY_PATH to enable OCR');
 
           // Try standard extraction (will likely get minimal text)
           const result = await textExtractionService.extractText(fileBuffer, mimeType);
@@ -725,12 +633,7 @@ async function processDocumentWithTimeout(
           wordCount = result.wordCount || null;
 
           if (extractedText.trim().length < 100) {
-            console.warn('⚠️  Scanned PDF with minimal text - OCR not available');
-            console.warn('   Document will be marked as completed but AI chat may be limited');
-            console.warn('   Set MISTRAL_API_KEY in .env to enable high-quality OCR');
-            // Allow document to complete with placeholder text
-            extractedText = `[Scanned PDF: ${filename}]\n\nThis is a scanned PDF document with minimal extractable text. To enable full text extraction and AI chat capabilities, configure Mistral OCR in your backend .env file.`;
-            ocrConfidence = 0.1; // Low confidence indicates OCR needed
+            throw new Error('Scanned PDF detected but OCR is not configured. Please configure Google Cloud Vision API.');
           }
         } else {
           // Text-based PDF - use standard extraction
@@ -788,24 +691,9 @@ async function processDocumentWithTimeout(
 
     console.log(`✅ Text extracted (${extractedText.length} characters)`);
 
-    // ⏱️ END TEXT EXTRACTION TIMING
-    const extractionTime = Date.now() - extractionStartTime;
-    console.log(`⏱️ [TIMING] Text extraction took: ${extractionTime}ms`);
-
-    // Stage 2: Text extraction complete (20%)
-    emitToUser(userId, 'document-processing-update', {
-      documentId,
-      stage: 'extracted',
-      progress: 20,
-      message: 'Text extracted successfully',
-      filename,
-      extractedLength: extractedText.length
-    });
-
     // CONVERT TO MARKDOWN
     let markdownContent: string | null = null;
     try {
-      const markdownStartTime = Date.now();
       console.log('📝 Converting document to markdown...');
       const markdownResult = await markdownConversionService.convertToMarkdown(
         fileBuffer,
@@ -814,65 +702,44 @@ async function processDocumentWithTimeout(
         documentId
       );
       markdownContent = markdownResult.markdownContent;
-      const markdownTime = Date.now() - markdownStartTime;
       console.log(`✅ Markdown generated (${markdownContent.length} characters)`);
-      console.log(`⏱️ [TIMING] Markdown conversion took: ${markdownTime}ms`);
     } catch (error) {
       console.warn('⚠️ Markdown conversion failed (non-critical):', error);
     }
 
-    // PRE-GENERATE PDF FOR DOCX FILES (so viewing is instant)
+    // PRE-GENERATE PDF FOR DOCX AND PPTX FILES (unified approach for instant viewing)
     const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    if (isDocx) {
-      const pdfGenStartTime = Date.now();
-      console.log('📄 Pre-generating PDF preview for DOCX...');
+    const isPptxForPdf = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+    if (isDocx || isPptxForPdf) {
+      const fileType = isDocx ? 'DOCX' : 'PPTX';
+      console.log(`📄 [Preview] Pre-generating PDF preview for ${fileType}...`);
       try {
-        const { convertDocxToPdf } = await import('./docx-converter.service');
-        const supabaseStorageService = await import('./supabaseStorage.service');
+        // 1. Write original file to a temporary location
+        const tempDir = os.tmpdir();
+        const tempFilePath = path.join(tempDir, `${documentId}${isDocx ? '.docx' : '.pptx'}`);
+        fs.writeFileSync(tempFilePath, fileBuffer);
 
-        // Get the document info
-        const document = await prisma.document.findUnique({
-          where: { id: documentId },
-          select: { encryptedFilename: true, userId: true }
-        });
+        // 2. Convert the temporary file to PDF
+        const conversion = await convertOfficeToPdf(tempFilePath, tempDir);
 
-        if (!document) {
-          throw new Error('Document not found');
-        }
+        if (conversion.success && conversion.pdfPath) {
+          const pdfBuffer = fs.readFileSync(conversion.pdfPath);
+          const pdfKey = `${userId}/${documentId}-preview.pdf`;
 
-        const pdfKey = `${document.userId}/${documentId}-converted.pdf`;
+          // 3. Upload the generated PDF to cloud storage
+          await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
+          pdfPreviewPath = pdfKey; // Store the path to save in metadata
+          console.log(`✅ [Preview] PDF preview uploaded to: ${pdfKey}`);
 
-        // Check if PDF already exists in Supabase
-        const pdfExists = await supabaseStorageService.default.exists(pdfKey);
-
-        if (!pdfExists) {
-          // Save DOCX to temp file
-          const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
-          fs.writeFileSync(tempDocxPath, fileBuffer);
-
-          // Convert to PDF
-          const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
-
-          if (conversion.success && conversion.pdfPath) {
-            // Upload PDF to Supabase
-            const pdfBuffer = fs.readFileSync(conversion.pdfPath);
-            await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
-
-            console.log('✅ PDF preview pre-generated:', pdfKey);
-
-            // Clean up temp files
-            fs.unlinkSync(tempDocxPath);
-            fs.unlinkSync(conversion.pdfPath);
-          } else {
-            console.warn('⚠️ PDF preview generation failed (non-critical):', conversion.error);
-          }
+          // 4. Clean up temporary files
+          fs.unlinkSync(tempFilePath);
+          fs.unlinkSync(conversion.pdfPath);
         } else {
-          console.log('✅ PDF preview already exists');
+          console.warn(`⚠️ [Preview] PDF preview generation failed: ${conversion.error}`);
         }
-        const pdfGenTime = Date.now() - pdfGenStartTime;
-        console.log(`⏱️ [TIMING] PDF preview generation took: ${pdfGenTime}ms`);
       } catch (error: any) {
-        console.warn('⚠️ PDF preview generation failed (non-critical):', error.message);
+        console.warn(`⚠️ [Preview] PDF preview generation failed: ${error.message}`);
       }
     }
 
@@ -885,64 +752,51 @@ async function processDocumentWithTimeout(
     let entities = null;
 
     if (extractedText && extractedText.length > 0) {
-      const analysisStartTime = Date.now();
       console.log('🤖 Analyzing document with OpenAI...');
       try {
         const analysis = await geminiService.analyzeDocumentWithGemini(extractedText, mimeType);
         classification = analysis.suggestedCategories?.[0] || null;
         entities = JSON.stringify(analysis.keyEntities || {});
-        const analysisTime = Date.now() - analysisStartTime;
         console.log('✅ Document analyzed');
-        console.log(`⏱️ [TIMING] Document analysis took: ${analysisTime}ms`);
       } catch (error) {
         console.warn('⚠️ Document analysis failed (non-critical):', error);
       }
     }
 
-    // ⚡ OPTIMIZATION: Run metadata enrichment in BACKGROUND (non-blocking)
-    // This saves 5-10 seconds of processing time
+    // 🆕 ENHANCED METADATA ENRICHMENT with semantic understanding
     let enrichedMetadata = null;
     if (extractedText && extractedText.length > 100) {
-      console.log('🔍 Starting background metadata enrichment...');
+      console.log('🔍 Enriching document metadata with semantic analysis...');
+      try {
+        const metadataEnrichmentService = await import('./metadataEnrichment.service');
+        enrichedMetadata = await metadataEnrichmentService.default.enrichDocument(
+          extractedText,
+          filename,
+          {
+            extractTopics: true,
+            extractEntities: true,
+            generateSummary: true,
+            extractKeyPoints: true,
+            analyzeSentiment: true,
+            assessComplexity: true
+          }
+        );
 
-      // Run in background - don't await!
-      Promise.resolve().then(async () => {
-        try {
-          const metadataEnrichmentService = await import('./metadataEnrichment.service');
-          const enriched = await metadataEnrichmentService.default.enrichDocument(
-            extractedText,
-            filename,
-            {
-              extractTopics: true,
-              extractEntities: true,
-              generateSummary: true,
-              extractKeyPoints: true,
-              analyzeSentiment: true,
-              assessComplexity: true
-            }
-          );
-
-          // Update document metadata with enriched data
-          await prisma.documentMetadata.update({
-            where: { documentId },
-            data: {
-              classification: enriched.topics.length > 0 ? enriched.topics[0] : classification,
-              entities: enriched.entities ? JSON.stringify(enriched.entities) : entities,
-              summary: enriched.summary || null
-            }
-          });
-
-          console.log(`✅ Background metadata enrichment complete: ${enriched.topics.length} topics, ${enriched.keyPoints.length} key points, sentiment: ${enriched.sentiment}`);
-        } catch (error) {
-          console.warn('⚠️ Background metadata enrichment failed (non-critical):', error);
+        // Use enriched data if basic analysis didn't provide these
+        if (!classification && enrichedMetadata.topics.length > 0) {
+          classification = enrichedMetadata.topics[0];
         }
-      });
+        if (!entities || entities === '{}') {
+          entities = JSON.stringify(enrichedMetadata.entities);
+        }
 
-      console.log('✅ Metadata enrichment running in background (non-blocking)');
+        console.log(`✅ Metadata enriched: ${enrichedMetadata.topics.length} topics, ${enrichedMetadata.keyPoints.length} key points, sentiment: ${enrichedMetadata.sentiment}`);
+      } catch (error) {
+        console.warn('⚠️ Metadata enrichment failed (non-critical):', error);
+      }
     }
 
     // Create or update metadata record with enriched data
-    const metadataUpsertStartTime = Date.now();
     await prisma.documentMetadata.upsert({
       where: { documentId },
       create: {
@@ -973,297 +827,225 @@ async function processDocumentWithTimeout(
         pptxMetadata: pptxMetadata ? JSON.stringify(pptxMetadata) : null,
       },
     });
-    const metadataUpsertTime = Date.now() - metadataUpsertStartTime;
-    console.log(`⏱️ [TIMING] Metadata upsert took: ${metadataUpsertTime}ms`);
 
-    // ⚡ OPTIMIZATION: AUTO-GENERATE TAGS IN BACKGROUND (NON-BLOCKING)
-    // Tag generation takes 10-20s but doesn't block embedding generation
-    // This saves 10-20 seconds by running in parallel!
+    // AUTO-GENERATE TAGS: Generate smart tags for the document
     if (extractedText && extractedText.length > 20) {
-      console.log('🏷️ Starting background tag generation...');
+      console.log('🏷️ Auto-generating tags...');
+      try {
+        const tags = await geminiService.generateDocumentTags(filename, extractedText);
+        console.log(`✅ Generated ${tags.length} tags: ${tags.join(', ')}`);
 
-      // Run in background - don't await!
-      Promise.resolve().then(async () => {
-        try {
-          const tags = await geminiService.generateDocumentTags(filename, extractedText);
-          console.log(`✅ Background tags generated: ${tags.join(', ')}`);
+        // Create or find tags and link them to the document
+        for (const tagName of tags) {
+          // Get or create tag
+          let tag = await prisma.tag.findUnique({
+            where: { userId_name: { userId, name: tagName } },
+          });
 
-          // Create or find tags and link them to the document
-          for (const tagName of tags) {
-            // Get or create tag
-            let tag = await prisma.tag.findUnique({
-              where: { userId_name: { userId, name: tagName } },
+          if (!tag) {
+            tag = await prisma.tag.create({
+              data: { userId, name: tagName },
             });
+          }
 
-            if (!tag) {
-              tag = await prisma.tag.create({
-                data: { userId, name: tagName },
-              });
-            }
-
-            // Link tag to document (skip if already linked)
-            await prisma.documentTag.upsert({
-              where: {
-                documentId_tagId: {
-                  documentId,
-                  tagId: tag.id,
-                },
-              },
-              update: {},
-              create: {
+          // Link tag to document (skip if already linked)
+          await prisma.documentTag.upsert({
+            where: {
+              documentId_tagId: {
                 documentId,
                 tagId: tag.id,
               },
-            });
-          }
-          console.log(`🏷️ Successfully linked ${tags.length} tags to document ${documentId}`);
-        } catch (error) {
-          console.warn('⚠️ Background tag generation failed (non-critical):', error);
+            },
+            update: {},
+            create: {
+              documentId,
+              tagId: tag.id,
+            },
+          });
         }
-      });
-
-      console.log('✅ Tag generation running in background (non-blocking)');
+      } catch (error) {
+        console.warn('⚠️ Auto-tag generation failed (non-critical):', error);
+      }
     }
 
-    // ⚡ OPTIMIZATION: GENERATE VECTOR EMBEDDINGS IN BACKGROUND (non-blocking)
-    // This saves 15-25 seconds of processing time for instant document availability
-    // Documents can still be used in chat - embeddings will be available shortly after upload
+    // GENERATE VECTOR EMBEDDINGS FOR RAG WITH SEMANTIC CHUNKING
     if (extractedText && extractedText.length > 50) {
-      console.log('🔮 Starting background vector embedding generation...');
+      console.log('🔮 Generating semantic chunks and vector embeddings...');
+      try {
+        const vectorEmbeddingService = await import('./vectorEmbedding.service');
+        const embeddingService = await import('./embedding.service');
+        let chunks;
 
-      // Stage 3: Starting embedding generation (40%)
-      emitToUser(userId, 'document-processing-update', {
-        documentId,
-        stage: 'embedding',
-        progress: 40,
-        message: 'Generating AI embeddings...',
-        filename
-      });
+        // Use enhanced Excel processor for Excel files to preserve cell coordinates
+        if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            mimeType === 'application/vnd.ms-excel') {
+          console.log('📊 Using enhanced Excel processor for cell-level metadata...');
+          const excelProcessor = await import('./excelProcessor.service');
+          const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
 
-      // Run in background - don't await!
-      Promise.resolve().then(async () => {
-        try {
-          // Import WebSocket service for progress updates inside async context
-          const { emitToUser: emitToUserAsync } = await import('./websocket.service');
-          const vectorEmbeddingService = await import('./vectorEmbedding.service');
-          const embeddingService = await import('./embedding.service');
-          let chunks;
+          // Convert Excel chunks to embedding format with full document metadata
+          // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
+          chunks = excelChunks.map(chunk => ({
+            content: `📄 File: ${filename} | ${chunk.content}`,
+            metadata: {
+              // ⚡ Document identification (CRITICAL for proper retrieval)
+              documentId: documentId,
+              filename: filename,
 
-          // Use enhanced Excel processor for Excel files to preserve cell coordinates
-          if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-              mimeType === 'application/vnd.ms-excel') {
-            console.log('📊 [Background] Using enhanced Excel processor for cell-level metadata...');
-            const excelProcessor = await import('./excelProcessor.service');
-            const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
+              // ⚡ Excel-specific metadata
+              sheet: chunk.metadata.sheetName,
+              sheetNumber: chunk.metadata.sheetNumber,
+              row: chunk.metadata.rowNumber,
+              cells: chunk.metadata.cells,
+              chunkIndex: chunk.metadata.chunkIndex,
+              sourceType: chunk.metadata.sourceType,
+              tableHeaders: chunk.metadata.tableHeaders
+            }
+          }));
+          console.log(`📦 Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
 
-            // Convert Excel chunks to embedding format with full document metadata
-            // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
-            chunks = excelChunks.map(chunk => ({
-              content: `📄 File: ${filename} | ${chunk.content}`,
+          // 🆕 Generate embeddings for Excel chunks using Gemini embedding service
+          console.log('🔮 Generating embeddings for Excel chunks...');
+          const excelTexts = chunks.map(c => c.content);
+          const excelEmbeddingResult = await embeddingService.default.generateBatchEmbeddings(excelTexts, {
+            taskType: 'RETRIEVAL_DOCUMENT',
+            title: filename
+          });
+
+          // Update chunks with embeddings
+          chunks = chunks.map((chunk, i) => ({
+            ...chunk,
+            embedding: excelEmbeddingResult.embeddings[i].embedding
+          }));
+          console.log(`✅ Generated ${chunks.length} embeddings for Excel chunks`);
+        } else {
+          // 🆕 Phase 4C: For PowerPoint, use slide-level chunks with metadata
+          const isPowerPoint = mimeType.includes('presentation');
+
+          if (isPowerPoint && pptxSlideChunks && pptxSlideChunks.length > 0) {
+            console.log('📝 Using slide-level chunks for PowerPoint (Phase 4C)...');
+            chunks = pptxSlideChunks.map(slideChunk => ({
+              content: slideChunk.content,
               metadata: {
-                // ⚡ Document identification (CRITICAL for proper retrieval)
-                documentId: documentId,
-                filename: filename,
-
-                // ⚡ Excel-specific metadata
-                sheet: chunk.metadata.sheetName,
-                sheetNumber: chunk.metadata.sheetNumber,
-                row: chunk.metadata.rowNumber,
-                cells: chunk.metadata.cells,
-                chunkIndex: chunk.metadata.chunkIndex,
-                sourceType: chunk.metadata.sourceType,
-                tableHeaders: chunk.metadata.tableHeaders
+                filename,
+                slideNumber: slideChunk.metadata.slideNumber,
+                totalSlides: slideChunk.metadata.totalSlides,
+                slideTitle: slideChunk.metadata.slideTitle,
+                hasNotes: slideChunk.metadata.hasNotes,
+                sourceType: 'powerpoint',
+                chunkType: 'slide'
               }
             }));
-            console.log(`📦 [Background] Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
-
-            // 🆕 Generate embeddings for Excel chunks using Gemini embedding service
-            console.log('🔮 [Background] Generating embeddings for Excel chunks...');
-            const excelTexts = chunks.map(c => c.content);
-            const excelEmbeddingResult = await embeddingService.default.generateBatchEmbeddings(excelTexts, {
-              taskType: 'RETRIEVAL_DOCUMENT',
-              title: filename
-            });
-
-            // Update chunks with embeddings
-            chunks = chunks.map((chunk, i) => ({
-              ...chunk,
-              embedding: excelEmbeddingResult.embeddings[i].embedding
-            }));
-            console.log(`✅ [Background] Generated ${chunks.length} embeddings for Excel chunks`);
+            console.log(`📦 Created ${chunks.length} slide-level chunks from PowerPoint`);
+          } else if (markdownContent && markdownContent.length > 100) {
+            console.log('📝 Using text chunking for markdown content...');
+            chunks = chunkText(markdownContent, 500);
+            console.log(`📦 Created ${chunks.length} chunks from markdown`);
           } else {
-            // 🆕 Phase 4C: For PowerPoint, use slide-level chunks with metadata
-            const isPowerPoint = mimeType.includes('presentation');
-
-            if (isPowerPoint && pptxSlideChunks && pptxSlideChunks.length > 0) {
-              console.log('📝 [Background] Using slide-level chunks for PowerPoint (Phase 4C)...');
-              chunks = pptxSlideChunks.map(slideChunk => ({
-                content: slideChunk.content,
-                metadata: {
-                  filename,
-                  slideNumber: slideChunk.metadata.slideNumber,
-                  totalSlides: slideChunk.metadata.totalSlides,
-                  slideTitle: slideChunk.metadata.slideTitle,
-                  hasNotes: slideChunk.metadata.hasNotes,
-                  sourceType: 'powerpoint',
-                  chunkType: 'slide'
-                }
-              }));
-              console.log(`📦 [Background] Created ${chunks.length} slide-level chunks from PowerPoint`);
-            } else {
-              // ⚡ OPTIMIZATION: Use raw text for embeddings (skip markdown conversion for speed)
-              // Markdown is great for display but raw text is better for embeddings
-              // This saves 20-40 seconds of processing time!
-              console.log('📝 [Background] Using raw text for embeddings (faster!)...');
-              chunks = chunkText(extractedText, 500);
-              console.log(`📦 [Background] Split document into ${chunks.length} chunks`);
-            }
-
-            // 🆕 Generate embeddings using OpenAI embedding service
-            console.log('🔮 [Background] Generating OpenAI embeddings...');
-            const texts = chunks.map(c => c.content);
-            const embeddingResult = await embeddingService.default.generateBatchEmbeddings(texts);
-
-            // Update chunks with embeddings
-            chunks = chunks.map((chunk, i) => ({
-              ...chunk,
-              embedding: embeddingResult.embeddings[i].embedding
-            }));
+            // Fallback to standard text chunking if no markdown
+            console.log('📝 Using standard text chunking...');
+            chunks = chunkText(extractedText, 500);
+            console.log(`📦 Split document into ${chunks.length} chunks`);
           }
 
-          // Store embeddings
-          await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
-          console.log(`✅ [Background] Stored ${chunks.length} vector embeddings for document ${documentId}`);
-
-          // Emit embedding completion (80%)
-          emitToUserAsync(userId, 'document-processing-update', {
-            documentId,
-            stage: 'embedding-complete',
-            progress: 80,
-            message: 'AI embeddings generated',
-            filename,
-            chunksCount: chunks.length
+          // 🆕 Generate embeddings using Gemini embedding service
+          console.log('🔮 Generating embeddings with Gemini...');
+          const texts = chunks.map(c => c.content);
+          const embeddingResult = await embeddingService.default.generateBatchEmbeddings(texts, {
+            taskType: 'RETRIEVAL_DOCUMENT',
+            title: filename
           });
 
-          // ⚡ NOTIFY USER: Embeddings ready for AI chat
-          emitToUserAsync(userId, 'document-embeddings-ready', {
-            documentId,
-            filename,
-            chunksCount: chunks.length,
-            message: `${filename} is now ready for AI chat!`
-          });
-          console.log(`📢 [Background] Notified user that embeddings are ready for ${filename}`);
-        } catch (error: any) {
-          // Log error but don't fail the document - embeddings can be regenerated later
-          console.error('❌ [Background] Vector embedding generation failed (non-critical):', error);
-          console.error('   Document is still available, but AI chat may be limited until embeddings are generated');
-
-          // Emit error update
-          const { emitToUser: emitError } = await import('./websocket.service');
-          emitError(userId, 'document-processing-update', {
-            documentId,
-            stage: 'embedding-failed',
-            progress: 80,
-            message: 'Embedding generation failed (non-critical)',
-            filename,
-            error: error.message
-          });
-
-          // ⚡ NOTIFY USER: Embeddings failed
-          emitError(userId, 'document-embeddings-failed', {
-            documentId,
-            filename,
-            error: error.message || 'Unknown error'
-          });
-          console.log(`📢 [Background] Notified user that embeddings failed for ${filename}`);
+          // Update chunks with embeddings
+          chunks = chunks.map((chunk, i) => ({
+            ...chunk,
+            embedding: embeddingResult.embeddings[i].embedding
+          }));
         }
-      });
 
-      console.log('✅ Vector embedding generation running in background (non-blocking)');
+        // Store embeddings
+        await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
+        console.log(`✅ Stored ${chunks.length} vector embeddings`);
+      } catch (error: any) {
+        // ❌ CRITICAL ERROR: Embedding generation is NOT optional!
+        console.error('❌ CRITICAL: Vector embedding generation failed:', error);
+        throw new Error(`Embedding generation failed: ${error.message || error}`);
+      }
     }
 
-    // 🔍 VERIFY PINECONE STORAGE - Temporarily disabled during OpenAI migration
-    // The embeddings are being stored successfully, verification is failing due to dimension query issues
-    console.log('✅ Step 7: Pinecone storage completed (verification skipped during migration)');
+    // 🔍 VERIFY PINECONE STORAGE - Critical step with retry logic for eventual consistency!
+    console.log('🔍 Step 7: Verifying Pinecone storage...');
+    const pineconeService = await import('./pinecone.service');
 
-    // TODO: Re-enable verification after migration is complete
-    // const pineconeService = await import('./pinecone.service');
-    // const verification = await pineconeService.default.verifyDocument(documentId);
+    // Pinecone has eventual consistency, so we need to retry with delays
+    const maxRetries = 5;
+    const retryDelay = 2000; // 2 seconds between retries
+    let verification = null;
 
-    // ⚡ CRITICAL: Update document status to completed IMMEDIATELY
-    // This makes the document appear in the UI instantly (2-3s instead of 14-17s)
-    // Background tasks (NER, embeddings) will continue running
-    const statusUpdateStartTime = Date.now();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      console.log(`🔄 Verification attempt ${attempt}/${maxRetries}...`);
+      verification = await pineconeService.default.verifyDocument(documentId);
+
+      if (verification.success) {
+        console.log(`✅ Verification passed: Found ${verification.vectorCount} vectors in Pinecone`);
+        break;
+      }
+
+      if (attempt < maxRetries) {
+        console.log(`⏳ Vectors not found yet, waiting ${retryDelay}ms before retry ${attempt + 1}...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+
+    if (!verification || !verification.success) {
+      throw new Error(`Pinecone verification failed after ${maxRetries} attempts: ${verification?.error || 'No vectors found'}`);
+    }
+
+    // 🔍 PHASE 3 WEEK 9-10: Extract entities and auto-tag document
+    console.log('🔍 Step 8: Extracting entities and auto-tagging...');
+    try {
+      if (extractedText && extractedText.trim().length > 0) {
+        // Extract entities using NER
+        const nerResult = await nerService.extractEntities(extractedText, filename);
+
+        // Store entities in database
+        if (nerResult.entities.length > 0) {
+          await nerService.storeEntities(documentId, nerResult.entities);
+        }
+
+        // Auto-tag document based on entities and content
+        await nerService.autoTagDocument(
+          userId,
+          documentId,
+          nerResult.entities,
+          nerResult.suggestedTags
+        );
+
+        console.log(`✅ Entity extraction complete: ${nerResult.entities.length} entities, ${nerResult.suggestedTags.length} tags`);
+      } else {
+        console.log(`⚠️ Skipping NER: No extracted text available`);
+      }
+    } catch (nerError: any) {
+      // NER is not critical - log error but continue
+      console.warn(`⚠️ NER extraction failed (non-critical):`, nerError.message);
+    }
+
+    // Update document status to completed (only if verification passed)
     await prisma.document.update({
       where: { id: documentId },
       data: {
         status: 'completed',
-        renderableContent: extractedText || null, // ✨ Copy extracted text to renderableContent for chat
+        pdfPreviewPath,
+        pdfPreviewUrl,
         updatedAt: new Date()
       },
     });
-    const statusUpdateTime = Date.now() - statusUpdateStartTime;
-    console.log(`⏱️ [TIMING] Status update took: ${statusUpdateTime}ms`);
-
-    // ⚡ OPTIMIZATION: Run NER in BACKGROUND (non-blocking)
-    // This saves 3-5 seconds of processing time
-    console.log('🔍 Starting background NER extraction...');
-    if (extractedText && extractedText.trim().length > 0) {
-      // Run in background - don't await!
-      Promise.resolve().then(async () => {
-        try {
-          const nerStartTime = Date.now();
-          console.log('🔍 [Background] Extracting entities and auto-tagging...');
-
-          // Extract entities using NER
-          const nerResult = await nerService.extractEntities(extractedText, filename);
-
-          // Store entities in database
-          if (nerResult.entities.length > 0) {
-            await nerService.storeEntities(documentId, nerResult.entities);
-          }
-
-          // Auto-tag document based on entities and content
-          await nerService.autoTagDocument(
-            userId,
-            documentId,
-            nerResult.entities,
-            nerResult.suggestedTags
-          );
-
-          const nerTime = Date.now() - nerStartTime;
-          console.log(`✅ [Background] Entity extraction complete: ${nerResult.entities.length} entities, ${nerResult.suggestedTags.length} tags`);
-          console.log(`⏱️ [Background] NER processing took: ${nerTime}ms`);
-        } catch (nerError: any) {
-          // NER is not critical - log error but continue
-          console.warn(`⚠️ [Background] NER extraction failed (non-critical):`, nerError.message);
-        }
-      });
-
-      console.log('✅ NER extraction running in background (non-blocking)');
-    } else {
-      console.log(`⚠️ Skipping NER: No extracted text available`);
-    }
 
     // Invalidate cache for this user after successful processing
     await cacheService.invalidateUserCache(userId);
     console.log(`🗑️ Invalidated cache for user ${userId} after document upload`);
 
-    // ⏱️ TOTAL PROCESSING TIME
-    const totalProcessingTime = Date.now() - processingStartTime;
     console.log(`✅ Document processing completed: ${filename}`);
-    console.log(`⏱️ [TIMING] ========================================`);
-    console.log(`⏱️ [TIMING] TOTAL PROCESSING TIME: ${totalProcessingTime}ms (${(totalProcessingTime/1000).toFixed(2)}s)`);
-    console.log(`⏱️ [TIMING] ========================================`);
-
-    // Stage 4: Processing complete! (100%)
-    emitToUser(userId, 'document-processing-update', {
-      documentId,
-      stage: 'completed',
-      progress: 100,
-      message: 'Document ready!',
-      filename
-    });
 
   } catch (error: any) {
     // This catch block should never be reached due to outer try-catch,
@@ -1365,50 +1147,50 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
     },
   });
 
-  // ✅ ASYNCHRONOUS PROCESSING: Start in background, return immediately
-  console.log(`🚀 Starting background processing for: ${filename} (Document ID: ${document.id})`);
+  // ⚡ FAST ASYNC PROCESSING: Return immediately, process in background
+  console.log(`🚀 Starting async processing for: ${filename} (Document ID: ${document.id})`);
 
-  // Start processing in background (don't await)
-  processDocumentAsync(
-    document.id,
-    encryptedFilename,
-    filename,
-    mimeType,
-    userId,
-    thumbnailUrl
-  )
-    .then(() => {
-      console.log(`✅ Background processing completed: ${filename}`);
-    })
-    .catch(async (error: any) => {
-      console.error(`❌ Background processing failed for ${filename}:`, error);
+  // Process in background with proper error handling
+  (async () => {
+    try {
+      await processDocumentAsync(
+        document.id,
+        encryptedFilename,
+        filename,
+        mimeType,
+        userId,
+        thumbnailUrl
+      );
+      console.log(`✅ Document processing completed: ${filename}`);
+    } catch (error: any) {
+      console.error(`❌ Error in async document processing for ${filename}:`, error);
 
-      // Update document status to 'failed'
+      // Update document status to 'failed' so frontend can show error
+      await prisma.document.update({
+        where: { id: document.id },
+        data: { status: 'failed' },
+      });
+
+      // Emit WebSocket event to notify frontend of failure
       try {
-        await prisma.document.update({
-          where: { id: document.id },
-          data: {
-            status: 'failed',
-            updatedAt: new Date(),
-          },
-        });
-
-        // Emit WebSocket event for failure
         const io = require('../server').io;
         if (io) {
-          io.to(`user:${userId}`).emit('document-processing-failed', {
+          io.to(`user:${userId}`).emit('document-processing-update', {
             documentId: document.id,
-            filename,
-            error: error.message || 'Processing failed',
+            filename: filename,
+            status: 'failed',
+            stage: 'failed',
+            progress: 0,
+            error: error.message || 'Processing failed'
           });
         }
-      } catch (updateError) {
-        console.error(`❌ Failed to update document status:`, updateError);
+      } catch (wsError) {
+        console.warn('Failed to emit WebSocket event:', wsError);
       }
-    });
+    }
+  })();
 
-  // ✅ RETURN IMMEDIATELY with 'processing' status
-  console.log(`📤 Returning document immediately (status: processing)`);
+  // Return document immediately with 'processing' status
   return document;
 };
 
@@ -1423,31 +1205,8 @@ async function processDocumentAsync(
   userId: string,
   thumbnailUrl: string | null
 ) {
-  const io = require('../server').io;
-
-  // Helper function to emit progress updates
-  const emitProgress = (stage: string, progress: number, message: string) => {
-    console.log(`📊 [${progress}%] ${stage}: ${message}`);
-    if (io) {
-      console.log(`🔊 [WebSocket] Emitting progress to room user:${userId} - ${progress}% (${stage})`);
-      io.to(`user:${userId}`).emit('document-processing-update', {
-        documentId,
-        filename,
-        stage,
-        progress,
-        message,
-        status: 'processing'
-      });
-    } else {
-      console.warn(`⚠️  [WebSocket] IO not available, cannot emit progress`);
-    }
-  };
-
   try {
     console.log(`📄 Processing document: ${filename}`);
-
-    // Stage 1: Starting (5%)
-    emitProgress('starting', 5, 'Starting document processing...');
 
     // Get document to check if it's encrypted
     const document = await prisma.document.findUnique({
@@ -1458,14 +1217,11 @@ async function processDocumentAsync(
       throw new Error('Document not found');
     }
 
-    // Stage 2: Downloading (10%)
-    emitProgress('downloading', 10, 'Downloading file from storage...');
+    // Download file from GCS
     let fileBuffer = await downloadFile(encryptedFilename);
 
     // 🔓 DECRYPT FILE IF ENCRYPTED
     if (document.isEncrypted && document.encryptionIV && document.encryptionAuthTag) {
-      // Stage 3: Decrypting (15%)
-      emitProgress('decrypting', 15, 'Decrypting file...');
       console.log(`🔓 Decrypting file: ${filename}`);
       const encryptionService = await import('./encryption.service');
 
@@ -1482,9 +1238,6 @@ async function processDocumentAsync(
       console.log(`✅ File decrypted successfully (${fileBuffer.length} bytes)`);
     }
 
-    // Stage 4: Extracting text (20%)
-    emitProgress('extracting', 20, 'Extracting text from document...');
-
     // Extract text based on file type
     let extractedText = '';
     let ocrConfidence: number | null = null;
@@ -1493,6 +1246,8 @@ async function processDocumentAsync(
     let slidesData: any[] | null = null;
     let pptxMetadata: any | null = null;
     let pptxSlideChunks: any[] | null = null; // For Phase 4C: Slide-level chunks
+    let pdfPreviewPath: string | null = null; // For PPTX PDF preview
+    let pdfPreviewUrl: string | null = null; // For PPTX PDF preview
 
     // Check if it's a PowerPoint file - use Python PPTX extractor
     const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
@@ -1533,6 +1288,9 @@ async function processDocumentAsync(
           } else {
             console.warn(`⚠️ PowerPoint processor failed: ${pptxProcessResult.error}`);
           }
+
+          // NOTE: PDF preview generation now handled by unified office converter above
+          // This ensures consistent PDF generation for both DOCX and PPTX files
 
           // ✅ FIX: PROACTIVE image extraction approach - Always extract images first
           console.log('📊 Starting PPTX image processing in background...');
@@ -1815,7 +1573,8 @@ async function processDocumentAsync(
     if (isDocx) {
       console.log('📄 Pre-generating PDF preview for DOCX...');
       try {
-        const { convertDocxToPdf } = await import('./docx-converter.service');
+        // REASON: Use the new universal office-converter service with enhanced flags and temp profile
+        // WHY: Provides more stable conversions with proper isolation
         const supabaseStorageService = await import('./supabaseStorage.service');
 
         // REASON: Use the correct PDF path format
@@ -1830,8 +1589,8 @@ async function processDocumentAsync(
           const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
           fs.writeFileSync(tempDocxPath, fileBuffer);
 
-          // Convert to PDF
-          const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
+          // Convert to PDF using the new universal converter
+          const conversion = await convertOfficeToPdf(tempDocxPath, os.tmpdir());
 
           if (conversion.success && conversion.pdfPath) {
             // Upload PDF to Supabase
@@ -1854,9 +1613,6 @@ async function processDocumentAsync(
       }
     }
 
-    // Stage 5: Analyzing document (40-50%)
-    emitProgress('analyzing', 45, 'Analyzing document content...');
-
     // Analyze document with Gemini
     let classification = null;
     let entities = null;
@@ -1872,8 +1628,6 @@ async function processDocumentAsync(
         console.warn('⚠️ Document analysis failed (non-critical):', error);
       }
     }
-
-    emitProgress('analyzing', 50, 'Analysis complete');
 
     // 🆕 ENHANCED METADATA ENRICHMENT with semantic understanding
     let enrichedMetadata = null;
@@ -1940,178 +1694,158 @@ async function processDocumentAsync(
       },
     });
 
-    // ✅ OPTIMIZATION: Skip tag generation in main flow to save 5-10 seconds
-    // Tags will be generated in background after document is complete
-    emitProgress('tagging', 60, 'Tags will be generated in background...');
+    // AUTO-GENERATE TAGS
+    if (extractedText && extractedText.length > 20) {
+      console.log('🏷️ Auto-generating tags...');
+      try {
+        const tags = await geminiService.generateDocumentTags(filename, extractedText);
+        console.log(`✅ Generated ${tags.length} tags: ${tags.join(', ')}`);
 
-    // Stage 7: Embedding generation (60-85%)
-    // ⚡ NON-BLOCKING: Embeddings generate in background (20-30s)
-    // This allows upload to complete instantly (2-7s) while embeddings generate asynchronously
-
-    // GENERATE VECTOR EMBEDDINGS FOR RAG WITH SEMANTIC CHUNKING (BACKGROUND)
-    if (extractedText && extractedText.length > 50) {
-      console.log('🔮 Starting background embedding generation...');
-
-      // Fire-and-forget IIFE - runs in background without blocking
-      (async () => {
-        try {
-          console.log('🔮 [Background] Generating semantic chunks and vector embeddings...');
-          emitProgress('embedding', 65, 'Generating embeddings in background...');
-
-          const vectorEmbeddingService = await import('./vectorEmbedding.service');
-          const embeddingService = await import('./embedding.service');
-          let chunks;
-
-          // Use enhanced Excel processor for Excel files to preserve cell coordinates
-          if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-              mimeType === 'application/vnd.ms-excel') {
-            console.log('📊 [Background] Using enhanced Excel processor for cell-level metadata...');
-            const excelProcessor = await import('./excelProcessor.service');
-            const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
-
-            // Convert Excel chunks to embedding format with full document metadata
-            // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
-            chunks = excelChunks.map(chunk => ({
-              content: `📄 File: ${filename} | ${chunk.content}`,
-              metadata: {
-                // ⚡ Document identification (CRITICAL for proper retrieval)
-                documentId: documentId,
-                filename: filename,
-
-                // ⚡ Excel-specific metadata
-                sheet: chunk.metadata.sheetName,
-                sheetNumber: chunk.metadata.sheetNumber,
-                row: chunk.metadata.rowNumber,
-                cells: chunk.metadata.cells,
-                chunkIndex: chunk.metadata.chunkIndex,
-                sourceType: chunk.metadata.sourceType,
-                tableHeaders: chunk.metadata.tableHeaders
-              }
-            }));
-            console.log(`📦 [Background] Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
-
-            // 🆕 Generate embeddings for Excel chunks using Gemini embedding service
-            console.log('🔮 [Background] Generating embeddings for Excel chunks...');
-            const excelTexts = chunks.map(c => c.content);
-            const excelEmbeddingResult = await embeddingService.default.generateBatchEmbeddings(excelTexts, {
-              taskType: 'RETRIEVAL_DOCUMENT',
-              title: filename
-            });
-
-            // Update chunks with embeddings
-            chunks = chunks.map((chunk, i) => ({
-              ...chunk,
-              embedding: excelEmbeddingResult.embeddings[i].embedding
-            }));
-            console.log(`✅ [Background] Generated ${chunks.length} embeddings for Excel chunks`);
-          } else {
-            // 🆕 Phase 4C: For PowerPoint, use slide-level chunks with metadata
-            const isPowerPoint = mimeType.includes('presentation');
-
-            if (isPowerPoint && pptxSlideChunks && pptxSlideChunks.length > 0) {
-              console.log('📝 [Background] Using slide-level chunks for PowerPoint (Phase 4C)...');
-              chunks = pptxSlideChunks.map(slideChunk => ({
-                content: slideChunk.content,
-                metadata: {
-                  filename,
-                  slideNumber: slideChunk.metadata.slideNumber,
-                  totalSlides: slideChunk.metadata.totalSlides,
-                  slideTitle: slideChunk.metadata.slideTitle,
-                  hasNotes: slideChunk.metadata.hasNotes,
-                  sourceType: 'powerpoint',
-                  chunkType: 'slide'
-                }
-              }));
-              console.log(`📦 [Background] Created ${chunks.length} slide-level chunks from PowerPoint`);
-            } else {
-              // ⚡ OPTIMIZATION: Use raw text for embeddings (skip markdown conversion for speed)
-              // Markdown is great for display but raw text is better for embeddings
-              // This saves 20-40 seconds of processing time!
-              console.log('📝 [Background] Using raw text for embeddings (faster!)...');
-              chunks = chunkText(extractedText, 500);
-              console.log(`📦 [Background] Split document into ${chunks.length} chunks`);
-            }
-
-            // 🆕 Generate embeddings using OpenAI embedding service
-            console.log('🔮 [Background] Generating OpenAI embeddings...');
-            const texts = chunks.map(c => c.content);
-            const embeddingResult = await embeddingService.default.generateBatchEmbeddings(texts);
-
-            // Update chunks with embeddings
-            chunks = chunks.map((chunk, i) => ({
-              ...chunk,
-              embedding: embeddingResult.embeddings[i].embedding
-            }));
-          }
-
-          // Store embeddings
-          await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
-          console.log(`✅ [Background] Stored ${chunks.length} vector embeddings`);
-
-          emitProgress('embedding', 85, 'Embeddings stored');
-
-          // 🔍 VERIFY PINECONE STORAGE - Temporarily disabled during OpenAI migration
-          console.log('✅ [Background] Pinecone storage completed (verification skipped during migration)');
-
-          // Update document metadata with embedding info
-          await prisma.document.update({
-            where: { id: documentId },
-            data: {
-              metadata: {
-                hasEmbeddings: true,
-                embeddingCount: chunks.length,
-                embeddingGeneratedAt: new Date().toISOString()
-              }
-            }
+        for (const tagName of tags) {
+          let tag = await prisma.tag.findUnique({
+            where: { userId_name: { userId, name: tagName } },
           });
 
-          // Emit success event via WebSocket
-          const io = require('../server').io;
-          if (io) {
-            io.to(`user:${userId}`).emit('document-embeddings-ready', {
-              documentId,
-              filename,
-              embeddingCount: chunks.length,
-              message: 'AI chat ready!'
+          if (!tag) {
+            tag = await prisma.tag.create({
+              data: { userId, name: tagName },
             });
           }
 
-          console.log(`✅ [Background] Embedding generation complete for ${filename}`);
-
-        } catch (error: any) {
-          // ⚠️ NON-CRITICAL ERROR: Document is still usable without embeddings
-          console.error('❌ [Background] Vector embedding generation failed:', error);
-
-          // Update document with error status but don't throw
-          await prisma.document.update({
-            where: { id: documentId },
-            data: {
-              metadata: {
-                hasEmbeddings: false,
-                embeddingError: error.message || String(error),
-                embeddingFailedAt: new Date().toISOString()
-              }
-            }
-          }).catch(err => console.error('Failed to update document with embedding error:', err));
-
-          // Emit warning event via WebSocket
-          const io = require('../server').io;
-          if (io) {
-            io.to(`user:${userId}`).emit('document-processing-warning', {
+          await prisma.documentTag.upsert({
+            where: {
+              documentId_tagId: {
+                documentId,
+                tagId: tag.id,
+              },
+            },
+            update: {},
+            create: {
               documentId,
-              filename,
-              message: 'Document uploaded but AI chat unavailable',
-              error: error.message
-            });
-          }
+              tagId: tag.id,
+            },
+          });
         }
-      })(); // ← Don't await this - let it run in background
-
-      console.log('✅ Background embedding generation started (non-blocking)');
+      } catch (error) {
+        console.warn('⚠️ Auto-tag generation failed (non-critical):', error);
+      }
     }
 
-    // Stage 8: Finalizing (90-100%)
-    emitProgress('finalizing', 95, 'Finalizing document...');
+    // GENERATE VECTOR EMBEDDINGS FOR RAG WITH SEMANTIC CHUNKING
+    if (extractedText && extractedText.length > 50) {
+      console.log('🔮 Generating semantic chunks and vector embeddings...');
+      try {
+        const vectorEmbeddingService = await import('./vectorEmbedding.service');
+        const embeddingService = await import('./embedding.service');
+        let chunks;
+
+        // Use enhanced Excel processor for Excel files to preserve cell coordinates
+        if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            mimeType === 'application/vnd.ms-excel') {
+          console.log('📊 Using enhanced Excel processor for cell-level metadata...');
+          const excelProcessor = await import('./excelProcessor.service');
+          const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
+
+          // Convert Excel chunks to embedding format with full document metadata
+          // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
+          chunks = excelChunks.map(chunk => ({
+            content: `📄 File: ${filename} | ${chunk.content}`,
+            metadata: {
+              // ⚡ Document identification (CRITICAL for proper retrieval)
+              documentId: documentId,
+              filename: filename,
+
+              // ⚡ Excel-specific metadata
+              sheet: chunk.metadata.sheetName,
+              sheetNumber: chunk.metadata.sheetNumber,
+              row: chunk.metadata.rowNumber,
+              cells: chunk.metadata.cells,
+              chunkIndex: chunk.metadata.chunkIndex,
+              sourceType: chunk.metadata.sourceType,
+              tableHeaders: chunk.metadata.tableHeaders
+            }
+          }));
+          console.log(`📦 Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
+
+          // 🆕 Generate embeddings for Excel chunks using Gemini embedding service
+          console.log('🔮 Generating embeddings for Excel chunks...');
+          const excelTexts = chunks.map(c => c.content);
+          const excelEmbeddingResult = await embeddingService.default.generateBatchEmbeddings(excelTexts, {
+            taskType: 'RETRIEVAL_DOCUMENT',
+            title: filename
+          });
+
+          // Update chunks with embeddings
+          chunks = chunks.map((chunk, i) => ({
+            ...chunk,
+            embedding: excelEmbeddingResult.embeddings[i].embedding
+          }));
+          console.log(`✅ Generated ${chunks.length} embeddings for Excel chunks`);
+        } else {
+          // 🆕 Phase 4C: For PowerPoint, use slide-level chunks with metadata
+          const isPowerPoint = mimeType.includes('presentation');
+
+          if (isPowerPoint && pptxSlideChunks && pptxSlideChunks.length > 0) {
+            console.log('📝 Using slide-level chunks for PowerPoint (Phase 4C)...');
+            chunks = pptxSlideChunks.map(slideChunk => ({
+              content: slideChunk.content,
+              metadata: {
+                filename,
+                slideNumber: slideChunk.metadata.slideNumber,
+                totalSlides: slideChunk.metadata.totalSlides,
+                slideTitle: slideChunk.metadata.slideTitle,
+                hasNotes: slideChunk.metadata.hasNotes,
+                sourceType: 'powerpoint',
+                chunkType: 'slide'
+              }
+            }));
+            console.log(`📦 Created ${chunks.length} slide-level chunks from PowerPoint`);
+          } else if (markdownContent && markdownContent.length > 100) {
+            console.log('📝 Using text chunking for markdown content...');
+            chunks = chunkText(markdownContent, 500);
+            console.log(`📦 Created ${chunks.length} chunks from markdown`);
+          } else {
+            // Fallback to standard text chunking if no markdown
+            console.log('📝 Using standard text chunking...');
+            chunks = chunkText(extractedText, 500);
+            console.log(`📦 Split document into ${chunks.length} chunks`);
+          }
+
+          // 🆕 Generate embeddings using Gemini embedding service
+          console.log('🔮 Generating embeddings with Gemini...');
+          const texts = chunks.map(c => c.content);
+          const embeddingResult = await embeddingService.default.generateBatchEmbeddings(texts, {
+            taskType: 'RETRIEVAL_DOCUMENT',
+            title: filename
+          });
+
+          // Update chunks with embeddings
+          chunks = chunks.map((chunk, i) => ({
+            ...chunk,
+            embedding: embeddingResult.embeddings[i].embedding
+          }));
+        }
+
+        // Store embeddings
+        await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
+        console.log(`✅ Stored ${chunks.length} vector embeddings`);
+
+        // 🔍 VERIFY PINECONE STORAGE - Critical step!
+        console.log('🔍 Verifying Pinecone storage...');
+        const pineconeService = await import('./pinecone.service');
+        const verification = await pineconeService.default.verifyDocument(documentId);
+
+        if (!verification.success) {
+          throw new Error(`Pinecone verification failed: ${verification.error || 'No vectors found'}`);
+        }
+
+        console.log(`✅ Verification passed: Found ${verification.vectorCount} vectors in Pinecone`);
+      } catch (error: any) {
+        // ❌ CRITICAL ERROR: Embedding generation is NOT optional!
+        console.error('❌ CRITICAL: Vector embedding generation failed:', error);
+        throw new Error(`Embedding generation failed: ${error.message || error}`);
+      }
+    }
 
     // Update document status to completed (only if verification passed)
     await prisma.document.update({
@@ -2119,16 +1853,17 @@ async function processDocumentAsync(
       data: { status: 'completed' },
     });
 
-    // Stage 9: Complete (100%)
-    emitProgress('complete', 100, 'Processing complete!');
-
-    // Emit completion event
+    // Emit WebSocket event to notify frontend of success
     try {
+      const io = require('../server').io;
       if (io) {
-        io.to(`user:${userId}`).emit('document-processing-complete', {
-          documentId,
-          filename,
-          status: 'completed'
+        io.to(`user:${userId}`).emit('document-processing-update', {
+          documentId: documentId,
+          filename: filename,
+          status: 'completed',
+          stage: 'completed',
+          progress: 100,
+          message: 'Processing completed successfully'
         });
       }
     } catch (wsError) {
@@ -2140,14 +1875,6 @@ async function processDocumentAsync(
     console.log(`🗑️ Invalidated cache for user ${userId} after document processing`);
 
     console.log(`✅ Document processing completed: ${filename}`);
-
-    // ✅ OPTIMIZATION: Start background tag generation AFTER document is completed
-    // This saves 5-10 seconds by not blocking the upload response
-    if (extractedText && extractedText.length > 20) {
-      generateTagsInBackground(documentId, extractedText, filename, userId).catch(error => {
-        console.error('❌ Background tag generation failed:', error);
-      });
-    }
   } catch (error) {
     console.error('❌ Error processing document:', error);
     await prisma.document.update({
@@ -2571,7 +2298,7 @@ export const listDocuments = async (
 
   const where: any = {
     userId,
-    status: 'completed'  // ✅ Only return completed documents (hide pending/processing/failed/deleted)
+    status: { not: 'deleted' }  // ✅ FIX: Filter deleted documents
   };
   if (folderId !== undefined) {
     where.folderId = folderId === 'root' ? null : folderId;
@@ -2991,99 +2718,91 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DOCX FILES: Convert to PDF for universal preview
+  // OFFICE FILES (DOCX & PPTX): Use pre-generated PDF preview for universal display
   // ═══════════════════════════════════════════════════════════════════════════
-  const isDocx = document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const isOfficeDoc = [
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation' // PPTX
+  ].includes(document.mimeType);
 
-  if (isDocx) {
-    const { convertDocxToPdf } = await import('./docx-converter.service');
+  // REASON: For Office documents, use the pre-converted PDF preview when available.
+  // WHY: This is the core of the fix. We check if a pdfPreviewPath exists in the metadata or document
+  //      and, if so, generate a signed URL for it. This is much faster and more reliable.
+  if (isOfficeDoc) {
+    const pdfPath = document.pdfPreviewPath || document.metadata?.pdfPreviewPath;
 
-    // REASON: Use the correct path for the converted PDF
-    // WHY: During upload, DOCX is converted to PDF and saved as `${userId}/${documentId}-converted.pdf`
-    // This matches the path used in document.queue.ts line 242
-    const pdfKey = `${userId}/${documentId}-converted.pdf`;
+    if (pdfPath) {
+      console.log(`📄 Using pre-generated PDF preview: ${pdfPath}`);
+      const url = await getSignedUrl(pdfPath, 3600); // 1-hour expiry
+      return {
+        previewType: 'pdf',
+        previewUrl: url,
+        originalType: document.mimeType,
+        filename: document.filename,
+      };
+    }
 
-    const pdfExists = await fileExists(pdfKey);
+    // REASON: On-demand conversion as fallback for documents without pre-generated PDFs
+    // WHY: Ensures backward compatibility with older documents and provides a safety net
+    console.log(`📄 [Preview] PDF not found for ${document.filename}. Converting on-demand...`);
+    const pdfKey = `${userId}/${documentId}-preview.pdf`;
+    const tempDir = os.tmpdir();
+    const tempFilePath = path.join(tempDir, document.filename);
 
-    if (!pdfExists) {
-      console.log('📄 PDF not found, converting DOCX to PDF...');
+    try {
+      // 1. Download the original file
+      let fileBuffer = await downloadFile(document.encryptedFilename);
 
-      // Download DOCX from Supabase Storage
-      const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
-      console.log(`⬇️  Downloading DOCX from Supabase Storage: ${document.encryptedFilename}`);
-      let docxBuffer = await downloadFile(document.encryptedFilename);
-
-      // ✅ Validate that the downloaded buffer is not empty
-      if (!docxBuffer || docxBuffer.length === 0) {
-        throw new Error(`Downloaded DOCX file is empty: ${document.encryptedFilename}`);
-      }
-
-      console.log(`✅ Downloaded ${docxBuffer.length} bytes`);
-
-      // 🔓 DECRYPT FILE if encrypted
+      // 2. Decrypt if necessary
       if (document.isEncrypted) {
         console.log('🔓 Decrypting file...');
         const encryptionService = await import('./encryption.service');
-        docxBuffer = encryptionService.default.decryptFile(docxBuffer, `document-${userId}`);
-        console.log(`✅ File decrypted successfully (${docxBuffer.length} bytes)`);
+        fileBuffer = encryptionService.default.decryptFile(fileBuffer, `document-${userId}`);
       }
 
-      // ✅ Validate DOCX file format (check ZIP signature)
-      // DOCX files are ZIP archives, so they should start with 'PK' (0x50, 0x4B)
-      if (docxBuffer[0] !== 0x50 || docxBuffer[1] !== 0x4B) {
-        throw new Error(`Invalid DOCX file format - not a valid ZIP archive: ${document.encryptedFilename}`);
-      }
+      fs.writeFileSync(tempFilePath, fileBuffer);
 
-      fs.writeFileSync(tempDocxPath, docxBuffer);
-
-      // Convert to PDF
-      const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
+      // 3. Convert to PDF using the universal converter
+      const conversion = await convertOfficeToPdf(tempFilePath, tempDir);
 
       if (conversion.success && conversion.pdfPath) {
-        // Upload PDF to Supabase Storage
+        // 4. Upload the converted PDF for future use
         const pdfBuffer = fs.readFileSync(conversion.pdfPath);
         await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
+        console.log(`✅ [Preview] PDF created and uploaded to ${pdfKey}`);
 
-        console.log('✅ PDF uploaded to Supabase Storage:', pdfKey);
+        // 5. Update document record with the new PDF path
+        await prisma.document.update({
+          where: { id: documentId },
+          data: { pdfPreviewPath: pdfKey }
+        });
 
-        // Clean up temp files
-        fs.unlinkSync(tempDocxPath);
-        fs.unlinkSync(conversion.pdfPath);
+        // 6. Return signed URL
+        const signedUrl = await getSignedUrl(pdfKey, 3600);
+        return {
+          previewType: 'pdf',
+          previewUrl: signedUrl,
+          originalType: document.mimeType,
+          filename: document.filename,
+        };
       } else {
-        throw new Error('Failed to convert DOCX to PDF: ' + conversion.error);
+        throw new Error(`Failed to convert to PDF: ${conversion.error}`);
       }
+    } catch (conversionError: any) {
+      console.error(`❌ [Preview] On-demand conversion failed: ${conversionError.message}`);
+      return {
+        previewType: 'none',
+        previewUrl: null,
+        originalType: document.mimeType,
+        filename: document.filename,
+        message: 'Preview conversion failed. Please try re-uploading this document.',
+      };
+    } finally {
+      // 7. Clean up temporary files
+      if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+      const convertedPdfPath = path.join(tempDir, `${path.basename(document.filename, path.extname(document.filename))}.pdf`);
+      if (fs.existsSync(convertedPdfPath)) fs.unlinkSync(convertedPdfPath);
     }
-
-    // Return backend preview endpoint URL
-    // PDF.js will fetch from our backend which streams from Supabase
-    return {
-      previewType: 'pdf',
-      previewUrl: `/api/documents/${documentId}/preview-pdf`,
-      originalType: document.mimeType,
-      filename: document.filename,
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // POWERPOINT FILES: Return slides data from metadata
-  // ═══════════════════════════════════════════════════════════════════════════
-  const isPptx = document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
-                 document.mimeType?.includes('presentation') ||
-                 document.mimeType?.includes('powerpoint');
-
-  if (isPptx) {
-    // REASON: PowerPoint files use PPTXPreview component with extracted slide data
-    // WHY: Slides are extracted and stored in metadata during document processing
-    const slidesData = document.metadata?.slidesData;
-    const pptxMetadata = document.metadata?.pptxMetadata;
-
-    return {
-      previewType: 'pptx',
-      slidesData: slidesData ? JSON.parse(slidesData as string) : [],
-      pptxMetadata: pptxMetadata ? JSON.parse(pptxMetadata as string) : {},
-      originalType: document.mimeType,
-      filename: document.filename,
-    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -3830,75 +3549,3 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
     throw error;
   }
 };
-
-/**
- * Generate tags in background (fire-and-forget)
- * ✅ OPTIMIZATION: This runs AFTER document is completed to save 5-10 seconds
- */
-async function generateTagsInBackground(
-  documentId: string,
-  extractedText: string,
-  filename: string,
-  userId: string
-) {
-  try {
-    console.log(`🏷️  [Background] Generating tags for ${filename}...`);
-
-    const tags = await geminiService.generateDocumentTags(filename, extractedText);
-
-    if (tags && tags.length > 0) {
-      console.log(`🏷️  [Background] Generated ${tags.length} tags: ${tags.join(', ')}`);
-
-      for (const tagName of tags) {
-        // Get or create tag
-        let tag = await prisma.tag.findUnique({
-          where: { userId_name: { userId, name: tagName } },
-        });
-
-        if (!tag) {
-          tag = await prisma.tag.create({
-            data: { userId, name: tagName },
-          });
-        }
-
-        // Link tag to document
-        await prisma.documentTag.upsert({
-          where: {
-            documentId_tagId: {
-              documentId,
-              tagId: tag.id,
-            },
-          },
-          update: {},
-          create: {
-            documentId,
-            tagId: tag.id,
-          },
-        });
-      }
-
-      console.log(`✅ [Background] Tags linked to document ${documentId}`);
-
-      // Emit WebSocket event to notify frontend
-      try {
-        const io = require('../server').io;
-        if (io) {
-          io.to(`user:${userId}`).emit('document-tags-updated', {
-            documentId,
-            tags,
-            filename
-          });
-          console.log(`📡 [Background] Emitted tags-updated event for ${filename}`);
-        }
-      } catch (wsError) {
-        console.warn('[Background] Failed to emit WebSocket event:', wsError);
-      }
-    } else {
-      console.log(`⚠️  [Background] No tags generated for ${filename}`);
-    }
-  } catch (error) {
-    console.error(`❌ [Background] Tag generation failed for ${documentId}:`, error);
-  }
-}
-
-

@@ -263,7 +263,9 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 
         console.log(`📄 [DOC:${documentId}] DOCX detected - starting pre-conversion to PDF...`);
         try {
-          const { convertDocxToPdf } = await import('../services/docx-converter.service');
+          // REASON: Use the new universal office-converter service with enhanced flags and temp profile
+          // WHY: Provides more stable conversions with proper isolation
+          const { convertOfficeToPdf } = await import('../services/office-converter.service');
           const fs = await import('fs');
           const path = await import('path');
           const os = await import('os');
@@ -273,8 +275,8 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
           const tempDocxPath = path.join(tempDir, `${documentId}.docx`);
           fs.writeFileSync(tempDocxPath, fileBuffer);
 
-          // Convert DOCX to PDF
-          const conversionResult = await convertDocxToPdf(tempDocxPath, tempDir);
+          // Convert DOCX to PDF using the new universal converter
+          const conversionResult = await convertOfficeToPdf(tempDocxPath, tempDir);
 
           if (conversionResult.success && conversionResult.pdfPath) {
             // Upload PDF to storage

@@ -1087,6 +1087,61 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
 };
 
 /**
+ * Get PDF preview URL for PPTX files
+ */
+export const getPdfPreview = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const prisma = (await import('../config/database')).default;
+
+    // Get document
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: {
+        userId: true,
+        mimeType: true,
+        pdfPreviewPath: true,
+        pdfPreviewUrl: true
+      }
+    });
+
+    if (!document) {
+      res.status(404).json({ error: 'Document not found' });
+      return;
+    }
+
+    if (document.userId !== req.user.id) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    if (!document.pdfPreviewPath) {
+      res.status(404).json({ error: 'No PDF preview available' });
+      return;
+    }
+
+    // Generate fresh signed URL (7 days)
+    const { getSignedUrl } = await import('../config/storage');
+    const pdfUrl = await getSignedUrl(document.pdfPreviewPath, 7 * 24 * 60);
+
+    res.json({
+      success: true,
+      pdfUrl
+    });
+
+  } catch (error) {
+    const err = error as Error;
+    console.error('Error getting PDF preview:', err);
+    res.status(500).json({ error: 'Failed to get PDF preview' });
+  }
+};
+
+/**
  * Regenerate PPTX slides (useful after installing ImageMagick for better font rendering)
  */
 export const regeneratePPTXSlides = async (req: Request, res: Response): Promise<void> => {

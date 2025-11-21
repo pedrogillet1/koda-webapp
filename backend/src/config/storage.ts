@@ -1,35 +1,22 @@
 /**
- * Storage Configuration - Now using AWS S3
- * Provides the same interface for backward compatibility
+ * Storage Configuration - AWS S3
  */
 
-import s3StorageService from '../services/s3Storage.service';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl as getS3SignedUrl } from '@aws-sdk/s3-request-presigner';
 
-// For backward compatibility, export a bucket-like object
-export const bucket = {
-  file: (fileName: string) => ({
-    save: async (buffer: Buffer, options: any) => {
-      await s3StorageService.uploadFile(fileName, buffer, options.contentType);
-    },
-    download: async () => {
-      const [buffer] = await s3StorageService.downloadFile(fileName);
-      return [buffer];
-    },
-    delete: async () => {
-      await s3StorageService.deleteFile(fileName);
-    },
-    exists: async () => {
-      return [await s3StorageService.fileExists(fileName)];
-    },
-    getSignedUrl: async (options: any) => {
-      const expiresIn = Math.floor((options.expires - Date.now()) / 1000);
-      const url = await s3StorageService.generatePresignedDownloadUrl(fileName, expiresIn);
-      return [url];
-    }
-  })
-};
+// Initialize S3 Client
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
+  }
+});
 
-console.log('✅ AWS S3 Storage initialized');
+const bucketName = process.env.AWS_S3_BUCKET_NAME || 'koda-user-file';
+
+console.log('✅ AWS S3 initialized');
 
 /**
  * Upload a file to AWS S3
@@ -39,15 +26,35 @@ export const uploadFile = async (
   fileBuffer: Buffer,
   mimeType: string
 ): Promise<string> => {
-  return await s3StorageService.uploadFile(fileName, fileBuffer, mimeType);
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: fileName,
+    Body: fileBuffer,
+    ContentType: mimeType,
+    CacheControl: 'public, max-age=3600'
+  });
+
+  await s3Client.send(command);
+  return fileName;
 };
 
 /**
  * Download a file from AWS S3
  */
 export const downloadFile = async (fileName: string): Promise<Buffer> => {
-  const [buffer] = await s3StorageService.downloadFile(fileName);
-  return buffer;
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: fileName
+  });
+
+  const response = await s3Client.send(command);
+
+  // Convert stream to buffer
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of response.Body as any) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 };
 
 /**
@@ -59,45 +66,78 @@ export const getSignedUrl = async (
   forceDownload: boolean = false,
   downloadFilename?: string
 ): Promise<string> => {
-  return await s3StorageService.generatePresignedDownloadUrl(fileName, expiresIn);
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: fileName,
+    ...(forceDownload && downloadFilename ? {
+      ResponseContentDisposition: `attachment; filename="${downloadFilename}"`
+    } : {})
+  });
+
+  const url = await getS3SignedUrl(s3Client, command, { expiresIn });
+  return url;
 };
 
 /**
- * Generate a signed URL for direct upload to AWS S3
+ * Generate a signed URL for direct upload to S3
  */
 export const getSignedUploadUrl = async (
   fileName: string,
   mimeType: string,
-  expiresIn: number = 3600 // 1 hour for upload
+  expiresIn: number = 600 // 10 minutes for upload
 ): Promise<string> => {
-  return await s3StorageService.generatePresignedUploadUrl(fileName, mimeType, expiresIn);
-};
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: fileName,
+    ContentType: mimeType
+  });
 
-/**
- * Alias for getSignedUploadUrl (for backward compatibility)
- */
-export const generatePresignedUploadUrl = getSignedUploadUrl;
+  const url = await getS3SignedUrl(s3Client, command, { expiresIn });
+  return url;
+};
 
 /**
  * Delete a file from AWS S3
  */
 export const deleteFile = async (fileName: string): Promise<void> => {
-  await s3StorageService.deleteFile(fileName);
+  const command = new DeleteObjectCommand({
+    Bucket: bucketName,
+    Key: fileName
+  });
+
+  await s3Client.send(command);
 };
 
 /**
  * Check if a file exists in AWS S3
  */
 export const fileExists = async (fileName: string): Promise<boolean> => {
-  return await s3StorageService.fileExists(fileName);
+  try {
+    const command = new HeadObjectCommand({
+      Bucket: bucketName,
+      Key: fileName
+    });
+
+    await s3Client.send(command);
+    return true;
+  } catch (error: any) {
+    if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+      return false;
+    }
+    throw error;
+  }
 };
 
-/**
- * Get file metadata from AWS S3
- */
-export const getFileMetadata = async (fileName: string) => {
-  return await s3StorageService.getFileMetadata(fileName);
+// Export the bucket for backward compatibility
+export const bucket = {
+  name: bucketName,
+  file: (fileName: string) => ({
+    save: async (buffer: Buffer, options: any) => uploadFile(fileName, buffer, options.contentType),
+    download: async () => [await downloadFile(fileName)],
+    getSignedUrl: async (options: any) => [await getSignedUrl(fileName, options.expires || 3600)],
+    delete: async () => deleteFile(fileName),
+    exists: async () => [await fileExists(fileName)]
+  })
 };
 
-// Export null for storage to maintain compatibility
-export default null;
+export default s3Client;

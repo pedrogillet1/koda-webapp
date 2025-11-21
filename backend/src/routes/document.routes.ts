@@ -33,6 +33,7 @@ router.get('/:id/status', documentController.getDocumentStatus);
 router.get('/:id/thumbnail', documentController.getThumbnail);
 router.get('/:id/slides', documentController.getPPTXSlides);
 router.post('/:id/regenerate-slides', documentController.regeneratePPTXSlides);
+router.get('/:id/pdf-preview', downloadLimiter, documentController.getPdfPreview);
 router.patch('/:id', documentController.updateDocument);
 router.patch('/:id/markdown', documentController.updateMarkdown);
 router.post('/:id/export', documentController.exportDocument);

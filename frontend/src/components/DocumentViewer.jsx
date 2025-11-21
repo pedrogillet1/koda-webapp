@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../services/api';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import SearchInDocumentModal from './SearchInDocumentModal';
+import MarkdownEditor from './MarkdownEditor';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as LogoutWhiteIcon } from '../assets/Logout-white.svg';
-import { ReactComponent as DownloadWhiteIcon } from '../assets/Download 3 white.svg';
 import logoSvg from '../assets/logo.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can.svg';
 import { ReactComponent as PrinterIcon } from '../assets/printer.svg';
@@ -17,21 +17,10 @@ import { ReactComponent as PlusIcon } from '../assets/Plus.svg';
 import { ReactComponent as MinusIcon } from '../assets/Minus.svg';
 import { ReactComponent as StarIcon } from '../assets/Star.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
-import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
-import { ReactComponent as AddIcon } from '../assets/add.svg';
 import folderIcon from '../assets/folder_icon.svg';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import xlsIcon from '../assets/xls.png';
-import jpgIcon from '../assets/jpg-icon.png';
-import pngIcon from '../assets/png-icon.png';
-import txtIcon from '../assets/txt-icon.png';
-import pptxIcon from '../assets/pptx.png';
-import movIcon from '../assets/mov.png';
-import mp4Icon from '../assets/mp4.png';
-import mp3Icon from '../assets/mp3.svg';
-import CategoryIcon from './CategoryIcon';
-import { useDocuments } from '../context/DocumentsContext';
 import {
   isSafari,
   isMacOS,
@@ -41,14 +30,6 @@ import {
   getImageRenderingCSS,
   logBrowserInfo
 } from '../utils/browserUtils';
-
-// ⚡ PERFORMANCE: Code-split MarkdownEditor to reduce initial bundle size
-// react-markdown, remark-gfm, and rehype-raw add ~200KB to the bundle
-// Only load when user opens an Excel file (converted to markdown)
-const MarkdownEditor = lazy(() => import('./MarkdownEditor'));
-
-// ⚡ PERFORMANCE: Code-split PPTXPreview to reduce initial bundle size
-const PPTXPreview = lazy(() => import('./PPTXPreview'));
 
 // Set up the worker for pdf.js - react-pdf comes with its own pdfjs version
 // Use jsdelivr CDN as fallback with the bundled version
@@ -125,7 +106,6 @@ const DocumentViewer = () => {
   const { documentId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { moveToFolder, getRootFolders, getDocumentCountByFolder } = useDocuments();
   const [document, setDocument] = useState(null);
   const [loading, setLoading] = useState(true);
   const [zoom, setZoom] = useState(100);
@@ -143,8 +123,9 @@ const DocumentViewer = () => {
   const [shareEmail, setShareEmail] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
-  const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [showAskKoda, setShowAskKoda] = useState(true);
   const [showExtractedText, setShowExtractedText] = useState(false);
@@ -264,98 +245,32 @@ const DocumentViewer = () => {
     setPageNumber(1);
   };
 
-  // State to hold the actual document URL (with backend URL prepended for API endpoints)
-  const [actualDocumentUrl, setActualDocumentUrl] = useState(null);
-  const [isFetchingImage, setIsFetchingImage] = useState(false);
+  // Memoize the file and options props to prevent unnecessary reloads
+  const fileConfig = useMemo(() => {
+    if (!documentUrl) return null;
 
-  // Process document URL to use correct backend URL for API endpoints
-  // For encrypted images, fetch with auth and create blob URL
-  useEffect(() => {
-    if (!documentUrl) {
-      setActualDocumentUrl(null);
-      return;
-    }
-
-    // Check if it's a relative API path (starts with /api/) or already a full backend URL
-    const isRelativeApiPath = documentUrl.startsWith('/api/');
-    const isBackendUrl = documentUrl.includes('koda-backend.ngrok.app') || documentUrl.includes('localhost:5000');
-    const isSupabaseUrl = documentUrl.includes('supabase.co');
+    // If it's a stream endpoint, we need to include auth headers
     const isStreamEndpoint = documentUrl.includes('/stream');
 
-    // For encrypted images (stream endpoint), fetch with auth and create blob URL
-    if (isStreamEndpoint && document?.mimeType?.startsWith('image/')) {
-      console.log(`🔐 Encrypted image detected, fetching with auth: ${documentUrl}`);
-      setIsFetchingImage(true);
-
-      const token = localStorage.getItem('accessToken');
-      fetch(documentUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-          return response.blob();
-        })
-        .then(blob => {
-          const blobUrl = URL.createObjectURL(blob);
-          console.log(`✅ Created blob URL for encrypted image: ${blobUrl}`);
-          setActualDocumentUrl(blobUrl);
-          setIsFetchingImage(false);
-        })
-        .catch(error => {
-          console.error('❌ Failed to fetch encrypted image:', error);
-          setIsFetchingImage(false);
-          setImageError(true);
-        });
-
-      // Cleanup blob URL when component unmounts or URL changes
-      return () => {
-        if (actualDocumentUrl && actualDocumentUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(actualDocumentUrl);
-        }
-      };
-    } else if (isRelativeApiPath) {
-      // Relative API path - prepend backend URL
-      const API_URL = process.env.REACT_APP_API_URL || 'https://koda-backend.ngrok.app';
-      const fullUrl = `${API_URL}${documentUrl}`;
-      console.log(`🔗 Relative API path detected, using backend URL: ${fullUrl}`);
-      setActualDocumentUrl(fullUrl);
-    } else if (isBackendUrl || isSupabaseUrl) {
-      // Already a full URL (backend or Supabase) - use directly
-      console.log(`🔗 Full URL detected, using directly: ${documentUrl}`);
-      setActualDocumentUrl(documentUrl);
-    } else {
-      // Unknown URL format - use as is
-      console.log(`⚠️ Unknown URL format, using as is: ${documentUrl}`);
-      setActualDocumentUrl(documentUrl);
-    }
-  }, [documentUrl, document?.mimeType]);
-
-  // Memoize the file config for PDF.js
-  const fileConfig = useMemo(() => {
-    if (!actualDocumentUrl) return null;
-
-    // For preview-pdf and stream endpoints (encrypted files), fetch with auth headers
-    if (actualDocumentUrl.includes('/preview-pdf') || actualDocumentUrl.includes('/stream')) {
+    if (isStreamEndpoint) {
+      // Get the auth token from localStorage
       const token = localStorage.getItem('accessToken');
       return {
-        url: actualDocumentUrl,
+        url: documentUrl,
         httpHeaders: {
           'Authorization': `Bearer ${token}`
         }
       };
     }
 
-    return { url: actualDocumentUrl };
-  }, [actualDocumentUrl]);
+    return { url: documentUrl };
+  }, [documentUrl]);
 
   const pdfOptions = useMemo(() => ({
     cMapUrl: 'https://unpkg.com/pdfjs-dist@' + pdfjs.version + '/cmaps/',
     cMapPacked: true,
     // Add better error handling for PDF loading
+    withCredentials: true,
     isEvalSupported: false,
   }), []);
 
@@ -369,7 +284,6 @@ const DocumentViewer = () => {
   const getFileType = (filename, mimeType) => {
     const extension = filename.split('.').pop().toLowerCase();
 
-    // Try extension first
     // Image formats
     if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp'].includes(extension)) {
       return 'image';
@@ -391,16 +305,15 @@ const DocumentViewer = () => {
     }
 
     // Microsoft Office documents
-    if (['doc', 'docx'].includes(extension)) {
-      return 'word';
+    // REASON: Consolidate DOCX and PPTX into a single 'office' type for preview purposes.
+    // WHY: Since both will be rendered as PDFs, we can treat them identically in the preview logic,
+    //      simplifying the code and ensuring consistent behavior.
+    if (['doc', 'docx', 'ppt', 'pptx'].includes(extension)) {
+      return 'office';
     }
 
     if (['xls', 'xlsx'].includes(extension)) {
       return 'excel';
-    }
-
-    if (['ppt', 'pptx'].includes(extension)) {
-      return 'powerpoint';
     }
 
     // Text files
@@ -418,37 +331,20 @@ const DocumentViewer = () => {
       return 'archive';
     }
 
-    // ✅ FALLBACK: If extension detection failed, use mimeType
-    if (mimeType) {
-      // Image types
-      if (mimeType.startsWith('image/')) return 'image';
-
-      // Video types
-      if (mimeType.startsWith('video/')) return 'video';
-
-      // Audio types
-      if (mimeType.startsWith('audio/')) return 'audio';
-
-      // PDF
-      if (mimeType === 'application/pdf') return 'pdf';
-
-      // Microsoft Office documents
-      if (mimeType.includes('msword') || mimeType.includes('wordprocessingml')) return 'word';
-      if (mimeType.includes('excel') || mimeType.includes('spreadsheetml')) return 'excel';
-      if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'powerpoint';
-
-      // Text files
-      if (mimeType.startsWith('text/')) return 'text';
-
-      // Archives
-      if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('7z') || mimeType.includes('tar') || mimeType.includes('gzip')) {
-        return 'archive';
-      }
-    }
-
     return 'unknown';
   };
 
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await api.get('/api/folders');
+        setCategories(response.data.folders || []);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   useEffect(() => {
     const fetchDocument = async () => {
@@ -644,15 +540,15 @@ const DocumentViewer = () => {
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#F5F5F5', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'inline-flex' }}>
-        <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
-        <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex' }}>
-          {/* Header */}
-          <div style={{ alignSelf: 'stretch', height: 96, padding: 16, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
+      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
+      <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex' }}>
+        {/* Header */}
+        <div style={{ alignSelf: 'stretch', height: 120, padding: 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
           <button
             onClick={() => navigate(-1)}
             style={{
-              width: 42,
-              height: 42,
+              width: 52,
+              height: 52,
               background: 'white',
               borderRadius: 100,
               outline: '1px #E6E6EC solid',
@@ -671,7 +567,7 @@ const DocumentViewer = () => {
               e.currentTarget.style.background = 'white';
             }}
           >
-            <ArrowLeftIcon style={{ width: 18, height: 18, stroke: '#55534E' }} />
+            <ArrowLeftIcon style={{ width: 20, height: 20, stroke: '#55534E' }} />
           </button>
 
           <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'inline-flex' }}>
@@ -685,9 +581,8 @@ const DocumentViewer = () => {
                   <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>{breadcrumbStart.label}</div>
                 </div>
                 {/* Category (if document has folderId) */}
-                {document.folderId && (() => {
-                  const allFolders = getRootFolders();
-                  const category = allFolders.find(cat => cat.id === document.folderId);
+                {document.folderId && categories.length > 0 && (() => {
+                  const category = categories.find(cat => cat.id === document.folderId);
                   return category ? (
                     <React.Fragment>
                       <div style={{ color: '#D0D5DD', fontSize: 16 }}>›</div>
@@ -722,84 +617,65 @@ const DocumentViewer = () => {
             <div style={{ justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex' }}>
               <button
                 onClick={() => setShowDeleteModal(true)}
-                style={{ width: 42, height: 42, paddingLeft: 14, paddingRight: 14, paddingTop: 8, paddingBottom: 8, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
               >
-                <TrashCanIcon style={{ width: 26, height: 26 }} />
+                <TrashCanIcon style={{ width: 44, height: 44 }} />
+              </button>
+              <button
+                onClick={() => {
+                  if (documentUrl && document) {
+                    // Create a hidden iframe for printing
+                    const iframe = window.document.createElement('iframe');
+                    iframe.style.position = 'fixed';
+                    iframe.style.right = '0';
+                    iframe.style.bottom = '0';
+                    iframe.style.width = '0';
+                    iframe.style.height = '0';
+                    iframe.style.border = '0';
+                    window.document.body.appendChild(iframe);
+
+                    iframe.onload = () => {
+                      setTimeout(() => {
+                        try {
+                          iframe.contentWindow.focus();
+                          iframe.contentWindow.print();
+                        } catch (e) {
+                          console.error('Print error:', e);
+                        }
+                        // Remove iframe after printing
+                        setTimeout(() => {
+                          window.document.body.removeChild(iframe);
+                        }, 1000);
+                      }, 500);
+                    };
+
+                    iframe.src = documentUrl;
+                  }
+                }}
+                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+              >
+                <PrinterIcon style={{ width: 44, height: 44 }} />
               </button>
               <button
                 onClick={async () => {
                   if (document) {
                     try {
-                      // Get the decrypted file from the stream endpoint
-                      const response = await api.get(`/api/documents/${documentId}/stream`, {
-                        responseType: 'blob'
-                      });
+                      // Call the download endpoint to get the original file
+                      const response = await api.get(`/api/documents/${document.id}/download`);
+                      const downloadUrl = response.data.url;
 
-                      // Create blob URL from the response
-                      const blobUrl = window.URL.createObjectURL(response.data);
-
-                      // Create a hidden iframe for printing
-                      const iframe = window.document.createElement('iframe');
-                      iframe.style.display = 'none';
-                      window.document.body.appendChild(iframe);
-
-                      iframe.onload = () => {
-                        try {
-                          // Trigger print dialog
-                          iframe.contentWindow.focus();
-                          iframe.contentWindow.print();
-
-                          // Clean up after printing or if user cancels
-                          const cleanup = () => {
-                            setTimeout(() => {
-                              if (iframe.parentNode) {
-                                window.document.body.removeChild(iframe);
-                              }
-                              window.URL.revokeObjectURL(blobUrl);
-                            }, 1000);
-                          };
-
-                          // Listen for afterprint event
-                          if (iframe.contentWindow.matchMedia) {
-                            const mediaQueryList = iframe.contentWindow.matchMedia('print');
-                            mediaQueryList.addListener(() => {
-                              if (!mediaQueryList.matches) {
-                                cleanup();
-                              }
-                            });
-                          }
-
-                          // Fallback cleanup after 60 seconds
-                          setTimeout(cleanup, 60000);
-                        } catch (e) {
-                          console.error('Print error:', e);
-                          if (iframe.parentNode) {
-                            window.document.body.removeChild(iframe);
-                          }
-                          window.URL.revokeObjectURL(blobUrl);
-                          alert('Unable to print. Please try downloading the file instead.');
-                        }
-                      };
-
-                      iframe.onerror = () => {
-                        console.error('Failed to load document in iframe');
-                        if (iframe.parentNode) {
-                          window.document.body.removeChild(iframe);
-                        }
-                        window.URL.revokeObjectURL(blobUrl);
-                        alert('Failed to load document for printing.');
-                      };
-
-                      iframe.src = blobUrl;
+                      // Use Safari-aware download function with the original file URL
+                      safariDownloadFile(downloadUrl, document.filename);
                     } catch (error) {
-                      console.error('Error preparing document for print:', error);
-                      alert('Failed to load document for printing. Please try again.');
+                      console.error('Download error:', error);
+                      alert('Failed to download document');
                     }
                   }
                 }}
-                style={{ width: 42, height: 42, paddingLeft: 14, paddingRight: 14, paddingTop: 8, paddingBottom: 8, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                title={isSafari() || isIOS() ? 'Open in new tab' : 'Download'}
               >
-                <PrinterIcon style={{ width: 26, height: 26 }} />
+                <DownloadIcon style={{ width: 44, height: 44 }} />
               </button>
               <button
                 onClick={() => {
@@ -807,14 +683,14 @@ const DocumentViewer = () => {
                   sessionStorage.removeItem('currentConversationId');
                   navigate(`/chat?documentId=${documentId}`, { state: { newConversation: true } });
                 }}
-                style={{ width: 42, height: 42, paddingLeft: 14, paddingRight: 14, paddingTop: 8, paddingBottom: 8, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                style={{ width: 52, height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
               >
                 <img
                   src={logoSvg}
                   alt="Profile"
                   style={{
-                    width: 29,
-                    height: 29,
+                    width: 40,
+                    height: 40,
                     objectFit: 'contain',
                     ...getImageRenderingCSS()
                   }}
@@ -823,20 +699,20 @@ const DocumentViewer = () => {
             </div>
             <button
               onClick={() => setShowShareModal(true)}
-              style={{ flex: '0.8 1 0', height: 42, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+              style={{ flex: '1 1 0', height: 52, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
             >
-              <DownloadWhiteIcon style={{ width: 19, height: 19 }} />
-              <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Download</div>
+              <LogoutWhiteIcon style={{ width: 24, height: 24 }} />
+              <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Export</div>
             </button>
           </div>
         </div>
 
         {/* Toolbar */}
-        <div style={{ alignSelf: 'stretch', paddingLeft: 16, paddingRight: 16, paddingTop: 13, paddingBottom: 13, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
+        <div style={{ alignSelf: 'stretch', paddingLeft: 20, paddingRight: 20, paddingTop: 16, paddingBottom: 16, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
           <div style={{ color: '#323232', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px', wordWrap: 'break-word' }}>
             {(() => {
               const fileType = document ? getFileType(document.filename, document.mimeType) : 'unknown';
-              if (fileType === 'pdf' || fileType === 'word') {
+              if (fileType === 'pdf' || fileType === 'office') {
                 return numPages ? `${currentPage} of ${numPages} page${numPages > 1 ? 's' : ''}` : 'Loading...';
               }
               return '1 page';
@@ -845,10 +721,7 @@ const DocumentViewer = () => {
           <div style={{ width: 1, height: 19, background: '#D9D9D9' }} />
           <div style={{ flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
             <button
-              onClick={() => {
-                setSelectedDocumentForCategory(document);
-                setShowCategoryModal(true);
-              }}
+              onClick={() => setShowCategoryModal(true)}
               style={{
                 paddingLeft: 12,
                 paddingRight: 12,
@@ -968,8 +841,10 @@ const DocumentViewer = () => {
               }
 
               switch (fileType) {
-                case 'word': // DOCX - show as PDF (converted during upload)
-                  // DOCX files are converted to PDF on the backend and displayed as PDF
+                case 'office': // DOCX & PPTX - show as PDF (converted during upload)
+                  // REASON: Render the PDF viewer for the 'office' type.
+                  // WHY: This is where the unified preview is rendered. The standard PDF viewer component
+                  //      will now display the high-fidelity, pre-converted PDF for both Word and PowerPoint files.
                   return (
                     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
                       <Document
@@ -1081,42 +956,7 @@ const DocumentViewer = () => {
                   );
 
                 case 'excel': // XLSX - show markdown editor
-                  return (
-                    <Suspense fallback={
-                      <div style={{
-                        padding: 40,
-                        background: 'white',
-                        borderRadius: 12,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        color: '#6C6B6E',
-                        fontSize: 16,
-                        fontFamily: 'Plus Jakarta Sans'
-                      }}>
-                        Loading preview...
-                      </div>
-                    }>
-                      <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />
-                    </Suspense>
-                  );
-
-                case 'powerpoint': // PPTX - show with PPTXPreview component
-                  return (
-                    <Suspense fallback={
-                      <div style={{
-                        padding: 40,
-                        background: 'white',
-                        borderRadius: 12,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        color: '#6C6B6E',
-                        fontSize: 16,
-                        fontFamily: 'Plus Jakarta Sans'
-                      }}>
-                        Loading preview...
-                      </div>
-                    }>
-                      <PPTXPreview document={document} zoom={zoom} />
-                    </Suspense>
-                  );
+                  return <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />;
 
                 case 'pdf':
                   return (
@@ -1289,31 +1129,21 @@ const DocumentViewer = () => {
                         </div>
                       ) : (
                         <img
-                          src={actualDocumentUrl}
+                          src={documentUrl}
                           alt={document.filename}
-                          onLoad={(e) => {
-                            console.log(`✅ Image loaded successfully: ${actualDocumentUrl}`);
-                            console.log(`📐 Original dimensions: ${e.target.naturalWidth}x${e.target.naturalHeight}`);
-                            setImageLoading(false);
-                          }}
-                          onError={(e) => {
-                            console.error(`❌ Image failed to load: ${actualDocumentUrl}`);
-                            console.error('Image error event:', e);
+                          onLoad={() => setImageLoading(false)}
+                          onError={() => {
                             setImageLoading(false);
                             setImageError(true);
                           }}
                           style={{
-                            width: 'auto',
+                            maxWidth: `${zoom}%`,
                             height: 'auto',
-                            maxWidth: '100%',
-                            maxHeight: '80vh',
-                            transform: `scale(${zoom / 100})`,
-                            transformOrigin: 'top left',
                             objectFit: 'contain',
                             borderRadius: 8,
                             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                             background: 'white',
-                            transition: 'transform 0.2s ease',
+                            transition: 'max-width 0.2s ease',
                             display: imageLoading ? 'none' : 'block'
                           }}
                         />
@@ -1323,33 +1153,25 @@ const DocumentViewer = () => {
 
                 case 'video':
                   return (
-                    <div style={{
-                      display: 'inline-block',
-                      maxWidth: '100%',
-                      maxHeight: '80vh'
-                    }}>
+                    <div style={{ maxWidth: '900px', width: '100%' }}>
                       <video
                         src={documentUrl}
                         controls
                         preload="metadata"
                         playsInline
-                        onLoadedMetadata={(e) => {
-                          console.log('📐 Video dimensions:', e.target.videoWidth, 'x', e.target.videoHeight);
-                          console.log('Video duration:', e.target.duration);
+                        style={{
+                          width: '100%',
+                          borderRadius: 8,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          background: 'black'
                         }}
                         onError={(e) => {
                           console.error('Video loading error:', e);
                           console.error('Video source:', documentUrl);
                           console.error('Document MIME type:', document.mimeType);
                         }}
-                        style={{
-                          width: 'auto',
-                          height: 'auto',
-                          maxWidth: '100%',
-                          maxHeight: '80vh',
-                          borderRadius: 8,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                          background: 'black'
+                        onLoadedMetadata={(e) => {
+                          console.log('Video metadata loaded:', e.target.duration);
                         }}
                       >
                         <source src={documentUrl} type={document.mimeType || 'video/mp4'} />
@@ -1634,31 +1456,15 @@ const DocumentViewer = () => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
               <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  console.log('Download button clicked');
-                  const currentDoc = document;
-                  if (currentDoc) {
+                onClick={async () => {
+                  if (document) {
                     try {
-                      // Get the decrypted file from the stream endpoint
-                      const response = await api.get(`/api/documents/${currentDoc.id}/stream`, {
-                        responseType: 'blob'
-                      });
+                      // Call the download endpoint to get the original file
+                      const response = await api.get(`/api/documents/${document.id}/download`);
+                      const downloadUrl = response.data.url;
 
-                      // Create object URL and trigger download
-                      const blobUrl = URL.createObjectURL(response.data);
-                      const link = window.document.createElement('a');
-                      link.href = blobUrl;
-                      link.download = currentDoc.filename;
-                      link.style.display = 'none';
-                      window.document.body.appendChild(link);
-                      link.click();
-
-                      // Clean up
-                      setTimeout(() => {
-                        window.document.body.removeChild(link);
-                        URL.revokeObjectURL(blobUrl);
-                      }, 100);
+                      // Use Safari-aware download function with the original file URL
+                      safariDownloadFile(downloadUrl, document.filename);
                     } catch (error) {
                       console.error('Download error:', error);
                       alert('Failed to download document');
@@ -1680,7 +1486,7 @@ const DocumentViewer = () => {
                   gap: 8
                 }}
               >
-                <DownloadIcon style={{ width: 20, height: 20, pointerEvents: 'none' }} />
+                <DownloadIcon style={{ width: 20, height: 20 }} />
                 Download Document
               </button>
             </div>
@@ -1706,11 +1512,7 @@ const DocumentViewer = () => {
                 gap: 10
               }}>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    console.log('Export PDF clicked');
-                    handleExport('pdf');
-                  }}
+                  onClick={() => handleExport('pdf')}
                   style={{
                     width: '100%',
                     padding: 12,
@@ -1729,24 +1531,20 @@ const DocumentViewer = () => {
                     gap: 8
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#F9FAFB';
-                    e.currentTarget.style.borderColor = '#D1D5DB';
+                    e.target.style.background = '#F9FAFB';
+                    e.target.style.borderColor = '#D1D5DB';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'white';
-                    e.currentTarget.style.borderColor = '#E6E6EC';
+                    e.target.style.background = 'white';
+                    e.target.style.borderColor = '#E6E6EC';
                   }}
                 >
-                  <img src={pdfIcon} alt="PDF" style={{ width: 30, height: 30, display: 'block', pointerEvents: 'none' }} />
+                  <img src={pdfIcon} alt="PDF" style={{ width: 30, height: 30, display: 'block' }} />
                   Export as PDF
                 </button>
 
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    console.log('Export DOCX clicked');
-                    handleExport('docx');
-                  }}
+                  onClick={() => handleExport('docx')}
                   style={{
                     width: '100%',
                     padding: 12,
@@ -1765,17 +1563,51 @@ const DocumentViewer = () => {
                     gap: 8
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#F9FAFB';
-                    e.currentTarget.style.borderColor = '#D1D5DB';
+                    e.target.style.background = '#F9FAFB';
+                    e.target.style.borderColor = '#D1D5DB';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'white';
-                    e.currentTarget.style.borderColor = '#E6E6EC';
+                    e.target.style.background = 'white';
+                    e.target.style.borderColor = '#E6E6EC';
                   }}
                 >
-                  <img src={docIcon} alt="DOCX" style={{ width: 30, height: 30, display: 'block', pointerEvents: 'none' }} />
+                  <img src={docIcon} alt="DOCX" style={{ width: 30, height: 30, display: 'block' }} />
                   Export as DOCX
                 </button>
+
+                {(document.mimeType.includes('spreadsheet') || document.mimeType.includes('excel')) && (
+                  <button
+                    onClick={() => handleExport('xlsx')}
+                    style={{
+                      width: '100%',
+                      padding: 12,
+                      background: 'white',
+                      border: '1px solid #E6E6EC',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontWeight: '500',
+                      color: '#32302C',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      fontFamily: 'Plus Jakarta Sans',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = '#F9FAFB';
+                      e.target.style.borderColor = '#D1D5DB';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = 'white';
+                      e.target.style.borderColor = '#E6E6EC';
+                    }}
+                  >
+                    <img src={xlsIcon} alt="Excel" style={{ width: 30, height: 30, display: 'block' }} />
+                    Export as Excel
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1799,395 +1631,198 @@ const DocumentViewer = () => {
         itemName={document.filename}
       />
 
-      {/* Add to Category Modal */}
+      {/* Category Modal */}
       {showCategoryModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
+        <div
+          onClick={() => setShowCategoryModal(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
             width: '100%',
-            maxWidth: 480,
-            paddingTop: 18,
-            paddingBottom: 18,
-            background: 'white',
-            borderRadius: 14,
-            outline: '1px #E6E6EC solid',
-            outlineOffset: '-1px',
-            flexDirection: 'column',
-            justifyContent: 'center',
+            height: '100%',
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
             alignItems: 'center',
-            gap: 18,
-            display: 'flex'
-          }}>
-            {/* Header */}
-            <div style={{
-              width: '100%',
-              paddingLeft: 24,
-              paddingRight: 24,
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              display: 'flex'
-            }}>
-              <div style={{
-                color: '#32302C',
-                fontSize: 18,
-                fontFamily: 'Plus Jakarta Sans',
-                fontWeight: '600',
-                lineHeight: '25.20px'
-              }}>
-                Move to Category
-              </div>
-              <button
-                onClick={() => {
-                  setShowCategoryModal(false);
-                  setSelectedDocumentForCategory(null);
-                  setSelectedCategoryId(null);
-                }}
-                style={{
-                  width: 32,
-                  height: 32,
-                  background: '#F5F5F5',
-                  border: 'none',
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
-              >
-                <CloseIcon style={{ width: 16, height: 16 }} />
-              </button>
+            justifyContent: 'center',
+            zIndex: 2000
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: 16,
+              padding: 32,
+              width: 500,
+              maxWidth: '90%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}
+          >
+            <div style={{ fontSize: 20, fontWeight: '700', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 8 }}>
+              Move to Category
+            </div>
+            <div style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', color: '#6C6B6E', marginBottom: 24 }}>
+              {document.filename}
             </div>
 
-            {/* Selected Document Display */}
-            {selectedDocumentForCategory && (
-              <div style={{
-                width: '100%',
-                paddingLeft: 24,
-                paddingRight: 24
-              }}>
-                <div style={{
-                  padding: 12,
-                  background: '#F5F5F5',
-                  borderRadius: 12,
-                  border: '1px #E6E6EC solid',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12
-                }}>
-                  <img
-                    src={(() => {
-                      const filename = selectedDocumentForCategory.filename.toLowerCase();
-                      if (filename.match(/\.(pdf)$/)) return pdfIcon;
-                      if (filename.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-                      if (filename.match(/\.(png)$/)) return pngIcon;
-                      if (filename.match(/\.(doc|docx)$/)) return docIcon;
-                      if (filename.match(/\.(xls|xlsx)$/)) return xlsIcon;
-                      if (filename.match(/\.(txt)$/)) return txtIcon;
-                      if (filename.match(/\.(ppt|pptx)$/)) return pptxIcon;
-                      if (filename.match(/\.(mov)$/)) return movIcon;
-                      if (filename.match(/\.(mp4)$/)) return mp4Icon;
-                      if (filename.match(/\.(mp3)$/)) return mp3Icon;
-                      return docIcon;
-                    })()}
-                    alt="File icon"
-                    style={{
-                      width: 40,
-                      height: 40,
-                      imageRendering: '-webkit-optimize-contrast',
-                      objectFit: 'contain',
-                      shapeRendering: 'geometricPrecision',
-                      flexShrink: 0
-                    }}
-                  />
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <div style={{
-                      color: '#32302C',
-                      fontSize: 14,
-                      fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: '600',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {selectedDocumentForCategory.filename}
-                    </div>
-                    <div style={{
-                      color: '#6C6B6E',
-                      fontSize: 12,
-                      fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: '400'
-                    }}>
-                      {((selectedDocumentForCategory.fileSize || 0) / 1024 / 1024).toFixed(2)} MB
-                    </div>
-                  </div>
-                </div>
+            {/* Create New Category */}
+            <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: '1px solid #E6E6EC' }}>
+              <div style={{ fontSize: 16, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 12 }}>
+                Create New Category
               </div>
-            )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Category name..."
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #E6E6EC',
+                    fontSize: 14,
+                    fontFamily: 'Plus Jakarta Sans',
+                    outline: 'none'
+                  }}
+                />
+                <button
+                  onClick={async () => {
+                    if (!newCategoryName.trim()) {
+                      alert('Please enter a category name');
+                      return;
+                    }
+                    try {
+                      const createResponse = await api.post('/api/folders', { name: newCategoryName });
+                      const newCategory = createResponse.data.folder;
 
-            {/* Categories Grid */}
-            <div style={{
-              width: '100%',
-              paddingLeft: 24,
-              paddingRight: 24,
-              paddingTop: 8,
-              paddingBottom: 8,
-              flexDirection: 'column',
-              justifyContent: 'flex-start',
-              alignItems: 'flex-start',
-              gap: 12,
-              display: 'flex',
-              maxHeight: '280px',
-              overflowY: 'auto'
-            }}>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 12,
-                width: '100%'
-              }}>
-                {getRootFolders().filter(f => f.name.toLowerCase() !== 'recently added').map((category) => {
-                  const fileCount = getDocumentCountByFolder(category.id);
-                  return (
+                      // Move document to new category
+                      await api.patch(`/api/documents/${documentId}`, {
+                        folderId: newCategory.id
+                      });
+
+                      alert('Document moved to new category successfully');
+                      setShowCategoryModal(false);
+                      setNewCategoryName('');
+
+                      // Refresh categories
+                      const response = await api.get('/api/folders');
+                      setCategories(response.data.folders || []);
+                    } catch (error) {
+                      console.error('Error creating category:', error);
+                      alert('Failed to create category: ' + (error.response?.data?.error || error.message));
+                    }
+                  }}
+                  style={{
+                    padding: '12px 24px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: '#181818',
+                    color: 'white',
+                    fontSize: 14,
+                    fontWeight: '600',
+                    fontFamily: 'Plus Jakarta Sans',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+
+            {/* Select Existing Category */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 16, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232', marginBottom: 12 }}>
+                Or Select Existing Category
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto' }}>
+                {categories.length === 0 ? (
+                  <div style={{ padding: 16, textAlign: 'center', color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans' }}>
+                    No categories available. Create one above.
+                  </div>
+                ) : (
+                  categories.map((category) => (
                     <div
                       key={category.id}
-                      onClick={() => setSelectedCategoryId(category.id)}
+                      onClick={() => setSelectedCategory(category.id)}
                       style={{
-                        paddingLeft: 12,
-                        paddingRight: 12,
-                        paddingTop: 12,
-                        paddingBottom: 12,
-                        background: selectedCategoryId === category.id ? '#F5F5F5' : 'white',
-                        borderRadius: 12,
-                        border: selectedCategoryId === category.id ? '2px #32302C solid' : '1px #E6E6EC solid',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 8,
+                        padding: 12,
+                        borderRadius: 8,
+                        border: selectedCategory === category.id ? '2px solid #181818' : '1px solid #E6E6EC',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        position: 'relative'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (selectedCategoryId !== category.id) {
-                          e.currentTarget.style.background = '#F9FAFB';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (selectedCategoryId !== category.id) {
-                          e.currentTarget.style.background = 'white';
-                        }
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        background: selectedCategory === category.id ? '#F9FAFB' : 'white',
+                        transition: 'all 0.2s ease'
                       }}
                     >
-                      {/* Emoji */}
-                      <div style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: '50%',
-                        background: '#F5F5F5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 20
-                      }}>
-                        <CategoryIcon emoji={category.emoji} style={{width: 18, height: 18}} />
-                      </div>
-
-                      {/* Category Name */}
-                      <div style={{
-                        width: '100%',
-                        color: '#32302C',
-                        fontSize: 14,
-                        fontFamily: 'Plus Jakarta Sans',
-                        fontWeight: '600',
-                        lineHeight: '19.60px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        textAlign: 'center'
-                      }}>
+                      <img src={folderIcon} alt="Folder" style={{ width: 24, height: 24 }} />
+                      <div style={{ fontSize: 14, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#323232' }}>
                         {category.name}
                       </div>
-
-                      {/* File Count */}
-                      <div style={{
-                        color: '#6C6B6E',
-                        fontSize: 12,
-                        fontFamily: 'Plus Jakarta Sans',
-                        fontWeight: '500',
-                        lineHeight: '15.40px'
-                      }}>
-                        {fileCount || 0} {fileCount === 1 ? 'File' : 'Files'}
-                      </div>
-
-                      {/* Checkmark */}
-                      {selectedCategoryId === category.id && (
-                        <div style={{
-                          position: 'absolute',
-                          top: 8,
-                          right: 8
-                        }}>
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="8" cy="8" r="8" fill="#32302C"/>
-                            <path d="M4.5 8L7 10.5L11.5 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        </div>
-                      )}
                     </div>
-                  );
-                })}
+                  ))
+                )}
               </div>
             </div>
 
-            {/* Create New Category Button */}
-            <div style={{
-              width: '100%',
-              paddingLeft: 24,
-              paddingRight: 24
-            }}>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => {
                   setShowCategoryModal(false);
-                  // Note: Create category functionality not yet implemented in DocumentViewer
-                  alert('Create category feature coming soon!');
+                  setSelectedCategory(null);
+                  setNewCategoryName('');
                 }}
                 style={{
-                  width: '100%',
-                  paddingLeft: 18,
-                  paddingRight: 18,
-                  paddingTop: 10,
-                  paddingBottom: 10,
-                  background: '#F5F5F5',
-                  borderRadius: 100,
-                  border: '1px #E6E6EC solid',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  cursor: 'pointer',
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
-              >
-                <AddIcon style={{ width: 20, height: 20 }} />
-                <div style={{
-                  color: '#32302C',
-                  fontSize: 16,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '600',
-                  lineHeight: '24px'
-                }}>
-                  Create New Category
-                </div>
-              </button>
-            </div>
-
-            {/* Buttons */}
-            <div style={{
-              width: '100%',
-              paddingLeft: 24,
-              paddingRight: 24,
-              justifyContent: 'flex-start',
-              alignItems: 'flex-start',
-              gap: 10,
-              display: 'flex'
-            }}>
-              <button
-                onClick={() => {
-                  setShowCategoryModal(false);
-                  setSelectedDocumentForCategory(null);
-                  setSelectedCategoryId(null);
-                }}
-                style={{
-                  flex: 1,
-                  paddingLeft: 18,
-                  paddingRight: 18,
-                  paddingTop: 10,
-                  paddingBottom: 10,
+                  padding: '12px 24px',
+                  borderRadius: 14,
+                  border: '1px solid #E6E6EC',
                   background: 'white',
-                  borderRadius: 100,
-                  border: '1px #E6E6EC solid',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: 6,
-                  display: 'flex',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-              >
-                <div style={{
-                  color: '#32302C',
-                  fontSize: 16,
+                  color: '#323232',
+                  fontSize: 14,
+                  fontWeight: '600',
                   fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '500',
-                  lineHeight: '24px'
-                }}>
-                  Cancel
-                </div>
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
               </button>
               <button
                 onClick={async () => {
-                  if (!selectedCategoryId) return;
+                  if (!selectedCategory) {
+                    alert('Please select a category');
+                    return;
+                  }
                   try {
-                    await moveToFolder(documentId, selectedCategoryId);
+                    await api.patch(`/api/documents/${documentId}`, {
+                      folderId: selectedCategory
+                    });
+                    alert('Document moved successfully');
                     setShowCategoryModal(false);
-                    setSelectedDocumentForCategory(null);
-                    setSelectedCategoryId(null);
+                    setSelectedCategory(null);
                   } catch (error) {
                     console.error('Error moving document:', error);
                     alert('Failed to move document: ' + (error.response?.data?.error || error.message));
                   }
                 }}
-                disabled={!selectedCategoryId}
+                disabled={!selectedCategory}
                 style={{
-                  flex: 1,
-                  paddingLeft: 18,
-                  paddingRight: 18,
-                  paddingTop: 10,
-                  paddingBottom: 10,
-                  background: selectedCategoryId ? '#32302C' : '#E6E6EC',
-                  borderRadius: 100,
+                  padding: '12px 24px',
+                  borderRadius: 14,
                   border: 'none',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: 6,
-                  display: 'flex',
-                  cursor: selectedCategoryId ? 'pointer' : 'not-allowed',
-                  transition: 'opacity 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedCategoryId) {
-                    e.currentTarget.style.opacity = '0.9';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = '1';
+                  background: selectedCategory ? '#181818' : '#999',
+                  color: 'white',
+                  fontSize: 14,
+                  fontWeight: '600',
+                  fontFamily: 'Plus Jakarta Sans',
+                  cursor: selectedCategory ? 'pointer' : 'not-allowed'
                 }}
               >
-                <div style={{
-                  color: selectedCategoryId ? 'white' : '#9CA3AF',
-                  fontSize: 16,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '500',
-                  lineHeight: '24px'
-                }}>
-                  Add
-                </div>
+                Move to Category
               </button>
             </div>
           </div>

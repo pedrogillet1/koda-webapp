@@ -6,9 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")        // Pooled connection (fast, for app queries)
-  directUrl = env("DIRECT_DATABASE_URL") // Direct connection (slow, for migrations only)
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // User model
@@ -52,15 +51,6 @@ model User {
   sharedDocuments   DocumentShare[] @relation("SharedWith")
   ownedShares       DocumentShare[] @relation("Owner")
   actionHistory     ActionHistory[]
-
-  // Memory system relations
-  profile              UserProfile?
-  preferencesMemory    UserPreference[]
-  conversationTopics   ConversationTopic[]
-  insights             UserInsight[]
-  conversationSummaries ConversationSummary[]
-  interactionMetadata  InteractionMetadata[]
-  memories             Memory[]
 
   @@map("users")
 }
@@ -144,8 +134,6 @@ model Folder {
   @@index([userId])
   @@index([parentFolderId])
   @@index([path])
-  @@index([userId, parentFolderId]) // ✅ Composite index for user's folder tree queries
-  @@index([parentFolderId, name]) // ✅ Composite index for subfolder lookups with sorting
   @@map("folders")
 }
 
@@ -209,6 +197,10 @@ model Document {
   // Advanced Features: Interactive preview
   renderableContent String? // JSON structure for Manus-style preview (optional)
 
+  // PDF Preview for PPTX files
+  pdfPreviewPath    String? // GCS path to PDF preview (for PPTX files)
+  pdfPreviewUrl     String? // Signed URL to PDF preview
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -232,12 +224,6 @@ model Document {
   @@index([mimeType])
   @@index([userId, createdAt])
   @@index([userId, updatedAt])
-  @@index([folderId, status]) // ✅ Composite index for folder contents filtering
-  @@index([userId, folderId, status]) // ✅ Composite index for user's folder document queries
-  @@index([filename]) // ✅ For filename search
-  @@index([userId, filename]) // ✅ For user-specific filename search
-  @@index([fileHash]) // ✅ For duplicate detection
-  @@index([userId, fileHash, filename]) // ✅ For idempotency check (allows identical files with different names)
   @@map("documents")
 }
 
@@ -360,8 +346,8 @@ model PendingUser {
   expiresAt     DateTime // Expires after 24 hours if not verified
   createdAt     DateTime @default(now())
 
-  // Zero-Knowledge Encryption Recovery
-  recoveryKeyHash  String? // Hashed recovery key for account recovery (bcrypt)
+  // Zero-Knowledge Encryption Recovery (same as User model)
+  recoveryKeyHash    String? // Hashed recovery key for account recovery (bcrypt)
   masterKeyEncrypted String? // Master encryption key encrypted with recovery key
 
   @@index([email])
@@ -1125,144 +1111,4 @@ model ActionHistory {
   @@index([canRedo])
   @@index([timestamp])
   @@map("action_history")
-}
-
-// ════════════════════════════════════════════════════════════════════════════════
-// CONVERSATIONAL MEMORY SYSTEM - ChatGPT-style Memory
-// ════════════════════════════════════════════════════════════════════════════════
-
-// User Profile - Basic user information
-model UserProfile {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  name      String?
-  role      String?  // e.g., "lawyer", "accountant", "student"
-  organization String?
-  expertiseLevel String? // "beginner", "intermediate", "expert"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("user_profiles")
-}
-
-// User Preferences - How user prefers responses
-model UserPreference {
-  id              String   @id @default(uuid())
-  userId          String
-  preferenceType  String   // 'response_format', 'detail_level', 'citation_style', 'language'
-  preferenceValue String   // e.g., "bullet_points", "detailed", "apa", "en"
-  confidence      Float    @default(0.5) // 0.0 to 1.0
-  evidence        String?  // JSON: examples that support this preference
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([userId, preferenceType])
-  @@map("user_preferences_memory")
-}
-
-// Conversation Topics - High-level topics from past conversations
-model ConversationTopic {
-  id           String   @id @default(uuid())
-  userId       String
-  topicSummary String   // e.g., "User frequently analyzes financial documents"
-  firstSeen    DateTime
-  lastSeen     DateTime
-  frequency    Int      @default(1)
-  confidence   Float    @default(0.5) // 0.0 to 1.0
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([userId, lastSeen])
-  @@map("conversation_topics")
-}
-
-// User Insights - Learned patterns about user
-model UserInsight {
-  id          String   @id @default(uuid())
-  userId      String
-  insightType String   // 'expertise', 'interest', 'pattern', 'goal'
-  insightText String   // e.g., "User is interested in tax optimization"
-  confidence  Float    @default(0.5) // 0.0 to 1.0
-  evidence    String?  // JSON: examples that support this insight
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([userId, insightType])
-  @@map("user_insights")
-}
-
-// Recent Conversation Summaries - Last ~40 conversations
-model ConversationSummary {
-  id             String   @id @default(uuid())
-  userId         String
-  conversationId String
-  summary        String   // Brief summary of conversation
-  userMessages   String[] // Array of user messages
-  timestamp      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([userId, timestamp])
-  @@map("conversation_summaries")
-}
-
-// Interaction Metadata - Usage patterns
-model InteractionMetadata {
-  id            String   @id @default(uuid())
-  userId        String
-  metadataType  String   // 'activity_pattern', 'query_length', 'intent_tag', 'complexity'
-  metadataValue String   // JSON or simple value
-  updatedAt     DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, metadataType])
-  @@index([userId])
-  @@map("interaction_metadata")
-}
-
-// ════════════════════════════════════════════════════════════════════════════════
-// CROSS-SESSION MEMORY SYSTEM - ChatGPT-style Memory (Phase 3 Feature 3.1)
-// ════════════════════════════════════════════════════════════════════════════════
-
-enum MemorySection {
-  USER_PREFERENCES
-  WORK_CONTEXT
-  PERSONAL_FACTS
-  GOALS
-  COMMUNICATION_STYLE
-  RELATIONSHIPS
-}
-
-model Memory {
-  id            String        @id @default(cuid())
-  userId        String
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  section       MemorySection
-  content       String        @db.Text
-  importance    Int           @default(5)
-
-  createdAt     DateTime      @default(now())
-  lastAccessed  DateTime      @default(now())
-  accessCount   Int           @default(0)
-
-  source        String?
-  metadata      Json?
-
-  @@index([userId, section])
-  @@index([userId, importance])
-  @@index([lastAccessed])
-  @@map("memories")
 }

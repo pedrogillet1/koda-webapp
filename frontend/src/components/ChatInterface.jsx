@@ -4,11 +4,13 @@ import remarkGfm from 'remark-gfm';
 import { ReactComponent as AttachmentIcon } from '../assets/Paperclip.svg';
 import { ReactComponent as SendIcon } from '../assets/arrow-narrow-up.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
-import { ReactComponent as UploadIconDrag } from '../assets/upload.svg';
+import { ReactComponent as UploadIconDrag } from '../assets/Logout-black.svg';
+import logo from '../assets/logo1.svg';
+import kodaLogoSvg from '../assets/koda-logo_1.svg';
 import sphere from '../assets/sphere.svg';
 import * as chatService from '../services/chatService';
-// REMOVED: import useStreamingText from '../hooks/useStreamingText';
-// Character animation caused infinite generation bugs - now displaying chunks directly
+import useStreamingText from '../hooks/useStreamingText';
+import VoiceInput from './VoiceInput';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useIsMobile } from '../hooks/useIsMobile';
 import pdfIcon from '../assets/pdf-icon.png';
@@ -24,8 +26,6 @@ import mp3Icon from '../assets/mp3.svg';
 import GeneratedDocumentCard from './GeneratedDocumentCard';
 import DocumentCard from './DocumentCard';
 import DocumentPreviewModal from './DocumentPreviewModal';
-import { previewCache } from '../services/previewCache';
-import api from '../services/api';
 import './MarkdownStyles.css';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
@@ -37,25 +37,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const navigate = useNavigate();
     const location = useLocation();
     const isMobile = useIsMobile();
-    // Message state - draft is loaded via useEffect when conversation changes
-    const [message, setMessage] = useState('');
-    const [messages, setMessages] = useState([]);
-    const [hasMessages, setHasMessages] = useState(false); // ✅ FIX #4: Track if any messages were sent
-    const [isLoading, setIsLoading] = useState(false);
-    // ✅ OPTIMISTIC LOADING: Load user from localStorage immediately (synchronous, < 10ms)
-    // This makes greeting appear instantly, then fetch fresh data in background
-    const [user, setUser] = useState(() => {
-        const cached = localStorage.getItem('user');
-        if (cached) {
-            try {
-                return JSON.parse(cached);
-            } catch (error) {
-                console.error('❌ Error parsing cached user:', error);
-                return null;
-            }
-        }
-        return null;
+    // ✅ FIX: Persist draft message across screen changes
+    const [message, setMessage] = useState(() => {
+        // Load draft from localStorage on mount
+        const savedDraft = localStorage.getItem(`koda_draft_${currentConversation?.id || 'new'}`);
+        return savedDraft || '';
     });
+    const [messages, setMessages] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [user, setUser] = useState(null);
     const [streamingMessage, setStreamingMessage] = useState('');
     const [pendingFiles, setPendingFiles] = useState([]);      // Files attached but not yet sent
     const [uploadingFiles, setUploadingFiles] = useState([]);  // Files currently being uploaded
@@ -81,46 +71,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const abortControllerRef = useRef(null);
     const manuallyRemovedDocumentRef = useRef(false);
     const pendingMessageRef = useRef(null); // Queue final message data until animation completes
-    const isNewlyCreatedConversation = useRef(false); // Track if this is a NEW conversation created in this session
 
-    // Display streaming chunks immediately without animation for smoother UX (like ChatGPT)
-    const displayedText = streamingMessage;
-    const isStreaming = isLoading && streamingMessage.length > 0;
-
-    // ✅ PHASE 2 OPTIMIZATION: Preload preview on hover (makes preview instant on click)
-    const preloadPreview = async (doc) => {
-        // Skip if already cached or not a valid document
-        if (!doc || !doc.id || previewCache.has(doc.id)) {
-            return;
-        }
-
-        try {
-            // Check if DOCX
-            const extension = doc.filename?.split('.').pop()?.toLowerCase();
-            const isDocx = doc.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                           extension === 'docx' || extension === 'doc';
-
-            if (isDocx) {
-                // Preload DOCX preview
-                const previewResponse = await api.get(`/api/documents/${doc.id}/preview`);
-                const { previewUrl: pdfUrl } = previewResponse.data;
-                previewCache.set(doc.id, pdfUrl);
-                console.log('⚡ Preloaded DOCX preview for:', doc.filename);
-            } else {
-                // Preload PDF/other files
-                const response = await api.get(`/api/documents/${doc.id}/stream`, {
-                    responseType: 'blob'
-                });
-                const blob = response.data;
-                const url = URL.createObjectURL(blob);
-                previewCache.set(doc.id, url);
-                console.log('⚡ Preloaded preview for:', doc.filename);
-            }
-        } catch (error) {
-            console.error('Preload failed for:', doc.filename, error);
-            // Fail silently - user can still click to load
-        }
-    };
+    // Use streaming hook for the current AI response (5ms = 200 chars/sec for fast smooth streaming)
+    const { displayedText, isStreaming } = useStreamingText(streamingMessage, 5);
 
     // Helper function to get file icon based on extension
     const getFileIcon = (filename) => {
@@ -201,8 +154,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     };
 
     useEffect(() => {
-        // ✅ OPTIMISTIC LOADING: Fetch fresh user info in background (non-blocking)
-        // User is already loaded from localStorage, this just updates with fresh data
+        // Fetch fresh user info from API
         const fetchUserInfo = async () => {
             const token = localStorage.getItem('accessToken');
             if (token) {
@@ -214,17 +166,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     });
                     if (response.ok) {
                         const data = await response.json();
-                        setUser(data.user);  // Update with fresh data
+                        setUser(data.user);
                         localStorage.setItem('user', JSON.stringify(data.user));
                     }
                 } catch (error) {
-                    console.error('❌ Error fetching user info:', error);
-                    // Keep cached user if fetch fails (no fallback needed)
+                    console.error('Error fetching user info:', error);
+                    // Fallback to localStorage
+                    const userInfo = localStorage.getItem('user');
+                    if (userInfo) {
+                        setUser(JSON.parse(userInfo));
+                    }
                 }
             }
         };
 
-        // Fetch in background (non-blocking)
         fetchUserInfo();
 
         // Initialize socket connection ONLY ONCE using global variable
@@ -249,20 +204,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             socket.on('disconnect', () => {
                 console.log('❌ Socket disconnected');
                 setSocketReady(false);
-            });
-
-            // ✅ FIX: Listen for conversation title updates
-            socket.on('conversation:updated', (data) => {
-                console.log('📡 Received conversation update:', data);
-
-                // Update in chat history via callback (parent component manages currentConversation state)
-                if (onConversationUpdate) {
-                    onConversationUpdate({
-                        id: data.conversationId,
-                        title: data.title,
-                        updatedAt: data.updatedAt
-                    });
-                }
             });
 
             // IMPORTANT: Remove any existing listeners first to prevent duplicates
@@ -339,19 +280,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             if (m.id === data.userMessage?.id || m.id === data.assistantMessage?.id) return false;
                             return true;
                         });
-
-                        const updatedMessages = [...withoutOptimistic, userMessageWithFiles, assistantMessageWithSources];
-
-                        // ✅ OPTIMIZATION: Update cache immediately when new messages arrive
-                        if (currentConversation?.id) {
-                            const cacheKey = `koda_chat_messages_${currentConversation.id}`;
-                            const cacheTimestampKey = `${cacheKey}_timestamp`;
-                            sessionStorage.setItem(cacheKey, JSON.stringify(updatedMessages));
-                            sessionStorage.setItem(cacheTimestampKey, Date.now().toString());
-                            console.log('💾 Cache updated with new messages');
-                        }
-
-                        return updatedMessages;
+                        return [...withoutOptimistic, userMessageWithFiles, assistantMessageWithSources];
                     });
                 });
 
@@ -400,7 +329,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 const stoppedMessage = {
                     id: `stopped-${Date.now()}`,
                     role: 'assistant',
-                    content: '**Stopped Searching**',
+                    content: '⏸️ **Stopped Searching**',
                     createdAt: new Date().toISOString(),
                 };
                 setMessages((prev) => [...prev, stoppedMessage]);
@@ -408,9 +337,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             // Listen for message complete event (confirms streaming ended)
             chatService.onMessageComplete((data) => {
-                console.log('✅✅✅ Message streaming complete event received:', data.conversationId);
+                console.log('✅ Message streaming complete event received:', data.conversationId);
                 console.log('📚 Sources received:', data.sources);
-                console.log('🔍 About to call setIsLoading(false)');
 
                 // ✅ FIX: Attach sources to the last assistant message
                 if (data.sources && data.sources.length > 0) {
@@ -427,10 +355,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 }
 
                 // Clear streaming states
-                console.log('🛑🛑🛑 CALLING setIsLoading(false) FROM onMessageComplete');
                 setStreamingMessage('');
                 setIsLoading(false);
-                console.log('✅ setIsLoading(false) called successfully');
             });
         }
 
@@ -438,9 +364,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             console.log('🧹 Cleaning up socket listeners (keeping global flag)');
             // Don't reset globalSocketInitialized to prevent re-initialization in StrictMode
             // Only remove listeners for this component instance
-            if (chatService.getSocket()) {
-                chatService.getSocket().off('conversation:updated');
-            }
         };
     }, []);
 
@@ -450,19 +373,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         console.log('📌 justCreatedConversationId:', justCreatedConversationId.current);
 
         if (currentConversation?.id) {
-            // CRITICAL: Clear old messages immediately when switching to prevent showing wrong conversation
-            console.log('🧹 Clearing old messages before switching to conversation:', currentConversation.id);
-            setMessages([]);
-            setStreamingMessage('');
-            setIsLoading(false);
-            pendingMessageRef.current = null;
-
             // Skip loading if we just created this conversation
             // We already have the messages locally from the REST API response
             if (justCreatedConversationId.current === currentConversation.id) {
-                console.log('⏭️ Skipping loadConversation - just created this conversation');
+                console.log('⏭️ Skipping loadConversation - just created this conversation with messages locally');
                 justCreatedConversationId.current = null; // Reset flag
-                // Messages should already be in state from the send operation
             } else {
                 console.log('🔃 Loading conversation from server...');
                 loadConversation(currentConversation.id);
@@ -470,21 +385,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             console.log('📡 Joining conversation room:', currentConversation.id);
             chatService.joinConversation(currentConversation.id);
-            // Reset stage when switching conversations
+            // Clear streaming message and reset stage when switching conversations
+            setStreamingMessage('');
             setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
         } else {
-            // No conversation selected - clear ALL state to show blank new chat
-            console.log('🆕 No conversation - clearing ALL state for new chat');
+            // No conversation selected - clear messages to show blank new chat
+            console.log('🆕 No conversation - clearing messages for new chat');
             setMessages([]);
             setStreamingMessage('');
-            setIsLoading(false);
-            setPendingFiles([]);
-            setUploadingFiles([]);
-            setAttachedDocuments([]);
             setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
-            pendingMessageRef.current = null;
-            // Clear any cached data to prevent old messages from showing
-            justCreatedConversationId.current = null;
         }
 
         return () => {
@@ -495,10 +404,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         };
     }, [currentConversation]);
 
-    // CRITICAL FIX: Process final message when backend completes (no animation delay)
+    // CRITICAL FIX: Wait for streaming animation to complete before adding final message
+    // This prevents the animation from being cut off mid-sentence
     useEffect(() => {
-        if (!isLoading && pendingMessageRef.current) {
-            console.log('✅ Backend completed - processing pending message');
+        if (!isStreaming && pendingMessageRef.current) {
+            console.log('✅ Streaming animation completed - processing pending message');
             const pending = pendingMessageRef.current;
             pendingMessageRef.current = null;
 
@@ -516,8 +426,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             // Add final messages to history
             setMessages((prev) => {
                 // Triple-check if message already exists in the array
-                // ✅ FIX: Check for ID existence before comparison to avoid undefined errors
-                const assistantExists = pending.assistantMessage?.id && prev.some(msg => msg.id === pending.assistantMessage.id);
+                const assistantExists = prev.some(msg => msg.id === pending.assistantMessage.id);
 
                 if (assistantExists) {
                     console.log('⚠️ Message already exists in state, skipping:', pending.assistantMessage.id);
@@ -553,46 +462,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 return [...withoutOptimistic, userMessageWithFiles, assistantMessageWithMetadata];
             });
         }
-    }, [isLoading]);
-
-    // Safety timeout: Force-stop streaming if backend fails to complete
-    useEffect(() => {
-        if (isLoading && streamingMessage.length > 0) {
-            console.log('⏱️ Starting streaming safety timeout (30 seconds)');
-
-            const timeout = setTimeout(() => {
-                console.warn('⚠️ Streaming timeout reached - forcing completion');
-                setIsLoading(false);
-                setStreamingMessage('');
-
-                // Process pending message if exists
-                if (pendingMessageRef.current) {
-                    const pending = pendingMessageRef.current;
-                    pendingMessageRef.current = null;
-
-                    setMessages((prev) => {
-                        // ✅ FIX: Check for ID existence before comparison
-                        const assistantExists = pending.assistantMessage?.id && prev.some(msg => msg.id === pending.assistantMessage.id);
-                        if (assistantExists) return prev;
-
-                        const optimisticMessage = prev.find(m => m.isOptimistic && m.role === 'user');
-                        const userMessageWithFiles = {
-                            ...pending.userMessage,
-                            attachedFiles: optimisticMessage?.attachedFiles || pending.userMessage.attachedFiles || []
-                        };
-
-                        const withoutOptimistic = prev.filter(m => !m.isOptimistic);
-                        return [...withoutOptimistic, userMessageWithFiles, pending.assistantMessage];
-                    });
-                }
-            }, 30000);  // 30 seconds
-
-            return () => {
-                console.log('⏱️ Clearing streaming timeout');
-                clearTimeout(timeout);
-            };
-        }
-    }, [isLoading, streamingMessage]);
+    }, [isStreaming]);
 
     useEffect(() => {
         // Scroll to bottom when new messages arrive
@@ -610,23 +480,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     }, [messages, currentConversation]);
 
-    // ✅ FIX #4: Track if any messages were sent (to prevent incorrect cleanup)
-    useEffect(() => {
-        // Don't count optimistic messages
-        const realMessages = messages.filter(m => !m.isOptimistic);
-        if (realMessages.length > 0) {
-            setHasMessages(true);
-            // Once messages exist, this is no longer a "new" conversation
-            isNewlyCreatedConversation.current = false;
-        }
-    }, [messages]);
-
     // Auto-scroll while streaming (only if user is near bottom)
     useEffect(() => {
         if (displayedText && messagesContainerRef.current) {
-            // Always auto-scroll during streaming to show new content
-            // This provides a smooth ChatGPT-like experience
-            scrollToBottom();
+            const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+            const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
+
+            // Only auto-scroll if user is already near the bottom
+            if (isNearBottom) {
+                scrollToBottom();
+            }
         }
     }, [displayedText]);
 
@@ -642,25 +505,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     useEffect(() => {
         inputRef.current?.focus();
     }, []);
-
-    // Auto-resize textarea as user types
-    useEffect(() => {
-        if (inputRef.current) {
-            // Reset height to auto to get the correct scrollHeight
-            inputRef.current.style.height = 'auto';
-
-            // Set height based on scrollHeight, with max limit
-            const newHeight = Math.min(inputRef.current.scrollHeight, 200);
-            inputRef.current.style.height = `${newHeight}px`;
-        }
-    }, [message]);
-
-    // Load draft message when conversation changes
-    useEffect(() => {
-        const savedDraft = localStorage.getItem(`koda_draft_${currentConversation?.id || 'new'}`);
-        console.log('📝 Loading draft for conversation:', currentConversation?.id, 'Draft:', savedDraft);
-        setMessage(savedDraft || '');
-    }, [currentConversation?.id]);
 
     // Focus input when conversation changes
     useEffect(() => {
@@ -697,44 +541,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     //     const needsWeb = researchKeywords.some(keyword => messageLower.includes(keyword));
     //     setShowResearchSuggestion(needsWeb);
     // }, [message, researchMode]);
-
-    // ✅ FIX #4: Auto-delete empty conversations when navigating away
-    // Only delete if this is a NEWLY CREATED conversation AND no messages were sent
-    useEffect(() => {
-        return () => {
-            // Only delete if this was a NEW conversation created in this session AND no messages were sent
-            if (currentConversation?.id && isNewlyCreatedConversation.current && !hasMessages) {
-                console.log('🗑️ [CLEANUP] Deleting newly created empty conversation:', currentConversation.id, 'hasMessages:', hasMessages, 'isNew:', isNewlyCreatedConversation.current);
-                chatService.deleteConversation(currentConversation.id)
-                    .catch(err => {
-                        if (err.response?.status !== 404) {
-                            console.error('Failed to delete empty conversation:', err);
-                        }
-                    });
-            } else if (currentConversation?.id) {
-                console.log('✅ [CLEANUP] Keeping conversation:', currentConversation.id, 'hasMessages:', hasMessages, 'isNew:', isNewlyCreatedConversation.current);
-            }
-        };
-    }, [currentConversation?.id, hasMessages]); // Re-run when conversation or hasMessages changes
-
-    // Track whether this is a newly created conversation or loaded from database
-    useEffect(() => {
-        if (currentConversation?.id) {
-            // Check if loaded messages exist for this conversation
-            const realMessages = messages.filter(m => !m.isOptimistic);
-            setHasMessages(realMessages.length > 0);
-
-            // If this conversation was just created in this component, it's marked as "newly created"
-            if (currentConversation.id === justCreatedConversationId.current) {
-                isNewlyCreatedConversation.current = true;
-            } else if (realMessages.length > 0) {
-                // If this conversation has messages already, it's not "newly created"
-                isNewlyCreatedConversation.current = false;
-            }
-
-            console.log('🔄 [CONVERSATION CHANGE] conversation:', currentConversation.id.substring(0, 8), 'hasMessages:', realMessages.length > 0, 'isNew:', isNewlyCreatedConversation.current);
-        }
-    }, [currentConversation?.id, messages.length]); // Re-run when conversation or messages change
 
     // Handle documentId from URL parameter (Ask Koda feature)
     useEffect(() => {
@@ -820,40 +626,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     const loadConversation = async (conversationId) => {
         try {
-            // ✅ OPTIMIZED: Cache-first loading with smart refresh
+            // Check cache first for instant loading
             const cacheKey = `koda_chat_messages_${conversationId}`;
-            const cacheTimestampKey = `${cacheKey}_timestamp`;
-
-            // 1. Check cache first for instant display
             const cached = sessionStorage.getItem(cacheKey);
-            const cacheTimestamp = sessionStorage.getItem(cacheTimestampKey);
 
             if (cached) {
                 try {
                     const cachedMessages = JSON.parse(cached);
-                    console.log(`⚡ Cache HIT for ${conversationId}: ${cachedMessages.length} cached messages`);
-
-                    // ✅ Show cached messages IMMEDIATELY (they're keyed by conversationId so they're the right ones)
+                    console.log(`⚡ Loaded ${cachedMessages.length} messages from cache`);
                     setMessages(cachedMessages);
-
-                    // 2. Check if cache is fresh (< 30 seconds old)
-                    const cacheAge = Date.now() - parseInt(cacheTimestamp || '0');
-                    const CACHE_FRESH_THRESHOLD = 30 * 1000; // 30 seconds
-
-                    if (cacheAge < CACHE_FRESH_THRESHOLD) {
-                        console.log(`✅ Cache is fresh (${Math.round(cacheAge / 1000)}s old), skipping API call`);
-                        return; // ✅ Skip API call - cache is fresh enough!
-                    }
-
-                    console.log(`🔄 Cache is stale (${Math.round(cacheAge / 1000)}s old), refreshing in background...`);
                 } catch (e) {
                     console.error('Error parsing cached messages:', e);
                 }
-            } else {
-                console.log('📭 No cache found, fetching from API...');
             }
 
-            // 3. Fetch from API (only if cache missing or stale)
             const conversation = await chatService.getConversation(conversationId);
             const loadedMessages = conversation.messages || [];
 
@@ -925,30 +711,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             setMessages(uniqueMessages);
             setStreamingMessage(''); // Clear any streaming message when loading conversation
 
-            // ✅ Cache messages with timestamp for smart refresh
+            // Cache messages for instant loading next time
             sessionStorage.setItem(cacheKey, JSON.stringify(uniqueMessages));
-            sessionStorage.setItem(cacheTimestampKey, Date.now().toString());
-            console.log(`💾 Updated cache with ${uniqueMessages.length} messages`);
         } catch (error) {
             console.error('Error loading conversation:', error);
-
-            // If conversation doesn't exist (404), clear it and create new conversation
-            if (error.response?.status === 404) {
-                console.log('❌ Conversation not found (404), clearing stale data and creating new conversation');
-
-                // Clear messages
-                setMessages([]);
-                setStreamingMessage('');
-
-                // Clear sessionStorage to prevent reload loop
-                sessionStorage.removeItem('currentConversationId');
-                sessionStorage.removeItem(`koda_chat_messages_${conversationId}`);
-                sessionStorage.removeItem(`koda_chat_messages_${conversationId}_timestamp`);
-
-                // Notify ChatScreen that conversation doesn't exist
-                // ChatScreen will create a new conversation automatically
-                onConversationUpdate?.(null);
-            }
         }
     };
 
@@ -959,15 +725,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         if (files.length === 0) return;
 
         manuallyRemovedDocumentRef.current = false; // Reset flag when new file is selected
-
-        // ✅ NEW FLOW: Upload files IMMEDIATELY on attach (like ChatGPT/Gemini/Manus)
-        console.log('🚀 Starting immediate upload on attach...');
-        const uploadedDocs = await uploadMultipleFiles(files);
-
-        if (uploadedDocs.length > 0) {
-            setAttachedDocuments(prev => [...prev, ...uploadedDocs]);
-            console.log(`✅ ${uploadedDocs.length} file(s) uploaded and attached`);
-        }
+        setPendingFiles(prevFiles => {
+            const newFiles = [...prevFiles, ...files];
+            console.log(`📎 Pending files updated: now ${newFiles.length} file(s) total`);
+            return newFiles;
+        });
     };
 
     const handleRemoveAttachment = (indexToRemove = null) => {
@@ -1016,7 +778,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         setIsDraggingOver(false);
     };
 
-    const handleDrop = async (e) => {
+    const handleDrop = (e) => {
         e.preventDefault();
         e.stopPropagation();
         setIsDraggingOver(false);
@@ -1027,16 +789,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         if (files.length === 0) return;
 
+        // Use the same logic as handleFileSelect
         manuallyRemovedDocumentRef.current = false;
-
-        // ✅ NEW FLOW: Upload files IMMEDIATELY on drop (like ChatGPT/Gemini/Manus)
-        console.log('🚀 Starting immediate upload on drop...');
-        const uploadedDocs = await uploadMultipleFiles(files);
-
-        if (uploadedDocs.length > 0) {
-            setAttachedDocuments(prev => [...prev, ...uploadedDocs]);
-            console.log(`✅ ${uploadedDocs.length} file(s) uploaded and attached`);
-        }
+        setPendingFiles(prevFiles => {
+            const newFiles = [...prevFiles, ...files];
+            console.log(`📎 Pending files updated: now ${newFiles.length} file(s) total`);
+            return newFiles;
+        });
     };
 
     // Clipboard paste handler for images
@@ -1085,6 +844,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     };
 
+    const handleVoiceTranscript = (transcript) => {
+        // Set the transcript as the message input
+        setMessage(transcript);
+        // ✅ FIX: Save voice transcript to localStorage
+        localStorage.setItem(`koda_draft_${currentConversation?.id || 'new'}`, transcript);
+        // Optionally auto-focus the input
+        setTimeout(() => {
+            inputRef.current?.focus();
+        }, 100);
+    };
+
     const handleCopyMessage = async (messageId, content) => {
         try {
             await navigator.clipboard.writeText(content);
@@ -1121,7 +891,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         const stoppedMessage = {
             id: `stopped-${Date.now()}`,
             role: 'assistant',
-            content: '**Stopped Searching**',
+            content: '⏸️ **Stopped Searching**',
             createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, stoppedMessage]);
@@ -1240,37 +1010,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             const data = await response.json();
             console.log(`✅ Successfully uploaded ${data.documents.length} file(s)`);
 
-            // ✅ FIX: Wait for documents to be processed before sending to AI
-            console.log('⏳ Waiting for documents to be processed...');
-            const processedDocuments = await Promise.all(
-                data.documents.map(async (doc) => {
-                    // Poll until status is 'completed' or timeout after 30s
-                    const startTime = Date.now();
-                    while (Date.now() - startTime < 30000) {
-                        try {
-                            const token = localStorage.getItem('accessToken');
-                            const checkResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/documents/${doc.id}`, {
-                                headers: {
-                                    'Authorization': `Bearer ${token}`
-                                }
-                            });
-                            if (checkResponse.ok) {
-                                const docData = await checkResponse.json();
-                                if (docData.status === 'completed') {
-                                    console.log(`✅ Document ${doc.id} processed`);
-                                    return docData;
-                                }
-                            }
-                        } catch (err) {
-                            console.warn(`⚠️ Error checking document ${doc.id}:`, err);
-                        }
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                    console.warn(`⚠️ Document ${doc.id} still processing after 30s, using anyway`);
-                    return doc;  // Use anyway
-                })
-            );
-
             // Clear uploading state - files are uploaded successfully
             setUploadingFiles([]);
 
@@ -1278,12 +1017,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             setPendingFiles([]);
 
             // Show success notification (same as UniversalUploadModal)
-            setUploadedCount(processedDocuments.length);
+            setUploadedCount(data.documents.length);
             setNotificationType('success');
             setShowNotification(true);
             setTimeout(() => setShowNotification(false), 5000);
 
-            return processedDocuments;
+            return data.documents;
         } catch (error) {
             console.error('❌ Error uploading files:', error);
             // On error, keep files in pending so user can retry
@@ -1301,36 +1040,32 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     const handleSendMessage = async () => {
         const isUploadingFiles = uploadingFiles.length > 0;
-        if ((!message.trim() && attachedDocuments.length === 0) || isLoading || isUploadingFiles) return;
+        if ((!message.trim() && pendingFiles.length === 0 && attachedDocuments.length === 0) || isLoading || isUploadingFiles) return;
 
         let messageText = message;
-        // ✅ NEW FLOW: Only use attachedDocuments (files were already uploaded on attach)
+        const filesToUpload = [...pendingFiles]; // Store reference before clearing
         const documentsToAttach = [...attachedDocuments]; // Store reference before clearing
 
-        console.log(`📤 handleSendMessage: Preparing to send with ${documentsToAttach.length} attached document(s)`);
+        console.log(`📤 handleSendMessage: Preparing to send with ${filesToUpload.length} file(s) and ${documentsToAttach.length} attached document(s)`);
+        console.log(`📤 Files to upload:`, filesToUpload.map(f => f.name).join(', '));
         console.log(`📤 Attached documents:`, documentsToAttach.map(d => `${d.name} (ID: ${d.id})`).join(', '));
 
         // Clear input immediately
         setMessage('');
         // ✅ FIX: Clear draft from localStorage when message is sent
         localStorage.removeItem(`koda_draft_${currentConversation?.id || 'new'}`);
-        // DON'T clear attachedDocuments - they're needed for the API request
+        // DON'T clear attachedDocuments or pendingFiles - they're needed for the API request
         // The banner will be hidden by checking isLoading state in the JSX
 
         // Store original message text for UI display (files will be shown visually, not as text)
         const displayMessageText = messageText || '';
 
-        // Detect if this should use RAG (improved document-context detection)
-        // Only use RAG when:
-        // 1. Research mode is explicitly enabled, OR
-        // 2. Files/documents are attached, OR
-        // 3. Message contains document-specific keywords
-        const hasDocuments = documentsToAttach.length > 0;
-        const hasDocumentKeywords = /\b(document|file|pdf|slide|page|presentation|attachment|uploaded|this|these|in the|from the|summarize|analyze|extract|show me|tell me about)\b/i.test(messageText);
+        // Detect if this should use RAG (question detection)
+        const isQuestion = researchMode ||
+                          messageText.includes('?') ||
+                          /^(what|who|where|when|why|how|is|are|can|could|would|should|does|do|did|find|search|show|tell|explain)/i.test(messageText.trim());
 
-        const isQuestion = researchMode || hasDocuments || hasDocumentKeywords;
-
-        console.log(`🤔 Message analysis: isQuestion (use RAG)=${isQuestion}, researchMode=${researchMode}, hasDocuments=${hasDocuments}, hasDocumentKeywords=${hasDocumentKeywords}`);
+        console.log(`🤔 Message analysis: isQuestion=${isQuestion}, researchMode=${researchMode}`);
 
         // Add user message to UI immediately (optimistic update)
         const tempUserId = `temp-${Date.now()}`;
@@ -1340,7 +1075,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             content: displayMessageText,
             createdAt: new Date().toISOString(),
             isOptimistic: true,
-            attachedFiles: documentsToAttach.map(doc => ({ id: doc.id, name: doc.name, type: doc.type })),
+            attachedFiles: filesToUpload.length > 0
+                ? filesToUpload.map(f => ({ name: f.name, type: f.type }))
+                : documentsToAttach.length > 0
+                    ? documentsToAttach.map(doc => ({ id: doc.id, name: doc.name, type: doc.type }))
+                    : [],
         };
         setMessages((prev) => {
             // Check if this exact message was just added (prevent double-send)
@@ -1357,13 +1096,49 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         setIsLoading(true);
 
-        // ✅ NEW FLOW: Files were already uploaded on attach, just use them
-        const uploadedDocuments = documentsToAttach.map(doc => ({ id: doc.id }));
+        // Upload files in background if attached, or use already-uploaded document
+        let uploadedDocuments = [];
+        if (filesToUpload.length > 0) {
+            // ✅ FIX: Show accurate upload status message
+            setCurrentStage({ stage: 'uploading', message: `Uploading and processing ${filesToUpload.length} file(s)...` });
+            uploadedDocuments = await uploadMultipleFiles(filesToUpload);
+            setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
 
-        // If no message text was provided, add a default message
-        if (documentsToAttach.length > 0 && !messageText.trim()) {
-            const docNames = documentsToAttach.map(d => d.name).join(', ');
-            messageText = `I'd like to ask about ${documentsToAttach.length > 1 ? 'these documents' : 'this document'}: "${docNames}". Please analyze ${documentsToAttach.length > 1 ? 'them' : 'it'} and tell me what's in ${documentsToAttach.length > 1 ? 'them' : 'it'}.`;
+            // ✅ FIX: Update optimistic message with document IDs after upload completes
+            if (uploadedDocuments.length > 0) {
+                setMessages((prev) => prev.map(msg => {
+                    if (msg.id === tempUserId && msg.isOptimistic) {
+                        console.log('📎 Updating optimistic message with uploaded document IDs');
+                        return {
+                            ...msg,
+                            attachedFiles: uploadedDocuments.map(doc => ({
+                                id: doc.id,
+                                name: doc.filename || doc.name || filesToUpload.find(f => f.name)?.name,
+                                type: doc.mimeType || doc.type || filesToUpload.find(f => f.type)?.type
+                            }))
+                        };
+                    }
+                    return msg;
+                }));
+            }
+
+            // If no message text was provided, add a default message
+            if (uploadedDocuments.length > 0 && !messageText.trim()) {
+                if (uploadedDocuments.length === 1) {
+                    messageText = `I just uploaded a file called "${filesToUpload[0].name}". Please analyze it and tell me what's in it.`;
+                } else {
+                    messageText = `I just uploaded ${uploadedDocuments.length} files. Please analyze them and tell me what's in them.`;
+                }
+            }
+        } else if (documentsToAttach.length > 0) {
+            // Use the documents that were already uploaded (from URL parameter)
+            uploadedDocuments = documentsToAttach.map(doc => ({ id: doc.id }));
+
+            // If no message text was provided, add a default message
+            if (!messageText.trim()) {
+                const docNames = documentsToAttach.map(d => d.name).join(', ');
+                messageText = `I'd like to ask about ${documentsToAttach.length > 1 ? 'these documents' : 'this document'}: "${docNames}". Please analyze ${documentsToAttach.length > 1 ? 'them' : 'it'} and tell me what's in ${documentsToAttach.length > 1 ? 'them' : 'it'}.`;
+            }
         }
 
         // For now, use the first uploaded document for compatibility with existing backend
@@ -1390,7 +1165,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 const newConversation = await chatService.createConversation();
                 console.log('✅ Conversation created:', newConversation);
                 justCreatedConversationId.current = newConversation.id;
-                isNewlyCreatedConversation.current = true; // Mark as newly created
                 onConversationCreated?.(newConversation);
                 conversationId = newConversation.id;
             }
@@ -1605,10 +1379,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }
 
-                    // ✅ CRITICAL FIX: Explicitly set isLoading to false when SSE stream completes
-                    // This prevents the 30-second timeout from being the only way to stop streaming
-                    console.log('🏁 SSE stream completed - setting isLoading to false');
-                    setIsLoading(false);
+                    // Note: streamingMessage will be cleared by the useEffect when animation completes
+                    // Note: isLoading will be set to false by the useEffect when animation completes
                     setResearchMode(false);
                 } catch (error) {
                     console.error('❌ Error in RAG streaming:', error);
@@ -1765,10 +1537,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             assistantMessage: assistantMessage
                         };
                     }
-
-                    // ✅ CRITICAL FIX: Reset loading state after SSE stream completes
-                    console.log('🏁 SSE fallback stream completed - setting isLoading to false');
-                    setIsLoading(false);
                 } catch (error) {
                     console.error('❌ Error in SSE fallback:', error);
                     setIsLoading(false);
@@ -1793,6 +1561,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     return (
         <div style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column'}}>
+            {/* Header */}
+            <div style={{height: 84, padding: '0 20px', background: 'white', borderBottom: '1px solid #E6E6EC', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <img style={{height: 65, marginLeft: isMobile ? '50px' : '0'}} src={kodaLogoSvg} alt="Logo" />
+            </div>
+
             {/* Messages Area */}
             <div
                 ref={messagesContainerRef}
@@ -1836,7 +1609,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', maxWidth: '75%'}}>
                                         <div style={{padding: 12, background: 'white', borderRadius: 18, border: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                             <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
-                                                <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
+                                                <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex'}}>
+                                                    <div style={{width: 34, height: 34, minWidth: 34, minHeight: 34, background: 'white', borderRadius: '50%', border: '1px solid #F1F0EF', justifyContent: 'center', alignItems: 'center', gap: 10, display: 'flex', overflow: 'hidden'}}>
+                                                        <img style={{width: '100%', height: '100%', objectFit: 'cover'}} src={logo} alt="KODA" />
+                                                    </div>
+                                                    <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
                                                         <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
                                                             <div className="markdown-preview-container" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
                                                                 <ReactMarkdown
@@ -1886,7 +1663,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             {/* Show File Preview Button */}
                                                             {msg.metadata && msg.metadata.actionType === 'show_file' && msg.metadata.success && msg.metadata.document && (
                                                                 <div
-                                                                    onMouseEnter={() => preloadPreview(msg.metadata.document)}
                                                                     onClick={() => {
                                                                         console.log('👁️ [SHOW_FILE] Opening preview for:', msg.metadata.document);
                                                                         setPreviewDocument({
@@ -2028,13 +1804,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             )}
                                                         </div>
 
-                                                    {/* ✅ Show Document Sources for RAG queries, hide for file actions */}
-                                                    {/* Hide sources if message is a file action (rename, delete, move, create folder) */}
-                                                    {msg.role === 'assistant' && !msg.content?.match(/File (renamed|moved|deleted)|Folder (created|renamed|deleted)|successfully/i) && (() => {
-                                                        const sources = msg.ragSources || [];
-
+                                                    {/* RAG Sources Display */}
+                                                    {msg.ragSources && msg.ragSources.length > 0 && (() => {
                                                         // Group sources by document ID to show unique documents
-                                                        const uniqueDocuments = sources.reduce((acc, source) => {
+                                                        const uniqueDocuments = msg.ragSources.reduce((acc, source) => {
                                                             // Skip sources without valid document names
                                                             if (!source.documentName || source.documentName === 'Unknown Document') {
                                                                 return acc;
@@ -2044,7 +1817,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 acc[source.documentId] = {
                                                                     documentId: source.documentId,
                                                                     documentName: source.documentName,
-                                                                    mimeType: source.mimeType, // ✅ Store mimeType for icon detection
                                                                     chunks: []
                                                                 };
                                                             }
@@ -2054,18 +1826,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
                                                         const documentList = Object.values(uniqueDocuments);
 
-                                                        // ✅ FIX: Only render if there are actual documents
+                                                        // Don't show document sources if no valid documents
                                                         if (documentList.length === 0) {
                                                             return null;
                                                         }
-
                                                         const isExpanded = expandedSources[`${msg.id}-rag`];
 
                                                         // Helper function to get file icon based on filename
-                                                        const getFileIcon = (filename, mimeType) => {
+                                                        const getFileIcon = (filename) => {
                                                             if (!filename) return docIcon;
-
-                                                            // Try to determine icon from filename extension first
                                                             const ext = filename.toLowerCase();
                                                             if (ext.match(/\.(pdf)$/)) return pdfIcon;
                                                             if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
@@ -2077,21 +1846,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             if (ext.match(/\.(mov)$/)) return movIcon;
                                                             if (ext.match(/\.(mp4)$/)) return mp4Icon;
                                                             if (ext.match(/\.(mp3)$/)) return mp3Icon;
-
-                                                            // If no extension match and mimeType is provided, use mimeType
-                                                            if (mimeType) {
-                                                                if (mimeType.includes('pdf')) return pdfIcon;
-                                                                if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return jpgIcon;
-                                                                if (mimeType.includes('png')) return pngIcon;
-                                                                if (mimeType.includes('msword') || mimeType.includes('wordprocessingml')) return docIcon;
-                                                                if (mimeType.includes('excel') || mimeType.includes('spreadsheetml')) return xlsIcon;
-                                                                if (mimeType.includes('text/plain')) return txtIcon;
-                                                                if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return pptxIcon;
-                                                                if (mimeType.includes('quicktime')) return movIcon;
-                                                                if (mimeType.includes('mp4')) return mp4Icon;
-                                                                if (mimeType.includes('mp3') || mimeType.includes('mpeg')) return mp3Icon;
-                                                            }
-
                                                             return docIcon; // Default icon
                                                         };
 
@@ -2155,19 +1909,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 {/* Document Sources List (shown when expanded) */}
                                                                 {isExpanded && (
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-                                                                    {documentList.length === 0 ? (
-                                                                        <div style={{
-                                                                            padding: 16,
-                                                                            background: '#F9FAFB',
-                                                                            borderRadius: 8,
-                                                                            border: '1px solid #E5E7EB',
-                                                                            textAlign: 'center',
-                                                                            color: '#6B7280',
-                                                                            fontSize: 13
-                                                                        }}>
-                                                                            No documents were referenced for this response.
-                                                                        </div>
-                                                                    ) : documentList.map((doc, index) => {
+                                                                    {documentList.map((doc, index) => {
                                                                         // Get the highest similarity chunk for this document
                                                                         const bestChunk = doc.chunks.reduce((best, curr) =>
                                                                             (curr.similarity || 0) > (best.similarity || 0) ? curr : best
@@ -2206,7 +1948,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                     gap: 12
                                                                                 }}>
                                                                                     <img
-                                                                                        src={getFileIcon(doc.documentName, doc.mimeType)}
+                                                                                        src={getFileIcon(doc.documentName)}
                                                                                         alt="File icon"
                                                                                         style={{
                                                                                             width: 40,
@@ -2243,7 +1985,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                     })}
                                                                 </div>
                                                                 )}
-
                                                             </div>
                                                         );
                                                     })()}
@@ -2478,7 +2219,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 </div>
                                             </div>
                                         </div>
-                                        <button
+                                    </div>
+
+                                    {/* Copy button - outside the message bubble */}
+                                    <button
                                         onClick={() => handleCopyMessage(msg.id, msg.content)}
                                         style={{
                                             padding: 6,
@@ -2546,15 +2290,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                     {attachedFiles.map((attachedFile, fileIndex) => (
                                                         <div
                                                             key={fileIndex}
-                                                            onMouseEnter={() => {
-                                                                if (attachedFile.id) {
-                                                                    preloadPreview({
-                                                                        id: attachedFile.id,
-                                                                        filename: attachedFile.name,
-                                                                        mimeType: attachedFile.type
-                                                                    });
-                                                                }
-                                                            }}
                                                             onClick={() => {
                                                                 if (attachedFile.id) {
                                                                     // DocumentPreviewModal expects 'filename' property
@@ -2576,9 +2311,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 minWidth: 280,
                                                                 cursor: attachedFile.id ? 'pointer' : 'default',
                                                                 transition: 'all 0.2s',
-                                                                pointerEvents: 'auto',
-                                                                WebkitTapHighlightColor: 'transparent',
-                                                                userSelect: 'none',
                                                             }}
                                                             onMouseEnter={(e) => {
                                                                 if (attachedFile.id) {
@@ -2652,7 +2384,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             <div style={{marginBottom: 16, display: 'flex', justifyContent: 'flex-start'}}>
                                 <div style={{maxWidth: '70%', padding: 12, background: 'white', borderRadius: 18, border: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                     <div style={{overflow: 'hidden', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
-                                        <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
+                                        <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex'}}>
+                                            <div style={{width: 34, height: 34, minWidth: 34, minHeight: 34, background: 'white', borderRadius: '50%', border: '1px solid #F1F0EF', justifyContent: 'center', alignItems: 'center', gap: 10, display: 'flex', overflow: 'hidden'}}>
+                                                <img style={{width: '100%', height: '100%', objectFit: 'cover'}} src={logo} alt="KODA" />
+                                            </div>
+                                            <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
                                                 <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4, display: 'flex'}}>
                                                     <div className="markdown-preview-container streaming" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word'}}>
                                                         <ReactMarkdown
@@ -2686,6 +2422,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                         {isStreaming && <span className="cursor">▋</span>}
                                                     </div>
                                                 </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -2903,9 +2640,58 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 )} */}
 
                 {/* File Attachments Preview */}
-                {uploadingFiles.length > 0 && (
+                {(pendingFiles.length > 0 || uploadingFiles.length > 0) && (
                     <div style={{marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
-                        {/* Uploading files - showing upload progress */}
+                        {/* Pending files - hide when send is clicked (isLoading) */}
+                        {!isLoading && pendingFiles.map((file, index) => {
+                            const isImage = isImageFile(file);
+                            const previewUrl = isImage ? URL.createObjectURL(file) : null;
+
+                            return (
+                            <div key={`pending-${index}`} style={{padding: 12, background: '#F5F5F5', borderRadius: 12, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 12}}>
+                                <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0}}>
+                                    {isImage ? (
+                                        <img
+                                            src={previewUrl}
+                                            alt="Image preview"
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                objectFit: 'cover',
+                                                borderRadius: 6
+                                            }}
+                                        />
+                                    ) : (
+                                        <img
+                                            src={getFileIcon(file.name)}
+                                            alt="File icon"
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                imageRendering: '-webkit-optimize-contrast',
+                                                objectFit: 'contain',
+                                                shapeRendering: 'geometricPrecision'
+                                            }}
+                                        />
+                                    )}
+                                </div>
+                                <div style={{flex: 1}}>
+                                    <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>{file.name}</div>
+                                    <div style={{fontSize: 12, color: '#8E8E93'}}>
+                                        {`${(file.size / 1024).toFixed(2)} KB`}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleRemoveAttachment(index)}
+                                    style={{width: 32, height: 32, background: 'white', border: '1px solid #E6E6EC', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#8E8E93'}}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            );
+                        })}
+
+                        {/* Uploading files */}
                         {uploadingFiles.map((file, index) => {
                             const isImage = isImageFile(file);
                             const previewUrl = isImage ? URL.createObjectURL(file) : null;
@@ -3007,20 +2793,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 )}
 
                 {/* Document Attachments Banner - Hide when loading/streaming */}
-                {(attachedDocuments.length > 0 || (messages.length > 0 && messages[messages.length - 1]?.role === 'user' && messages[messages.length - 1]?.attachedFiles?.length > 0)) && !isLoading && !isStreaming && uploadingFiles.length === 0 && (
+                {(attachedDocuments.length > 0 || (messages.length > 0 && messages[messages.length - 1]?.role === 'user' && messages[messages.length - 1]?.attachedFiles?.length > 0)) && !isLoading && !isStreaming && (
                     <div
-                        onMouseEnter={() => {
-                            const docs = attachedDocuments.length > 0
-                                ? attachedDocuments
-                                : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                            if (docs.length > 0 && docs[0].id) {
-                                preloadPreview({
-                                    id: docs[0].id,
-                                    filename: docs[0].name,
-                                    mimeType: docs[0].type
-                                });
-                            }
-                        }}
                         onClick={() => {
                             // ✅ FIX #2: Make banner clickable to preview document
                             console.log('🖱️ [BANNER CLICK] Attachment banner clicked');
@@ -3058,10 +2832,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             alignItems: 'center',
                             gap: 12,
                             cursor: 'pointer',  // ✅ Show it's clickable
-                            transition: 'all 0.2s',
-                            pointerEvents: 'auto',
-                            WebkitTapHighlightColor: 'transparent',
-                            userSelect: 'none',
+                            transition: 'all 0.2s'
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.background = '#F9F9FB';
@@ -3138,18 +2909,19 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }}
                     style={{
-                        padding: 13,
+                        padding: 16,
                         background: '#F5F5F5',
                         borderRadius: 18,
                         border: '1px solid #E6E6EC',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 13,
+                        gap: 16,
                         cursor: 'text'
                     }}
                 >
-                    <textarea
+                    <input
                         ref={inputRef}
+                        type="text"
                         placeholder="Ask KODA anything..."
                         value={message}
                         onChange={(e) => {
@@ -3159,14 +2931,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             localStorage.setItem(`koda_draft_${currentConversation?.id || 'new'}`, newValue);
                         }}
                         onPaste={handlePaste}
-                        onKeyDown={(e) => {
-                            // Submit on Enter (without Shift)
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSendMessage();
-                            }
-                            // Allow Shift+Enter for new lines (default behavior)
-                        }}
                         onFocus={(e) => {
                             // Always allow focus, even if disabled
                             if (e.target.disabled) {
@@ -3174,27 +2938,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             }
                         }}
                         autoFocus
-                        rows={1}
                         style={{
                             flex: '1 1 0',
                             background: 'transparent',
                             border: 'none',
                             outline: 'none',
-                            fontSize: 14,
+                            fontSize: 16,
                             color: '#32302C',
-                            cursor: 'text',
-                            resize: 'none',
-                            overflow: 'auto',
-                            minHeight: '20px',
-                            maxHeight: '200px',
-                            lineHeight: '20px',
-                            fontFamily: 'inherit',
-                            transition: 'height 0.1s ease',
-                            padding: 0,
-                            margin: 0
+                            cursor: 'text'
                         }}
                     />
-                    <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                    <div style={{display: 'flex', gap: 6}}>
                         <input
                             ref={fileInputRef}
                             type="file"
@@ -3205,7 +2959,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         />
                         <AttachmentIcon
                             onClick={() => fileInputRef.current?.click()}
-                            style={{width: 24, height: 24, color: '#171717', cursor: 'pointer', flexShrink: 0}}
+                            style={{width: 24, height: 24, color: '#171717', cursor: 'pointer'}}
+                        />
+                        <VoiceInput
+                            onTranscript={handleVoiceTranscript}
+                            disabled={isLoading}
                         />
                     </div>
                     <div style={{width: 1, height: 24, background: 'rgba(85, 83, 78, 0.20)'}} />
@@ -3254,13 +3012,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
                 {/* TASK #10: Trust & Security Footer */}
                 <div style={{
-                    marginTop: 14,
-                    paddingTop: 11,
+                    marginTop: 16,
+                    paddingTop: 12,
                     borderTop: '1px solid rgba(0,0,0,0.06)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 7,
+                    gap: 8,
                     fontSize: 12,
                     color: '#8E8E93'
                 }}>
