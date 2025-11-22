@@ -90,9 +90,16 @@ export const getSignedUploadUrl = async (
     Bucket: bucketName,
     Key: fileName,
     ContentType: mimeType
+    // Note: Do not include ServerSideEncryption here
+    // It causes signature mismatch if frontend doesn't send the header
+    // Encryption can be enforced via bucket policy instead
   });
 
-  const url = await getS3SignedUrl(s3Client, command, { expiresIn });
+  // Generate presigned URL without additional signed headers
+  const url = await getS3SignedUrl(s3Client, command, {
+    expiresIn,
+    unhoistableHeaders: new Set(['x-amz-server-side-encryption'])
+  });
   return url;
 };
 
