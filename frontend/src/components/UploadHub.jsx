@@ -282,18 +282,42 @@ const UploadHub = () => {
 
       // Update uploadingFiles with processing progress
       setUploadingFiles(prev => prev.map(file => {
+        // Handle individual file uploads
         if (file.documentId === data.documentId) {
-          // Use backend progress directly (0-100%)
-          const uiProgress = data.progress;
+          // Map backend processing progress (0-100%) to UI progress (50-100%)
+          // Upload phase uses 0-50%, processing phase uses 50-100%
+          const uiProgress = 50 + (data.progress * 0.5);
 
           console.log(`📊 Updating upload item ${file.file?.name}: backend ${data.progress}% → UI ${uiProgress}% - ${data.message}`);
           return {
             ...file,
             processingProgress: data.progress,
-            progress: uiProgress, // Direct 0-100% mapping
-            statusMessage: data.message || file.statusMessage
+            progress: uiProgress,
+            statusMessage: data.message || file.statusMessage,
+            stage: data.message || file.stage || 'Processing...'
           };
         }
+
+        // Handle folder uploads - check if this document belongs to this folder
+        if (file.isFolder && file.documentIds && file.documentIds.includes(data.documentId)) {
+          const processedCount = file.processedFiles || 0;
+
+          // If this document just completed, increment processed count
+          if (data.progress === 100 || data.stage === 'completed' || data.stage === 'complete') {
+            const newProcessedCount = processedCount + 1;
+            const folderProgress = 50 + ((newProcessedCount / file.totalFiles) * 50);
+
+            console.log(`📊 Folder ${file.folderName}: ${newProcessedCount}/${file.totalFiles} files processed (${folderProgress}%)`);
+
+            return {
+              ...file,
+              processedFiles: newProcessedCount,
+              progress: folderProgress,
+              stage: `Processing... (${newProcessedCount}/${file.totalFiles})`
+            };
+          }
+        }
+
         return file;
       }));
 
@@ -308,10 +332,20 @@ const UploadHub = () => {
 
         console.log(`✅ Completed ${newCompletedCount} of ${totalFiles} files`);
 
-        // Wait 1 second to show 100% before removing
-        setTimeout(() => {
-          setUploadingFiles(prev => prev.filter(f => f.documentId !== data.documentId));
-          console.log('✅ Removed document from upload list');
+        // Check if any folder has completed all its files
+        setUploadingFiles(prev => {
+          const updatedFiles = prev.filter(f => {
+            // Keep individual files if they're not this document
+            if (f.documentId !== data.documentId) {
+              // Check if this is a folder that has completed all files
+              if (f.isFolder && f.documentIds && f.processedFiles === f.totalFiles) {
+                console.log(`✅ Folder ${f.folderName} processing complete (${f.processedFiles}/${f.totalFiles})`);
+                return false; // Remove completed folder
+              }
+              return true; // Keep this file
+            }
+            return false; // Remove this individual file (it's the one that completed)
+          });
 
           // If all files are done, show notification
           if (newCompletedCount === totalFiles && totalFiles > 0) {
@@ -325,7 +359,9 @@ const UploadHub = () => {
               setUploadedCount(0);
             }, 3000);
           }
-        }, 1000);
+
+          return updatedFiles;
+        });
       }
     };
 
@@ -790,7 +826,9 @@ const UploadHub = () => {
                 progress: Math.round(progress),
                 currentFile: fileName,
                 stage: stage || 'Uploading...',
-                status: progress >= 100 ? 'completed' : 'uploading'
+                // Upload phase (0-50%): uploading
+                // Processing phase (50-100%): processing (handled by WebSocket)
+                status: progress >= 50 ? 'processing' : 'uploading'
               };
             }
             return f;
@@ -807,30 +845,28 @@ const UploadHub = () => {
               console.warn(`⚠️ ${failed.length} files failed:`, failed.map(f => f.fileName));
             }
 
-            // SUCCESS: Mark folder as completed
+            // Extract documentIds from successful uploads
+            const documentIds = succeeded.map(r => r.documentId);
+
+            // SUCCESS: S3 upload complete, now processing in background
+            // Keep status as 'processing' - WebSocket events will handle progress 50-100%
+            // Store documentIds to track individual file processing
             setUploadingFiles(prev => prev.map((f) =>
-              (f.isFolder && f.folderName === item.folderName) ? { ...f, status: 'completed', progress: 100 } : f
+              (f.isFolder && f.folderName === item.folderName) ? {
+                ...f,
+                status: 'processing',
+                progress: 50,
+                stage: 'Processing...',
+                documentIds, // Track which documents belong to this folder
+                totalFiles: results.length,
+                processedFiles: 0
+              } : f
             ));
 
-            // Refresh folders and documents to show the newly uploaded data
-            console.log('🔄 Refreshing folders and documents...');
-            try {
-              // ✅ OPTIMIZATION: Use batched endpoint
-              const response = await api.get('/api/batch/initial-data');
-              const docsResponse = { data: { documents: response.data.documents } };
-              const foldersResponse = { data: { folders: response.data.folders } };
-
-              setDocuments(docsResponse.data.documents || []);
-              const allFolders = foldersResponse.data.folders || [];
-              setFolders(allFolders.filter(f =>
-                !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
-              ));
-
-              // Update categories with all folders, excluding "Recently Added"
-              // ✅ No need to setCategories - computed automatically from folders via useMemo
-            } catch (refreshError) {
-              console.error('⚠️ Error refreshing data:', refreshError);
-            }
+            // ✅ Documents and folders will appear INSTANTLY via WebSocket events
+            // Backend emits 'created' event when documents are created
+            // DocumentsContext listens and updates all screens immediately
+            console.log('✅ Upload complete - documents will appear instantly via WebSocket');
           })
           .catch((error) => {
             // ERROR: Mark folder as failed
@@ -842,11 +878,11 @@ const UploadHub = () => {
                 error: error.message || 'Upload failed'
               } : f
             ));
-          })
-          .finally(async () => {
-            // ✅ CLEANUP: ALWAYS remove item from list after delay (success or failure)
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            setUploadingFiles(prev => prev.filter((f) => !(f.isFolder && f.folderName === item.folderName)));
+
+            // Remove failed uploads after delay
+            setTimeout(() => {
+              setUploadingFiles(prev => prev.filter((f) => !(f.isFolder && f.folderName === item.folderName)));
+            }, 3000);
           });
       } else {
         // Handle individual file upload - DIRECT TO GCS!

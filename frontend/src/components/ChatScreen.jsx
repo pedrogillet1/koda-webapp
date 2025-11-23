@@ -23,9 +23,14 @@ const ChatScreen = () => {
             return location.state.newConversation;
         }
 
-        // DON'T load from sessionStorage on mount - always start fresh
-        // This ensures a new conversation is created every time the user visits
-        sessionStorage.removeItem('currentConversationId'); // Clean up old data
+        // ✅ FIX: Load conversation from sessionStorage to persist on refresh
+        const savedConversationId = sessionStorage.getItem('currentConversationId');
+        if (savedConversationId) {
+            // Return a minimal conversation object, will be fully loaded by useEffect
+            hadInitialConversationRef.current = true;
+            return { id: savedConversationId, title: 'Loading...' };
+        }
+
         return null;
     });
 
@@ -38,15 +43,14 @@ const ChatScreen = () => {
         }
     }, [location.state]);
 
-    // DON'T save conversation to sessionStorage - always start fresh on page visit
-    // This ensures users get a new "New Chat" every time they visit
-    // useEffect(() => {
-    //     if (currentConversation?.id) {
-    //         sessionStorage.setItem('currentConversationId', currentConversation.id);
-    //     } else {
-    //         sessionStorage.removeItem('currentConversationId');
-    //     }
-    // }, [currentConversation]);
+    // ✅ FIX: Save conversation to sessionStorage to persist on refresh
+    useEffect(() => {
+        if (currentConversation?.id) {
+            sessionStorage.setItem('currentConversationId', currentConversation.id);
+        } else {
+            sessionStorage.removeItem('currentConversationId');
+        }
+    }, [currentConversation]);
 
     // ✅ FIX #2: Create a new conversation on first visit if none exists
     // ✅ OPTIMISTIC LOADING: Non-blocking conversation creation

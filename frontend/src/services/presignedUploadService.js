@@ -1,4 +1,5 @@
-import axios from 'axios';
+import api from './api';
+import axios from 'axios'; // For direct S3 uploads only
 // TODO: Implement client-side encryption
 // import { encryptFile } from './encryption';
 
@@ -39,7 +40,7 @@ class PresignedUploadService {
         relativePath: file.webkitRelativePath || null
       }));
 
-      const { data } = await axios.post('/api/presigned-urls/bulk', {
+      const { data } = await api.post('/api/presigned-urls/bulk', {
         files: urlRequests,
         folderId
       });
@@ -70,7 +71,7 @@ class PresignedUploadService {
       console.log(`📢 Notifying backend of ${successfulUploads.length} successful uploads...`);
 
       if (successfulUploads.length > 0) {
-        await axios.post('/api/presigned-urls/complete', {
+        await api.post('/api/presigned-urls/complete', {
           documentIds: successfulUploads.map(r => r.documentId)
         });
       }
@@ -112,30 +113,45 @@ class PresignedUploadService {
     console.log(`📦 Created ${batches.length} batches (${this.maxConcurrentUploads} files per batch)`);
 
     const results = [];
+    let completedCount = 0;
+
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
       console.log(`\n🚀 Batch ${batchIndex + 1}/${batches.length} (${batch.files.length} files)`);
 
       // Upload all files in batch concurrently
-      const batchResults = await Promise.all(
-        batch.files.map((file, idx) =>
-          this.uploadSingleFile(
-            file,
-            batch.urls[idx],
-            batch.ids[idx],
-            batch.filenames[idx],
-            (progress, stage) => {
-              if (onProgress) {
-                const completedFiles = results.length + idx;
-                const overallProgress = (completedFiles / files.length) * 100;
-                onProgress(overallProgress, file.name, stage);
-              }
+      const batchPromises = batch.files.map((file, batchIdx) =>
+        this.uploadSingleFile(
+          file,
+          batch.urls[batchIdx],
+          batch.ids[batchIdx],
+          batch.filenames[batchIdx],
+          null // No per-file progress tracking
+        ).then(result => {
+          // When each file completes, update overall progress
+          if (result.success) {
+            completedCount++;
+            if (onProgress) {
+              // Upload phase is 0-50% (files uploaded to S3)
+              // Processing phase is 50-100% (handled by WebSocket updates)
+              const uploadProgress = (completedCount / files.length) * 50; // Cap at 50%
+              const stage = completedCount === files.length ? 'Processing...' : `Uploading (${completedCount}/${files.length})`;
+              onProgress(uploadProgress, '', stage);
             }
-          )
-        )
+          }
+          return result;
+        })
       );
 
+      const batchResults = await Promise.all(batchPromises);
       results.push(...batchResults);
+    }
+
+    // Final progress update - cap at 50% (upload phase complete)
+    if (onProgress) {
+      const successfulUploads = results.filter(r => r.success).length;
+      const uploadProgress = (successfulUploads / files.length) * 50; // Cap at 50%
+      onProgress(uploadProgress, '', 'Processing...');
     }
 
     return results;
@@ -166,8 +182,8 @@ class PresignedUploadService {
 
         const response = await axios.put(presignedUrl, file, {
           headers: {
-            'Content-Type': file.type
-            // No additional headers needed for S3
+            'Content-Type': file.type,
+            'x-amz-server-side-encryption': 'AES256' // Required - matches presigned URL signature
           },
           onUploadProgress: (progressEvent) => {
             if (onProgress && progressEvent.total) {

@@ -138,13 +138,20 @@ let documentWorker: Worker<DocumentProcessingJob> | null = null;
 // Only initialize if Redis is available
 if (redisConnection) {
   try {
+    // Use Upstash Redis connection settings
+    const redisConfig = {
+      host: 'internal-squid-40146.upstash.io',
+      port: 6379,
+      password: process.env.UPSTASH_REDIS_REST_TOKEN,
+      tls: {
+        rejectUnauthorized: false,
+      },
+      maxRetriesPerRequest: null, // Required by BullMQ
+    };
+
     // Create document processing queue
     documentQueue = new Queue<DocumentProcessingJob>('document-processing', {
-      connection: {
-        host: config.REDIS_HOST,
-        port: config.REDIS_PORT,
-        password: config.REDIS_PASSWORD || undefined,
-      },
+      connection: redisConfig,
       defaultJobOptions: {
         attempts: 3,
         backoff: {
@@ -211,11 +218,18 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
     let markdownContent = null;
     let markdownStructure = null;
     let images: string[] = [];
-    let metadata: { pageCount?: number; wordCount?: number; sheetCount?: number; slideCount?: number } = {};
+    let metadata: {
+      pageCount?: number;
+      wordCount?: number;
+      sheetCount?: number;
+      slideCount?: number;
+      slidesData?: any;
+      pptxMetadata?: any;
+    } = {};
     let pdfConversionPath: string | null = null;
 
-    // Run text extraction, markdown conversion, and DOCX->PDF conversion in parallel
-    const [textResult, markdownResult, docxConversionResult] = await Promise.allSettled([
+    // Run text extraction, markdown conversion, DOCX->PDF conversion, and PowerPoint extraction in parallel
+    const [textResult, markdownResult, docxConversionResult, pptxResult] = await Promise.allSettled([
       // Task 1: Extract text from document
       (async () => {
         console.log(`📝 [DOC:${documentId}] Extracting text from ${mimeType}...`);
@@ -298,6 +312,62 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
           return null;
         }
       })(),
+
+      // Task 4: Extract PowerPoint slides data
+      (async () => {
+        const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+        if (!isPPTX) {
+          return null; // Skip if not PowerPoint
+        }
+
+        console.log(`📊 [DOC:${documentId}] PowerPoint detected - extracting slides data...`);
+        try {
+          const crypto = await import('crypto');
+          const fs = await import('fs');
+          const path = await import('path');
+          const os = await import('os');
+
+          // Save file buffer to temporary file
+          const tempDir = os.tmpdir();
+          const tempFilePath = path.join(tempDir, `pptx-${crypto.randomUUID()}.pptx`);
+          fs.writeFileSync(tempFilePath, fileBuffer);
+
+          // Import and use PPTX extractor
+          const { pptxExtractorService } = await import('../services/pptxExtractor.service');
+          const result = await pptxExtractorService.extractText(tempFilePath);
+
+          if (result.success) {
+            const extractedSlides = result.slides || [];
+            const pptxMetadata = result.metadata || {};
+            const totalSlides = result.totalSlides || 0;
+
+            // Store slide text data (images will be added later by background task)
+            const slidesData = extractedSlides.map((slide: any) => ({
+              slideNumber: slide.slide_number,
+              content: slide.content,
+              textCount: slide.text_count,
+              imageUrl: null, // Will be updated later if images are generated
+            }));
+
+            console.log(`✅ [DOC:${documentId}] Extracted ${slidesData.length} slides from PowerPoint`);
+
+            // Clean up temp file
+            fs.unlinkSync(tempFilePath);
+
+            return {
+              slidesData: JSON.stringify(slidesData),
+              pptxMetadata: JSON.stringify(pptxMetadata),
+              slideCount: totalSlides,
+            };
+          } else {
+            console.warn(`⚠️  [DOC:${documentId}] PowerPoint extraction failed: ${result.error}`);
+            return null;
+          }
+        } catch (error) {
+          console.warn(`⚠️  [DOC:${documentId}] PowerPoint extraction error: ${(error as Error).message}`);
+          return null;
+        }
+      })(),
     ]);
 
     // Extract results from parallel execution
@@ -316,6 +386,14 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 
     if (docxConversionResult.status === 'fulfilled' && docxConversionResult.value) {
       pdfConversionPath = docxConversionResult.value;
+    }
+
+    if (pptxResult.status === 'fulfilled' && pptxResult.value) {
+      metadata.slidesData = pptxResult.value.slidesData;
+      metadata.pptxMetadata = pptxResult.value.pptxMetadata;
+      if (pptxResult.value.slideCount) {
+        metadata.slideCount = pptxResult.value.slideCount;
+      }
     }
 
     await job.updateProgress(70);
@@ -392,6 +470,8 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
           wordCount: metadata.wordCount || null,
           sheetCount: metadata.sheetCount || null,
           slideCount: metadata.slideCount || null,
+          slidesData: metadata.slidesData || null,
+          pptxMetadata: metadata.pptxMetadata || null,
         },
         update: {
           extractedText,
@@ -405,6 +485,8 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
           wordCount: metadata.wordCount || null,
           sheetCount: metadata.sheetCount || null,
           slideCount: metadata.slideCount || null,
+          slidesData: metadata.slidesData || null,
+          pptxMetadata: metadata.pptxMetadata || null,
         },
       });
 
@@ -438,6 +520,98 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       data: { status: 'completed' },
     });
     console.log(`✅ [DOC:${documentId}] Status updated to completed (after embeddings stored)`);
+
+    // 🖼️ POWERPOINT: Extract slide images in background (non-blocking)
+    const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    if (isPPTX && metadata.slidesData) {
+      console.log(`🖼️  [DOC:${documentId}] Starting PowerPoint image extraction in background...`);
+
+      // Run in background without blocking
+      (async () => {
+        try {
+          const crypto = await import('crypto');
+          const fs = await import('fs');
+          const path = await import('path');
+          const os = await import('os');
+
+          // Download file from S3
+          const pptxBuffer = await downloadFile(encryptedFilename);
+
+          // Save to temp file
+          const tempDir = os.tmpdir();
+          const tempFilePath = path.join(tempDir, `pptx-img-${crypto.randomUUID()}.pptx`);
+          fs.writeFileSync(tempFilePath, pptxBuffer);
+
+          // Extract images
+          const { PPTXImageExtractorService } = await import('../services/pptxImageExtractor.service');
+          const extractor = new PPTXImageExtractorService();
+
+          const imageResult = await extractor.extractImages(
+            tempFilePath,
+            documentId,
+            {
+              uploadToGCS: true,
+              signedUrlExpiration: 604800 // 7 days
+            }
+          );
+
+          if (imageResult.success && imageResult.slides && imageResult.slides.length > 0) {
+            console.log(`✅ [DOC:${documentId}] Extracted ${imageResult.totalImages} images from ${imageResult.slides.length} slides`);
+
+            // Fetch existing slidesData
+            const existingMetadata = await prisma.documentMetadata.findUnique({
+              where: { documentId }
+            });
+
+            let existingSlidesData: any[] = [];
+            try {
+              if (existingMetadata?.slidesData) {
+                existingSlidesData = typeof existingMetadata.slidesData === 'string'
+                  ? JSON.parse(existingMetadata.slidesData)
+                  : existingMetadata.slidesData as any[];
+              }
+            } catch (e) {
+              console.warn(`⚠️  [DOC:${documentId}] Failed to parse existing slidesData`);
+            }
+
+            // Merge extracted images with existing slide data
+            const mergedSlidesData = existingSlidesData.map((existingSlide: any) => {
+              const slideNum = existingSlide.slideNumber || existingSlide.slide_number;
+              const extractedSlide = imageResult.slides!.find((s: any) => s.slideNumber === slideNum);
+
+              // Use composite image if available, otherwise first image
+              const imageUrl = extractedSlide?.compositeImageUrl
+                || (extractedSlide?.images && extractedSlide.images.length > 0
+                    ? extractedSlide.images[0].imageUrl
+                    : null);
+
+              return {
+                slideNumber: slideNum,
+                content: existingSlide.content || '',
+                textCount: existingSlide.textCount || existingSlide.text_count || 0,
+                imageUrl: imageUrl || existingSlide.imageUrl
+              };
+            });
+
+            // Update metadata with image URLs
+            await prisma.documentMetadata.update({
+              where: { documentId },
+              data: {
+                slidesData: JSON.stringify(mergedSlidesData)
+              }
+            });
+
+            console.log(`✅ [DOC:${documentId}] Updated slidesData with image URLs`);
+          }
+
+          // Clean up temp file
+          fs.unlinkSync(tempFilePath);
+
+        } catch (error) {
+          console.error(`❌ [DOC:${documentId}] PowerPoint image extraction failed:`, error);
+        }
+      })();
+    }
 
     // ⚡ FIX: Emit processing-complete event with delay to ensure Supabase commit completes
     setTimeout(() => {
@@ -500,15 +674,22 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 // Create worker only if queue is available
 if (documentQueue && redisConnection) {
   try {
+    // Use Upstash Redis connection settings
+    const redisConfig = {
+      host: 'internal-squid-40146.upstash.io',
+      port: 6379,
+      password: process.env.UPSTASH_REDIS_REST_TOKEN,
+      tls: {
+        rejectUnauthorized: false,
+      },
+      maxRetriesPerRequest: null, // Required by BullMQ
+    };
+
     documentWorker = new Worker<DocumentProcessingJob>(
       'document-processing',
       processDocument,
       {
-        connection: {
-          host: config.REDIS_HOST,
-          port: config.REDIS_PORT,
-          password: config.REDIS_PASSWORD || undefined,
-        },
+        connection: redisConfig,
         concurrency: 10, // Process 10 documents simultaneously for 10x throughput
       }
     );
