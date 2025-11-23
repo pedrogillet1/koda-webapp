@@ -220,12 +220,12 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
     console.log(`✅ [Server-Side] File encrypted successfully (${encryptedFileBuffer.length} bytes)`);
   }
 
-  // Upload encrypted file to Supabase Storage
-  console.log(`📤 Uploading to Supabase: ${encryptedFilename} (${encryptedFileBuffer.length} bytes)`);
-  const supabaseStart = Date.now();
+  // ✅ FIX: Upload encrypted file to S3 Storage
+  console.log(`📤 Uploading to S3: ${encryptedFilename} (${encryptedFileBuffer.length} bytes)`);
+  const uploadStart = Date.now();
   await uploadFile(encryptedFilename, encryptedFileBuffer, mimeType);
-  console.log(`⏱️  Supabase upload took: ${Date.now() - supabaseStart}ms`);
-  console.log(`✅ Uploaded to Supabase: ${encryptedFilename} (${encryptedFileBuffer.length} bytes)`);
+  console.log(`⏱️  S3 upload took: ${Date.now() - uploadStart}ms`);
+  console.log(`✅ Uploaded to S3: ${encryptedFilename} (${encryptedFileBuffer.length} bytes)`);
 
   // Thumbnail generation disabled - set to null
   const thumbnailUrl: string | null = null;
@@ -828,7 +828,6 @@ async function processDocumentWithTimeout(
       console.log('📄 Pre-generating PDF preview for DOCX...');
       try {
         const { convertDocxToPdf } = await import('./docx-converter.service');
-        const supabaseStorageService = await import('./supabaseStorage.service');
 
         // Get the document info
         const document = await prisma.document.findUnique({
@@ -842,8 +841,8 @@ async function processDocumentWithTimeout(
 
         const pdfKey = `${document.userId}/${documentId}-converted.pdf`;
 
-        // Check if PDF already exists in Supabase
-        const pdfExists = await supabaseStorageService.default.exists(pdfKey);
+        // ✅ FIX: Check if PDF already exists in S3
+        const pdfExists = await fileExists(pdfKey);
 
         if (!pdfExists) {
           // Save DOCX to temp file
@@ -854,7 +853,7 @@ async function processDocumentWithTimeout(
           const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
 
           if (conversion.success && conversion.pdfPath) {
-            // Upload PDF to Supabase
+            // ✅ FIX: Upload PDF to S3
             const pdfBuffer = fs.readFileSync(conversion.pdfPath);
             await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
 
@@ -1816,14 +1815,13 @@ async function processDocumentAsync(
       console.log('📄 Pre-generating PDF preview for DOCX...');
       try {
         const { convertDocxToPdf } = await import('./docx-converter.service');
-        const supabaseStorageService = await import('./supabaseStorage.service');
 
-        // REASON: Use the correct PDF path format
-        // WHY: DOCX files are converted to PDF and stored as `${userId}/${documentId}-converted.pdf`
+        // ✅ FIX: Use the correct PDF path format
+        // DOCX files are converted to PDF and stored as `${userId}/${documentId}-converted.pdf`
         const pdfKey = `${userId}/${documentId}-converted.pdf`;
 
-        // Check if PDF already exists in Supabase
-        const pdfExists = await supabaseStorageService.default.exists(pdfKey);
+        // ✅ FIX: Check if PDF already exists in S3
+        const pdfExists = await fileExists(pdfKey);
 
         if (!pdfExists) {
           // Save DOCX to temp file
@@ -1834,7 +1832,7 @@ async function processDocumentAsync(
           const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
 
           if (conversion.success && conversion.pdfPath) {
-            // Upload PDF to Supabase
+            // ✅ FIX: Upload PDF to S3
             const pdfBuffer = fs.readFileSync(conversion.pdfPath);
             await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
 
@@ -2462,9 +2460,9 @@ export const streamDocument = async (documentId: string, userId: string) => {
     };
   }
 
-  console.log(`⬇️ [CACHE MISS] Downloading document ${documentId} from Supabase...`);
+  console.log(`⬇️ [CACHE MISS] Downloading document ${documentId} from S3...`);
 
-  // Download file from Supabase
+  // ✅ FIX: Download file from S3
   const encryptedBuffer = await downloadFile(document.encryptedFilename);
 
   // Decrypt if encrypted
@@ -2512,26 +2510,22 @@ export const streamPreviewPdf = async (documentId: string, userId: string) => {
     throw new Error('Unauthorized access to document');
   }
 
-  // REASON: Build the PDF key (same format as in getDocumentPreview)
-  // WHY: DOCX files are converted to PDF and stored as `${userId}/${documentId}-converted.pdf`
-  // This matches the path used in document.queue.ts line 242
+  // ✅ FIX: Build the PDF key (same format as in getDocumentPreview)
+  // DOCX files are converted to PDF and stored as `${userId}/${documentId}-converted.pdf`
   const pdfKey = `${userId}/${documentId}-converted.pdf`;
   console.log(`📄 [streamPreviewPdf] Looking for PDF at: ${pdfKey}`);
 
-  // REASON: Check if the PDF version exists in storage
-  // WHY: The PDF might not be converted yet
-  const supabaseStorageService = await import('./supabaseStorage.service');
-  const pdfExists = await supabaseStorageService.default.exists(pdfKey);
+  // ✅ FIX: Check if the PDF version exists in S3 storage
+  const pdfExistsInS3 = await fileExists(pdfKey);
 
-  console.log(`📄 [streamPreviewPdf] PDF exists in Supabase: ${pdfExists}`);
+  console.log(`📄 [streamPreviewPdf] PDF exists in S3: ${pdfExistsInS3}`);
 
-  if (!pdfExists) {
+  if (!pdfExistsInS3) {
     console.error(`❌ [streamPreviewPdf] PDF not found at ${pdfKey}. Document may need reprocessing.`);
-    throw new Error(`PDF preview not available. This document was uploaded before the Supabase migration and needs to be re-uploaded or reprocessed. Please delete and re-upload this document.`);
+    throw new Error(`PDF preview not available. This document may need to be reprocessed. Please try re-uploading this document.`);
   }
 
-  // REASON: Download the converted PDF from Supabase Storage
-  // WHY: We need the file buffer to stream it to the client
+  // ✅ FIX: Download the converted PDF from S3 Storage
   const pdfBuffer = await downloadFile(pdfKey);
 
   // REASON: Validate PDF buffer
@@ -3008,9 +3002,9 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
     if (!pdfExists) {
       console.log('📄 PDF not found, converting DOCX to PDF...');
 
-      // Download DOCX from Supabase Storage
+      // ✅ FIX: Download DOCX from S3 Storage
       const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
-      console.log(`⬇️  Downloading DOCX from Supabase Storage: ${document.encryptedFilename}`);
+      console.log(`⬇️  Downloading DOCX from S3 Storage: ${document.encryptedFilename}`);
       let docxBuffer = await downloadFile(document.encryptedFilename);
 
       // ✅ Validate that the downloaded buffer is not empty
@@ -3040,11 +3034,11 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
       const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
 
       if (conversion.success && conversion.pdfPath) {
-        // Upload PDF to Supabase Storage
+        // ✅ FIX: Upload PDF to S3 Storage
         const pdfBuffer = fs.readFileSync(conversion.pdfPath);
         await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
 
-        console.log('✅ PDF uploaded to Supabase Storage:', pdfKey);
+        console.log('✅ PDF uploaded to S3 Storage:', pdfKey);
 
         // Clean up temp files
         fs.unlinkSync(tempDocxPath);
@@ -3055,7 +3049,7 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
     }
 
     // Return backend preview endpoint URL
-    // PDF.js will fetch from our backend which streams from Supabase
+    // PDF.js will fetch from our backend which streams from S3
     return {
       previewType: 'pdf',
       previewUrl: `/api/documents/${documentId}/preview-pdf`,
@@ -3090,8 +3084,8 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   // PDF FILES: Generate signed URL with 1-hour expiration
   // ═══════════════════════════════════════════════════════════════════════════
   if (document.mimeType === 'application/pdf') {
-    // REASON: Generate signed URL with 1-hour expiration
-    // WHY: Supabase storage requires signed URLs for private files
+    // ✅ FIX: Generate signed URL with 1-hour expiration
+    // S3 storage requires signed URLs for private files
     // This creates a temporary, secure link that expires automatically
     const url = await getSignedUrl(document.encryptedFilename, 3600);
 

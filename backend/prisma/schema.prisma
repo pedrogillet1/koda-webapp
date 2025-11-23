@@ -214,7 +214,7 @@ model Document {
 
   // Relations
   user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folder            Folder?               @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  folder            Folder?               @relation(fields: [folderId], references: [id], onDelete: Cascade)
   parentVersion     Document?             @relation("DocumentVersions", fields: [parentVersionId], references: [id], onDelete: SetNull)
   versions          Document[]            @relation("DocumentVersions")
   metadata          DocumentMetadata?

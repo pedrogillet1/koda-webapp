@@ -1,46 +1,24 @@
-import { Redis } from 'ioredis';
+import { Redis } from '@upstash/redis';
 import { config } from './env';
 
 let redisConnection: Redis | null = null;
 
 try {
-  // Railway sets REDIS_URL, local dev uses REDIS_HOST/REDIS_PORT
-  const redisUrl = process.env.REDIS_URL;
-
-  if (redisUrl) {
-    // Use REDIS_URL for Railway/production
-    console.log('🔗 Connecting to Redis using REDIS_URL...');
-    redisConnection = new Redis(redisUrl, {
-      maxRetriesPerRequest: null, // Required for BullMQ
-      lazyConnect: true,
-    });
-  } else {
-    // Use host/port for local development
-    console.log('🔗 Connecting to Redis using REDIS_HOST/PORT...');
+  // Check if Upstash Redis REST credentials are available
+  if (config.UPSTASH_REDIS_REST_URL && config.UPSTASH_REDIS_REST_TOKEN) {
+    console.log('🔗 Connecting to Upstash Redis using REST API...');
     redisConnection = new Redis({
-      host: config.REDIS_HOST,
-      port: config.REDIS_PORT,
-      password: config.REDIS_PASSWORD || undefined,
-      maxRetriesPerRequest: null, // Required for BullMQ
-      lazyConnect: true,
+      url: config.UPSTASH_REDIS_REST_URL,
+      token: config.UPSTASH_REDIS_REST_TOKEN,
     });
-  }
-
-  redisConnection.on('connect', () => {
-    console.log('✅ Redis connected');
-  });
-
-  redisConnection.on('error', (error) => {
-    console.warn('⚠️  Redis connection error (continuing without Redis):', error.message);
-  });
-
-  // Try to connect
-  redisConnection.connect().catch((err) => {
-    console.warn('⚠️  Redis not available (continuing without background jobs):', err.message);
+    console.log('✅ Upstash Redis REST client initialized');
+  } else {
+    console.warn('⚠️  Upstash Redis credentials not found in environment variables');
+    console.warn('⚠️  Background job processing will be disabled');
     redisConnection = null;
-  });
+  }
 } catch (error) {
-  console.warn('⚠️  Redis initialization failed (continuing without Redis)');
+  console.warn('⚠️  Redis initialization failed (continuing without Redis):', (error as Error).message);
   redisConnection = null;
 }
 

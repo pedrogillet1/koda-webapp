@@ -21,6 +21,8 @@ interface EnvConfig {
   REDIS_HOST: string;
   REDIS_PORT: number;
   REDIS_PASSWORD: string;
+  UPSTASH_REDIS_REST_URL: string;
+  UPSTASH_REDIS_REST_TOKEN: string;
   RESEND_API_KEY: string;
   SENDGRID_API_KEY: string;
   TWILIO_ACCOUNT_SID: string;
@@ -63,6 +65,8 @@ export const config: EnvConfig = {
   REDIS_HOST: process.env.REDIS_HOST || 'localhost',
   REDIS_PORT: parseInt(process.env.REDIS_PORT || '6379', 10),
   REDIS_PASSWORD: getEnvVar('REDIS_PASSWORD', false),
+  UPSTASH_REDIS_REST_URL: getEnvVar('UPSTASH_REDIS_REST_URL', false),
+  UPSTASH_REDIS_REST_TOKEN: getEnvVar('UPSTASH_REDIS_REST_TOKEN', false),
   RESEND_API_KEY: getEnvVar('RESEND_API_KEY', false),
   SENDGRID_API_KEY: getEnvVar('SENDGRID_API_KEY', false),
   TWILIO_ACCOUNT_SID: getEnvVar('TWILIO_ACCOUNT_SID', false),

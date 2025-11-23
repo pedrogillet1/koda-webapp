@@ -2,6 +2,123 @@ import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { addDocumentProcessingJob } from '../queues/document.queue';
 import { generatePresignedUploadUrl } from '../config/storage';
+import { emitDocumentEvent } from '../services/websocket.service';
+
+/**
+ * Helper function to create folder hierarchy from relative paths
+ * @param files - Array of file objects with relativePath
+ * @param userId - User ID
+ * @param rootFolderId - Optional root folder ID to create structure under
+ * @returns Map of relative path to folder ID
+ */
+async function createFolderHierarchy(
+  files: Array<{ relativePath?: string | null }>,
+  userId: string,
+  rootFolderId?: string | null
+): Promise<Map<string, string>> {
+  const folderMap = new Map<string, string>();
+
+  // If rootFolderId is provided, add it to the map for empty paths
+  if (rootFolderId) {
+    folderMap.set('', rootFolderId);
+  }
+
+  // Extract all unique folder paths from files
+  const folderPaths = new Set<string>();
+
+  for (const file of files) {
+    if (!file.relativePath) continue;
+
+    // Extract folder path from relativePath (everything except the filename)
+    // Example: "MyFolder/Subfolder/file.txt" -> "MyFolder/Subfolder"
+    const pathParts = file.relativePath.split('/');
+
+    // Build all parent paths
+    // Example: "A/B/C/file.txt" -> ["A", "A/B", "A/B/C"]
+    for (let i = 0; i < pathParts.length - 1; i++) {
+      const folderPath = pathParts.slice(0, i + 1).join('/');
+      folderPaths.add(folderPath);
+    }
+  }
+
+  if (folderPaths.size === 0) {
+    console.log('📁 No folder structure found in uploaded files');
+    return folderMap;
+  }
+
+  console.log(`📁 Creating folder hierarchy with ${folderPaths.size} folders...`);
+
+  // Sort paths by depth (shallowest first) to create parent folders before children
+  const sortedPaths = Array.from(folderPaths).sort((a, b) => {
+    const depthA = a.split('/').length;
+    const depthB = b.split('/').length;
+    return depthA - depthB;
+  });
+
+  // Create folders in order
+  for (const folderPath of sortedPaths) {
+    const pathParts = folderPath.split('/');
+    const folderName = pathParts[pathParts.length - 1];
+
+    // Get parent folder ID
+    let parentFolderId = rootFolderId || null;
+    if (pathParts.length > 1) {
+      const parentPath = pathParts.slice(0, -1).join('/');
+      parentFolderId = folderMap.get(parentPath) || null;
+    }
+
+    // Build full path for display
+    const fullPath = parentFolderId
+      ? await buildFullPath(parentFolderId, folderName)
+      : `/${folderName}`;
+
+    // Check if folder already exists
+    const existingFolder = await prisma.folder.findFirst({
+      where: {
+        userId,
+        name: folderName,
+        parentFolderId
+      }
+    });
+
+    if (existingFolder) {
+      console.log(`✓ Folder "${folderName}" already exists (ID: ${existingFolder.id})`);
+      folderMap.set(folderPath, existingFolder.id);
+    } else {
+      // Create new folder
+      const newFolder = await prisma.folder.create({
+        data: {
+          userId,
+          name: folderName,
+          parentFolderId,
+          path: fullPath
+        }
+      });
+
+      console.log(`✓ Created folder "${folderName}" (ID: ${newFolder.id}, Path: ${fullPath})`);
+      folderMap.set(folderPath, newFolder.id);
+    }
+  }
+
+  console.log(`✅ Folder hierarchy created: ${folderMap.size} folders`);
+  return folderMap;
+}
+
+/**
+ * Helper function to build full path for a folder
+ */
+async function buildFullPath(parentFolderId: string, folderName: string): Promise<string> {
+  const parent = await prisma.folder.findUnique({
+    where: { id: parentFolderId },
+    select: { path: true }
+  });
+
+  if (!parent || !parent.path) {
+    return `/${folderName}`;
+  }
+
+  return `${parent.path}/${folderName}`;
+}
 
 // Validate AWS S3 configuration
 if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
@@ -46,6 +163,10 @@ export const generateBulkPresignedUrls = async (
       }
     }
 
+    // ✅ NEW: Create folder hierarchy from relative paths
+    const folderMap = await createFolderHierarchy(files, userId, folderId);
+    console.log(`📊 [FOLDERS] Created/found ${folderMap.size} folders in hierarchy`);
+
     // ✅ OPTIMIZATION: Process files in parallel batches of 50 to avoid connection pool exhaustion
     const BATCH_SIZE = 50;
     const results: Array<{
@@ -62,6 +183,18 @@ export const generateBulkPresignedUrls = async (
         batch.map(async (file) => {
           const { fileName, fileType, fileSize, relativePath } = file;
 
+          // ✅ NEW: Determine correct folder ID based on relativePath
+          let targetFolderId = folderId || null;
+          if (relativePath) {
+            // Extract folder path from relativePath
+            // Example: "MyFolder/Subfolder/file.txt" -> "MyFolder/Subfolder"
+            const pathParts = relativePath.split('/');
+            if (pathParts.length > 1) {
+              const folderPath = pathParts.slice(0, -1).join('/');
+              targetFolderId = folderMap.get(folderPath) || targetFolderId;
+            }
+          }
+
           // Generate unique encrypted filename
           const timestamp = Date.now();
           const randomSuffix = Math.random().toString(36).substring(2, 15);
@@ -75,19 +208,18 @@ export const generateBulkPresignedUrls = async (
           );
 
           // Create document record with "uploading" status
+          // Folder structure is preserved via targetFolderId
           const document = await prisma.document.create({
             data: {
               userId,
-              folderId: folderId || null,
+              folderId: targetFolderId,
               filename: fileName,
               encryptedFilename,
               fileSize,
               mimeType: fileType,
+              fileHash: 'pending', // Placeholder - will be calculated after upload
               status: 'uploading',
-              isEncrypted: true,
-              ...(relativePath && {
-                metadata: { relativePath }
-              })
+              isEncrypted: false // Client-side encryption not implemented yet
             }
           });
 
@@ -106,6 +238,10 @@ export const generateBulkPresignedUrls = async (
     console.log(`✅ Generated ${results.length} presigned URLs successfully in ${duration}ms`);
     console.log(`📊 [METRICS] URL generation speed: ${(results.length / (duration / 1000)).toFixed(2)} URLs/second`);
     console.log(`📊 [METRICS] Memory usage: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB`);
+
+    // 🔔 Emit WebSocket event to notify UI of new documents (with "uploading" status)
+    console.log(`🔔 Notifying UI: ${results.length} documents created (status: uploading)`);
+    emitDocumentEvent(userId, 'created');
 
     res.status(200).json({
       presignedUrls: results.map(r => r.presignedUrl),
@@ -151,8 +287,8 @@ export const completeBatchUpload = async (
         status: 'uploading'
       },
       data: {
-        status: 'processing',
-        uploadedAt: new Date()
+        status: 'processing'
+        // updatedAt is automatically set by Prisma
       }
     });
 
@@ -199,6 +335,10 @@ export const completeBatchUpload = async (
     }
     console.log(`📊 [METRICS] Queue processing speed: ${(queuedCount / (duration / 1000)).toFixed(2)} jobs/second`);
     console.log(`📊 [METRICS] Worker will process 10 documents concurrently (10x throughput)`);
+
+    // 🔔 Emit WebSocket event to notify UI that documents are now processing
+    console.log(`🔔 Notifying UI: ${updateResult.count} documents updated to processing status`);
+    emitDocumentEvent(userId, 'updated');
 
     res.status(200).json({
       success: true,
