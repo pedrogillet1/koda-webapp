@@ -33,7 +33,8 @@ export const DocumentsProvider = ({ children }) => {
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/documents');
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/api/documents?_t=${timestamp}`);
       const fetchedDocs = response.data.documents || [];
 
       console.log('\n📄 FETCHED DOCUMENTS:', fetchedDocs.length, 'total');
