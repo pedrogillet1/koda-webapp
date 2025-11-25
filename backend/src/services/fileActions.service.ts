@@ -321,10 +321,11 @@ class FileActionsService {
     }
 
     // STEP 4: Try enhanced fuzzy matching (fast, local)
+    // FIX #5: Lowered threshold from 0.6 to 0.5 for better matching of partial names
     const fuzzyMatch = fuzzyMatchService.findBestMatch(
       filename,
       allDocuments,
-      0.6 // 60% similarity threshold
+      0.5 // 50% similarity threshold
     );
 
     if (fuzzyMatch) {
@@ -340,7 +341,8 @@ class FileActionsService {
       const bestMatch = matches.bestMatch;
       const matchedDoc = allDocuments.find(d => normalizeFilename(d.filename) === bestMatch.target);
 
-      if (bestMatch.rating >= 0.4 && matchedDoc) {
+      // FIX #5: Lowered threshold from 0.4 to 0.35 for better partial name matching
+      if (bestMatch.rating >= 0.35 && matchedDoc) {
         console.log(`🎯 String similarity match: "${filename}" → "${matchedDoc.filename}" (${bestMatch.rating.toFixed(2)})`);
         return matchedDoc;
       }
@@ -780,7 +782,8 @@ class FileActionsService {
       const bestMatch = matches.bestMatch;
       const matchedFolder = allFolders.find(f => f.name.toLowerCase() === bestMatch.target);
 
-      if (bestMatch.rating >= 0.6 && matchedFolder) {
+      // FIX #5: Lowered threshold from 0.6 to 0.5 for better partial name matching
+      if (bestMatch.rating >= 0.5 && matchedFolder) {
         console.log(`🎯 String similarity match: "${folderName}" → "${matchedFolder.name}" (${bestMatch.rating.toFixed(2)})`);
         return matchedFolder;
       }
@@ -1239,7 +1242,7 @@ class FileActionsService {
       // Group by folder
       const byFolder: Record<string, typeof documents> = {};
       documents.forEach(doc => {
-        const folder = doc.folder?.name || 'Uncategorized';
+        const folder = doc.folder?.name || 'Library';
         if (!byFolder[folder]) byFolder[folder] = [];
         byFolder[folder].push(doc);
       });

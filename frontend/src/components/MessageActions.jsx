@@ -1,5 +1,6 @@
 import React from 'react';
 import './MessageActions.css';
+import copyIcon from '../assets/copy-06.svg';
 
 /**
  * MessageActions Component
@@ -53,7 +54,7 @@ const MessageActions = ({ message, onRegenerate, isRegenerating = false }) => {
         title="Copy to clipboard"
         aria-label="Copy to clipboard"
       >
-        <span className="action-icon">📋</span>
+        <img src={copyIcon} alt="" className="action-icon" style={{ width: 16, height: 16 }} />
         <span className="action-text">Copy</span>
       </button>
     </div>

@@ -100,7 +100,7 @@ class LocationQueryHandler {
    */
   private async formatSingleDocumentResponse(doc: any): Promise<RAGResponse> {
     const folderPath = doc.folder ? await getFolderPath(doc.folder.id) : 'Root';
-    const categoryName = doc.category?.name || 'Uncategorized';
+    const categoryName = doc.category?.name || 'Library';
     const categoryEmoji = doc.category?.emoji || '📁';
 
     const answer = `I found **${doc.filename}**! Here's where it's located:\n\n` +
@@ -143,7 +143,7 @@ class LocationQueryHandler {
     const docDetails = await Promise.all(
       documents.map(async (doc, index) => {
         const folderPath = doc.folder ? await getFolderPath(doc.folder.id) : 'Root';
-        const categoryName = doc.category?.name || 'Uncategorized';
+        const categoryName = doc.category?.name || 'Library';
         const categoryEmoji = doc.category?.emoji || '📁';
 
         return {

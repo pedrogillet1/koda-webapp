@@ -879,11 +879,12 @@ Stay conversational and natural - write like an executive assistant explaining s
     const config = this.getPromptConfigForGoal(goal, answerLength);
 
     // Detect if this is the first message (for greeting logic)
-    // Only greet if conversation history has NO assistant messages
-    const hasAssistantMessages = conversationHistory && conversationHistory.some(msg => msg.role === 'assistant');
-    const isFirstMessage = !hasAssistantMessages;
+    // FIX: Check if conversation has ANY messages (not just assistant messages)
+    // because assistant messages are saved AFTER the response is generated
+    const hasAnyMessages = conversationHistory && conversationHistory.length > 0;
+    const isFirstMessage = !hasAnyMessages;
 
-    console.log(`👋 [GREETING] isFirstMessage: ${isFirstMessage}, conversationHistory length: ${conversationHistory?.length || 0}, hasAssistantMessages: ${hasAssistantMessages}`);
+    console.log(`👋 [GREETING] isFirstMessage: ${isFirstMessage}, conversationHistory length: ${conversationHistory?.length || 0}`);
 
     const greetingInstruction = isFirstMessage
       ? '\n\n**GREETING**: This is the user\'s FIRST message in this conversation. Start your response with a brief, natural greeting like "Hey!" or "Hi there!" Then answer their question.'
@@ -949,12 +950,13 @@ ${context}
     const lengthConfig = this.getLengthConfiguration(answerLength);
     systemPrompt += '\n\n' + lengthConfig.instruction;
 
-    // Add greeting logic - only greet if NO previous assistant messages exist
-    const hasAssistantMessages = options.conversationHistory &&
-      options.conversationHistory.some((msg: any) => msg.role === 'assistant');
-    const shouldGreet = options.isFirstMessage === true || (!hasAssistantMessages && !options.conversationHistory?.length);
+    // Add greeting logic - only greet if conversation is empty
+    // FIX: Check for ANY messages (not just assistant messages)
+    // because assistant messages are saved AFTER the response is generated
+    const hasAnyMessages = options.conversationHistory && options.conversationHistory.length > 0;
+    const shouldGreet = options.isFirstMessage === true || !hasAnyMessages;
 
-    console.log(`👋 [GREETING v2] shouldGreet: ${shouldGreet}, isFirstMessage: ${options.isFirstMessage}, hasAssistantMessages: ${hasAssistantMessages}, historyLength: ${options.conversationHistory?.length || 0}`);
+    console.log(`👋 [GREETING v2] shouldGreet: ${shouldGreet}, isFirstMessage: ${options.isFirstMessage}, historyLength: ${options.conversationHistory?.length || 0}`);
 
     if (shouldGreet) {
       systemPrompt += '\n\n**GREETING REQUIRED**: This is the user\'s FIRST message. Start with a brief, natural greeting like "Hey!" or "Hi there!" before answering.';

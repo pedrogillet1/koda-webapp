@@ -3,17 +3,11 @@
 .message-actions {
   display: flex;
   gap: 8px;
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-color, #e0e0e0);
-  opacity: 0;
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: none;
+  opacity: 1; /* Always visible - matches ChatGPT/Claude standard */
   transition: opacity 0.2s ease;
-}
-
-/* Show actions on hover or when active */
-.message:hover .message-actions,
-.message-actions:focus-within {
-  opacity: 1;
 }
 
 .message-action-btn {
@@ -25,8 +19,9 @@
   border-radius: 6px;
   background: var(--bg-secondary, #f5f5f5);
   color: var(--text-primary, #333);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
 }
