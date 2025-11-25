@@ -1,4 +1,4 @@
-/**
+﻿/**
  * File Actions Service - Phase 4A
  * Handles file and folder operations via natural language
  *
@@ -904,10 +904,36 @@ class FileActionsService {
           }, query);
         }
 
-        // Neither file nor folder found
+        // Neither file nor folder found - provide helpful error
+        const lang = detectLanguage(query);
+
+        // Try to find similar files for suggestions
+        const allDocuments = await prisma.document.findMany({
+          where: {
+            userId: userId,
+            status: { not: 'deleted' },
+          },
+          take: 50 // Limit for performance
+        });
+
+        const matches = fuzzyMatchService.findBestMatch(
+          params.filename,
+          allDocuments,
+          0.3 // Lower threshold for suggestions
+        );
+
+        let suggestionText = '';
+        if (matches) {
+          suggestionText = lang === 'pt'
+            ? `\n\nVoce quis dizer "${matches.document.filename}"?`
+            : `\n\nDid you mean "${matches.document.filename}"?`;
+        }
+
         return {
           success: false,
-          message: `File or folder "${params.oldFilename}" not found`,
+          message: lang === 'pt'
+            ? `Nao encontrei nenhum arquivo ou pasta com o nome "${params.filename}".${suggestionText}`
+            : `I couldn't find any file or folder named "${params.filename}".${suggestionText}`,
           error: 'NOT_FOUND'
         };
       }
@@ -935,10 +961,36 @@ class FileActionsService {
           }, query);
         }
 
-        // Neither file nor folder found
+        // Neither file nor folder found - provide helpful error
+        const lang = detectLanguage(query);
+
+        // Try to find similar files for suggestions
+        const allDocuments = await prisma.document.findMany({
+          where: {
+            userId: userId,
+            status: { not: 'deleted' },
+          },
+          take: 50 // Limit for performance
+        });
+
+        const matches = fuzzyMatchService.findBestMatch(
+          params.filename,
+          allDocuments,
+          0.3 // Lower threshold for suggestions
+        );
+
+        let suggestionText = '';
+        if (matches) {
+          suggestionText = lang === 'pt'
+            ? `\n\nVoce quis dizer "${matches.document.filename}"?`
+            : `\n\nDid you mean "${matches.document.filename}"?`;
+        }
+
         return {
           success: false,
-          message: `File or folder "${params.filename}" not found`,
+          message: lang === 'pt'
+            ? `Nao encontrei nenhum arquivo ou pasta com o nome "${params.filename}".${suggestionText}`
+            : `I couldn't find any file or folder named "${params.filename}".${suggestionText}`,
           error: 'NOT_FOUND'
         };
       }

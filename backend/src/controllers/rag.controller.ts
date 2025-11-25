@@ -825,13 +825,14 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       },
     });
 
-    // Generate RAG answer with answer length control
+    // Generate RAG answer with answer length control and conversation history
     const result = await ragService.generateAnswer(
       userId,
       query,
       conversationId,
       finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
-      cleanDocumentId
+      cleanDocumentId,
+      conversationHistory  // Pass conversation history for context
     );
 
     console.log(`🔍 [RAG CONTROLLER] result.sources:`, JSON.stringify(result.sources?.slice(0, 3), null, 2));
@@ -1614,6 +1615,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.log('🚀 [DEBUG] conversationId:', conversationId);
 
       // ✅ FIX: Use NEW generateAnswerStream (hybrid RAG with document detection + post-processing)
+      // ✅ FIX #1: Pass conversation history for context-aware responses
       const streamResult = await ragService.generateAnswerStream(
         userId,
         query,
@@ -1628,7 +1630,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           if (res.flush) res.flush(); // Force immediate send
           console.log('🚀 [DEBUG] Chunk written and flushed');
         },
-        effectiveDocumentId
+        effectiveDocumentId,
+        conversationHistoryForIntent  // Pass conversation history for context
       );
 
       console.log('🚀 [DEBUG] generateAnswerStream completed');

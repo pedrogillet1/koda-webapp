@@ -2342,11 +2342,11 @@ async function handleConceptComparison(
   }
 
   if (allChunks.length === 0) {
-    const queryLang = detectLanguage(query);
+    const lang = detectLanguage(query);
     const message = ErrorMessagesService.getNotFoundMessage({
       query,
       documentCount: 1, // We know they have documents since we got here
-      language: queryLang as 'en' | 'pt' | 'es' | 'fr',
+      language: lang as 'en' | 'pt' | 'es' | 'fr',
     });
     onChunk(message);
     return { sources: [] };
@@ -3870,12 +3870,21 @@ async function handleRegularQuery(
       chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
     ).join('\n\n---\n\n');
 
+    // DEBUG: Log what's in the chunks
+    console.log(`🔍 [DEBUG] documentContextFromChunks length: ${documentContextFromChunks.length}`);
+    console.log(`🔍 [DEBUG] rerankedChunks[0] keys:`, rerankedChunks[0] ? Object.keys(rerankedChunks[0]) : 'no chunks');
+    if (rerankedChunks[0]?.metadata) {
+      console.log(`🔍 [DEBUG] rerankedChunks[0].metadata keys:`, Object.keys(rerankedChunks[0].metadata));
+      console.log(`🔍 [DEBUG] Sample text (first 200 chars):`, (rerankedChunks[0].metadata.text || rerankedChunks[0].metadata.content || 'EMPTY').substring(0, 200));
+    }
+
     // ✅ NEW: Choose context based on query complexity and document availability
     const finalDocumentContext = (documentContext && fullDocuments.length > 0)
       ? documentContext
-      : documentContextFromChunks;
+      : context; // FIX: Use context variable which has proper text extraction
 
     console.log(`📝 [PROMPT] Using ${complexity} complexity prompt with ${documentContext && fullDocuments.length > 0 ? 'full documents' : 'chunks'}`);
+    console.log(`🔍 [DEBUG] finalDocumentContext length: ${finalDocumentContext.length}`);
 
     // ✅ UNIFIED: Use SystemPrompts service for consistent prompting across all query types
     const systemPrompt = systemPromptsService.getSystemPrompt(
@@ -3894,11 +3903,9 @@ async function handleRegularQuery(
     console.log(`📝 [PROMPT] Generated unified system prompt with ${answerLength} length`);
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // LANGUAGE DETECTION - Ensure response matches query language
+    // LANGUAGE INSTRUCTION - Add language requirement to prompt
     // ═══════════════════════════════════════════════════════════════════════════════
-    // queryLangName already defined above
-                          queryLang === 'es' ? 'Spanish' :
-                          queryLang === 'fr' ? 'French' : 'English';
+    // queryLangName is defined at the beginning of handleRegularQuery (line ~3226)
 
     const languageInstruction = `\n\n**LANGUAGE REQUIREMENT (CRITICAL)**:
 - The user's query is in **${queryLangName}**
@@ -3909,7 +3916,8 @@ async function handleRegularQuery(
     const finalSystemPrompt = systemPrompt + languageInstruction;
     // ═══════════════════════════════════════════════════════════════════════════════
 
-    let fullResponse = await streamLLMResponse(finalSystemPrompt, '', onChunk);
+    // FIX: Pass finalDocumentContext instead of empty string
+    let fullResponse = await streamLLMResponse(finalSystemPrompt, finalDocumentContext, onChunk);
     console.log(`⏱️ [PERF] Generation took ${Date.now() - startTime}ms`);
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -4458,13 +4466,16 @@ export async function generateAnswer(
   userId: string,
   query: string,
   conversationId: string,
-  attachedDocumentId?: string
+  answerLength: 'short' | 'medium' | 'summary' | 'long' = 'medium',
+  attachedDocumentId?: string,
+  conversationHistory?: Array<{ role: string; content: string }>
 ): Promise<{ answer: string; sources: any[] }> {
   console.log('⚠️  [LEGACY] Using non-streaming method (deprecated)');
+  console.log(`📝 [generateAnswer] answerLength: ${answerLength}, conversationHistory: ${conversationHistory?.length || 0} messages`);
 
   let fullAnswer = '';
 
-  // ✅ FIXED: Capture sources from generateAnswerStream
+  // ✅ FIXED: Capture sources from generateAnswerStream and pass conversationHistory
   const result = await generateAnswerStream(
     userId,
     query,
@@ -4472,7 +4483,8 @@ export async function generateAnswer(
     (chunk) => {
       fullAnswer += chunk;
     },
-    attachedDocumentId
+    attachedDocumentId,
+    conversationHistory  // Pass conversation history for context
   );
 
   return {
@@ -4983,5 +4995,4 @@ export default {
   generateAnswerStream,
   generateAnswerStreaming,
 };
-
 
