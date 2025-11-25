@@ -264,6 +264,7 @@ export const completeBatchUpload = async (
 ): Promise<void> => {
   try {
     if (!req.user) {
+      console.error('❌ [completeBatchUpload] Unauthorized: No user in request');
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
@@ -271,7 +272,20 @@ export const completeBatchUpload = async (
     const { documentIds } = req.body;
     const userId = req.user.id;
 
+    // ✅ Enhanced logging for debugging
+    console.log(`📥 [completeBatchUpload] ========================================`);
+    console.log(`📥 [completeBatchUpload] Received request from user: ${userId}`);
+    console.log(`📥 [completeBatchUpload] Number of documents: ${documentIds?.length || 0}`);
+    console.log(`📥 [completeBatchUpload] Document IDs:`, documentIds);
+    console.log(`📥 [completeBatchUpload] Request headers:`, {
+      authorization: req.headers.authorization ? 'Present' : 'Missing',
+      contentType: req.headers['content-type']
+    });
+    console.log(`📥 [completeBatchUpload] ========================================`);
+
     if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
+      console.error(`❌ [completeBatchUpload] Invalid request: documentIds missing or empty`);
+      console.error(`❌ [completeBatchUpload] Request body:`, JSON.stringify(req.body));
       res.status(400).json({ error: 'Document IDs array is required and must not be empty' });
       return;
     }
@@ -349,6 +363,110 @@ export const completeBatchUpload = async (
 
   } catch (error: any) {
     console.error('❌ Error completing batch upload:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Manually trigger processing for documents stuck in "uploading" status
+ * This is a recovery endpoint for when completeBatchUpload fails
+ */
+export const retriggerStuckDocuments = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const userId = req.user.id;
+
+    console.log(`🔄 [retriggerStuckDocuments] Finding stuck documents for user ${userId}...`);
+
+    // Find all documents stuck in "uploading" status for this user
+    const stuckDocuments = await prisma.document.findMany({
+      where: {
+        userId,
+        status: 'uploading',
+        createdAt: {
+          // Only process documents uploaded more than 5 minutes ago
+          lt: new Date(Date.now() - 5 * 60 * 1000)
+        }
+      },
+      select: {
+        id: true,
+        encryptedFilename: true,
+        mimeType: true,
+        filename: true,
+        createdAt: true
+      }
+    });
+
+    console.log(`📊 [retriggerStuckDocuments] Found ${stuckDocuments.length} stuck documents`);
+
+    if (stuckDocuments.length === 0) {
+      res.status(200).json({
+        success: true,
+        message: 'No stuck documents found',
+        count: 0
+      });
+      return;
+    }
+
+    // Update status to "processing"
+    const updateResult = await prisma.document.updateMany({
+      where: {
+        id: { in: stuckDocuments.map(d => d.id) },
+        userId
+      },
+      data: {
+        status: 'processing'
+      }
+    });
+
+    console.log(`✅ [retriggerStuckDocuments] Updated ${updateResult.count} documents to processing`);
+
+    // Queue for background processing
+    let queuedCount = 0;
+    let skippedCount = 0;
+
+    for (const doc of stuckDocuments) {
+      try {
+        await addDocumentProcessingJob({
+          documentId: doc.id,
+          userId,
+          encryptedFilename: doc.encryptedFilename,
+          mimeType: doc.mimeType
+        });
+        queuedCount++;
+        console.log(`✅ [retriggerStuckDocuments] Queued: ${doc.filename}`);
+      } catch (error) {
+        console.error(`❌ [retriggerStuckDocuments] Failed to queue ${doc.id}:`, error);
+        skippedCount++;
+      }
+    }
+
+    console.log(`✅ [retriggerStuckDocuments] Queued ${queuedCount} documents, skipped ${skippedCount}`);
+
+    // Emit WebSocket event
+    emitDocumentEvent(userId, 'updated');
+
+    res.status(200).json({
+      success: true,
+      message: `Retriggered processing for ${queuedCount} stuck documents`,
+      count: queuedCount,
+      skipped: skippedCount,
+      documents: stuckDocuments.map(d => ({
+        id: d.id,
+        filename: d.filename,
+        createdAt: d.createdAt
+      }))
+    });
+
+  } catch (error: any) {
+    console.error('❌ [retriggerStuckDocuments] Error:', error);
     res.status(500).json({ error: error.message });
   }
 };

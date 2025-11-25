@@ -22,6 +22,9 @@ router.post('/conversations/:conversationId/messages', aiLimiter, chatController
 // SSE Streaming endpoint for real-time responses (FASTER: 2-3s to first token!)
 router.post('/conversations/:conversationId/messages/stream', aiLimiter, chatController.sendMessageStreaming);
 
+// Regenerate message endpoint - retry unsatisfactory answers
+router.post('/messages/:messageId/regenerate', aiLimiter, chatController.regenerateMessage);
+
 // Adaptive AI endpoints - intelligent response based on query complexity
 router.post('/conversations/:conversationId/messages/adaptive', aiLimiter, chatController.sendAdaptiveMessage);
 router.post('/conversations/:conversationId/messages/adaptive/stream', aiLimiter, chatController.sendAdaptiveMessageStreaming);

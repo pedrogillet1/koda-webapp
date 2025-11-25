@@ -6,6 +6,7 @@ import { getSignedUploadUrl } from '../config/storage';
 import crypto from 'crypto';
 import { emitDocumentEvent, emitToUser } from '../services/websocket.service';
 import cacheService from '../services/cache.service';
+import { redisConnection } from '../config/redis';
 
 /**
  * Generate signed upload URL for direct-to-GCS upload
@@ -27,18 +28,14 @@ export const getUploadUrl = async (req: Request, res: Response): Promise<void> =
     // Generate unique document ID upfront
     const documentId = crypto.randomUUID();
 
-    // Generate unique encrypted filename for GCS
+    // Generate unique encrypted filename for S3
     const encryptedFilename = `${req.user.id}/${documentId}-${Date.now()}`;
-
-    // Generate GCS URL (public bucket path)
-    const gcsUrl = `https://storage.googleapis.com/${config.GCS_BUCKET_NAME}/${encryptedFilename}`;
 
     // Generate signed upload URL (valid for 10 minutes)
     const uploadUrl = await getSignedUploadUrl(encryptedFilename, fileType, 600);
 
     res.status(200).json({
       uploadUrl,
-      gcsUrl,
       documentId,
       encryptedFilename,
       expiresIn: 600, // seconds
@@ -51,7 +48,7 @@ export const getUploadUrl = async (req: Request, res: Response): Promise<void> =
 };
 
 /**
- * Confirm upload and create document record (called after direct upload to GCS)
+ * Confirm upload and create document record (called after direct upload to S3)
  */
 export const confirmUpload = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -1358,5 +1355,51 @@ export const reindexAllDocuments = async (req: Request, res: Response): Promise<
       success: false,
       error: err.message
     });
+  }
+};
+
+/**
+ * Get document processing progress
+ * Endpoint: GET /api/documents/:documentId/progress
+ */
+export const getDocumentProgress = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { documentId } = req.params;
+    const userId = req.user.id;
+
+    // Verify document belongs to user
+    const document = await documentService.getDocumentById(documentId, userId);
+
+    if (!document) {
+      res.status(404).json({ error: 'Document not found' });
+      return;
+    }
+
+    // Get progress from Redis
+    const progressData = await redisConnection.get(`progress:${documentId}`);
+
+    if (progressData) {
+      const progress = JSON.parse(progressData);
+      res.status(200).json(progress);
+    } else {
+      // No progress data in Redis - return status-based progress
+      const statusProgress: Record<string, any> = {
+        'uploading': { progress: 5, stage: 'uploading', message: 'Uploading to storage...' },
+        'processing': { progress: 50, stage: 'processing', message: 'Processing document...' },
+        'completed': { progress: 100, stage: 'completed', message: 'Processing complete' },
+        'failed': { progress: 0, stage: 'failed', message: 'Processing failed' }
+      };
+
+      res.status(200).json(statusProgress[document.status] || { progress: 0, stage: 'unknown', message: 'Unknown status' });
+    }
+
+  } catch (error: any) {
+    console.error('❌ Error fetching document progress:', error);
+    res.status(500).json({ error: error.message });
   }
 };

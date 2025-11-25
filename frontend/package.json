@@ -4,6 +4,8 @@
   "private": true,
   "dependencies": {
     "@clerk/clerk-react": "^5.49.1",
+    "@tanstack/react-query": "^5.90.10",
+    "@tanstack/react-query-devtools": "^5.91.0",
     "axios": "^1.12.2",
     "jszip": "^3.10.1",
     "lucide-react": "^0.546.0",
@@ -23,6 +25,7 @@
     "remark-emoji": "^4.0.1",
     "remark-gfm": "^4.0.0",
     "socket.io-client": "^4.8.1",
+    "uuid": "^13.0.0",
     "xlsx": "^0.18.5"
   },
   "scripts": {
@@ -47,5 +50,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0"
   }
 }

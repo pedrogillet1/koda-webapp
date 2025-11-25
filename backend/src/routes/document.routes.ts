@@ -30,6 +30,7 @@ router.get('/:id/stream', downloadLimiter, documentController.streamDocument);
 router.get('/:id/preview', downloadLimiter, documentController.getPreview);
 router.get('/:id/preview-pdf', downloadLimiter, documentController.streamPreviewPdf);
 router.get('/:id/status', documentController.getDocumentStatus);
+router.get('/:id/progress', documentController.getDocumentProgress);
 router.get('/:id/thumbnail', documentController.getThumbnail);
 router.get('/:id/slides', documentController.getPPTXSlides);
 router.post('/:id/regenerate-slides', documentController.regeneratePPTXSlides);

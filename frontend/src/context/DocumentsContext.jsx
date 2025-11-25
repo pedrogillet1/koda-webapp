@@ -610,7 +610,7 @@ export const DocumentsProvider = ({ children }) => {
       });
       console.log('🔵 Upload URL response:', uploadUrlResponse.data);
 
-      const { uploadUrl, gcsUrl, documentId, encryptedFilename } = uploadUrlResponse.data;
+      const { uploadUrl, documentId, encryptedFilename } = uploadUrlResponse.data;
 
       // Calculate file hash
       const calculateFileHash = async (file) => {
@@ -623,19 +623,20 @@ export const DocumentsProvider = ({ children }) => {
       const fileHash = await calculateFileHash(file);
       console.log('🔵 File hash calculated:', fileHash);
 
-      // Upload directly to GCS
-      console.log('🔵 Uploading to GCS with Content-Type:', file.type);
-      const gcsResponse = await fetch(uploadUrl, {
+      // Upload directly to S3
+      console.log('🔵 Uploading to S3 with Content-Type:', file.type);
+      const s3Response = await fetch(uploadUrl, {
         method: 'PUT',
         headers: {
-          'Content-Type': file.type
+          'Content-Type': file.type,
+          'x-amz-server-side-encryption': 'AES256' // Required by S3 presigned URL signature
         },
         body: file
       });
-      console.log('🔵 GCS upload response status:', gcsResponse.status, gcsResponse.statusText);
+      console.log('🔵 S3 upload response status:', s3Response.status, s3Response.statusText);
 
-      if (!gcsResponse.ok) {
-        throw new Error(`GCS upload failed: ${gcsResponse.status} ${gcsResponse.statusText}`);
+      if (!s3Response.ok) {
+        throw new Error(`S3 upload failed: ${s3Response.status} ${s3Response.statusText}`);
       }
 
       // Confirm upload with backend - send required metadata
