@@ -4,7 +4,7 @@ import prisma from '../config/database';
 import fileActionsService from './fileActions.service';
 import { actionHistoryService } from './actionHistory.service';
 import * as reasoningService from './reasoning.service';
-import agentLoopService from './agent-loop.service';
+// Agent loop removed - was using pgvector which isn't set up
 import { llmChunkFilterService } from './llm-chunk-filter.service';
 import { gracefulDegradationService } from './graceful-degradation.service';
 import { rerankingService } from './reranking.service';
@@ -18,7 +18,7 @@ import geminiCache from './geminiCache.service';
 import * as queryDecomposition from './query-decomposition.service';
 import * as contradictionDetection from './contradiction-detection.service';
 import * as confidenceScoring from './confidence-scoring.service';
-import { systemPromptsService, detectQueryComplexity } from './systemPrompts.service';
+import { systemPromptsService } from './systemPrompts.service';
 import * as confidenceScore from './confidenceScoring.service';
 import * as fullDocRetrieval from './fullDocumentRetrieval.service';
 import * as contradictionDetectionService from './contradictionDetection.service';
@@ -940,6 +940,12 @@ async function handleMultiStepQuery(
     // Filter deleted documents
     const filteredMatches = await filterDeletedDocuments(results.matches || [], userId);
 
+    // ✅ ISSUE #6 FIX: Boost section matches for section-specific queries
+    const sectionRefs = extractSectionReferences(subQuery);
+    if (sectionRefs.length > 0) {
+      boostSectionMatches(filteredMatches, sectionRefs);
+    }
+
     console.log(`  ✅ Found ${filteredMatches.length} chunks for sub-query ${index + 1}`);
 
     return filteredMatches;
@@ -1063,6 +1069,12 @@ async function iterativeRetrieval(
     });
 
     const filteredMatches = await filterDeletedDocuments(results.matches || [], userId);
+
+    // ✅ ISSUE #6 FIX: Boost section matches for section-specific queries
+    const sectionRefs = extractSectionReferences(currentQuery);
+    if (sectionRefs.length > 0) {
+      boostSectionMatches(filteredMatches, sectionRefs);
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // STEP 2: Observe results
@@ -1946,42 +1958,58 @@ async function extractDocumentMentions(userId: string, query: string): Promise<s
   return matches;
 }
 
-function isDocumentMentioned(queryLower: string, documentName: string): boolean {
-  const docNameLower = documentName.toLowerCase();
-
-  // Remove file extensions for matching (handle double extensions like .md.pdf)
-  const docNameNoExt = docNameLower
-    .replace(/\.md\.pdf$/i, '')     // Remove .md.pdf
-    .replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv|md)$/i, ''); // Remove other extensions
-
-  // ✅ FIX: Replace hyphens and underscores with spaces before splitting
-  // REASON: Filenames like "KODA-MASTER-GUIDE" should split into ["koda", "master", "guide"]
-  const normalized = docNameNoExt
-    .replace(/[-_]+/g, ' ')  // Replace hyphens and underscores with spaces
-    .replace(/\s+/g, ' ')    // Collapse multiple spaces
+/**
+ * Normalize text for fuzzy matching (remove accents, special chars)
+ *
+ * Examples:
+ * - "Capítulo8(FrameworkScrum)" → "capitulo 8 frameworkscrum"
+ * - "Montana-Rocking-CC" → "montana rocking cc"
+ * - "KODA_Master_Guide" → "koda master guide"
+ */
+function normalizeForMatching(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')  // Decompose accented characters (Capítulo → Capitulo)
+    .replace(/[\u0300-\u036f]/g, '')  // Remove diacritics (accents)
+    .replace(/[^a-z0-9\s]/g, ' ')  // Replace special chars with spaces
+    .replace(/\s+/g, ' ')  // Collapse multiple spaces
     .trim();
+}
 
-  // Split into words
-  const docWords = normalized.split(/\s+/).filter(w => w.length > 0);
+function isDocumentMentioned(queryLower: string, documentName: string): boolean {
+  // Remove file extensions
+  const docNameNoExt = documentName
+    .replace(/\.md\.pdf$/i, '')
+    .replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv|md)$/i, '');
 
-  // Check if 60% of words are present
-  const threshold = Math.ceil(docWords.length * 0.6);
+  // Normalize both query and document name (removes accents, special chars)
+  const normalizedQuery = normalizeForMatching(queryLower);
+  const normalizedDoc = normalizeForMatching(docNameNoExt);
+
+  // Split into words (ignore 1-2 character words)
+  const docWords = normalizedDoc.split(/\s+/).filter(w => w.length > 2);
+
+  // Check if 50% of words are present (lowered from 60% for better matching)
+  const threshold = Math.max(1, Math.ceil(docWords.length * 0.5));
   let matchCount = 0;
 
   for (const word of docWords) {
-    // Remove spaces and special chars for flexible matching
-    const cleanWord = word.replace(/[^a-z0-9]/g, '');
-    const cleanQuery = queryLower.replace(/[^a-z0-9\s]/g, '');
-
-    if (cleanQuery.includes(cleanWord)) {
+    if (normalizedQuery.includes(word)) {
       matchCount++;
     }
   }
 
-  const matched = matchCount >= threshold;
+  // BONUS: Also check if the full normalized doc name is a substring of the query
+  // This handles cases like "capitulo 8" matching "capitulo8frameworkscrum"
+  const compactDoc = normalizedDoc.replace(/\s+/g, '');
+  const compactQuery = normalizedQuery.replace(/\s+/g, '');
+  const substringMatch = compactQuery.includes(compactDoc) ||
+                         compactDoc.includes(compactQuery.split(/\s+/).slice(0, 3).join(''));
+
+  const matched = matchCount >= threshold || substringMatch;
 
   if (matched) {
-    console.log(`  ✓ "${documentName}" matched: ${matchCount}/${docWords.length} words (threshold: ${threshold})`);
+    console.log(`  ✓ "${documentName}" matched: ${matchCount}/${docWords.length} words (threshold: ${threshold}) or substring match: ${substringMatch}`);
   }
 
   return matched;
@@ -2013,6 +2041,82 @@ function extractDocumentNames(query: string): string[] {
   const result = words.filter(w => !stopWords.has(w));
   console.log('🔍 [EXTRACT] After filtering stop words:', result);
   return result;
+}
+
+/**
+ * Extract section references from query
+ *
+ * Examples:
+ * - "section 8.2" → ["8.2"]
+ * - "chapter 3" → ["3"]
+ * - "part II" → ["II"]
+ * - "§ 8.2" → ["8.2"]
+ */
+function extractSectionReferences(query: string): string[] {
+  const sections: string[] = [];
+
+  // Match patterns like "section 8.2", "chapter 3", "part II"
+  const patterns = [
+    /section\s+(\d+\.?\d*)/gi,
+    /chapter\s+(\d+)/gi,
+    /part\s+([IVX]+|\d+)/gi,
+    /§\s*(\d+\.?\d*)/g,  // § symbol
+    /capitulo\s+(\d+)/gi,  // Spanish "capítulo"
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(query)) !== null) {
+      sections.push(match[1]);
+    }
+  }
+
+  if (sections.length > 0) {
+    console.log(`📍 [SECTION DETECTION] Found section references: ${sections.join(', ')}`);
+  }
+
+  return sections;
+}
+
+/**
+ * Boost chunks that contain section references
+ * This improves retrieval for queries like "According to section 8.2..."
+ */
+function boostSectionMatches(matches: any[], sectionRefs: string[]): void {
+  if (sectionRefs.length === 0) return;
+
+  console.log(`🎯 [SECTION BOOST] Boosting chunks containing sections: ${sectionRefs.join(', ')}`);
+
+  let boostedCount = 0;
+  for (const match of matches) {
+    const chunkText = match.metadata?.text || match.metadata?.content || '';
+
+    // Check if chunk contains any of the section references
+    for (const sectionRef of sectionRefs) {
+      // Match "section 8.2", "8.2", "§ 8.2", etc.
+      const sectionPattern = new RegExp(
+        `(section|chapter|§|capitulo|\\b)\\s*${sectionRef.replace('.', '\\.')}\\b`,
+        'i'
+      );
+
+      if (sectionPattern.test(chunkText)) {
+        // Boost score by 30% (significant boost for section matches)
+        const oldScore = match.score || 0;
+        match.score = oldScore * 1.3;
+        boostedCount++;
+        console.log(`  ↑ Boosted chunk containing section ${sectionRef}: ${oldScore.toFixed(3)} → ${match.score.toFixed(3)}`);
+        break;  // Only boost once per chunk
+      }
+    }
+  }
+
+  if (boostedCount > 0) {
+    // Re-sort by score after boosting
+    matches.sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
+    console.log(`✅ [SECTION BOOST] Boosted ${boostedCount} chunks`);
+  } else {
+    console.warn(`⚠️ [SECTION BOOST] No chunks found containing sections ${sectionRefs.join(', ')}`);
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -3067,72 +3171,6 @@ async function handleNavigationQuery(
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
-// COMPLEX QUERY DETECTION
-// ════════════════════════════════════════════════════════════════════════════════
-
-/**
- * Detect if query is complex and needs iterative agent loop
- *
- * REASON: Route complex queries to agent loop for better results
- * WHY: Single-pass RAG fails on multi-part questions (35-40% success)
- * HOW: Check for comparison, temporal, aggregation, multi-part keywords
- * IMPACT: 2.5× improvement in complex query success rate (85-90%)
- */
-function isComplexQuery(query: string): boolean {
-  const lower = query.toLowerCase();
-
-  // CATEGORY 1: Comparison queries (need multiple retrievals)
-  // Example: "Compare Q3 and Q4 revenue"
-  const hasComparison = /\b(compare|comparison|vs|versus|difference between)\b/.test(lower);
-  const hasMultipleEntities = /\b(and|vs|versus)\b/.test(lower);
-
-  if (hasComparison && hasMultipleEntities) {
-    console.log('🔍 [COMPLEX] Detected: Comparison query');
-    return true;
-  }
-
-  // CATEGORY 2: Temporal/trend queries (need time-series data)
-  // Example: "How has revenue changed over time?"
-  const hasTemporal = /\b(trend|over time|growth|change|evolution|historical)\b/.test(lower);
-  const hasTimeRange = /\b(q1|q2|q3|q4|quarter|year|month|20\d{2})\b/.test(lower);
-
-  if (hasTemporal || hasTimeRange) {
-    console.log('🔍 [COMPLEX] Detected: Temporal/trend query');
-    return true;
-  }
-
-  // CATEGORY 3: Aggregation queries (need multiple data points)
-  // Example: "What is the total revenue across all regions?"
-  const hasAggregation = /\b(total|sum|average|mean|aggregate|across all)\b/.test(lower);
-
-  if (hasAggregation) {
-    console.log('🔍 [COMPLEX] Detected: Aggregation query');
-    return true;
-  }
-
-  // CATEGORY 4: Multi-part queries (need multiple steps)
-  // Example: "What are the key findings and also the recommendations?"
-  const hasMultiPart = /\b(and also|in addition|furthermore|as well as)\b/.test(lower);
-
-  if (hasMultiPart) {
-    console.log('🔍 [COMPLEX] Detected: Multi-part query');
-    return true;
-  }
-
-  // CATEGORY 5: Questions with multiple question words
-  // Example: "What are the results and why did they happen?"
-  const questionWords = (lower.match(/\b(what|why|how|when|where|who)\b/g) || []).length;
-
-  if (questionWords >= 2) {
-    console.log('🔍 [COMPLEX] Detected: Multiple question words');
-    return true;
-  }
-
-  console.log('✅ [SIMPLE] Query is simple, using single-pass RAG');
-  return false;
-}
-
-// ════════════════════════════════════════════════════════════════════════════════
 // REGULAR QUERY HANDLER
 // ════════════════════════════════════════════════════════════════════════════════
 
@@ -3174,40 +3212,6 @@ async function handleRegularQuery(
   }
 
   console.log(`❌ [CACHE MISS] Query result for "${query.substring(0, 50)}..."`);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // CHECK IF COMPLEX QUERY - Route to Agent Loop
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  if (isComplexQuery(query)) {
-    console.log('🔄 [AGENT LOOP] Routing to iterative reasoning...');
-
-    try {
-      const result = await agentLoopService.processQuery(query, userId, conversationId);
-
-      // Build ACCURATE sources from LLM citations
-      console.log(`🔍 [AGENT LOOP] Building accurate sources from LLM response`);
-
-      // Remove citation block from answer
-      const cleanAnswer = citationTracking.removeCitationBlock(result.answer);
-
-      // Stream the clean answer
-      onChunk(cleanAnswer);
-
-      // Use citation extraction
-      const sources = await citationTracking.buildAccurateSources(cleanAnswer, result.chunks);
-
-      console.log(`✅ [AGENT LOOP] Built ${sources.length} accurate sources`);
-
-      console.log(`✅ [AGENT LOOP] Completed in ${result.iterations} iterations`);
-      return { sources };
-
-    } catch (error) {
-      console.error('❌ [AGENT LOOP] Error:', error);
-      // Fall back to single-pass RAG on error
-      console.log('⚠️ [AGENT LOOP] Falling back to single-pass RAG');
-    }
-  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FAST PATH: Skip reasoning for simple document queries
@@ -3300,10 +3304,11 @@ async function handleRegularQuery(
     }));
 
     // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
-    const sourceDocumentIds = [...new Set(sources.map(s => s.documentId).filter(Boolean))];
-    if (sourceDocumentIds.length > 0) {
+    const sourceDocumentIds: string[] = sources.map(s => s.documentId).filter((id): id is string => Boolean(id));
+    const uniqueDocumentIds = [...new Set(sourceDocumentIds)];
+    if (uniqueDocumentIds.length > 0) {
       const documents = await prisma.document.findMany({
-        where: { id: { in: sourceDocumentIds } },
+        where: { id: { in: uniqueDocumentIds } },
         select: { id: true, filename: true, mimeType: true }
       });
       const documentMap = new Map(documents.map(d => [d.id, { filename: d.filename, mimeType: d.mimeType }]));
@@ -3332,8 +3337,8 @@ async function handleRegularQuery(
 
   // Map complexity to answer length for unified system
   const answerLength: 'short' | 'medium' | 'summary' | 'long' =
-    complexity === 'Simple' ? 'short' :
-    complexity === 'Medium' ? 'medium' : 'long';
+    complexity === 'simple' ? 'short' :
+    complexity === 'medium' ? 'medium' : 'long';
 
   // Check if this is the first message
   const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
@@ -3368,10 +3373,8 @@ async function handleRegularQuery(
   const folderTreeContext = buildFolderTreeContext(folders);
   console.log(`📁 [FOLDER CONTEXT] Built context for ${folders.length} folders`);
 
-  const isSimple = !isComplexQuery(query);
-
-  if (isSimple) {
-    console.log('⚡ [FAST PATH] Simple query detected, skipping reasoning stages');
+  // All queries now use the fast path (AgentLoop was removed as it used pgvector which isn't set up)
+  console.log('⚡ [FAST PATH] Using direct Pinecone retrieval');
 
     // Detect language
     const queryLang = detectLanguage(query);
@@ -3495,6 +3498,21 @@ async function handleRegularQuery(
       }));
 
       console.log(`✅ [VECTOR] Pure vector search: ${hybridResults.length} chunks`);
+    }
+
+    // ✅ ISSUE #6 FIX: Boost section matches for section-specific queries
+    const sectionRefs = extractSectionReferences(query);
+    if (sectionRefs.length > 0) {
+      // Add score property to hybridResults for boostSectionMatches
+      hybridResults.forEach((hr: any) => {
+        hr.score = hr.hybridScore || hr.vectorScore || 0;
+      });
+      boostSectionMatches(hybridResults, sectionRefs);
+      // Update scores after boosting (in-place modification)
+      hybridResults.forEach((hr: any) => {
+        hr.hybridScore = hr.score;
+        hr.vectorScore = hr.score;
+      });
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -3840,7 +3858,7 @@ async function handleRegularQuery(
 
     console.log(`📝 [PROMPT] Generated unified system prompt with ${answerLength} length`);
 
-    const fullResponse = await streamLLMResponse(systemPrompt, '', onChunk);
+    let fullResponse = await streamLLMResponse(systemPrompt, '', onChunk);
     console.log(`⏱️ [PERF] Generation took ${Date.now() - startTime}ms`);
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -3953,149 +3971,6 @@ async function handleRegularQuery(
     }
     console.log(`⏱️ [PERF] Total time: ${Date.now() - startTime}ms`);
     return result;
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // SLOW PATH: Full reasoning for complex queries
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  console.log('🧠 Stage 1: Analyzing query...');
-  const reasoningAnalysis = await reasoningService.analyzeQuery(query, conversationHistory);
-
-  // Check if file action
-  if (reasoningAnalysis.intent === 'file_action') {
-    console.log('📁 Detected file action');
-    const actionResult = await fileActionsService.executeAction(query, userId);
-
-    if (actionResult.success) {
-      onChunk(actionResult.message);
-      return { sources: [] };
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // STAGE 2: SMART RETRIEVAL
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  console.log('🔍 Stage 2: Retrieving context...');
-
-  // Detect language
-  const queryLang = detectLanguage(query);
-  const queryLangName = queryLang === 'pt' ? 'Portuguese' : queryLang === 'es' ? 'Spanish' : queryLang === 'fr' ? 'French' : 'English';
-
-  // Initialize Pinecone
-  await initializePinecone();
-
-  // Generate embedding using OpenAI
-  const embeddingResult = await embeddingService.generateEmbedding(query);
-  const queryEmbedding = embeddingResult.embedding;
-
-  // filter already declared at top of function, just use it
-
-  // Search Pinecone (adjust topK based on complexity)
-  const rawResults = await pineconeIndex.query({
-    vector: queryEmbedding,
-    topK: reasoningAnalysis.complexity === 'complex' ? 10 : reasoningAnalysis.complexity === 'medium' ? 7 : 5,
-    filter,
-    includeMetadata: true,
-  });
-
-  // Filter deleted documents
-  searchResults = await filterDeletedDocuments(rawResults.matches || [], userId);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HANDLE NO RESULTS (Sophisticated Fallback)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  if (!searchResults || searchResults.length === 0) {
-    console.log('⚠️ No results found, generating sophisticated fallback');
-    const fallback = await reasoningService.generateSophisticatedFallback(query, queryLangName);
-    onChunk(fallback);
-    return { sources: [] };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HANDLE LOW RELEVANCE (Partial Answer)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  const topScore = searchResults[0]?.score || 0;
-  if (topScore < 0.5) {
-    console.log(`⚠️ Low relevance score (${topScore.toFixed(2)}), generating partial answer`);
-
-    // Build partial context WITHOUT source labels
-    const partialContext = searchResults.slice(0, 3).map((result) => {
-      const text = result.metadata.text || result.metadata.content || '';
-      return text.substring(0, 300) + '...';
-    }).join('\n\n---\n\n');
-
-    const fallback = await reasoningService.generateSophisticatedFallback(query, queryLangName, partialContext);
-    onChunk(fallback);
-    return { sources: [] };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // BUILD RICH CONTEXT (WITHOUT source labels to prevent "Document 1/2/3")
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  const context = searchResults.map((result) => {
-    const text = result.metadata.text || result.metadata.content || '';
-    return text;
-  }).join('\n\n---\n\n');
-
-  console.log(`📚 [CONTEXT] Built context from ${searchResults.length} chunks`);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // STAGE 3: STRUCTURED RESPONSE PLANNING (API-Driven)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  console.log('📋 Stage 3: Planning structured response...');
-  const responsePlan = await reasoningService.planStructuredResponse(query, reasoningAnalysis, context);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // STAGE 4: TEACHING-ORIENTED GENERATION & VALIDATION (API-Driven)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  console.log('🎓 Stage 4: Generating teaching-oriented answer...');
-  const result = await reasoningService.generateTeachingOrientedAnswer(
-    query,
-    queryAnalysis,
-    responsePlan,
-    context,
-    queryLangName
-  );
-
-  // Add disclaimer for low confidence
-  let finalAnswer = result.answer;
-  if (result.confidence < 0.6) {
-    console.log(`⚠️ Low confidence (${result.confidence})`);
-
-    const disclaimer = queryLang === 'pt'
-      ? '\n\n*Nota: Esta resposta pode não ser completamente precisa. Por favor, verifique os documentos originais.*'
-      : queryLang === 'es'
-      ? '\n\n*Nota: Esta respuesta puede no ser completamente precisa.*'
-      : '\n\n*Note: This answer may not be completely accurate. Please verify with the original documents.*';
-
-    finalAnswer += disclaimer;
-  }
-
-  // Build ACCURATE sources from LLM citations
-  console.log(`🔍 [SLOW PATH] Building accurate sources from LLM response`);
-
-  // Remove citation block from response
-  const cleanResponse = citationTracking.removeCitationBlock(finalAnswer);
-  const finalProcessedAnswer = postProcessAnswer(cleanResponse);
-
-  // Stream the clean response
-  onChunk(finalProcessedAnswer);
-
-  console.log(`✅ Response complete (confidence: ${result.confidence})`);
-
-  // Use citation extraction
-  const sources = await citationTracking.buildAccurateSources(cleanResponse, searchResults);
-
-  console.log(`✅ [SLOW PATH] Built ${sources.length} accurate sources (only documents used in answer)`);
-
-  return { sources };
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -4137,9 +4012,20 @@ async function streamLLMResponse(
     return fullAnswer;
 
   } catch (error: any) {
-    console.error('❌ [STREAMING] Error:', error);
-    onChunk('I apologize, but I encountered an error generating the response. Please try again.');
-    return '';
+    console.error('❌ [STREAMING] Error details:', {
+      message: error.message,
+      stack: error.stack?.substring(0, 500),
+      name: error.name
+    });
+
+    // Only send error message if we haven't already sent content
+    if (fullAnswer.length === 0) {
+      onChunk('I apologize, but I encountered an error generating the response. Please try again.');
+    } else {
+      console.warn('⚠️ [STREAMING] Error occurred AFTER successful response. Not sending error message to user.');
+    }
+
+    return fullAnswer;  // Return what we have, even if there was an error
   }
 }
 
@@ -4241,9 +4127,20 @@ async function smartStreamLLMResponse(
     return fullAnswer;
 
   } catch (error: any) {
-    console.error('❌ [SMART STREAM] Error:', error);
-    onChunk('I apologize, but I encountered an error generating the response. Please try again.');
-    return '';
+    console.error('❌ [SMART STREAM] Error details:', {
+      message: error.message,
+      stack: error.stack?.substring(0, 500),
+      name: error.name
+    });
+
+    // Only send error message if we haven't already sent content
+    if (fullAnswer.length === 0) {
+      onChunk('I apologize, but I encountered an error generating the response. Please try again.');
+    } else {
+      console.warn('⚠️ [SMART STREAM] Error occurred AFTER successful response. Not sending error message to user.');
+    }
+
+    return fullAnswer;  // Return what we have, even if there was an error
   }
 }
 
@@ -4833,26 +4730,43 @@ async function handleFolderContentQuery(
  * Examples: "which folders do I have?", "show my folders", "list all folders"
  */
 function detectFolderListingQuery(query: string): boolean {
-  const lower = query.toLowerCase();
+  const lower = query.toLowerCase().trim();
 
   const patterns = [
-    // "which/what folders..."
-    /(which|what)\s+(folders|directories)\s+(do\s+i\s+have|exist|are\s+there)/i,
+    // "which/what folders..." (with or without trailing words)
+    /(which|what)\s+(folders|directories)(\s+(do\s+i\s+have|exist|are\s+there|have\s+i|did\s+i\s+create))?/i,
 
     // "show/list my folders"
-    /(show|list|display)\s+(me\s+)?(my\s+|all\s+)?(folders|directories)/i,
+    /(show|list|display|give\s+me)\s+(me\s+)?(my\s+|all\s+|the\s+)?(folders|directories)/i,
 
     // "do I have folders" / "are there folders"
-    /(do\s+i\s+have|are\s+there)\s+(any\s+)?(folders|directories)/i,
+    /(do\s+i\s+have|are\s+there|have\s+i\s+got)\s+(any\s+)?(folders|directories)/i,
 
-    // "my folders" (standalone)
-    /^(my\s+)?(folders|directories)$/i,
+    // "my folders" or "folders" (standalone, with optional question mark)
+    /^(my\s+)?(folders|directories)\??$/i,
 
     // "all folders"
-    /^all\s+(folders|directories)$/i
+    /^all\s+(folders|directories)\??$/i,
+
+    // "folders I have" / "folders I created"
+    /folders?\s+(i\s+have|i\s+created|i\s+made)/i,
+
+    // Portuguese patterns
+    /(quais|que|mostrar|listar)\s+(pastas|diret[óo]rios)/i,
+    /(minhas?\s+)?(pastas|diret[óo]rios)\??$/i,
+
+    // Spanish patterns
+    /(cuáles|qué|mostrar|listar)\s+(carpetas|directorios)/i,
+    /(mis?\s+)?(carpetas|directorios)\??$/i,
   ];
 
-  return patterns.some(pattern => pattern.test(lower));
+  const isMatch = patterns.some(pattern => pattern.test(lower));
+
+  if (isMatch) {
+    console.log('📂 [FOLDER LISTING DETECT] Query matched folder listing pattern:', query);
+  }
+
+  return isMatch;
 }
 
 /**

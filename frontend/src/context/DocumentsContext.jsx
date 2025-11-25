@@ -334,7 +334,14 @@ export const DocumentsProvider = ({ children }) => {
 
     // Get user ID from localStorage (set during login)
     const userStr = localStorage.getItem('user');
-    const userId = userStr ? JSON.parse(userStr).id : null;
+    let userId = null;
+    if (userStr && userStr !== 'undefined') {
+      try {
+        userId = JSON.parse(userStr).id;
+      } catch (e) {
+        console.warn('⚠️ Failed to parse user from localStorage:', e);
+      }
+    }
     if (!userId) {
       console.warn('⚠️ No userId found in localStorage, cannot join user room');
       return;

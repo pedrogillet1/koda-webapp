@@ -48,6 +48,13 @@ export class SemanticChunkingService {
   async chunkDocument(text: string, filename: string): Promise<SemanticChunk[]> {
     console.log(`📄 [Semantic Chunking] Processing: ${filename}`);
 
+    // ✅ ISSUE #4 FIX: Detect tabular content (Excel, CSV) and use special chunking
+    const isTabular = this.isTabularContent(text, filename);
+    if (isTabular) {
+      console.log(`   📊 [Semantic Chunking] Detected tabular content - using table-aware chunking`);
+      return await this.chunkTabularContent(text, filename);
+    }
+
     // STEP 1: Parse document structure
     // REASON: Identify headings, sections, paragraphs
     // WHY: Structure guides chunking decisions
@@ -456,6 +463,234 @@ Summary:`;
     // REASON: Simple heuristic: 1 token ≈ 4 characters
     // WHY: Fast estimation, accurate enough for chunking
     return Math.ceil(text.length / 4);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // ✅ ISSUE #4 FIX: TABLE-AWARE CHUNKING FOR EXCEL/CSV FILES
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Detect if content is tabular (Excel, CSV)
+   *
+   * REASON: Tabular content needs special chunking to preserve row context
+   * WHY: Standard text chunking breaks table structure
+   * HOW: Check filename extension and content patterns
+   */
+  private isTabularContent(text: string, filename: string): boolean {
+    // Check filename extension
+    const lowerFilename = filename.toLowerCase();
+    if (lowerFilename.endsWith('.xlsx') || lowerFilename.endsWith('.xls') || lowerFilename.endsWith('.csv')) {
+      return true;
+    }
+
+    // Check content patterns from extractTextFromExcel output
+    const tabularPatterns = [
+      /=== Sheet \d+:/i,           // Excel sheet markers
+      /^Headers:\s*"/m,            // Header row from Excel extraction
+      /^Row \d+:/m,                // Row markers from Excel extraction
+      /Excel Spreadsheet Analysis/i, // Summary header
+      /Total Sheets:\s*\d+/i,      // Sheet count
+    ];
+
+    return tabularPatterns.some(pattern => pattern.test(text));
+  }
+
+  /**
+   * Chunk tabular content (Excel, CSV) preserving row structure
+   *
+   * REASON: Keep entire rows together for better retrieval
+   * WHY: Questions about spreadsheets need row context
+   * HOW: Parse sheets → Group rows → Create chunks per sheet/section
+   * IMPACT: Excel queries now return relevant cell values
+   */
+  private async chunkTabularContent(text: string, filename: string): Promise<SemanticChunk[]> {
+    const chunks: SemanticChunk[] = [];
+
+    // Parse sheet sections
+    const sheetPattern = /=== Sheet \d+: ([^=]+) ===/g;
+    const sheets: { name: string; content: string; startPos: number }[] = [];
+
+    let lastIndex = 0;
+    let match;
+
+    while ((match = sheetPattern.exec(text)) !== null) {
+      if (lastIndex > 0 && sheets.length > 0) {
+        // Set previous sheet's content
+        sheets[sheets.length - 1].content = text.substring(sheets[sheets.length - 1].startPos, match.index);
+      }
+      sheets.push({
+        name: match[1].trim(),
+        content: '',
+        startPos: match.index,
+      });
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Set last sheet's content
+    if (sheets.length > 0) {
+      sheets[sheets.length - 1].content = text.substring(sheets[sheets.length - 1].startPos);
+    }
+
+    // If no sheets found, treat entire content as one sheet
+    if (sheets.length === 0) {
+      sheets.push({
+        name: 'Data',
+        content: text,
+        startPos: 0,
+      });
+    }
+
+    console.log(`   📊 [Table Chunking] Found ${sheets.length} sheet(s)`);
+
+    // Process each sheet
+    for (const sheet of sheets) {
+      const sheetChunks = await this.chunkSheet(sheet, filename);
+      chunks.push(...sheetChunks);
+    }
+
+    // Add topic summaries
+    const chunksWithSummaries = await this.addTableTopicSummaries(chunks);
+
+    console.log(`   ✅ [Table Chunking] Created ${chunksWithSummaries.length} table-aware chunks`);
+
+    return chunksWithSummaries;
+  }
+
+  /**
+   * Chunk a single sheet preserving row structure
+   */
+  private async chunkSheet(
+    sheet: { name: string; content: string; startPos: number },
+    filename: string
+  ): Promise<SemanticChunk[]> {
+    const chunks: SemanticChunk[] = [];
+
+    // Extract headers
+    const headerMatch = sheet.content.match(/Headers:\s*(.+)/);
+    const headers = headerMatch ? headerMatch[1].trim() : '';
+
+    // Parse rows - look for "Row N:" pattern
+    const rowPattern = /Row (\d+):\s*(.+?)(?=(?:Row \d+:|$))/gs;
+    const rows: { num: number; content: string }[] = [];
+
+    let rowMatch;
+    while ((rowMatch = rowPattern.exec(sheet.content)) !== null) {
+      rows.push({
+        num: parseInt(rowMatch[1]),
+        content: rowMatch[2].trim(),
+      });
+    }
+
+    // If no Row patterns found, try markdown table format
+    if (rows.length === 0) {
+      const lines = sheet.content.split('\n');
+      let inTable = false;
+      let rowNum = 0;
+
+      for (const line of lines) {
+        // Skip separator lines
+        if (line.match(/^\|[\s-|]+\|$/)) continue;
+
+        // Detect table row
+        if (line.startsWith('|') && line.endsWith('|')) {
+          inTable = true;
+          if (rowNum === 0) {
+            // First row is header - handled separately
+          } else {
+            rows.push({
+              num: rowNum,
+              content: line,
+            });
+          }
+          rowNum++;
+        } else if (inTable && line.trim() === '') {
+          // End of table
+          inTable = false;
+        }
+      }
+    }
+
+    console.log(`   📋 [Table Chunking] Sheet "${sheet.name}": ${rows.length} rows, headers: ${headers.substring(0, 50)}...`);
+
+    // Group rows into chunks (max ~20 rows per chunk to keep context)
+    const ROWS_PER_CHUNK = 20;
+    let currentChunkRows: string[] = [];
+    let chunkStartPos = sheet.startPos;
+
+    // Always include headers at the start of each chunk for context
+    const headerContext = headers ? `Sheet: ${sheet.name}\nHeaders: ${headers}\n\n` : `Sheet: ${sheet.name}\n\n`;
+
+    for (let i = 0; i < rows.length; i++) {
+      currentChunkRows.push(`Row ${rows[i].num}: ${rows[i].content}`);
+
+      // Create chunk when we hit the limit or reach the end
+      if (currentChunkRows.length >= ROWS_PER_CHUNK || i === rows.length - 1) {
+        const chunkText = headerContext + currentChunkRows.join('\n');
+
+        chunks.push({
+          text: chunkText,
+          title: `${sheet.name} (Rows ${rows[i - currentChunkRows.length + 1]?.num || 1}-${rows[i].num})`,
+          startPosition: chunkStartPos,
+          endPosition: chunkStartPos + chunkText.length,
+          tokenCount: this.estimateTokens(chunkText),
+          metadata: {
+            section: sheet.name,
+            hasHeading: true,
+            topicSummary: `Data from ${sheet.name} spreadsheet, rows ${rows[i - currentChunkRows.length + 1]?.num || 1}-${rows[i].num}`,
+          },
+        });
+
+        chunkStartPos += chunkText.length;
+        currentChunkRows = [];
+      }
+    }
+
+    // If no rows found, create a single chunk with whatever content we have
+    if (chunks.length === 0 && sheet.content.trim().length > 0) {
+      chunks.push({
+        text: `Sheet: ${sheet.name}\n\n${sheet.content.trim()}`,
+        title: sheet.name,
+        startPosition: sheet.startPos,
+        endPosition: sheet.startPos + sheet.content.length,
+        tokenCount: this.estimateTokens(sheet.content),
+        metadata: {
+          section: sheet.name,
+          hasHeading: true,
+          topicSummary: `Data from ${sheet.name} spreadsheet`,
+        },
+      });
+    }
+
+    return chunks;
+  }
+
+  /**
+   * Generate topic summaries specifically for tabular chunks
+   */
+  private async addTableTopicSummaries(chunks: SemanticChunk[]): Promise<SemanticChunk[]> {
+    // For tabular data, we generate simpler summaries that focus on data content
+    // rather than full LLM-based summaries (faster, cheaper)
+
+    return chunks.map((chunk) => {
+      // Try to extract key data points from the chunk
+      const numbers = chunk.text.match(/\$?[\d,]+(?:\.\d+)?/g) || [];
+      const uniqueNumbers = [...new Set(numbers)].slice(0, 5);
+
+      let summary = chunk.metadata.topicSummary;
+
+      // Enhance summary with key data points if found
+      if (uniqueNumbers.length > 0) {
+        summary += `. Key values: ${uniqueNumbers.join(', ')}`;
+      }
+
+      return {
+        ...chunk,
+        metadata: {
+          ...chunk.metadata,
+          topicSummary: summary,
+        },
+      };
+    });
   }
 }
 

@@ -3,12 +3,19 @@ const STORAGE_KEY = 'koda_category_documents';
 // Get all categories from localStorage
 export const getCategories = () => {
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
+  if (!stored || stored === 'undefined') {
     const defaultCategories = [];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultCategories));
     return defaultCategories;
   }
-  return JSON.parse(stored);
+  try {
+    return JSON.parse(stored);
+  } catch (e) {
+    console.warn('⚠️ Failed to parse categories from localStorage:', e);
+    const defaultCategories = [];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultCategories));
+    return defaultCategories;
+  }
 };
 
 // Get a specific category by ID

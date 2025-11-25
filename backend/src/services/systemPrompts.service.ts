@@ -879,9 +879,14 @@ Stay conversational and natural - write like an executive assistant explaining s
     const config = this.getPromptConfigForGoal(goal, answerLength);
 
     // Detect if this is the first message (for greeting logic)
-    const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
+    // Only greet if conversation history has NO assistant messages
+    const hasAssistantMessages = conversationHistory && conversationHistory.some(msg => msg.role === 'assistant');
+    const isFirstMessage = !hasAssistantMessages;
+
+    console.log(`👋 [GREETING] isFirstMessage: ${isFirstMessage}, conversationHistory length: ${conversationHistory?.length || 0}, hasAssistantMessages: ${hasAssistantMessages}`);
+
     const greetingInstruction = isFirstMessage
-      ? '\n\n**GREETING**: This is the user\'s FIRST message. Start your response with a natural greeting like "Hey! What can I help you with today?" or "Hi there!" Then answer their question.'
+      ? '\n\n**GREETING**: This is the user\'s FIRST message in this conversation. Start your response with a brief, natural greeting like "Hey!" or "Hi there!" Then answer their question.'
       : '\n\n**NO GREETING**: This is a follow-up message. Jump straight to answering - NO greeting needed.';
 
     // Build attachment context section
@@ -944,10 +949,16 @@ ${context}
     const lengthConfig = this.getLengthConfiguration(answerLength);
     systemPrompt += '\n\n' + lengthConfig.instruction;
 
-    // Add greeting logic
-    if (options.isFirstMessage) {
+    // Add greeting logic - only greet if NO previous assistant messages exist
+    const hasAssistantMessages = options.conversationHistory &&
+      options.conversationHistory.some((msg: any) => msg.role === 'assistant');
+    const shouldGreet = options.isFirstMessage === true || (!hasAssistantMessages && !options.conversationHistory?.length);
+
+    console.log(`👋 [GREETING v2] shouldGreet: ${shouldGreet}, isFirstMessage: ${options.isFirstMessage}, hasAssistantMessages: ${hasAssistantMessages}, historyLength: ${options.conversationHistory?.length || 0}`);
+
+    if (shouldGreet) {
       systemPrompt += '\n\n**GREETING REQUIRED**: This is the user\'s FIRST message. Start with a brief, natural greeting like "Hey!" or "Hi there!" before answering.';
-    } else if (options.conversationHistory) {
+    } else {
       systemPrompt += '\n\n**NO GREETING**: This is a follow-up message in an ongoing conversation. Jump straight to answering.';
     }
 
