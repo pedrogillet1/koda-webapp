@@ -18,7 +18,7 @@ import geminiCache from './geminiCache.service';
 import * as queryDecomposition from './query-decomposition.service';
 import * as contradictionDetection from './contradiction-detection.service';
 import * as confidenceScoring from './confidence-scoring.service';
-import { systemPromptsService, detectQueryComplexity } from './systemPrompts.service';
+import * as promptTemplates from './promptTemplates.service';
 import * as confidenceScore from './confidenceScoring.service';
 import * as fullDocRetrieval from './fullDocumentRetrieval.service';
 import * as contradictionDetectionService from './contradictionDetection.service';
@@ -1512,7 +1512,7 @@ export async function generateAnswerStream(
   // ──────────────────────────────────────────────────────────────────────────────
   if (comparison) {
     console.log('🔄 [COMPARISON] Detected:', comparison.documents);
-    return await handleComparison(userId, query, comparison, onChunk, conversationHistory);
+    return await handleComparison(userId, query, comparison, onChunk);
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -2158,17 +2158,16 @@ async function handleComparison(
   userId: string,
   query: string,
   comparison: { type: 'document' | 'concept'; documents?: string[]; concepts?: string[] },
-  onChunk: (chunk: string) => void,
-  conversationHistory?: Array<{ role: string; content: string }>
+  onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
   console.log(`🔄 [COMPARISON] Type: ${comparison.type}`);
 
   if (comparison.type === 'concept') {
     // Concept comparison (e.g., "Compare Maslow vs SDT")
-    return await handleConceptComparison(userId, query, comparison.concepts || [], onChunk, conversationHistory);
+    return await handleConceptComparison(userId, query, comparison.concepts || [], onChunk);
   } else {
     // Document comparison (e.g., "Compare Document A vs Document B")
-    return await handleDocumentComparison(userId, query, comparison.documents || [], onChunk, conversationHistory);
+    return await handleDocumentComparison(userId, query, comparison.documents || [], onChunk);
   }
 }
 
@@ -2180,8 +2179,7 @@ async function handleConceptComparison(
   userId: string,
   query: string,
   concepts: string[],
-  onChunk: (chunk: string) => void,
-  conversationHistory?: Array<{ role: string; content: string }>
+  onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
   console.log(`🔍 [CONCEPT COMPARISON] Searching for: ${concepts.join(' vs ')}`);
 
@@ -2262,35 +2260,68 @@ async function handleConceptComparison(
   const queryLang = detectLanguage(query);
   const queryLangName = queryLang === 'pt' ? 'Portuguese' : queryLang === 'es' ? 'Spanish' : queryLang === 'fr' ? 'French' : 'English';
 
-  // Check if this is the first message
-  const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
+  // Build system prompt for comparison
+  const systemPrompt = `You are a professional AI assistant helping users understand their documents.
 
-  // Format conversation history for system prompt
-  let conversationHistoryText = '';
-  if (conversationHistory && conversationHistory.length > 0) {
-    conversationHistoryText = conversationHistory
-      .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-      .join('\n\n');
-  }
+RELEVANT CONTENT FROM USER'S DOCUMENTS:
+${context}
 
-  // Build system prompt using unified SystemPrompts service
-  const systemPrompt = systemPromptsService.getSystemPrompt(
-    query,
-    'medium', // Comparison queries use medium length
-    {
-      isComparison: true,
-      isFirstMessage,
-      conversationHistory: conversationHistoryText,
-      documentContext: context,
-    }
-  );
+LANGUAGE DETECTION (CRITICAL):
+- The user's query is in ${queryLangName}
+- You MUST respond ENTIRELY in ${queryLangName}
 
-  // Add language detection instruction (required for concept comparisons)
-  const languageInstruction = `\n\n**LANGUAGE DETECTION (CRITICAL)**:\n- The user's query is in ${queryLangName}\n- You MUST respond ENTIRELY in ${queryLangName}`;
-  const finalSystemPrompt = systemPrompt + languageInstruction;
+COMPARISON TASK:
+- The user wants to compare: ${concepts.join(' vs ')}
+- Provide a structured comparison with:
+  1. Brief definition of each concept (based on the provided content)
+  2. Key similarities
+  3. Key differences
+  4. Use a comparison table if appropriate for 2 concepts
+
+RESPONSE RULES:
+- Answer based ONLY on the provided content from the user's uploaded documents
+- Bold key information with **text**
+- Use bullet points for clarity
+- If comparing 2 concepts, consider using a markdown table format
+- NO page citations or references in your response text
+- NO greetings or introductions - start directly with the answer
+- NO structure labels like "Opening:", "Context:", etc.
+
+FIX 2: COMPARISON TABLE FORMAT MANDATORY:
+CRITICAL: ALWAYS use markdown tables for comparisons
+NEVER break concepts into separate sections
+NEVER use bullet lists for feature-by-feature comparisons
+
+MANDATORY TABLE FORMAT:
+| Feature | Concept A | Concept B |
+|---------|-----------|-----------|
+| Feature 1 | Description A | Description B |
+| Feature 2 | Description A | Description B |
+| Feature 3 | Description A | Description B |
+
+TABLE RULES:
+- Each cell MUST be concise (under 100 characters)
+- Each row MUST be ONE physical line in markdown
+- MUST have separator row: |---------|----------|
+- Header row must clearly identify what's being compared
+- NEVER omit the separator row
+- NEVER split tables across multiple paragraphs
+- Use **bold** for emphasis within cells
+
+AFTER THE TABLE (Optional):
+Brief summary paragraph highlighting key takeaways (2-3 sentences max)
+
+CITATION RULES (CRITICAL):
+- NEVER include inline citations like [pg 1], [p. 1], or (document.pdf, Page: 1)
+- NEVER reference page numbers in your response
+- The system will automatically add document sources at the end
+- Focus on answering the question clearly without citing pages
+
+USER QUERY:
+${query}`;
 
   // Generate comparison response
-  const generationResult = await smartStreamLLMResponse(finalSystemPrompt, '', onChunk);
+  const generationResult = await smartStreamLLMResponse(systemPrompt, '', onChunk);
 
   return { sources: allSources };
 }
@@ -2303,8 +2334,7 @@ async function handleDocumentComparison(
   userId: string,
   query: string,
   documentIds: string[],
-  onChunk: (chunk: string) => void,
-  conversationHistory?: Array<{ role: string; content: string }>
+  onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
   console.log('🔄 [DOCUMENT COMPARISON] Retrieving content for comparison');
   console.log('📄 [DOCUMENT COMPARISON] Specific documents:', documentIds.length);
@@ -2367,38 +2397,114 @@ async function handleDocumentComparison(
   // Build sources array - Will be updated after LLM response
   let sources: any[] = [];
 
-  // Detect language
-  const queryLang = detectLanguage(query);
-  const queryLangName = queryLang === 'pt' ? 'Portuguese' : queryLang === 'es' ? 'Spanish' : queryLang === 'fr' ? 'French' : 'English';
+  // Generate comparison answer
+  const systemPrompt = `You are a professional AI assistant helping users understand their documents.
 
-  // Check if this is the first message
-  const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
+FIX 2: COMPARISON TABLE FORMAT MANDATORY:
+CRITICAL: ALWAYS use markdown tables for comparisons
+NEVER break concepts into separate sections
+NEVER use bullet lists for feature-by-feature comparisons
 
-  // Format conversation history for system prompt
-  let conversationHistoryText = '';
-  if (conversationHistory && conversationHistory.length > 0) {
-    conversationHistoryText = conversationHistory
-      .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-      .join('\n\n');
-  }
+CRITICAL RULES:
+- NEVER start with greetings like Hello or Hi or I am KODA
+- Start directly with the answer or comparison
+- NO page citations or references in your text
+- ALWAYS use tables for structured comparisons when comparing documents
+- NO section labels like Context or Details or Summary
+- NO emojis in your response
+- Each table cell MUST be concise and under 100 characters
+- Each row MUST be ONE physical line in markdown format
+- MUST include separator row using pipes and dashes
+- NEVER use code blocks or code formatting for document names
+- Document names should be in bold text or plain text only
 
-  // Build system prompt using unified SystemPrompts service
-  const systemPrompt = systemPromptsService.getSystemPrompt(
-    query,
-    'medium', // Document comparisons use medium length
-    {
-      isComparison: true,
-      isFirstMessage,
-      conversationHistory: conversationHistoryText,
-      documentContext: context,
-    }
-  );
+The user wants to compare multiple documents. Here's the relevant content from each:
 
-  // Add language detection and cross-document synthesis instructions
-  const additionalInstructions = `\n\n**LANGUAGE DETECTION (CRITICAL)**:\n- The user's query is in ${queryLangName}\n- You MUST respond ENTIRELY in ${queryLangName}\n\n**CROSS-DOCUMENT SYNTHESIS**:\n- Don't just summarize each document independently\n- Merge insights into a unified conceptual framework\n- Build conceptual bridges between documents\n- Identify: Where do they overlap? Where do they diverge?\n- Reveal patterns only visible when viewed together`;
-  const finalSystemPrompt = systemPrompt + additionalInstructions;
+${context}
 
-  const fullResponse = await smartStreamLLMResponse(finalSystemPrompt, '', onChunk);
+LANGUAGE DETECTION (CRITICAL):
+- ALWAYS respond in the SAME LANGUAGE as the user's query
+- Portuguese query -> Portuguese response
+- English query -> English response
+- Spanish query -> Spanish response
+- Detect the language automatically and match it exactly
+
+CROSS-DOCUMENT SYNTHESIS (Critical):
+- Don't just summarize each document independently
+- Merge insights into a unified conceptual framework
+- Build conceptual bridges between documents
+- Identify: Where do they overlap? Where do they diverge?
+- Reveal patterns only visible when viewed together
+- Synthesize insights from comparison, not just side-by-side summaries
+
+INFERENTIAL REASONING:
+- Explain HOW concepts in different documents relate to each other
+- Connect ideas causally across documents
+- Infer implicit relationships and dependencies
+- Example: If Doc A discusses "value" and Doc B discusses "trust", explain how value creation depends on trust
+
+CRITICAL RULE - NO IMPLICATIONS SECTION:
+- NEVER add an "Implications:" section or heading
+- NEVER use the word "Implications" as a section header
+- Integrate insights naturally as you compare
+- Explain what the comparison MEANS and why it matters within your main comparison
+- ONLY if the user explicitly asks "what are the implications" or "what does this mean", add 1-2 sentences at the end
+- Keep all insights embedded in the main comparison content, not separated
+
+FORMATTING EXAMPLES FOR COMPARISONS (FOLLOW THESE EXACTLY):
+
+<example_comparison_1>
+Here's a side-by-side comparison of the two documents:
+
+| Aspect | KODA Blueprint | KODA Checklist |
+|--------|----------------|----------------|
+| **Purpose** | Strategic vision and product roadmap | Development task checklist |
+| **Target Audience** | Investors, stakeholders, executives | Developers, engineers, product team |
+| **Content Focus** | Market positioning, user personas, competitive analysis | Technical implementation, features, security |
+| **Document Length** | 15 pages with detailed analysis | 3 pages with concise task list |
+| **Key Sections** | Market analysis, user personas, pricing strategy | Core setup, security, documents, AI features |
+
+**Key Differences:**
+- The Blueprint focuses on strategic planning and market positioning, while the Checklist focuses on technical implementation.
+- The Blueprint is designed for external stakeholders, while the Checklist is for internal development teams.
+- The Blueprint provides context and rationale, while the Checklist provides actionable tasks.
+
+**Next step:** Review both documents together to ensure the development tasks in the Checklist align with the strategic vision in the Blueprint.
+</example_comparison_1>
+
+<example_comparison_2>
+Here's a comparison of the financial data in both documents:
+
+| Metric | Q1 2025 Report | Q2 2025 Report | Change |
+|--------|----------------|----------------|--------|
+| **Revenue** | $1.2M | $1.5M | +25% |
+| **Expenses** | $800K | $900K | +12.5% |
+| **Net Profit** | $400K | $600K | +50% |
+| **Customer Count** | 150 | 200 | +33% |
+| **Avg Deal Size** | $8,000 | $7,500 | -6.25% |
+
+**Key Insights:**
+- Revenue grew significantly (+25%) driven by customer acquisition (+33%).
+- Average deal size decreased slightly (-6.25%), suggesting growth in smaller customers.
+- Profit margin improved from 33% to 40%, indicating better operational efficiency.
+
+**Next step:** Analyze the customer segmentation to understand the shift toward smaller deal sizes and assess if this aligns with the growth strategy.
+</example_comparison_2>
+
+IMPORTANT: Notice the structure in the examples above:
+- Opening sentence introducing the comparison
+- ONE blank line
+- Markdown table with | separators for side-by-side comparison
+- ONE blank line after table
+- "**Key Differences:**" or "**Key Insights:**" section with bullets (NO blank lines between bullets)
+- ONE blank line
+- "**Next step:**" section (always bold)
+
+Follow this EXACT structure. Use tables for side-by-side comparisons.
+
+User query: "${query}"`;
+
+  const fullResponse = await smartStreamLLMResponse(systemPrompt, '', onChunk);
 
   // Build ACCURATE sources from LLM citations
   console.log(`🔍 [DOCUMENT COMPARISON] Building accurate sources from LLM response`);
@@ -2934,28 +3040,47 @@ async function handleMetaQuery(
   // Build conversation context
   let conversationContext = '';
   if (conversationHistory && conversationHistory.length > 0) {
-    conversationContext = conversationHistory
-      .slice(-3)
-      .map(msg => `${msg.role === 'user' ? 'User' : 'KODA'}: ${msg.content}`)
-      .join('\n');
+    conversationContext = '\n\n**Previous Conversation**:\n';
+    conversationHistory.slice(-3).forEach(msg => {
+      const role = msg.role === 'user' ? 'User' : 'KODA';
+      conversationContext += `${role}: ${msg.content}\n`;
+    });
   }
 
-  // Use SystemPrompts service (it already has capabilities section)
-  const systemPrompt = systemPromptsService.getSystemPrompt(
-    query,
-    'short', // Meta queries should be brief
-    {
-      isComparison: false,
-      isFirstMessage,
-      conversationHistory: conversationContext,
-      documentContext: '', // No document context for meta queries
-      documentLocations: '',
-      memoryContext: '',
-      folderTreeContext: ''
-    }
-  );
+  // Dynamic prompt based on conversation state
+  const prompt = `You are KODA, an intelligent document AI assistant. The user is asking about your capabilities.
 
-  await streamLLMResponse(systemPrompt, '', onChunk);
+${conversationContext}
+
+**User's Current Question**: "${query}"
+
+**Your Capabilities** (reference these naturally):
+- Upload and organize any document type (PDF, Word, Excel, images, etc.)
+- Search across all documents instantly
+- Answer questions by finding relevant information
+- Summarize documents and extract key points
+- Compare multiple documents side-by-side
+- Explain complex content in simple terms
+- Remember context across conversations
+- Provide sources and citations for answers
+- Handle documents in multiple languages
+- Secure end-to-end encryption for all files
+
+**Response Guidelines**:
+${isFirstMessage
+  ? '- This is the FIRST message - include a brief greeting (e.g., "Hi! I\'m KODA.")'
+  : '- This is a FOLLOW-UP message - NO greeting, answer directly'
+}
+- Be conversational and natural, not robotic
+- Mention 2-3 relevant capabilities based on what they asked
+- Keep response under 60 words
+- NO emojis, NO citations, NO page numbers
+- Match the user's language
+- Professional but friendly tone
+
+Respond naturally:`;
+
+  await streamLLMResponse(prompt, '', onChunk);
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2994,8 +3119,10 @@ async function handleNavigationQuery(
     ? folders.map(f => `${f.emoji || '📁'} **${f.name}** (${f._count.documents} files)`).join(', ')
     : 'No folders created yet';
 
-  // Build personalization context with user's library and navigation guide
-  const personalizationContext = `
+  const prompt = `You are KODA, an intelligent document assistant. The user is asking how to navigate or use the app.
+
+**User Question**: "${query}"
+
 **User's Current Library**:
 - **Total Documents**: ${documentCount}
 - **Folders**: ${folderList}
@@ -3046,24 +3173,10 @@ async function handleNavigationQuery(
 - NO emojis, NO citations
 - Use natural, friendly language
 - **PERSONALIZE**: Reference the user's actual folders when relevant (e.g., "You can upload to your Finance folder")
-`;
 
-  // Use SystemPrompts service for consistent formatting
-  const systemPrompt = systemPromptsService.getSystemPrompt(
-    query,
-    'short', // Navigation answers should be concise
-    {
-      isComparison: false,
-      isFirstMessage: false, // Navigation queries are typically follow-ups
-      conversationHistory: '',
-      documentContext: personalizationContext,
-      documentLocations: '',
-      memoryContext: '',
-      folderTreeContext: ''
-    }
-  );
+Respond naturally:`;
 
-  await streamLLMResponse(systemPrompt, '', onChunk);
+  await streamLLMResponse(prompt, '', onChunk);
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -3325,26 +3438,12 @@ async function handleRegularQuery(
     console.log(`✅ [AGENT LOOP] Simple query - using standard retrieval`);
   }
 
-  // ✅ NEW: Detect query complexity for answer length mapping
-  // Map complexity detection to answer length system
-  const complexity = detectQueryComplexity(query);
+  // ✅ NEW: Detect query complexity for structured reasoning (using promptTemplates service)
+  const complexity = promptTemplates.detectQueryComplexity(query);
   console.log(`📊 [COMPLEXITY] Detected complexity: ${complexity} for query: "${query.substring(0, 50)}..."`);
 
-  // Map complexity to answer length for unified system
-  const answerLength: 'short' | 'medium' | 'summary' | 'long' =
-    complexity === 'Simple' ? 'short' :
-    complexity === 'Medium' ? 'medium' : 'long';
-
-  // Check if this is the first message
-  const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
-
-  // Format conversation history for system prompt
-  let conversationContext = '';
-  if (conversationHistory && conversationHistory.length > 0) {
-    conversationContext = conversationHistory
-      .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-      .join('\n\n');
-  }
+  // ✅ NEW: Build conversation context (using promptTemplates service)
+  const conversationContext = promptTemplates.buildConversationContext(conversationHistory || []);
 
   // ✅ NEW: Fetch user's folder tree for navigation awareness
   console.log('📁 [FOLDER CONTEXT] Fetching folder tree...');
@@ -3824,21 +3923,18 @@ async function handleRegularQuery(
 
     console.log(`📝 [PROMPT] Using ${complexity} complexity prompt with ${documentContext && fullDocuments.length > 0 ? 'full documents' : 'chunks'}`);
 
-    // ✅ UNIFIED: Use SystemPrompts service for consistent prompting across all query types
-    const systemPrompt = systemPromptsService.getSystemPrompt(
+    // ✅ NEW: Get structured prompt based on complexity using promptTemplates service
+    const systemPrompt = promptTemplates.getReasoningPrompt(
+      complexity,
       query,
-      answerLength, // Use mapped answer length (short/medium/long)
-      {
-        isFirstMessage,
-        conversationHistory: conversationContext,
-        documentContext: finalDocumentContext,
-        documentLocations,
-        memoryContext,
-        folderTreeContext,
-      }
+      finalDocumentContext,
+      conversationContext,
+      documentLocations, // Pass document locations for folder awareness
+      memoryContext, // Pass memory context for personalization
+      folderTreeContext // ✅ NEW: Pass folder tree for navigation awareness
     );
 
-    console.log(`📝 [PROMPT] Generated unified system prompt with ${answerLength} length`);
+    console.log(`📝 [PROMPT] Generated ${complexity} complexity prompt`);
 
     const fullResponse = await streamLLMResponse(systemPrompt, '', onChunk);
     console.log(`⏱️ [PERF] Generation took ${Date.now() - startTime}ms`);

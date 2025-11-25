@@ -1,0 +1,90 @@
+.failed-message {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: #fff5f5;
+  border: 1px solid #ffcccc;
+  border-radius: 12px;
+  margin: 8px 0;
+  align-items: center;
+}
+
+.failed-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.failed-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.failed-text {
+  color: #333;
+  margin-bottom: 8px;
+  word-wrap: break-word;
+}
+
+.failed-error {
+  font-size: 13px;
+  color: #ff4444;
+  font-weight: 500;
+}
+
+.failed-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.failed-retry-button,
+.failed-delete-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.failed-retry-button {
+  background: #ff4444;
+  color: white;
+}
+
+.failed-retry-button:hover {
+  background: #ff2222;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(255, 68, 68, 0.3);
+}
+
+.failed-delete-button {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.failed-delete-button:hover {
+  background: #e0e0e0;
+  transform: translateY(-1px);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .failed-message {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .failed-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .failed-retry-button,
+  .failed-delete-button {
+    flex: 1;
+  }
+}

@@ -1642,27 +1642,28 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         contextId: undefined
       };
     } catch (ragError: any) {
-      // ✅ FIX #2: Stream the error message so it appears immediately
-      const errorMessage = ragError.message || 'Failed to generate answer';
+      // ✅ FIX #2: Stream user-friendly error message
+      console.error('❌ RAG Streaming Error:', ragError);
 
-      console.error('❌ RAG Streaming Error:', errorMessage);
+      // Sanitize error message - show user-friendly message instead of technical details
+      const userFriendlyMessage = 'I apologize, but I encountered an issue while processing your question. Please try rephrasing your question or try again in a moment.';
 
-      // Stream error as content
-      res.write(`data: ${JSON.stringify({ type: 'content', content: `❌ Error: ${errorMessage}` })}\n\n`);
+      // Stream user-friendly message
+      res.write(`data: ${JSON.stringify({ type: 'content', content: userFriendlyMessage })}\n\n`);
 
-      // Save error message to database
+      // Save user-friendly message to database
       const assistantMessage = await prisma.message.create({
         data: {
           conversationId,
           role: 'assistant',
-          content: `❌ Error: ${errorMessage}`
+          content: userFriendlyMessage
         }
       });
 
       // Send done signal
       res.write(`data: ${JSON.stringify({
         type: 'done',
-        formattedAnswer: `❌ Error: ${errorMessage}`,
+        formattedAnswer: userFriendlyMessage,
         userMessageId: userMessage.id,
         assistantMessageId: assistantMessage.id,
         sources: [],

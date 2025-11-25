@@ -4,6 +4,33 @@ import axios from 'axios'; // For direct S3 uploads only
 // import { encryptFile } from './encryption';
 
 /**
+ * Retry completion notification with exponential backoff
+ */
+async function notifyCompletionWithRetry(documentIds, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`📢 Attempt ${attempt}/${maxRetries}: Notifying backend of completion...`);
+      const response = await api.post('/api/presigned-urls/complete', {
+        documentIds
+      });
+      console.log(`✅ Success on attempt ${attempt}:`, response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`❌ Attempt ${attempt}/${maxRetries} failed:`, error.response?.data || error.message);
+
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+        console.log(`⏳ Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        console.error(`❌ All ${maxRetries} attempts failed. Documents will remain in "uploading" status.`);
+        throw error;
+      }
+    }
+  }
+}
+
+/**
  * Presigned Upload Service
  *
  * Handles file uploads using AWS S3 presigned URLs.
@@ -71,9 +98,29 @@ class PresignedUploadService {
       console.log(`📢 Notifying backend of ${successfulUploads.length} successful uploads...`);
 
       if (successfulUploads.length > 0) {
-        await api.post('/api/presigned-urls/complete', {
-          documentIds: successfulUploads.map(r => r.documentId)
-        });
+        try {
+          console.log(`📢 Calling /api/presigned-urls/complete with ${successfulUploads.length} document IDs...`);
+          const completeResponse = await notifyCompletionWithRetry(
+            successfulUploads.map(r => r.documentId)
+          );
+          console.log(`✅ Backend acknowledged completion:`, completeResponse);
+          console.log(`✅ ${completeResponse.queued} documents queued for processing`);
+        } catch (completeError) {
+          console.error('❌ CRITICAL: Failed to notify backend of upload completion!');
+          console.error('❌ Documents will remain in "uploading" status and won\'t be processed!');
+          console.error('❌ Error details:', {
+            status: completeError.response?.status,
+            statusText: completeError.response?.statusText,
+            message: completeError.response?.data?.error || completeError.message,
+            documentIds: successfulUploads.map(r => r.documentId)
+          });
+
+          // Show user-friendly error
+          alert(`⚠️ Files uploaded to S3 successfully, but failed to start processing.\n\nPlease contact support or use the "Retrigger Stuck Documents" button.`);
+
+          // Don't throw - let the upload succeed even if completion notification fails
+          // User can manually trigger reprocessing later
+        }
       }
 
       // Log summary
@@ -216,6 +263,17 @@ class PresignedUploadService {
 
         if (retries >= maxRetries) {
           console.error(`❌ Failed to upload "${file.name}" after ${maxRetries} retries:`, error);
+
+          // ✅ ROLLBACK: Delete orphaned database record since S3 upload failed
+          try {
+            console.log(`🗑️  Rolling back: Deleting database record for "${file.name}" (ID: ${documentId})...`);
+            await api.delete(`/api/documents/${documentId}`);
+            console.log(`✅ Rollback successful: Database record deleted for "${file.name}"`);
+          } catch (rollbackError) {
+            console.error(`❌ Rollback failed for "${file.name}":`, rollbackError.message);
+            console.error('⚠️  Orphaned database record may exist - run cleanup script');
+          }
+
           return {
             documentId,
             fileName: file.name,

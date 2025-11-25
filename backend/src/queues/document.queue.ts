@@ -25,14 +25,29 @@ const getIO = () => {
   return io;
 };
 
-// Emit processing update via WebSocket
-const emitProcessingUpdate = (userId: string, documentId: string, data: any) => {
+// Store progress in Redis (expires after 1 hour)
+const setDocumentProgress = async (documentId: string, progress: number, stage: string, message: string) => {
+  try {
+    const progressData = JSON.stringify({ progress, stage, message, updatedAt: new Date().toISOString() });
+    await redisConnection.set(`progress:${documentId}`, progressData, 'EX', 3600); // 1 hour expiration
+  } catch (error) {
+    console.warn(`⚠️  Failed to store progress for ${documentId}:`, error);
+  }
+};
+
+// Emit processing update via WebSocket AND store in Redis
+const emitProcessingUpdate = async (userId: string, documentId: string, data: any) => {
   const socketIO = getIO();
   if (socketIO) {
     socketIO.to(`user:${userId}`).emit('document-processing-update', {
       documentId,
       ...data,
     });
+  }
+
+  // Store progress in Redis for polling
+  if (data.progress !== undefined) {
+    await setDocumentProgress(documentId, data.progress, data.stage || '', data.message || '');
   }
 };
 
@@ -193,7 +208,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 
   try {
     await job.updateProgress(10);
-    emitProcessingUpdate(userId, documentId, {
+    await emitProcessingUpdate(userId, documentId, {
       progress: 10,
       stage: 'starting',
       message: 'Processing started',
@@ -202,9 +217,9 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
     // Step 1: Download encrypted file from GCS
     console.log(`⬇️  Downloading file: ${encryptedFilename}`);
     const fileBuffer = await downloadFile(encryptedFilename);
-    await job.updateProgress(20);
-    emitProcessingUpdate(userId, documentId, {
-      progress: 20,
+    await job.updateProgress(25);
+    await emitProcessingUpdate(userId, documentId, {
+      progress: 25,
       stage: 'downloaded',
       message: 'File downloaded from storage',
     });
@@ -422,12 +437,18 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
     }
 
     // Use transaction to ensure atomicity and prevent race conditions
+    let documentFilename = 'document'; // Default filename for chunking
     await prisma.$transaction(async (tx) => {
       // Verify document belongs to this user (security check)
       const doc = await tx.document.findUnique({
         where: { id: documentId },
         select: { userId: true, filename: true }
       });
+
+      // Store filename for later use in embedding generation
+      if (doc) {
+        documentFilename = doc.filename;
+      }
 
       if (!doc) {
         throw new Error(`Document ${documentId} not found during metadata save`);
@@ -493,14 +514,28 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       console.log(`✅ [DOC:${documentId}] Metadata saved successfully`);
     });
 
+    // Progress update: Metadata saved
+    await job.updateProgress(65);
+    await emitProcessingUpdate(userId, documentId, {
+      progress: 65,
+      stage: 'metadata-saved',
+      message: 'Metadata and text extraction complete',
+    });
+
     // Step 7: Generate vector embeddings for RAG search
     console.log(`🧠 [DOC:${documentId}] Generating vector embeddings...`);
+    await job.updateProgress(80);
+    await emitProcessingUpdate(userId, documentId, {
+      progress: 80,
+      stage: 'generating-embeddings',
+      message: 'Generating vector embeddings...',
+    });
 
     try {
       if (extractedText && extractedText.length > 50) {
         // REASON: Use semantic chunking with document filename
         // WHY: Better chunking decisions based on document structure
-        const chunks = await chunkText(extractedText, doc.filename);
+        const chunks = await chunkText(extractedText, documentFilename);
         console.log(`📦 [DOC:${documentId}] Split document into ${chunks.length} chunks`);
 
         await vectorEmbeddingService.storeDocumentEmbeddings(documentId, chunks);
@@ -520,6 +555,14 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       data: { status: 'completed' },
     });
     console.log(`✅ [DOC:${documentId}] Status updated to completed (after embeddings stored)`);
+
+    // Progress update: 100% complete
+    await job.updateProgress(100);
+    await emitProcessingUpdate(userId, documentId, {
+      progress: 100,
+      stage: 'completed',
+      message: 'Document processing complete',
+    });
 
     // 🖼️ POWERPOINT: Extract slide images in background (non-blocking)
     const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
@@ -694,16 +737,32 @@ if (documentQueue && redisConnection) {
       }
     );
 
+    // ✅ Enhanced startup logging
+    console.log('✅ ========================================');
+    console.log('✅ Document Processing Worker STARTED');
+    console.log('✅ Queue: document-processing');
+    console.log('✅ Concurrency: 10 jobs in parallel');
+    console.log('✅ Redis connection: OK');
+    console.log('✅ ========================================');
+
+    documentWorker.on('ready', () => {
+      console.log('✅ Worker is ready and waiting for jobs...');
+    });
+
+    documentWorker.on('active', (job) => {
+      console.log(`🔄 Worker picked up job ${job.id} - Processing document...`);
+    });
+
     documentWorker.on('completed', (job) => {
-      console.log(`✅ Job ${job.id} completed successfully`);
+      console.log(`✅ Worker completed job ${job.id}`);
     });
 
     documentWorker.on('failed', (job, err) => {
-      console.error(`❌ Job ${job?.id} failed:`, err.message);
+      console.error(`❌ Worker failed job ${job?.id}:`, err.message);
     });
 
     documentWorker.on('error', (err) => {
-      console.error('Worker error:', err);
+      console.error(`❌ Worker error:`, err);
     });
   } catch (error) {
     console.warn('⚠️  Could not initialize document worker');

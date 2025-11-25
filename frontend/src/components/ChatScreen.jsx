@@ -52,6 +52,39 @@ const ChatScreen = () => {
         }
     }, [currentConversation]);
 
+    // ✅ FIX: Load full conversation details if only minimal object exists
+    useEffect(() => {
+        const loadFullConversation = async () => {
+            // Check if current conversation is a minimal object (title is 'Loading...')
+            if (currentConversation?.id && currentConversation?.title === 'Loading...') {
+                console.log('🔄 [ChatScreen] Loading full conversation details for:', currentConversation.id);
+                try {
+                    const fullConversation = await chatService.getConversation(currentConversation.id);
+                    console.log('✅ [ChatScreen] Loaded full conversation:', fullConversation);
+                    setCurrentConversation(fullConversation);
+                } catch (error) {
+                    console.error('❌ [ChatScreen] Error loading full conversation:', error);
+                    // If conversation doesn't exist (404), create a new one
+                    if (error.response?.status === 404) {
+                        console.log('⚠️ [ChatScreen] Conversation not found, creating new one...');
+                        try {
+                            const newConversation = await chatService.createConversation();
+                            setCurrentConversation(newConversation);
+                            if (updateConversationInList) {
+                                updateConversationInList(newConversation);
+                            }
+                        } catch (createError) {
+                            console.error('❌ [ChatScreen] Error creating new conversation:', createError);
+                            setCurrentConversation(null);
+                        }
+                    }
+                }
+            }
+        };
+
+        loadFullConversation();
+    }, [currentConversation?.id, currentConversation?.title, updateConversationInList]);
+
     // ✅ FIX #2: Create a new conversation on first visit if none exists
     // ✅ OPTIMISTIC LOADING: Non-blocking conversation creation
     // Greeting shows immediately, conversation creates in background

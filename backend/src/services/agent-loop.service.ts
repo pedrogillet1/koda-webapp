@@ -231,20 +231,20 @@ class AgentLoopService {
       // Use pgvector similarity search
       const chunks = await prisma.$queryRaw<any[]>`
         SELECT
-          dc.id,
-          dc."documentId",
-          dc.content,
-          dc.metadata,
-          dc.position,
+          de.id,
+          de."documentId",
+          de.content,
+          de.metadata,
+          de."chunkIndex" as position,
           d.filename,
           d."mimeType",
-          1 - (dc.embedding <=> ${JSON.stringify(queryEmbedding)}::vector) as similarity
-        FROM document_chunks dc
-        JOIN documents d ON d.id = dc."documentId"
+          1 - (de.embedding::vector <=> ${JSON.stringify(queryEmbedding)}::vector) as similarity
+        FROM document_embeddings de
+        JOIN documents d ON d.id = de."documentId"
         WHERE d."userId" = ${userId}
-          AND d.status = 'processed'
-          AND 1 - (dc.embedding <=> ${JSON.stringify(queryEmbedding)}::vector) > 0.5
-        ORDER BY dc.embedding <=> ${JSON.stringify(queryEmbedding)}::vector
+          AND d.status = 'completed'
+          AND 1 - (de.embedding::vector <=> ${JSON.stringify(queryEmbedding)}::vector) > 0.5
+        ORDER BY de.embedding::vector <=> ${JSON.stringify(queryEmbedding)}::vector
         LIMIT 10
       `;
 

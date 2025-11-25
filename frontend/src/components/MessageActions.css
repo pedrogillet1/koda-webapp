@@ -1,0 +1,93 @@
+/* MessageActions.css - Action buttons for AI messages */
+
+.message-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color, #e0e0e0);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Show actions on hover or when active */
+.message:hover .message-actions,
+.message-actions:focus-within {
+  opacity: 1;
+}
+
+.message-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 6px;
+  background: var(--bg-secondary, #f5f5f5);
+  color: var(--text-primary, #333);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.message-action-btn:hover:not(:disabled) {
+  background: var(--bg-tertiary, #e8e8e8);
+  border-color: var(--border-hover, #ccc);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.message-action-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.message-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.action-text {
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .message-actions {
+    border-top-color: #333;
+  }
+
+  .message-action-btn {
+    background: #2a2a2a;
+    border-color: #444;
+    color: #e0e0e0;
+  }
+
+  .message-action-btn:hover:not(:disabled) {
+    background: #3a3a3a;
+    border-color: #555;
+  }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .message-actions {
+    opacity: 1; /* Always visible on mobile */
+  }
+
+  .message-action-btn {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+
+  .action-icon {
+    font-size: 18px;
+  }
+}

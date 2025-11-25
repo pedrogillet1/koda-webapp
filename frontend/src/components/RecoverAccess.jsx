@@ -37,21 +37,22 @@ function RecoverAccess() {
           console.log('🔑 [RecoverAccess] Storing sessionToken:', response.data.sessionToken.substring(0, 20) + '...');
           sessionStorage.setItem('resetSessionToken', response.data.sessionToken);
           console.log('✅ [RecoverAccess] SessionToken stored successfully');
+
+          console.log('🔄 [RecoverAccess] Navigating to /forgot-password...');
+          navigate('/forgot-password', {
+            state: {
+              maskedEmail: response.data.maskedEmail,
+              maskedPhone: response.data.maskedPhone,
+              hasPhone: response.data.hasPhone,
+              canUseEmail: response.data.canUseEmail,
+              canUsePhone: response.data.canUsePhone,
+              hasUnverifiedPhone: response.data.hasUnverifiedPhone
+            }
+          });
         } else {
           console.warn('⚠️  [RecoverAccess] No sessionToken in response!');
+          setError('Unable to process password reset. Please verify your email address is correct and try again.');
         }
-
-        console.log('🔄 [RecoverAccess] Navigating to /forgot-password...');
-        navigate('/forgot-password', {
-          state: {
-            maskedEmail: response.data.maskedEmail,
-            maskedPhone: response.data.maskedPhone,
-            hasPhone: response.data.hasPhone,
-            canUseEmail: response.data.canUseEmail,
-            canUsePhone: response.data.canUsePhone,
-            hasUnverifiedPhone: response.data.hasUnverifiedPhone
-          }
-        });
       }
     } catch (error) {
       console.error('❌ [RecoverAccess] Error occurred:', error);

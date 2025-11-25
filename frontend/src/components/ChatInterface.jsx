@@ -26,6 +26,9 @@ import DocumentCard from './DocumentCard';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import { previewCache } from '../services/previewCache';
 import api from '../services/api';
+import MessageActions from './MessageActions';
+import ErrorBanner from './ErrorBanner';
+import FailedMessage from './FailedMessage';
 import './MarkdownStyles.css';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
@@ -73,6 +76,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [isDraggingOver, setIsDraggingOver] = useState(false);
     const [previewDocument, setPreviewDocument] = useState(null); // For document preview popup
     const [socketReady, setSocketReady] = useState(false); // Track WebSocket connection state
+    const [regeneratingMessageId, setRegeneratingMessageId] = useState(null); // Track which message is being regenerated
+    const [error, setError] = useState(null); // Track current error for ErrorBanner
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
     const inputRef = useRef(null);
@@ -1098,6 +1103,91 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     };
 
+    const handleRegenerate = async (messageId) => {
+        try {
+            console.log('🔄 Regenerating message:', messageId);
+            setRegeneratingMessageId(messageId);
+
+            // Call the regenerate API endpoint
+            const response = await api.post(`/api/chat/messages/${messageId}/regenerate`);
+
+            if (response.data.success) {
+                // Update the message in the messages array
+                setMessages(prevMessages =>
+                    prevMessages.map(msg =>
+                        msg.id === messageId
+                            ? { ...msg, content: response.data.message.content }
+                            : msg
+                    )
+                );
+
+                console.log('✅ Message regenerated successfully');
+            } else {
+                console.error('❌ Regeneration failed:', response.data.error);
+                alert('Failed to regenerate message. Please try again.');
+            }
+        } catch (error) {
+            console.error('❌ Error regenerating message:', error);
+            alert('Failed to regenerate message. Please try again.');
+        } finally {
+            setRegeneratingMessageId(null);
+        }
+    };
+
+    const handleDismissError = () => {
+        setError(null);
+    };
+
+    const handleRetryError = () => {
+        setError(null);
+        // Retry logic will be handled by the specific retry handlers
+    };
+
+    const handleRetryMessage = async (failedMessage) => {
+        try {
+            console.log('🔄 Retrying failed message:', failedMessage.id);
+
+            // Remove failed flag and mark as pending
+            setMessages(prev =>
+                prev.map(msg =>
+                    msg.id === failedMessage.id
+                        ? { ...msg, isFailed: false, error: null, isOptimistic: true }
+                        : msg
+                )
+            );
+
+            // Retry sending the message
+            const response = await chatService.sendAdaptiveMessageStreaming(
+                currentConversation.id,
+                failedMessage.content
+            );
+
+            // The streaming will handle updating the message
+            console.log('✅ Message retry initiated successfully');
+
+        } catch (error) {
+            console.error('❌ Retry failed:', error);
+
+            const errorMessage = error.response?.data?.error || error.message || 'Failed to send message';
+
+            // Mark as failed again
+            setMessages(prev =>
+                prev.map(msg =>
+                    msg.id === failedMessage.id
+                        ? { ...msg, isFailed: true, error: errorMessage, isOptimistic: false }
+                        : msg
+                )
+            );
+
+            setError(errorMessage);
+        }
+    };
+
+    const handleDeleteMessage = (messageId) => {
+        console.log('🗑️ Deleting failed message:', messageId);
+        setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    };
+
     const handleStopGeneration = () => {
         console.log('🛑 Stopping message generation...');
 
@@ -1575,6 +1665,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             expandedQuery: metadata.expandedQuery,
                             contextId: metadata.contextId,
                             actions: metadata.actions || [],
+                            confidence: metadata.confidence, // Include confidence score
                         } : {
                             id: metadata.assistantMessageId,
                             role: 'assistant',
@@ -1585,6 +1676,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             expandedQuery: metadata.expandedQuery,
                             contextId: metadata.contextId,
                             actions: metadata.actions || [],
+                            confidence: metadata.confidence, // Include confidence score
                         };
 
                         // Queue message - the useEffect will handle it when animation completes
@@ -1758,6 +1850,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             content: streamedContent,
                             createdAt: new Date().toISOString(),
                             ragSources: metadata.sources || [],
+                            confidence: metadata.confidence, // Include confidence score
                         };
 
                         pendingMessageRef.current = {
@@ -1793,6 +1886,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     return (
         <div style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column'}}>
+            {/* Error Banner */}
+            <ErrorBanner
+                error={error}
+                onDismiss={handleDismissError}
+                onRetry={error?.retryable ? handleRetryError : null}
+            />
+
             {/* Messages Area */}
             <div
                 ref={messagesContainerRef}
@@ -1822,7 +1922,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 ) : (
                     // Show messages
                     <div style={{width: '100%', height: '100%'}}>
-                        {messages.map((msg, index) => (
+                        {messages.map((msg, index) => {
+                            // Show failed message component for failed messages
+                            if (msg.isFailed) {
+                                return (
+                                    <FailedMessage
+                                        key={msg.id || `failed-${index}`}
+                                        message={msg}
+                                        onRetry={handleRetryMessage}
+                                        onDelete={handleDeleteMessage}
+                                    />
+                                );
+                            }
+
+                            // Normal message rendering
+                            return (
                             <div
                                 key={msg.isOptimistic ? `optimistic-${index}-${msg.createdAt}` : msg.id || `msg-${index}`}
                                 style={{
@@ -1968,47 +2082,47 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             )}
 
                                                             {/* Confidence Indicator Badge */}
-                                                            {msg.confidence && (
+                                                            {msg.confidence && msg.confidence.level && (
                                                                 <div
                                                                     style={{
                                                                         display: 'inline-flex',
                                                                         alignItems: 'center',
                                                                         gap: 6,
                                                                         padding: '6px 12px',
-                                                                        background: msg.confidence === 'high' ? '#ECFDF5' : msg.confidence === 'medium' ? '#FEF3C7' : '#FEE2E2',
-                                                                        border: `1px solid ${msg.confidence === 'high' ? '#10B981' : msg.confidence === 'medium' ? '#F59E0B' : '#EF4444'}`,
+                                                                        background: msg.confidence.level === 'high' ? '#ECFDF5' : msg.confidence.level === 'medium' ? '#FEF3C7' : '#FEE2E2',
+                                                                        border: `1px solid ${msg.confidence.level === 'high' ? '#10B981' : msg.confidence.level === 'medium' ? '#F59E0B' : '#EF4444'}`,
                                                                         borderRadius: 8,
                                                                         marginTop: 8,
                                                                         cursor: 'help'
                                                                     }}
-                                                                    title={`Confidence Score: ${(msg.confidenceScore * 100).toFixed(0)}%\n\nBased on:\n• Relevance of sources (50%)\n• Number of sources found (30%)\n• Coverage of information (20%)`}
+                                                                    title={`${msg.confidence.reasoning || 'Confidence based on source quality and relevance'}\n\nScore: ${msg.confidence.score}/100\n\n${msg.confidence.factors ? `Source relevance: ${(msg.confidence.factors.sourceRelevance * 100).toFixed(0)}%\nSources found: ${msg.confidence.factors.sourceCount}\nAnswer length: ${msg.confidence.factors.answerLength} words` : ''}`}
                                                                 >
                                                                     <svg
                                                                         width="14"
                                                                         height="14"
                                                                         viewBox="0 0 24 24"
                                                                         fill="none"
-                                                                        stroke={msg.confidence === 'high' ? '#10B981' : msg.confidence === 'medium' ? '#F59E0B' : '#EF4444'}
+                                                                        stroke={msg.confidence.level === 'high' ? '#10B981' : msg.confidence.level === 'medium' ? '#F59E0B' : '#EF4444'}
                                                                         strokeWidth="2"
                                                                         strokeLinecap="round"
                                                                         strokeLinejoin="round"
                                                                     >
-                                                                        {msg.confidence === 'high' ? (
+                                                                        {msg.confidence.level === 'high' ? (
                                                                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                                                                        ) : msg.confidence === 'medium' ? (
+                                                                        ) : msg.confidence.level === 'medium' ? (
                                                                             <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                                                         ) : (
                                                                             <path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                                         )}
-                                                                        {msg.confidence === 'high' && <polyline points="22 4 12 14.01 9 11.01" />}
+                                                                        {msg.confidence.level === 'high' && <polyline points="22 4 12 14.01 9 11.01" />}
                                                                     </svg>
                                                                     <span style={{
                                                                         fontSize: 12,
                                                                         fontWeight: '600',
-                                                                        color: msg.confidence === 'high' ? '#059669' : msg.confidence === 'medium' ? '#D97706' : '#DC2626',
+                                                                        color: msg.confidence.level === 'high' ? '#059669' : msg.confidence.level === 'medium' ? '#D97706' : '#DC2626',
                                                                         textTransform: 'capitalize'
                                                                     }}>
-                                                                        {msg.confidence} Confidence
+                                                                        {msg.confidence.level} Confidence
                                                                     </span>
                                                                     {msg.isMultiStep && (
                                                                         <span style={{
@@ -2478,6 +2592,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {/* Message Actions (Regenerate, Copy) */}
+                                        <MessageActions
+                                            message={msg}
+                                            onRegenerate={handleRegenerate}
+                                            isRegenerating={regeneratingMessageId === msg.id}
+                                        />
+
                                         <button
                                         onClick={() => handleCopyMessage(msg.id, msg.content)}
                                         style={{
@@ -2645,7 +2767,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     </div>
                                 )}
                             </div>
-                        ))}
+                        );
+                        })}
 
                         {/* Streaming Message - Only show if streamingMessage is not empty */}
                         {streamingMessage && (

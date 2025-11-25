@@ -152,7 +152,7 @@ export const loginUser = async ({ email, password, rememberMe }: LoginInput) => 
   console.log('⏰ Remember Me:', rememberMe);
 
   if (!user || !user.passwordHash || !user.salt) {
-    throw new Error('Invalid credentials');
+    throw new Error('Email or password is incorrect');
   }
 
   // Verify password
@@ -160,7 +160,7 @@ export const loginUser = async ({ email, password, rememberMe }: LoginInput) => 
   console.log('✅ Password valid:', isValid);
 
   if (!isValid) {
-    throw new Error('Invalid credentials');
+    throw new Error('Email or password is incorrect');
   }
 
   // Check if 2FA is enabled

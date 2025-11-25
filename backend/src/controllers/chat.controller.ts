@@ -505,6 +505,116 @@ export const sendAdaptiveMessageStreaming = async (req: Request, res: Response) 
 };
 
 /**
+ * Regenerate an assistant message
+ * Allows users to retry unsatisfactory answers
+ */
+export const regenerateMessage = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { messageId } = req.params;
+
+    console.log('🔄 Regenerating message:', messageId);
+
+    // 1. Fetch the message to regenerate
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      include: {
+        conversation: true,
+      },
+    });
+
+    if (!message) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+
+    // 2. Verify user owns this conversation
+    if (message.conversation.userId !== userId) {
+      res.status(403).json({ error: 'Not authorized to regenerate this message' });
+      return;
+    }
+
+    // 3. Verify it's an assistant message
+    if (message.role !== 'assistant') {
+      res.status(400).json({ error: 'Can only regenerate assistant messages' });
+      return;
+    }
+
+    // 4. Get the previous user message (the query that triggered this response)
+    const userMessage = await prisma.message.findFirst({
+      where: {
+        conversationId: message.conversationId,
+        role: 'user',
+        createdAt: { lt: message.createdAt },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!userMessage) {
+      res.status(400).json({ error: 'Could not find the original user query' });
+      return;
+    }
+
+    console.log('📝 Regenerating response for query:', userMessage.content?.substring(0, 50));
+
+    // 5. Import RAG service to generate new response
+    const ragService = (await import('../services/rag.service')).default;
+    const ragResult = await ragService.generateAnswer(
+      userId,
+      userMessage.content || '',
+      message.conversationId,
+      'medium',
+      userMessage.attachedDocumentId || undefined
+    );
+
+    let fullResponse = ragResult.answer || 'Sorry, I could not generate a response.';
+
+    // Append document sources if available
+    if (ragResult.sources && ragResult.sources.length > 0) {
+      console.log(`📎 Appending ${ragResult.sources.length} document sources to response`);
+      // Format sources similar to chat.service.ts
+      const sourcesText = '\n\n' + ragResult.sources.map((source: any, index: number) =>
+        `[${index + 1}] ${source.filename}${source.page ? ` (Page ${source.page})` : ''}`
+      ).join('\n');
+      fullResponse += sourcesText;
+    }
+
+    // 6. Update the existing assistant message with new content
+    const updatedMessage = await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        content: fullResponse,
+        updatedAt: new Date(),
+      },
+    });
+
+    // 7. Update conversation timestamp
+    await prisma.conversation.update({
+      where: { id: message.conversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    // 8. Invalidate cache
+    const conversationCacheKey = cacheService.generateKey('conversation', message.conversationId, userId);
+    const conversationsListCacheKey = cacheService.generateKey('conversations_list', userId);
+    await Promise.all([
+      cacheService.set(conversationCacheKey, null, { ttl: 0 }),
+      cacheService.set(conversationsListCacheKey, null, { ttl: 0 }),
+    ]);
+
+    console.log('✅ Message regenerated successfully');
+
+    res.json({
+      success: true,
+      message: updatedMessage,
+    });
+  } catch (error: any) {
+    console.error('❌ Error regenerating message:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
  * Delete all empty conversations (no messages)
  */
 export const deleteEmptyConversations = async (req: Request, res: Response) => {

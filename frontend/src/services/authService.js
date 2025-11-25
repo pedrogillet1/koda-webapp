@@ -192,7 +192,8 @@ const authService = {
       const response = await api.post('/api/auth/2fa/verify', data);
 
       // Update user data to reflect 2FA is enabled
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const userStr = localStorage.getItem('user');
+      const user = (userStr && userStr !== 'undefined') ? JSON.parse(userStr) : {};
       user.twoFactorEnabled = true;
       localStorage.setItem('user', JSON.stringify(user));
 
@@ -212,7 +213,8 @@ const authService = {
       const response = await api.post('/api/auth/2fa/disable', data);
 
       // Update user data to reflect 2FA is disabled
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const userStr = localStorage.getItem('user');
+      const user = (userStr && userStr !== 'undefined') ? JSON.parse(userStr) : {};
       user.twoFactorEnabled = false;
       localStorage.setItem('user', JSON.stringify(user));
 
