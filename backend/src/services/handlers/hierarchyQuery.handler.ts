@@ -58,14 +58,14 @@ class HierarchyQueryHandler {
     });
 
     // Build response
-    let answer = `📊 **Your Document Structure**\n\n`;
+    let answer = `**Your Document Structure**\n\n`;
     answer += `**Total Documents:** ${totalDocuments}\n`;
     answer += `**Categories:** ${categories.length}\n`;
     answer += `**Root Folders:** ${rootFolders.length}\n\n`;
 
     // List categories
     if (categories.length > 0) {
-      answer += `**📁 Categories:**\n\n`;
+      answer += `**Categories:**\n\n`;
 
       for (const category of categories) {
         const emoji = category.emoji || '📁';
@@ -78,7 +78,7 @@ class HierarchyQueryHandler {
 
     // List root folders by category
     if (rootFolders.length > 0) {
-      answer += `**📂 Folder Structure:**\n\n`;
+      answer += `**Folder Structure:**\n\n`;
 
       // Group by category
       const byCategory = new Map<string, typeof rootFolders>();
@@ -115,7 +115,7 @@ class HierarchyQueryHandler {
       // Library folders (not in a specific category)
       const uncategorized = byCategory.get('uncategorized') || [];
       if (uncategorized.length > 0) {
-        answer += `**📁 Library:**\n`;
+        answer += `**Library:**\n`;
         for (const folder of uncategorized) {
           answer += `   └─ ${folder.name}`;
           if (folder._count.subfolders > 0) {

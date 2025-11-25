@@ -1085,7 +1085,7 @@ export const handleFileActionsIfNeeded = async (
 
     // Handle no results
     if (documents.length === 0) {
-      let message = '📂 No files found';
+      let message = 'No files found';
       if (fileType) message += ` of type "${fileType}"`;
       if (folderName) message += ` in folder "${folderName}"`;
       message += '.';
@@ -1097,7 +1097,7 @@ export const handleFileActionsIfNeeded = async (
     }
 
     // Format response
-    let message = `📂 **Found ${documents.length} file${documents.length !== 1 ? 's' : ''}**`;
+    let message = `**Found ${documents.length} file${documents.length !== 1 ? 's' : ''}**`;
     if (fileType) message += ` of type **${fileType.toUpperCase()}**`;
     if (folderName) message += ` in folder **"${folderName}"**`;
     message += ':\n\n';
@@ -1140,7 +1140,7 @@ export const handleFileActionsIfNeeded = async (
     if (documents.length === 0) {
       return {
         action: 'metadata_query',
-        message: '📂 You have no documents uploaded yet.'
+        message: 'You have no documents uploaded yet.'
       };
     }
 
@@ -1191,7 +1191,7 @@ export const handleFileActionsIfNeeded = async (
       // User asked for specific types (e.g., "how many PDFs and DOCX")
       console.log(`📊 Specific types requested:`, fileTypes);
 
-      let message = '📊 **File Count:**\n\n';
+      let message = '**File Count:**\n\n';
 
       fileTypes.forEach((requestedType: string) => {
         // Find matching type in our counts
@@ -1217,7 +1217,7 @@ export const handleFileActionsIfNeeded = async (
     }
 
     // General query - show all file types
-    let message = `📊 **You have ${Object.keys(typeCounts).length} types of files:**\n\n`;
+    let message = `**You have ${Object.keys(typeCounts).length} types of files:**\n\n`;
 
     // Sort by count descending
     const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);

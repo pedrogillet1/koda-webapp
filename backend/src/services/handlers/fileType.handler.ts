@@ -363,7 +363,7 @@ export class FileTypeHandler {
     if (documents.length === 0) {
       const typeLabels = fileTypeInfos.map(f => f.label).join(' and ');
       return {
-        answer: `📂 **No ${typeLabels}s found**\n\nNo ${typeLabels}s found in your library.\n\nTry uploading some files! 📤`,
+        answer: `**No ${typeLabels}s found**\n\nNo ${typeLabels}s found in your library.\n\nTry uploading some files!`,
         documents: [],
         totalCount: 0,
         fileType: typeLabels
@@ -388,7 +388,7 @@ export class FileTypeHandler {
 
     // Single type - use existing format
     const fileTypeInfo = fileTypeInfos[0];
-    let answer = `${fileTypeInfo.emoji} **${fileTypeInfo.label.charAt(0).toUpperCase() + fileTypeInfo.label.slice(1)}s**\n\n`;
+    let answer = `**${fileTypeInfo.label.charAt(0).toUpperCase() + fileTypeInfo.label.slice(1)}s**\n\n`;
     answer += `Found **${documents.length}** ${fileTypeInfo.label}${documents.length === 1 ? '' : 's'}:\n\n`;
 
     // Group by folder for better organization
@@ -404,9 +404,9 @@ export class FileTypeHandler {
       // Group by folder
       for (const [folderLabel, docs] of Object.entries(grouped)) {
         if (folderLabel !== 'No folder') {
-          answer += `**📁 ${folderLabel}:**\n`;
+          answer += `**${folderLabel}:**\n`;
         } else {
-          answer += `**📄 Root:**\n`;
+          answer += `**Root:**\n`;
         }
         docs.forEach((doc, idx) => {
           const fileSize = doc.fileSize ? ` (${this.formatFileSize(doc.fileSize)})` : '';
@@ -419,7 +419,7 @@ export class FileTypeHandler {
     // Calculate total size
     const totalSize = formattedDocs.reduce((sum, doc) => sum + (doc.fileSize || 0), 0);
     if (totalSize > 0) {
-      answer += `\n💾 *Total size: ${this.formatFileSize(totalSize)}*`;
+      answer += `\n*Total size: ${this.formatFileSize(totalSize)}*`;
     }
 
     return {
@@ -437,7 +437,7 @@ export class FileTypeHandler {
     documents: FileTypeDocument[],
     fileTypeInfos: Array<{ mimeTypes: string[], emoji: string, label: string, detectedTerm: string }>
   ): FileTypeResult {
-    let answer = `📂 **Found ${documents.length} file${documents.length === 1 ? '' : 's'}:**\n\n`;
+    let answer = `**Found ${documents.length} file${documents.length === 1 ? '' : 's'}:**\n\n`;
 
     // Group documents by file type
     const groupedByType: Record<string, FileTypeDocument[]> = {};
