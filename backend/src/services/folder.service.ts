@@ -187,24 +187,22 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
     orderBy: { createdAt: 'desc' }, // ✅ Newest first
   });
 
-  // Add recursive document count (only for root folders to avoid redundancy)
-  if (!includeAll) {
-    const foldersWithTotalCount = await Promise.all(
-      folders.map(async (folder) => {
-        const totalDocuments = await countDocumentsRecursively(folder.id);
-        return {
-          ...folder,
-          _count: {
-            ...folder._count,
-            totalDocuments, // Total documents including all subfolders
-          },
-        };
-      })
-    );
-    return foldersWithTotalCount;
-  }
+  // ⚡ OPTIMIZED: Always calculate recursive document count for ALL folders
+  // This ensures the frontend always has accurate total counts
+  const foldersWithTotalCount = await Promise.all(
+    folders.map(async (folder) => {
+      const totalDocuments = await countDocumentsRecursively(folder.id);
+      return {
+        ...folder,
+        _count: {
+          ...folder._count,
+          totalDocuments, // Total documents including all subfolders
+        },
+      };
+    })
+  );
 
-  return folders;
+  return foldersWithTotalCount;
 };
 
 /**
@@ -424,15 +422,12 @@ export const bulkCreateFolders = async (
 };
 
 /**
- * Delete folder (cascade delete - deletes all subfolders and documents)
+ * ⚡ OPTIMIZED: Delete folder (cascade delete - deletes all subfolders and documents)
+ * Uses bulk delete instead of recursive deletion for instant performance
  */
 export const deleteFolder = async (folderId: string, userId: string) => {
   const folder = await prisma.folder.findUnique({
     where: { id: folderId },
-    include: {
-      subfolders: true,
-      documents: true,
-    },
   });
 
   if (!folder) {
@@ -443,24 +438,27 @@ export const deleteFolder = async (folderId: string, userId: string) => {
     throw new Error('Unauthorized');
   }
 
-  // Recursively delete all subfolders
-  if (folder.subfolders.length > 0) {
-    for (const subfolder of folder.subfolders) {
-      await deleteFolder(subfolder.id, userId);
-    }
-  }
+  // ⚡ OPTIMIZATION: Get all folder IDs in one query instead of recursive deletion
+  const allFolderIds = await getAllFolderIdsInTree(folderId);
 
-  // Delete all documents in this folder
-  if (folder.documents.length > 0) {
-    await prisma.document.deleteMany({
-      where: { folderId: folderId },
+  console.log(`🗑️ Deleting folder "${folder.name}" and ${allFolderIds.length - 1} subfolders (${allFolderIds.length} total)`);
+
+  // ⚡ OPTIMIZATION: Use a transaction to delete everything atomically and fast
+  await prisma.$transaction(async (tx) => {
+    // 1. Delete all documents in all folders (bulk delete)
+    const deletedDocs = await tx.document.deleteMany({
+      where: { folderId: { in: allFolderIds } },
     });
-  }
+    console.log(`  ✅ Deleted ${deletedDocs.count} documents`);
 
-  // Delete the folder itself
-  await prisma.folder.delete({
-    where: { id: folderId },
+    // 2. Delete all folders (bulk delete)
+    const deletedFolders = await tx.folder.deleteMany({
+      where: { id: { in: allFolderIds } },
+    });
+    console.log(`  ✅ Deleted ${deletedFolders.count} folders`);
   });
+
+  console.log(`✅ Folder deletion complete`);
 
   return { success: true };
 };

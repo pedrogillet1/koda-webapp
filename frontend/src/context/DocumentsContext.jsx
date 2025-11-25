@@ -104,8 +104,8 @@ export const DocumentsProvider = ({ children }) => {
   const fetchFolders = useCallback(async () => {
     try {
       const timestamp = new Date().getTime();
-      // IMPORTANT: Pass includeAll=true to get ALL folders (including subfolders)
-      // This is required for recursive document counting to work properly
+      // IMPORTANT: Pass includeAll=true to get ALL folders (including subfolders) in flat list
+      // Backend will calculate totalDocuments for each folder recursively
       const response = await api.get(`/api/folders?includeAll=true&_t=${timestamp}`);
       let fetchedFolders = response.data.folders || [];
 
@@ -373,7 +373,7 @@ export const DocumentsProvider = ({ children }) => {
 
       // Join user-specific room for targeted events
       socket.emit('join-user-room', userId);
-      console.log(`📡 Joined user room: user:${userId.substring(0, 8)}...`);
+      console.log(`📡 Joined user room: user:${userId?.substring(0, 8)}...`);
     });
 
     socket.on('disconnect', () => {

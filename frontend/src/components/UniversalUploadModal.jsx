@@ -477,10 +477,22 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   };
 
   const handleFolderSelect = (e) => {
+    console.log('📁 handleFolderSelect triggered');
+    console.log('📁 e.target.files:', e.target.files);
+    console.log('📁 e.target.files.length:', e.target.files?.length);
+
     const files = Array.from(e.target.files);
+    console.log('📁 Converted to array, length:', files.length);
+    console.log('📁 First file:', files[0]);
+    console.log('📁 First file webkitRelativePath:', files[0]?.webkitRelativePath);
+
     if (files.length > 0) {
+      console.log('📁 Calling onDrop with', files.length, 'files');
       // Add webkitRelativePath to ensure proper folder detection
       onDrop(files);
+      console.log('📁 onDrop called');
+    } else {
+      console.log('📁 No files to upload');
     }
   };
 

@@ -789,6 +789,8 @@ const UploadHub = () => {
       if (item.isFolder) {
         // Handle folder upload using the dedicated folder upload service
         console.log('📁 Uploading folder:', item.folderName);
+        console.log('📁 DEBUG: item.files length:', item.files?.length);
+        console.log('📁 DEBUG: item.files sample:', item.files?.[0]);
 
         // ✅ FIX: Handle both File objects (drag-and-drop) and wrapped objects (legacy)
         const files = item.files.map(fileOrWrapper => {
@@ -815,6 +817,9 @@ const UploadHub = () => {
           console.warn('⚠️ Unknown file structure:', fileOrWrapper);
           return fileOrWrapper;
         });
+
+        console.log('📁 DEBUG: Processed files length:', files?.length);
+        console.log('📁 DEBUG: First processed file:', files?.[0]);
 
         // ✅ OPTIMIZATION: Use presigned URLs for direct-to-Supabase upload
         presignedUploadService.uploadFolder(files, null, (progress, fileName, stage) => {
