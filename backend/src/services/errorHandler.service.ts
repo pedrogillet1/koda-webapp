@@ -2,7 +2,12 @@
  * Error Handler Service - Phase 1 Week 2
  * Categorizes errors and provides helpful, actionable error messages
  * Ensures users are never stuck - always shows next steps
+ *
+ * UPDATED: Now uses ErrorMessagesService for varied, natural responses
+ * to avoid robotic repetition
  */
+
+import ErrorMessagesService from './errorMessages.service';
 
 export type ErrorCategory =
   | 'no_documents'
@@ -77,13 +82,17 @@ class ErrorHandlerService {
 
   /**
    * Generate user-friendly error response with actionable suggestions
+   * Now uses ErrorMessagesService for varied, natural responses
    */
   private generateErrorResponse(category: ErrorCategory, error: Error | any): ErrorResponse {
     switch (category) {
       case 'no_documents':
         return {
           category,
-          userMessage: "You haven't uploaded any documents yet. Let's get started!",
+          userMessage: ErrorMessagesService.getNotFoundMessage({
+            query: '',
+            documentCount: 0,
+          }),
           suggestions: [
             'Upload your first document using the upload button',
             'Supported formats: PDF, Word, Excel, PowerPoint, images, and more',
@@ -95,7 +104,12 @@ class ErrorHandlerService {
       case 'no_relevant_documents':
         return {
           category,
-          userMessage: "I'm not quite sure how to answer that based on your current documents. Could you try rephrasing your question or providing more context?",
+          userMessage: ErrorMessagesService.getNotFoundMessage({
+            query: error?.query || '',
+            documentCount: error?.documentCount || 1,
+            hasSpecificDocument: error?.documentName ? true : false,
+            documentName: error?.documentName,
+          }),
           suggestions: [
             'Try rephrasing your question with more specific terms',
             'Specify which document or section you\'re interested in',
@@ -108,7 +122,7 @@ class ErrorHandlerService {
       case 'retrieval_failed':
         return {
           category,
-          userMessage: 'There was a temporary issue searching your documents.',
+          userMessage: ErrorMessagesService.getGeneralErrorMessage(),
           technicalDetails: error.message,
           suggestions: [
             'Please try your question again',
@@ -121,7 +135,7 @@ class ErrorHandlerService {
       case 'llm_failed':
         return {
           category,
-          userMessage: "I encountered an issue generating a response. Let's try again.",
+          userMessage: ErrorMessagesService.getGeneralErrorMessage(),
           technicalDetails: error.message,
           suggestions: [
             'Try asking your question again',
@@ -134,7 +148,7 @@ class ErrorHandlerService {
       case 'rate_limited':
         return {
           category,
-          userMessage: "You've reached the rate limit. Please wait a moment before trying again.",
+          userMessage: ErrorMessagesService.getRateLimitedMessage(),
           suggestions: [
             'Wait 30-60 seconds before submitting another query',
             'Consider upgrading your plan for higher limits',
@@ -159,7 +173,7 @@ class ErrorHandlerService {
       default:
         return {
           category,
-          userMessage: 'Something unexpected happened. Please try again.',
+          userMessage: ErrorMessagesService.getGeneralErrorMessage(),
           technicalDetails: error.message,
           suggestions: [
             'Refresh the page and try again',

@@ -112,10 +112,10 @@ class HierarchyQueryHandler {
         }
       }
 
-      // Uncategorized folders
+      // Library folders (not in a specific category)
       const uncategorized = byCategory.get('uncategorized') || [];
       if (uncategorized.length > 0) {
-        answer += `**📁 Uncategorized:**\n`;
+        answer += `**📁 Library:**\n`;
         for (const folder of uncategorized) {
           answer += `   └─ ${folder.name}`;
           if (folder._count.subfolders > 0) {

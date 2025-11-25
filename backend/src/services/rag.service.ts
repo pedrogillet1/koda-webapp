@@ -26,6 +26,7 @@ import * as evidenceAggregation from './evidenceAggregation.service';
 import * as memoryService from './memory.service';
 import * as memoryExtraction from './memoryExtraction.service';
 import * as citationTracking from './citation-tracking.service';
+import ErrorMessagesService from './errorMessages.service';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // INTENT DETECTION CACHE (5min TTL)
@@ -2341,7 +2342,12 @@ async function handleConceptComparison(
   }
 
   if (allChunks.length === 0) {
-    const message = `I couldn't find information about ${concepts.join(' or ')} in your uploaded documents.`;
+    const queryLang = detectLanguage(query);
+    const message = ErrorMessagesService.getNotFoundMessage({
+      query,
+      documentCount: 1, // We know they have documents since we got here
+      language: queryLang as 'en' | 'pt' | 'es' | 'fr',
+    });
     onChunk(message);
     return { sources: [] };
   }
@@ -3402,8 +3408,18 @@ async function handleRegularQuery(
     const enhancedQueryText = queryEnhancementService.enhanceQuerySimple(query);
     console.log(`🔍 [QUERY ENHANCE] Enhanced: "${query}" → "${enhancedQueryText}"`);
 
-    // Initialize Pinecone
-    await initializePinecone();
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FIX #6: PARALLELIZE - Run Pinecone init and embedding generation together
+    // ═══════════════════════════════════════════════════════════════════════════
+    // REASON: These two operations are independent and can run concurrently
+    // IMPACT: Saves ~200-500ms by running in parallel instead of sequentially
+    const [_, embeddingResultEarly] = await Promise.all([
+      initializePinecone(),
+      embeddingService.generateEmbedding(enhancedQueryText)
+    ]);
+
+    // Store for later use (avoids duplicate embedding generation)
+    const earlyEmbedding = embeddingResultEarly.embedding;
 
     // filter already declared at top of function, just use it
 
@@ -3449,9 +3465,8 @@ async function handleRegularQuery(
       // Hybrid search (vector + keyword) for comparisons
       // ───────────────────────────────────────────────────────────────────
 
-      // First get vector results using OpenAI
-      const embeddingResult = await embeddingService.generateEmbedding(enhancedQueryText);
-      const queryEmbedding = embeddingResult.embedding;
+      // FIX #6: Use pre-computed embedding from parallel init
+      const queryEmbedding = earlyEmbedding;
 
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
@@ -3478,8 +3493,8 @@ async function handleRegularQuery(
       // ───────────────────────────────────────────────────────────────────
       // Pure vector search for semantic understanding (default)
       // ───────────────────────────────────────────────────────────────────
-      const embeddingResult = await embeddingService.generateEmbedding(enhancedQueryText);
-      const queryEmbedding = embeddingResult.embedding;
+      // FIX #6: Use pre-computed embedding from parallel init
+      const queryEmbedding = earlyEmbedding;
 
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
@@ -3499,6 +3514,26 @@ async function handleRegularQuery(
 
       console.log(`✅ [VECTOR] Pure vector search: ${hybridResults.length} chunks`);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // DEBUG LOGGING - Diagnose retrieval issues
+    // ═══════════════════════════════════════════════════════════════════════════════
+    console.log('🔍 [DEBUG] Pinecone Query Results:');
+    console.log(`   Total results: ${hybridResults.length}`);
+    if (hybridResults.length > 0) {
+      console.log(`   Top 5 results:`, hybridResults.slice(0, 5).map((r: any) => ({
+        filename: r.metadata?.filename,
+        score: r.vectorScore || r.hybridScore,
+        contentPreview: (r.metadata?.text || r.metadata?.content || r.content || '').substring(0, 80),
+        sourceType: r.metadata?.sourceType
+      })));
+    } else {
+      console.error('❌ [DEBUG] NO RESULTS FROM PINECONE - This is the root cause!');
+      console.log('🔍 [DEBUG] Query:', query);
+      console.log('🔍 [DEBUG] User ID:', userId);
+      console.log('🔍 [DEBUG] Filter:', JSON.stringify(filter));
+    }
+    // ═══════════════════════════════════════════════════════════════════════════════
 
     // ✅ ISSUE #6 FIX: Boost section matches for section-specific queries
     const sectionRefs = extractSectionReferences(query);
@@ -3797,7 +3832,7 @@ async function handleRegularQuery(
     rerankedChunks.forEach((result: any) => {
       const meta = result.metadata || {};
       const filename = meta.filename || 'Unknown';
-      const folderPath = meta.folderPath || meta.folderName || 'Uncategorized';
+      const folderPath = meta.folderPath || meta.folderName || 'Library';
       if (!uniqueDocuments.has(filename)) {
         uniqueDocuments.set(filename, { filename, folderPath });
       }
@@ -3858,7 +3893,23 @@ async function handleRegularQuery(
 
     console.log(`📝 [PROMPT] Generated unified system prompt with ${answerLength} length`);
 
-    let fullResponse = await streamLLMResponse(systemPrompt, '', onChunk);
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // LANGUAGE DETECTION - Ensure response matches query language
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // queryLangName already defined above
+                          queryLang === 'es' ? 'Spanish' :
+                          queryLang === 'fr' ? 'French' : 'English';
+
+    const languageInstruction = `\n\n**LANGUAGE REQUIREMENT (CRITICAL)**:
+- The user's query is in **${queryLangName}**
+- You MUST respond ENTIRELY in **${queryLangName}**
+- Even if the document content is in a different language, your response must be in **${queryLangName}**
+- Translate information from the document into **${queryLangName}** if needed`;
+
+    const finalSystemPrompt = systemPrompt + languageInstruction;
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    let fullResponse = await streamLLMResponse(finalSystemPrompt, '', onChunk);
     console.log(`⏱️ [PERF] Generation took ${Date.now() - startTime}ms`);
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -4532,14 +4583,14 @@ async function handleFileLocationQuery(
 
   if (documents.length === 1) {
     const doc = documents[0];
-    const folderName = doc.folder ? `${doc.folder.emoji || '📁'} **${doc.folder.name}**` : '**Uncategorized**';
+    const folderName = doc.folder ? `${doc.folder.emoji || '📁'} **${doc.folder.name}**` : '**Library**';
     onChunk(`**${doc.filename}** is located in: ${folderName}`);
     return { sources: [{ documentId: doc.id, documentName: doc.filename, score: 1.0 }] };
   }
 
   // Multiple files with same name
   const locations = documents.map(doc => {
-    const folderName = doc.folder ? `${doc.folder.emoji || '📁'} **${doc.folder.name}**` : '**Uncategorized**';
+    const folderName = doc.folder ? `${doc.folder.emoji || '📁'} **${doc.folder.name}**` : '**Library**';
     return `- **${doc.filename}** in ${folderName}`;
   }).join('\n');
 

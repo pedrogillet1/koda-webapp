@@ -18,7 +18,7 @@ export class FuzzyMatchService {
   findBestMatch<T extends { id: string; filename: string }>(
     query: string,
     documents: T[],
-    threshold: number = 0.6
+    threshold: number = 0.5 // FIX #5: Lowered from 0.6 to 0.5 for better matching
   ): { document: T; score: number } | null {
     if (!query || !documents || documents.length === 0) {
       return null;
@@ -38,7 +38,7 @@ export class FuzzyMatchService {
     scored.sort((a, b) => b.score - a.score);
 
     // Log top 3 matches for debugging
-    console.log(`=Ê [FuzzyMatch] Top 3 matches:`);
+    console.log(`=ï¿½ [FuzzyMatch] Top 3 matches:`);
     scored.slice(0, 3).forEach((item, idx) => {
       console.log(`   ${idx + 1}. ${item.document.filename} (score: ${item.score.toFixed(3)})`);
     });
@@ -67,7 +67,7 @@ export class FuzzyMatchService {
   findMultipleMatches<T extends { id: string; filename: string }>(
     query: string,
     documents: T[],
-    threshold: number = 0.6,
+    threshold: number = 0.5, // FIX #5: Lowered from 0.6 to 0.5 for better matching
     limit: number = 5
   ): Array<{ document: T; score: number }> {
     if (!query || !documents || documents.length === 0) {

@@ -2599,47 +2599,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             onRegenerate={handleRegenerate}
                                             isRegenerating={regeneratingMessageId === msg.id}
                                         />
-
-                                        <button
-                                        onClick={() => handleCopyMessage(msg.id, msg.content)}
-                                        style={{
-                                            padding: 6,
-                                            background: copiedMessageId === msg.id ? '#10B981' : '#F5F5F5',
-                                            border: '1px solid #E6E6EC',
-                                            borderRadius: 6,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: copiedMessageId === msg.id ? 'white' : '#6C6B6E',
-                                            transition: 'all 0.2s',
-                                            minWidth: 28,
-                                            minHeight: 28,
-                                            flexShrink: 0,
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (copiedMessageId !== msg.id) {
-                                                e.currentTarget.style.background = '#E6E6EC';
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (copiedMessageId !== msg.id) {
-                                                e.currentTarget.style.background = '#F5F5F5';
-                                            }
-                                        }}
-                                        title={copiedMessageId === msg.id ? 'Copied!' : 'Copy message'}
-                                    >
-                                        {copiedMessageId === msg.id ? (
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="20 6 9 17 4 12" />
-                                            </svg>
-                                        ) : (
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                                            </svg>
-                                        )}
-                                    </button>
                                 </div>
                                 ) : (
                                     // User message
