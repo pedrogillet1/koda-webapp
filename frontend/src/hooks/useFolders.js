@@ -102,7 +102,7 @@ export function useCreateFolder() {
       const optimisticFolder = {
         id: `temp-${Date.now()}`,
         name: folderData.name,
-        emoji: folderData.emoji || '📁',
+        emoji: folderData.emoji || null,
         parentFolderId: folderData.parentFolderId || null,
         createdAt: new Date().toISOString(),
         isOptimistic: true,

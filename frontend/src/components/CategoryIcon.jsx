@@ -10,24 +10,10 @@ import folderIcon from '../assets/folder_icon.svg';
  * @param {string} className - Optional CSS class name
  */
 const CategoryIcon = ({ emoji, style = {}, className = '' }) => {
-  if (emoji === '__FOLDER_SVG__') {
-    return (
-      <img
-        src={folderIcon}
-        alt="Folder"
-        className={className}
-        style={{
-          width: '1em',
-          height: '1em',
-          objectFit: 'contain',
-          ...style
-        }}
-      />
-    );
-  }
+  // Use folder SVG for: special identifier, null/empty, or default folder emoji
+  const useFolderSvg = !emoji || emoji === '__FOLDER_SVG__' || emoji === '📁';
 
-  // If no emoji provided, default to folder SVG
-  if (!emoji) {
+  if (useFolderSvg) {
     return (
       <img
         src={folderIcon}

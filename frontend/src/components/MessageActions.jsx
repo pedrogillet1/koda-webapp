@@ -1,6 +1,7 @@
 import React from 'react';
 import './MessageActions.css';
 import copyIcon from '../assets/copy-06.svg';
+import regenerateIcon from '../assets/regenerate.svg';
 
 /**
  * MessageActions Component
@@ -42,7 +43,7 @@ const MessageActions = ({ message, onRegenerate, isRegenerating = false }) => {
           </>
         ) : (
           <>
-            <span className="action-icon">🔄</span>
+            <img src={regenerateIcon} alt="" className="action-icon" style={{ width: 16, height: 16 }} />
             <span className="action-text">Regenerate</span>
           </>
         )}

@@ -53,7 +53,9 @@
   line-height: 1;
 }
 
-/* Dark mode support */
+/* Dark mode support - DISABLED to keep consistent light appearance */
+/* Icons have hardcoded dark colors, so we force light mode styling */
+/*
 @media (prefers-color-scheme: dark) {
   .message-actions {
     border-top-color: #333;
@@ -70,6 +72,7 @@
     border-color: #555;
   }
 }
+*/
 
 /* Mobile responsive */
 @media (max-width: 768px) {

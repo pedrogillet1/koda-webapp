@@ -3262,7 +3262,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             background: 'transparent',
                             border: 'none',
                             outline: 'none',
-                            fontSize: 14,
+                            fontSize: 18,
                             color: '#32302C',
                             cursor: 'text',
                             resize: 'none',
