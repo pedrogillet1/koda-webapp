@@ -150,7 +150,7 @@ const Documents = () => {
       .map(folder => ({
         id: folder.id,
         name: folder.name,
-        emoji: folder.emoji || '📁',
+        emoji: folder.emoji || null,
         parentFolderId: folder.parentFolderId
       }));
   }, [contextFolders]);

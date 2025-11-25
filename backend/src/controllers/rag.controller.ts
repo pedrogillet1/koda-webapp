@@ -815,6 +815,13 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     // Reverse to get chronological order
     conversationHistory.reverse();
 
+    // ✅ Check if this is the first message in the conversation BEFORE saving
+    const existingMessageCount = await prisma.message.count({
+      where: { conversationId }
+    });
+    const isFirstMessage = existingMessageCount === 0;
+    console.log(`👋 [GREETING CHECK] Conversation ${conversationId}: ${existingMessageCount} existing messages, isFirstMessage: ${isFirstMessage}`);
+
     // Save user message to database
     const userMessage = await prisma.message.create({
       data: {
@@ -832,7 +839,8 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       conversationId,
       finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
       cleanDocumentId,
-      conversationHistory  // Pass conversation history for context
+      conversationHistory,  // Pass conversation history for context
+      isFirstMessage  // Pass first message flag for greeting logic
     );
 
     console.log(`🔍 [RAG CONTROLLER] result.sources:`, JSON.stringify(result.sources?.slice(0, 3), null, 2));

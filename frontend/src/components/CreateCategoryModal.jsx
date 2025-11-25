@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
+import { ReactComponent as SearchIcon } from '../assets/Search.svg';
 import CategoryIcon from './CategoryIcon';
 import folderIcon from '../assets/folder_icon.svg';
 import pdfIcon from '../assets/pdf-icon.png';
@@ -141,7 +142,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
 
     // Reset form
     setCategoryName('');
-    setSelectedEmoji('📁');
+    setSelectedEmoji('__FOLDER_SVG__');
     setSelectedDocuments([]);
     setSearchQuery('');
     setNameError(false);
@@ -410,15 +411,15 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
             position: 'relative',
             marginBottom: 8
           }}>
-            <div style={{
+            <SearchIcon style={{
               position: 'absolute',
               left: 12,
               top: '50%',
               transform: 'translateY(-50%)',
-              fontSize: 16
-            }}>
-              🔍
-            </div>
+              width: 16,
+              height: 16,
+              color: '#6C6B6E'
+            }} />
             <input
               type="text"
               value={searchQuery}
