@@ -1259,6 +1259,9 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
   // ═══════════════════════════════════════════════════════════════════════════
   // STRATEGY 1: Keyword search for exact-match queries
   // ═══════════════════════════════════════════════════════════════════════════
+  // ⚠️  DISABLED: BM25 keyword search requires document_chunks table which doesn't exist
+  // Until BM25 infrastructure is set up, we fallback to VECTOR search for all queries
+  // This ensures queries don't fail due to missing database tables
 
   // Detect technical terms, IDs, version numbers, acronyms
   const hasExactMatchPattern = [
@@ -1271,8 +1274,9 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
 
   for (const pattern of hasExactMatchPattern) {
     if (pattern.test(query)) {
-      console.log(`🎯 [STRATEGY] Exact-match pattern detected → using KEYWORD search`);
-      return 'keyword';
+      // ⚠️  DISABLED: Use VECTOR instead of KEYWORD since BM25 is broken
+      console.log(`🎯 [STRATEGY] Exact-match pattern detected → using VECTOR search (BM25 disabled)`);
+      return 'vector';  // Changed from 'keyword' to 'vector'
     }
   }
 
@@ -3459,6 +3463,31 @@ async function handleRegularQuery(
       rawResults = bm25Results;
 
       console.log(`✅ [KEYWORD] Pure BM25 search: ${hybridResults.length} chunks`);
+
+      // ✅ FIX: Fallback to vector search if BM25 returns no results
+      // This handles cases where document_chunks table doesn't exist or BM25 fails
+      console.log(`🔍 [KEYWORD CHECK] BM25 results length: ${hybridResults.length}`);
+      if (hybridResults.length === 0) {
+        console.log(`⚠️  [KEYWORD→VECTOR FALLBACK] BM25 returned 0 results, falling back to Pinecone vector search...`);
+        const queryEmbedding = earlyEmbedding;
+
+        rawResults = await pineconeIndex.query({
+          vector: queryEmbedding,
+          topK: 20,
+          filter,
+          includeMetadata: true,
+        });
+
+        hybridResults = (rawResults.matches || []).map((match: any) => ({
+          content: match.metadata?.content || match.metadata?.text || '',
+          metadata: match.metadata,
+          vectorScore: match.score || 0,
+          bm25Score: 0,
+          hybridScore: match.score || 0,
+        }));
+
+        console.log(`✅ [KEYWORD→VECTOR] Fallback vector search: ${hybridResults.length} chunks`);
+      }
 
     } else if (strategy === 'hybrid') {
       // ───────────────────────────────────────────────────────────────────
