@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
 import { ReactComponent as TrashIcon } from '../assets/Trash can.svg';
 import { ReactComponent as PencilIcon } from '../assets/pencil-ai.svg';
@@ -26,26 +26,34 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     const [isExpanded, setIsExpanded] = useState(false);
     const [showSearchModal, setShowSearchModal] = useState(false);
 
+    // Track if initial load is complete
+    const initialLoadCompleteRef = useRef(false);
+
     useEffect(() => {
-        loadConversations();
+        const doLoad = async () => {
+            await loadConversations();
+            initialLoadCompleteRef.current = true;
+        };
+        doLoad();
     }, []);
 
-    // Add new conversation to list when it doesn't exist yet (instead of full reload)
-    // ✅ FIX: Also update existing conversations when title changes
+    // ✅ FIX: Always ensure currentConversation is in the list
+    // This runs when currentConversation changes
+    // Uses functional update to avoid needing conversations in dependency array
     useEffect(() => {
         if (currentConversation?.id && currentConversation?.title) {
             setConversations(prevConversations => {
                 const existingIndex = prevConversations.findIndex(c => c.id === currentConversation.id);
 
                 if (existingIndex === -1) {
-                    // Conversation doesn't exist - add it
-                    console.log('➕ Adding new conversation to list:', currentConversation.id);
+                    // Conversation doesn't exist - add it at the top
+                    console.log('➕ [ChatHistory] Adding currentConversation to list:', currentConversation.id, currentConversation.title);
                     const updated = [currentConversation, ...prevConversations];
                     sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
                     return updated;
                 } else if (prevConversations[existingIndex].title !== currentConversation.title) {
                     // Conversation exists but title changed - update it
-                    console.log('📝 Updating conversation title in list:', currentConversation.id,
+                    console.log('📝 [ChatHistory] Updating conversation title in list:', currentConversation.id,
                                `"${prevConversations[existingIndex].title}" → "${currentConversation.title}"`);
                     const updated = [...prevConversations];
                     updated[existingIndex] = {
@@ -61,7 +69,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                 return prevConversations;
             });
         }
-    }, [currentConversation?.id, currentConversation?.title]); // ✅ FIX: Only monitor ID and title, not conversations array
+    }, [currentConversation?.id, currentConversation?.title]);
 
     // Update conversation in the list (used for title updates)
     // Use useCallback to prevent infinite loop
@@ -106,27 +114,34 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
             const apiConversations = data.conversations || data;
             console.log(`✅ [ChatHistory] Loaded ${apiConversations.length} conversations from API`);
 
-            if (mergePending) {
-                // Merge mode: keep any conversations not in API response (recently created)
-                setConversations(prev => {
+            // ✅ FIX: Always preserve currentConversation if it exists
+            // This handles the race condition where a conversation is auto-created before API fetch completes
+            setConversations(prev => {
+                let result = apiConversations;
+
+                if (mergePending) {
+                    // Merge mode: keep any conversations not in API response (recently created)
                     const apiIds = new Set(apiConversations.map(c => c.id));
                     const pendingConversations = prev.filter(c => !apiIds.has(c.id));
 
                     if (pendingConversations.length > 0) {
                         console.log(`📌 [ChatHistory] Keeping ${pendingConversations.length} pending conversations`);
-                        const merged = [...pendingConversations, ...apiConversations];
-                        sessionStorage.setItem('koda_chat_conversations', JSON.stringify(merged));
-                        return merged;
+                        result = [...pendingConversations, ...apiConversations];
                     }
+                }
 
-                    sessionStorage.setItem('koda_chat_conversations', JSON.stringify(apiConversations));
-                    return apiConversations;
-                });
-            } else {
-                // Replace mode: use API response as source of truth
-                setConversations(apiConversations);
-                sessionStorage.setItem('koda_chat_conversations', JSON.stringify(apiConversations));
-            }
+                // ✅ FIX: Always ensure currentConversation is in the list
+                if (currentConversation?.id && currentConversation?.title) {
+                    const hasCurrentConversation = result.some(c => c.id === currentConversation.id);
+                    if (!hasCurrentConversation) {
+                        console.log(`📌 [ChatHistory] Preserving currentConversation:`, currentConversation.id, currentConversation.title);
+                        result = [currentConversation, ...result];
+                    }
+                }
+
+                sessionStorage.setItem('koda_chat_conversations', JSON.stringify(result));
+                return result;
+            });
         } catch (error) {
             console.error('❌ [ChatHistory] Error loading conversations:', error);
         }

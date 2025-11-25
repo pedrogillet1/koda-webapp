@@ -332,7 +332,7 @@ class AgentLoopService {
     const { query, retrievedChunks, observations } = state;
 
     if (retrievedChunks.length === 0) {
-      return "I couldn't find relevant information in your documents to answer this question.";
+      return "I'm not quite sure how to answer that based on your current documents. Could you try rephrasing your question or providing more context? For example, you could specify which document or topic you're interested in.";
     }
 
     // STEP 1: Deduplicate chunks (in case we retrieved same chunk multiple times)

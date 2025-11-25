@@ -95,11 +95,11 @@ class ErrorHandlerService {
       case 'no_relevant_documents':
         return {
           category,
-          userMessage: "I couldn't find relevant information in your documents for that question.",
+          userMessage: "I'm not quite sure how to answer that based on your current documents. Could you try rephrasing your question or providing more context?",
           suggestions: [
-            'Try rephrasing your question',
+            'Try rephrasing your question with more specific terms',
+            'Specify which document or section you\'re interested in',
             'Check if the document containing this information is uploaded',
-            'Ask about a different topic',
             'Break down complex questions into smaller parts',
           ],
           canRetry: true,
