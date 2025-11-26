@@ -528,6 +528,78 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
 };
 
 /**
+ * Update document encryption metadata
+ * Called by frontend after client-side encryption
+ */
+export const updateEncryptionMetadata = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const {
+      isEncrypted,
+      encryptionSalt,
+      encryptionIV,
+      encryptionAuthTag,
+      filenameEncrypted,
+      filenameIV,
+      originalMimeType
+    } = req.body;
+
+    const prisma = (await import('../config/database')).default;
+
+    // Verify document belongs to user
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { userId: true, id: true }
+    });
+
+    if (!document) {
+      res.status(404).json({ error: 'Document not found' });
+      return;
+    }
+
+    if (document.userId !== req.user.id) {
+      res.status(403).json({ error: 'Unauthorized access to document' });
+      return;
+    }
+
+    // Update document with encryption metadata
+    const updatedDocument = await prisma.document.update({
+      where: { id },
+      data: {
+        isEncrypted: isEncrypted || false,
+        encryptionSalt: encryptionSalt || null,
+        encryptionIV: encryptionIV || null,
+        encryptionAuthTag: encryptionAuthTag || null,
+        filenameEncrypted: filenameEncrypted || null,
+        // Store original mimeType in metadata if encrypted
+        ...(originalMimeType && {
+          mimeType: originalMimeType
+        })
+      }
+    });
+
+    console.log(`🔐 [ENCRYPTION] Updated encryption metadata for document ${id}`);
+
+    res.status(200).json({
+      message: 'Encryption metadata updated successfully',
+      document: {
+        id: updatedDocument.id,
+        isEncrypted: updatedDocument.isEncrypted
+      }
+    });
+  } catch (error) {
+    const err = error as Error;
+    console.error('❌ [ENCRYPTION] Failed to update encryption metadata:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+};
+
+/**
  * Update document markdown content
  */
 export const updateMarkdown = async (req: Request, res: Response): Promise<void> => {

@@ -28,6 +28,8 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
 
     // Track if initial load is complete
     const initialLoadCompleteRef = useRef(false);
+    // Track conversation IDs we just added via handleNewChat to prevent useEffect duplicates
+    const justAddedIdRef = useRef(null);
 
     useEffect(() => {
         const doLoad = async () => {
@@ -41,6 +43,13 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     // This runs when currentConversation changes
     // Uses functional update to avoid needing conversations in dependency array
     useEffect(() => {
+        // Skip if this conversation was just added by handleNewChat
+        if (currentConversation?.id && justAddedIdRef.current === currentConversation.id) {
+            console.log('⏭️ [ChatHistory] Skipping useEffect - conversation just added by handleNewChat:', currentConversation.id);
+            justAddedIdRef.current = null; // Reset for next time
+            return;
+        }
+
         if (currentConversation?.id && currentConversation?.title) {
             setConversations(prevConversations => {
                 const existingIndex = prevConversations.findIndex(c => c.id === currentConversation.id);
@@ -190,15 +199,17 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     };
 
     const handleNewChat = async () => {
+        console.log('🔵 [ChatHistory] Creating new conversation via API...');
+
         try {
-            console.log('🔵 [ChatHistory] Creating new conversation via API...');
             const newConversation = await chatService.createConversation();
-            console.log('✅ [ChatHistory] New chat created from API:', newConversation);
+            console.log('✅ [ChatHistory] New chat created from API:', newConversation.id);
 
-            // Add to conversations list immediately BEFORE notifying parent
+            // Mark this ID so useEffect won't duplicate it
+            justAddedIdRef.current = newConversation.id;
+
+            // Add to conversations list
             setConversations(prevConversations => {
-                console.log('📝 [ChatHistory] Current list has', prevConversations.length, 'conversations');
-
                 // Check if already exists (avoid duplicates)
                 const exists = prevConversations.some(c => c.id === newConversation.id);
                 if (exists) {
@@ -206,18 +217,12 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                     return prevConversations;
                 }
 
-                console.log('➕ Adding new conversation to beginning of list');
                 const updated = [newConversation, ...prevConversations];
                 sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
-                console.log('✅ List now has', updated.length, 'conversations');
                 return updated;
             });
 
-            // Small delay to ensure state update completes
-            await new Promise(resolve => setTimeout(resolve, 50));
-
             // Notify parent component
-            console.log('📢 [ChatHistory] Notifying parent component via onNewChat');
             onNewChat?.(newConversation);
         } catch (error) {
             console.error('❌ [ChatHistory] Error creating conversation:', error);

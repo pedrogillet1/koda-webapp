@@ -35,6 +35,7 @@ router.get('/:id/thumbnail', documentController.getThumbnail);
 router.get('/:id/slides', documentController.getPPTXSlides);
 router.post('/:id/regenerate-slides', documentController.regeneratePPTXSlides);
 router.patch('/:id', documentController.updateDocument);
+router.patch('/:id/encryption', documentController.updateEncryptionMetadata);
 router.patch('/:id/markdown', documentController.updateMarkdown);
 router.post('/:id/export', documentController.exportDocument);
 router.delete('/:id', documentController.deleteDocument);

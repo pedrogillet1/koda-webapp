@@ -5,6 +5,14 @@ import api from '../services/api';
 import { previewCache } from '../services/previewCache';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
+import txtIcon from '../assets/txt-icon.png';
+import xlsIcon from '../assets/xls.png';
+import jpgIcon from '../assets/jpg-icon.png';
+import pngIcon from '../assets/png-icon.png';
+import pptxIcon from '../assets/pptx.png';
+import movIcon from '../assets/mov.png';
+import mp4Icon from '../assets/mp4.png';
+import mp3Icon from '../assets/mp3.svg';
 import { downloadFile } from '../utils/browserUtils';
 
 // Set up the worker for pdf.js
@@ -211,18 +219,38 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
   const getFileIcon = () => {
     if (!document) return pdfIcon;
 
+    // Get extension from filename
+    const extension = document.filename?.split('.').pop()?.toLowerCase();
+
     // Check mimeType first for most reliable detection
     if (document.mimeType) {
       if (document.mimeType === 'application/pdf') return pdfIcon;
       if (document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
           document.mimeType === 'application/msword') return docIcon;
+      if (document.mimeType === 'text/plain') return txtIcon;
+      if (document.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+          document.mimeType === 'application/vnd.ms-excel') return xlsIcon;
+      if (document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+          document.mimeType === 'application/vnd.ms-powerpoint') return pptxIcon;
+      if (document.mimeType === 'image/jpeg') return jpgIcon;
+      if (document.mimeType === 'image/png') return pngIcon;
+      if (document.mimeType === 'video/quicktime') return movIcon;
+      if (document.mimeType === 'video/mp4') return mp4Icon;
+      if (document.mimeType === 'audio/mpeg' || document.mimeType === 'audio/mp3') return mp3Icon;
     }
 
     // Fallback to filename extension
-    if (document.filename) {
-      const extension = document.filename.split('.').pop().toLowerCase();
+    if (extension) {
       if (extension === 'pdf') return pdfIcon;
       if (['doc', 'docx'].includes(extension)) return docIcon;
+      if (extension === 'txt') return txtIcon;
+      if (['xls', 'xlsx'].includes(extension)) return xlsIcon;
+      if (['ppt', 'pptx'].includes(extension)) return pptxIcon;
+      if (['jpg', 'jpeg'].includes(extension)) return jpgIcon;
+      if (extension === 'png') return pngIcon;
+      if (extension === 'mov') return movIcon;
+      if (extension === 'mp4') return mp4Icon;
+      if (extension === 'mp3') return mp3Icon;
     }
 
     return pdfIcon; // default
