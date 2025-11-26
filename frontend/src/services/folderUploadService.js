@@ -33,7 +33,8 @@ import api from './api';
 
 class FolderUploadService {
   constructor() {
-    this.maxConcurrentUploads = 10;  // ✅ OPTIMIZED: Increased from 5 to 10
+    this.maxConcurrentUploads = 3;  // ✅ REDUCED: Prevent database connection exhaustion
+    this.delayBetweenBatches = 500; // ✅ NEW: Delay between batches to allow connections to release
     this.uploadProgress = {
       totalFiles: 0,
       uploadedFiles: 0,
@@ -41,6 +42,78 @@ class FolderUploadService {
       totalBatches: 0,
       errors: []
     };
+
+    // ✅ File filtering configuration - matches backend upload.middleware.ts
+    this.hiddenFilePatterns = [
+      '.DS_Store',
+      '.localized',
+      '__MACOSX',
+      'Thumbs.db',
+      'desktop.ini',
+    ];
+
+    this.allowedExtensions = [
+      // Documents
+      '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.html', '.htm', '.rtf', '.csv',
+      // Images
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff', '.tif', '.bmp', '.svg', '.ico',
+      // Design files
+      '.psd', '.ai', '.sketch', '.fig', '.xd',
+      // Video files
+      '.mp4', '.webm', '.ogg', '.mov', '.avi', '.mpeg', '.mpg',
+      // Audio files
+      '.mp3', '.wav', '.weba', '.oga', '.m4a',
+    ];
+  }
+
+  /**
+   * Check if a file should be skipped (hidden/system file)
+   */
+  isHiddenFile(filename) {
+    // Check if starts with dot (hidden file)
+    if (filename.startsWith('.')) {
+      return true;
+    }
+
+    // Check against known patterns
+    return this.hiddenFilePatterns.some(pattern => filename.includes(pattern));
+  }
+
+  /**
+   * Check if a file has an allowed extension
+   */
+  isAllowedFile(filename) {
+    const ext = '.' + filename.split('.').pop().toLowerCase();
+    return this.allowedExtensions.includes(ext);
+  }
+
+  /**
+   * Filter files before upload - removes hidden files and unsupported types
+   */
+  filterFiles(files) {
+    const validFiles = [];
+    const skippedFiles = [];
+
+    files.forEach(file => {
+      const filename = file.name || file.webkitRelativePath?.split('/').pop() || '';
+
+      if (this.isHiddenFile(filename)) {
+        skippedFiles.push({ file, reason: 'hidden/system file' });
+      } else if (!this.isAllowedFile(filename)) {
+        skippedFiles.push({ file, reason: 'unsupported file type' });
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    if (skippedFiles.length > 0) {
+      console.log(`\n🚫 ===== FILTERED OUT ${skippedFiles.length} FILES =====`);
+      skippedFiles.forEach(({ file, reason }) => {
+        console.log(`  - "${file.name || file.webkitRelativePath}" (${reason})`);
+      });
+    }
+
+    return validFiles;
   }
 
   /**
@@ -477,6 +550,12 @@ class FolderUploadService {
       // Wait for all files in this batch to complete
       const batchResults = await Promise.all(batchPromises);
       results.push(...batchResults);
+
+      // ✅ Add delay between batches to allow database connections to release
+      if (batchIndex < batches.length - 1) {
+        console.log(`⏳ Waiting ${this.delayBetweenBatches}ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, this.delayBetweenBatches));
+      }
     }
 
     const successCount = results.filter(r => r.success).length;
@@ -520,13 +599,23 @@ class FolderUploadService {
    */
   async uploadFolder(files, onProgress, existingCategoryId = null) {
     console.log(`\n\n🚀 ===== STARTING FOLDER UPLOAD =====`);
-    console.log(`Files to upload: ${files.length}`);
+    console.log(`Files received: ${files.length}`);
     console.log(`Parent folder ID: ${existingCategoryId || 'NONE (will create new root category)'}`);
 
     try {
-      // Step 1: Analyze folder structure
+      // Step 0: Filter out hidden files and unsupported types BEFORE analysis
+      onProgress({ stage: 'filtering', message: 'Filtering files...' });
+      const filteredFiles = this.filterFiles(Array.from(files));
+
+      console.log(`✅ After filtering: ${filteredFiles.length} valid files (removed ${files.length - filteredFiles.length} invalid files)`);
+
+      if (filteredFiles.length === 0) {
+        throw new Error('No valid files to upload. All files were filtered out (hidden files or unsupported types).');
+      }
+
+      // Step 1: Analyze folder structure with filtered files
       onProgress({ stage: 'analyzing', message: 'Analyzing folder structure...' });
-      const structure = this.analyzeFolderStructure(files);
+      const structure = this.analyzeFolderStructure(filteredFiles);
 
       let categoryId; // This will be the final ID where files are placed
       let categoryName;

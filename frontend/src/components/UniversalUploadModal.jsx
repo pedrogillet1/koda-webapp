@@ -215,6 +215,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept: {
+      // Documents
       'application/pdf': ['.pdf'],
       'application/msword': ['.doc'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
@@ -224,14 +225,41 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
       'text/plain': ['.txt'],
       'text/csv': ['.csv'],
+      'text/html': ['.html', '.htm'],
+      'application/rtf': ['.rtf'],
+
+      // Images
       'image/jpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png'],
       'image/gif': ['.gif'],
       'image/webp': ['.webp'],
+      'image/tiff': ['.tiff', '.tif'],
+      'image/bmp': ['.bmp'],
+      'image/svg+xml': ['.svg'],
+      'image/x-icon': ['.ico'],
+
+      // Design files
+      'image/vnd.adobe.photoshop': ['.psd'],
+      'application/photoshop': ['.psd'],
+      'application/psd': ['.psd'],
+
+      // Video files
       'video/mp4': ['.mp4'],
+      'video/webm': ['.webm'],
+      'video/ogg': ['.ogg'],
+      'video/quicktime': ['.mov'],
       'video/mpeg': ['.mpeg', '.mpg'],
+      'video/x-msvideo': ['.avi'],
+
+      // Audio files
       'audio/mpeg': ['.mp3'],
       'audio/wav': ['.wav'],
+      'audio/webm': ['.weba'],
+      'audio/ogg': ['.oga'],
+      'audio/x-m4a': ['.m4a'],
+
+      // Generic fallback for unknown types
+      'application/octet-stream': ['.ai', '.sketch', '.fig', '.xd'],
     },
     maxSize: 500 * 1024 * 1024, // 500MB
     multiple: true,
@@ -464,13 +492,30 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   };
 
   const handleFolderSelect = async (e) => {
-    console.log('📁 handleFolderSelect triggered with', e.target.files?.length, 'files');
+    console.log('📁 handleFolderSelect triggered');
 
     const files = Array.from(e.target.files);
+    console.log('📁 Files selected:', files.length);
 
-    if (files.length > 0) {
-      await onDrop(files);
+    if (files.length === 0) {
+      console.log('📁 No files to upload');
+      return;
     }
+
+    // Validate that files have webkitRelativePath
+    const firstFile = files[0];
+    if (!firstFile.webkitRelativePath) {
+      console.error('❌ Files do not have webkitRelativePath! Folder selection failed.');
+      alert('Error: Folder selection failed. Please try again or contact support.');
+      return;
+    }
+
+    console.log('✅ Folder detected:', firstFile.webkitRelativePath.split('/')[0]);
+    console.log('✅ Calling onDrop with', files.length, 'files');
+    await onDrop(files);
+
+    // Reset the input so the same folder can be selected again
+    e.target.value = '';
   };
 
   if (!isOpen) return null;
@@ -711,7 +756,9 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
             <input
               ref={folderInputRef}
               type="file"
-              {...({ webkitdirectory: '', directory: '', mozdirectory: '' })}
+              webkitdirectory=""
+              directory=""
+              mozdirectory=""
               multiple
               onChange={handleFolderSelect}
               style={{ display: 'none' }}
