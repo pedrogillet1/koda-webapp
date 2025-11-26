@@ -1664,6 +1664,14 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // Ensure conversation exists before creating messages
     await ensureConversationExists(conversationId, userId);
 
+    // ✅ FIX: Check if this is the first message BEFORE saving the user message
+    // This ensures greeting only appears on the very first message of the conversation
+    const existingMessageCount = await prisma.message.count({
+      where: { conversationId }
+    });
+    const isFirstMessage = existingMessageCount === 0;
+    console.log(`👋 [GREETING CHECK - STREAMING] Conversation ${conversationId}: ${existingMessageCount} existing messages, isFirstMessage: ${isFirstMessage}`);
+
     // Save user message to database with attached files metadata
     const userMessage = await prisma.message.create({
       data: {
@@ -1685,6 +1693,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       // ✅ FIX: Use NEW generateAnswerStream (hybrid RAG with document detection + post-processing)
       // ✅ FIX #1: Pass conversation history for context-aware responses
+      // ✅ FIX: Pass isFirstMessage to control greeting logic (only greet on first message ever)
       const streamResult = await ragService.generateAnswerStream(
         userId,
         query,
@@ -1700,7 +1709,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           console.log('🚀 [DEBUG] Chunk written and flushed');
         },
         effectiveDocumentId,
-        conversationHistoryForIntent  // Pass conversation history for context
+        conversationHistoryForIntent,  // Pass conversation history for context
+        undefined,  // onStage
+        undefined,  // memoryContext
+        undefined,  // fullConversationContext
+        isFirstMessage  // ✅ Pass first message flag for greeting logic
       );
 
       console.log('🚀 [DEBUG] generateAnswerStream completed');
