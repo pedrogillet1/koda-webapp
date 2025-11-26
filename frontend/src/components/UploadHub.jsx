@@ -821,7 +821,7 @@ const UploadHub = () => {
         console.log('📁 DEBUG: Processed files length:', files?.length);
         console.log('📁 DEBUG: First processed file:', files?.[0]);
 
-        // ✅ OPTIMIZATION: Use presigned URLs for direct-to-Supabase upload
+        // ✅ OPTIMIZATION: Use presigned URLs for direct-to-S3 upload
         presignedUploadService.uploadFolder(files, null, (progress, fileName, stage) => {
           // Update progress in UI using folderName to identify the correct item
           setUploadingFiles(prev => prev.map((f) => {
@@ -1041,7 +1041,7 @@ const UploadHub = () => {
           idx === i ? { ...f, progress: 30, processingStage: 'Uploading to cloud...' } : f
         ));
 
-        // Upload via backend (Supabase doesn't support signed URLs like GCS)
+        // Upload via backend with multipart form data
         const formData = new FormData();
         formData.append('file', fileToUpload); // Upload encrypted file
         formData.append('fileHash', fileHash);

@@ -656,7 +656,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       })();
     }
 
-    // ⚡ FIX: Emit processing-complete event with delay to ensure Supabase commit completes
+    // ⚡ FIX: Emit processing-complete event with delay to ensure database commit completes
     setTimeout(() => {
       const socketIO = getIO();
       if (socketIO) {

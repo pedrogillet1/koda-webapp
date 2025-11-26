@@ -279,7 +279,7 @@ const DocumentViewer = () => {
     // Check if it's a relative API path (starts with /api/) or already a full backend URL
     const isRelativeApiPath = documentUrl.startsWith('/api/');
     const isBackendUrl = documentUrl.includes('koda-backend.ngrok.app') || documentUrl.includes('localhost:5000');
-    const isSupabaseUrl = documentUrl.includes('supabase.co');
+    const isS3Url = documentUrl.includes('s3.amazonaws.com') || documentUrl.includes('.s3.');
     const isStreamEndpoint = documentUrl.includes('/stream');
 
     // For encrypted images (stream endpoint), fetch with auth and create blob URL
@@ -323,8 +323,8 @@ const DocumentViewer = () => {
       const fullUrl = `${API_URL}${documentUrl}`;
       console.log(`🔗 Relative API path detected, using backend URL: ${fullUrl}`);
       setActualDocumentUrl(fullUrl);
-    } else if (isBackendUrl || isSupabaseUrl) {
-      // Already a full URL (backend or Supabase) - use directly
+    } else if (isBackendUrl || isS3Url) {
+      // Already a full URL (backend or S3) - use directly
       console.log(`🔗 Full URL detected, using directly: ${documentUrl}`);
       setActualDocumentUrl(documentUrl);
     } else {
@@ -505,7 +505,7 @@ const DocumentViewer = () => {
             }
           } else {
             // For non-DOCX files, use the existing view-url logic
-            // PERFORMANCE OPTIMIZATION: Use signed URLs for direct access to Supabase Storage (non-encrypted files)
+            // PERFORMANCE OPTIMIZATION: Use signed URLs for direct access to S3 Storage (non-encrypted files)
             // For encrypted files, use stream endpoint for server-side decryption
             // This eliminates the backend proxy bottleneck for 50-70% faster loading (non-encrypted files)
 

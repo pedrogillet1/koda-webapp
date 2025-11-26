@@ -7,7 +7,7 @@
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 // pdf-parse v2 will be required when needed
-// Note: Storage operations now handled by Supabase via storage.ts
+// Note: Storage operations handled by S3 via storage.ts
 
 interface MarkdownConversionResult {
   markdownContent: string;
@@ -52,7 +52,7 @@ interface TOCItem {
 
 class MarkdownConversionService {
   constructor() {
-    // Storage is now handled by Supabase via storage.ts
+    // Storage is now handled by S3 via storage.ts
   }
 
   /**

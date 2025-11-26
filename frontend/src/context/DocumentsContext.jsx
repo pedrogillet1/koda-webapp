@@ -15,7 +15,7 @@ export const useDocuments = () => {
 };
 
 export const DocumentsProvider = ({ children }) => {
-  const { encryptionPassword } = useAuth(); // ⚡ ZERO-KNOWLEDGE ENCRYPTION
+  const { encryptionPassword, isAuthenticated } = useAuth(); // ⚡ ZERO-KNOWLEDGE ENCRYPTION + Auth check
   const [documents, setDocuments] = useState([]);
   const [folders, setFolders] = useState([]);
   const [recentDocuments, setRecentDocuments] = useState([]);
@@ -360,19 +360,20 @@ export const DocumentsProvider = ({ children }) => {
 
   // Initialize data on mount
   useEffect(() => {
-    if (!initialized) {
+    // ✅ FIX: Only load data if user is authenticated
+    if (!initialized && isAuthenticated) {
       // ✅ OPTIMIZATION: Use batched endpoint (1 request instead of 3)
       fetchAllData();
       setInitialized(true);
     }
-  }, [initialized, fetchAllData]);
+  }, [initialized, isAuthenticated, fetchAllData]);
 
   // Auto-refresh data when window regains focus or becomes visible (with debounce)
   useEffect(() => {
     let refreshTimeout = null;
     let lastRefresh = 0;
     const REFRESH_COOLDOWN = 5000; // ⚡ FIX: 5 seconds to prevent overwriting optimistic updates
-    const REFRESH_DELAY = 1000; // ⚡ FIX: Wait 1 second before refreshing to allow Supabase replication
+    const REFRESH_DELAY = 1000; // ⚡ FIX: Wait 1 second before refreshing to allow database replication
 
     const debouncedRefresh = () => {
       const now = Date.now();
@@ -381,7 +382,7 @@ export const DocumentsProvider = ({ children }) => {
         return;
       }
 
-      // ⚡ FIX: Delay refresh to give Supabase time to replicate data
+      // ⚡ FIX: Delay refresh to give database time to replicate data
       if (refreshTimeout) clearTimeout(refreshTimeout);
       refreshTimeout = setTimeout(() => {
         lastRefresh = Date.now();
@@ -392,14 +393,16 @@ export const DocumentsProvider = ({ children }) => {
     };
 
     const handleVisibilityChange = () => {
-      if (!document.hidden && initialized) {
+      // ✅ FIX: Only refresh if authenticated and initialized
+      if (!document.hidden && initialized && isAuthenticated) {
         console.log('📱 Page became visible');
         debouncedRefresh();
       }
     };
 
     const handleFocus = () => {
-      if (initialized) {
+      // ✅ FIX: Only refresh if authenticated and initialized
+      if (initialized && isAuthenticated) {
         console.log('🔄 Window focused');
         debouncedRefresh();
       }
@@ -413,13 +416,14 @@ export const DocumentsProvider = ({ children }) => {
       window.removeEventListener('focus', handleFocus);
       if (refreshTimeout) clearTimeout(refreshTimeout);
     };
-  }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments]);
+  }, [initialized, isAuthenticated, fetchAllData]);
 
   // WebSocket real-time auto-refresh
   const socketRef = useRef(null);
 
   useEffect(() => {
-    if (!initialized) return;
+    // ✅ FIX: Only initialize WebSocket if authenticated and initialized
+    if (!initialized || !isAuthenticated) return;
 
     // Get auth token
     const token = localStorage.getItem('accessToken');
@@ -626,7 +630,7 @@ export const DocumentsProvider = ({ children }) => {
       // Only refresh on window focus or explicit user action
     });
 
-    // ⚡ NEW: Listen for processing complete events (emitted after Supabase commit completes)
+    // ⚡ NEW: Listen for processing complete events (emitted after database commit completes)
     socket.on('processing-complete', (data) => {
       console.log('✅ Processing complete event received:', data);
       // Don't refresh - folder counts already updated via optimistic updates
@@ -661,7 +665,7 @@ export const DocumentsProvider = ({ children }) => {
       socket.disconnect();
       window.removeEventListener('document-uploaded', handleDocumentUploaded);
     };
-  }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments, smartRefetch, invalidateCache]);
+  }, [initialized, isAuthenticated, fetchDocuments, fetchFolders, fetchRecentDocuments, smartRefetch, invalidateCache]);
 
   // ✅ FIX #3: Upload Verification - Polls backend to verify document exists
   const startUploadVerification = useCallback((documentId, filename) => {

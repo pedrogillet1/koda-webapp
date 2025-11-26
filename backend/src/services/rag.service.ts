@@ -4499,60 +4499,96 @@ async function streamLLMResponse(
 ): Promise<string> {
   console.log('🌊 [STREAMING] Starting Gemini streaming');
 
+  const MAX_RETRIES = 3;
   let fullAnswer = '';
 
-  try {
-    // ⚡ SPEED FIX #4: Use optimized maxTokens for faster generation
-    // BEFORE: 3000 tokens = longer generation time
-    // AFTER: 1000 tokens = 67% faster (most answers are 200-500 tokens)
-    fullAnswer = await geminiCache.generateStreamingWithCache({
-      systemPrompt,
-      documentContext: context,
-      query: '', // Query already included in context
-      temperature: 0.4,
-      maxTokens: 1000, // ⚡ Reduced from 3000 to 1000
-      onChunk: (text: string) => {
-        // Simplified post-processing - let examples guide formatting
-        const processedChunk = text
-          .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')  // Remove citations
-          .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Remove emojis
-          .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks
-          .replace(/\n\n\n\n+/g, '\n\n\n')  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
-          .replace(/\n\s+[○◦]\s+/g, '\n\n• ')  // Flatten nested bullets
-          .replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // Reset for retry
+      fullAnswer = '';
 
-        onChunk(processedChunk);
+      console.log(`🔄 [STREAMING] Attempt ${attempt}/${MAX_RETRIES}`);
+
+      // ⚡ SPEED FIX #4: Use optimized maxTokens for faster generation
+      // BEFORE: 3000 tokens = longer generation time
+      // AFTER: 1000 tokens = 67% faster (most answers are 200-500 tokens)
+      fullAnswer = await geminiCache.generateStreamingWithCache({
+        systemPrompt,
+        documentContext: context,
+        query: '', // Query already included in context
+        temperature: 0.4,
+        maxTokens: 1000, // ⚡ Reduced from 3000 to 1000
+        onChunk: (text: string) => {
+          // Simplified post-processing - let examples guide formatting
+          const processedChunk = text
+            .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')  // Remove citations
+            .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Remove emojis
+            .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks
+            .replace(/\n\n\n\n+/g, '\n\n\n')  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
+            .replace(/\n\s+[○◦]\s+/g, '\n\n• ')  // Flatten nested bullets
+            .replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
+
+          onChunk(processedChunk);
+        }
+      });
+
+      console.log(`✅ [STREAMING] Complete. Total chars: ${fullAnswer.length}`);
+
+      // ✅ FIX: Retry on empty response from Gemini (transient API issue)
+      if (fullAnswer.length === 0) {
+        console.warn(`⚠️ [STREAMING] Gemini returned empty response on attempt ${attempt}`);
+
+        if (attempt < MAX_RETRIES) {
+          // Wait before retry with exponential backoff
+          const delayMs = 1000 * Math.pow(2, attempt - 1); // 1s, 2s, 4s
+          console.log(`⏳ [STREAMING] Retrying in ${delayMs}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          continue; // Retry
+        }
+
+        // All retries failed - send fallback
+        console.error('❌ [STREAMING] All retry attempts returned empty response');
+        const fallbackMessage = 'I found relevant information in your documents but had trouble generating a response. Please try rephrasing your question.';
+        onChunk(fallbackMessage);
+        return fallbackMessage;
       }
-    });
 
-    console.log('✅ [STREAMING] Complete. Total chars:', fullAnswer.length);
+      // Success!
+      return fullAnswer;
 
-    // ✅ FIX: Handle empty responses from Gemini
-    if (fullAnswer.length === 0) {
-      console.warn('⚠️ [STREAMING] Gemini returned empty response - sending fallback');
-      const fallbackMessage = 'I found relevant information in your documents but had trouble generating a response. Please try rephrasing your question.';
-      onChunk(fallbackMessage);
-      return fallbackMessage;
+    } catch (error: any) {
+      console.error(`❌ [STREAMING] Error on attempt ${attempt}:`, {
+        message: error.message,
+        stack: error.stack?.substring(0, 500),
+        name: error.name
+      });
+
+      // Check if we should retry
+      const isRetryable = error.message?.includes('503') ||
+                          error.message?.includes('429') ||
+                          error.message?.includes('overload') ||
+                          error.message?.includes('RESOURCE_EXHAUSTED');
+
+      if (isRetryable && attempt < MAX_RETRIES) {
+        const delayMs = 1000 * Math.pow(2, attempt - 1);
+        console.log(`⏳ [STREAMING] Retryable error, waiting ${delayMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        continue; // Retry
+      }
+
+      // Non-retryable or all retries exhausted
+      if (fullAnswer.length === 0) {
+        onChunk('I apologize, but I encountered an error generating the response. Please try again.');
+      } else {
+        console.warn('⚠️ [STREAMING] Error occurred AFTER successful response. Not sending error message to user.');
+      }
+
+      return fullAnswer;
     }
-
-    return fullAnswer;
-
-  } catch (error: any) {
-    console.error('❌ [STREAMING] Error details:', {
-      message: error.message,
-      stack: error.stack?.substring(0, 500),
-      name: error.name
-    });
-
-    // Only send error message if we haven't already sent content
-    if (fullAnswer.length === 0) {
-      onChunk('I apologize, but I encountered an error generating the response. Please try again.');
-    } else {
-      console.warn('⚠️ [STREAMING] Error occurred AFTER successful response. Not sending error message to user.');
-    }
-
-    return fullAnswer;  // Return what we have, even if there was an error
   }
+
+  // Should not reach here, but just in case
+  return fullAnswer;
 }
 
 /**

@@ -379,7 +379,7 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
   });
 
   // ✅ FIX #5: Auto-generate title after SECOND user message (not first)
-  const userMessageCount = previousMessages.filter(m => m.role === 'user').length;
+  const userMessageCount = conversationHistory.filter(m => m.role === 'user').length;
   if (userMessageCount === 2) {  // Exactly 2 user messages (first + second)
     // Get full conversation context for better titles
     const allMessages = await prisma.message.findMany({
@@ -546,7 +546,7 @@ export const sendMessageStreaming = async (
 
   // ⚡ PERFORMANCE: Auto-generate title async (fire-and-forget)
   // ✅ FIX #5: Auto-generate title after SECOND user message (not first)
-  const userMessageCount = previousMessages.filter(m => m.role === 'user').length;
+  const userMessageCount = conversationHistory.filter(m => m.role === 'user').length;
   if (userMessageCount === 2) {  // Exactly 2 user messages (first + second)
     // Fire-and-forget title generation (don't block response)
     prisma.message.findMany({
