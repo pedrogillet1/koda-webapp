@@ -651,16 +651,28 @@ export const DocumentsProvider = ({ children }) => {
     });
 
     socket.on('folder-deleted', () => {
-      console.log('🗑️ Folder deleted (optimistic update already applied)');
-      // No refresh - optimistic update already happened in deleteFolder()
+      console.log('🗑️ Folder deleted event received');
+      // ✅ BUG FIX #2: Invalidate cache AND schedule immediate refetch
+      // This ensures no stale data reappears even if the delete was from another tab/window
       invalidateCache();
+      // Schedule a refetch after a short delay to allow backend cache invalidation to complete
+      setTimeout(() => {
+        console.log('🔄 [WebSocket] Refreshing data after folder-deleted event...');
+        fetchAllData(true); // Force refresh
+      }, 500);
     });
 
     // ⚡ NEW: Listen for folder tree updates (emitted after cache invalidation completes)
-    socket.on('folder-tree-updated', () => {
-      console.log('🌳 Folder tree updated (optimistic update already applied)');
-      // Don't refresh - we already have optimistic updates
-      // Only refresh on window focus or explicit user action
+    socket.on('folder-tree-updated', (data) => {
+      console.log('🌳 Folder tree updated event received:', data);
+      // ✅ BUG FIX #2: If deletion occurred, force refresh to ensure clean state
+      if (data?.deleted) {
+        invalidateCache();
+        setTimeout(() => {
+          console.log('🔄 [WebSocket] Refreshing data after folder-tree-updated (deleted) event...');
+          fetchAllData(true); // Force refresh
+        }, 500);
+      }
     });
 
     // ⚡ NEW: Listen for processing complete events (emitted after database commit completes)
@@ -698,7 +710,7 @@ export const DocumentsProvider = ({ children }) => {
       socket.disconnect();
       window.removeEventListener('document-uploaded', handleDocumentUploaded);
     };
-  }, [initialized, isAuthenticated, fetchDocuments, fetchFolders, fetchRecentDocuments, smartRefetch, invalidateCache]);
+  }, [initialized, isAuthenticated, fetchDocuments, fetchFolders, fetchRecentDocuments, fetchAllData, smartRefetch, invalidateCache]);
 
   // ✅ FIX #3: Upload Verification - Polls backend to verify document exists
   const startUploadVerification = useCallback((documentId, filename) => {
@@ -1287,8 +1299,18 @@ export const DocumentsProvider = ({ children }) => {
     }
   }, [encryptionPassword]); // Add dependency for encryptionPassword
 
+  // ✅ BUG FIX #5: Deletion lock to prevent race conditions
+  const deletionInProgressRef = useRef(new Set());
+
   // Delete folder (optimistic)
   const deleteFolder = useCallback(async (folderId) => {
+    // ✅ BUG FIX #3: Prevent duplicate deletions and race conditions
+    if (deletionInProgressRef.current.has(folderId)) {
+      console.log(`⚠️ [DELETE] Folder ${folderId} deletion already in progress, skipping`);
+      return;
+    }
+    deletionInProgressRef.current.add(folderId);
+
     // Helper function to get all subfolder IDs recursively
     const getAllSubfolderIds = (parentId) => {
       const subfolderIds = [parentId];
@@ -1310,6 +1332,8 @@ export const DocumentsProvider = ({ children }) => {
     const foldersToDelete = folders.filter(f => allFolderIdsToDelete.includes(f.id));
     const documentsToDelete = documents.filter(d => allFolderIdsToDelete.includes(d.folderId));
 
+    console.log(`🗑️ [DELETE] Starting folder deletion: ${folderToDelete?.name} (${allFolderIdsToDelete.length} folders, ${documentsToDelete.length} documents)`);
+
     // Remove folder and all subfolders from UI IMMEDIATELY
     setFolders(prev => prev.filter(folder => !allFolderIdsToDelete.includes(folder.id)));
 
@@ -1320,8 +1344,17 @@ export const DocumentsProvider = ({ children }) => {
     try {
       await api.delete(`/api/folders/${folderId}`);
 
-      // ✅ FIX: Invalidate data cache to prevent stale data from reappearing on window focus
+      // ✅ BUG FIX #2 & #3: Invalidate cache AND immediately fetch fresh data
+      // This ensures no stale data can reappear on window focus or race conditions
       invalidateCache();
+
+      // ✅ BUG FIX #2: Immediate refetch to ensure UI shows fresh data from database
+      // Wait a small delay for Redis cache invalidation to complete on backend
+      console.log('🔄 [DELETE] Scheduling immediate data refresh after deletion...');
+      setTimeout(async () => {
+        console.log('🔄 [DELETE] Fetching fresh data after folder deletion...');
+        await fetchAllData(true); // Force refresh, bypassing cache
+      }, 500);
 
       console.log('✅ [DELETE] Folder deleted successfully:', folderToDelete?.name);
     } catch (error) {
@@ -1337,8 +1370,11 @@ export const DocumentsProvider = ({ children }) => {
       }
 
       throw error;
+    } finally {
+      // ✅ BUG FIX #3: Always clean up deletion lock
+      deletionInProgressRef.current.delete(folderId);
     }
-  }, [folders, documents, invalidateCache]);
+  }, [folders, documents, invalidateCache, fetchAllData]);
 
   // ⚡ OPTIMIZED: Get document count by folder using backend-provided count
   // Backend already calculated this recursively - no need to recount on frontend!

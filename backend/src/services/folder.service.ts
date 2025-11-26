@@ -1,4 +1,5 @@
 import prisma from '../config/database';
+import { invalidateUserCache } from '../controllers/batch.controller';
 
 /**
  * Create a new folder
@@ -462,6 +463,9 @@ export const deleteFolder = async (folderId: string, userId: string) => {
   });
 
   console.log(`✅ Folder deletion complete`);
+
+  // ✅ FIX #3: Invalidate the user's cache to prevent stale data from reappearing
+  await invalidateUserCache(userId);
 
   return { success: true };
 };

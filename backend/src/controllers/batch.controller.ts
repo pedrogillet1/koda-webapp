@@ -3,6 +3,43 @@ import prisma from '../config/database';
 import redis from '../config/redis';
 
 /**
+ * Helper: Get all folder IDs in a folder tree (including nested subfolders)
+ */
+const getAllFolderIdsInTree = async (rootFolderId: string): Promise<string[]> => {
+  const folderIds = [rootFolderId];
+  let currentBatch = [rootFolderId];
+
+  while (currentBatch.length > 0) {
+    const subfolders = await prisma.folder.findMany({
+      where: { parentFolderId: { in: currentBatch } },
+      select: { id: true },
+    });
+
+    const subfolderIds = subfolders.map(f => f.id);
+    if (subfolderIds.length === 0) break;
+
+    folderIds.push(...subfolderIds);
+    currentBatch = subfolderIds;
+  }
+
+  return folderIds;
+};
+
+/**
+ * Helper: Count all documents in a folder tree recursively
+ */
+const countDocumentsRecursively = async (folderId: string): Promise<number> => {
+  const allFolderIds = await getAllFolderIdsInTree(folderId);
+  const totalDocuments = await prisma.document.count({
+    where: {
+      folderId: { in: allFolderIds },
+      status: 'completed'
+    },
+  });
+  return totalDocuments;
+};
+
+/**
  * Batch Controller
  * Combines multiple API calls into single requests to reduce network round trips
  */
@@ -42,9 +79,10 @@ export const getInitialData = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // ⚡ PERFORMANCE: Reduce initial load to 50 most recent documents
-    // Load more on scroll (infinite scroll) or on demand
-    const limit = parseInt(req.query.limit as string) || 50;
+    // ✅ FIX: Remove 50-file limit - load ALL documents by default
+    // Previously limited to 50 for performance, but this caused "50 Files" issue
+    // Now loads all documents; use pagination endpoint for very large libraries
+    const limit = parseInt(req.query.limit as string) || 10000; // Effectively unlimited
     const recentLimit = parseInt(req.query.recentLimit as string) || 5;
 
     // ⚡ REDIS CACHE: Check cache first (80-95% faster on cache hit)
@@ -104,9 +142,8 @@ export const getInitialData = async (req: Request, res: Response) => {
         take: limit,
       }),
 
-      // Load all folders
-      // ⚡ PERFORMANCE: Don't load subfolder/document counts in initial load
-      // These counts are expensive and rarely used in the UI
+      // Load all folders WITH document counts
+      // ✅ FIX: Include _count to show proper file counts in categories
       prisma.folder.findMany({
         where: { userId },
         select: {
@@ -116,6 +153,13 @@ export const getInitialData = async (req: Request, res: Response) => {
           parentFolderId: true,
           createdAt: true,
           updatedAt: true,
+          // ✅ FIX: Include document and subfolder counts
+          _count: {
+            select: {
+              documents: true,
+              subfolders: true,
+            }
+          }
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -135,18 +179,33 @@ export const getInitialData = async (req: Request, res: Response) => {
       }),
     ]);
 
+    // ✅ FIX: Calculate totalDocuments for each folder (includes subfolders)
+    // This ensures categories show correct counts including nested files
+    const foldersWithTotalCount = await Promise.all(
+      folders.map(async (folder: any) => {
+        const totalDocuments = await countDocumentsRecursively(folder.id);
+        return {
+          ...folder,
+          _count: {
+            ...folder._count,
+            totalDocuments, // Total documents including all subfolders
+          },
+        };
+      })
+    );
+
     const duration = Date.now() - startTime;
-    console.log(`✅ [BATCH] Loaded ${documents.length} docs, ${folders.length} folders, ${recentDocuments.length} recent in ${duration}ms`);
+    console.log(`✅ [BATCH] Loaded ${documents.length} docs, ${foldersWithTotalCount.length} folders, ${recentDocuments.length} recent in ${duration}ms`);
 
     const response = {
       documents,
-      folders,
+      folders: foldersWithTotalCount, // ✅ Use folders with totalDocuments count
       recentDocuments,
       meta: {
         loadTime: duration,
         counts: {
           documents: documents.length,
-          folders: folders.length,
+          folders: foldersWithTotalCount.length,
           recent: recentDocuments.length,
         }
       }

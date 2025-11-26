@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as folderService from '../services/folder.service';
 import { emitFolderEvent, emitToUser } from '../services/websocket.service';
+import { invalidateUserCache } from './batch.controller';
 import cacheService from '../services/cache.service';
 
 /**
@@ -214,6 +215,17 @@ export const deleteFolder = async (req: Request, res: Response): Promise<void> =
     const { id } = req.params;
 
     await folderService.deleteFolder(id, req.user.id);
+
+    // ✅ BUG FIX #1: Invalidate ALL caches BEFORE emitting events
+    // This ensures that any subsequent data fetches get fresh data from database
+    // instead of stale cached data that still contains the deleted folder
+    console.log(`🗑️ [DELETE] Invalidating all caches for user ${req.user.id} after folder deletion`);
+
+    // 1. Invalidate Redis cache (used by /api/batch/initial-data endpoint)
+    await invalidateUserCache(req.user.id);
+
+    // 2. Invalidate in-memory cache (used by other endpoints like /api/documents, /api/folders)
+    await cacheService.invalidateUserCache(req.user.id);
 
     // Emit real-time event for folder deletion
     emitFolderEvent(req.user.id, 'deleted', id);
