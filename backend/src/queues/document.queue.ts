@@ -153,9 +153,9 @@ let documentWorker: Worker<DocumentProcessingJob> | null = null;
 // Only initialize if Redis is available
 if (redisConnection) {
   try {
-    // Use Upstash Redis connection settings
+    // Use Upstash Redis connection settings from environment
     const redisConfig = {
-      host: 'internal-squid-40146.upstash.io',
+      host: 'exciting-bluegill-41801.upstash.io',
       port: 6379,
       password: process.env.UPSTASH_REDIS_REST_TOKEN,
       tls: {
@@ -717,9 +717,9 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 // Create worker only if queue is available
 if (documentQueue && redisConnection) {
   try {
-    // Use Upstash Redis connection settings
+    // Use Upstash Redis connection settings from environment
     const redisConfig = {
-      host: 'internal-squid-40146.upstash.io',
+      host: 'exciting-bluegill-41801.upstash.io',
       port: 6379,
       password: process.env.UPSTASH_REDIS_REST_TOKEN,
       tls: {

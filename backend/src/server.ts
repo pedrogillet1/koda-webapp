@@ -143,6 +143,22 @@ io.on('connection', (socket) => {
       const ragService = await import('./services/rag.service');
       const { default: prisma } = await import('./config/database');
 
+      // ✅ FIX: Load existing conversation history BEFORE saving new message
+      // This determines if this is the first message (for greeting logic)
+      const existingMessages = await prisma.message.findMany({
+        where: { conversationId },
+        orderBy: { createdAt: 'asc' },
+        select: { role: true, content: true }
+      });
+
+      // Convert to format expected by RAG service
+      const conversationHistory = existingMessages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      console.log(`📚 [GREETING] Loaded ${conversationHistory.length} existing messages for conversation ${conversationId}`);
+
       // Save user message first
       const userMessage = await prisma.message.create({
         data: {
@@ -184,7 +200,7 @@ io.on('connection', (socket) => {
           });
         },
         data.attachedDocumentId, // Use actual attached document ID
-        undefined, // conversationHistory (optional)
+        conversationHistory, // ✅ FIX: Pass conversation history for greeting logic
         (stage: string, message: string) => {
           // Emit stage updates for progress animation
           io.to(`conversation:${conversationId}`).emit('message-stage', {

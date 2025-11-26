@@ -15,10 +15,18 @@ let smsServiceEnabled = false;
 
 if (!accountSid || !authToken || !twilioPhoneNumber) {
   console.warn('⚠️  Twilio credentials not configured. SMS service will be disabled.');
+} else if (!accountSid.startsWith('AC')) {
+  // Twilio SDK throws if accountSid doesn't start with "AC"
+  console.warn('⚠️  Twilio ACCOUNT_SID must start with "AC" (not API Key SID). SMS service disabled.');
+  console.warn('   Current value starts with:', accountSid.substring(0, 2));
 } else {
-  twilioClient = twilio(accountSid, authToken);
-  smsServiceEnabled = true;
-  console.log('✅ Twilio SMS service initialized');
+  try {
+    twilioClient = twilio(accountSid, authToken);
+    smsServiceEnabled = true;
+    console.log('✅ Twilio SMS service initialized');
+  } catch (error) {
+    console.warn('⚠️  Twilio initialization failed (invalid credentials?). SMS service will be disabled.');
+  }
 }
 
 class SmsService {

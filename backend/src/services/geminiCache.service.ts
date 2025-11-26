@@ -26,9 +26,18 @@
  * - Especially impactful for large contexts
  */
 
-import { GoogleGenerativeAI, CachedContent } from '@google/generative-ai';
+import { GoogleGenerativeAI, CachedContent, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { retryStreamingWithBackoff } from '../utils/retryUtils';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+// Safety settings to prevent empty responses from safety filters
+const SAFETY_SETTINGS = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+];
 
 // In-memory cache store for explicit caches
 const cacheStore = new Map<string, CachedContent>();
@@ -118,26 +127,38 @@ class GeminiCacheService {
         }, STREAMING_TIMEOUT_MS);
       });
 
-      // Generate with streaming wrapped in timeout
-      const streamingPromise = (async () => {
-        const result = await model.generateContentStream(fullPrompt);
-        let fullResponse = '';
-        let lastChunkTime = Date.now();
+      // Generate with streaming wrapped in timeout AND retry logic
+      const streamingPromise = retryStreamingWithBackoff(
+        async (chunkCallback: (chunk: string) => void) => {
+          const result = await model.generateContentStream(fullPrompt);
+          let fullResponse = '';
+          let lastChunkTime = Date.now();
 
-        for await (const chunk of result.stream) {
-          const chunkText = chunk.text();
-          fullResponse += chunkText;
-          lastChunkTime = Date.now();
+          for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            fullResponse += chunkText;
+            lastChunkTime = Date.now();
 
-          // Stream to client in real-time
-          if (onChunk) {
-            onChunk(chunkText);
+            // Stream to client in real-time via callback
+            chunkCallback(chunkText);
           }
-        }
 
-        console.log('✅ [CACHE] Response generated with implicit caching');
-        return fullResponse;
-      })();
+          console.log('✅ [CACHE] Response generated with implicit caching');
+
+          // Log warning if response is empty
+          if (fullResponse.length === 0) {
+            console.warn('⚠️ [CACHE] Gemini returned empty response - possible safety filter or content issue');
+          }
+
+          return fullResponse;
+        },
+        onChunk || (() => {}), // Pass onChunk or no-op function
+        {
+          maxAttempts: 3,
+          initialDelayMs: 1000,
+          backoffMultiplier: 2,
+        }
+      );
 
       // Race between streaming and timeout
       return await Promise.race([streamingPromise, timeoutPromise]);

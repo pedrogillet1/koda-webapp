@@ -647,8 +647,8 @@ async function initializePinecone() {
 // IMPACT: ~1000ms saved per query
 
 function fastCitationExtraction(response: string, chunks: any[]): any[] {
-  const sources: any[] = [];
-  const seenDocuments = new Set<string>();
+  // ✅ Issue #3 Fix: Use Map for deduplication to keep highest score per document
+  const sourceMap = new Map<string, any>();
 
   // Extract [1], [2], etc. from response
   const citationMatches = response.match(/\[(\d+)\]/g) || [];
@@ -656,42 +656,54 @@ function fastCitationExtraction(response: string, chunks: any[]): any[] {
 
   console.log(`⚡ [FAST CITATION] Found ${citedIndices.length} unique citation references in response`);
 
-  // Map citations to chunks
+  // Map citations to chunks - keep highest score per document
   citedIndices.forEach(idx => {
     if (idx >= 0 && idx < chunks.length) {
       const chunk = chunks[idx];
       const docId = chunk.metadata?.documentId;
+      const score = chunk.score || chunk.rerankScore || chunk.hybridScore || 0;
 
-      if (docId && !seenDocuments.has(docId)) {
-        seenDocuments.add(docId);
-        sources.push({
-          documentId: docId,
-          documentName: chunk.metadata?.filename || 'Unknown',
-          pageNumber: chunk.metadata?.page || null,
-          relevantText: (chunk.metadata?.text || chunk.metadata?.content || chunk.content || '').substring(0, 200),
-          score: chunk.score || chunk.rerankScore || chunk.hybridScore || 0
-        });
+      if (docId) {
+        const existing = sourceMap.get(docId);
+        // Only update if this is a new document or has a higher score
+        if (!existing || score > existing.score) {
+          sourceMap.set(docId, {
+            documentId: docId,
+            documentName: chunk.metadata?.filename || 'Unknown',
+            pageNumber: chunk.metadata?.page || null,
+            relevantText: (chunk.metadata?.text || chunk.metadata?.content || chunk.content || '').substring(0, 200),
+            score
+          });
+        }
       }
     }
   });
 
   // If no citations found in response, use top 3 chunks as sources
-  if (sources.length === 0) {
+  if (sourceMap.size === 0) {
     console.log(`⚡ [FAST CITATION] No explicit citations found, using top 3 chunks as sources`);
     chunks.slice(0, 3).forEach(chunk => {
       const docId = chunk.metadata?.documentId;
-      if (docId && !seenDocuments.has(docId)) {
-        seenDocuments.add(docId);
-        sources.push({
-          documentId: docId,
-          documentName: chunk.metadata?.filename || 'Unknown',
-          pageNumber: chunk.metadata?.page || null,
-          relevantText: (chunk.metadata?.text || chunk.metadata?.content || chunk.content || '').substring(0, 200),
-          score: chunk.score || chunk.rerankScore || chunk.hybridScore || 0
-        });
+      const score = chunk.score || chunk.rerankScore || chunk.hybridScore || 0;
+
+      if (docId) {
+        const existing = sourceMap.get(docId);
+        // Only update if this is a new document or has a higher score
+        if (!existing || score > existing.score) {
+          sourceMap.set(docId, {
+            documentId: docId,
+            documentName: chunk.metadata?.filename || 'Unknown',
+            pageNumber: chunk.metadata?.page || null,
+            relevantText: (chunk.metadata?.text || chunk.metadata?.content || chunk.content || '').substring(0, 200),
+            score
+          });
+        }
       }
     });
   }
+
+  // Convert Map to array, sorted by score descending
+  const sources = Array.from(sourceMap.values()).sort((a, b) => b.score - a.score);
 
   console.log(`⚡ [FAST CITATION] Extracted ${sources.length} unique document sources (saved ~1000ms)`);
   return sources;
@@ -3667,6 +3679,12 @@ async function handleRegularQuery(
   const complexity = detectQueryComplexity(query);
   console.log(`📊 [COMPLEXITY] Detected complexity: ${complexity} for query: "${query.substring(0, 50)}..."`);
 
+  // ✅ Issue #4 Fix: Detect comparison queries for better table formatting
+  const isComparisonQuery = /\b(compare|difference|versus|vs\.?|contrast|similarities|between)\b/i.test(query);
+  if (isComparisonQuery) {
+    console.log(`📊 [COMPARISON] Detected comparison query - will use comparison rules`);
+  }
+
   // Map complexity to answer length for unified system
   const answerLength: 'short' | 'medium' | 'summary' | 'long' =
     complexity === 'simple' ? 'short' :
@@ -4322,10 +4340,12 @@ async function handleRegularQuery(
     console.log(`🔍 [DEBUG] finalDocumentContext length: ${finalDocumentContext.length}`);
 
     // ✅ UNIFIED: Use SystemPrompts service for consistent prompting across all query types
+    // ✅ Issue #4 Fix: Pass isComparison flag to get comparison table rules
     const systemPrompt = systemPromptsService.getSystemPrompt(
       query,
       answerLength, // Use mapped answer length (short/medium/long)
       {
+        isComparison: isComparisonQuery, // ✅ Issue #4: Apply comparison rules for comparison queries
         isFirstMessage: shouldShowGreeting, // ✅ Use shouldShowGreeting instead of raw isFirstMessage
         conversationHistory: conversationContext,
         documentContext: finalDocumentContext,
@@ -4506,6 +4526,15 @@ async function streamLLMResponse(
     });
 
     console.log('✅ [STREAMING] Complete. Total chars:', fullAnswer.length);
+
+    // ✅ FIX: Handle empty responses from Gemini
+    if (fullAnswer.length === 0) {
+      console.warn('⚠️ [STREAMING] Gemini returned empty response - sending fallback');
+      const fallbackMessage = 'I found relevant information in your documents but had trouble generating a response. Please try rephrasing your question.';
+      onChunk(fallbackMessage);
+      return fallbackMessage;
+    }
+
     return fullAnswer;
 
   } catch (error: any) {
@@ -4671,6 +4700,10 @@ function postProcessAnswer(answer: string): string {
   // Remove any remaining code block markers around tables
   processed = processed.replace(/```markdown\n([\s\S]*?)\n```/g, '$1');
   processed = processed.replace(/```\n([\s\S]*?)\n```/g, '$1');
+
+  // ✅ Fix: Remove inline code backticks (single backticks like `B15:B23`)
+  // This prevents blue code blocks from appearing in the UI
+  processed = processed.replace(/`([^`]+)`/g, '$1');
 
   // ════════════════════════════════════════════════════════════════════════════════
   // CITATION CLEANUP - Remove all inline citations (UI displays sources separately)

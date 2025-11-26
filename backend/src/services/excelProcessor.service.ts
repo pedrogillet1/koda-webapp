@@ -23,6 +23,9 @@ interface ExcelChunk {
     chunkIndex: number;
     sourceType: string;
     tableHeaders?: string[];
+    // ✅ Formula metadata for better RAG retrieval (Issue #2 fix)
+    hasFormula?: boolean;
+    formulas?: string[];  // Array of formulas in the row (e.g., ["=SUM(B2:B4)", "=A1*B1"])
   };
 }
 
@@ -141,6 +144,12 @@ class ExcelProcessorService {
 
         const rowText = cellTexts.join(' | ');
 
+        // ✅ Issue #2 Fix: Extract formulas for searchable metadata
+        const rowFormulas = rowCells
+          .filter(c => c.formula)
+          .map(c => `=${c.formula}`);
+        const hasFormula = rowFormulas.length > 0;
+
         chunks.push({
           content: `Sheet ${sheetNumber} '${sheetName}', Row ${rowNum + 1}: ${rowText}`,
           metadata: {
@@ -150,7 +159,10 @@ class ExcelProcessorService {
             cells: rowCells.map(c => c.cell),
             emptyCells: rowCells.filter(c => c.value === '[empty]').map(c => c.cell),
             chunkIndex: chunkIndex++,
-            sourceType: 'excel'
+            sourceType: 'excel',
+            // ✅ Formula metadata for better RAG retrieval
+            ...(hasFormula && { hasFormula: true }),
+            ...(hasFormula && { formulas: rowFormulas }),
           }
         });
       }

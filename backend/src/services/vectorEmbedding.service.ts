@@ -16,6 +16,9 @@ interface EmbeddingMetadata {
   section?: string;
   startChar?: number;
   endChar?: number;
+  // ✅ Issue #2 Fix: Excel formula metadata for better RAG retrieval
+  hasFormula?: boolean;
+  formulas?: string[];
 }
 
 interface ChunkWithMetadata {

@@ -42,106 +42,157 @@ class LLMIntentDetectorService {
       contextSection = `\n**Recent Conversation Context:**\n${recentMessages.map(msg => `${msg.role}: ${msg.content}`).join('\n')}\n`;
     }
 
-    const prompt = `You are an intent detection system for KODA, a document management AI assistant.
+    const prompt = `You are a highly precise intent detection system for KODA, a document management AI assistant.
+Your primary goal is to accurately classify the user's intent based on the query and the rules provided.
 
-Analyze the following user query and determine the intent.
+**Analyze the following user query and determine the single most likely intent.**
 ${contextSection}
 
-**Available Intents:**
-1. **create_folder** - User wants to create a new folder
-   - Examples (EN): "create folder X", "make folder called Y", "new folder Z", "create a folder named X"
-   - Examples (PT): "criar pasta X", "fazer pasta chamada Y", "nova pasta Z", "crie uma pasta X"
-   - Examples (ES): "crear carpeta X", "hacer carpeta llamada Y", "nueva carpeta Z", "crea una carpeta X"
-   - Examples (FR): "créer dossier X", "faire dossier nommé Y", "nouveau dossier Z", "crée un dossier X"
-   - Extract: folderName
+**--- INTENT DEFINITIONS ---**
 
-2. **list_files** - User wants to see a list of files
-   - Examples (EN): "show files", "list documents", "what files are there", "give me all pdfs", "show me the documents", "which documents i have", "show files in folder X", "list all PDFs"
-   - Examples (PT): "mostrar arquivos", "listar documentos", "que arquivos existem", "me dê todos os pdfs", "mostre-me os documentos", "quais documentos eu tenho"
-   - Examples (ES): "mostrar archivos", "listar documentos", "qué archivos hay", "dame todos los pdfs", "muéstrame los documentos", "cuáles documentos tengo"
-   - Examples (FR): "montrer fichiers", "lister documents", "quels fichiers existent", "donne-moi tous les pdfs", "montre-moi les documents", "quels documents j'ai"
-   - Extract: folderName (optional), fileType (optional - e.g., "pdf", "word", "excel")
+1. **create_folder**
+   - **Description**: User wants to create a **NEW** folder that does not exist yet.
+   - **Keywords**: "create", "make", "new folder", "criar", "nueva", "créer"
+   - **Examples (EN)**: "create folder X", "make folder called Y", "new folder Z", "create a folder named X"
+   - **Examples (PT)**: "criar pasta X", "fazer pasta chamada Y", "nova pasta Z", "crie uma pasta X"
+   - **Examples (ES)**: "crear carpeta X", "hacer carpeta llamada Y", "nueva carpeta Z", "crea una carpeta X"
+   - **Examples (FR)**: "créer dossier X", "faire dossier nommé Y", "nouveau dossier Z", "crée un dossier X"
+   - **CRITICAL RULE**: This intent is ONLY for the explicit creation of a NEW folder. If the user is asking to see, list, or find files *within* an existing folder, the intent is **list_files** or **search_files**, NOT create_folder.
+   - **NEGATIVE EXAMPLES - DO NOT USE create_folder FOR**: "in folder X", "in the X folder", "show me folder Y", "what's in the Z folder", "files in folder", "documents in the folder", "show me all files in folder X"
+   - **Extract**: folderName
 
-3. **search_files** - User wants to find files by name/keyword
-   - Examples: "find document about X", "search for files containing Y", "locate files with Z in the name"
+2. **list_files**
+   - **Description**: User wants to see, find, or list files, often within a specific folder or of a certain type.
+   - **Keywords**: "show", "list", "find", "what files", "which documents", "in the folder", "all files", "give me", "mostrar", "listar", "montrer"
+   - **Examples (EN)**: "show files", "list documents", "what files are there", "give me all pdfs", "show me the documents", "which documents I have", "show files in folder X", "list all PDFs", "show me all Excel and PDF files in the Financials folder"
+   - **Examples (PT)**: "mostrar arquivos", "listar documentos", "que arquivos existem", "me dê todos os pdfs", "mostre-me os documentos", "quais documentos eu tenho", "mostrar arquivos na pasta X"
+   - **Examples (ES)**: "mostrar archivos", "listar documentos", "qué archivos hay", "dame todos los pdfs", "muéstrame los documentos", "cuáles documentos tengo"
+   - **Examples (FR)**: "montrer fichiers", "lister documents", "quels fichiers existent", "donne-moi tous les pdfs", "montre-moi les documents", "quels documents j'ai"
+   - **CRITICAL RULE**: Any query asking to see/show/list files IN a folder is list_files, not create_folder.
+   - **Extract**: folderName (optional), fileType (optional - e.g., "pdf", "word", "excel")
 
-4. **file_location** - User wants to know where a file is stored
-   - Examples: "where is document X", "what folder is Y in", "location of file Z", "where can I find X"
+3. **search_files**
+   - **Description**: User wants to find files by name or keyword search.
+   - **Keywords**: "find", "search", "locate", "look for", "buscar", "chercher"
+   - **Examples**: "find document about X", "search for files containing Y", "locate files with Z in the name"
+   - **Extract**: keyword, filename (optional)
 
-5. **move_files** - User wants to move files to a folder
-   - Examples (EN): "move X to folder Y", "put document X in folder Y", "transfer X to Y folder"
-   - Examples (PT): "mover X para pasta Y", "colocar documento X na pasta Y", "transferir X para pasta Y"
-   - Examples (ES): "mover X a carpeta Y", "poner documento X en carpeta Y", "transferir X a carpeta Y"
-   - Examples (FR): "déplacer X vers dossier Y", "mettre document X dans dossier Y", "transférer X vers dossier Y"
-   - Extract: targetFolder, filename (optional)
+4. **file_location**
+   - **Description**: User wants to know where a specific file is stored.
+   - **Keywords**: "where is", "what folder is", "location of", "where can I find"
+   - **Examples**: "where is document X", "what folder is Y in", "location of file Z", "where can I find X"
+   - **Extract**: filename
 
-6. **rename_file** - User wants to rename a file or folder
-   - Examples (EN): "rename X to Y", "change file name from X to Y", "call document X as Y instead", "rename folder X to Y"
-   - Examples (PT): "renomear X para Y", "mudar nome do arquivo de X para Y", "chamar documento X de Y", "renomear pasta X para Y"
-   - Examples (ES): "renombrar X a Y", "cambiar nombre del archivo de X a Y", "llamar documento X como Y", "renombrar carpeta X a Y"
-   - Examples (FR): "renommer X en Y", "changer nom du fichier de X à Y", "appeler document X comme Y", "renommer dossier X en Y"
-   - Extract: oldFilename, newFilename
+5. **move_files**
+   - **Description**: User wants to move files to a different folder.
+   - **Keywords**: "move", "put", "transfer", "mover", "déplacer"
+   - **Examples (EN)**: "move X to folder Y", "put document X in folder Y", "transfer X to Y folder"
+   - **Examples (PT)**: "mover X para pasta Y", "colocar documento X na pasta Y", "transferir X para pasta Y"
+   - **Examples (ES)**: "mover X a carpeta Y", "poner documento X en carpeta Y", "transferir X a carpeta Y"
+   - **Examples (FR)**: "déplacer X vers dossier Y", "mettre document X dans dossier Y", "transférer X vers dossier Y"
+   - **Extract**: targetFolder, filename
 
-7. **delete_file** - User wants to delete a file
-   - Examples (EN): "delete document X", "remove file Y", "erase Z", "get rid of X"
-   - Examples (PT): "excluir documento X", "remover arquivo Y", "apagar Z", "eliminar X"
-   - Examples (ES): "eliminar documento X", "borrar archivo Y", "borrar Z", "deshacerse de X"
-   - Examples (FR): "supprimer document X", "enlever fichier Y", "effacer Z", "se débarrasser de X"
+6. **rename_file**
+   - **Description**: User wants to rename a file or folder.
+   - **Keywords**: "rename", "change name", "call it", "renomear", "renombrar", "renommer"
+   - **Examples (EN)**: "rename X to Y", "change file name from X to Y", "call document X as Y instead", "rename folder X to Y"
+   - **Examples (PT)**: "renomear X para Y", "mudar nome do arquivo de X para Y", "chamar documento X de Y", "renomear pasta X para Y"
+   - **Examples (ES)**: "renombrar X a Y", "cambiar nombre del archivo de X a Y", "llamar documento X como Y", "renombrar carpeta X a Y"
+   - **Examples (FR)**: "renommer X en Y", "changer nom du fichier de X à Y", "appeler document X comme Y", "renommer dossier X en Y"
+   - **Extract**: oldFilename, newFilename
 
-8. **show_file** - User wants to preview/see/view/open a specific file
-   - Examples (EN): "show me this file", "show me document X", "show me the file with Y", "take me to file X", "open document X", "I want to see this file", "show me image 1", "let me see the file"
-   - Examples (PT): "me mostra este arquivo", "me mostra o arquivo X", "mostre o documento X", "abrir arquivo X", "quero ver este arquivo", "mostre-me o arquivo X"
-   - Examples (ES): "muéstrame este archivo", "muéstrame el archivo X", "mostrar documento X", "abrir archivo X", "quiero ver este archivo"
-   - Examples (FR): "montre-moi ce fichier", "montre-moi le fichier X", "montrer document X", "ouvrir fichier X", "je veux voir ce fichier"
-   - Extract: filename (the file name or reference)
-   - ✅ **CONTEXT RESOLUTION**: If user says "this file", "that document", "the file", "it", or similar contextual reference, look at the conversation context above and extract the actual filename from the previous messages. Return the real filename, NOT "this file".
+7. **delete_file**
+   - **Description**: User wants to delete a file.
+   - **Keywords**: "delete", "remove", "erase", "get rid of", "excluir", "eliminar", "supprimer"
+   - **Examples (EN)**: "delete document X", "remove file Y", "erase Z", "get rid of X"
+   - **Examples (PT)**: "excluir documento X", "remover arquivo Y", "apagar Z", "eliminar X"
+   - **Examples (ES)**: "eliminar documento X", "borrar archivo Y", "borrar Z", "deshacerse de X"
+   - **Examples (FR)**: "supprimer document X", "enlever fichier Y", "effacer Z", "se débarrasser de X"
+   - **Extract**: filename
 
-9. **metadata_query** - User wants information about files (size, type, date, count)
-   - Examples: "how many files", "what's the size of X", "when was Y uploaded", "file count", "what types of documents", "how many PDFs do I have", "show me file statistics", "how many Word documents in folder X"
-   - Extract: queryType (optional - "count", "size", "types"), fileTypes (optional array - ["pdf", "word", "excel"]), folderName (optional)
+8. **show_file**
+   - **Description**: User wants to preview/see/view/open a specific file.
+   - **Keywords**: "show me", "open", "view", "see", "take me to", "abrir", "ouvrir"
+   - **Examples (EN)**: "show me this file", "show me document X", "show me the file with Y", "take me to file X", "open document X", "I want to see this file", "show me image 1", "let me see the file"
+   - **Examples (PT)**: "me mostra este arquivo", "me mostra o arquivo X", "mostre o documento X", "abrir arquivo X", "quero ver este arquivo", "mostre-me o arquivo X"
+   - **Examples (ES)**: "muéstrame este archivo", "muéstrame el archivo X", "mostrar documento X", "abrir archivo X", "quiero ver este archivo"
+   - **Examples (FR)**: "montre-moi ce fichier", "montre-moi le fichier X", "montrer document X", "ouvrir fichier X", "je veux voir ce fichier"
+   - **CONTEXT RESOLUTION**: If user says "this file", "that document", "the file", "it", or similar contextual reference, look at the conversation context above and extract the actual filename from the previous messages. Return the real filename, NOT "this file".
+   - **Extract**: filename (the file name or reference)
 
-10. **rag_query** - User wants to ask questions about document content (default)
-   - Examples: "what does document X say about Y", "explain concept Z", "summarize X"
+9. **metadata_query**
+   - **Description**: User wants information about files (size, type, date, count).
+   - **Keywords**: "how many", "size of", "when was", "file count", "statistics", "quantos", "combien"
+   - **Examples**: "how many files", "what's the size of X", "when was Y uploaded", "file count", "what types of documents", "how many PDFs do I have", "show me file statistics", "how many Word documents in folder X"
+   - **Extract**: queryType (optional - "count", "size", "types"), fileTypes (optional array - ["pdf", "word", "excel"]), folderName (optional)
 
-11. **greeting** - User is greeting or making small talk
-   - Examples: "hello", "hi", "how are you", "good morning", "olá", "hola"
+10. **rag_query** (Default Fallback)
+    - **Description**: User is asking a question about the **CONTENT** of one or more documents.
+    - **CRITICAL RULE**: If the query is not a clear file management action (create, list, move, delete, rename, etc.), it is a rag_query.
+    - **Examples**: "what does document X say about Y", "explain concept Z", "summarize X", "what are the main points in the report"
+
+11. **greeting**
+    - **Description**: User is greeting or making small talk.
+    - **Examples**: "hello", "hi", "how are you", "good morning", "olá", "hola", "bonjour"
+
+**--- DECISION-MAKING PROCESS ---**
+
+Follow this hierarchy strictly:
+
+1. **Check for greetings first**: If the query is a simple greeting, return "greeting".
+
+2. **Check for explicit file management actions**: Look for action verbs like create, move, rename, delete.
+   - "create folder X" → create_folder
+   - "move X to Y" → move_files
+   - "rename X to Y" → rename_file
+   - "delete X" → delete_file
+
+3. **Check for viewing/listing requests**: Look for show, list, find, what files.
+   - If asking to see files IN a folder → **list_files** (NOT create_folder!)
+   - If asking to open/view a specific file → show_file
+   - If asking where a file is → file_location
+
+4. **Check for metadata queries**: Look for how many, count, size, statistics.
+   - → metadata_query
+
+5. **Default to rag_query**: If none of the above match clearly, assume the user is asking about document content.
+
+**--- CRITICAL DISAMBIGUATION ---**
+
+**"folder" in query does NOT mean create_folder!**
+- "Show me files in the Reports folder" → **list_files** (folderName: "Reports")
+- "What's in the Marketing folder" → **list_files** (folderName: "Marketing")
+- "Create a new folder called Reports" → **create_folder** (folderName: "Reports")
+
+The key distinction:
+- create_folder = making something NEW (verbs: create, make, new)
+- list_files = viewing something EXISTING (verbs: show, list, what's in, files in)
 
 **User Query:** "${query}"
 
-**Instructions:**
-- Respond ONLY with valid JSON
-- Determine the most likely intent
-- Extract relevant parameters (filenames, keywords, etc.)
-- Provide confidence score (0.0 to 1.0)
-- ✅ FIX #3: When extracting filenames, remove file extensions (.pdf, .docx, etc.) and normalize spaces/underscores/hyphens
+**Parameter Extraction Rules:**
+- When extracting filenames, remove file extensions (.pdf, .docx, etc.) and normalize spaces/underscores/hyphens
   Example: "move koda checklist to folder X" → extract filename as "koda" (will match "koda_checklist.pdf")
-- ✅ FIX #4: When extracting folder names, remove the word 'folder' from the extracted name
+- When extracting folder names, remove the word 'folder' from the extracted name
   Example: "move X to koda12 folder" → extract targetFolder as "koda12" (not "koda12 folder")
+- For fileType, use lowercase: "pdf", "word", "excel", "image", etc.
 
-**Response Format:**
+**Response Format (JSON only):**
 {
   "intent": "intent_name",
   "confidence": 0.95,
   "parameters": {
-    "folderName": "folder name",
-    "filename": "example.pdf",
-    "keyword": "search term",
-    "oldFilename": "old_name.pdf",
-    "newFilename": "new_name.pdf",
-    "targetFolder": "destination folder",
-    "fileType": "pdf",
-    "queryType": "count",
-    "fileTypes": ["pdf", "word"]
+    "folderName": "folder name if applicable",
+    "filename": "file name if applicable",
+    "keyword": "search term if applicable",
+    "oldFilename": "for rename operations",
+    "newFilename": "for rename operations",
+    "targetFolder": "for move operations",
+    "fileType": "pdf/word/excel if filtering by type",
+    "fileTypes": ["pdf", "word"],
+    "queryType": "count/size/types for metadata"
   }
 }
-
-**Rules:**
-- If query is about file CONTENT → "rag_query"
-- If query is about file EXISTENCE/LOCATION → "file_location" or "search_files" or "list_files"
-- If query is about file METADATA (size, date, count) → "metadata_query"
-- If query is an ACTION (rename, delete) → corresponding action intent
-- If query is a greeting → "greeting"
-- Default to "rag_query" if uncertain
 
 Respond with JSON only:`;
 
