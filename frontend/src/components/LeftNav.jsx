@@ -174,7 +174,7 @@ const LeftNav = ({ onNotificationClick }) => {
                                 <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Chat</span>
                             </div>
                             <div onClick={() => handleMobileNavigate('/upload-hub')} style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/upload-hub' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12}}>
-                                {location.pathname === '/upload-hub' ? <UploadIcon style={{width: 20, height: 20, fill: 'white'}} /> : <LogoutIcon style={{width: 20, height: 20, stroke: 'white', fill: 'none'}} />}
+                                {location.pathname === '/upload-hub' ? <UploadIcon style={{width: 20, height: 20, color: 'white'}} /> : <LogoutIcon style={{width: 20, height: 20, stroke: 'white', fill: 'none'}} />}
                                 <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Upload</span>
                             </div>
                         </div>
@@ -253,7 +253,7 @@ const LeftNav = ({ onNotificationClick }) => {
                     </div>
                     <div onClick={() => navigate('/upload-hub')} style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/upload-hub' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12, justifyContent: isExpanded ? 'flex-start' : 'center'}}>
                         {location.pathname === '/upload-hub' ? (
-                            <UploadIcon style={{width: 20, height: 20, fill: 'white'}} />
+                            <UploadIcon style={{width: 20, height: 20, color: 'white'}} />
                         ) : (
                             <LogoutIcon style={{width: 20, height: 20, stroke: 'white', fill: 'none'}} />
                         )}

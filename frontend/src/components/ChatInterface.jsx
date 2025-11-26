@@ -2875,7 +2875,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 animation: 'pulse 1.5s ease-in-out infinite'
                             }}
                         >
-                            <UploadIconDrag style={{ width: 60, height: 60 }} />
+                            <UploadIconDrag style={{ width: 60, height: 60, color: '#32302C' }} />
                         </div>
                         <div
                             style={{
@@ -3262,7 +3262,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             background: 'transparent',
                             border: 'none',
                             outline: 'none',
-                            fontSize: 18,
+                            fontSize: 16,
                             color: '#32302C',
                             cursor: 'text',
                             resize: 'none',

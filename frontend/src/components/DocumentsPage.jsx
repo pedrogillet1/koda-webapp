@@ -825,7 +825,10 @@ const DocumentsPage = () => {
                     {categoryMenuOpen === category.id && (
                       <div
                         style={{
-                          position: 'fixed',
+                          position: 'absolute',
+                          top: '100%',
+                          right: 0,
+                          marginTop: 4,
                           background: 'white',
                           borderRadius: 12,
                           border: '1px solid #E6E6EC',
@@ -833,14 +836,6 @@ const DocumentsPage = () => {
                           zIndex: 99999,
                           minWidth: 160,
                           overflow: 'hidden'
-                        }}
-                        ref={(el) => {
-                          if (el) {
-                            const button = el.previousElementSibling;
-                            const rect = button.getBoundingClientRect();
-                            el.style.top = `${rect.bottom + 4}px`;
-                            el.style.right = `${window.innerWidth - rect.right}px`;
-                          }
                         }}
                       >
                         <button
@@ -899,7 +894,7 @@ const DocumentsPage = () => {
                           onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
-                          <UploadIconMenu style={{width: 16, height: 16}} />
+                          <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
                           Upload
                         </button>
                         <button

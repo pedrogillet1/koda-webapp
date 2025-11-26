@@ -1225,7 +1225,7 @@ const Documents = () => {
                           onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
-                          <UploadIconMenu style={{width: 16, height: 16}} />
+                          <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
                           Upload
                         </button>
                         <button
@@ -1408,7 +1408,7 @@ const Documents = () => {
                             onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
-                            <UploadIconMenu style={{width: 16, height: 16}} />
+                            <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
                             Upload
                           </button>
                           <button

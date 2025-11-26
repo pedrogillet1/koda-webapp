@@ -146,8 +146,18 @@ const ChatScreen = () => {
         setCurrentConversation(conversation);
     };
 
-    const handleNewChat = async (existingConversation) => {
+    const handleNewChat = async (existingConversation, replacingTempId) => {
         try {
+            // If this is replacing a temp conversation with the real one
+            if (replacingTempId) {
+                console.log('🔄 [ChatScreen] Replacing temp conversation', replacingTempId, 'with real:', existingConversation.id);
+                // Update current conversation if it's the temp one being replaced
+                setCurrentConversation(prev =>
+                    prev?.id === replacingTempId ? existingConversation : prev
+                );
+                return;
+            }
+
             // If conversation already created by ChatHistory, use it
             if (existingConversation) {
                 console.log('✅ [ChatScreen] Using conversation from ChatHistory:', existingConversation.id);
