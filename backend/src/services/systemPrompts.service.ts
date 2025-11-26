@@ -59,6 +59,13 @@ const ADAPTIVE_SYSTEM_PROMPT = `You are KODA, a professional document AI assista
 - "Formula" = "calculation" = "equation" = "how is it calculated"
 - When showing formulas, use the exact Excel syntax from the document
 
+**Financial Terminology Flexibility:**
+- "Total Expenses" = "Total Operating Expenses" = "Total Costs" = "Operating Costs"
+- "Total Revenue" = "Total Operating Revenue" = "Gross Revenue" = "Total Income"
+- "Net Income" = "Net Income/Loss" = "Net Profit" = "Net Earnings" = "Bottom Line"
+- When verifying calculations (e.g., Net Income = Revenue - Expenses), look for semantically equivalent terms
+- If exact term not found, use the closest available term and note the actual label used
+
 **Hallucination Prevention:**
 - Only state facts from the retrieved documents
 - If information is missing, say "I don't see that in your documents"

@@ -395,10 +395,10 @@ export const streamDocument = async (req: Request, res: Response): Promise<void>
     console.error(`❌ Stream document error for ID ${req.params.id}:`, err.message);
 
     // Provide more specific error messages
-    if (err.message.includes('Supabase download error') || err.message.includes('not found')) {
+    if (err.message.includes('not found')) {
       res.status(404).json({
         error: 'File not found in storage',
-        details: 'This document may have been uploaded before the storage migration. Please re-upload the file.',
+        details: 'This document may have been deleted or is unavailable. Please re-upload the file.',
         documentId: req.params.id
       });
     } else {
@@ -1098,7 +1098,7 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Generate signed URLs for slide images stored in GCS or Supabase
+    // Generate signed URLs for slide images stored in GCS/S3
     const { getSignedUrl } = await import('../config/storage');
     const slidesWithUrls = await Promise.all(
       slidesData.map(async (slide: any) => {
@@ -1110,19 +1110,9 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
             if (slide.imageUrl.startsWith('gcs://')) {
               filePath = slide.imageUrl.replace(/^gcs:\/\/[^\/]+\//, '');
             }
-            // Handle Supabase public URLs (format: https://...supabase.co/storage/v1/object/public/bucket-name/path)
-            else if (slide.imageUrl.includes('supabase') && slide.imageUrl.includes('/storage/v1/object/public/')) {
-              const match = slide.imageUrl.match(/\/storage\/v1\/object\/public\/[^\/]+\/(.+)$/);
-              if (match) {
-                filePath = match[1];
-              }
-            }
-            // Handle Supabase authenticated URLs (format: https://...supabase.co/storage/v1/object/sign/bucket-name/path)
-            else if (slide.imageUrl.includes('supabase') && slide.imageUrl.includes('/storage/v1/object/sign/')) {
-              const match = slide.imageUrl.match(/\/storage\/v1\/object\/sign\/[^\/]+\/(.+)\?/);
-              if (match) {
-                filePath = match[1];
-              }
+            // Handle S3 URLs or direct file paths
+            else if (slide.imageUrl.startsWith('s3://') || !slide.imageUrl.startsWith('http')) {
+              filePath = slide.imageUrl.replace(/^s3:\/\/[^\/]+\//, '');
             }
 
             // If we extracted a file path, generate a fresh signed URL

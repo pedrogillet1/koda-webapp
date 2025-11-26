@@ -2488,7 +2488,7 @@ export const streamDocument = async (documentId: string, userId: string) => {
 
 /**
  * Stream converted PDF for DOCX preview
- * Downloads the converted PDF file from Supabase and returns it for streaming
+ * Downloads the converted PDF file from storage and returns it for streaming
  */
 export const streamPreviewPdf = async (documentId: string, userId: string) => {
   console.log(`📄 [streamPreviewPdf] Starting for documentId: ${documentId}`);

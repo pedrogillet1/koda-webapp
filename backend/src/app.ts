@@ -205,7 +205,7 @@ app.use('/api/recovery-verification', recoveryVerificationRoutes); // Recovery v
 app.use('/api/batch', batchRoutes); // Batch API endpoints for optimized data loading (3 requests → 1)
 app.use('/api/search', searchRoutes); // Semantic search endpoints using vector embeddings
 app.use('/api/memories', memoryRoutes); // Cross-session memory management endpoints
-app.use('/api/presigned-urls', presignedUrlRoutes); // Presigned URL generation for direct-to-Supabase uploads
+app.use('/api/presigned-urls', presignedUrlRoutes); // Presigned URL generation for direct-to-S3 uploads
 // DEV ONLY: Development endpoints
 if (config.NODE_ENV === 'development') {
   app.use('/api/dev', devRoutes);
