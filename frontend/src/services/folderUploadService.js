@@ -300,19 +300,35 @@ class FolderUploadService {
   }
 
   /**
-   * Calculate SHA-256 hash of a file
+   * Calculate SHA-256 hash of a file using Web Worker (non-blocking)
    */
   async calculateFileHash(file) {
-    try {
-      const buffer = await file.arrayBuffer();
-      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      return hashHex;
-    } catch (error) {
-      console.error('Error calculating file hash:', error);
-      throw error;
-    }
+    return new Promise((resolve, reject) => {
+      const worker = new Worker(new URL('../workers/hash.worker.js', import.meta.url));
+
+      const timeout = setTimeout(() => {
+        worker.terminate();
+        reject(new Error(`Hash calculation timeout for "${file.name}"`));
+      }, 60000); // 60 second timeout
+
+      worker.onmessage = (event) => {
+        clearTimeout(timeout);
+        if (event.data.error) {
+          reject(new Error(event.data.error));
+        } else {
+          resolve(event.data.hash);
+        }
+        worker.terminate();
+      };
+
+      worker.onerror = (error) => {
+        clearTimeout(timeout);
+        reject(error);
+        worker.terminate();
+      };
+
+      worker.postMessage({ file });
+    });
   }
 
   /**

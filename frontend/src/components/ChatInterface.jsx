@@ -140,8 +140,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             }
         },
         onNewConversation: () => {
-            navigate('/chat');
-            window.location.reload(); // Simple way to start fresh
+            // Navigate to chat with state to indicate a new conversation
+            // This allows ChatScreen to reset state without a full page reload
+            navigate('/chat', { state: { newConversation: true, timestamp: Date.now() } });
         },
         onCopyLastResponse: handleCopyLastResponse,
         onCancelGeneration: handleCancelGeneration,

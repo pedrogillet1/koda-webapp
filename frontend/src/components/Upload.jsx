@@ -10,7 +10,7 @@ import api from '../services/api';
 const Upload = () => {
     const navigate = useNavigate();
     const isMobile = useIsMobile();
-    const { files, onDrop, removeFile, isUploading } = useFiles();
+    const { files, onDrop, removeFile, isUploading, uploadFile } = useFiles();
     const [showNotification, setShowNotification] = useState(false);
     const [notificationType, setNotificationType] = useState('success');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -539,8 +539,8 @@ const Upload = () => {
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    // Retry upload logic here
-                                                                    window.location.reload();
+                                                                    // Retry upload - call uploadFile with the file object and its index
+                                                                    uploadFile(f, index);
                                                                 }}
                                                                 style={{
                                                                     padding: '6px 16px',

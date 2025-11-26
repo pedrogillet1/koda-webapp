@@ -20,13 +20,6 @@ import mp3Icon from '../assets/mp3.svg';
 import folderIcon from '../assets/folder_icon.svg';
 
 const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComplete, initialFiles = null }) => {
-  console.log('🟢 UniversalUploadModal RENDER - Props:', {
-    isOpen,
-    initialFiles,
-    fileCount: initialFiles?.length,
-    categoryId
-  });
-
   // Get context functions for optimistic uploads
   const { addDocument, createFolder, refreshAll } = useDocuments();
 
@@ -40,27 +33,29 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   const [uploadedCount, setUploadedCount] = useState(0);
   const folderInputRef = React.useRef(null);
 
-  const onDrop = useCallback((acceptedFiles) => {
-    console.log('🔵 onDrop called with files:', acceptedFiles);
-    console.log('🔵 Files count:', acceptedFiles.length);
+  const onDrop = useCallback(async (acceptedFiles) => {
+    console.log('🔵 onDrop called with files count:', acceptedFiles.length);
+
+    // Show a loading indicator immediately for instant UI feedback
+    const loadingId = 'loading-indicator-' + Date.now();
+    setUploadingFiles(prev => [...prev, { id: loadingId, status: 'loading', isLoading: true }]);
+
+    // Yield to the main thread to allow the UI to update immediately
+    await new Promise(resolve => setTimeout(resolve, 0));
 
     // Separate folder files from regular files
     const folderFiles = acceptedFiles.filter(file => file.webkitRelativePath);
     const regularFiles = acceptedFiles.filter(file => !file.webkitRelativePath);
-
-    console.log('🔵 Folder files:', folderFiles.length, 'Regular files:', regularFiles.length);
 
     // Filter out empty files (0 bytes) which are likely folders dragged incorrectly
     const validFiles = regularFiles.filter(file => file.size > 0);
     const invalidFiles = regularFiles.filter(file => file.size === 0);
 
     if (invalidFiles.length > 0) {
-      console.warn('⚠️ Detected empty files (possibly folders):', invalidFiles);
-      console.warn('⚠️ Use the "Select Folder" button to upload folders');
-
       // Show error notification to user
       alert('⚠️ Folder drag-and-drop is not supported by browsers.\n\nPlease use the "Select Folder" button to upload folders with their contents.');
-      return; // Don't add these files to the upload queue
+      setUploadingFiles(prev => prev.filter(f => f.id !== loadingId));
+      return;
     }
 
     const newEntries = [];
@@ -114,12 +109,10 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       });
     }
 
-    console.log('🔵 New entries to add:', newEntries.length);
-    console.log('🔵 Entries:', newEntries);
+    // Remove the loading indicator and add the new entries
     setUploadingFiles(prev => {
-      const updated = [...prev, ...newEntries];
-      console.log('🔵 Updated uploadingFiles:', updated);
-      return updated;
+      const updated = prev.filter(f => f.id !== loadingId);
+      return [...updated, ...newEntries];
     });
   }, []);
 
@@ -214,14 +207,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
 
   // Process initial files when modal opens with dropped files
   useEffect(() => {
-    console.log('useEffect triggered - isOpen:', isOpen, 'initialFiles:', initialFiles);
     if (isOpen && initialFiles && initialFiles.length > 0) {
-      console.log('✅ Processing dropped files:', initialFiles);
-      console.log('Files count:', initialFiles.length);
       onDrop(initialFiles);
-      console.log('✅ onDrop called');
-    } else {
-      console.log('❌ Condition not met - isOpen:', isOpen, 'initialFiles length:', initialFiles?.length);
     }
   }, [isOpen, initialFiles, onDrop]);
 
@@ -476,23 +463,13 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
     }
   };
 
-  const handleFolderSelect = (e) => {
-    console.log('📁 handleFolderSelect triggered');
-    console.log('📁 e.target.files:', e.target.files);
-    console.log('📁 e.target.files.length:', e.target.files?.length);
+  const handleFolderSelect = async (e) => {
+    console.log('📁 handleFolderSelect triggered with', e.target.files?.length, 'files');
 
     const files = Array.from(e.target.files);
-    console.log('📁 Converted to array, length:', files.length);
-    console.log('📁 First file:', files[0]);
-    console.log('📁 First file webkitRelativePath:', files[0]?.webkitRelativePath);
 
     if (files.length > 0) {
-      console.log('📁 Calling onDrop with', files.length, 'files');
-      // Add webkitRelativePath to ensure proper folder detection
-      onDrop(files);
-      console.log('📁 onDrop called');
-    } else {
-      console.log('📁 No files to upload');
+      await onDrop(files);
     }
   };
 
@@ -831,6 +808,42 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
             overflowY: 'auto'
           }}>
             {uploadingFiles.map((item) => (
+              // Skip rendering if this is a loading indicator
+              item.isLoading ? (
+                <div
+                  key={item.id}
+                  style={{
+                    alignSelf: 'stretch',
+                    height: 72,
+                    padding: 14,
+                    background: 'white',
+                    borderRadius: 18,
+                    outline: '1px #E6E6EC solid',
+                    outlineOffset: '-1px',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    display: 'flex'
+                  }}
+                >
+                  <div style={{
+                    width: 24,
+                    height: 24,
+                    border: '3px solid #E6E6EC',
+                    borderTop: '3px solid #32302C',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite'
+                  }} />
+                  <span style={{
+                    marginLeft: 12,
+                    color: '#6C6B6E',
+                    fontSize: 14,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '500'
+                  }}>
+                    Processing files...
+                  </span>
+                </div>
+              ) : (
               <div
                 key={item.id}
                 style={{
@@ -998,6 +1011,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   </button>
                 )}
               </div>
+              )
             ))}
           </div>
         )}
@@ -1161,6 +1175,18 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
           </div>
         </div>
       )}
+
+      {/* Keyframe animation for loading spinner */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes slideDown {
+          from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+          to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 };

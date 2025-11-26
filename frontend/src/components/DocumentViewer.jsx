@@ -150,6 +150,7 @@ const DocumentViewer = () => {
   const [showExtractedText, setShowExtractedText] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState(0); // Used to force re-fetch of preview after regeneration
 
   const zoomPresets = [50, 75, 100, 125, 150, 175, 200];
 
@@ -237,11 +238,15 @@ const DocumentViewer = () => {
       // Update document state
       setDocument(updatedDoc.data);
 
-      // Show success message
-      alert('Preview regenerated successfully! The page will reload.');
+      // Increment preview version to force re-fetch of preview content
+      setPreviewVersion(v => v + 1);
 
-      // Reload the page to show updated preview
-      window.location.reload();
+      // Clear cached URLs to force reload
+      setDocumentUrl(null);
+      setActualDocumentUrl(null);
+
+      // Show success message (no reload needed)
+      alert('Preview regenerated successfully!');
     } catch (error) {
       console.error('Error regenerating preview:', error);
       alert('Failed to regenerate preview. Please try again.');
