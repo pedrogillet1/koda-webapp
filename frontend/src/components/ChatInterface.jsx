@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ReactComponent as AttachmentIcon } from '../assets/Paperclip.svg';
@@ -29,6 +29,10 @@ import api from '../services/api';
 import MessageActions from './MessageActions';
 import ErrorBanner from './ErrorBanner';
 import FailedMessage from './FailedMessage';
+import TypingIndicator from './TypingIndicator';
+import FileUploadPreview from './FileUploadPreview';
+import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts';
+import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import './MarkdownStyles.css';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
@@ -78,6 +82,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [socketReady, setSocketReady] = useState(false); // Track WebSocket connection state
     const [regeneratingMessageId, setRegeneratingMessageId] = useState(null); // Track which message is being regenerated
     const [error, setError] = useState(null); // Track current error for ErrorBanner
+    const [showShortcutsModal, setShowShortcutsModal] = useState(false); // Keyboard shortcuts modal
+    // ✅ SMART SCROLL: Track scroll position and unread messages
+    const [isAtBottom, setIsAtBottom] = useState(true);
+    const [unreadCount, setUnreadCount] = useState(0);
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
     const inputRef = useRef(null);
@@ -87,10 +95,68 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const manuallyRemovedDocumentRef = useRef(false);
     const pendingMessageRef = useRef(null); // Queue final message data until animation completes
     const isNewlyCreatedConversation = useRef(false); // Track if this is a NEW conversation created in this session
+    const previousConversationIdRef = useRef(null); // ✅ FIX: Track previous conversation ID to prevent unnecessary reloads
+    const searchInputRef = useRef(null); // For focusing search via keyboard shortcut
 
     // Display streaming chunks immediately without animation for smoother UX (like ChatGPT)
     const displayedText = streamingMessage;
     const isStreaming = isLoading && streamingMessage.length > 0;
+
+    // ✅ KEYBOARD SHORTCUTS: Power user shortcuts for faster navigation
+    const handleCopyLastResponse = useCallback(() => {
+        const assistantMessages = messages.filter(m => m.role === 'assistant');
+        const lastResponse = assistantMessages[assistantMessages.length - 1];
+        if (lastResponse?.content) {
+            navigator.clipboard.writeText(lastResponse.content);
+            console.log('📋 Copied last response to clipboard');
+        }
+    }, [messages]);
+
+    const handleCancelGeneration = useCallback(() => {
+        if (isLoading && abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            setIsLoading(false);
+            setStreamingMessage('');
+            console.log('🛑 Generation cancelled');
+        }
+    }, [isLoading]);
+
+    const handleEditLastMessage = useCallback(() => {
+        const userMessages = messages.filter(m => m.role === 'user');
+        const lastUserMessage = userMessages[userMessages.length - 1];
+        if (lastUserMessage?.content && !message) {
+            setMessage(lastUserMessage.content);
+            inputRef.current?.focus();
+            console.log('✏️ Editing last message');
+        }
+    }, [messages, message]);
+
+    // Use keyboard shortcuts hook
+    useKeyboardShortcuts({
+        onSendMessage: () => {
+            if (message.trim() || attachedDocuments.length > 0) {
+                // Trigger send - the actual handleSendMessage will be called
+                inputRef.current?.form?.requestSubmit();
+            }
+        },
+        onNewConversation: () => {
+            navigate('/chat');
+            window.location.reload(); // Simple way to start fresh
+        },
+        onCopyLastResponse: handleCopyLastResponse,
+        onCancelGeneration: handleCancelGeneration,
+        onShowShortcuts: () => setShowShortcutsModal(true),
+        onEditLastMessage: handleEditLastMessage,
+        onToggleSidebar: () => {
+            // Dispatch custom event to toggle sidebar (handled by parent)
+            window.dispatchEvent(new CustomEvent('toggleSidebar'));
+        },
+        onFocusSearch: () => {
+            // Dispatch custom event to focus search (handled by parent)
+            window.dispatchEvent(new CustomEvent('focusSearch'));
+        },
+        isEnabled: true
+    });
 
     // ✅ PHASE 2 OPTIMIZATION: Preload preview on hover (makes preview instant on click)
     const preloadPreview = async (doc) => {
@@ -203,6 +269,94 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         if (messagesContainerRef.current) {
             messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
         }
+    };
+
+    // ✅ SMART SCROLL: Detect scroll position (user at bottom or scrolled up)
+    const handleScroll = () => {
+        if (!messagesContainerRef.current) return;
+
+        const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+        // Consider "at bottom" if within 100px
+        const atBottom = distanceFromBottom < 100;
+        setIsAtBottom(atBottom);
+
+        // Reset unread count when user scrolls to bottom
+        if (atBottom) {
+            setUnreadCount(0);
+        }
+    };
+
+    // ✅ SMART SCROLL: Only auto-scroll if user is at bottom (preserves reading position)
+    const smartScroll = () => {
+        if (isAtBottom) {
+            scrollToBottom();
+        } else {
+            // User scrolled up, increment unread count for new messages
+            setUnreadCount(prev => prev + 1);
+        }
+    };
+
+    // ✅ SMART SCROLL: Scroll to bottom button component
+    const ScrollToBottomButton = () => {
+        if (isAtBottom) return null;
+
+        return (
+            <button
+                onClick={() => {
+                    scrollToBottom();
+                    setUnreadCount(0);
+                    setIsAtBottom(true);
+                }}
+                style={{
+                    position: 'absolute',
+                    bottom: 120,
+                    right: 24,
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    background: 'white',
+                    border: '1px solid #E5E7EB',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    zIndex: 100,
+                }}
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.15)';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
+                }}
+            >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="#374151">
+                    <path d="M10 14l-5-5h10l-5 5z"/>
+                </svg>
+                {unreadCount > 0 && (
+                    <span style={{
+                        position: 'absolute',
+                        top: -4,
+                        right: -4,
+                        background: '#EF4444',
+                        color: 'white',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '2px 6px',
+                        borderRadius: 10,
+                        minWidth: 18,
+                        textAlign: 'center',
+                    }}>
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                )}
+            </button>
+        );
     };
 
     useEffect(() => {
@@ -451,32 +605,51 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     useEffect(() => {
         // Load conversation messages when conversation changes
-        console.log('🔄 currentConversation changed:', currentConversation?.id);
+        const currentId = currentConversation?.id;
+        const previousId = previousConversationIdRef.current;
+
+        console.log('🔄 currentConversation effect triggered');
+        console.log('   Current ID:', currentId);
+        console.log('   Previous ID:', previousId);
         console.log('📌 justCreatedConversationId:', justCreatedConversationId.current);
 
-        if (currentConversation?.id) {
-            // CRITICAL: Clear old messages immediately when switching to prevent showing wrong conversation
-            console.log('🧹 Clearing old messages before switching to conversation:', currentConversation.id);
-            setMessages([]);
-            setStreamingMessage('');
-            setIsLoading(false);
-            pendingMessageRef.current = null;
+        // ✅ FIX: Only clear messages if conversation ID ACTUALLY changed
+        // This prevents hot reload/re-renders from clearing messages
+        const conversationActuallyChanged = currentId !== previousId;
 
-            // Skip loading if we just created this conversation
-            // We already have the messages locally from the REST API response
-            if (justCreatedConversationId.current === currentConversation.id) {
-                console.log('⏭️ Skipping loadConversation - just created this conversation');
-                justCreatedConversationId.current = null; // Reset flag
-                // Messages should already be in state from the send operation
+        if (currentId) {
+            if (conversationActuallyChanged) {
+                // ✅ FIX: Check justCreatedConversationId BEFORE clearing messages
+                // For newly created conversations, messages are already in state from optimistic update
+                const isJustCreated = justCreatedConversationId.current === currentId;
+
+                if (isJustCreated) {
+                    console.log('⏭️ Just created this conversation - preserving optimistic messages');
+                    justCreatedConversationId.current = null; // Reset flag
+                    // DON'T clear messages - they're already there from the send operation
+                } else {
+                    // ONLY clear messages when switching to an EXISTING conversation
+                    console.log('🧹 Clearing old messages - switching from', previousId, 'to', currentId);
+                    setMessages([]);
+                    setStreamingMessage('');
+                    setIsLoading(false);
+                    pendingMessageRef.current = null;
+
+                    console.log('🔃 Loading conversation from server...');
+                    loadConversation(currentId);
+                }
+
+                console.log('📡 Joining conversation room:', currentId);
+                chatService.joinConversation(currentId);
+                // Reset stage when switching conversations
+                setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+
+                // Update the previous ID ref
+                previousConversationIdRef.current = currentId;
             } else {
-                console.log('🔃 Loading conversation from server...');
-                loadConversation(currentConversation.id);
+                // Same conversation, just object reference changed (hot reload)
+                console.log('🔒 Same conversation ID - preserving messages (hot reload safe)');
             }
-
-            console.log('📡 Joining conversation room:', currentConversation.id);
-            chatService.joinConversation(currentConversation.id);
-            // Reset stage when switching conversations
-            setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
         } else {
             // No conversation selected - clear ALL state to show blank new chat
             console.log('🆕 No conversation - clearing ALL state for new chat');
@@ -490,10 +663,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             pendingMessageRef.current = null;
             // Clear any cached data to prevent old messages from showing
             justCreatedConversationId.current = null;
+            previousConversationIdRef.current = null;
         }
 
         return () => {
-            if (currentConversation?.id) {
+            if (currentConversation?.id && conversationActuallyChanged) {
                 console.log('👋 Leaving conversation room:', currentConversation.id);
                 chatService.leaveConversation(currentConversation.id);
             }
@@ -626,19 +800,18 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     }, [messages]);
 
-    // Auto-scroll while streaming (only if user is near bottom)
+    // ✅ SMART SCROLL: Auto-scroll while streaming (only if user is at bottom)
     useEffect(() => {
         if (displayedText && messagesContainerRef.current) {
-            // Always auto-scroll during streaming to show new content
-            // This provides a smooth ChatGPT-like experience
-            scrollToBottom();
+            // Only auto-scroll if user is at bottom (preserves reading position when scrolled up)
+            smartScroll();
         }
     }, [displayedText]);
 
-    // Delayed scroll to ensure DOM is updated (only for new messages, not during streaming)
+    // ✅ SMART SCROLL: Delayed scroll for new messages (only if user is at bottom)
     useEffect(() => {
         if (!streamingMessage && messages.length > 0) {
-            const timer = setTimeout(scrollToBottom, 100);
+            const timer = setTimeout(smartScroll, 100);
             return () => clearTimeout(timer);
         }
     }, [messages.length]); // Only depend on message count, not content
@@ -1422,7 +1595,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         console.log(`🤔 Message analysis: isQuestion (use RAG)=${isQuestion}, researchMode=${researchMode}, hasDocuments=${hasDocuments}, hasDocumentKeywords=${hasDocumentKeywords}`);
 
-        // Add user message to UI immediately (optimistic update)
+        // ✅ INSTANT FEEDBACK: Add user message to UI immediately (optimistic update)
+        // This follows the Doherty Threshold (<400ms for "instant" perception)
         const tempUserId = `temp-${Date.now()}`;
         const userMessage = {
             id: tempUserId,
@@ -1430,6 +1604,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             content: displayMessageText,
             createdAt: new Date().toISOString(),
             isOptimistic: true,
+            status: 'sending', // ← Track message status: 'sending' | 'sent' | 'failed'
             attachedFiles: documentsToAttach.map(doc => ({ id: doc.id, name: doc.name, type: doc.type })),
         };
         setMessages((prev) => {
@@ -1685,6 +1860,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             assistantMessage: assistantMessage
                         };
 
+                        // ✅ INSTANT FEEDBACK: Update optimistic message status to 'sent'
+                        setMessages((prev) => prev.map(msg =>
+                            msg.id === tempUserId
+                                ? { ...msg, id: realUserMessage.id, status: 'sent', isOptimistic: false }
+                                : msg
+                        ));
+                        console.log('✅ Message confirmed, updated status to sent');
+
                         // Handle UI updates (folder refresh, etc.)
                         if (metadata.uiUpdate) {
                             console.log('🔄 UI update requested:', metadata.uiUpdate.type);
@@ -1707,13 +1890,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     setIsLoading(false);
                     setStreamingMessage('');
 
-                    // Add error message
-                    const errorMessage = {
-                        role: 'assistant',
-                        content: 'Sorry, I encountered an error while searching. Please try again.',
-                        createdAt: new Date().toISOString(),
-                    };
-                    setMessages((prev) => [...prev, errorMessage]);
+                    // ✅ INSTANT FEEDBACK: Mark optimistic message as 'failed' (allow retry)
+                    setMessages((prev) => prev.map(msg =>
+                        msg.id === tempUserId
+                            ? { ...msg, status: 'failed', error: error.message || 'Failed to send message' }
+                            : msg
+                    ));
+                    console.log('❌ Message failed, updated status to failed');
                 }
             } else if (currentConversation?.id && user?.id && socketReady) {
                 // ✅ Only use WebSocket if socket is ready
@@ -1896,6 +2079,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             {/* Messages Area */}
             <div
                 ref={messagesContainerRef}
+                onScroll={handleScroll}  // ✅ SMART SCROLL: Detect scroll position
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -2718,9 +2902,67 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                     color: 'white',
                                                     fontSize: 16,
                                                     lineHeight: '24px',
+                                                    // ✅ INSTANT FEEDBACK: Visual status indication
+                                                    opacity: msg.status === 'sending' ? 0.7 : 1,
+                                                    borderLeft: msg.status === 'failed' ? '3px solid #EF4444' : 'none',
+                                                    transition: 'opacity 0.2s ease',
                                                 }}
                                             >
                                                 {msg.content}
+                                            </div>
+                                        )}
+
+                                        {/* ✅ INSTANT FEEDBACK: Message status indicator */}
+                                        {msg.status && (
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 6,
+                                                fontSize: 11,
+                                                color: msg.status === 'failed' ? '#EF4444' : '#9CA3AF',
+                                                marginTop: 4,
+                                            }}>
+                                                {msg.status === 'sending' && (
+                                                    <>
+                                                        <span style={{ fontSize: 10 }}>⏳</span>
+                                                        <span>Sending...</span>
+                                                    </>
+                                                )}
+                                                {msg.status === 'sent' && (
+                                                    <>
+                                                        <span style={{ color: '#10B981', fontSize: 10 }}>✓</span>
+                                                        <span>Sent</span>
+                                                    </>
+                                                )}
+                                                {msg.status === 'failed' && (
+                                                    <>
+                                                        <span style={{ fontSize: 10 }}>✗</span>
+                                                        <span>Failed to send</span>
+                                                        <button
+                                                            onClick={() => {
+                                                                // Remove failed message and retry
+                                                                setMessages((prev) => prev.filter(m => m.id !== msg.id));
+                                                                setMessage(msg.content);
+                                                                // Re-attach files if any
+                                                                if (msg.attachedFiles && msg.attachedFiles.length > 0) {
+                                                                    setAttachedDocuments(msg.attachedFiles);
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                marginLeft: 8,
+                                                                padding: '2px 8px',
+                                                                fontSize: 11,
+                                                                background: '#EF4444',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: 4,
+                                                                cursor: 'pointer',
+                                                            }}
+                                                        >
+                                                            Retry
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -2814,22 +3056,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
                         {/* Loading Indicator - show ONLY when waiting for response, hide once streaming starts */}
                         {(isLoading && !streamingMessage && !displayedText) && (
-                            <div style={{marginBottom: 16, display: 'flex', justifyContent: 'flex-start'}}>
-                                <div style={{padding: '12px 16px', borderRadius: 12, background: '#F5F5F5', color: '#32302C', display: 'flex', flexDirection: 'column', gap: 10}}>
-                                    <div style={{color: '#6B7280', fontSize: 15, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '500'}}>
-                                        {currentStage.message}
-                                    </div>
-                                    <div style={{display: 'flex', gap: '8px', alignItems: 'center', height: '24px'}}>
-                                        <div className="typing-indicator-dot"></div>
-                                        <div className="typing-indicator-dot"></div>
-                                        <div className="typing-indicator-dot"></div>
-                                    </div>
-                                </div>
-                            </div>
+                            <TypingIndicator userName="Koda" stage={currentStage} />
                         )}
                         <div ref={messagesEndRef} />
                     </div>
                 )}
+
+                {/* ✅ SMART SCROLL: Scroll to bottom button with unread badge */}
+                <ScrollToBottomButton />
 
                 {/* Drag and Drop Overlay - Only covers messages area */}
                 {isDraggingOver && (
@@ -2987,104 +3221,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 {/* File Attachments Preview */}
                 {uploadingFiles.length > 0 && (
                     <div style={{marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
-                        {/* Uploading files - showing upload progress */}
-                        {uploadingFiles.map((file, index) => {
-                            const isImage = isImageFile(file);
-                            const previewUrl = isImage ? URL.createObjectURL(file) : null;
-                            const progressWidth = uploadProgress[index] || 0;
-
-                            return (
-                            <div
+                        {uploadingFiles.map((file, index) => (
+                            <FileUploadPreview
                                 key={`uploading-${index}`}
-                                style={{
-                                    position: 'relative',
-                                    padding: 12,
-                                    background: 'white',
-                                    borderRadius: 12,
-                                    border: '1px solid #E6E6EC',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 12,
-                                    overflow: 'hidden'
-                                }}
-                            >
-                                {/* Progress bar background */}
-                                <div style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    left: 0,
-                                    top: 0,
-                                    position: 'absolute',
-                                    pointerEvents: 'none'
-                                }}>
-                                    <div style={{
-                                        width: `${progressWidth}%`,
-                                        height: '100%',
-                                        left: 0,
-                                        top: 0,
-                                        position: 'absolute',
-                                        background: 'rgba(169, 169, 169, 0.12)',
-                                        borderTopLeftRadius: 12,
-                                        borderBottomLeftRadius: 12,
-                                        transition: 'width 0.3s ease-in-out',
-                                        opacity: progressWidth >= 100 ? 0 : 1,
-                                        transitionProperty: progressWidth >= 100 ? 'width 0.3s ease-in-out, opacity 400ms ease-out' : 'width 0.3s ease-in-out'
-                                    }} />
-                                </div>
-
-                                {/* Upload percentage counter */}
-                                <div style={{
-                                    position: 'absolute',
-                                    bottom: 12,
-                                    right: 16,
-                                    fontSize: 13,
-                                    fontWeight: '500',
-                                    color: '#6C6C6C',
-                                    zIndex: 2,
-                                    opacity: progressWidth < 100 ? 1 : 0,
-                                    transition: 'opacity 0.3s ease-out'
-                                }}>
-                                    {Math.round(progressWidth)}%
-                                </div>
-
-                                {/* File icon */}
-                                <div style={{position: 'relative', width: 40, height: 40, flexShrink: 0, zIndex: 1}}>
-                                    {isImage ? (
-                                        <img
-                                            src={previewUrl}
-                                            alt="Image preview"
-                                            style={{
-                                                width: 40,
-                                                height: 40,
-                                                objectFit: 'cover',
-                                                borderRadius: 6
-                                            }}
-                                        />
-                                    ) : (
-                                        <img
-                                            src={getFileIcon(file.name)}
-                                            alt="File icon"
-                                            style={{
-                                                width: 40,
-                                                height: 40,
-                                                imageRendering: '-webkit-optimize-contrast',
-                                                objectFit: 'contain',
-                                                shapeRendering: 'geometricPrecision'
-                                            }}
-                                        />
-                                    )}
-                                </div>
-
-                                {/* File info */}
-                                <div style={{flex: 1, zIndex: 1}}>
-                                    <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>{file.name}</div>
-                                    <div style={{fontSize: 12, color: '#A0A0A0'}}>
-                                        Uploading to cloud...
-                                    </div>
-                                </div>
-                            </div>
-                            );
-                        })}
+                                file={file}
+                                progress={uploadProgress[index] || 0}
+                            />
+                        ))}
                     </div>
                 )}
 
@@ -3223,7 +3366,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         padding: 13,
                         background: '#F5F5F5',
                         borderRadius: 18,
-                        border: '1px solid #E6E6EC',
+                        border: 'none',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 13,
@@ -3437,6 +3580,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 isOpen={!!previewDocument}
                 onClose={() => setPreviewDocument(null)}
                 document={previewDocument}
+            />
+
+            {/* Keyboard Shortcuts Modal */}
+            <KeyboardShortcutsModal
+                isOpen={showShortcutsModal}
+                onClose={() => setShowShortcutsModal(false)}
             />
         </div>
     );

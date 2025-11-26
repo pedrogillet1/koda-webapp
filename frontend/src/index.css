@@ -338,6 +338,110 @@ code {
 }
 
 /* ========================================
+   BUTTON MICRO-INTERACTIONS
+   Rich press states for tactile feedback
+   ======================================== */
+
+/* Base button style */
+button, .btn {
+  position: relative;
+  transition: all 0.15s ease;
+  transform-origin: center;
+  overflow: hidden;
+}
+
+/* Hover state - subtle lift effect */
+button:hover:not(:disabled), .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Active/pressed state - satisfying press feel */
+button:active:not(:disabled), .btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.05s ease;
+}
+
+/* Focus state (accessibility) */
+button:focus-visible, .btn:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+/* Disabled state */
+button:disabled, .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Ripple effect container */
+button::after, .btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transform: translate(-50%, -50%);
+  transition: width 0.4s ease-out, height 0.4s ease-out, opacity 0.4s ease-out;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* Ripple effect on click */
+button:active::after, .btn:active::after {
+  width: 200px;
+  height: 200px;
+  opacity: 1;
+  transition: width 0s, height 0s, opacity 0s;
+}
+
+/* Dark button ripple (for light backgrounds) */
+button.btn-dark::after, .btn-dark::after {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Primary button enhanced states */
+button.btn-primary:hover:not(:disabled), .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+}
+
+button.btn-primary:active:not(:disabled), .btn-primary:active:not(:disabled) {
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+/* Icon buttons (smaller, no text) - more subtle effect */
+button.icon-btn, .icon-btn {
+  transition: all 0.1s ease;
+}
+
+button.icon-btn:hover:not(:disabled), .icon-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: none;
+}
+
+button.icon-btn:active:not(:disabled), .icon-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+/* Ghost/transparent buttons - no shadow */
+button.btn-ghost:hover:not(:disabled), .btn-ghost:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: none;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ========================================
    MOBILE RESPONSIVE ENHANCEMENTS
    ======================================== */
 

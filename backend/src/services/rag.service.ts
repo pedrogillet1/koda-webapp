@@ -1779,9 +1779,36 @@ export async function generateAnswerStream(
   // ──────────────────────────────────────────────────────────────────────────────
   // STEP 5: Comparisons - Moderate (Pinecone queries)
   // ──────────────────────────────────────────────────────────────────────────────
+  // ✅ FIX #8: Support multi-document comparison via attached documents
+  // When user attaches 2+ documents and asks "compare these", use attachedDocumentId
   if (comparison) {
+    // Check if attached documents should be used for comparison
+    const attachedIds = Array.isArray(attachedDocumentId) ? attachedDocumentId : [];
+
+    // If user has attached 2+ documents and comparison detection didn't find specific docs
+    // OR if user explicitly attached docs, use those for comparison
+    if (attachedIds.length >= 2 && (!comparison.documents || comparison.documents.length < 2)) {
+      console.log(`🔄 [COMPARISON] Using ${attachedIds.length} attached documents for comparison`);
+      comparison.type = 'document';
+      comparison.documents = attachedIds;
+    }
+
     console.log('🔄 [COMPARISON] Detected:', comparison.documents);
     return await handleComparison(userId, query, comparison, onChunk, conversationHistory);
+  }
+
+  // ✅ FIX #8: Handle multi-document queries even without explicit comparison keywords
+  // If user attaches 2+ documents and asks any question, enable cross-document search
+  const attachedIds = Array.isArray(attachedDocumentId) ? attachedDocumentId : [];
+  if (attachedIds.length >= 2) {
+    const hasCompareIntent = /\b(compare|difference|vs|versus|between|contrast|similarities)\b/i.test(query);
+    if (hasCompareIntent) {
+      console.log(`🔄 [MULTI-DOC] Routing to comparison handler with ${attachedIds.length} attached documents`);
+      return await handleComparison(userId, query, {
+        type: 'document',
+        documents: attachedIds
+      }, onChunk, conversationHistory);
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -3441,7 +3468,7 @@ async function handleRegularQuery(
   query: string,
   conversationId: string,
   onChunk: (chunk: string) => void,
-  attachedDocumentId?: string,
+  attachedDocumentId?: string | string[],  // ✅ FIX #8: Accept array for multi-document support
   conversationHistory?: Array<{ role: string; content: string; metadata?: any }>,
   onStage?: (stage: string, message: string) => void,
   memoryContext?: string,

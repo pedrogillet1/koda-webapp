@@ -13,6 +13,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   z-index: 2000;
   animation: slideDown 0.3s ease;
 }
@@ -46,6 +47,7 @@
 .error-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
 .error-button {
@@ -56,6 +58,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .retry-button {
@@ -76,6 +79,92 @@
   background: #e0e0e0;
 }
 
+/* Countdown styles */
+.retry-countdown-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 160px;
+}
+
+.countdown-text {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 14px;
+  color: #666;
+}
+
+.countdown-label {
+  color: #888;
+}
+
+.countdown-number {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ff4444;
+  min-width: 20px;
+  text-align: center;
+  animation: countdownPulse 1s ease-in-out infinite;
+}
+
+@keyframes countdownPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.countdown-unit {
+  color: #888;
+}
+
+.countdown-progress {
+  width: 100%;
+  height: 4px;
+  background: #f0f0f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.countdown-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ff4444, #ff6666);
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+
+.countdown-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.retry-now-button {
+  background: #ff4444;
+  color: white;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.retry-now-button:hover {
+  background: #ff2222;
+}
+
+.cancel-button {
+  background: transparent;
+  color: #888;
+  padding: 6px 12px;
+  font-size: 13px;
+  border: 1px solid #ddd;
+}
+
+.cancel-button:hover {
+  background: #f5f5f5;
+  color: #666;
+}
+
 @keyframes slideDown {
   from {
     opacity: 0;
@@ -92,13 +181,28 @@
   .error-banner {
     width: 95%;
     padding: 12px;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .error-actions {
     flex-direction: column;
+    width: 100%;
   }
 
   .error-button {
     width: 100%;
+  }
+
+  .retry-countdown-container {
+    width: 100%;
+  }
+
+  .countdown-actions {
+    width: 100%;
+  }
+
+  .countdown-actions .error-button {
+    flex: 1;
   }
 }
