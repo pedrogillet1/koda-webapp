@@ -506,8 +506,17 @@ export const sendAdaptiveMessageStreaming = async (
               console.log('✅ DONE signal received');
               onComplete(data);
             } else if (data.type === 'error') {
+              // ✅ FIX #10: Better Error Messages
               console.error('❌ Streaming error:', data.error);
-              throw new Error(data.error);
+              console.error('💡 Suggestion:', data.suggestion);
+              console.error('🔄 Retryable:', data.retryable);
+
+              // Create enhanced error object with additional fields
+              const enhancedError = new Error(data.error);
+              enhancedError.code = data.code || 'UNKNOWN_ERROR';
+              enhancedError.suggestion = data.suggestion || 'Please try again.';
+              enhancedError.retryable = data.retryable !== false;
+              throw enhancedError;
             }
           } catch (error) {
             console.error('Error parsing SSE data:', error, 'Line:', line);
@@ -674,21 +683,35 @@ export const removeMessageListeners = () => {
  */
 export const queryWithRAG = async (conversationId, query, researchMode = false) => {
   const token = localStorage.getItem('accessToken');
-  const response = await axios.post(
-    `${API_URL}/api/rag/query`,
-    {
-      conversationId,
-      query,
-      researchMode,
-    },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+  try {
+    const response = await axios.post(
+      `${API_URL}/api/rag/query`,
+      {
+        conversationId,
+        query,
+        researchMode,
       },
-    }
-  );
-  return response.data;
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    // ✅ FIX #10: Better Error Messages
+    console.error('❌ RAG Query error:', error);
+
+    // Extract error details from response
+    const errorData = error.response?.data || {};
+    const enhancedError = new Error(errorData.error || 'Failed to query RAG');
+    enhancedError.code = errorData.code || 'UNKNOWN_ERROR';
+    enhancedError.suggestion = errorData.suggestion || 'Please try again.';
+    enhancedError.retryable = errorData.retryable !== false;
+
+    throw enhancedError;
+  }
 };
 
 /**
@@ -700,21 +723,35 @@ export const queryWithRAG = async (conversationId, query, researchMode = false) 
  */
 export const answerFollowUp = async (conversationId, query, previousContextId) => {
   const token = localStorage.getItem('accessToken');
-  const response = await axios.post(
-    `${API_URL}/api/rag/follow-up`,
-    {
-      conversationId,
-      query,
-      previousContextId,
-    },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+  try {
+    const response = await axios.post(
+      `${API_URL}/api/rag/follow-up`,
+      {
+        conversationId,
+        query,
+        previousContextId,
       },
-    }
-  );
-  return response.data;
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    // ✅ FIX #10: Better Error Messages
+    console.error('❌ RAG Follow-up error:', error);
+
+    // Extract error details from response
+    const errorData = error.response?.data || {};
+    const enhancedError = new Error(errorData.error || 'Failed to answer follow-up');
+    enhancedError.code = errorData.code || 'UNKNOWN_ERROR';
+    enhancedError.suggestion = errorData.suggestion || 'Please try again.';
+    enhancedError.retryable = errorData.retryable !== false;
+
+    throw enhancedError;
+  }
 };
 
 /**
