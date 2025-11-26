@@ -128,6 +128,25 @@ export const emitDocumentEvent = (userId: string, event: string, documentId?: st
   return true;
 };
 
+// ✅ FIX #4: Delayed document event emission for replication lag
+// This allows Supabase read replicas to catch up before frontend refetches
+const REPLICATION_DELAY_MS = 2000; // 2 second delay for Supabase replication
+
+/**
+ * Emit document-related event to user with delay for replication
+ * Use this for 'created' events to allow Supabase replication to complete
+ */
+export const emitDocumentEventDelayed = (userId: string, event: string, documentId?: string): void => {
+  console.log(
+    `⏳ [WebSocket] Scheduling delayed document-${event} to user ${userId.substring(0, 8)}... (delay: ${REPLICATION_DELAY_MS}ms)`,
+    documentId ? `(doc: ${documentId.substring(0, 8)}...)` : ''
+  );
+
+  setTimeout(() => {
+    emitDocumentEvent(userId, event, documentId);
+  }, REPLICATION_DELAY_MS);
+};
+
 /**
  * Emit folder-related event to user
  */

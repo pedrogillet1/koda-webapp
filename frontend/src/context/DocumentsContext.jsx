@@ -29,6 +29,21 @@ export const DocumentsProvider = ({ children }) => {
   });
   const CACHE_TTL = 30000; // 30 seconds
 
+  // ✅ FIX #1: Upload Registry - Protects uploads for 30 seconds (not 5)
+  // This prevents race conditions where refetches remove recently uploaded docs
+  const uploadRegistryRef = useRef(new Map());
+  const UPLOAD_PROTECTION_WINDOW = 30000; // 30 seconds protection
+
+  // ✅ FIX #2: Refetch Coordinator - Batches and deduplicates refetch requests
+  const refetchCoordinatorRef = useRef({
+    pending: false,
+    types: new Set(),
+    timeout: null,
+    lastRefetch: 0
+  });
+  const REFETCH_BATCH_DELAY = 500; // Wait 500ms to batch requests
+  const REFETCH_COOLDOWN = 2000; // Minimum 2s between refetches
+
   // Fetch all documents
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
@@ -51,40 +66,63 @@ export const DocumentsProvider = ({ children }) => {
         console.log(`  Folder ${fId}: ${docsByFolder[fId].length} docs -`, docsByFolder[fId].join(', '));
       });
 
-      // ⚡ FIX: Protect recently uploaded documents from being removed by stale refetches
+      // ✅ FIX #1: Use Upload Registry to protect recently uploaded documents (30s window)
       setDocuments(prev => {
+        const now = Date.now();
+
         // Keep temp docs (status='uploading' or id starts with 'temp-')
         const tempDocs = prev.filter(doc => doc.status === 'uploading' || doc.id?.startsWith('temp-'));
 
-        // ⚡ NEW: Also keep recently uploaded docs that might not be in fetchedDocs yet
-        // (created in last 5 seconds and status='processing' or 'completed')
-        const recentDocs = prev.filter(doc => {
+        // ✅ FIX: Check Upload Registry for protected documents (30 second window)
+        const registryProtectedDocs = prev.filter(doc => {
           if (doc.id?.startsWith('temp-')) return false; // Already in tempDocs
-          if (!doc.createdAt) {
-            console.log(`⚠️ Document ${doc.id} has no createdAt`);
-            return false;
+
+          const registryEntry = uploadRegistryRef.current.get(doc.id);
+          if (!registryEntry) return false;
+
+          const age = now - registryEntry.uploadedAt;
+          const isProtected = age < UPLOAD_PROTECTION_WINDOW;
+          const notInFetched = !fetchedDocs.find(fd => fd.id === doc.id);
+
+          if (isProtected && notInFetched) {
+            console.log(`🛡️ [Registry] Protecting upload: ${doc.filename} (age: ${Math.round(age/1000)}s, status: ${registryEntry.status})`);
+            return true;
           }
 
-          const docAge = Date.now() - new Date(doc.createdAt).getTime();
-          const isRecent = docAge < 5000; // Created in last 5 seconds (increased from 3s)
-          const isProcessing = doc.status === 'processing' || doc.status === 'completed';
+          // Clean up expired entries
+          if (!isProtected) {
+            uploadRegistryRef.current.delete(doc.id);
+          }
+
+          return false;
+        });
+
+        // Also keep recently uploaded docs that might not be in registry (fallback)
+        const recentDocs = prev.filter(doc => {
+          if (doc.id?.startsWith('temp-')) return false;
+          if (uploadRegistryRef.current.has(doc.id)) return false; // Already in registry
+          if (!doc.createdAt) return false;
+
+          const docAge = now - new Date(doc.createdAt).getTime();
+          const isRecent = docAge < UPLOAD_PROTECTION_WINDOW; // Use 30s window
+          const isProcessing = doc.status === 'processing' || doc.status === 'completed' || doc.status === 'uploading';
           const notInFetched = !fetchedDocs.find(fd => fd.id === doc.id);
 
           if (isRecent && isProcessing && notInFetched) {
-            console.log(`✅ Protecting recent doc: ${doc.filename} (age: ${docAge}ms, status: ${doc.status})`);
+            console.log(`✅ Protecting recent doc (fallback): ${doc.filename} (age: ${Math.round(docAge/1000)}s, status: ${doc.status})`);
           }
 
           return isRecent && isProcessing && notInFetched;
         });
 
-        // Merge: temp docs + recent docs + fetched docs (deduplicated)
+        // Merge: temp docs + registry protected + recent docs + fetched docs (deduplicated)
         const fetchedIds = new Set(fetchedDocs.map(d => d.id));
-        const protectedDocs = [...tempDocs, ...recentDocs].filter(d => !fetchedIds.has(d.id));
+        const protectedDocs = [...tempDocs, ...registryProtectedDocs, ...recentDocs].filter(d => !fetchedIds.has(d.id));
         const mergedDocs = [...protectedDocs, ...fetchedDocs];
 
-        console.log(`📄 Merged: ${tempDocs.length} temp + ${recentDocs.length} recent + ${fetchedDocs.length} fetched = ${mergedDocs.length} total`);
-        if (recentDocs.length > 0) {
-          console.log(`🔍 Recent docs being protected:`, recentDocs.map(d => d.filename));
+        const protectedCount = tempDocs.length + registryProtectedDocs.length + recentDocs.length;
+        if (protectedCount > 0) {
+          console.log(`📄 Merged: ${tempDocs.length} temp + ${registryProtectedDocs.length} registry + ${recentDocs.length} recent + ${fetchedDocs.length} fetched = ${mergedDocs.length} total`);
         }
         return mergedDocs;
       });
@@ -266,6 +304,60 @@ export const DocumentsProvider = ({ children }) => {
     console.log('🗑️ [CACHE] Cache invalidated');
   }, []);
 
+  // ✅ FIX #2: Smart Refetch Coordinator - Batches multiple refetch requests
+  const smartRefetch = useCallback((types = ['all']) => {
+    const coordinator = refetchCoordinatorRef.current;
+    const now = Date.now();
+
+    // Add requested types to pending set
+    types.forEach(type => coordinator.types.add(type));
+
+    // Check cooldown
+    if (now - coordinator.lastRefetch < REFETCH_COOLDOWN) {
+      console.log(`⏸️ [Refetch] Skipping - cooldown active (${Math.round((REFETCH_COOLDOWN - (now - coordinator.lastRefetch))/1000)}s remaining)`);
+      return;
+    }
+
+    // If already pending, just let it batch
+    if (coordinator.pending) {
+      console.log(`📦 [Refetch] Batching request: ${types.join(', ')}`);
+      return;
+    }
+
+    coordinator.pending = true;
+
+    // Clear any existing timeout
+    if (coordinator.timeout) {
+      clearTimeout(coordinator.timeout);
+    }
+
+    // Wait for batch delay, then execute
+    coordinator.timeout = setTimeout(async () => {
+      const typesToFetch = Array.from(coordinator.types);
+      console.log(`🔄 [Refetch] Executing batched refetch: ${typesToFetch.join(', ')}`);
+
+      // Reset coordinator state
+      coordinator.types.clear();
+      coordinator.pending = false;
+      coordinator.lastRefetch = Date.now();
+
+      // Execute appropriate fetches
+      if (typesToFetch.includes('all')) {
+        await fetchAllData(true); // Force refresh
+      } else {
+        const promises = [];
+        if (typesToFetch.includes('documents')) {
+          promises.push(fetchDocuments());
+          promises.push(fetchRecentDocuments());
+        }
+        if (typesToFetch.includes('folders')) {
+          promises.push(fetchFolders());
+        }
+        await Promise.all(promises);
+      }
+    }, REFETCH_BATCH_DELAY);
+  }, [fetchAllData, fetchDocuments, fetchFolders, fetchRecentDocuments]);
+
   // Initialize data on mount
   useEffect(() => {
     if (!initialized) {
@@ -441,13 +533,11 @@ export const DocumentsProvider = ({ children }) => {
         });
       });
 
-      // ✅ FIX: If document reaches 100% or 'complete'/'completed' stage, refresh documents
+      // ✅ FIX #2: Use Smart Refetch Coordinator for batched, rate-limited refetching
       if (data.progress === 100 || data.stage === 'complete' || data.stage === 'completed') {
-        console.log('🔄 Document processing reached 100%, refreshing documents list...');
-        setTimeout(() => {
-          fetchDocuments();
-          fetchRecentDocuments();
-        }, 500); // Small delay to ensure backend has finished updating
+        console.log('🔄 Document processing reached 100%, scheduling batched refresh...');
+        // Use smartRefetch to batch and rate-limit
+        setTimeout(() => smartRefetch(['documents']), 500);
       }
     });
 
@@ -455,9 +545,8 @@ export const DocumentsProvider = ({ children }) => {
     socket.on('document-processing-complete', (data) => {
       console.log('✅ Document processing complete:', data);
 
-      // Refresh document to get updated data
-      fetchDocuments();
-      fetchRecentDocuments();
+      // ✅ FIX #2: Use Smart Refetch Coordinator
+      smartRefetch(['documents']);
     });
 
     // ✅ NEW: Handle document processing failed
@@ -572,7 +661,60 @@ export const DocumentsProvider = ({ children }) => {
       socket.disconnect();
       window.removeEventListener('document-uploaded', handleDocumentUploaded);
     };
-  }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments]);
+  }, [initialized, fetchDocuments, fetchFolders, fetchRecentDocuments, smartRefetch, invalidateCache]);
+
+  // ✅ FIX #3: Upload Verification - Polls backend to verify document exists
+  const startUploadVerification = useCallback((documentId, filename) => {
+    let retries = 0;
+    const maxRetries = 10;
+    const baseDelay = 2000; // Start polling after 2s
+
+    const verify = async () => {
+      try {
+        const response = await api.get(`/api/documents/${documentId}`);
+        if (response.data && response.data.id) {
+          console.log(`✅ [Verification] Document ${filename} verified in database`);
+
+          // Update registry status
+          const entry = uploadRegistryRef.current.get(documentId);
+          if (entry) {
+            entry.status = 'verified';
+            entry.verified = true;
+          }
+
+          // Ensure document is in state (in case it was removed by race condition)
+          setDocuments(prev => {
+            const exists = prev.some(d => d.id === documentId);
+            if (!exists) {
+              console.log(`🔄 [Verification] Re-adding verified document to state: ${filename}`);
+              return [response.data, ...prev];
+            }
+            // Update with latest data from server
+            return prev.map(d => d.id === documentId ? { ...d, ...response.data } : d);
+          });
+
+          return true;
+        }
+      } catch (error) {
+        // Document not found yet - this is expected during replication lag
+        if (error.response?.status === 404) {
+          retries++;
+          if (retries < maxRetries) {
+            const delay = Math.min(baseDelay * Math.pow(1.5, retries), 10000); // Exponential backoff, max 10s
+            console.log(`⏳ [Verification] Retry ${retries}/${maxRetries} for ${filename} in ${Math.round(delay/1000)}s`);
+            setTimeout(verify, delay);
+            return;
+          }
+          console.error(`❌ [Verification] Failed after ${maxRetries} retries: ${filename}`);
+        } else {
+          console.error(`❌ [Verification] Error verifying ${filename}:`, error.message);
+        }
+      }
+    };
+
+    // Start verification after initial delay (allow for replication)
+    setTimeout(verify, baseDelay);
+  }, []);
 
   // Add document (optimistic)
   const addDocument = useCallback(async (file, folderId = null) => {
@@ -669,6 +811,15 @@ export const DocumentsProvider = ({ children }) => {
       const newDocument = confirmResponse.data.document;
       console.log('🔵 Received new document from server:', newDocument);
 
+      // ✅ FIX #1: Add to Upload Registry for 30s protection
+      uploadRegistryRef.current.set(newDocument.id, {
+        uploadedAt: Date.now(),
+        filename: newDocument.filename,
+        status: 'processing',
+        verified: false
+      });
+      console.log(`🛡️ [Registry] Added upload protection for: ${newDocument.filename}`);
+
       // Replace temp document with real one
       setDocuments(prev => {
         const updated = prev.map(doc => doc.id === tempId ? newDocument : doc);
@@ -697,6 +848,9 @@ export const DocumentsProvider = ({ children }) => {
         console.log(`✅ Incremented count for folder ${newDocument.folderId}`);
       }
 
+      // ✅ FIX #3: Start background verification
+      startUploadVerification(newDocument.id, newDocument.filename);
+
       console.log('🔵 Document upload fully complete, returning:', newDocument);
 
       // Invalidate settings cache (storage stats need to be recalculated)
@@ -723,7 +877,7 @@ export const DocumentsProvider = ({ children }) => {
 
       throw error;
     }
-  }, []);
+  }, [startUploadVerification]);
 
   // Delete document (optimistic with proper error handling)
   const deleteDocument = useCallback(async (documentId) => {
@@ -795,6 +949,9 @@ export const DocumentsProvider = ({ children }) => {
       sessionStorage.removeItem('koda_settings_fileData');
       sessionStorage.removeItem('koda_settings_totalStorage');
 
+      // ✅ FIX: Invalidate data cache to prevent stale data from reappearing on window focus
+      invalidateCache();
+
       console.log('✅ [DELETE] Document deleted successfully:', documentToDelete.filename);
 
       // Return success
@@ -851,7 +1008,7 @@ export const DocumentsProvider = ({ children }) => {
 
       throw userError;
     }
-  }, [documents]);
+  }, [documents, invalidateCache]);
 
   // Move document to folder (optimistic)
   const moveToFolder = useCallback(async (documentId, newFolderId) => {
@@ -919,6 +1076,10 @@ export const DocumentsProvider = ({ children }) => {
       await api.patch(`/api/documents/${documentId}`, {
         folderId: newFolderId
       });
+
+      // ✅ FIX: Invalidate cache after successful move
+      invalidateCache();
+
       console.log(`✅ [MOVE] Successfully moved document ${documentId} to folder ${newFolderId}`);
     } catch (error) {
       console.error('❌ [MOVE] Error moving document:', error);
@@ -971,7 +1132,7 @@ export const DocumentsProvider = ({ children }) => {
 
       throw error;
     }
-  }, [documents, folders]); // Add folders to dependencies since we're updating it
+  }, [documents, folders, invalidateCache]); // Add folders and invalidateCache to dependencies
 
   // Rename document (optimistic)
   const renameDocument = useCallback(async (documentId, newName) => {
@@ -1121,6 +1282,11 @@ export const DocumentsProvider = ({ children }) => {
 
     try {
       await api.delete(`/api/folders/${folderId}`);
+
+      // ✅ FIX: Invalidate data cache to prevent stale data from reappearing on window focus
+      invalidateCache();
+
+      console.log('✅ [DELETE] Folder deleted successfully:', folderToDelete?.name);
     } catch (error) {
       console.error('Error deleting folder:', error);
 
@@ -1135,7 +1301,7 @@ export const DocumentsProvider = ({ children }) => {
 
       throw error;
     }
-  }, [folders, documents]);
+  }, [folders, documents, invalidateCache]);
 
   // ⚡ OPTIMIZED: Get document count by folder using backend-provided count
   // Backend already calculated this recursively - no need to recount on frontend!
