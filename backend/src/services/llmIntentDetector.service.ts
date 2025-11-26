@@ -10,6 +10,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  * - File actions (list, search, locate, rename, delete, etc.)
  * - Semantic variations and synonyms
  * - Multilingual requests
+ *
+ * Updated: Nov 26, 2025 - Improved prompt with negative examples to fix create_folder misclassification
  */
 
 interface IntentResult {
