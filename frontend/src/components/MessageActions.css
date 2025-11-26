@@ -6,8 +6,26 @@
   margin-top: 8px;
   padding-top: 0;
   border-top: none;
-  opacity: 1; /* Always visible - matches ChatGPT/Claude standard */
-  transition: opacity 0.2s ease;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all 0.2s ease;
+  pointer-events: none;
+}
+
+/* Show actions on message hover */
+.message-container:hover .message-actions,
+.message-bubble:hover .message-actions,
+.assistant-message:hover .message-actions {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* Also show when actions themselves are hovered (prevents flicker) */
+.message-actions:hover {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .message-action-btn {
@@ -24,6 +42,44 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
+  opacity: 0;
+  animation: fadeInUp 0.2s ease forwards;
+  animation-play-state: paused;
+}
+
+/* Staggered animation delays for buttons */
+.message-container:hover .message-action-btn,
+.message-bubble:hover .message-action-btn,
+.assistant-message:hover .message-action-btn,
+.message-actions:hover .message-action-btn {
+  animation-play-state: running;
+}
+
+.message-action-btn:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.message-action-btn:nth-child(2) {
+  animation-delay: 0.05s;
+}
+
+.message-action-btn:nth-child(3) {
+  animation-delay: 0.1s;
+}
+
+.message-action-btn:nth-child(4) {
+  animation-delay: 0.15s;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .message-action-btn:hover:not(:disabled) {
@@ -34,7 +90,7 @@
 }
 
 .message-action-btn:active:not(:disabled) {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.98);
   box-shadow: none;
 }
 
@@ -74,18 +130,36 @@
 }
 */
 
-/* Mobile responsive */
+/* Mobile responsive - Always visible on touch devices (no hover) */
 @media (max-width: 768px) {
   .message-actions {
-    opacity: 1; /* Always visible on mobile */
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
   }
 
   .message-action-btn {
     padding: 8px 12px;
     font-size: 14px;
+    opacity: 1;
+    animation: none;
   }
 
   .action-icon {
     font-size: 18px;
+  }
+}
+
+/* Also show on touch devices that report hover as none */
+@media (hover: none) {
+  .message-actions {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .message-action-btn {
+    opacity: 1;
+    animation: none;
   }
 }
