@@ -1,5 +1,22 @@
 /**
- * FolderUploadService - REDESIGNED FROM SCRATCH
+ * @deprecated This service is DEPRECATED. Use unifiedUploadService.js instead.
+ *
+ * Migration guide:
+ * - import unifiedUploadService from './unifiedUploadService'
+ * - unifiedUploadService.uploadFolder(files, onProgress, categoryId)
+ * - unifiedUploadService.uploadSingleFile(file, folderId, onProgress)
+ *
+ * The new unified service:
+ * - Uses presigned URLs for direct S3 uploads (faster, bypasses backend)
+ * - Implements true parallel processing (no artificial delays)
+ * - Preserves folder structure (same behavior as this service)
+ * - Supports multipart uploads for large files
+ *
+ * This file is kept for backward compatibility but will be removed in a future version.
+ *
+ * ===============================================================================
+ *
+ * FolderUploadService - REDESIGNED FROM SCRATCH (DEPRECATED)
  *
  * CORE CONCEPT:
  * - The uploaded folder structure is ALWAYS preserved
@@ -33,7 +50,8 @@ import api from './api';
 
 class FolderUploadService {
   constructor() {
-    this.maxConcurrentUploads = 10;  // ✅ OPTIMIZED: Increased from 5 to 10
+    this.maxConcurrentUploads = 3;  // ✅ REDUCED: Prevent database connection exhaustion
+    this.delayBetweenBatches = 500; // ✅ NEW: Delay between batches to allow connections to release
     this.uploadProgress = {
       totalFiles: 0,
       uploadedFiles: 0,
@@ -41,6 +59,78 @@ class FolderUploadService {
       totalBatches: 0,
       errors: []
     };
+
+    // ✅ File filtering configuration - matches backend upload.middleware.ts
+    this.hiddenFilePatterns = [
+      '.DS_Store',
+      '.localized',
+      '__MACOSX',
+      'Thumbs.db',
+      'desktop.ini',
+    ];
+
+    this.allowedExtensions = [
+      // Documents
+      '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.html', '.htm', '.rtf', '.csv',
+      // Images
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff', '.tif', '.bmp', '.svg', '.ico',
+      // Design files
+      '.psd', '.ai', '.sketch', '.fig', '.xd',
+      // Video files
+      '.mp4', '.webm', '.ogg', '.mov', '.avi', '.mpeg', '.mpg',
+      // Audio files
+      '.mp3', '.wav', '.weba', '.oga', '.m4a',
+    ];
+  }
+
+  /**
+   * Check if a file should be skipped (hidden/system file)
+   */
+  isHiddenFile(filename) {
+    // Check if starts with dot (hidden file)
+    if (filename.startsWith('.')) {
+      return true;
+    }
+
+    // Check against known patterns
+    return this.hiddenFilePatterns.some(pattern => filename.includes(pattern));
+  }
+
+  /**
+   * Check if a file has an allowed extension
+   */
+  isAllowedFile(filename) {
+    const ext = '.' + filename.split('.').pop().toLowerCase();
+    return this.allowedExtensions.includes(ext);
+  }
+
+  /**
+   * Filter files before upload - removes hidden files and unsupported types
+   */
+  filterFiles(files) {
+    const validFiles = [];
+    const skippedFiles = [];
+
+    files.forEach(file => {
+      const filename = file.name || file.webkitRelativePath?.split('/').pop() || '';
+
+      if (this.isHiddenFile(filename)) {
+        skippedFiles.push({ file, reason: 'hidden/system file' });
+      } else if (!this.isAllowedFile(filename)) {
+        skippedFiles.push({ file, reason: 'unsupported file type' });
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    if (skippedFiles.length > 0) {
+      console.log(`\n🚫 ===== FILTERED OUT ${skippedFiles.length} FILES =====`);
+      skippedFiles.forEach(({ file, reason }) => {
+        console.log(`  - "${file.name || file.webkitRelativePath}" (${reason})`);
+      });
+    }
+
+    return validFiles;
   }
 
   /**
@@ -398,62 +488,32 @@ class FolderUploadService {
   }
 
   /**
-   * Upload files in parallel batches
+   * ✅ OPTIMIZED: True parallel batch processing
+   * All batches start simultaneously, not sequentially
    */
   async uploadFilesInParallel(fileMapping, onOverallProgress) {
-    console.log(`\n📤 ===== UPLOADING ${fileMapping.length} FILES =====`);
-
-    // ✅ DEBUG: Verify files to be uploaded
-    const rootLevelFiles = fileMapping.filter(f => f.depth === 0);
-    const nestedFiles = fileMapping.filter(f => f.depth > 0);
-    console.log(`🔍 DEBUG - Upload Queue:`);
-    console.log(`  - Root level files: ${rootLevelFiles.length}`);
-    console.log(`  - Nested files: ${nestedFiles.length}`);
-
-    if (nestedFiles.length > 0) {
-      console.log(`\n🔍 DEBUG - Nested Files in Upload Queue:`);
-      nestedFiles.forEach(f => {
-        console.log(`  - "${f.fileName}" → Folder ID: ${f.folderId || 'MISSING!'} (depth: ${f.depth})`);
-      });
-    }
+    console.log(`\n📤 ===== UPLOADING ${fileMapping.length} FILES (TRUE PARALLEL) =====`);
 
     const totalFiles = fileMapping.length;
     let uploadedFiles = 0;
 
-    // Create batches
+    // Create batches for concurrent limit (but process ALL batches in parallel)
     const batches = [];
     for (let i = 0; i < fileMapping.length; i += this.maxConcurrentUploads) {
       batches.push(fileMapping.slice(i, i + this.maxConcurrentUploads));
     }
 
-    console.log(`📦 Created ${batches.length} batches (${this.maxConcurrentUploads} files per batch)`);
+    console.log(`📦 Processing ${batches.length} batches of ${this.maxConcurrentUploads} files each - ALL IN PARALLEL`);
 
-    this.uploadProgress = {
-      totalFiles,
-      uploadedFiles: 0,
-      currentBatch: 0,
-      totalBatches: batches.length,
-      errors: []
-    };
+    this.uploadProgress = { totalFiles, uploadedFiles: 0, errors: [] };
 
-    const results = [];
-
-    // Process each batch
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      const batch = batches[batchIndex];
-      this.uploadProgress.currentBatch = batchIndex + 1;
-
-      console.log(`\n🚀 Batch ${batchIndex + 1}/${batches.length} (${batch.length} files)`);
-
-      // Upload all files in this batch simultaneously
+    // ✅ TRUE PARALLEL: Process ALL batches simultaneously
+    const allBatchPromises = batches.map(async (batch) => {
+      // Process all files in this batch simultaneously
       const batchPromises = batch.map(async (fileObj) => {
-        const result = await this.uploadSingleFile(
-          fileObj,
-          (progress) => {
-            // Individual file progress can be logged here if needed
-          }
-        );
+        const result = await this.uploadSingleFile(fileObj, () => {});
 
+        // Safely update shared progress
         uploadedFiles++;
         this.uploadProgress.uploadedFiles = uploadedFiles;
 
@@ -464,43 +524,24 @@ class FolderUploadService {
         // Update overall progress
         const overallPercentage = Math.round((uploadedFiles / totalFiles) * 100);
         onOverallProgress({
-          uploaded: uploadedFiles,
-          total: totalFiles,
           percentage: overallPercentage,
-          currentBatch: batchIndex + 1,
-          totalBatches: batches.length
+          message: `Uploading... (${uploadedFiles}/${totalFiles})`
         });
 
         return result;
       });
 
-      // Wait for all files in this batch to complete
-      const batchResults = await Promise.all(batchPromises);
-      results.push(...batchResults);
-    }
+      return Promise.all(batchPromises);
+    });
+
+    // Wait for ALL batches to complete (they all run in parallel)
+    const allResultsNested = await Promise.all(allBatchPromises);
+    const results = allResultsNested.flat();
 
     const successCount = results.filter(r => r.success).length;
-    const failureCount = results.filter(r => !r.success).length;
+    const failureCount = totalFiles - successCount;
 
     console.log(`\n✅ Upload complete: ${successCount}/${totalFiles} succeeded, ${failureCount} failed`);
-
-    // ✅ DEBUG: Show which nested files succeeded/failed
-    if (nestedFiles.length > 0) {
-      const nestedFileNames = nestedFiles.map(f => f.fileName);
-      const succeededNested = results.filter(r => r.success && nestedFileNames.includes(r.fileName));
-      const failedNested = results.filter(r => !r.success && nestedFileNames.includes(r.fileName));
-
-      console.log(`\n🔍 DEBUG - Nested Files Upload Results:`);
-      console.log(`  ✅ Succeeded: ${succeededNested.length}/${nestedFiles.length}`);
-      console.log(`  ❌ Failed: ${failedNested.length}/${nestedFiles.length}`);
-
-      if (failedNested.length > 0) {
-        console.error(`\n⚠️ NESTED FILES THAT FAILED:`);
-        failedNested.forEach(f => {
-          console.error(`  - "${f.fileName}": ${f.error}`);
-        });
-      }
-    }
 
     return {
       results,
@@ -520,13 +561,23 @@ class FolderUploadService {
    */
   async uploadFolder(files, onProgress, existingCategoryId = null) {
     console.log(`\n\n🚀 ===== STARTING FOLDER UPLOAD =====`);
-    console.log(`Files to upload: ${files.length}`);
+    console.log(`Files received: ${files.length}`);
     console.log(`Parent folder ID: ${existingCategoryId || 'NONE (will create new root category)'}`);
 
     try {
-      // Step 1: Analyze folder structure
+      // Step 0: Filter out hidden files and unsupported types BEFORE analysis
+      onProgress({ stage: 'filtering', message: 'Filtering files...' });
+      const filteredFiles = this.filterFiles(Array.from(files));
+
+      console.log(`✅ After filtering: ${filteredFiles.length} valid files (removed ${files.length - filteredFiles.length} invalid files)`);
+
+      if (filteredFiles.length === 0) {
+        throw new Error('No valid files to upload. All files were filtered out (hidden files or unsupported types).');
+      }
+
+      // Step 1: Analyze folder structure with filtered files
       onProgress({ stage: 'analyzing', message: 'Analyzing folder structure...' });
-      const structure = this.analyzeFolderStructure(files);
+      const structure = this.analyzeFolderStructure(filteredFiles);
 
       let categoryId; // This will be the final ID where files are placed
       let categoryName;

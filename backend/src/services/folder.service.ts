@@ -355,7 +355,7 @@ export const bulkCreateFolders = async (
     console.log(`  - "${f.name}" (path: ${f.path}, parent: ${f.parentPath || 'CATEGORY'}, depth: ${depth})`);
   });
 
-  // Use transaction for atomic operation
+  // Use transaction for atomic operation with increased timeout for large folder uploads
   await prisma.$transaction(async (tx) => {
     for (const folderData of sortedFolders) {
       const { name, path, parentPath } = folderData;
@@ -411,6 +411,9 @@ export const bulkCreateFolders = async (
       // Store the mapping
       folderMap[path] = folder.id;
     }
+  }, {
+    maxWait: 60000, // Maximum time to wait for transaction to start (60s)
+    timeout: 120000, // Maximum time for transaction to complete (2 minutes)
   });
 
   const duration = Date.now() - startTime;

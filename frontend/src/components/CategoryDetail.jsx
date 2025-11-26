@@ -600,8 +600,8 @@ const CategoryDetail = () => {
 
         showSuccess('1 folder has been deleted');
 
-        // Navigate back after deletion
-        navigate(-1);
+        // Navigate to home with replace to avoid stale browser history cache
+        navigate('/', { replace: true });
 
         // ✅ NO refreshAll() - context handles updates automatically
       }

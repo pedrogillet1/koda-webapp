@@ -7,6 +7,18 @@ import './queues/document.queue'; // Initialize background workers
 import jwt from 'jsonwebtoken';
 import { createSecureServer, createHTTPRedirectServer, getPortConfig, checkCertificateExpiry } from './config/ssl.config';
 
+// ✅ CRITICAL: Global error handlers to prevent server crashes
+process.on('uncaughtException', (error: Error) => {
+  console.error('❌ UNCAUGHT EXCEPTION (server will continue):', error.message);
+  console.error(error.stack);
+  // Don't exit - let the server continue running
+});
+
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+  console.error('❌ UNHANDLED REJECTION (server will continue):', reason);
+  // Don't exit - let the server continue running
+});
+
 import { startReminderScheduler } from './jobs/reminder.scheduler';
 import rbacService from './services/rbac.service';
 import prisma from './config/database';
