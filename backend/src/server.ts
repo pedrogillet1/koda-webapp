@@ -145,8 +145,16 @@ io.on('connection', (socket) => {
         console.log('🆕 Created new conversation via WebSocket:', conversationId);
       }
 
+      // ✅ FIX: Emit to BOTH room AND directly to sender socket
+      // This ensures the sender always receives events even if room joining has issues (ngrok/polling)
+      const emitToConversation = (event: string, data: any) => {
+        io.to(`conversation:${conversationId}`).emit(event, data);
+        // Also emit directly to sender socket as fallback
+        socket.emit(event, data);
+      };
+
       // Emit initial stage immediately
-      io.to(`conversation:${conversationId}`).emit('message-stage', {
+      emitToConversation('message-stage', {
         stage: 'thinking',
         message: 'Thinking...'
       });
@@ -205,8 +213,8 @@ io.on('connection', (socket) => {
         conversationId,
         (chunk: string) => {
           fullResponse += chunk;
-          // Emit each chunk in real-time
-          io.to(`conversation:${conversationId}`).emit('message-chunk', {
+          // Emit each chunk in real-time - use helper to emit to both room AND sender
+          emitToConversation('message-chunk', {
             chunk,
             conversationId: conversationId
           });
@@ -214,8 +222,8 @@ io.on('connection', (socket) => {
         data.attachedDocumentId, // Use actual attached document ID
         conversationHistory, // ✅ FIX: Pass conversation history for greeting logic
         (stage: string, message: string) => {
-          // Emit stage updates for progress animation
-          io.to(`conversation:${conversationId}`).emit('message-stage', {
+          // Emit stage updates for progress animation - use helper
+          emitToConversation('message-stage', {
             stage,
             message
           });
@@ -257,9 +265,9 @@ io.on('connection', (socket) => {
       });
 
       // Signal streaming complete (chunks already sent in real-time above)
-      console.log('🚀🚀🚀 EMITTING message-complete event to room:', `conversation:${conversationId}`);
+      console.log('🚀🚀🚀 EMITTING message-complete event to room AND sender:', `conversation:${conversationId}`);
       console.log('📊 Sources:', result.sources?.length || 0);
-      io.to(`conversation:${conversationId}`).emit('message-complete', {
+      emitToConversation('message-complete', {
         conversationId: conversationId,
         sources: result.sources  // ✅ FIX: Include sources for frontend display
       });
@@ -276,10 +284,10 @@ io.on('connection', (socket) => {
         uiUpdate: result.uiUpdate // Include UI update instructions from chat actions
       };
 
-      console.log('✅ RAG service completed, emitting new-message event');
+      console.log('✅ RAG service completed, emitting new-message event to room AND sender');
 
-      // Emit the complete message back to ALL clients in the conversation room
-      io.to(`conversation:${conversationId}`).emit('new-message', {
+      // Emit the complete message back to ALL clients in the conversation room AND sender
+      emitToConversation('new-message', {
         conversationId: conversationId, // Include conversationId for frontend tracking
         userMessage: formattedResult.userMessage,
         assistantMessage: formattedResult.assistantMessage,
@@ -293,7 +301,7 @@ io.on('connection', (socket) => {
       // If there's a UI update, emit a separate event for immediate action
       if (result.uiUpdate) {
         console.log(`📢 Emitting UI update event: ${result.uiUpdate.type}`);
-        io.to(`conversation:${conversationId}`).emit('ui-update', {
+        emitToConversation('ui-update', {
           type: result.uiUpdate.type,
           data: result.uiUpdate.data
         });

@@ -1781,20 +1781,30 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     console.log(`✅ [DEDUPLICATION] ${result.sources?.length || 0} sources → ${uniqueSources.length} unique sources`);
 
     // ✅ FIX #7: Filter sources for query-specific documents
+    // But keep ALL mentioned documents for comparison queries
     let filteredSources = uniqueSources;
 
-    // Check if query mentions a specific filename
-    const mentionedFile = uniqueSources.find((src: any) => {
+    // Check for comparison keywords - if comparing, show ALL mentioned docs
+    const isComparisonQuery = /\b(compare|comparison|vs|versus|difference|between|contrast)\b/i.test(query);
+
+    // Find ALL mentioned files in the query
+    const mentionedFiles = uniqueSources.filter((src: any) => {
       // ✅ FIX: Use documentName (consistent with rag.service.ts output)
       const filename = src.documentName?.toLowerCase() || src.filename?.toLowerCase() || '';
       const cleanFilename = filename.replace(/\.(pdf|docx?|xlsx?|pptx?|txt|csv)$/i, '');
       return lowerQuery.includes(cleanFilename) || lowerQuery.includes(filename);
     });
 
-    if (mentionedFile) {
-      // Filter to only show the mentioned document
-      filteredSources = [mentionedFile];
-      console.log(`✅ [SOURCE FILTERING] Query mentions "${mentionedFile.filename}", filtered to 1 source`);
+    if (mentionedFiles.length > 0) {
+      if (isComparisonQuery || mentionedFiles.length >= 2) {
+        // For comparisons or multiple mentioned files, show ALL mentioned documents
+        filteredSources = mentionedFiles;
+        console.log(`✅ [SOURCE FILTERING] Comparison query with ${mentionedFiles.length} mentioned documents`);
+      } else {
+        // Single file mentioned (non-comparison) - filter to just that one
+        filteredSources = mentionedFiles;
+        console.log(`✅ [SOURCE FILTERING] Query mentions "${mentionedFiles[0].documentName}", filtered to 1 source`);
+      }
     } else {
       filteredSources = uniqueSources;
     }

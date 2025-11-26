@@ -25,13 +25,20 @@ const ChatScreen = () => {
 
         // ✅ FIX: Load conversation from sessionStorage to persist on refresh
         const savedConversationId = sessionStorage.getItem('currentConversationId');
-        if (savedConversationId) {
+        if (savedConversationId && savedConversationId !== 'new') {
             // Return a minimal conversation object, will be fully loaded by useEffect
             hadInitialConversationRef.current = true;
             return { id: savedConversationId, title: 'Loading...' };
         }
 
-        return null;
+        // ✅ NEW: Start with ephemeral "New Chat" placeholder
+        return {
+            id: 'new',
+            title: 'New Chat',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            isEphemeral: true
+        };
     });
 
     const [updateConversationInList, setUpdateConversationInList] = useState(null);
@@ -44,8 +51,9 @@ const ChatScreen = () => {
     }, [location.state]);
 
     // ✅ FIX: Save conversation to sessionStorage to persist on refresh
+    // Don't save ephemeral conversations - they should start fresh on reload
     useEffect(() => {
-        if (currentConversation?.id) {
+        if (currentConversation?.id && currentConversation.id !== 'new' && !currentConversation.isEphemeral) {
             sessionStorage.setItem('currentConversationId', currentConversation.id);
         } else {
             sessionStorage.removeItem('currentConversationId');
@@ -55,6 +63,12 @@ const ChatScreen = () => {
     // ✅ FIX: Load full conversation details if only minimal object exists
     useEffect(() => {
         const loadFullConversation = async () => {
+            // Skip ephemeral conversations
+            if (currentConversation?.id === 'new' || currentConversation?.isEphemeral) {
+                console.log('⏭️ [ChatScreen] Skipping load - ephemeral conversation');
+                return;
+            }
+
             // Check if current conversation is a minimal object (title is 'Loading...')
             if (currentConversation?.id && currentConversation?.title === 'Loading...') {
                 console.log('🔄 [ChatScreen] Loading full conversation details for:', currentConversation.id);
@@ -64,19 +78,16 @@ const ChatScreen = () => {
                     setCurrentConversation(fullConversation);
                 } catch (error) {
                     console.error('❌ [ChatScreen] Error loading full conversation:', error);
-                    // If conversation doesn't exist (404), create a new one
+                    // If conversation doesn't exist (404), show ephemeral new chat
                     if (error.response?.status === 404) {
-                        console.log('⚠️ [ChatScreen] Conversation not found, creating new one...');
-                        try {
-                            const newConversation = await chatService.createConversation();
-                            setCurrentConversation(newConversation);
-                            if (updateConversationInList) {
-                                updateConversationInList(newConversation);
-                            }
-                        } catch (createError) {
-                            console.error('❌ [ChatScreen] Error creating new conversation:', createError);
-                            setCurrentConversation(null);
-                        }
+                        console.log('⚠️ [ChatScreen] Conversation not found, showing ephemeral new chat...');
+                        setCurrentConversation({
+                            id: 'new',
+                            title: 'New Chat',
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString(),
+                            isEphemeral: true
+                        });
                     }
                 }
             }
@@ -85,41 +96,17 @@ const ChatScreen = () => {
         loadFullConversation();
     }, [currentConversation?.id, currentConversation?.title, updateConversationInList]);
 
-    // ✅ FIX #2: Create a new conversation on first visit if none exists
-    // ✅ OPTIMISTIC LOADING: Non-blocking conversation creation
-    // Greeting shows immediately, conversation creates in background
+    // ✅ NEW: With ephemeral conversations, we don't need to auto-create on mount
+    // The ephemeral "New Chat" placeholder is shown by default
+    // A real conversation is only created when the user sends their first message
+
+    // ✅ FIX: Add conversation to history when it becomes real (not ephemeral)
     useEffect(() => {
-        const initializeChat = async () => {
-            // Only create if no conversation exists and not already loading one
-            if (!currentConversation && !location.state?.newConversation) {
-                console.log('🆕 [ChatScreen] First visit - creating initial conversation...');
+        // Skip ephemeral conversations - they shouldn't be added to history
+        if (!currentConversation || currentConversation.id === 'new' || currentConversation.isEphemeral) {
+            return;
+        }
 
-                try {
-                    // Create conversation in background (non-blocking)
-                    const newConversation = await chatService.createConversation('New Chat');
-                    console.log('✅ [ChatScreen] Initial conversation created:', newConversation);
-                    console.log('📋 [ChatScreen] Conversation details:', {
-                        id: newConversation.id,
-                        title: newConversation.title,
-                        hasTitle: !!newConversation.title
-                    });
-                    setCurrentConversation(newConversation);
-                } catch (error) {
-                    console.error('❌ [ChatScreen] Error creating initial conversation:', error);
-                }
-            } else {
-                console.log('⏭️ [ChatScreen] Skipping conversation creation:', {
-                    hasCurrentConversation: !!currentConversation,
-                    hasNavigationState: !!location.state?.newConversation
-                });
-            }
-        };
-
-        initializeChat(); // Non-blocking
-    }, []); // Only run on mount
-
-    // ✅ FIX: Add initial conversation to history when both conversation and update function are available
-    useEffect(() => {
         console.log('🔍 [ChatScreen] useEffect triggered - checking if should add to history:', {
             hasConversation: !!currentConversation,
             conversationId: currentConversation?.id?.substring(0, 8),
@@ -128,10 +115,10 @@ const ChatScreen = () => {
             hadInitialConversation: hadInitialConversationRef.current
         });
 
-        if (currentConversation && updateConversationInList && !initialConversationAddedRef.current) {
+        if (updateConversationInList && !initialConversationAddedRef.current) {
             // Only add if there was NO conversation on mount (meaning it was newly created)
             if (!hadInitialConversationRef.current) {
-                console.log('📋 [ChatScreen] Adding initial conversation to history list:', currentConversation.id.substring(0, 8));
+                console.log('📋 [ChatScreen] Adding conversation to history list:', currentConversation.id.substring(0, 8));
                 console.log('📋 [ChatScreen] Conversation to add:', currentConversation);
                 updateConversationInList(currentConversation);
             } else {
@@ -146,60 +133,35 @@ const ChatScreen = () => {
         setCurrentConversation(conversation);
     };
 
-    const handleNewChat = async (existingConversation, replacingTempId) => {
-        try {
-            // If this is replacing a temp conversation with the real one
-            if (replacingTempId) {
-                console.log('🔄 [ChatScreen] Replacing temp conversation', replacingTempId, 'with real:', existingConversation.id);
-                // Update current conversation if it's the temp one being replaced
-                setCurrentConversation(prev =>
-                    prev?.id === replacingTempId ? existingConversation : prev
-                );
-                return;
-            }
+    const handleNewChat = (ephemeralConversation) => {
+        console.log('🆕 [ChatScreen] Starting new chat...');
 
-            // If conversation already created by ChatHistory, use it
-            if (existingConversation) {
-                console.log('✅ [ChatScreen] Using conversation from ChatHistory:', existingConversation.id);
-                setCurrentConversation(existingConversation);
-                return;
-            }
+        // ✅ NEW: Use ephemeral conversation from ChatHistory (no API call)
+        setCurrentConversation(ephemeralConversation || {
+            id: 'new',
+            title: 'New Chat',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            isEphemeral: true
+        });
 
-            // Otherwise create a new conversation
-            console.log('🆕 [ChatScreen] Creating new chat...');
-            const newConversation = await chatService.createConversation();
-            console.log('✅ [ChatScreen] New chat created:', newConversation.id);
-            setCurrentConversation(newConversation);
-
-            // Add to conversation list via callback
-            if (updateConversationInList) {
-                updateConversationInList(newConversation);
-            }
-        } catch (error) {
-            console.error('❌ Error creating new chat:', error);
-            // Fallback to clearing conversation
-            setCurrentConversation(null);
-        }
+        // Reset the initial conversation tracking so the next real conversation gets added to history
+        initialConversationAddedRef.current = false;
+        hadInitialConversationRef.current = false;
     };
 
     const handleConversationUpdate = async (updatedConversation) => {
         // If updatedConversation is null, it means the conversation was not found (404)
-        // Create a new conversation automatically
+        // Show ephemeral new chat
         if (updatedConversation === null) {
-            console.log('⚠️ [ChatScreen] Conversation not found, creating new one...');
-            try {
-                const newConversation = await chatService.createConversation();
-                console.log('✅ [ChatScreen] New conversation created after 404:', newConversation.id);
-                setCurrentConversation(newConversation);
-
-                // Add to conversation list
-                if (updateConversationInList) {
-                    updateConversationInList(newConversation);
-                }
-            } catch (error) {
-                console.error('❌ [ChatScreen] Error creating new conversation after 404:', error);
-                setCurrentConversation(null);
-            }
+            console.log('⚠️ [ChatScreen] Conversation not found, showing ephemeral new chat...');
+            setCurrentConversation({
+                id: 'new',
+                title: 'New Chat',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                isEphemeral: true
+            });
             return;
         }
 

@@ -14,6 +14,13 @@ import ragService from './rag.service';
 import cacheService from './cache.service';
 import { getIO } from './websocket.service';
 import * as memoryService from './memory.service';
+import OpenAI from 'openai';
+import { config } from '../config/env';
+
+// OpenAI client for streaming title generation
+const openai = new OpenAI({
+  apiKey: config.OPENAI_API_KEY,
+});
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -588,7 +595,7 @@ export const sendMessageStreaming = async (
 // ============================================================================
 
 /**
- * Auto-generate a conversation title based on the first message and response
+ * Auto-generate a conversation title with character-by-character streaming
  * @param firstResponse - Optional assistant response for better context
  */
 const autoGenerateTitle = async (
@@ -606,35 +613,116 @@ const autoGenerateTitle = async (
       return;
     }
 
-    // Generate a short title using the Gemini service with full context
-    const title = await generateConversationTitle(firstMessage, firstResponse);
+    // ✅ NEW: Stream title generation character-by-character
+    let fullTitle = '';
 
-    // Clean up the title (remove quotes, trim, limit length)
-    const cleanTitle = title.replace(/['"]/g, '').trim().substring(0, 100);
-
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: { title: cleanTitle || 'New Chat' },
-    });
-
-    console.log('✅ Title generated:', cleanTitle);
-
-    // ✅ EMIT WEBSOCKET EVENT: Notify frontend about title update
     try {
       const io = getIO();
-      io.to(`user:${userId}`).emit('conversation:updated', {
+
+      // Emit title generation start event
+      io.to(`user:${userId}`).emit('title:generating:start', {
+        conversationId,
+      });
+      console.log(`📡 [TITLE-STREAM] Started streaming for conversation ${conversationId}`);
+
+      // Generate title with streaming using OpenAI
+      const stream = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Generate a short, descriptive title for a conversation based on ACTUAL content.
+
+**CRITICAL RULES:**
+1. Maximum 50 characters
+2. If the message is just a greeting (hi, hello, hey, etc.) with no specific question or topic, return "New Chat"
+3. ONLY create a specific title if there is a clear topic or question
+4. Use natural, conversational language
+5. No quotes, no colons, no special formatting
+6. Focus on the ACTION or TOPIC mentioned
+7. DO NOT hallucinate or guess topics - only use what's explicitly mentioned
+
+Return ONLY the title, nothing else.`,
+          },
+          {
+            role: 'user',
+            content: firstResponse
+              ? `User: "${firstMessage.slice(0, 500)}"\nAssistant: "${firstResponse.slice(0, 300)}"\n\nCreate a title that captures the ACTUAL topic discussed.`
+              : `User: "${firstMessage.slice(0, 500)}"\n\nIf this is just a greeting with no specific topic, return "New Chat". Otherwise, create a title for the topic.`,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 30,
+        stream: true,
+      });
+
+      // Stream each character to the frontend
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          fullTitle += content;
+
+          // Emit each character/chunk
+          io.to(`user:${userId}`).emit('title:generating:chunk', {
+            conversationId,
+            chunk: content,
+          });
+        }
+      }
+
+      // Clean up the title
+      const cleanTitle = fullTitle.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
+
+      // Update the conversation in database
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: {
+          title: cleanTitle,
+          updatedAt: new Date()
+        },
+      });
+
+      // Emit completion event
+      io.to(`user:${userId}`).emit('title:generating:complete', {
         conversationId,
         title: cleanTitle,
         updatedAt: new Date()
       });
-      console.log(`📡 [AUTO-TITLE] WebSocket event emitted to user:${userId}`);
-    } catch (socketError) {
-      console.error('⚠️ Failed to emit title update event:', socketError);
-      // Non-critical error, don't throw
+
+      console.log(`✅ Generated and streamed title: "${cleanTitle}"`);
+
+    } catch (wsError) {
+      console.warn('⚠️ WebSocket streaming failed, falling back to instant title generation:', wsError);
+
+      // Fallback: Generate title without streaming using Gemini
+      const title = await generateConversationTitle(firstMessage, firstResponse);
+      const cleanTitle = title.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: {
+          title: cleanTitle,
+          updatedAt: new Date()
+        },
+      });
+
+      // Still emit the update event for instant display
+      try {
+        const io = getIO();
+        io.to(`user:${userId}`).emit('conversation:updated', {
+          conversationId,
+          title: cleanTitle,
+          updatedAt: new Date()
+        });
+      } catch (e) {
+        // Ignore socket errors in fallback
+      }
+
+      console.log(`✅ Generated title (no streaming): "${cleanTitle}"`);
     }
-  } catch (error) {
-    console.error('⚠️ Failed to auto-generate title:', error);
-    // Non-critical error, don't throw
+
+  } catch (error: any) {
+    console.error('❌ Error generating title:', error.message);
   }
 };
 
