@@ -51,29 +51,55 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ✅ FIX #8: Multi-Document Attachment Support
+    // ═══════════════════════════════════════════════════════════════════════════
+    // REASON: Allow users to query across multiple documents simultaneously
+    // WHY: Common use case - "Compare Q1 and Q2 budgets", "Summarize all contracts"
+    // HOW: Accept attachedDocuments array, pass to Pinecone as $in filter
+    // IMPACT: Enables document comparison, cross-document analysis
+
     const { query, conversationId, answerLength = 'medium', attachedFile, documentId, attachedDocuments = [] } = req.body;
 
     // Validate answerLength parameter
     const validLengths = ['short', 'medium', 'summary', 'long'];
     const finalAnswerLength = validLengths.includes(answerLength) ? answerLength : 'medium';
 
-    // MULTI-ATTACHMENT SUPPORT: Convert attachedDocuments array to single documentId (backwards compatible)
-    // Frontend sends attachedDocuments[], backend currently handles single documentId
-    // TODO: Future enhancement - support multiple document filtering in Pinecone
-    let cleanDocumentId: string | undefined = documentId || undefined;
+    // ✅ MULTI-ATTACHMENT SUPPORT: Handle both single documentId and attachedDocuments array
+    let attachedDocumentIds: string[] = [];
 
-    if (!cleanDocumentId && attachedDocuments.length > 0) {
-      // If attachedDocuments array is provided, use the first one
-      cleanDocumentId = attachedDocuments[0].id || attachedDocuments[0];
-      console.log(`📎 [MULTI-ATTACHMENT] Converted attachedDocuments[${attachedDocuments.length}] to documentId: ${cleanDocumentId}`);
-    } else if (cleanDocumentId === null) {
-      // Explicitly null means clear attachment
-      cleanDocumentId = undefined;
+    // Priority 1: Use attachedDocuments array if provided
+    if (attachedDocuments && attachedDocuments.length > 0) {
+      attachedDocumentIds = attachedDocuments.map((doc: any) =>
+        typeof doc === 'string' ? doc : doc.id
+      ).filter(Boolean);
+
+      console.log(`📎 [MULTI-ATTACHMENT] ${attachedDocumentIds.length} documents attached:`, attachedDocumentIds);
+    }
+    // Priority 2: Fall back to single documentId for backward compatibility
+    else if (documentId && documentId !== null) {
+      attachedDocumentIds = [documentId];
+      console.log(`📎 [SINGLE-ATTACHMENT] 1 document attached: ${documentId}`);
+    }
+    // Priority 3: No attachments
+    else {
+      console.log(`📎 [NO-ATTACHMENT] Searching across all user documents`);
     }
 
-    console.log(`📎 [ATTACHMENT DEBUG] documentId from request: ${documentId}, attachedDocuments: ${attachedDocuments.length}, final: ${cleanDocumentId}`);
-    console.log(`📎 [ATTACHMENT DEBUG] attachedFile from request:`, attachedFile);
     console.log(`📏 [ANSWER LENGTH] ${finalAnswerLength}`);
+
+    // Detect if this is a comparison query
+    const isComparisonQuery = attachedDocumentIds.length > 1 && (
+      query.toLowerCase().includes('compare') ||
+      query.toLowerCase().includes('difference') ||
+      query.toLowerCase().includes('vs') ||
+      query.toLowerCase().includes('versus') ||
+      query.toLowerCase().includes('between')
+    );
+
+    if (isComparisonQuery) {
+      console.log(`🔀 [COMPARISON] Detected comparison query across ${attachedDocumentIds.length} documents`);
+    }
 
     if (!query || !conversationId) {
       res.status(400).json({ error: 'Query and conversationId are required' });
@@ -833,12 +859,13 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     });
 
     // Generate RAG answer with answer length control and conversation history
+    // ✅ FIX #8: Pass array of document IDs for multi-document support
     const result = await ragService.generateAnswer(
       userId,
       query,
       conversationId,
       finalAnswerLength as 'short' | 'medium' | 'summary' | 'long',
-      cleanDocumentId,
+      attachedDocumentIds.length > 0 ? attachedDocumentIds : undefined,
       conversationHistory,  // Pass conversation history for context
       isFirstMessage  // Pass first message flag for greeting logic
     );
@@ -937,7 +964,25 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     });
   } catch (error: any) {
     console.error('Error in RAG query:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate RAG answer' });
+
+    // ✅ FIX #10: Better Error Messages
+    // Check if it's a RAGError with specific error info
+    if (error.code && error.statusCode && error.suggestion) {
+      res.status(error.statusCode).json({
+        error: error.message,
+        code: error.code,
+        suggestion: error.suggestion,
+        retryable: error.retryable || false,
+      });
+    } else {
+      // Generic error - provide helpful response
+      res.status(500).json({
+        error: error.message || 'Failed to generate RAG answer',
+        code: 'SERVER_ERROR',
+        suggestion: 'An unexpected error occurred. Please try again.',
+        retryable: true,
+      });
+    }
   }
 };
 
@@ -1003,7 +1048,23 @@ export const answerFollowUp = async (req: Request, res: Response): Promise<void>
     });
   } catch (error: any) {
     console.error('Error in RAG follow-up:', error);
-    res.status(500).json({ error: error.message || 'Failed to answer follow-up' });
+
+    // ✅ FIX #10: Better Error Messages
+    if (error.code && error.statusCode && error.suggestion) {
+      res.status(error.statusCode).json({
+        error: error.message,
+        code: error.code,
+        suggestion: error.suggestion,
+        retryable: error.retryable || false,
+      });
+    } else {
+      res.status(500).json({
+        error: error.message || 'Failed to answer follow-up',
+        code: 'SERVER_ERROR',
+        suggestion: 'An unexpected error occurred. Please try again.',
+        retryable: true,
+      });
+    }
   }
 };
 
@@ -1810,10 +1871,17 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
   } catch (error: any) {
     console.error('❌ Error in RAG streaming:', error);
-    res.write(`data: ${JSON.stringify({
+
+    // ✅ FIX #10: Better Error Messages for streaming
+    const errorResponse = {
       type: 'error',
-      error: error.message || 'Failed to generate RAG answer'
-    })}\n\n`);
+      error: error.message || 'Failed to generate RAG answer',
+      code: error.code || 'SERVER_ERROR',
+      suggestion: error.suggestion || 'An unexpected error occurred. Please try again.',
+      retryable: error.retryable !== false, // Default to true
+    };
+
+    res.write(`data: ${JSON.stringify(errorResponse)}\n\n`);
     res.end();
   }
 };
