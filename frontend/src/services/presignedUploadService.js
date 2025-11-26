@@ -1,3 +1,20 @@
+/**
+ * @deprecated PARTIAL DEPRECATION NOTICE
+ *
+ * The PresignedUploadService class in this file is DEPRECATED.
+ * Use unifiedUploadService.js instead for:
+ * - uploadFolder() - folder uploads with structure preservation
+ * - uploadSingleFile() - single file uploads
+ * - uploadFiles() - multiple file uploads
+ *
+ * The multipart upload functions (uploadFileWithResume, checkPendingUploads, etc.)
+ * are still used for large file support and resume functionality.
+ *
+ * Migration guide:
+ * - import unifiedUploadService from './unifiedUploadService'
+ * - unifiedUploadService.uploadFolder(files, onProgress, categoryId)
+ */
+
 import api from './api';
 import axios from 'axios'; // For direct S3 uploads only
 import {

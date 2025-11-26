@@ -1,5 +1,22 @@
 /**
- * FolderUploadService - REDESIGNED FROM SCRATCH
+ * @deprecated This service is DEPRECATED. Use unifiedUploadService.js instead.
+ *
+ * Migration guide:
+ * - import unifiedUploadService from './unifiedUploadService'
+ * - unifiedUploadService.uploadFolder(files, onProgress, categoryId)
+ * - unifiedUploadService.uploadSingleFile(file, folderId, onProgress)
+ *
+ * The new unified service:
+ * - Uses presigned URLs for direct S3 uploads (faster, bypasses backend)
+ * - Implements true parallel processing (no artificial delays)
+ * - Preserves folder structure (same behavior as this service)
+ * - Supports multipart uploads for large files
+ *
+ * This file is kept for backward compatibility but will be removed in a future version.
+ *
+ * ===============================================================================
+ *
+ * FolderUploadService - REDESIGNED FROM SCRATCH (DEPRECATED)
  *
  * CORE CONCEPT:
  * - The uploaded folder structure is ALWAYS preserved
@@ -471,62 +488,32 @@ class FolderUploadService {
   }
 
   /**
-   * Upload files in parallel batches
+   * ✅ OPTIMIZED: True parallel batch processing
+   * All batches start simultaneously, not sequentially
    */
   async uploadFilesInParallel(fileMapping, onOverallProgress) {
-    console.log(`\n📤 ===== UPLOADING ${fileMapping.length} FILES =====`);
-
-    // ✅ DEBUG: Verify files to be uploaded
-    const rootLevelFiles = fileMapping.filter(f => f.depth === 0);
-    const nestedFiles = fileMapping.filter(f => f.depth > 0);
-    console.log(`🔍 DEBUG - Upload Queue:`);
-    console.log(`  - Root level files: ${rootLevelFiles.length}`);
-    console.log(`  - Nested files: ${nestedFiles.length}`);
-
-    if (nestedFiles.length > 0) {
-      console.log(`\n🔍 DEBUG - Nested Files in Upload Queue:`);
-      nestedFiles.forEach(f => {
-        console.log(`  - "${f.fileName}" → Folder ID: ${f.folderId || 'MISSING!'} (depth: ${f.depth})`);
-      });
-    }
+    console.log(`\n📤 ===== UPLOADING ${fileMapping.length} FILES (TRUE PARALLEL) =====`);
 
     const totalFiles = fileMapping.length;
     let uploadedFiles = 0;
 
-    // Create batches
+    // Create batches for concurrent limit (but process ALL batches in parallel)
     const batches = [];
     for (let i = 0; i < fileMapping.length; i += this.maxConcurrentUploads) {
       batches.push(fileMapping.slice(i, i + this.maxConcurrentUploads));
     }
 
-    console.log(`📦 Created ${batches.length} batches (${this.maxConcurrentUploads} files per batch)`);
+    console.log(`📦 Processing ${batches.length} batches of ${this.maxConcurrentUploads} files each - ALL IN PARALLEL`);
 
-    this.uploadProgress = {
-      totalFiles,
-      uploadedFiles: 0,
-      currentBatch: 0,
-      totalBatches: batches.length,
-      errors: []
-    };
+    this.uploadProgress = { totalFiles, uploadedFiles: 0, errors: [] };
 
-    const results = [];
-
-    // Process each batch
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      const batch = batches[batchIndex];
-      this.uploadProgress.currentBatch = batchIndex + 1;
-
-      console.log(`\n🚀 Batch ${batchIndex + 1}/${batches.length} (${batch.length} files)`);
-
-      // Upload all files in this batch simultaneously
+    // ✅ TRUE PARALLEL: Process ALL batches simultaneously
+    const allBatchPromises = batches.map(async (batch) => {
+      // Process all files in this batch simultaneously
       const batchPromises = batch.map(async (fileObj) => {
-        const result = await this.uploadSingleFile(
-          fileObj,
-          (progress) => {
-            // Individual file progress can be logged here if needed
-          }
-        );
+        const result = await this.uploadSingleFile(fileObj, () => {});
 
+        // Safely update shared progress
         uploadedFiles++;
         this.uploadProgress.uploadedFiles = uploadedFiles;
 
@@ -537,49 +524,24 @@ class FolderUploadService {
         // Update overall progress
         const overallPercentage = Math.round((uploadedFiles / totalFiles) * 100);
         onOverallProgress({
-          uploaded: uploadedFiles,
-          total: totalFiles,
           percentage: overallPercentage,
-          currentBatch: batchIndex + 1,
-          totalBatches: batches.length
+          message: `Uploading... (${uploadedFiles}/${totalFiles})`
         });
 
         return result;
       });
 
-      // Wait for all files in this batch to complete
-      const batchResults = await Promise.all(batchPromises);
-      results.push(...batchResults);
+      return Promise.all(batchPromises);
+    });
 
-      // ✅ Add delay between batches to allow database connections to release
-      if (batchIndex < batches.length - 1) {
-        console.log(`⏳ Waiting ${this.delayBetweenBatches}ms before next batch...`);
-        await new Promise(resolve => setTimeout(resolve, this.delayBetweenBatches));
-      }
-    }
+    // Wait for ALL batches to complete (they all run in parallel)
+    const allResultsNested = await Promise.all(allBatchPromises);
+    const results = allResultsNested.flat();
 
     const successCount = results.filter(r => r.success).length;
-    const failureCount = results.filter(r => !r.success).length;
+    const failureCount = totalFiles - successCount;
 
     console.log(`\n✅ Upload complete: ${successCount}/${totalFiles} succeeded, ${failureCount} failed`);
-
-    // ✅ DEBUG: Show which nested files succeeded/failed
-    if (nestedFiles.length > 0) {
-      const nestedFileNames = nestedFiles.map(f => f.fileName);
-      const succeededNested = results.filter(r => r.success && nestedFileNames.includes(r.fileName));
-      const failedNested = results.filter(r => !r.success && nestedFileNames.includes(r.fileName));
-
-      console.log(`\n🔍 DEBUG - Nested Files Upload Results:`);
-      console.log(`  ✅ Succeeded: ${succeededNested.length}/${nestedFiles.length}`);
-      console.log(`  ❌ Failed: ${failedNested.length}/${nestedFiles.length}`);
-
-      if (failedNested.length > 0) {
-        console.error(`\n⚠️ NESTED FILES THAT FAILED:`);
-        failedNested.forEach(f => {
-          console.error(`  - "${f.fileName}": ${f.error}`);
-        });
-      }
-    }
 
     return {
       results,

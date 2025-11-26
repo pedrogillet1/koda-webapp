@@ -4,9 +4,8 @@ import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as FolderIcon } from '../assets/folder_icon.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import { useDocuments } from '../context/DocumentsContext';
-import api from '../services/api';
-import { generateThumbnail, supportsThumbnail } from '../utils/thumbnailGenerator';
-import folderUploadService from '../services/folderUploadService';
+// ✅ REFACTORED: Use unified upload service (replaces folderUploadService + presignedUploadService)
+import unifiedUploadService from '../services/unifiedUploadService';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -20,8 +19,8 @@ import mp3Icon from '../assets/mp3.svg';
 import folderIcon from '../assets/folder_icon.svg';
 
 const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComplete, initialFiles = null }) => {
-  // Get context functions for optimistic uploads
-  const { addDocument, createFolder, refreshAll } = useDocuments();
+  // Get context functions for refreshing after uploads
+  const { refreshAll } = useDocuments();
 
   const [uploadingFiles, setUploadingFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -294,172 +293,121 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
     setUploadingFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
+  // ✅ REFACTORED: Use unified upload service for all uploads
   const handleUploadAll = async () => {
     const pendingFiles = uploadingFiles.filter(f => f.status === 'pending');
     if (pendingFiles.length === 0) return;
 
     setIsUploading(true);
 
-    // Separate folder entries from regular file entries
     const folderEntries = pendingFiles.filter(f => f.isFolder);
     const fileEntries = pendingFiles.filter(f => !f.isFolder);
 
+    // Track counts across parallel operations
     let totalSuccessCount = 0;
     let totalFailureCount = 0;
 
-    try {
-      // Process folders using folderUploadService
-      if (folderEntries.length > 0) {
-        console.log('🚀 Uploading folders using parallel processing');
+    // ✅ Process folder uploads using unified service
+    const processFolder = async (folderEntry) => {
+      try {
+        setUploadingFiles(prev => prev.map(f =>
+          f.id === folderEntry.id ? { ...f, status: 'uploading' } : f
+        ));
 
-        for (const folderEntry of folderEntries) {
-          try {
-            // Mark folder as uploading
+        // Use unified upload service with presigned URLs
+        const results = await unifiedUploadService.uploadFolder(
+          folderEntry.allFiles,
+          (progress) => {
             setUploadingFiles(prev => prev.map(f =>
-              f.id === folderEntry.id ? { ...f, status: 'uploading' } : f
+              f.id === folderEntry.id ? {
+                ...f,
+                progress: progress.percentage || 0,
+                processingStage: progress.message || 'Uploading...'
+              } : f
             ));
+          },
+          categoryId
+        );
 
-            // Track stage timing to ensure minimum display time
-            let lastStageTime = Date.now();
-            const minStageDisplayTime = 600;
+        setUploadingFiles(prev => prev.map(f =>
+          f.id === folderEntry.id ? { ...f, status: 'completed', progress: 100, processingStage: null } : f
+        ));
 
-            const results = await folderUploadService.uploadFolder(
-              folderEntry.allFiles,
-              async (progress) => {
-                // Ensure minimum display time for previous stage
-                const elapsed = Date.now() - lastStageTime;
-                if (elapsed < minStageDisplayTime) {
-                  await new Promise(resolve => setTimeout(resolve, minStageDisplayTime - elapsed));
-                }
-                lastStageTime = Date.now();
+        totalSuccessCount += results.successCount;
+        totalFailureCount += results.failureCount;
+      } catch (error) {
+        console.error('❌ Error uploading folder:', error);
+        setUploadingFiles(prev => prev.map(f =>
+          f.id === folderEntry.id ? { ...f, status: 'failed', error: error.message } : f
+        ));
+        totalFailureCount += folderEntry.fileCount;
+      }
+    };
 
-                // Update folder entry progress
-                if (progress.stage === 'analyzing') {
-                  setUploadingFiles(prev => prev.map(f =>
-                    f.id === folderEntry.id ? { ...f, progress: 10, processingStage: 'Preparing...' } : f
-                  ));
-                } else if (progress.stage === 'uploading') {
-                  setUploadingFiles(prev => prev.map(f =>
-                    f.id === folderEntry.id ? { ...f, progress: progress.percentage || 50, processingStage: 'Uploading to cloud...' } : f
-                  ));
-                } else if (progress.stage === 'complete') {
-                  setUploadingFiles(prev => prev.map(f =>
-                    f.id === folderEntry.id ? { ...f, progress: 95, processingStage: 'Finalizing...' } : f
-                  ));
-                }
-              },
-              categoryId
-            );
+    // ✅ Process file uploads using unified service
+    const processFile = async (fileEntry) => {
+      try {
+        setUploadingFiles(prev => prev.map(f =>
+          f.id === fileEntry.id ? { ...f, status: 'uploading', progress: 10, processingStage: 'Uploading...' } : f
+        ));
 
-            // Show finalizing stage for at least 400ms
-            await new Promise(resolve => setTimeout(resolve, 400));
+        console.log('📤 Starting upload for:', fileEntry.file.name);
 
-            // Mark folder as completed
+        // Use unified upload service with presigned URLs for single files
+        await unifiedUploadService.uploadSingleFile(
+          fileEntry.file,
+          categoryId,
+          (progress) => {
             setUploadingFiles(prev => prev.map(f =>
-              f.id === folderEntry.id ? { ...f, status: 'completed', progress: 100, processingStage: null } : f
+              f.id === fileEntry.id ? {
+                ...f,
+                progress: progress.percentage || 0,
+                processingStage: progress.message || 'Uploading...'
+              } : f
             ));
-
-            totalSuccessCount += results.successCount;
-            totalFailureCount += results.failureCount;
-          } catch (error) {
-            console.error('❌ Error uploading folder:', error);
-            setUploadingFiles(prev => prev.map(f =>
-              f.id === folderEntry.id ? { ...f, status: 'failed', error: error.message } : f
-            ));
-            totalFailureCount += folderEntry.fileCount;
           }
-        }
+        );
+
+        setUploadingFiles(prev => prev.map(f =>
+          f.id === fileEntry.id ? { ...f, status: 'completed', progress: 100, processingStage: null } : f
+        ));
+
+        totalSuccessCount++;
+      } catch (error) {
+        console.error('❌ Error uploading file:', error);
+        const message = error.response?.data?.message || error.message || 'Upload failed';
+        setUploadingFiles(prev => prev.map(f =>
+          f.id === fileEntry.id ? { ...f, status: 'failed', error: message } : f
+        ));
+        totalFailureCount++;
       }
+    };
 
-      // Process regular files using addDocument
-      if (fileEntries.length > 0) {
-        console.log('📄 Uploading regular files');
+    // ✅ Execute ALL uploads in parallel (no sequential waiting)
+    console.log(`🚀 Starting parallel upload: ${folderEntries.length} folders, ${fileEntries.length} files`);
+    const allPromises = [
+      ...folderEntries.map(processFolder),
+      ...fileEntries.map(processFile)
+    ];
+    await Promise.all(allPromises);
 
-        for (const fileEntry of fileEntries) {
-          try {
-            // Mark file as uploading
-            setUploadingFiles(prev => prev.map(f =>
-              f.id === fileEntry.id ? { ...f, status: 'uploading', progress: 10, processingStage: 'Preparing...' } : f
-            ));
-
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Update to uploading stage
-            setUploadingFiles(prev => prev.map(f =>
-              f.id === fileEntry.id ? { ...f, progress: 30, processingStage: 'Uploading to cloud...' } : f
-            ));
-
-            // Use context's addDocument for optimistic upload
-            console.log('📤 Starting upload for:', fileEntry.file.name);
-            const uploadedDoc = await addDocument(fileEntry.file, categoryId);
-            console.log('✅ Upload complete, document:', uploadedDoc);
-            await new Promise(resolve => setTimeout(resolve, 800));
-
-            // Update to finalizing stage
-            setUploadingFiles(prev => prev.map(f =>
-              f.id === fileEntry.id ? { ...f, progress: 95, processingStage: 'Finalizing...' } : f
-            ));
-
-            await new Promise(resolve => setTimeout(resolve, 400));
-
-            // Mark as completed
-            setUploadingFiles(prev => prev.map(f =>
-              f.id === fileEntry.id ? { ...f, status: 'completed', progress: 100, processingStage: null } : f
-            ));
-
-            totalSuccessCount++;
-            console.log('✅ Success count:', totalSuccessCount);
-          } catch (error) {
-            console.error('❌ Error uploading file:', error);
-            console.error('❌ Error details:', {
-              message: error.message,
-              response: error.response?.data,
-              status: error.response?.status
-            });
-            const message = error.response?.data?.message || error.message || 'Upload failed';
-            setUploadingFiles(prev => prev.map(f =>
-              f.id === fileEntry.id ? { ...f, status: 'failed', error: message } : f
-            ));
-            setErrorMessage(`Failed to upload ${fileEntry.file.name}: ${message}`);
-            setShowErrorBanner(true);
-            setTimeout(() => {
-              setShowErrorBanner(false);
-              setErrorMessage('');
-            }, 8000);
-            totalFailureCount++;
-            console.log('❌ Failure count:', totalFailureCount);
-          }
-        }
-      }
-
-      // Show success notification
-      if (totalSuccessCount > 0) {
-        setUploadedCount(totalSuccessCount);
-        setNotificationType('success');
-        setShowNotification(true);
-        setTimeout(() => setShowNotification(false), 5000);
-      }
-
-      // Show error notification only if ALL uploads failed (no successes)
-      if (totalFailureCount > 0 && totalSuccessCount === 0) {
-        setNotificationType('error');
-        setShowNotification(true);
-        setTimeout(() => setShowNotification(false), 5000);
-      }
-
-      // Refresh folders and documents to show updated data
-      console.log('🔄 Refreshing documents after upload...');
-      await refreshAll();
-      console.log('✅ Documents refreshed!');
-    } catch (error) {
-      console.error('❌ Unexpected error during upload:', error);
-      setErrorMessage(error.message || 'Upload failed');
-      setShowErrorBanner(true);
-      setTimeout(() => {
-        setShowErrorBanner(false);
-        setErrorMessage('');
-      }, 8000);
+    // Final UI updates
+    if (totalSuccessCount > 0) {
+      setUploadedCount(totalSuccessCount);
+      setNotificationType('success');
+      setShowNotification(true);
+      setTimeout(() => setShowNotification(false), 5000);
     }
+
+    if (totalFailureCount > 0 && totalSuccessCount === 0) {
+      setNotificationType('error');
+      setShowNotification(true);
+      setTimeout(() => setShowNotification(false), 5000);
+    }
+
+    console.log('🔄 Refreshing documents after upload...');
+    await refreshAll();
+    console.log(`✅ Upload complete: ${totalSuccessCount} succeeded, ${totalFailureCount} failed`);
 
     setIsUploading(false);
 
@@ -467,18 +415,16 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       onUploadComplete();
     }
 
-    // Check if there were any failures
+    // Check for failures and auto-close
     const hasFailures = uploadingFiles.some(f => f.status === 'failed');
-
-    // Only auto-close if all uploads succeeded
     if (!hasFailures) {
-      // Wait 2 seconds to let user see success, then close
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setUploadingFiles([]);
-      setFolderUploadProgress(null);
-      onClose();
+      // Short delay to show success, then close
+      setTimeout(() => {
+        setUploadingFiles([]);
+        setFolderUploadProgress(null);
+        onClose();
+      }, 1000);
     }
-    // If there were failures, keep modal open so user can review errors
   };
 
   const handleCancel = () => {
