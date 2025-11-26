@@ -367,6 +367,28 @@ export const DocumentsProvider = ({ children }) => {
     }
   }, [initialized, fetchAllData]);
 
+  // ✅ FIX: Flag to pause auto-refresh during file selection/upload
+  const pauseAutoRefreshRef = useRef(false);
+
+  // Function to pause auto-refresh (call this when opening file picker)
+  const pauseAutoRefresh = useCallback(() => {
+    console.log('⏸️ [Auto-Refresh] Pausing auto-refresh for file selection');
+    pauseAutoRefreshRef.current = true;
+    // Auto-resume after 10 seconds in case something goes wrong
+    setTimeout(() => {
+      if (pauseAutoRefreshRef.current) {
+        console.log('⏸️ [Auto-Refresh] Auto-resuming after 10s timeout');
+        pauseAutoRefreshRef.current = false;
+      }
+    }, 10000);
+  }, []);
+
+  // Function to resume auto-refresh (call this after file selection completes)
+  const resumeAutoRefresh = useCallback(() => {
+    console.log('▶️ [Auto-Refresh] Resuming auto-refresh');
+    pauseAutoRefreshRef.current = false;
+  }, []);
+
   // Auto-refresh data when window regains focus or becomes visible (with debounce)
   useEffect(() => {
     let refreshTimeout = null;
@@ -375,6 +397,12 @@ export const DocumentsProvider = ({ children }) => {
     const REFRESH_DELAY = 1000; // ⚡ FIX: Wait 1 second before refreshing to allow Supabase replication
 
     const debouncedRefresh = () => {
+      // ✅ FIX: Skip refresh if paused (during file selection)
+      if (pauseAutoRefreshRef.current) {
+        console.log('⏸️  Skipping refresh (paused for file selection)');
+        return;
+      }
+
       const now = Date.now();
       if (now - lastRefresh < REFRESH_COOLDOWN) {
         console.log('⏸️  Skipping refresh (too soon since last refresh)');
@@ -384,6 +412,11 @@ export const DocumentsProvider = ({ children }) => {
       // ⚡ FIX: Delay refresh to give Supabase time to replicate data
       if (refreshTimeout) clearTimeout(refreshTimeout);
       refreshTimeout = setTimeout(() => {
+        // Double-check pause state after delay
+        if (pauseAutoRefreshRef.current) {
+          console.log('⏸️  Skipping delayed refresh (paused for file selection)');
+          return;
+        }
         lastRefresh = Date.now();
         console.log('🔄 Refreshing data (after 1s delay)...');
         // ✅ OPTIMIZATION: Use batched endpoint for refresh
@@ -1415,7 +1448,11 @@ export const DocumentsProvider = ({ children }) => {
     fetchRecentDocuments,
     fetchAllData, // ✅ Expose fetchAllData for manual cache refresh
     refreshAll,
-    invalidateCache // ✅ Expose cache invalidation
+    invalidateCache, // ✅ Expose cache invalidation
+
+    // ✅ Auto-refresh control (for pausing during file selection)
+    pauseAutoRefresh,
+    resumeAutoRefresh
   };
 
   return (

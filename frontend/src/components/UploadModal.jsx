@@ -17,7 +17,7 @@ import folderIcon from '../assets/folder_icon.svg';
 
 const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
   // Get context functions for optimistic uploads
-  const { addDocument, moveToFolder, createFolder } = useDocuments();
+  const { addDocument, moveToFolder, createFolder, pauseAutoRefresh, resumeAutoRefresh } = useDocuments();
 
   const [uploadState, setUploadState] = useState('initial'); // 'initial', 'uploading', 'complete'
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -30,6 +30,10 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
 
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files);
+
+    // ✅ Resume auto-refresh after file picker closes (even if no files selected)
+    resumeAutoRefresh();
+
     if (files.length === 0) return;
 
     console.log('Files selected:', files);
@@ -152,6 +156,8 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
   };
 
   const handleClose = () => {
+    // ✅ Resume auto-refresh when modal closes
+    resumeAutoRefresh();
     setUploadState('initial');
     setSelectedFiles([]);
     setUploadProgress({});
@@ -396,6 +402,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    pauseAutoRefresh(); // ✅ Pause auto-refresh while file picker is open
                     fileInputRef.current?.click();
                   }}
                   style={{
@@ -428,6 +435,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    pauseAutoRefresh(); // ✅ Pause auto-refresh while folder picker is open
                     folderInputRef.current?.click();
                   }}
                   style={{
@@ -585,6 +593,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    pauseAutoRefresh(); // ✅ Pause auto-refresh while file picker is open
                     fileInputRef.current?.click();
                   }}
                   style={{
