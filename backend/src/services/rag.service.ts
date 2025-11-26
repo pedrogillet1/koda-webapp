@@ -28,6 +28,179 @@ import * as memoryExtraction from './memoryExtraction.service';
 import * as citationTracking from './citation-tracking.service';
 import ErrorMessagesService from './errorMessages.service';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ✅ FIX #10: Better Error Messages - Custom Error Types
+// ═══════════════════════════════════════════════════════════════════════════
+// REASON: Generic error messages don't help users understand what went wrong
+// WHY: Users need specific errors and clear actions to recover
+// HOW: Custom error types with user-friendly messages and suggestions
+// IMPACT: Reduced support requests, better UX
+
+/**
+ * Custom error types for RAG system
+ */
+export class RAGError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public statusCode: number,
+    public suggestion: string,
+    public retryable: boolean = false
+  ) {
+    super(message);
+    this.name = 'RAGError';
+  }
+}
+
+/**
+ * Document not found error
+ */
+export class DocumentNotFoundError extends RAGError {
+  constructor(documentId: string) {
+    super(
+      `Document not found: ${documentId}`,
+      'DOCUMENT_NOT_FOUND',
+      404,
+      'The document may have been deleted. Try refreshing the page or selecting a different document.',
+      false
+    );
+  }
+}
+
+/**
+ * Rate limit exceeded error
+ */
+export class RateLimitError extends RAGError {
+  constructor(retryAfter: number = 60) {
+    super(
+      'Rate limit exceeded',
+      'RATE_LIMIT_EXCEEDED',
+      429,
+      `Too many requests. Please wait ${retryAfter} seconds and try again.`,
+      true
+    );
+  }
+}
+
+/**
+ * API quota exceeded error
+ */
+export class QuotaExceededError extends RAGError {
+  constructor(service: string) {
+    super(
+      `${service} API quota exceeded`,
+      'QUOTA_EXCEEDED',
+      402,
+      `Your ${service} API quota has been exceeded. Please upgrade your plan or wait until your quota resets.`,
+      false
+    );
+  }
+}
+
+/**
+ * Invalid query error
+ */
+export class InvalidQueryError extends RAGError {
+  constructor(reason: string) {
+    super(
+      `Invalid query: ${reason}`,
+      'INVALID_QUERY',
+      400,
+      'Please rephrase your query and try again. Make sure your query is clear and specific.',
+      false
+    );
+  }
+}
+
+/**
+ * Network error
+ */
+export class NetworkError extends RAGError {
+  constructor(service: string) {
+    super(
+      `Network error connecting to ${service}`,
+      'NETWORK_ERROR',
+      503,
+      'Unable to connect to external service. Please check your internet connection and try again.',
+      true
+    );
+  }
+}
+
+/**
+ * Server error
+ */
+export class ServerError extends RAGError {
+  constructor(message: string) {
+    super(
+      `Server error: ${message}`,
+      'SERVER_ERROR',
+      500,
+      'An unexpected error occurred. Please try again. If the problem persists, contact support.',
+      true
+    );
+  }
+}
+
+/**
+ * Convert generic error to RAGError with user-friendly message
+ */
+export function toRAGError(error: any): RAGError {
+  // Already a RAGError
+  if (error instanceof RAGError) {
+    return error;
+  }
+
+  // Axios error (API call failed)
+  if (error.response) {
+    const status = error.response.status;
+    const message = error.response.data?.error || error.message;
+
+    switch (status) {
+      case 404:
+        return new DocumentNotFoundError(message);
+      case 429:
+        const retryAfter = parseInt(error.response.headers?.['retry-after']) || 60;
+        return new RateLimitError(retryAfter);
+      case 402:
+        return new QuotaExceededError('API');
+      case 400:
+        return new InvalidQueryError(message);
+      case 503:
+        return new NetworkError('API');
+      default:
+        return new ServerError(message);
+    }
+  }
+
+  // Network error (no response)
+  if (error.request) {
+    return new NetworkError('server');
+  }
+
+  // Gemini/Pinecone specific errors
+  const errorMessage = error.message || String(error);
+
+  if (errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+    return new QuotaExceededError('Gemini');
+  }
+
+  if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+    return new RateLimitError(60);
+  }
+
+  if (errorMessage.includes('not found') || errorMessage.includes('404')) {
+    return new DocumentNotFoundError(errorMessage);
+  }
+
+  if (errorMessage.includes('network') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ETIMEDOUT')) {
+    return new NetworkError('external service');
+  }
+
+  // Generic error
+  return new ServerError(error.message || 'Unknown error');
+}
+
 // ════════════════════════════════════════════════════════════════════════════════
 // INTENT DETECTION CACHE (5min TTL)
 // ════════════════════════════════════════════════════════════════════════════════
@@ -1472,7 +1645,7 @@ export async function generateAnswerStream(
   query: string,
   conversationId: string,
   onChunk: (chunk: string) => void,
-  attachedDocumentId?: string,
+  attachedDocumentId?: string | string[],  // ✅ FIX #8: Accept array for multi-document support
   conversationHistory?: Array<{ role: string; content: string }>,
   onStage?: (stage: string, message: string) => void,
   memoryContext?: string,
@@ -3328,10 +3501,45 @@ async function handleRegularQuery(
 
   console.log(`⚡ [SPEED] Query complexity analysis DISABLED (saved ~1000ms)`);
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ✅ FIX #8: Multi-Document Filtering
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REASON: Support querying across multiple attached documents
+  // WHY: Enables document comparison and cross-document analysis
+  // HOW: Use Pinecone $in operator for multiple document IDs
+  // IMPACT: Users can compare documents, analyze across multiple files
+  //
+  // BEFORE (single document):
+  // filter = { userId: "user123", documentId: "doc1" }
+  // Pinecone searches: Only doc1
+  //
+  // AFTER (multiple documents):
+  // filter = { userId: "user123", documentId: { $in: ["doc1", "doc2", "doc3"] } }
+  // Pinecone searches: doc1, doc2, doc3
+
   // Build search filter (shared across all paths)
   let filter: any = { userId };
+
   if (attachedDocumentId) {
-    filter.documentId = attachedDocumentId;
+    // Handle both single document ID and array of document IDs
+    if (Array.isArray(attachedDocumentId)) {
+      if (attachedDocumentId.length === 1) {
+        // Single document in array - use direct equality
+        filter.documentId = attachedDocumentId[0];
+        console.log(`🔍 [FILTER] Searching in 1 attached document: ${attachedDocumentId[0]}`);
+      } else if (attachedDocumentId.length > 1) {
+        // Multiple documents - use $in operator
+        filter.documentId = { $in: attachedDocumentId };
+        console.log(`🔍 [FILTER] Searching in ${attachedDocumentId.length} attached documents:`, attachedDocumentId);
+      }
+      // else: empty array, search all documents (no filter)
+    } else {
+      // Single document ID (string) - backward compatibility
+      filter.documentId = attachedDocumentId;
+      console.log(`🔍 [FILTER] Searching in 1 attached document: ${attachedDocumentId}`);
+    }
+  } else {
+    console.log(`🔍 [FILTER] Searching across all user documents`);
   }
 
   let searchResults;
@@ -4024,6 +4232,21 @@ async function handleRegularQuery(
       .map(doc => `- "${doc.filename}" is located in: ${doc.folderPath}`)
       .join('\n');
 
+    // ✅ FIX #8: Multi-document comparison instruction
+    const documentCount = uniqueDocuments.size;
+    let multiDocInstruction = '';
+    if (documentCount > 1) {
+      multiDocInstruction = `
+**IMPORTANT - MULTI-DOCUMENT QUERY**: The user has attached ${documentCount} documents. When comparing or analyzing across documents:
+1. Clearly identify which information comes from which document
+2. Use document names when presenting data (e.g., "In Q1 Budget: $1.2M, In Q2 Budget: $1.5M")
+3. Highlight similarities and differences between documents
+4. Provide a summary comparison if the query asks for it
+
+`;
+      console.log(`🔀 [MULTI-DOC] Added comparison instructions for ${documentCount} documents`);
+    }
+
     const context = rerankedChunks.map((result: any, idx: number) => {
       const meta = result.metadata || {};
       const documentId = meta.documentId || 'unknown';
@@ -4060,9 +4283,12 @@ async function handleRegularQuery(
     }
 
     // ✅ NEW: Choose context based on query complexity and document availability
-    const finalDocumentContext = (documentContext && fullDocuments.length > 0)
+    const baseDocumentContext = (documentContext && fullDocuments.length > 0)
       ? documentContext
       : context; // FIX: Use context variable which has proper text extraction
+
+    // ✅ FIX #8: Prepend multi-document instruction if multiple documents
+    const finalDocumentContext = multiDocInstruction + baseDocumentContext;
 
     console.log(`📝 [PROMPT] Using ${complexity} complexity prompt with ${documentContext && fullDocuments.length > 0 ? 'full documents' : 'chunks'}`);
     console.log(`🔍 [DEBUG] finalDocumentContext length: ${finalDocumentContext.length}`);
@@ -4649,7 +4875,7 @@ export async function generateAnswer(
   query: string,
   conversationId: string,
   answerLength: 'short' | 'medium' | 'summary' | 'long' = 'medium',
-  attachedDocumentId?: string,
+  attachedDocumentId?: string | string[],  // ✅ FIX #8: Accept array for multi-document support
   conversationHistory?: Array<{ role: string; content: string }>,
   isFirstMessage?: boolean  // ✅ NEW: Flag to control greeting logic
 ): Promise<{ answer: string; sources: any[] }> {
