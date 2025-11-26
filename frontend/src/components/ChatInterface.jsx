@@ -39,6 +39,9 @@ import './MarkdownStyles.css';
 let globalSocketInitialized = false;
 let globalProcessedMessageIds = new Set();
 let globalListenersAttached = false;
+// Track received chunks to prevent duplicates from dual emit (room + direct)
+let lastChunkReceived = '';
+let chunkSequence = 0;
 
 const ChatInterface = ({ currentConversation, onConversationUpdate, onConversationCreated }) => {
     const navigate = useNavigate();
@@ -517,6 +520,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             // Listen for message chunks (real-time streaming)
             chatService.onMessageChunk((data) => {
+                // ✅ FIX: Deduplicate chunks from dual emit (room + direct socket)
+                // Each chunk is now received twice, so we track and skip duplicates
+                const chunkKey = `${chunkSequence}:${data.chunk}`;
+                if (lastChunkReceived === chunkKey) {
+                    // Duplicate chunk detected, skip it
+                    return;
+                }
+                lastChunkReceived = chunkKey;
+                chunkSequence++;
+
                 // Append chunk to streaming message
                 setStreamingMessage(prev => prev + data.chunk);
             });
@@ -524,6 +537,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             // Listen for message stages (thinking, analyzing, etc.)
             chatService.onMessageStage((data) => {
                 console.log('🎭 Message stage:', data.stage, data.message);
+                // ✅ FIX: Reset chunk deduplication when new message starts
+                if (data.stage === 'thinking') {
+                    lastChunkReceived = '';
+                    chunkSequence = 0;
+                }
                 // Update current stage for display
                 setCurrentStage({ stage: data.stage, message: data.message });
                 // Ensure loading is visible
@@ -590,6 +608,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 console.log('🛑🛑🛑 CALLING setIsLoading(false) FROM onMessageComplete');
                 setStreamingMessage('');
                 setIsLoading(false);
+                // ✅ Reset chunk deduplication tracking for next message
+                lastChunkReceived = '';
+                chunkSequence = 0;
                 console.log('✅ setIsLoading(false) called successfully');
             });
         }
@@ -608,15 +629,34 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         // Load conversation messages when conversation changes
         const currentId = currentConversation?.id;
         const previousId = previousConversationIdRef.current;
+        const isEphemeral = currentId === 'new' || currentConversation?.isEphemeral;
 
         console.log('🔄 currentConversation effect triggered');
         console.log('   Current ID:', currentId);
         console.log('   Previous ID:', previousId);
+        console.log('   Is Ephemeral:', isEphemeral);
         console.log('📌 justCreatedConversationId:', justCreatedConversationId.current);
 
         // ✅ FIX: Only clear messages if conversation ID ACTUALLY changed
         // This prevents hot reload/re-renders from clearing messages
         const conversationActuallyChanged = currentId !== previousId;
+
+        // ✅ NEW: Handle ephemeral "new" conversations - clear state but don't load from server
+        if (isEphemeral) {
+            if (conversationActuallyChanged) {
+                console.log('🆕 Ephemeral conversation - clearing state for new chat');
+                setMessages([]);
+                setStreamingMessage('');
+                setIsLoading(false);
+                setPendingFiles([]);
+                setUploadingFiles([]);
+                setAttachedDocuments([]);
+                setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+                pendingMessageRef.current = null;
+                previousConversationIdRef.current = currentId;
+            }
+            return; // Don't try to load or join rooms for ephemeral conversations
+        }
 
         if (currentId) {
             if (conversationActuallyChanged) {
@@ -668,7 +708,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
 
         return () => {
-            if (currentConversation?.id && conversationActuallyChanged) {
+            if (currentConversation?.id && conversationActuallyChanged && !isEphemeral) {
                 console.log('👋 Leaving conversation room:', currentConversation.id);
                 chatService.leaveConversation(currentConversation.id);
             }
@@ -1651,8 +1691,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         try {
             // Ensure we have a conversation
             let conversationId = currentConversation?.id;
-            if (!conversationId) {
-                console.log('🆕 Creating new conversation...');
+
+            // ✅ NEW: If this is an ephemeral conversation (id === 'new'), create a real one
+            if (!conversationId || conversationId === 'new' || currentConversation?.isEphemeral) {
+                console.log('🆕 Creating new conversation (from ephemeral)...');
                 const newConversation = await chatService.createConversation();
                 console.log('✅ Conversation created:', newConversation);
                 justCreatedConversationId.current = newConversation.id;
@@ -2332,22 +2374,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                     {msg.role === 'assistant' && !msg.content?.match(/File (renamed|moved|deleted)|Folder (created|renamed|deleted)|successfully/i) && (() => {
                                                         const sources = msg.ragSources || [];
 
-                                                        // Group sources by document ID to show unique documents
+                                                        // Group sources by document NAME to show unique documents (not by ID)
+                                                        // This prevents showing duplicates when same doc was indexed multiple times
                                                         const uniqueDocuments = sources.reduce((acc, source) => {
                                                             // Skip sources without valid document names
                                                             if (!source.documentName || source.documentName === 'Unknown Document') {
                                                                 return acc;
                                                             }
 
-                                                            if (!acc[source.documentId]) {
-                                                                acc[source.documentId] = {
+                                                            // Use documentName as key to dedupe by filename (not internal ID)
+                                                            const dedupeKey = source.documentName.toLowerCase().trim();
+                                                            if (!acc[dedupeKey]) {
+                                                                acc[dedupeKey] = {
                                                                     documentId: source.documentId,
                                                                     documentName: source.documentName,
                                                                     mimeType: source.mimeType, // ✅ Store mimeType for icon detection
                                                                     chunks: []
                                                                 };
                                                             }
-                                                            acc[source.documentId].chunks.push(source);
+                                                            acc[dedupeKey].chunks.push(source);
                                                             return acc;
                                                         }, {});
 

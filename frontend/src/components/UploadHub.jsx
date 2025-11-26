@@ -793,22 +793,30 @@ const UploadHub = () => {
         console.log('📁 DEBUG: item.files sample:', item.files?.[0]);
 
         // ✅ FIX: Handle both File objects (drag-and-drop) and wrapped objects (legacy)
-        const files = item.files.map(fileOrWrapper => {
+        const files = item.files.map((fileOrWrapper, idx) => {
           // Check if it's already a File object with webkitRelativePath (drag-and-drop)
           if (fileOrWrapper instanceof File) {
             // File object from drag-and-drop - already has webkitRelativePath
+            console.log(`📄 File ${idx + 1}: "${fileOrWrapper.name}" - webkitRelativePath: ${fileOrWrapper.webkitRelativePath || 'MISSING'}`);
             return fileOrWrapper;
           }
 
           // Legacy wrapped structure: {file: File, relativePath: "..."}
           if (fileOrWrapper.file) {
             const file = fileOrWrapper.file;
+            console.log(`📄 File ${idx + 1}: "${file.name}" - wrapped structure`);
+            console.log(`   - Has webkitRelativePath: ${!!file.webkitRelativePath}`);
+            console.log(`   - Has relativePath: ${!!fileOrWrapper.relativePath}`);
+            console.log(`   - relativePath value: ${fileOrWrapper.relativePath}`);
+
             // Attach webkitRelativePath if not already present
             if (!file.webkitRelativePath && fileOrWrapper.relativePath) {
               Object.defineProperty(file, 'webkitRelativePath', {
                 value: fileOrWrapper.relativePath,
-                writable: false
+                writable: false,
+                enumerable: true  // ✅ CRITICAL FIX: Make it enumerable so it's sent in API requests
               });
+              console.log(`   ✅ Added webkitRelativePath: ${file.webkitRelativePath}`);
             }
             return file;
           }
@@ -820,6 +828,16 @@ const UploadHub = () => {
 
         console.log('📁 DEBUG: Processed files length:', files?.length);
         console.log('📁 DEBUG: First processed file:', files?.[0]);
+        console.log('📁 DEBUG: First file webkitRelativePath:', files?.[0]?.webkitRelativePath);
+
+        // ✅ VERIFICATION: Check that all files have webkitRelativePath
+        const filesWithPath = files.filter(f => f.webkitRelativePath);
+        const filesWithoutPath = files.filter(f => !f.webkitRelativePath);
+        console.log(`📊 Files with webkitRelativePath: ${filesWithPath.length}/${files.length}`);
+        if (filesWithoutPath.length > 0) {
+          console.error(`❌ ${filesWithoutPath.length} files MISSING webkitRelativePath:`);
+          filesWithoutPath.forEach(f => console.error(`   - ${f.name}`));
+        }
 
         // ✅ OPTIMIZATION: Use presigned URLs for direct-to-S3 upload
         presignedUploadService.uploadFolder(files, null, (progress, fileName, stage) => {

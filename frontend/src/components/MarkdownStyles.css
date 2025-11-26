@@ -161,6 +161,15 @@
   font-size: 0.95rem;
   background: white;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
+  table-layout: fixed;
+}
+
+/* Equal column widths with table-layout: fixed */
+.markdown-table th,
+.markdown-table td {
+  width: auto;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .markdown-table thead {

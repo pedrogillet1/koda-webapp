@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
 import { ReactComponent as TrashIcon } from '../assets/Trash can.svg';
 import { ReactComponent as PencilIcon } from '../assets/pencil-ai.svg';
@@ -26,6 +26,9 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     const [isExpanded, setIsExpanded] = useState(false);
     const [showSearchModal, setShowSearchModal] = useState(false);
 
+    // ✅ NEW: Track if we should show the ephemeral "New Chat" placeholder
+    const [showNewChatPlaceholder, setShowNewChatPlaceholder] = useState(true);
+
     // Track if initial load is complete
     const initialLoadCompleteRef = useRef(false);
     // Track conversation IDs we just added via handleNewChat to prevent useEffect duplicates
@@ -43,6 +46,12 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     // This runs when currentConversation changes
     // Uses functional update to avoid needing conversations in dependency array
     useEffect(() => {
+        // Skip ephemeral conversations (id === 'new')
+        if (currentConversation?.id === 'new' || currentConversation?.isEphemeral) {
+            console.log('⏭️ [ChatHistory] Skipping useEffect - ephemeral conversation');
+            return;
+        }
+
         // Skip if this conversation was just added by handleNewChat
         if (currentConversation?.id && justAddedIdRef.current === currentConversation.id) {
             console.log('⏭️ [ChatHistory] Skipping useEffect - conversation just added by handleNewChat:', currentConversation.id);
@@ -199,34 +208,22 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     };
 
     const handleNewChat = async () => {
-        console.log('🔵 [ChatHistory] Creating new conversation via API...');
+        console.log('🔵 [ChatHistory] Creating new chat placeholder...');
 
-        try {
-            const newConversation = await chatService.createConversation();
-            console.log('✅ [ChatHistory] New chat created from API:', newConversation.id);
+        // ✅ NEW: Show the ephemeral placeholder (no API call yet)
+        setShowNewChatPlaceholder(true);
 
-            // Mark this ID so useEffect won't duplicate it
-            justAddedIdRef.current = newConversation.id;
+        // Create ephemeral conversation object
+        const ephemeralConversation = {
+            id: 'new',
+            title: 'New Chat',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            isEphemeral: true // Mark as ephemeral
+        };
 
-            // Add to conversations list
-            setConversations(prevConversations => {
-                // Check if already exists (avoid duplicates)
-                const exists = prevConversations.some(c => c.id === newConversation.id);
-                if (exists) {
-                    console.log('⚠️ Conversation already in list, skipping');
-                    return prevConversations;
-                }
-
-                const updated = [newConversation, ...prevConversations];
-                sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
-                return updated;
-            });
-
-            // Notify parent component
-            onNewChat?.(newConversation);
-        } catch (error) {
-            console.error('❌ [ChatHistory] Error creating conversation:', error);
-        }
+        // Notify parent component to switch to new chat
+        onNewChat?.(ephemeralConversation);
     };
 
     const handleDeleteAll = async () => {
@@ -284,7 +281,37 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
         }
     };
 
-    const groupConversationsByDate = () => {
+    // ✅ NEW: Handle selecting a conversation - hide placeholder when selecting existing chat
+    const handleSelectConversation = (conversation) => {
+        console.log('📌 [ChatHistory] Selecting conversation:', conversation.id);
+
+        // Hide placeholder when selecting an existing chat (not the ephemeral 'new' one)
+        if (conversation.id !== 'new') {
+            setShowNewChatPlaceholder(false);
+        }
+
+        onSelectConversation?.(conversation);
+    };
+
+    // ✅ NEW: Build display list with ephemeral placeholder if needed
+    const displayConversations = useMemo(() => {
+        const list = [...conversations];
+
+        // Add ephemeral "New Chat" at the top if it should be shown
+        if (showNewChatPlaceholder && currentConversation?.id === 'new') {
+            list.unshift({
+                id: 'new',
+                title: 'New Chat',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                isEphemeral: true
+            });
+        }
+
+        return list;
+    }, [conversations, showNewChatPlaceholder, currentConversation?.id]);
+
+    const groupConversationsByDate = (convList) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -301,7 +328,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
             Older: [],
         };
 
-        conversations
+        convList
             .filter((conv) => {
                 // ✅ SHOW empty conversations (they'll be cleaned up when user navigates away)
                 // Only filter by search query
@@ -329,7 +356,10 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
         return grouped;
     };
 
-    const groupedConversations = groupConversationsByDate();
+    // ✅ NEW: Use displayConversations (includes ephemeral placeholder) for grouping
+    const groupedConversations = useMemo(() => {
+        return groupConversationsByDate(displayConversations);
+    }, [displayConversations, searchQuery]);
 
     // Add custom scrollbar styles
     const scrollbarStyles = `
@@ -502,7 +532,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                                         <div
                                             key={convo.id}
                                             onClick={() => {
-                                                onSelectConversation?.(convo);
+                                                handleSelectConversation(convo);
                                                 setShowSearchModal(false);
                                             }}
                                             style={{
@@ -545,7 +575,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                             </div>
                         );
                     })}
-                    {conversations.length === 0 && (
+                    {displayConversations.length === 0 && (
                         <div style={{
                             textAlign: 'center',
                             color: '#6C6B6E',
@@ -719,10 +749,13 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                                 {list.map((convo) => (
                                     <div
                                         key={convo.id}
-                                        onClick={() => onSelectConversation?.(convo)}
+                                        onClick={() => handleSelectConversation(convo)}
                                         onMouseEnter={() => {
                                             setHoveredConversation(convo.id);
-                                            preloadConversation(convo.id);
+                                            // Don't preload ephemeral conversations
+                                            if (convo.id !== 'new') {
+                                                preloadConversation(convo.id);
+                                            }
                                         }}
                                         onMouseLeave={() => setHoveredConversation(null)}
                                         style={{
@@ -743,7 +776,8 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                                         <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {convo.title || 'New Chat'}
                                         </div>
-                                        {hoveredConversation === convo.id && (
+                                        {/* Don't show delete button for ephemeral conversations */}
+                                        {hoveredConversation === convo.id && convo.id !== 'new' && (
                                             <div
                                                 onClick={(e) => handleDeleteConversation(convo.id, e)}
                                                 style={{
@@ -772,7 +806,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                         </div>
                     );
                 })}
-                {conversations.length === 0 && (
+                {displayConversations.length === 0 && (
                     <div style={{textAlign: 'center', color: '#6C6B6E', fontSize: 14, marginTop: 20}}>
                         No conversations yet. Start a new chat!
                     </div>
@@ -780,6 +814,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
             </div>
             )}
 
+            {/* Only show Delete All if there are real conversations (not just ephemeral) */}
             {isExpanded && conversations.length > 0 && (
                 <div
                     onClick={handleDeleteAll}

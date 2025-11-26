@@ -57,10 +57,13 @@ class PostProcessorService {
     // Step 4: Remove emoji
     cleaned = this.removeEmoji(cleaned);
 
-    // Step 5: Clean up markdown
+    // Step 5: Repair broken markdown tables (line breaks inside cells)
+    cleaned = this.repairMarkdownTables(cleaned);
+
+    // Step 6: Clean up markdown
     cleaned = this.cleanMarkdown(cleaned);
 
-    // Step 6: Add sources section at bottom (ChatGPT style)
+    // Step 7: Add sources section at bottom (ChatGPT style)
     if (sources && sources.length > 0) {
       cleaned = this.addSourcesSection(cleaned, sources);
     }
@@ -211,24 +214,98 @@ class PostProcessorService {
   }
 
   /**
+   * Repair broken markdown tables where LLM inserted line breaks inside cells
+   *
+   * PROBLEM: LLM generates tables like:
+   * | Aspect | sample_financial_report.pdf | sample_legal_contract.pdf |
+   * |--------|
+   * -----------------------------|---------------------------|
+   * | Document Type | Financial Report | Commercial Lease Agreement |
+   *
+   * SOLUTION: Merge lines that are part of incomplete table rows
+   */
+  private repairMarkdownTables(text: string): string {
+    const lines = text.split('\n');
+    const repairedLines: string[] = [];
+    let pendingTableRow = '';
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
+
+      // Check if this line starts a table row (starts with |)
+      const startsWithPipe = trimmedLine.startsWith('|');
+      // Check if this line ends a table row (ends with |)
+      const endsWithPipe = trimmedLine.endsWith('|');
+      // Check if this is a separator line (|---|---|)
+      const isSeparator = /^\|[\s\-:]+\|/.test(trimmedLine) || /^[\-:]+\|/.test(trimmedLine);
+
+      // If we have a pending incomplete row
+      if (pendingTableRow) {
+        // If this line looks like a continuation (contains | or is a separator fragment)
+        if (trimmedLine.includes('|') || /^[\-:]+$/.test(trimmedLine)) {
+          // Merge with pending row
+          pendingTableRow += trimmedLine;
+
+          // Check if row is now complete
+          if (pendingTableRow.endsWith('|')) {
+            repairedLines.push(pendingTableRow);
+            pendingTableRow = '';
+          }
+        } else {
+          // Not a continuation, push pending row (even if incomplete) and this line
+          repairedLines.push(pendingTableRow);
+          pendingTableRow = '';
+          repairedLines.push(line);
+        }
+      } else if (startsWithPipe && !endsWithPipe && !isSeparator) {
+        // Start of a potentially broken table row
+        pendingTableRow = trimmedLine;
+      } else {
+        // Normal line or complete table row
+        repairedLines.push(line);
+      }
+    }
+
+    // Don't forget any remaining pending row
+    if (pendingTableRow) {
+      repairedLines.push(pendingTableRow);
+    }
+
+    return repairedLines.join('\n');
+  }
+
+  /**
    * Clean up markdown formatting issues
    *
    * FIXES:
    * - Extra asterisks: **text** ** → **text**
    * - Broken lists: •Item → • Item
    * - Inconsistent bullet points: - vs • vs *
+   * - TABLE-AWARE: Skips bullet conversions for table rows (lines with |)
    */
   private cleanMarkdown(text: string): string {
     // Fix broken bold: ** ** → (empty)
     text = text.replace(/\*\*\s+\*\*/g, '');
 
-    // Fix space after bullet points
-    text = text.replace(/^([•\-\*])\s*/gm, '• ');
+    // TABLE-AWARE: Process lines individually to preserve markdown tables
+    const lines = text.split('\n');
+    const processedLines = lines.map(line => {
+      // If line contains a pipe character, it's likely a table row - don't touch it
+      if (line.includes('|')) {
+        return line;
+      }
 
-    // Ensure consistent bullet points (use •)
-    text = text.replace(/^[\-\*]\s/gm, '• ');
+      // Fix space after bullet points
+      let processed = line.replace(/^([•\-\*])\s*/gm, '• ');
 
-    return text;
+      // Ensure consistent bullet points (use •)
+      processed = processed.replace(/^[\-\*]\s/gm, '• ');
+
+      return processed;
+    });
+
+    return processedLines.join('\n');
   }
 
   /**
