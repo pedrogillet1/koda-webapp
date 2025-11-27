@@ -215,14 +215,14 @@ const LeftNav = ({ onNotificationClick }) => {
     return (
         <div style={{width: isExpanded ? 205 : 84, height: '100%', background: '#181818', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: isExpanded ? 'flex-start' : 'center', padding: `${spacing.xl} 0`, transition: 'width 0.3s ease'}}>
             {/* Top Icons */}
-            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: spacing.md, width: '100%', paddingLeft: isExpanded ? spacing.xl : 0, paddingRight: isExpanded ? spacing.xl : 0}}>
+            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: spacing.md, width: '100%', paddingLeft: isExpanded ? spacing.xl : spacing.md, paddingRight: isExpanded ? spacing.xl : spacing.md}}>
                 <div style={{paddingBottom: spacing.md, borderBottom: '1px solid rgba(255, 255, 255, 0.20)', display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', width: '100%'}}>
                     <div onClick={() => navigate('/home')} style={{display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', cursor: 'pointer', marginLeft: isExpanded ? spacing.sm : 0}}>
                         <img style={{height: 80}} src={kodaLogoWhite} alt="KODA Logo" />
                     </div>
                 </div>
                 <div style={{display: 'flex', flexDirection: 'column', gap: spacing.lg, width: '100%', alignItems: isExpanded ? 'flex-start' : 'center'}}>
-                    <div onClick={() => navigate('/home')} style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/home' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center'}}>
+                    <div onClick={() => navigate('/home')} style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/home' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center', transition: 'background 0.2s ease, transform 0.2s ease'}} onMouseEnter={(e) => { if (location.pathname !== '/home') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { if (location.pathname !== '/home') e.currentTarget.style.background = 'transparent'; }}>
                         {location.pathname === '/home' ? (
                             <HouseFilledIcon style={{width: 20, height: 20}} />
                         ) : (
@@ -232,8 +232,9 @@ const LeftNav = ({ onNotificationClick }) => {
                     </div>
                     <div
                         onClick={() => navigate('/documents')}
-                        onMouseEnter={handleDocumentsHover}
-                        style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/documents' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center'}}
+                        onMouseEnter={(e) => { handleDocumentsHover(); if (location.pathname !== '/documents') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }}
+                        onMouseLeave={(e) => { if (location.pathname !== '/documents') e.currentTarget.style.background = 'transparent'; }}
+                        style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/documents' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center', transition: 'background 0.2s ease, transform 0.2s ease'}}
                     >
                         {location.pathname === '/documents' ? (
                             <Folder1FilledIcon style={{width: 20, height: 20}} />
@@ -242,7 +243,7 @@ const LeftNav = ({ onNotificationClick }) => {
                         )}
                         {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Documents</span>}
                     </div>
-                    <div onClick={() => navigate('/chat')} style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/chat' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center'}}>
+                    <div onClick={() => navigate('/chat')} style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/chat' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center', transition: 'background 0.2s ease, transform 0.2s ease'}} onMouseEnter={(e) => { if (location.pathname !== '/chat') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { if (location.pathname !== '/chat') e.currentTarget.style.background = 'transparent'; }}>
                         {location.pathname === '/chat' ? (
                             <MessageFilledIcon style={{width: 20, height: 20, fill: 'white'}} />
                         ) : (
@@ -250,7 +251,7 @@ const LeftNav = ({ onNotificationClick }) => {
                         )}
                         {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Chat</span>}
                     </div>
-                    <div onClick={() => navigate('/upload-hub')} style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/upload-hub' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center'}}>
+                    <div onClick={() => navigate('/upload-hub')} style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/upload-hub' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center', transition: 'background 0.2s ease, transform 0.2s ease'}} onMouseEnter={(e) => { if (location.pathname !== '/upload-hub') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { if (location.pathname !== '/upload-hub') e.currentTarget.style.background = 'transparent'; }}>
                         {location.pathname === '/upload-hub' ? (
                             <UploadIcon style={{width: 20, height: 20, color: 'white'}} />
                         ) : (
@@ -262,8 +263,8 @@ const LeftNav = ({ onNotificationClick }) => {
             </div>
 
             {/* Bottom Icons */}
-            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: spacing.md, borderTop: '1px solid rgba(255, 255, 255, 0.20)', paddingTop: spacing.xl, width: '100%', paddingLeft: isExpanded ? spacing.xl : 0, paddingRight: isExpanded ? spacing.xl : 0}}>
-                <div onClick={onNotificationClick} style={{padding: spacing.sm, borderRadius: radius.lg, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36}}>
+            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: spacing.md, borderTop: '1px solid rgba(255, 255, 255, 0.20)', paddingTop: spacing.xl, width: '100%', paddingLeft: isExpanded ? spacing.xl : spacing.md, paddingRight: isExpanded ? spacing.xl : spacing.md}}>
+                <div onClick={onNotificationClick} style={{padding: spacing.sm, borderRadius: radius.lg, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36, transition: 'background 0.2s ease'}} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                     <div style={{position: 'relative', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                         <NotificationIcon style={{width: 20, height: 20}} />
                         {hasUnreadNotifications && (
@@ -272,7 +273,7 @@ const LeftNav = ({ onNotificationClick }) => {
                     </div>
                     {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Notifications</span>}
                 </div>
-                <div onClick={() => navigate('/settings')} style={{padding: spacing.sm, borderRadius: radius.lg, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36}}>
+                <div onClick={() => navigate('/settings')} style={{padding: spacing.sm, borderRadius: radius.lg, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36, transition: 'background 0.2s ease', background: location.pathname === '/settings' ? 'rgba(255, 255, 255, 0.10)' : 'transparent'}} onMouseEnter={(e) => { if (location.pathname !== '/settings') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { if (location.pathname !== '/settings') e.currentTarget.style.background = 'transparent'; }}>
                     <div style={{width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                         {location.pathname === '/settings' ? (
                             <SettingsFilledIcon style={{width: 20, height: 20, fill: 'white'}} />
@@ -284,7 +285,9 @@ const LeftNav = ({ onNotificationClick }) => {
                 </div>
                 <div
                     onClick={handleAuthButtonClick}
-                    style={{padding: spacing.sm, borderRadius: radius.lg, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36}}
+                    style={{padding: spacing.sm, borderRadius: radius.lg, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36, transition: 'background 0.2s ease'}}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
                     <div style={{width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                         <SignoutIcon style={{width: 20, height: 20, fill: 'white'}} />

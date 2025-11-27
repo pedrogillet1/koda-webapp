@@ -170,18 +170,20 @@ const CategoryCard = ({
           style={{
             width: '32px',
             height: '32px',
-            background: isMenuOpen ? colors.neutral[100] : colors.neutral[50],
+            background: 'transparent',
             borderRadius: '50%',
-            border: `1px solid ${colors.neutral[200]}`,
+            border: 'none',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
             flexShrink: 0,
-            transition: 'background 0.15s ease-out'
+            transition: 'transform 0.2s ease'
           }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
         >
-          <DotsIcon style={{ width: '16px', height: '16px' }} />
+          <DotsIcon style={{ width: '24px', height: '24px' }} />
         </button>
         {isMenuOpen && menuContent}
       </div>

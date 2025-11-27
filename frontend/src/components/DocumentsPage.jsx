@@ -18,6 +18,7 @@ import RenameModal from './RenameModal';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
 import { ReactComponent as LogoutBlackIcon } from '../assets/Logout-black.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can-red.svg';
+import { ReactComponent as TrashCanLightIcon } from '../assets/Trash can-light.svg';
 import { ReactComponent as EditIcon } from '../assets/Edit 5.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
@@ -495,7 +496,7 @@ const DocumentsPage = () => {
                     paddingRight: 18,
                     paddingTop: 10,
                     paddingBottom: 10,
-                    background: selectedDocuments.size === 0 ? '#F5F5F5' : '#DC2626',
+                    background: selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8',
                     boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
                     overflow: 'hidden',
                     borderRadius: 100,
@@ -507,16 +508,24 @@ const DocumentsPage = () => {
                     display: 'inline-flex',
                     border: 'none',
                     cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
-                    opacity: selectedDocuments.size === 0 ? 0.5 : 1,
+                    opacity: selectedDocuments.size === 0 ? 0.6 : 1,
                     transition: 'all 0.2s'
                   }}
+                  onMouseEnter={(e) => {
+                    if (selectedDocuments.size > 0) {
+                      e.currentTarget.style.background = '#D8D8DE';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8';
+                  }}
                 >
-                  <TrashCanIcon style={{ width: 16, height: 16, fill: selectedDocuments.size === 0 ? '#9CA3AF' : 'white' }} />
+                  <TrashCanLightIcon style={{ width: 18, height: 18 }} />
                   <div style={{
-                    color: selectedDocuments.size === 0 ? '#9CA3AF' : 'white',
+                    color: selectedDocuments.size === 0 ? '#A0A0A5' : '#181818',
                     fontSize: 16,
                     fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: '600',
+                    fontWeight: '500',
                     lineHeight: '24px',
                     wordWrap: 'break-word'
                   }}>
@@ -572,7 +581,7 @@ const DocumentsPage = () => {
                   fontWeight: '500',
                   lineHeight: '24px'
                 }}>
-                  ({selectedDocuments.size}) Selected
+                  {selectedDocuments.size} selected
                 </div>
 
                 {/* Close Button */}
@@ -584,17 +593,17 @@ const DocumentsPage = () => {
                   style={{
                     width: 32,
                     height: 32,
-                    background: 'white',
-                    border: '1px solid #E6E6EC',
+                    background: 'transparent',
+                    border: 'none',
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    transition: 'all 0.2s'
+                    transition: 'transform 0.2s ease'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
                   <CloseIcon style={{ width: 16, height: 16 }} />
                 </button>
@@ -747,7 +756,7 @@ const DocumentsPage = () => {
                   </div>
                 </button>
 
-                <div onClick={() => setShowUniversalUploadModal(true)} style={{height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'}}>
+                <div onClick={() => setShowUniversalUploadModal(true)} style={{height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', transition: 'transform 0.2s ease, box-shadow 0.2s ease'}} onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
                   <LogoutBlackIcon style={{width: 24, height: 24}} />
                   <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload a Document</div>
                 </div>
@@ -772,8 +781,9 @@ const DocumentsPage = () => {
                 gap: spacing.sm,
                 cursor: 'pointer',
                 height: 72,
-                boxSizing: 'border-box'
-              }}>
+                boxSizing: 'border-box',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+              }} onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
                 <div style={{width: 40, height: 40, background: colors.gray[100], borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                   <AddIcon style={{ width: 20, height: 20 }} />
                 </div>
@@ -843,7 +853,7 @@ const DocumentsPage = () => {
                     console.log('🔗 DocumentsPage - Navigating to:', `/folder/${category.id}`);
                     navigate(`/folder/${category.id}`);
                   }} style={{display: 'flex', alignItems: 'center', gap: spacing.sm, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
-                    <div style={{width: 40, height: 40, background: colors.gray[100], borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0}}>
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, flexShrink: 0}}>
                       <CategoryIcon emoji={category.emoji} />
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: spacing.xs, flex: 1, minWidth: 0}}>
@@ -874,17 +884,20 @@ const DocumentsPage = () => {
                       style={{
                         width: 28,
                         height: 28,
-                        background: '#F5F5F5',
+                        background: 'transparent',
                         borderRadius: '50%',
-                        border: '1px solid #E6E6EC',
+                        border: 'none',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        transition: 'transform 0.2s ease'
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                      onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                     >
-                      <DotsIcon style={{width: 16, height: 16}} />
+                      <DotsIcon style={{width: 24, height: 24}} />
                     </button>
                     {categoryMenuOpen === category.id && (
                       <div
@@ -1294,22 +1307,20 @@ const DocumentsPage = () => {
                         alignItems: 'center',
                         padding: '12px 16px',
                         borderRadius: 10,
-                        background: isSelectMode && isSelected(doc.id) ? '#111827' : 'white',
-                        border: isSelectMode && isSelected(doc.id) ? '1px solid #111827' : '1px solid #E6E6EC',
+                        background: isSelectMode && isSelected(doc.id) ? '#F3F3F5' : 'white',
+                        border: '1px solid #E6E6EC',
                         cursor: isSelectMode ? 'pointer' : 'pointer',
-                        transition: 'all 0.2s ease'
+                        transition: 'background 0.2s ease'
                       }}
                       onMouseEnter={(e) => {
-                        if (!isSelectMode || !isSelected(doc.id)) {
-                          e.currentTarget.style.background = '#F9F9F9';
+                        if (isSelectMode && isSelected(doc.id)) {
+                          e.currentTarget.style.background = '#E8E8EC';
+                        } else {
+                          e.currentTarget.style.background = '#F7F7F9';
                         }
                       }}
                       onMouseLeave={(e) => {
-                        if (!isSelectMode) {
-                          e.currentTarget.style.background = 'white';
-                        } else if (!isSelected(doc.id)) {
-                          e.currentTarget.style.background = 'white';
-                        }
+                        e.currentTarget.style.background = isSelectMode && isSelected(doc.id) ? '#F3F3F5' : 'white';
                       }}
                     >
                       {/* Name Column */}
@@ -1326,7 +1337,7 @@ const DocumentsPage = () => {
                           }}
                         />
                         <div style={{
-                          color: isSelectMode && isSelected(doc.id) ? 'white' : '#32302C',
+                          color: '#32302C',
                           fontSize: 14,
                           fontFamily: 'Plus Jakarta Sans',
                           fontWeight: '600',
@@ -1339,7 +1350,7 @@ const DocumentsPage = () => {
                       </div>
                       {/* Type Column */}
                       <div style={{
-                        color: isSelectMode && isSelected(doc.id) ? '#D1D5DB' : '#6C6B6E',
+                        color: '#6C6B6E',
                         fontSize: 13,
                         fontFamily: 'Plus Jakarta Sans'
                       }}>
@@ -1347,7 +1358,7 @@ const DocumentsPage = () => {
                       </div>
                       {/* Size Column */}
                       <div style={{
-                        color: isSelectMode && isSelected(doc.id) ? '#D1D5DB' : '#6C6B6E',
+                        color: '#6C6B6E',
                         fontSize: 13,
                         fontFamily: 'Plus Jakarta Sans'
                       }}>
@@ -1355,7 +1366,7 @@ const DocumentsPage = () => {
                       </div>
                       {/* Date Column */}
                       <div style={{
-                        color: isSelectMode && isSelected(doc.id) ? '#D1D5DB' : '#6C6B6E',
+                        color: '#6C6B6E',
                         fontSize: 13,
                         fontFamily: 'Plus Jakarta Sans'
                       }}>
@@ -1368,25 +1379,22 @@ const DocumentsPage = () => {
                             e.stopPropagation();
                             setOpenDropdownId(openDropdownId === doc.id ? null : doc.id);
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                           style={{
                             width: 32,
                             height: 32,
-                            background: 'white',
+                            background: 'transparent',
                             borderRadius: '50%',
-                            border: '1px solid #E6E6EC',
+                            border: 'none',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
-                            fontSize: 18,
-                            fontWeight: '700',
-                            color: '#32302C',
-                            transition: 'background 0.2s ease'
+                            transition: 'transform 0.2s ease'
                           }}
                         >
-                          ⋯
+                          <DotsIcon style={{width: 24, height: 24}} />
                         </button>
 
                         {openDropdownId === doc.id && (

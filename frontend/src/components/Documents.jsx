@@ -27,6 +27,7 @@ import { ReactComponent as ImageIcon } from '../assets/Image.svg';
 import { ReactComponent as InfoCircleIcon } from '../assets/Info circle.svg';
 import { ReactComponent as SpreadsheetIcon } from '../assets/spreadsheet.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can-red.svg';
+import { ReactComponent as TrashCanLightIcon } from '../assets/Trash can-light.svg';
 import { ReactComponent as EditIcon } from '../assets/Edit 5.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
@@ -607,7 +608,7 @@ const Documents = () => {
                     paddingRight: 18,
                     paddingTop: 10,
                     paddingBottom: 10,
-                    background: selectedDocuments.size === 0 ? '#F5F5F5' : '#DC2626',
+                    background: selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8',
                     boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
                     overflow: 'hidden',
                     borderRadius: 100,
@@ -619,16 +620,24 @@ const Documents = () => {
                     display: 'inline-flex',
                     border: 'none',
                     cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
-                    opacity: selectedDocuments.size === 0 ? 0.5 : 1,
+                    opacity: selectedDocuments.size === 0 ? 0.6 : 1,
                     transition: 'all 0.2s'
                   }}
+                  onMouseEnter={(e) => {
+                    if (selectedDocuments.size > 0) {
+                      e.currentTarget.style.background = '#D8D8DE';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8';
+                  }}
                 >
-                  <TrashCanIcon style={{ width: 16, height: 16, fill: selectedDocuments.size === 0 ? '#9CA3AF' : 'white' }} />
+                  <TrashCanLightIcon style={{ width: 18, height: 18 }} />
                   <div style={{
-                    color: selectedDocuments.size === 0 ? '#9CA3AF' : 'white',
+                    color: selectedDocuments.size === 0 ? '#A0A0A5' : '#181818',
                     fontSize: 16,
                     fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: '600',
+                    fontWeight: '500',
                     lineHeight: '24px',
                     wordWrap: 'break-word'
                   }}>
@@ -683,7 +692,7 @@ const Documents = () => {
                   fontWeight: '500',
                   lineHeight: '24px'
                 }}>
-                  ({selectedDocuments.size}) Selected
+                  {selectedDocuments.size} selected
                 </div>
 
                 {/* X Close Button */}
@@ -1064,7 +1073,7 @@ const Documents = () => {
               )}
             </div>
 
-                <div onClick={() => setShowUniversalUploadModal(true)} style={{height: isMobile ? 44 : 52, width: isMobile ? 44 : 'auto', paddingLeft: isMobile ? 0 : 18, paddingRight: isMobile ? 0 : 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', flexShrink: 0}}>
+                <div onClick={() => setShowUniversalUploadModal(true)} style={{height: isMobile ? 44 : 52, width: isMobile ? 44 : 'auto', paddingLeft: isMobile ? 0 : 18, paddingRight: isMobile ? 0 : 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', flexShrink: 0, transition: 'transform 0.2s ease, box-shadow 0.2s ease'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(0)')}>
                   <LogoutBlackIcon style={{width: isMobile ? 20 : 24, height: isMobile ? 20 : 24}} />
                   {!isMobile && <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload a Document</div>}
                 </div>
@@ -1079,9 +1088,9 @@ const Documents = () => {
           <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
             {/* Categories - vertical list on mobile, 5-column grid on desktop */}
             <div style={{display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gridTemplateColumns: isMobile ? undefined : 'repeat(5, 1fr)', gap: isMobile ? 8 : 12}}>
-              <div onClick={() => setIsModalOpen(true)} style={{height: isMobile ? 56 : 72, padding: isMobile ? '12px 16px' : 12, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', flexDirection: 'row', gap: isMobile ? 12 : 10, cursor: 'pointer', boxSizing: 'border-box'}}>
-                <div style={{width: isMobile ? 40 : 48, height: isMobile ? 40 : 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                  <AddIcon style={{ width: isMobile ? 20 : 24, height: isMobile ? 20 : 24 }} />
+              <div onClick={() => setIsModalOpen(true)} style={{height: isMobile ? 56 : 72, padding: isMobile ? '12px 16px' : 12, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', flexDirection: 'row', gap: isMobile ? 12 : 10, cursor: 'pointer', boxSizing: 'border-box', transition: 'transform 0.2s ease, box-shadow 0.2s ease'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(0)')}>
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                  <AddIcon style={{ width: isMobile ? 24 : 28, height: isMobile ? 24 : 28 }} />
                 </div>
                 <span style={{color: '#32302C', fontSize: isMobile ? 14 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, whiteSpace: 'nowrap', textAlign: 'left'}}>Add New Smart Category</span>
               </div>
@@ -1130,7 +1139,7 @@ const Documents = () => {
                   }}
                 >
                   <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: isMobile ? 12 : 10, flex: 1, cursor: 'pointer', minWidth: 0, textAlign: 'left'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(0)')}>
-                    <div style={{width: isMobile ? 40 : 48, height: isMobile ? 40 : 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 20 : 24, flexShrink: 0}}>
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 32 : 36, flexShrink: 0}}>
                       <CategoryIcon emoji={category.emoji} />
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 2 : 4, flex: 1, alignItems: 'flex-start', minWidth: 0}}>
@@ -1162,17 +1171,20 @@ const Documents = () => {
                       style={{
                         width: 28,
                         height: 28,
-                        background: '#F5F5F5',
+                        background: 'transparent',
                         borderRadius: '50%',
-                        border: '1px solid #E6E6EC',
+                        border: 'none',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        transition: 'transform 0.2s ease'
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                      onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                     >
-                      <DotsIcon style={{width: 16, height: 16}} />
+                      <DotsIcon style={{width: 24, height: 24}} />
                     </button>
                     {categoryMenuOpen === category.id && (
                       <div style={{
@@ -1341,7 +1353,7 @@ const Documents = () => {
                     }}
                   >
                     <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
-                      <div style={{width: 48, height: 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0}}>
+                      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, flexShrink: 0}}>
                         <CategoryIcon emoji={category.emoji} />
                       </div>
                       <div style={{display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0}}>
@@ -1373,17 +1385,20 @@ const Documents = () => {
                         style={{
                           width: 28,
                           height: 28,
-                          background: '#F5F5F5',
+                          background: 'transparent',
                           borderRadius: '50%',
-                          border: '1px solid #E6E6EC',
+                          border: 'none',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer',
-                          flexShrink: 0
+                          flexShrink: 0,
+                          transition: 'transform 0.2s ease'
                         }}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                       >
-                        <DotsIcon style={{width: 16, height: 16}} />
+                        <DotsIcon style={{width: 24, height: 24}} />
                       </button>
                       {categoryMenuOpen === category.id && (
                         <div style={{
@@ -1877,25 +1892,22 @@ const Documents = () => {
                                 setOpenDropdownId(doc.id);
                               }
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                             style={{
                               width: 32,
                               height: 32,
-                              background: 'white',
+                              background: 'transparent',
                               borderRadius: '50%',
-                              border: '1px solid #E6E6EC',
+                              border: 'none',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               cursor: 'pointer',
-                              fontSize: 18,
-                              fontWeight: '700',
-                              color: '#32302C',
-                              transition: 'background 0.2s ease'
+                              transition: 'transform 0.2s ease'
                             }}
                           >
-                            ⋯
+                            <DotsIcon style={{width: 24, height: 24}} />
                           </button>
 
                           {openDropdownId === doc.id && ReactDOM.createPortal(

@@ -47,7 +47,7 @@ const CategoryGrid = () => {
       {/* Responsive grid - 2 columns on mobile, auto-fill on desktop */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(200px, 1fr))',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)',
         gap: isMobile ? 10 : 12,
         width: '100%'
       }}>
@@ -67,24 +67,21 @@ const CategoryGrid = () => {
             cursor: 'pointer',
             minHeight: isMobile ? 100 : 72,
             width: '100%',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            transition: 'transform 0.2s ease, box-shadow 0.2s ease'
           }}
+          onMouseEnter={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(-2px)')}
+          onMouseLeave={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(0)')}
         >
           <div style={{
-            width: isMobile ? 36 : 40,
-            height: isMobile ? 36 : 40,
-            background: '#F6F6F6',
-            borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0
           }}>
-            <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M10 4V16M4 10H16" stroke="black" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </div>
+            <svg width={isMobile ? 24 : 28} height={isMobile ? 24 : 28} viewBox="0 0 20 20" fill="none">
+              <path d="M10 4V16M4 10H16" stroke="black" strokeWidth="2" strokeLinecap="round" />
+            </svg>
           </div>
           <span style={{
             color: '#32302C',
@@ -125,14 +122,10 @@ const CategoryGrid = () => {
             onMouseLeave={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(0)')}
           >
             <div style={{
-              width: isMobile ? 36 : 40,
-              height: isMobile ? 36 : 40,
-              background: '#F6F6F6',
-              borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: isMobile ? 18 : 20,
+              fontSize: isMobile ? 32 : 36,
               flexShrink: 0
             }}>
               <CategoryIcon emoji={category.emoji} />
@@ -187,8 +180,11 @@ const CategoryGrid = () => {
             lineHeight: '22.40px',
             cursor: 'pointer',
             textAlign: 'right',
-            paddingRight: isMobile ? 4 : 8
+            paddingRight: isMobile ? 4 : 8,
+            transition: 'transform 0.2s ease, opacity 0.2s ease'
           }}
+          onMouseEnter={(e) => !isMobile && (e.currentTarget.style.opacity = '0.7')}
+          onMouseLeave={(e) => !isMobile && (e.currentTarget.style.opacity = '1')}
         >
           See All ({categories.length})
         </div>

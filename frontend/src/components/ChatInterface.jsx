@@ -3532,7 +3532,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 <div style={{
                     marginTop: 14,
                     paddingTop: 11,
-                    borderTop: '1px solid rgba(0,0,0,0.06)',
+                    borderTop: '1px solid #A2A2A7',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',

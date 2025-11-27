@@ -107,12 +107,12 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
       boxSizing: 'border-box',
       ...style
     }}>
-      {/* Header */}
+      {/* Header - V3: Reduced bottom margin */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '24px'
+        marginBottom: '8px'
       }}>
         <div style={{
           color: '#32302C',
@@ -125,7 +125,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
         </div>
       </div>
 
-      {/* Launchpad-Style Icon Grid */}
+      {/* V3: Icon Grid with Soft Halo + Bar Animation */}
       <div style={{
         display: 'flex',
         flexDirection: 'column',
@@ -133,13 +133,13 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
         flex: 1,
         justifyContent: 'center'
       }}>
-        {/* Icon Grid - Launchpad: 4×2 layout, 56px horizontal gap, 32px vertical gap */}
+        {/* Icon Grid - 8×1 single row layout */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 80px)',
-          gap: '32px 56px',
-          marginTop: '24px',
-          marginBottom: '32px',
+          gridTemplateColumns: 'repeat(8, 72px)',
+          gap: '0 48px',
+          marginTop: '8px',
+          marginBottom: '24px',
           justifyContent: 'center'
         }}>
           {displayData.map((item) => {
@@ -155,58 +155,40 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '4px',
-                  width: 80,
+                  gap: '0px',
+                  width: 72,
                   opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.5 : 1),
-                  transition: 'opacity 0.2s ease'
+                  transition: 'opacity 0.2s ease-out'
                 }}
                 onMouseEnter={() => hasFiles && setHoveredType(item.type)}
                 onMouseLeave={() => setHoveredType(null)}
               >
-                {/* Icon Container with Floating Bubble Effect */}
+                {/* Icon Container - tighter fit */}
                 <div
                   style={{
-                    width: 80,
-                    height: 80,
+                    width: 72,
+                    height: 72,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    cursor: hasFiles ? 'pointer' : 'default',
-                    transition: 'transform 0.2s ease',
-                    transform: isHovered ? 'scale(1.1)' : 'scale(1)',
-                    position: 'relative'
+                    cursor: hasFiles ? 'pointer' : 'default'
                   }}
                 >
-                  {/* Floating Bubble - 60×60, white @ 40% opacity, blur + shadow */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      width: 60,
-                      height: 60,
-                      borderRadius: '50%',
-                      background: 'rgba(255, 255, 255, 0.4)',
-                      filter: 'blur(14px)',
-                      boxShadow: '0 8px 20px rgba(0, 0, 0, 0.06)',
-                      zIndex: 0
-                    }}
-                  />
-                  {/* Icon - 40×40, radius 10 */}
+                  {/* Icon - 72×72 */}
                   <img
                     src={item.icon}
                     alt={item.label}
                     style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 10,
+                      width: 72,
+                      height: 72,
                       objectFit: 'contain',
-                      position: 'relative',
-                      zIndex: 1,
-                      transition: 'transform 0.2s ease'
+                      transform: isHovered ? 'scale(1.1)' : 'scale(1)',
+                      transition: 'transform 0.2s ease-out'
                     }}
                   />
                 </div>
 
-                {/* Labels - V2: Stacked with icon, 4px gap */}
+                {/* Labels - tight spacing */}
                 <div style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -236,7 +218,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
           })}
         </div>
 
-        {/* Files Bar */}
+        {/* Files Bar - V3: Hover animation with segment highlight */}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -268,14 +250,15 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
             </div>
           </div>
 
-          {/* Progress bar - unified colors @ 80% opacity */}
+          {/* Progress bar - V3: Animated segments on hover */}
           <div style={{
             width: '100%',
             height: '8px',
             background: '#F3F3F5',
             borderRadius: '4px',
-            overflow: 'hidden',
-            display: 'flex'
+            overflow: 'visible',
+            display: 'flex',
+            position: 'relative'
           }}>
             {gridData.map((item) => {
               const count = extensionBreakdown[item.type]?.count || 0;
@@ -283,6 +266,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
               if (widthPercent === 0) return null;
 
               const isHovered = hoveredType === item.type;
+              const otherIsHovered = hoveredType !== null && hoveredType !== item.type;
 
               return (
                 <div
@@ -291,9 +275,12 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
                     width: `${widthPercent}%`,
                     height: '100%',
                     background: item.color,
-                    opacity: isHovered ? 1 : 0.8,
-                    transition: 'opacity 0.2s ease, width 0.3s ease',
-                    cursor: 'pointer'
+                    opacity: isHovered ? 1.0 : (otherIsHovered ? 0.4 : 0.8),
+                    transform: isHovered ? 'scaleY(1.3)' : 'scaleY(1)',
+                    transformOrigin: 'center',
+                    transition: 'opacity 0.2s ease-out, transform 0.2s ease-out',
+                    cursor: 'pointer',
+                    borderRadius: '2px'
                   }}
                   onMouseEnter={() => setHoveredType(item.type)}
                   onMouseLeave={() => setHoveredType(null)}
@@ -302,35 +289,46 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
             })}
           </div>
         </div>
-      </div>
 
-      {/* Encryption Message */}
-      {showEncryptionMessage && (
-        <>
-          <div style={{
-            height: '1px',
-            background: '#E6E6EC',
-            marginTop: '16px',
-            marginBottom: '12px'
-          }} />
+        {/* Encryption Message - below Files bar */}
+        {showEncryptionMessage && (
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            color: '#6C6B6E',
-            fontSize: '12px',
-            fontFamily: 'Plus Jakarta Sans',
-            fontWeight: '400',
-            lineHeight: '18px'
+            gap: 8,
+            marginTop: 16,
+            paddingTop: 16,
+            borderTop: '1px solid #A2A2A7',
+            width: '100%'
           }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-              <path d="M7 1.16667L2.33333 3.5V6.41667C2.33333 9.625 4.34 12.5883 7 13.4167C9.66 12.5883 11.6667 9.625 11.6667 6.41667V3.5L7 1.16667Z" stroke="#6C6B6E" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M5.25 7L6.41667 8.16667L8.75 5.83333" stroke="#6C6B6E" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+            {/* Shield icon */}
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              style={{ flexShrink: 0 }}
+            >
+              <path
+                d="M8 1.33333L2.66667 4V7.33333C2.66667 11 5.2 14.4 8 15.3333C10.8 14.4 13.3333 11 13.3333 7.33333V4L8 1.33333Z"
+                stroke="#6C6B6E"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
-            Your workspace is encrypted. All documents are private and secure.
+            <div style={{
+              fontSize: 12,
+              fontWeight: 400,
+              color: '#6C6B6E',
+              fontFamily: 'Plus Jakarta Sans',
+              lineHeight: 1.5
+            }}>
+              Your workspace is encrypted. All documents and conversations are private and secure.
+            </div>
           </div>
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 };

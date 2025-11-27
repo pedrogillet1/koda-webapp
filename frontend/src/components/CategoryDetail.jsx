@@ -14,6 +14,7 @@ import { useToast } from '../context/ToastContext';
 import folderIcon from '../assets/folder_icon.svg';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can-red.svg';
+import { ReactComponent as TrashCanLightIcon } from '../assets/Trash can-light.svg';
 import { ReactComponent as EditIcon } from '../assets/Edit 5.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
@@ -23,6 +24,7 @@ import { ReactComponent as FolderSvgIcon } from '../assets/Folder.svg';
 import { ReactComponent as LogoutIcon } from '../assets/Logout-black.svg';
 import { ReactComponent as TrashCanBlackIcon } from '../assets/Trash can.svg';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
+import { ReactComponent as DotsIcon } from '../assets/dots.svg';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -1112,7 +1114,7 @@ const CategoryDetail = () => {
                       paddingRight: 18,
                       paddingTop: 10,
                       paddingBottom: 10,
-                      background: selectedDocuments.size === 0 ? '#F5F5F5' : '#DC2626',
+                      background: selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8',
                       boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
                       overflow: 'hidden',
                       borderRadius: 100,
@@ -1124,16 +1126,24 @@ const CategoryDetail = () => {
                       display: 'inline-flex',
                       border: 'none',
                       cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
-                      opacity: selectedDocuments.size === 0 ? 0.5 : 1,
+                      opacity: selectedDocuments.size === 0 ? 0.6 : 1,
                       transition: 'all 0.2s'
                     }}
+                    onMouseEnter={(e) => {
+                      if (selectedDocuments.size > 0) {
+                        e.currentTarget.style.background = '#D8D8DE';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8';
+                    }}
                   >
-                    <TrashCanIcon style={{ width: 16, height: 16, fill: selectedDocuments.size === 0 ? '#9CA3AF' : 'white' }} />
+                    <TrashCanLightIcon style={{ width: 18, height: 18 }} />
                     <div style={{
-                      color: selectedDocuments.size === 0 ? '#9CA3AF' : 'white',
+                      color: selectedDocuments.size === 0 ? '#A0A0A5' : '#181818',
                       fontSize: 16,
                       fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: '600',
+                      fontWeight: '500',
                       lineHeight: '24px',
                       wordWrap: 'break-word'
                     }}>
@@ -1192,7 +1202,7 @@ const CategoryDetail = () => {
                     fontWeight: '500',
                     lineHeight: '24px'
                   }}>
-                    ({selectedDocuments.size}) Selected
+                    {selectedDocuments.size} selected
                   </div>
 
                   {/* X Close Button */}
@@ -1642,23 +1652,23 @@ const CategoryDetail = () => {
                             style={{
                               width: 28,
                               height: 28,
-                              background: 'white',
-                              border: '1px solid #E5E7EB',
+                              background: 'transparent',
+                              border: 'none',
                               borderRadius: '50%',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               cursor: 'pointer',
-                              transition: 'all 0.2s'
+                              transition: 'transform 0.2s ease'
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = '#F3F4F6';
+                              e.currentTarget.style.transform = 'scale(1.1)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'white';
+                              e.currentTarget.style.transform = 'scale(1)';
                             }}
                           >
-                            <span style={{ fontSize: 18, fontWeight: 'bold', color: '#6B7280', lineHeight: 1 }}>⋯</span>
+                            <DotsIcon style={{width: 24, height: 24}} />
                           </button>
 
                           {/* Dropdown Menu */}
@@ -2033,27 +2043,23 @@ const CategoryDetail = () => {
                             style={{
                               width: 28,
                               height: 28,
-                              background: 'white',
-                              border: '1px solid #E5E7EB',
+                              background: 'transparent',
+                              border: 'none',
                               borderRadius: 6,
-                              fontSize: 16,
-                              color: '#9CA3AF',
                               cursor: 'pointer',
-                              transition: 'all 0.2s',
+                              transition: 'transform 0.2s ease',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center'
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = '#F3F4F6';
-                              e.currentTarget.style.color = '#6B7280';
+                              e.currentTarget.style.transform = 'scale(1.1)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'white';
-                              e.currentTarget.style.color = '#9CA3AF';
+                              e.currentTarget.style.transform = 'scale(1)';
                             }}
                           >
-                            ⋯
+                            <DotsIcon style={{width: 24, height: 24}} />
                           </button>
 
                           {openDropdownId === doc.id && (
@@ -2341,22 +2347,22 @@ const CategoryDetail = () => {
                                 setOpenDropdownId(doc.id);
                               }
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                             style={{
                               width: 32,
                               height: 32,
-                              background: 'white',
+                              background: 'transparent',
                               borderRadius: '50%',
-                              border: '1px solid #E6E6EC',
+                              border: 'none',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               cursor: 'pointer',
-                              transition: 'all 0.2s ease'
+                              transition: 'transform 0.2s ease'
                             }}
                           >
-                            <span style={{ color: '#6C6B6E', fontSize: 16, lineHeight: 1 }}>⋯</span>
+                            <DotsIcon style={{width: 24, height: 24}} />
                           </button>
 
                               {openDropdownId === doc.id && (

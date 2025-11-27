@@ -43,26 +43,20 @@ const FileRow = ({
   // Determine background color based on state
   const getBackgroundColor = () => {
     if (isSelectMode && isSelected) {
-      return colors.neutral[900];
+      return isHovered ? '#E8E8EC' : '#F3F3F5';
     }
     if (isHovered) {
-      return colors.neutral[200];
+      return '#F7F7F9';
     }
-    return colors.neutral[100];
+    return 'white';
   };
 
-  // Determine text color based on state
+  // Determine text color based on state (always dark for light backgrounds)
   const getTextColor = () => {
-    if (isSelectMode && isSelected) {
-      return 'white';
-    }
     return colors.neutral[900];
   };
 
   const getSubTextColor = () => {
-    if (isSelectMode && isSelected) {
-      return colors.neutral[300];
-    }
     return colors.neutral[500];
   };
 
@@ -134,26 +128,23 @@ const FileRow = ({
               e.stopPropagation();
               onMenuClick?.(e);
             }}
-            onMouseEnter={(e) => e.currentTarget.style.background = colors.neutral[200]}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             style={{
               width: '32px',
               height: '32px',
-              background: 'white',
+              background: 'transparent',
               borderRadius: '50%',
-              border: `1px solid ${colors.neutral[200]}`,
+              border: 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              fontSize: '18px',
-              fontWeight: '700',
-              color: colors.neutral[900],
-              transition: 'background 0.15s ease-out',
+              transition: 'transform 0.2s ease',
               flexShrink: 0
             }}
           >
-            ⋯
+            <DotsIcon style={{width: 24, height: 24}} />
           </button>
           {isMenuOpen && menuContent}
         </div>
