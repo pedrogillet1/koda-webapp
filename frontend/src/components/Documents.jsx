@@ -1524,10 +1524,10 @@ const Documents = () => {
           </div>
 
           {/* Your Files - Full width card below */}
-          <div style={{width: '100%', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
+          <div style={{width: '100%', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24}}>
                 <div style={{color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
-                {contextDocuments.length > 6 && (
+                {contextDocuments.length > 12 && (
                   <div
                     onClick={() => navigate('/category/recently-added')}
                     style={{color: '#171717', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '22.40px', cursor: 'pointer'}}
@@ -1537,8 +1537,8 @@ const Documents = () => {
                 )}
               </div>
 
-              {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).length > 0 ? (
-                <div style={{display: 'flex', flexDirection: 'column', gap: 0, flex: 1, overflowY: 'auto', minHeight: 0}}>
+              {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 12).length > 0 ? (
+                <div style={{display: 'flex', flexDirection: 'column', gap: 0}}>
                   {/* Table Header */}
                   {!isMobile && (
                     <div style={{
@@ -1620,7 +1620,7 @@ const Documents = () => {
                       return sortDirection === 'asc' ? comparison : -comparison;
                     });
 
-                    const docsToShow = sortedDocs.slice(0, 6);
+                    const docsToShow = sortedDocs.slice(0, 12);
                     return docsToShow.map((doc, index) => {
                     // ✅ Check document status for visual indicators
                     const isUploading = doc.status === 'uploading';

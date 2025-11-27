@@ -1,93 +1,136 @@
 import React, { useState } from 'react';
 import { useDocuments } from '../context/DocumentsContext';
-import { ReactComponent as Document2Icon } from '../assets/Document 2.svg';
-import { ReactComponent as ImageIcon } from '../assets/Image.svg';
-import { ReactComponent as InfoCircleIcon } from '../assets/Info circle.svg';
-import { ReactComponent as SpreadsheetIcon } from '../assets/spreadsheet.svg';
+
+// Import file type icons
+import pdfIcon from '../assets/pdf-icon.png';
+import docIcon from '../assets/doc-icon.png';
+import xlsIcon from '../assets/xls.png';
+import pptxIcon from '../assets/pptx.png';
+import txtIcon from '../assets/txt-icon.png';
+import jpgIcon from '../assets/jpg-icon.png';
+import pngIcon from '../assets/png-icon.png';
+import movIcon from '../assets/mov.png';
+import mp4Icon from '../assets/mp4.png';
 
 const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
   const { documents } = useDocuments();
   const [hoveredSegment, setHoveredSegment] = useState(null);
 
-  // Data calculation
-  const getCategoryForExt = (ext) => {
-    const docExts = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt', 'pptx', 'ppt'];
-    const spreadsheetExts = ['xls', 'xlsx', 'csv', 'ods'];
-    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'];
-
-    if (docExts.includes(ext)) return 'Document';
-    if (spreadsheetExts.includes(ext)) return 'Spreadsheet';
-    if (imageExts.includes(ext)) return 'Image';
-    return 'Other';
+  // Get file extension from document
+  const getFileExtension = (doc) => {
+    const filename = doc.filename || doc.name || '';
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    return ext;
   };
 
-  // Group documents by category
-  const categoryBreakdown = {};
+  // Normalize extension - group uncommon types under 'other'
+  const normalizeExtension = (ext) => {
+    // Main file types to show individually
+    const mainTypes = {
+      'pdf': 'pdf',
+      'docx': 'docx',
+      'doc': 'docx',
+      'xlsx': 'xlsx',
+      'xls': 'xlsx',
+      'pptx': 'pptx',
+      'ppt': 'pptx',
+      'png': 'png',
+      'jpg': 'jpg',
+      'jpeg': 'jpg',
+      'mov': 'mov',
+      'mp4': 'mp4',
+    };
+
+    // Return main type or 'other' for everything else
+    return mainTypes[ext] || 'other';
+  };
+
+  // Get icon for file type
+  const getFileIcon = (ext) => {
+    const iconMap = {
+      'pdf': pdfIcon,
+      'docx': docIcon,
+      'xlsx': xlsIcon,
+      'pptx': pptxIcon,
+      'jpg': jpgIcon,
+      'png': pngIcon,
+      'mov': movIcon,
+      'mp4': mp4Icon,
+      'other': txtIcon,
+    };
+    return iconMap[ext] || txtIcon;
+  };
+
+  // Get display name for file type
+  const getDisplayName = (ext) => {
+    const nameMap = {
+      'pdf': 'PDF',
+      'docx': 'DOCX',
+      'xlsx': 'XLSX',
+      'pptx': 'PPTX',
+      'jpg': 'JPG',
+      'png': 'PNG',
+      'mov': 'MOV',
+      'mp4': 'MP4',
+      'other': 'Other',
+    };
+    return nameMap[ext] || 'Other';
+  };
+
+  // Group documents by file extension
+  const extensionBreakdown = {};
   let totalSize = 0;
   let totalCount = 0;
 
   documents.forEach(doc => {
-    const ext = doc.filename?.split('.').pop()?.toLowerCase() || '';
-    const category = getCategoryForExt(ext);
+    const ext = getFileExtension(doc);
+    const normalizedExt = normalizeExtension(ext);
 
-    if (!categoryBreakdown[category]) {
-      categoryBreakdown[category] = { count: 0, size: 0 };
+    if (!extensionBreakdown[normalizedExt]) {
+      extensionBreakdown[normalizedExt] = { count: 0, size: 0, originalExt: ext };
     }
 
-    categoryBreakdown[category].count++;
-    categoryBreakdown[category].size += doc.size || doc.fileSize || 0;
+    extensionBreakdown[normalizedExt].count++;
+    extensionBreakdown[normalizedExt].size += doc.size || doc.fileSize || 0;
     totalSize += doc.size || doc.fileSize || 0;
     totalCount++;
   });
 
-  // Fixed category order and colors (consistent mapping)
-  const categoryConfig = {
-    'Document': { color: '#000000', order: 0 },
-    'Image': { color: '#32302C', order: 1 },
-    'Other': { color: '#6C6B6E', order: 2 },
-    'Spreadsheet': { color: '#B8B8B8', order: 3 }
+  // Color palette mapped to file types (matches icon colors)
+  const fileTypeColors = {
+    'png': '#4CAF50',   // Green - PNG icon color
+    'jpg': '#2196F3',   // Blue - JPG icon color
+    'pdf': '#F44336',   // Red - PDF icon color
+    'docx': '#1565C0',  // Dark Blue - DOCX icon color
+    'xlsx': '#4CAF50',  // Green - XLSX icon color
+    'pptx': '#FF5722',  // Orange-Red - PPTX icon color
+    'mov': '#9C27B0',   // Purple - MOV icon color
+    'mp4': '#E91E63',   // Pink - MP4 icon color
+    'other': '#9E9E9E', // Grey - Other files
   };
 
-  // Get icon for category
-  const getCategoryIcon = (category) => {
-    const iconStyle = { width: 20, height: 20 };
-    switch (category) {
-      case 'Spreadsheet':
-        return <SpreadsheetIcon style={iconStyle} />;
-      case 'Document':
-        return <Document2Icon style={iconStyle} />;
-      case 'Image':
-        return <ImageIcon style={iconStyle} />;
-      default:
-        return <InfoCircleIcon style={iconStyle} />;
-    }
-  };
+  // Sort extensions by count (largest first)
+  const sortedExtensions = Object.keys(extensionBreakdown)
+    .filter(ext => extensionBreakdown[ext].count > 0)
+    .sort((a, b) => extensionBreakdown[b].count - extensionBreakdown[a].count);
 
-  // Sort categories by count (largest first), then by defined order
-  const sortedCategories = Object.keys(categoryBreakdown)
-    .filter(cat => categoryBreakdown[cat].count > 0)
-    .sort((a, b) => {
-      const countDiff = categoryBreakdown[b].count - categoryBreakdown[a].count;
-      if (countDiff !== 0) return countDiff;
-      return (categoryConfig[a]?.order || 99) - (categoryConfig[b]?.order || 99);
-    });
-
-  // Calculate donut segments based on COUNT (not size) for accurate proportions
+  // Calculate donut segments based on COUNT for accurate proportions
   let currentAngle = -90; // Start at 12 o'clock (top)
-  const donutSegments = sortedCategories.map((category, index) => {
-    const count = categoryBreakdown[category].count;
+  const donutSegments = sortedExtensions.map((ext, index) => {
+    const count = extensionBreakdown[ext].count;
     const percentage = totalCount > 0 ? (count / totalCount) * 100 : 0;
     const angleSpan = (percentage / 100) * 360;
-    const gapAngle = 2; // Small gap between segments
+    const gapAngle = sortedExtensions.length > 1 ? 2 : 0; // Small gap between segments
 
     const segment = {
-      category,
+      ext,
+      displayName: getDisplayName(ext),
       count: count,
-      size: categoryBreakdown[category].size,
+      size: extensionBreakdown[ext].size,
       percentage,
       startAngle: currentAngle,
       endAngle: currentAngle + angleSpan - gapAngle,
-      color: categoryConfig[category]?.color || '#E6E6EC'
+      color: fileTypeColors[ext] || '#9E9E9E'
     };
     currentAngle += angleSpan;
     return segment;
@@ -139,7 +182,10 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
   const cx = chartSize / 2;
   const cy = chartSize / 2;
   const outerRadius = 90;
-  const innerRadius = 60; // Thinner ring (was 73/115 ratio, now 60/90)
+  const innerRadius = 60;
+
+  // Always use 3 columns for consistent layout
+  const gridColumns = 3;
 
   return (
     <div style={{
@@ -253,17 +299,79 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
           </div>
         </div>
 
-        {/* Legend - 2x2 Grid with icons like original */}
+        {/* Storage Bar */}
         <div style={{
-          padding: '14px',
-          background: '#F5F5F5',
-          borderRadius: '18px',
-          border: '1px solid #E6E6EC',
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '12px',
           width: '100%',
-          boxSizing: 'border-box'
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div style={{
+              color: '#32302C',
+              fontSize: '14px',
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '600',
+              lineHeight: '20px'
+            }}>
+              Storage
+            </div>
+            <div style={{
+              color: '#6C6B6E',
+              fontSize: '14px',
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '500',
+              lineHeight: '20px'
+            }}>
+              {formatSize(totalSize)} of 2 TB Used
+            </div>
+          </div>
+          {/* Progress bar */}
+          <div style={{
+            width: '100%',
+            height: '10px',
+            background: '#E6E6EC',
+            borderRadius: '5px',
+            overflow: 'hidden',
+            display: 'flex'
+          }}>
+            {donutSegments.map((segment, index) => {
+              const widthPercent = totalSize > 0 ? (segment.size / totalSize) * 100 : 0;
+              const isFirst = index === 0;
+              const isLast = index === donutSegments.length - 1;
+              return (
+                <div
+                  key={index}
+                  style={{
+                    width: `${widthPercent}%`,
+                    height: '100%',
+                    background: segment.color,
+                    transition: 'width 0.3s ease',
+                    borderTopLeftRadius: isFirst ? '5px' : '0',
+                    borderBottomLeftRadius: isFirst ? '5px' : '0',
+                    borderTopRightRadius: isLast ? '5px' : '0',
+                    borderBottomRightRadius: isLast ? '5px' : '0'
+                  }}
+                  onMouseEnter={() => setHoveredSegment(donutSegments.findIndex(s => s.ext === segment.ext))}
+                  onMouseLeave={() => setHoveredSegment(null)}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Legend - Clean 3-column grid on card background */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '16px 32px',
+          width: '100%',
+          boxSizing: 'border-box',
+          paddingTop: '8px'
         }}>
           {donutSegments.map((segment, index) => (
             <div
@@ -272,33 +380,42 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '12px',
-                padding: '2px 0',
+                padding: '8px 12px',
                 cursor: 'pointer',
                 opacity: hoveredSegment === null || hoveredSegment === index ? 1 : 0.4,
-                transition: 'opacity 0.2s ease'
+                transition: 'all 0.2s ease',
+                borderRadius: '10px',
+                background: hoveredSegment === index ? '#F5F5F5' : 'transparent'
               }}
               onMouseEnter={() => setHoveredSegment(index)}
               onMouseLeave={() => setHoveredSegment(null)}
             >
-              {/* Icon in white circle */}
+              {/* Color indicator dot matching donut/bar color */}
               <div style={{
-                width: 40,
-                height: 40,
-                background: 'white',
+                width: '10px',
+                height: '10px',
                 borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                background: segment.color,
                 flexShrink: 0
-              }}>
-                {getCategoryIcon(segment.category)}
-              </div>
+              }} />
+
+              {/* File type icon */}
+              <img
+                src={getFileIcon(segment.ext)}
+                alt={segment.displayName}
+                style={{
+                  width: 28,
+                  height: 28,
+                  objectFit: 'contain',
+                  flexShrink: 0
+                }}
+              />
 
               {/* Text content */}
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '4px',
+                gap: '2px',
                 minWidth: 0
               }}>
                 <div style={{
@@ -308,38 +425,16 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
                   fontWeight: '600',
                   lineHeight: '1.2'
                 }}>
-                  {segment.category}
+                  {segment.displayName}
                 </div>
                 <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
+                  color: '#6C6B6E',
+                  fontSize: '12px',
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500',
+                  lineHeight: '1.2'
                 }}>
-                  <span style={{
-                    color: '#6C6B6E',
-                    fontSize: '14px',
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: '500',
-                    lineHeight: '1.2'
-                  }}>
-                    {segment.count} Files
-                  </span>
-                  <div style={{
-                    width: 4,
-                    height: 4,
-                    background: '#6C6B6E',
-                    borderRadius: '50%',
-                    opacity: 0.9
-                  }} />
-                  <span style={{
-                    color: '#6C6B6E',
-                    fontSize: '14px',
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: '500',
-                    lineHeight: '1.2'
-                  }}>
-                    {formatSize(segment.size)}
-                  </span>
+                  {segment.count} {segment.count === 1 ? 'File' : 'Files'}
                 </div>
               </div>
             </div>
