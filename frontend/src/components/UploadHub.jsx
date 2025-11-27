@@ -8,6 +8,7 @@ import CreateCategoryModal from './CreateCategoryModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import RenameModal from './RenameModal';
 import CreateFolderModal from './CreateFolderModal';
+import UploadProgressModal from './UploadProgressModal';
 import { useToast } from '../context/ToastContext';
 import { useDocuments } from '../context/DocumentsContext';
 import { ReactComponent as SearchIcon} from '../assets/Search.svg';
@@ -268,6 +269,7 @@ const UploadHub = () => {
   const [isLibraryExpanded, setIsLibraryExpanded] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [modalSearchQuery, setModalSearchQuery] = useState('');
+  const [showUploadProgressModal, setShowUploadProgressModal] = useState(false); // Unified upload progress modal
   const embeddingTimeoutsRef = useRef({}); // Track embedding timeouts for slow processing warnings
 
   // ✅ Listen for document processing updates via WebSocket
@@ -573,6 +575,8 @@ const UploadHub = () => {
       console.time('📊 File drop → UI render');
       startTransition(() => {
         setUploadingFiles(prev => [...pendingFiles, ...prev]);
+        // Show the upload progress modal
+        setShowUploadProgressModal(true);
 
         // ⚡ PERFORMANCE: Log timing
         const endTime = performance.now();
@@ -688,6 +692,8 @@ const UploadHub = () => {
 
       console.log(`✅ Processed ${processedItems.length} item(s) from drag-and-drop`);
       setUploadingFiles(prev => [...processedItems, ...prev]);
+      // Show the upload progress modal
+      setShowUploadProgressModal(true);
     } else {
       // Fallback to old behavior for browsers that don't support DataTransferItemList
       const files = Array.from(e.dataTransfer.files);
@@ -713,6 +719,8 @@ const UploadHub = () => {
       }));
 
       setUploadingFiles(prev => [...pendingFiles, ...prev]);
+      // Show the upload progress modal
+      setShowUploadProgressModal(true);
     }
   };
 
@@ -3056,6 +3064,34 @@ const UploadHub = () => {
       </div>
 
       {/* Notifications are now handled by the unified ToastProvider */}
+
+      {/* Unified Upload Progress Modal */}
+      <UploadProgressModal
+        isOpen={showUploadProgressModal}
+        files={uploadingFiles}
+        onClose={() => {
+          // Only close if no uploads are in progress
+          const uploadingCount = uploadingFiles.filter(f => f.status === 'uploading').length;
+          if (uploadingCount === 0) {
+            setShowUploadProgressModal(false);
+            // Clear completed uploads
+            setUploadingFiles(prev => prev.filter(f => f.status !== 'completed'));
+          }
+        }}
+        onRetry={(file, index) => {
+          // Reset file status and re-add to upload queue
+          console.log('🔄 Retrying upload:', file.isFolder ? file.folderName : file.file?.name);
+          setUploadingFiles(prev => prev.map((f, i) =>
+            i === index ? { ...f, status: 'pending', error: null, errorDetails: null, progress: 0 } : f
+          ));
+        }}
+        title="Upload Documents"
+        removeFile={(fileName) => {
+          setUploadingFiles(prev => prev.filter(f =>
+            (f.isFolder ? f.folderName : f.file?.name) !== fileName
+          ));
+        }}
+      />
 
       <NotificationPanel
         showNotificationsPopup={showNotificationsPopup}
