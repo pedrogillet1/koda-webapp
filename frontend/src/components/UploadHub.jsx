@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
+import { useIsMobile } from '../hooks/useIsMobile';
 import CreateCategoryModal from './CreateCategoryModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import RenameModal from './RenameModal';
@@ -221,6 +222,7 @@ const formatFileSize = (bytes) => {
 
 const UploadHub = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { showSuccess } = useToast();
   // ⚡ PERFORMANCE FIX: Use documents/folders from context (no duplicate API calls)
   const { documents: contextDocuments, folders: contextFolders, socket, fetchDocuments, fetchFolders } = useDocuments();
@@ -1746,8 +1748,8 @@ const UploadHub = () => {
     <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
-      {/* Left Sidebar - Library */}
-      <div style={{
+      {/* Left Sidebar - Library - Hidden on mobile */}
+      {!isMobile && <div style={{
         width: isLibraryExpanded ? 320 : 80,
         background: '#F9FAFB',
         borderRight: '1px solid #E5E7EB',
@@ -2382,7 +2384,7 @@ const UploadHub = () => {
           ))}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Main Upload Area */}
       <div
@@ -2404,17 +2406,19 @@ const UploadHub = () => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '20px 24px',
-          borderBottom: '1px solid #E5E7EB'
+          padding: isMobile ? '16px' : '20px 24px',
+          paddingLeft: isMobile ? 70 : 24,
+          borderBottom: '1px solid #E5E7EB',
+          height: isMobile ? 60 : 'auto'
         }}>
-          <h2 style={{fontSize: 20, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Upload Documents</h2>
+          <h2 style={{fontSize: isMobile ? 18 : 20, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Upload Documents</h2>
         </div>
 
         {/* Content */}
         <div style={{
           flex: 1,
           overflowY: 'auto',
-          padding: 24,
+          padding: isMobile ? 16 : 24,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: uploadingFiles.length > 0 ? 'flex-start' : 'center'
@@ -2422,8 +2426,8 @@ const UploadHub = () => {
           {/* Drag-drop zone */}
           <div {...getRootProps()} style={{
             border: '2px dashed #D1D5DB',
-            borderRadius: 12,
-            padding: 48,
+            borderRadius: isMobile ? 16 : 12,
+            padding: isMobile ? 24 : 48,
             textAlign: 'center',
             marginBottom: uploadingFiles.length > 0 ? 24 : 0,
             cursor: 'pointer',
@@ -2434,20 +2438,22 @@ const UploadHub = () => {
             justifyContent: 'center',
             alignItems: 'center',
             transition: 'all 0.3s ease-out',
-            width: 800,
-            height: 400,
+            width: isMobile ? '100%' : 800,
+            maxWidth: isMobile ? '100%' : 800,
+            height: isMobile ? 'auto' : 400,
+            minHeight: isMobile ? 300 : 400,
             alignSelf: 'center'
           }}>
             <input {...getInputProps()} />
             {/* Folder icon */}
-            <img src={folderIcon} alt="Folder" style={{width: 120, height: 120, margin: '0 auto 24px'}} />
-            <h3 style={{fontSize: 18, fontWeight: '600', color: '#111827', margin: '0 0 8px 0', fontFamily: 'Plus Jakarta Sans'}}>Upload Documents Or Drag-N-Drop</h3>
-            <p style={{fontSize: 14, color: '#6B7280', margin: '0 0 24px 0', lineHeight: 1.5, fontFamily: 'Plus Jakarta Sans'}}>Upload files or folders<br/>All file types supported (max 500MB per file)</p>
-            <div style={{display: 'flex', gap: 12}}>
+            <img src={folderIcon} alt="Folder" style={{width: isMobile ? 80 : 120, height: isMobile ? 80 : 120, margin: isMobile ? '0 auto 16px' : '0 auto 24px'}} />
+            <h3 style={{fontSize: isMobile ? 16 : 18, fontWeight: '600', color: '#111827', margin: '0 0 8px 0', fontFamily: 'Plus Jakarta Sans'}}>{isMobile ? 'Tap to Upload' : 'Upload Documents Or Drag-N-Drop'}</h3>
+            <p style={{fontSize: isMobile ? 13 : 14, color: '#6B7280', margin: isMobile ? '0 0 16px 0' : '0 0 24px 0', lineHeight: 1.5, fontFamily: 'Plus Jakarta Sans'}}>{isMobile ? 'All file types supported (max 500MB)' : 'Upload files or folders'}<br/>{!isMobile && 'All file types supported (max 500MB per file)'}</p>
+            <div style={{display: 'flex', gap: isMobile ? 8 : 12, flexDirection: isMobile ? 'column' : 'row', width: isMobile ? '100%' : 'auto', maxWidth: isMobile ? 200 : 'none'}}>
               <button
                 onClick={(e) => { e.stopPropagation(); open(); }}
                 style={{
-                  padding: '10px 24px',
+                  padding: isMobile ? '12px 20px' : '10px 24px',
                   background: 'white',
                   border: '1px solid #D1D5DB',
                   borderRadius: 8,
@@ -2456,12 +2462,13 @@ const UploadHub = () => {
                   color: '#374151',
                   cursor: 'pointer',
                   transition: 'all 0.15s',
-                  fontFamily: 'Plus Jakarta Sans'
+                  fontFamily: 'Plus Jakarta Sans',
+                  width: isMobile ? '100%' : 'auto'
                 }}
               >
                 Select Files
               </button>
-              <button
+              {!isMobile && <button
                 onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
                 style={{
                   padding: '10px 24px',
@@ -2477,7 +2484,7 @@ const UploadHub = () => {
                 }}
               >
                 Select Folder
-              </button>
+              </button>}
             </div>
             <input
               ref={folderInputRef}
@@ -2492,7 +2499,7 @@ const UploadHub = () => {
 
           {/* Upload progress list */}
           {uploadingFiles.length > 0 && (
-            <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+            <div style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
               {uploadingFiles.map((f, index) => {
                 const isError = f.status === 'failed';
                 const progressWidth = f.status === 'completed' ? 100 : (f.progress || 0);

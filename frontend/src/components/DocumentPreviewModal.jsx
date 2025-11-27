@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../services/api';
 import { previewCache } from '../services/previewCache';
+import { useIsMobile } from '../hooks/useIsMobile';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -20,6 +21,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@$
 
 const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [zoom, setZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -281,19 +283,19 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
       <div
         style={{
           position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '80vw',
-          height: '80vh',
+          top: isMobile ? 0 : '50%',
+          left: isMobile ? 0 : '50%',
+          transform: isMobile ? 'none' : 'translate(-50%, -50%)',
+          width: isMobile ? '100vw' : '80vw',
+          height: isMobile ? '100vh' : '80vh',
           background: '#F5F5F5',
-          borderRadius: 16,
-          border: '1px solid #DADADA',
+          borderRadius: isMobile ? 0 : 16,
+          border: isMobile ? 'none' : '1px solid #DADADA',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
           zIndex: 9999,
-          animation: 'modalSlideIn 250ms ease-out',
+          animation: isMobile ? 'slideUp 250ms ease-out' : 'modalSlideIn 250ms ease-out',
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
         }}
         onClick={(e) => e.stopPropagation()}
@@ -301,12 +303,12 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
         {/* Header Bar */}
         <div
           style={{
-            height: 56,
+            height: isMobile ? 60 : 56,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            paddingLeft: 28,
-            paddingRight: 20,
+            paddingLeft: isMobile ? 16 : 28,
+            paddingRight: isMobile ? 12 : 20,
             borderBottom: '1px solid #DADADA',
             background: '#FFFFFF',
             position: 'relative'
@@ -317,21 +319,21 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            maxWidth: '35%',
+            maxWidth: isMobile ? '50%' : '35%',
             overflow: 'hidden'
           }}>
             <img
               src={getFileIcon()}
               alt="File"
               style={{
-                width: 20,
-                height: 20,
+                width: isMobile ? 18 : 20,
+                height: isMobile ? 18 : 20,
                 flexShrink: 0
               }}
             />
             <div
               style={{
-                fontSize: 15,
+                fontSize: isMobile ? 13 : 15,
                 fontWeight: '500',
                 color: '#1A1A1A',
                 fontFamily: 'Plus Jakarta Sans',
@@ -344,25 +346,27 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
             </div>
           </div>
 
-          {/* Center Section - Page Indicator (absolutely centered) */}
-          <div style={{
-            position: 'absolute',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            fontSize: 13,
-            color: '#6C6C6C',
-            fontWeight: '500',
-            fontFamily: 'Plus Jakarta Sans',
-            whiteSpace: 'nowrap',
-            letterSpacing: '0.2px'
-          }}>
-            Page {currentPage} of {totalPages}
-          </div>
+          {/* Center Section - Page Indicator (hidden on mobile, shown in bottom toolbar) */}
+          {!isMobile && (
+            <div style={{
+              position: 'absolute',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: 13,
+              color: '#6C6C6C',
+              fontWeight: '500',
+              fontFamily: 'Plus Jakarta Sans',
+              whiteSpace: 'nowrap',
+              letterSpacing: '0.2px'
+            }}>
+              Page {currentPage} of {totalPages}
+            </div>
+          )}
 
           {/* Right Section - Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'flex-end' }}>
-            {/* Zoom Control Cluster */}
-            <div style={{
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16, justifyContent: 'flex-end' }}>
+            {/* Zoom Control Cluster - hidden on mobile */}
+            {!isMobile && <div style={{
               display: 'flex',
               alignItems: 'center',
               gap: 6,
@@ -443,9 +447,10 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                   <path d="M8 4V12M4 8H12" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
-            </div>
+            </div>}
 
-            {/* Download */}
+            {/* Download - hidden on mobile (shown in bottom toolbar) */}
+            {!isMobile &&
             <button
               onClick={handleDownload}
               style={{
@@ -473,17 +478,17 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                 <path d="M4.66602 6.66667L7.99935 10L11.3327 6.66667" stroke="#1A1A1A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M8 10V2" stroke="#1A1A1A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-            </button>
+            </button>}
 
             {/* Close */}
             <button
               onClick={onClose}
               style={{
-                width: 32,
-                height: 32,
+                width: isMobile ? 36 : 32,
+                height: isMobile ? 36 : 32,
                 border: '1px solid #DADADA',
-                background: 'transparent',
-                borderRadius: 6,
+                background: isMobile ? '#F5F5F5' : 'transparent',
+                borderRadius: isMobile ? 8 : 6,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -511,10 +516,11 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
           style={{
             flex: 1,
             overflow: 'auto',
-            padding: 16,
+            padding: isMobile ? 8 : 16,
             display: 'flex',
             justifyContent: 'center',
-            alignItems: 'flex-start'
+            alignItems: 'flex-start',
+            WebkitOverflowScrolling: 'touch'
           }}
         >
           {isLoading ? (
@@ -591,13 +597,13 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                   >
                     <Page
                       pageNumber={index + 1}
-                      width={700 * (zoom / 100)}
+                      width={isMobile ? window.innerWidth - 24 : 700 * (zoom / 100)}
                       renderTextLayer={true}
                       renderAnnotationLayer={true}
                       loading={
                         <div style={{
-                          width: 700 * (zoom / 100),
-                          height: 900 * (zoom / 100),
+                          width: isMobile ? window.innerWidth - 24 : 700 * (zoom / 100),
+                          height: isMobile ? (window.innerWidth - 24) * 1.3 : 900 * (zoom / 100),
                           background: 'white',
                           borderRadius: 8,
                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
@@ -632,45 +638,175 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
           )}
         </div>
 
-        {/* Footer Bar */}
-        <div
-          style={{
-            height: 56,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            padding: '0 28px',
-            borderTop: '1px solid #E0E0E0',
-            background: '#F5F5F5'
-          }}
-        >
-          <button
-            onClick={handleOpenFullPreview}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#6C6C6C',
-              fontSize: 14,
-              fontWeight: '500',
-              fontFamily: 'Plus Jakarta Sans',
-              cursor: 'pointer',
+        {/* Mobile Bottom Toolbar */}
+        {isMobile ? (
+          <>
+            {/* Mobile Page Indicator */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
               padding: '8px 16px',
-              borderRadius: 6,
-              transition: 'color 200ms ease-out, opacity 200ms ease-out',
-              opacity: 1
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#1A1A1A';
-              e.currentTarget.style.opacity = '1';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#6C6C6C';
-              e.currentTarget.style.opacity = '1';
+              background: '#FFFFFF',
+              borderTop: '1px solid #E6E6E6',
+              flexShrink: 0
+            }}>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage <= 1}
+                style={{
+                  width: 32,
+                  height: 32,
+                  border: '1px solid #E6E6E6',
+                  background: '#F5F5F5',
+                  borderRadius: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+                  opacity: currentPage <= 1 ? 0.4 : 1
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M10 12L6 8L10 4" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <div style={{
+                fontSize: 13,
+                fontWeight: '600',
+                color: '#1A1A1A',
+                fontFamily: 'Plus Jakarta Sans'
+              }}>
+                {currentPage} / {totalPages}
+              </div>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage >= totalPages}
+                style={{
+                  width: 32,
+                  height: 32,
+                  border: '1px solid #E6E6E6',
+                  background: '#F5F5F5',
+                  borderRadius: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                  opacity: currentPage >= totalPages ? 0.4 : 1
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 4L10 8L6 12" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Mobile Action Toolbar */}
+            <div style={{
+              display: 'flex',
+              minHeight: 60,
+              background: '#FFFFFF',
+              borderTop: '1px solid #E6E6E6',
+              alignItems: 'center',
+              justifyContent: 'space-around',
+              padding: '8px 16px',
+              paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+              gap: 8,
+              flexShrink: 0
+            }}>
+              <button
+                onClick={handleDownload}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 10,
+                  background: '#F5F5F5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  border: '1px solid #E6E6E6'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M14 10V12.6667C14 13.0203 13.8595 13.3594 13.6095 13.6095C13.3594 13.8595 13.0203 14 12.6667 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V10" stroke="#1A1A1A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M4.66602 6.66667L7.99935 10L11.3327 6.66667" stroke="#1A1A1A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M8 10V2" stroke="#1A1A1A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span style={{
+                  fontSize: 13,
+                  fontWeight: '600',
+                  color: '#1A1A1A',
+                  fontFamily: 'Plus Jakarta Sans'
+                }}>Download</span>
+              </button>
+              <button
+                onClick={handleOpenFullPreview}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 10,
+                  background: '#181818',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  border: 'none'
+                }}
+              >
+                <span style={{
+                  fontSize: 13,
+                  fontWeight: '600',
+                  color: '#FFFFFF',
+                  fontFamily: 'Plus Jakarta Sans'
+                }}>Full View</span>
+              </button>
+            </div>
+          </>
+        ) : (
+          /* Desktop Footer Bar */
+          <div
+            style={{
+              height: 56,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              padding: '0 28px',
+              borderTop: '1px solid #E0E0E0',
+              background: '#F5F5F5'
             }}
           >
-            Open Full Preview
-          </button>
-        </div>
+            <button
+              onClick={handleOpenFullPreview}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#6C6C6C',
+                fontSize: 14,
+                fontWeight: '500',
+                fontFamily: 'Plus Jakarta Sans',
+                cursor: 'pointer',
+                padding: '8px 16px',
+                borderRadius: 6,
+                transition: 'color 200ms ease-out, opacity 200ms ease-out',
+                opacity: 1
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#1A1A1A';
+                e.currentTarget.style.opacity = '1';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#6C6C6C';
+                e.currentTarget.style.opacity = '1';
+              }}
+            >
+              Open Full Preview
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Animations */}
@@ -692,6 +828,15 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
           to {
             opacity: 1;
             transform: translate(-50%, -50%) scale(1);
+          }
+        }
+
+        @keyframes slideUp {
+          from {
+            transform: translateY(100%);
+          }
+          to {
+            transform: translateY(0);
           }
         }
       `}} />

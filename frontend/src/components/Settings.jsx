@@ -6,6 +6,7 @@ import DeleteConfirmationModal from './DeleteConfirmationModal';
 import FeedbackModal from './FeedbackModal';
 import RecoveryVerificationBanner from './RecoveryVerificationBanner';
 import { useToast } from '../context/ToastContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { ReactComponent as DonutIcon } from '../assets/Donut.svg';
 import { ReactComponent as UserIcon } from '../assets/User.svg';
 import { ReactComponent as LayersIcon } from '../assets/Layers.svg';
@@ -38,6 +39,7 @@ import api from '../services/api';
 
 const Settings = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { showSuccess, showError } = useToast();
   const [activeSection, setActiveSection] = useState('general');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -571,10 +573,10 @@ const Settings = () => {
 
   return (
     <div style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>
-      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
+      {!isMobile && <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />}
 
-      {/* Settings Sidebar */}
-      <div style={{
+      {/* Settings Sidebar - Hidden on mobile */}
+      {!isMobile && <div style={{
         width: isExpanded ? 314 : 64,
         height: '100vh',
         padding: 20,
@@ -777,27 +779,61 @@ const Settings = () => {
 
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Main Content */}
       <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
         {/* Header */}
-        <div style={{ alignSelf: 'stretch', height: 84, paddingLeft: 20, paddingRight: 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
-          <div style={{ textAlign: 'center', color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px' }}>
+        <div style={{ alignSelf: 'stretch', height: isMobile ? 60 : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: isMobile ? 'space-between' : 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
+          {isMobile && (
+            <div onClick={() => navigate(-1)} style={{ cursor: 'pointer', padding: 8 }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M12.5 15L7.5 10L12.5 5" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+          )}
+          <div style={{ textAlign: 'center', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px' }}>
             {activeSection}
           </div>
+          {isMobile && <div style={{ width: 36 }} />}
         </div>
+
+        {/* Mobile Section Tabs */}
+        {isMobile && (
+          <div style={{ alignSelf: 'stretch', padding: 12, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', gap: 8, overflowX: 'auto' }}>
+            {['general', 'profile', 'password'].map((section) => (
+              <div
+                key={section}
+                onClick={() => setActiveSection(section)}
+                style={{
+                  padding: '8px 16px',
+                  background: activeSection === section ? '#181818' : '#F5F5F5',
+                  color: activeSection === section ? 'white' : '#32302C',
+                  borderRadius: 100,
+                  fontSize: 14,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  textTransform: 'capitalize'
+                }}
+              >
+                {section}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Content */}
         {activeSection === 'general' && (
-        <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: 32, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 16, display: 'flex' }}>
+        <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 16 : 32, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 16, display: 'flex' }}>
           {/* Recovery Verification Banner */}
           <RecoveryVerificationBanner />
 
           {/* Profile Card - Row 1 */}
           <div
             onClick={() => setActiveSection('profile')}
-            style={{ alignSelf: 'stretch', padding: 24, background: 'white', borderRadius: 16, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 20, display: 'flex', cursor: 'pointer', transition: 'background 0.2s ease' }}
+            style={{ alignSelf: 'stretch', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 16, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 12 : 20, display: 'flex', cursor: 'pointer', transition: 'background 0.2s ease' }}
             onMouseOver={(e) => e.currentTarget.style.background = '#F5F5F5'}
             onMouseOut={(e) => e.currentTarget.style.background = 'white'}
           >
@@ -842,20 +878,20 @@ const Settings = () => {
           </div>
 
           {/* Plan and Storage Cards - Row 2 */}
-          <div style={{ alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'stretch', gap: 24, display: 'flex' }}>
+          <div style={{ alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'stretch', gap: isMobile ? 12 : 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
             {/* Beta Access */}
-            <div style={{ flex: '1 1 0', padding: 24, background: 'white', borderRadius: 16, border: '1px #E6E6EC solid', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 20, display: 'flex' }}>
-              <div style={{ width: 70, height: 70, background: 'white', borderRadius: 14, border: '2px solid #181818', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src={crownIcon} alt="Crown" style={{ width: 60, height: 60 }} />
+            <div style={{ flex: '1 1 0', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 16, border: '1px #E6E6EC solid', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 20, display: 'flex' }}>
+              <div style={{ width: isMobile ? 56 : 70, height: isMobile ? 56 : 70, background: 'white', borderRadius: isMobile ? 12 : 14, border: '2px solid #181818', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src={crownIcon} alt="Crown" style={{ width: isMobile ? 48 : 60, height: isMobile ? 48 : 60 }} />
               </div>
-              <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex' }}>
-                <div style={{ color: '#32302C', fontSize: 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '40px' }}>Beta Access</div>
-                <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>
+              <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 4 : 8, display: 'flex' }}>
+                <div style={{ color: '#32302C', fontSize: isMobile ? 24 : 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: isMobile ? '32px' : '40px' }}>Beta Access</div>
+                <div style={{ color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>
                   Early access · All features unlocked
                 </div>
-                <div style={{ color: '#6C6B6E', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '22px', marginTop: 8 }}>
+                {!isMobile && <div style={{ color: '#6C6B6E', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '22px', marginTop: 8 }}>
                   You're part of Koda's early access program. Every search, upload, and note helps refine how Koda thinks — and how secure document intelligence should feel.
-                </div>
+                </div>}
               </div>
               <button
                 onClick={() => setShowFeedbackModal(true)}
@@ -893,40 +929,40 @@ const Settings = () => {
             {/* Storage */}
             <div style={{
               flex: '1 1 0',
-              padding: 24,
+              padding: isMobile ? 16 : 24,
               background: 'white',
-              borderRadius: 16,
+              borderRadius: isMobile ? 12 : 16,
               border: '1px #E6E6EC solid',
-              flexDirection: 'column',
-              justifyContent: 'flex-start',
+              flexDirection: isMobile ? 'row' : 'column',
+              justifyContent: isMobile ? 'space-between' : 'flex-start',
               alignItems: 'center',
-              gap: 24,
+              gap: isMobile ? 16 : 24,
               display: 'flex',
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
               cursor: 'default'
             }}
             >
-              <div style={{ width: 180, height: 180, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 16 }}>
-                <svg width="180" height="180" style={{ transform: 'rotate(-90deg)' }}>
+              <div style={{ width: isMobile ? 100 : 180, height: isMobile ? 100 : 180, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: isMobile ? 0 : 16, flexShrink: 0 }}>
+                <svg width={isMobile ? "100" : "180"} height={isMobile ? "100" : "180"} style={{ transform: 'rotate(-90deg)' }}>
                   {/* Background circle (unused storage) */}
                   <circle
-                    cx="90"
-                    cy="90"
-                    r="74"
+                    cx={isMobile ? "50" : "90"}
+                    cy={isMobile ? "50" : "90"}
+                    r={isMobile ? "38" : "74"}
                     fill="none"
                     stroke="#E6E6EC"
-                    strokeWidth="18"
+                    strokeWidth={isMobile ? "10" : "18"}
                   />
                   {/* Progress circle (used storage) */}
                   <circle
-                    cx="90"
-                    cy="90"
-                    r="74"
+                    cx={isMobile ? "50" : "90"}
+                    cy={isMobile ? "50" : "90"}
+                    r={isMobile ? "38" : "74"}
                     fill="none"
                     stroke="#181818"
-                    strokeWidth="18"
-                    strokeDasharray={`${2 * Math.PI * 74}`}
-                    strokeDashoffset={`${2 * Math.PI * 74 * (1 - storagePercentage / 100)}`}
+                    strokeWidth={isMobile ? "10" : "18"}
+                    strokeDasharray={`${2 * Math.PI * (isMobile ? 38 : 74)}`}
+                    strokeDashoffset={`${2 * Math.PI * (isMobile ? 38 : 74) * (1 - storagePercentage / 100)}`}
                     strokeLinecap="round"
                   />
                 </svg>
@@ -937,31 +973,32 @@ const Settings = () => {
                   left: '50%',
                   transform: 'translate(-50%, -50%)',
                   color: '#181818',
-                  fontSize: 28,
+                  fontSize: isMobile ? 16 : 28,
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '700',
-                  lineHeight: '32px'
+                  lineHeight: isMobile ? '20px' : '32px'
                 }}>
                   {Math.round(storagePercentage)}%
                 </div>
               </div>
-              <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex', paddingLeft: 8 }}>
-                <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', letterSpacing: '0.5px' }}>Storage</div>
-                <div style={{ marginTop: 4 }}>
-                  <span style={{ color: '#32302C', fontSize: 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '40px' }}>{formatBytes(totalStorage)} </span>
-                  <span style={{ color: '#B9B9B9', fontSize: 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '40px' }}>/ 1GB</span>
+              <div style={{ alignSelf: isMobile ? 'auto' : 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: isMobile ? 'flex-end' : 'flex-start', gap: isMobile ? 4 : 8, display: 'flex', paddingLeft: isMobile ? 0 : 8, flex: isMobile ? 1 : 'none' }}>
+                <div style={{ color: '#6C6B6E', fontSize: isMobile ? 12 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', letterSpacing: '0.5px' }}>Storage</div>
+                <div style={{ marginTop: isMobile ? 0 : 4 }}>
+                  <span style={{ color: '#32302C', fontSize: isMobile ? 20 : 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: isMobile ? '28px' : '40px' }}>{formatBytes(totalStorage)} </span>
+                  <span style={{ color: '#B9B9B9', fontSize: isMobile ? 20 : 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: isMobile ? '28px' : '40px' }}>/ 1GB</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* File Breakdown and Recently Added - Row 3 */}
-          <div style={{ alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'stretch', gap: 24, display: 'flex' }}>
+          <div style={{ alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'stretch', gap: isMobile ? 12 : 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
             {/* File Breakdown */}
-            <div style={{ flex: '1 1 0', padding: 16, background: 'white', borderRadius: 20, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ color: '#101828', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '26px' }}>File Breakdown</div>
+            <div style={{ flex: '1 1 0', padding: isMobile ? 12 : 16, background: 'white', borderRadius: isMobile ? 12 : 20, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16 }}>
+              <div style={{ color: '#101828', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '26px' }}>File Breakdown</div>
 
-              {/* Semicircle Chart */}
+              {/* Semicircle Chart - Hidden on mobile */}
+              {!isMobile && (
               <div style={{ position: 'relative', width: '100%', height: 200, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', pointerEvents: 'none' }}>
                 <div style={{ width: '100%', height: '300px', position: 'absolute', bottom: 0 }}>
                   <ResponsiveContainer width="100%" height={300}>
@@ -991,23 +1028,24 @@ const Settings = () => {
                   <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>Total</div>
                 </div>
               </div>
+              )}
 
-              {/* File Legend - 2x2 Grid */}
-              <div style={{ padding: 14, background: '#F5F5F5', borderRadius: 18, border: '1px #E6E6EC solid', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {/* File Legend - 2x2 Grid on desktop, 1 column on mobile */}
+              <div style={{ padding: isMobile ? 10 : 14, background: '#F5F5F5', borderRadius: isMobile ? 12 : 18, border: '1px #E6E6EC solid', display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr', gap: isMobile ? 8 : 12 }}>
                 {fileData.map((item, index) => (
-                  <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 40, height: 40, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {item.name === 'Spreadsheet' && <SpreadsheetIcon style={{ width: 20, height: 20 }} />}
-                      {item.name === 'Document' && <Document2Icon style={{ width: 20, height: 20 }} />}
-                      {item.name === 'Image' && <ImageIcon style={{ width: 20, height: 20 }} />}
-                      {item.name === 'Other' && <InfoCircleIcon style={{ width: 20, height: 20 }} />}
+                  <div key={index} style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12 }}>
+                    <div style={{ width: isMobile ? 32 : 40, height: isMobile ? 32 : 40, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {item.name === 'Spreadsheet' && <SpreadsheetIcon style={{ width: isMobile ? 16 : 20, height: isMobile ? 16 : 20 }} />}
+                      {item.name === 'Document' && <Document2Icon style={{ width: isMobile ? 16 : 20, height: isMobile ? 16 : 20 }} />}
+                      {item.name === 'Image' && <ImageIcon style={{ width: isMobile ? 16 : 20, height: isMobile ? 16 : 20 }} />}
+                      {item.name === 'Other' && <InfoCircleIcon style={{ width: isMobile ? 16 : 20, height: isMobile ? 16 : 20 }} />}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{item.name}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px' }}>{item.value} Files</div>
-                        <div style={{ width: 4, height: 4, background: '#6C6B6E', borderRadius: '50%', opacity: 0.9 }} />
-                        <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px' }}>{item.size}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 2 : 4, minWidth: 0 }}>
+                      <div style={{ color: '#32302C', fontSize: isMobile ? 12 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{item.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 8, flexWrap: 'wrap' }}>
+                        <div style={{ color: '#6C6B6E', fontSize: isMobile ? 11 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px' }}>{item.value} Files</div>
+                        {!isMobile && <div style={{ width: 4, height: 4, background: '#6C6B6E', borderRadius: '50%', opacity: 0.9 }} />}
+                        {!isMobile && <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px' }}>{item.size}</div>}
                       </div>
                     </div>
                   </div>
@@ -1016,9 +1054,9 @@ const Settings = () => {
             </div>
 
             {/* Recently Added */}
-            <div style={{ flex: '1 1 0', padding: 24, background: 'white', borderRadius: 16, border: '1px #E6E6EC solid', minHeight: 480, flexDirection: 'column', display: 'flex' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <div style={{ color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700' }}>Recently Added</div>
+            <div style={{ flex: '1 1 0', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 16, border: '1px #E6E6EC solid', minHeight: isMobile ? 'auto' : 480, flexDirection: 'column', display: 'flex' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24 }}>
+                <div style={{ color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700' }}>Recently Added</div>
                 <button
                   onClick={() => navigate('/documents')}
                   style={{
@@ -1104,15 +1142,15 @@ const Settings = () => {
 
         {/* Profile Section */}
         {activeSection === 'profile' && (
-          <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: 20, overflow: 'hidden', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 20, display: 'flex' }}>
+          <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 16 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 16 : 20, display: 'flex' }}>
             <div style={{ alignSelf: 'stretch', position: 'relative', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 12, display: 'flex' }}>
               {profileImage ? (
                 <img
                   src={profileImage}
                   alt="Profile"
                   style={{
-                    width: 120,
-                    height: 120,
+                    width: isMobile ? 80 : 120,
+                    height: isMobile ? 80 : 120,
                     borderRadius: '50%',
                     objectFit: 'cover',
                     border: '2px solid #E6E6EC'
@@ -1120,15 +1158,15 @@ const Settings = () => {
                 />
               ) : (
                 <div style={{
-                  width: 120,
-                  height: 120,
+                  width: isMobile ? 80 : 120,
+                  height: isMobile ? 80 : 120,
                   borderRadius: '50%',
                   background: 'white',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#181818',
-                  fontSize: 48,
+                  fontSize: isMobile ? 32 : 48,
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '700',
                   border: '2px solid #E6E6EC'
@@ -1145,12 +1183,12 @@ const Settings = () => {
               />
               <label
                 htmlFor="profile-image-upload"
-                style={{ width: 44, height: 44, position: 'absolute', right: 'calc(50% - 82px)', bottom: 0, background: '#171717', borderRadius: 100, justifyContent: 'center', alignItems: 'center', gap: 10, display: 'flex', cursor: 'pointer' }}
+                style={{ width: isMobile ? 36 : 44, height: isMobile ? 36 : 44, position: 'absolute', right: isMobile ? 'calc(50% - 56px)' : 'calc(50% - 82px)', bottom: 0, background: '#171717', borderRadius: 100, justifyContent: 'center', alignItems: 'center', gap: 10, display: 'flex', cursor: 'pointer' }}
               >
-                <PlusWhiteIcon style={{ width: 18, height: 18 }} />
+                <PlusWhiteIcon style={{ width: isMobile ? 14 : 18, height: isMobile ? 14 : 18 }} />
               </label>
             </div>
-            <div style={{ alignSelf: 'stretch', flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 20, display: 'flex' }}>
+            <div style={{ alignSelf: 'stretch', flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 20, display: 'flex' }}>
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                 <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex' }}>
                   <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>First Name</div>
@@ -1230,9 +1268,9 @@ const Settings = () => {
 
         {/* Password Section */}
         {activeSection === 'password' && (
-          <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: 20, overflow: 'hidden', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 20, display: 'flex' }}>
-            <div style={{ alignSelf: 'stretch', flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 32, display: 'flex' }}>
-              <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 20, display: 'flex' }}>
+          <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 16 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 16 : 20, display: 'flex' }}>
+            <div style={{ alignSelf: 'stretch', flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 20 : 32, display: 'flex' }}>
+              <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 20, display: 'flex' }}>
 
                 {/* Current Password */}
                 <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>

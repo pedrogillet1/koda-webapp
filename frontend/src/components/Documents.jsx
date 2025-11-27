@@ -497,7 +497,7 @@ const Documents = () => {
 
   return (
     <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
-      {!isMobile && <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />}
+      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Main Content */}
       <div
@@ -507,7 +507,7 @@ const Documents = () => {
         onDragLeave={handlePageDragLeave}
       >
         {/* Header */}
-        <div style={{height: 84, paddingLeft: 20, paddingRight: 20, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+        <div style={{minHeight: isMobile ? 'auto' : 84, paddingLeft: isMobile ? 70 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 12 : 0, paddingBottom: isMobile ? 12 : 0, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'center' : 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 12 : 0}}>
           {isSelectMode ? (
             <>
               {/* Left: Back arrow + Documents title */}
@@ -550,8 +550,8 @@ const Documents = () => {
               </div>
             </>
           ) : (
-            <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px'}}>
-              Welcome back, {user && (user.firstName || user.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.email?.split('@')[0] || 'User'}!
+            <div style={{color: '#32302C', fontSize: isMobile ? 16 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px'}}>
+              Welcome{isMobile ? '' : ' Back'}, {user && (user.firstName || user.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.email?.split('@')[0] || 'User'}!
             </div>
           )}
           <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
@@ -687,7 +687,7 @@ const Documents = () => {
               </>
             ) : (
               <>
-                <div style={{position: 'relative', height: 52, display: 'flex', alignItems: 'center'}}>
+                <div style={{position: 'relative', height: isMobile ? 44 : 52, display: 'flex', alignItems: 'center', flex: isMobile ? 1 : 'none'}}>
                   <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
                   <input
                     type="text"
@@ -696,7 +696,8 @@ const Documents = () => {
                     placeholder="Search"
                     style={{
                       height: '100%',
-                      minWidth: 250,
+                      width: isMobile ? '100%' : 'auto',
+                      minWidth: isMobile ? 'auto' : 250,
                       paddingLeft: 46,
                       paddingRight: 16,
                       background: '#F5F5F5',
@@ -704,7 +705,7 @@ const Documents = () => {
                       border: '1px #E6E6EC solid',
                       outline: 'none',
                       color: '#32302C',
-                      fontSize: 16,
+                      fontSize: isMobile ? 14 : 16,
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '500',
                       lineHeight: '24px'
@@ -1034,9 +1035,9 @@ const Documents = () => {
               )}
             </div>
 
-                <div onClick={() => setShowUniversalUploadModal(true)} style={{height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'}}>
-                  <LogoutBlackIcon style={{width: 24, height: 24}} />
-                  <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload a Document</div>
+                <div onClick={() => setShowUniversalUploadModal(true)} style={{height: isMobile ? 44 : 52, width: isMobile ? 44 : 'auto', paddingLeft: isMobile ? 0 : 18, paddingRight: isMobile ? 0 : 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', flexShrink: 0}}>
+                  <LogoutBlackIcon style={{width: isMobile ? 20 : 24, height: isMobile ? 20 : 24}} />
+                  {!isMobile && <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload a Document</div>}
                 </div>
               </>
             )}
@@ -1044,18 +1045,18 @@ const Documents = () => {
         </div>
 
         {/* Scrollable Content */}
-        <div style={{flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20}}>
+        <div style={{flex: 1, padding: isMobile ? 12 : 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20}}>
           {/* Smart Categories */}
-          <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: 12}}>
-            {/* First Row: Add New + First 5 Categories */}
-            <div style={{display: 'flex', gap: 12}}>
-              <div onClick={() => setIsModalOpen(true)} style={{minWidth: 0, flex: '1 1 0', height: 72, padding: 12, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10, cursor: 'pointer'}}>
-                <div style={{width: 48, height: 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                  <AddIcon style={{ width: 24, height: 24 }} />
+          <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
+            {/* Categories - vertical list on mobile, row on desktop */}
+            <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 8 : 12}}>
+              <div onClick={() => setIsModalOpen(true)} style={{minWidth: 0, flex: isMobile ? 'none' : '1 1 0', height: isMobile ? 56 : 72, padding: isMobile ? '12px 16px' : 12, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', flexDirection: 'row', gap: isMobile ? 12 : 10, cursor: 'pointer'}}>
+                <div style={{width: isMobile ? 40 : 48, height: isMobile ? 40 : 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                  <AddIcon style={{ width: isMobile ? 20 : 24, height: isMobile ? 20 : 24 }} />
                 </div>
-                <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.6px', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>Add New Smart Category</span>
+                <span style={{color: '#32302C', fontSize: isMobile ? 14 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, whiteSpace: 'nowrap', textAlign: 'left'}}>Add New Smart Category</span>
               </div>
-              {categories.slice(0, 5).map((category, index) => (
+              {categories.slice(0, isMobile ? 4 : 5).map((category, index) => (
                 <div
                   key={`${category.id}-${category.emoji}`}
                   onDragOver={(e) => {
@@ -1084,30 +1085,33 @@ const Documents = () => {
                     }
                   }}
                   style={{
-                    flex: 1,
-                    padding: 10,
+                    flex: isMobile ? 'none' : 1,
+                    padding: isMobile ? '12px 16px' : 10,
+                    height: isMobile ? 56 : 'auto',
                     background: dragOverCategoryId === category.id ? '#F0F0F0' : 'white',
-                    borderRadius: 14,
+                    borderRadius: isMobile ? 12 : 14,
                     border: dragOverCategoryId === category.id ? '2px dashed #32302C' : '1px #E6E6EC solid',
                     display: 'flex',
+                    flexDirection: 'row',
                     alignItems: 'center',
-                    gap: 8,
+                    justifyContent: 'flex-start',
+                    gap: isMobile ? 12 : 8,
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease',
                     position: 'relative'
                   }}
                 >
-                  <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
-                    <div style={{width: 48, height: 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0}}>
+                  <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: isMobile ? 12 : 10, flex: 1, cursor: 'pointer', minWidth: 0, textAlign: 'left'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(0)')}>
+                    <div style={{width: isMobile ? 40 : 48, height: isMobile ? 40 : 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 20 : 24, flexShrink: 0}}>
                       <CategoryIcon emoji={category.emoji} />
                     </div>
-                    <div style={{display: 'flex', flexDirection: 'column', gap: 4, flex: 1}}>
-                      <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px'}}>{category.name}</div>
-                      <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px'}}>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 2 : 4, flex: 1, alignItems: 'flex-start', minWidth: 0}}>
+                      <div style={{color: '#32302C', fontSize: isMobile ? 14 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%'}}>{category.name}</div>
+                      <div style={{color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '1.2'}}>
                         {category.fileCount || 0} {category.fileCount === 1 ? 'File' : 'Files'}
                       </div>
                     </div>
                   </div>
-                  <div style={{position: 'relative'}} data-category-menu>
+                  {!isMobile && <div style={{position: 'relative'}} data-category-menu>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1231,13 +1235,28 @@ const Documents = () => {
                         </button>
                       </div>
                     )}
-                  </div>
+                  </div>}
                 </div>
               ))}
             </div>
 
-            {/* Second Row: Next 5 Categories + See All */}
-            {categories.length > 5 && (
+            {/* See All button for mobile */}
+            {isMobile && categories.length > 4 && (
+              <div
+                onClick={() => navigate('/documents')}
+                style={{
+                  padding: '12px 16px',
+                  textAlign: 'right'
+                }}
+              >
+                <span style={{color: '#171717', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', cursor: 'pointer'}}>
+                  See All ({categories.length})
+                </span>
+              </div>
+            )}
+
+            {/* Second Row: Next 5 Categories + See All - Hidden on mobile */}
+            {!isMobile && categories.length > 5 && (
               <div style={{display: 'flex', gap: 12}}>
                 {categories.slice(5, 10).map((category, index) => (
                   <div
@@ -1445,16 +1464,16 @@ const Documents = () => {
             )}
           </div>
 
-          {/* File Breakdown + Upcoming Actions (Side by Side) */}
-          <div style={{display: 'flex', gap: 20, flex: 1, minHeight: 0}}>
-            {/* File Breakdown - 40% */}
-            <div style={{width: '40%', padding: 16, background: 'white', borderRadius: 20, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden'}}>
-              <div style={{color: '#101828', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '26px'}}>File Breakdown</div>
+          {/* File Breakdown + Upcoming Actions (Side by Side on desktop, stacked on mobile) */}
+          <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 12 : 20, flex: isMobile ? 'none' : 1, minHeight: isMobile ? 'auto' : 0}}>
+            {/* File Breakdown */}
+            <div style={{width: isMobile ? '100%' : '40%', padding: isMobile ? 12 : 16, background: 'white', borderRadius: isMobile ? 12 : 20, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16, overflow: 'visible', flexShrink: 0}}>
+              <div style={{color: '#101828', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '26px'}}>File Breakdown</div>
 
               {/* Chart and Legend Container - Centered */}
-              <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: 16, justifyContent: 'center'}}>
-              {/* Semicircle Chart */}
-              <div style={{position: 'relative', width: '100%', height: 200, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', pointerEvents: 'none'}}>
+              <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16, justifyContent: 'center'}}>
+              {/* Semicircle Chart - Hidden on mobile */}
+              {!isMobile && <div style={{position: 'relative', width: '100%', height: 200, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', pointerEvents: 'none'}}>
                 <div style={{width: '100%', height: '300px', position: 'absolute', bottom: 0}}>
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
@@ -1482,24 +1501,24 @@ const Documents = () => {
                   <div style={{color: '#32302C', fontSize: 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '40px'}}>{totalFiles} Files</div>
                   <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px'}}>Total</div>
                 </div>
-              </div>
+              </div>}
 
               {/* File Legend - 2x2 Grid */}
-              <div style={{padding: 14, background: '#F5F5F5', borderRadius: 18, border: '1px #E6E6EC solid', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12}}>
+              <div style={{padding: isMobile ? 10 : 14, background: '#F5F5F5', borderRadius: isMobile ? 12 : 18, border: '1px #E6E6EC solid', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 12}}>
                 {fileData.map((item, index) => (
-                  <div key={index} style={{display: 'flex', alignItems: 'center', gap: 12}}>
-                    <div style={{width: 40, height: 40, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                      {item.name === 'Spreadsheet' && <SpreadsheetIcon style={{width: 20, height: 20}} />}
-                      {item.name === 'Document' && <Document2Icon style={{width: 20, height: 20}} />}
-                      {item.name === 'Image' && <ImageIcon style={{width: 20, height: 20}} />}
-                      {item.name === 'Other' && <InfoCircleIcon style={{width: 20, height: 20}} />}
+                  <div key={index} style={{display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12}}>
+                    <div style={{width: isMobile ? 32 : 40, height: isMobile ? 32 : 40, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                      {item.name === 'Spreadsheet' && <SpreadsheetIcon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
+                      {item.name === 'Document' && <Document2Icon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
+                      {item.name === 'Image' && <ImageIcon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
+                      {item.name === 'Other' && <InfoCircleIcon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
                     </div>
-                    <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
-                      <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px'}}>{item.name}</div>
-                      <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
-                        <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px'}}>{item.value} Files</div>
-                        <div style={{width: 4, height: 4, background: '#6C6B6E', borderRadius: '50%', opacity: 0.9}} />
-                        <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px'}}>{item.size}</div>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 2 : 4, minWidth: 0}}>
+                      <div style={{color: '#32302C', fontSize: isMobile ? 12 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2'}}>{item.name}</div>
+                      <div style={{display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 8, flexWrap: 'wrap'}}>
+                        <div style={{color: '#6C6B6E', fontSize: isMobile ? 11 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '1.2'}}>{item.value} Files</div>
+                        {!isMobile && <div style={{width: 4, height: 4, background: '#6C6B6E', borderRadius: '50%', opacity: 0.9}} />}
+                        {!isMobile && <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px'}}>{item.size}</div>}
                       </div>
                     </div>
                   </div>
@@ -1508,10 +1527,10 @@ const Documents = () => {
               </div>
             </div>
 
-            {/* Your Files - 60% */}
-            <div style={{width: '60%', padding: 24, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24}}>
-                <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
+            {/* Your Files */}
+            <div style={{width: isMobile ? '100%' : '60%', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24}}>
+                <div style={{color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
                 {contextDocuments.length > 6 && (
                   <div
                     onClick={() => navigate('/category/recently-added')}

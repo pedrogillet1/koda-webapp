@@ -140,12 +140,12 @@ const Upload = () => {
 
             {/* Main Content */}
             <div style={{flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex'}}>
-                <div style={{alignSelf: 'stretch', height: 84, paddingLeft: 20, paddingRight: 20, background: 'white', borderBottom: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex'}}>
-                    <div style={{textAlign: 'center', color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px'}}>Upload Documents</div>
+                <div style={{alignSelf: 'stretch', height: isMobile ? 60 : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex'}}>
+                    <div style={{textAlign: 'center', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px'}}>Upload Documents</div>
                 </div>
 
-                <div style={{alignSelf: 'stretch', flex: '1 1 0', padding: 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 20, display: 'flex'}}>
-                    <div {...getRootProps()} style={{alignSelf: 'stretch', flex: '1 1 0', paddingLeft: 40, paddingRight: 40, paddingTop: 60, paddingBottom: 60, background: '#F5F5F5', overflow: 'hidden', borderRadius: 20, border: '2px dashed rgba(108, 107, 110, 0.40)', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 32, display: 'flex', cursor: 'pointer'}}>
+                <div style={{alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 12 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: isMobile ? 12 : 20, display: 'flex'}}>
+                    <div {...getRootProps()} style={{alignSelf: 'stretch', flex: '1 1 0', minHeight: isMobile ? 300 : 'auto', paddingLeft: isMobile ? 16 : 40, paddingRight: isMobile ? 16 : 40, paddingTop: isMobile ? 32 : 60, paddingBottom: isMobile ? 32 : 60, background: '#F5F5F5', overflow: 'hidden', borderRadius: isMobile ? 16 : 20, border: '2px dashed rgba(108, 107, 110, 0.40)', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: isMobile ? 20 : 32, display: 'flex', cursor: 'pointer'}}>
                         <input {...getInputProps()} />
                         <div style={{
                             width: 85.38,
@@ -166,31 +166,33 @@ const Upload = () => {
                             <div style={{alignSelf: 'stretch', justifyContent: 'center', alignItems: 'flex-start', gap: 6, display: 'flex'}}>
                                 <div style={{
                                     color: '#32302C',
-                                    fontSize: 20,
+                                    fontSize: isMobile ? 16 : 20,
                                     fontFamily: 'Plus Jakarta Sans',
                                     fontWeight: '600',
                                     textTransform: 'capitalize',
-                                    lineHeight: '30px',
+                                    lineHeight: isMobile ? '24px' : '30px',
                                     opacity: isDragActive ? 1.0 : 0.6,
-                                    transition: 'opacity 250ms ease-out'
-                                }}>Upload Documents or Drag-n-drop</div>
+                                    transition: 'opacity 250ms ease-out',
+                                    textAlign: 'center'
+                                }}>{isMobile ? 'Tap to Upload' : 'Upload Documents or Drag-n-drop'}</div>
                             </div>
                             <div style={{
-                                width: 366,
+                                width: isMobile ? '100%' : 366,
+                                maxWidth: isMobile ? 280 : 366,
                                 textAlign: 'center',
                                 color: '#6C6B6E',
-                                fontSize: 16,
+                                fontSize: isMobile ? 14 : 16,
                                 fontFamily: 'Plus Jakarta Sans',
                                 fontWeight: '500',
-                                lineHeight: '24px',
+                                lineHeight: isMobile ? '20px' : '24px',
                                 opacity: isDragActive ? 0.8 : 0.4,
                                 transition: 'opacity 250ms ease-out'
-                            }}>Upload your first document           All file types supported (max 15MB)</div>
+                            }}>{isMobile ? 'All file types supported (max 15MB)' : 'Upload your first document           All file types supported (max 15MB)'}</div>
                         </div>
-                        <div style={{width: 340, borderRadius: 12, justifyContent: 'center', alignItems: 'flex-start', gap: 8, display: 'flex'}}>
-                            <div onClick={(e) => { e.stopPropagation(); open(); }} style={{width: 166, height: 52, borderRadius: 14, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex', cursor: 'pointer'}}>
+                        <div style={{width: isMobile ? '100%' : 340, maxWidth: isMobile ? 280 : 340, borderRadius: 12, justifyContent: 'center', alignItems: 'flex-start', gap: 8, display: 'flex', flexDirection: 'column'}}>
+                            <div onClick={(e) => { e.stopPropagation(); open(); }} style={{width: '100%', height: isMobile ? 48 : 52, borderRadius: 14, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex', cursor: 'pointer'}}>
                                 <div style={{flex: '1 1 0', alignSelf: 'stretch', paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, border: '1px solid #E6E6EC', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex'}}>
-                                    <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>Select Files</div>
+                                    <div style={{color: '#323232', fontSize: isMobile ? 14 : 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>Select Files</div>
                                 </div>
                             </div>
                         </div>
@@ -217,17 +219,18 @@ const Upload = () => {
                     {/* Modal Container */}
                     <div style={{
                         background: 'white',
-                        width: '90%',
-                        maxWidth: 1200,
-                        height: '85vh',
-                        borderRadius: 12,
+                        width: isMobile ? '100%' : '90%',
+                        maxWidth: isMobile ? '100%' : 1200,
+                        height: isMobile ? '100vh' : '85vh',
+                        borderRadius: isMobile ? 0 : 12,
                         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
                         display: 'flex',
+                        flexDirection: isMobile ? 'column' : 'row',
                         overflow: 'hidden',
                         animation: 'slideUp 0.3s ease-out'
                     }}>
-                        {/* Left Sidebar */}
-                        <div style={{
+                        {/* Left Sidebar - Hidden on mobile */}
+                        {!isMobile && <div style={{
                             width: 280,
                             background: '#F9FAFB',
                             borderRight: '1px solid #E5E7EB',
@@ -293,7 +296,7 @@ const Upload = () => {
                                     </div>
                                 ))}
                             </div>
-                        </div>
+                        </div>}
 
                         {/* Main Upload Area */}
                         <div style={{
@@ -307,10 +310,10 @@ const Upload = () => {
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
-                                padding: '20px 24px',
+                                padding: isMobile ? '16px' : '20px 24px',
                                 borderBottom: '1px solid #E5E7EB'
                             }}>
-                                <h2 style={{fontSize: 20, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Upload Documents</h2>
+                                <h2 style={{fontSize: isMobile ? 18 : 20, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Upload Documents</h2>
                                 <button
                                     onClick={handleCloseModal}
                                     style={{
@@ -334,48 +337,48 @@ const Upload = () => {
                             <div style={{
                                 flex: 1,
                                 overflowY: 'auto',
-                                padding: 24
+                                padding: isMobile ? 16 : 24
                             }}>
                                 {/* Drag-drop zone */}
                                 <div {...getRootProps()} style={{
                                     border: '2px dashed #D1D5DB',
-                                    borderRadius: 12,
-                                    padding: '48px 24px',
+                                    borderRadius: isMobile ? 8 : 12,
+                                    padding: isMobile ? '32px 16px' : '48px 24px',
                                     textAlign: 'center',
-                                    marginBottom: 24,
+                                    marginBottom: isMobile ? 16 : 24,
                                     cursor: 'pointer'
                                 }}>
                                     <input {...getInputProps()} />
                                     <div style={{
-                                        fontSize: 64,
-                                        marginBottom: 16,
+                                        fontSize: isMobile ? 48 : 64,
+                                        marginBottom: isMobile ? 12 : 16,
                                         opacity: isDragActive ? 1.0 : 0.75,
                                         transform: isDragActive ? 'scale(1.08)' : 'scale(1.0)',
                                         filter: isDragActive ? 'drop-shadow(0 0 24px rgba(0, 0, 0, 0.12))' : 'none',
                                         transition: 'opacity 250ms ease-out, transform 250ms ease-out, filter 250ms ease-out'
                                     }}>📁</div>
                                     <h3 style={{
-                                        fontSize: 18,
+                                        fontSize: isMobile ? 16 : 18,
                                         fontWeight: '600',
                                         color: '#111827',
                                         margin: '0 0 8px 0',
                                         fontFamily: 'Plus Jakarta Sans',
                                         opacity: isDragActive ? 1.0 : 0.6,
                                         transition: 'opacity 250ms ease-out'
-                                    }}>Upload Documents Or Drag-N-Drop</h3>
+                                    }}>{isMobile ? 'Tap to Upload' : 'Upload Documents Or Drag-N-Drop'}</h3>
                                     <p style={{
-                                        fontSize: 14,
+                                        fontSize: isMobile ? 13 : 14,
                                         color: '#6B7280',
-                                        margin: '0 0 24px 0',
+                                        margin: isMobile ? '0 0 16px 0' : '0 0 24px 0',
                                         lineHeight: 1.5,
                                         fontFamily: 'Plus Jakarta Sans',
                                         opacity: isDragActive ? 0.8 : 0.4,
                                         transition: 'opacity 250ms ease-out'
-                                    }}>Upload your first document<br/>All file types supported (max 15MB)</p>
+                                    }}>{isMobile ? 'All file types supported (max 15MB)' : 'Upload your first document'}<br/>{!isMobile && 'All file types supported (max 15MB)'}</p>
                                     <button
                                         onClick={(e) => { e.stopPropagation(); open(); }}
                                         style={{
-                                            padding: '10px 24px',
+                                            padding: isMobile ? '12px 20px' : '10px 24px',
                                             background: 'white',
                                             border: '1px solid #D1D5DB',
                                             borderRadius: 8,
@@ -384,7 +387,9 @@ const Upload = () => {
                                             color: '#374151',
                                             cursor: 'pointer',
                                             transition: 'all 0.15s',
-                                            fontFamily: 'Plus Jakarta Sans'
+                                            fontFamily: 'Plus Jakarta Sans',
+                                            width: isMobile ? '100%' : 'auto',
+                                            maxWidth: isMobile ? 200 : 'none'
                                         }}
                                     >
                                         Select Files
@@ -392,7 +397,7 @@ const Upload = () => {
                                 </div>
 
                                 {/* Upload progress list */}
-                                <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+                                <div style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
                                     {files.map((f, index) => {
                                         const isError = f.status === 'failed';
                                         const progressWidth = f.status === 'completed' ? 100 : (f.progress || 0);
@@ -401,8 +406,8 @@ const Upload = () => {
                                             <div key={index} style={{
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                gap: 16,
-                                                padding: 16,
+                                                gap: isMobile ? 12 : 16,
+                                                padding: isMobile ? 12 : 16,
                                                 background: 'white',
                                                 border: `1px solid ${isError ? '#EF4444' : '#E5E7EB'}`,
                                                 borderRadius: 8,
@@ -411,14 +416,14 @@ const Upload = () => {
                                             }}>
                                                 {/* File Icon Badge */}
                                                 <div style={{
-                                                    width: 48,
-                                                    height: 48,
+                                                    width: isMobile ? 40 : 48,
+                                                    height: isMobile ? 40 : 48,
                                                     borderRadius: 8,
                                                     background: getFileIcon(f.file.type),
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    fontSize: 12,
+                                                    fontSize: isMobile ? 10 : 12,
                                                     fontWeight: '700',
                                                     color: 'white',
                                                     textTransform: 'uppercase',
@@ -574,7 +579,7 @@ const Upload = () => {
 
                             {/* Footer with Upload Button */}
                             <div style={{
-                                padding: '16px 24px',
+                                padding: isMobile ? '12px 16px' : '16px 24px',
                                 borderTop: '1px solid #E5E7EB',
                                 background: 'white'
                             }}>
@@ -582,12 +587,12 @@ const Upload = () => {
                                     disabled={files.filter(f => f.status === 'uploading').length === 0 && files.filter(f => f.status === 'completed').length === files.length}
                                     style={{
                                         width: '100%',
-                                        padding: '14px 24px',
+                                        padding: isMobile ? '12px 20px' : '14px 24px',
                                         background: '#111827',
                                         color: 'white',
                                         border: 'none',
                                         borderRadius: 8,
-                                        fontSize: 16,
+                                        fontSize: isMobile ? 14 : 16,
                                         fontWeight: '600',
                                         cursor: 'pointer',
                                         transition: 'background 0.15s',
@@ -605,8 +610,8 @@ const Upload = () => {
 
             {/* Success/Error Notification */}
             {showNotification && (
-                <div style={{position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 10000, animation: 'slideUp 0.3s ease-out'}}>
-                    <div style={{padding: 10, background: '#181818', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 12, display: 'flex', minWidth: 400}}>
+                <div style={{position: 'fixed', bottom: isMobile ? 16 : 20, left: '50%', transform: 'translateX(-50%)', zIndex: 10000, animation: 'slideUp 0.3s ease-out', width: isMobile ? 'calc(100% - 32px)' : 'auto', maxWidth: isMobile ? 'calc(100% - 32px)' : 'none'}}>
+                    <div style={{padding: isMobile ? 8 : 10, background: '#181818', borderRadius: isMobile ? 12 : 14, justifyContent: 'center', alignItems: 'center', gap: isMobile ? 8 : 12, display: 'flex', minWidth: isMobile ? 'auto' : 400}}>
                         {notificationType === 'success' ? (
                             <>
                                 <div style={{width: 36, height: 36, position: 'relative'}}>

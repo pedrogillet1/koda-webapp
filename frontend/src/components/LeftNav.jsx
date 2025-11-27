@@ -19,7 +19,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { useDocuments } from '../context/DocumentsContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import logo from '../assets/logo.png';
+import kodaLogoWhite from '../assets/koda-logo_white.svg';
 
 const LeftNav = ({ onNotificationClick }) => {
     const navigate = useNavigate();
@@ -151,9 +151,8 @@ const LeftNav = ({ onNotificationClick }) => {
                     {/* Top Icons */}
                     <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 24, width: '100%', paddingLeft: 20, paddingRight: 20}}>
                         <div style={{paddingBottom: 20, borderBottom: '1px solid rgba(255, 255, 255, 0.20)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 16, width: '100%'}}>
-                            <div onClick={() => handleMobileNavigate('/home')} style={{display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer'}}>
-                                <img style={{width: 44, height: 44, borderRadius: '50%', border: '2px solid white', backgroundColor: 'transparent'}} src={logo} alt="Logo" />
-                                <div style={{color: 'white', fontSize: 24, fontWeight: 'bold', fontFamily: 'Plus Jakarta Sans'}}>KODA</div>
+                            <div onClick={() => handleMobileNavigate('/home')} style={{display: 'flex', alignItems: 'center', cursor: 'pointer'}}>
+                                <img style={{height: 80}} src={kodaLogoWhite} alt="KODA Logo" />
                             </div>
                         </div>
                         <div style={{display: 'flex', flexDirection: 'column', gap: 16, width: '100%'}}>
@@ -215,11 +214,10 @@ const LeftNav = ({ onNotificationClick }) => {
     return (
         <div style={{width: isExpanded ? 205 : 84, height: '100%', background: '#181818', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: isExpanded ? 'flex-start' : 'center', padding: '20px 0', transition: 'width 0.3s ease'}}>
             {/* Top Icons */}
-            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: 24, width: '100%', paddingLeft: isExpanded ? 20 : 0, paddingRight: isExpanded ? 20 : 0}}>
-                <div style={{paddingBottom: 20, borderBottom: '1px solid rgba(255, 255, 255, 0.20)', display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: 16, width: '100%'}}>
-                    <div onClick={() => navigate('/home')} style={{display: 'flex', alignItems: 'center', gap: 12, justifyContent: isExpanded ? 'flex-start' : 'center', cursor: 'pointer'}}>
-                        <img style={{width: 44, height: 44, borderRadius: '50%', border: '2px solid white', backgroundColor: 'transparent', display: 'block', verticalAlign: 'middle'}} src={logo} alt="Logo" />
-                        {isExpanded && <div style={{color: 'white', fontSize: 24, fontWeight: 'bold', fontFamily: 'Plus Jakarta Sans', lineHeight: '44px'}}>KODA</div>}
+            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: 12, width: '100%', paddingLeft: isExpanded ? 20 : 0, paddingRight: isExpanded ? 20 : 0}}>
+                <div style={{paddingBottom: 12, borderBottom: '1px solid rgba(255, 255, 255, 0.20)', display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', width: '100%'}}>
+                    <div onClick={() => navigate('/home')} style={{display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', cursor: 'pointer', marginLeft: isExpanded ? 8 : 0}}>
+                        <img style={{height: 80}} src={kodaLogoWhite} alt="KODA Logo" />
                     </div>
                 </div>
                 <div style={{display: 'flex', flexDirection: 'column', gap: 16, width: '100%', alignItems: isExpanded ? 'flex-start' : 'center'}}>

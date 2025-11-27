@@ -32,6 +32,7 @@ import mp4Icon from '../assets/mp4.png';
 import mp3Icon from '../assets/mp3.svg';
 import CategoryIcon from './CategoryIcon';
 import { useDocuments } from '../context/DocumentsContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import {
   isSafari,
   isMacOS,
@@ -125,6 +126,7 @@ const DocumentViewer = () => {
   const { documentId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobile();
   const { moveToFolder, getRootFolders, getDocumentCountByFolder } = useDocuments();
   const [document, setDocument] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -649,15 +651,26 @@ const DocumentViewer = () => {
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#F5F5F5', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'inline-flex' }}>
-        <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
-        <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex' }}>
+        {!isMobile && <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />}
+        <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex', width: '100%' }}>
           {/* Header */}
-          <div style={{ alignSelf: 'stretch', height: 96, padding: 16, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
+          <div style={{
+            alignSelf: 'stretch',
+            minHeight: isMobile ? 'auto' : 96,
+            padding: isMobile ? 12 : 16,
+            background: 'white',
+            borderBottom: '1px #E6E6EC solid',
+            justifyContent: 'flex-start',
+            alignItems: 'center',
+            gap: isMobile ? 8 : 12,
+            display: 'flex',
+            flexWrap: isMobile ? 'wrap' : 'nowrap'
+          }}>
           <button
             onClick={() => navigate(-1)}
             style={{
-              width: 42,
-              height: 42,
+              width: isMobile ? 36 : 42,
+              height: isMobile ? 36 : 42,
               background: 'white',
               borderRadius: 100,
               outline: '1px #E6E6EC solid',
@@ -667,7 +680,8 @@ const DocumentViewer = () => {
               justifyContent: 'center',
               cursor: 'pointer',
               border: 'none',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              flexShrink: 0
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = '#F5F5F5';
@@ -679,58 +693,74 @@ const DocumentViewer = () => {
             <ArrowLeftIcon style={{ width: 18, height: 18, stroke: '#55534E' }} />
           </button>
 
-          <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'inline-flex' }}>
-            <div style={{ justifyContent: 'flex-start', alignItems: 'center', display: 'inline-flex' }}>
-              <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
-                {/* Home or Documents */}
-                <div
-                  onClick={() => navigate(breadcrumbStart.path)}
-                  style={{ paddingTop: 4, paddingBottom: 4, borderRadius: 6, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
-                >
-                  <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>{breadcrumbStart.label}</div>
-                </div>
-                {/* Category (if document has folderId) */}
-                {document.folderId && (() => {
-                  const allFolders = getRootFolders();
-                  const category = allFolders.find(cat => cat.id === document.folderId);
-                  return category ? (
-                    <React.Fragment>
+          <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 4 : 8, display: 'inline-flex', minWidth: 0, overflow: 'hidden' }}>
+            {/* Breadcrumb - hidden on mobile */}
+            {!isMobile && (
+              <div style={{ justifyContent: 'flex-start', alignItems: 'center', display: 'inline-flex' }}>
+                <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
+                  {/* Home or Documents */}
+                  <div
+                    onClick={() => navigate(breadcrumbStart.path)}
+                    style={{ paddingTop: 4, paddingBottom: 4, borderRadius: 6, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
+                  >
+                    <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>{breadcrumbStart.label}</div>
+                  </div>
+                  {/* Category (if document has folderId) */}
+                  {document.folderId && (() => {
+                    const allFolders = getRootFolders();
+                    const category = allFolders.find(cat => cat.id === document.folderId);
+                    return category ? (
+                      <React.Fragment>
+                        <div style={{ color: '#D0D5DD', fontSize: 16 }}>›</div>
+                        <div style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4, borderRadius: 6, justifyContent: 'center', alignItems: 'center', display: 'flex' }}>
+                          <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>{category.name}</div>
+                        </div>
+                      </React.Fragment>
+                    ) : null;
+                  })()}
+                  {/* Folder path (if exists) */}
+                  {document.folderPath && document.folderPath.split('/').filter(Boolean).map((folder, index, arr) => (
+                    <React.Fragment key={index}>
                       <div style={{ color: '#D0D5DD', fontSize: 16 }}>›</div>
                       <div style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4, borderRadius: 6, justifyContent: 'center', alignItems: 'center', display: 'flex' }}>
-                        <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>{category.name}</div>
+                        <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>{folder}</div>
                       </div>
                     </React.Fragment>
-                  ) : null;
-                })()}
-                {/* Folder path (if exists) */}
-                {document.folderPath && document.folderPath.split('/').filter(Boolean).map((folder, index, arr) => (
-                  <React.Fragment key={index}>
-                    <div style={{ color: '#D0D5DD', fontSize: 16 }}>›</div>
-                    <div style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4, borderRadius: 6, justifyContent: 'center', alignItems: 'center', display: 'flex' }}>
-                      <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>{folder}</div>
-                    </div>
-                  </React.Fragment>
-                ))}
-                {/* File name */}
-                <div style={{ color: '#D0D5DD', fontSize: 16 }}>›</div>
-                <div style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4, background: '#F9FAFB', borderRadius: 6, justifyContent: 'center', alignItems: 'center', display: 'flex' }}>
-                  <div style={{ color: '#323232', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>{document.filename}</div>
+                  ))}
+                  {/* File name */}
+                  <div style={{ color: '#D0D5DD', fontSize: 16 }}>›</div>
+                  <div style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4, background: '#F9FAFB', borderRadius: 6, justifyContent: 'center', alignItems: 'center', display: 'flex' }}>
+                    <div style={{ color: '#323232', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>{document.filename}</div>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ color: '#323232', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px', wordWrap: 'break-word' }}>{document.filename}</span>
+            )}
+            <div style={{ textAlign: 'left', width: '100%', overflow: 'hidden' }}>
+              <span style={{
+                color: '#323232',
+                fontSize: isMobile ? 16 : 20,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '700',
+                lineHeight: isMobile ? '22px' : '30px',
+                wordWrap: 'break-word',
+                display: 'block',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>{document.filename}</span>
             </div>
           </div>
 
-          <div style={{ width: 400, borderRadius: 12, justifyContent: 'center', alignItems: 'flex-start', gap: 24, display: 'flex' }}>
-            <div style={{ justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex' }}>
-              <button
-                onClick={() => setShowDeleteModal(true)}
-                style={{ width: 42, height: 42, paddingLeft: 14, paddingRight: 14, paddingTop: 8, paddingBottom: 8, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
-              >
-                <TrashCanIcon style={{ width: 26, height: 26 }} />
-              </button>
+          {/* Action buttons - simplified on mobile */}
+          {!isMobile ? (
+            <div style={{ width: 400, borderRadius: 12, justifyContent: 'center', alignItems: 'flex-start', gap: 24, display: 'flex' }}>
+              <div style={{ justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex' }}>
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  style={{ width: 42, height: 42, paddingLeft: 14, paddingRight: 14, paddingTop: 8, paddingBottom: 8, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                >
+                  <TrashCanIcon style={{ width: 26, height: 26 }} />
+                </button>
               <button
                 onClick={async () => {
                   if (document) {
@@ -834,11 +864,44 @@ const DocumentViewer = () => {
               <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Download</div>
             </button>
           </div>
+          ) : (
+            /* Mobile: Show download button only in header */
+            <button
+              onClick={() => setShowShareModal(true)}
+              style={{
+                width: 36,
+                height: 36,
+                background: '#181818',
+                borderRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: 'none',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+            >
+              <DownloadWhiteIcon style={{ width: 18, height: 18 }} />
+            </button>
+          )}
         </div>
 
         {/* Toolbar */}
-        <div style={{ alignSelf: 'stretch', paddingLeft: 16, paddingRight: 16, paddingTop: 13, paddingBottom: 13, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'inline-flex' }}>
-          <div style={{ color: '#323232', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px', wordWrap: 'break-word' }}>
+        <div style={{
+          alignSelf: 'stretch',
+          paddingLeft: isMobile ? 12 : 16,
+          paddingRight: isMobile ? 12 : 16,
+          paddingTop: isMobile ? 10 : 13,
+          paddingBottom: isMobile ? 10 : 13,
+          background: 'white',
+          borderBottom: '1px #E6E6EC solid',
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          gap: isMobile ? 8 : 12,
+          display: 'flex',
+          flexWrap: isMobile ? 'wrap' : 'nowrap'
+        }}>
+          <div style={{ color: '#323232', fontSize: isMobile ? 12 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px', wordWrap: 'break-word' }}>
             {(() => {
               const fileType = document ? getFileType(document.filename, document.mimeType) : 'unknown';
               if (fileType === 'pdf' || fileType === 'word') {
@@ -848,17 +911,17 @@ const DocumentViewer = () => {
             })()}
           </div>
           <div style={{ width: 1, height: 19, background: '#D9D9D9' }} />
-          <div style={{ flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
+          <div style={{ flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 8 : 12, display: 'flex' }}>
             <button
               onClick={() => {
                 setSelectedDocumentForCategory(document);
                 setShowCategoryModal(true);
               }}
               style={{
-                paddingLeft: 12,
-                paddingRight: 12,
-                paddingTop: 8,
-                paddingBottom: 8,
+                paddingLeft: isMobile ? 8 : 12,
+                paddingRight: isMobile ? 8 : 12,
+                paddingTop: isMobile ? 6 : 8,
+                paddingBottom: isMobile ? 6 : 8,
                 background: '#000000',
                 borderRadius: 8,
                 border: 'none',
@@ -870,7 +933,7 @@ const DocumentViewer = () => {
             >
               <span style={{
                 color: '#FFFFFF',
-                fontSize: 14,
+                fontSize: isMobile ? 12 : 14,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '600',
                 lineHeight: '20px'
@@ -879,6 +942,8 @@ const DocumentViewer = () => {
               </span>
             </button>
           </div>
+          {/* Zoom controls - hidden on mobile */}
+          {!isMobile && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
             <button
               onClick={() => setZoom(prev => Math.max(50, prev - 25))}
@@ -947,10 +1012,22 @@ const DocumentViewer = () => {
               <PlusIcon style={{ width: 16, height: 16 }} />
             </button>
           </div>
+          )}
         </div>
 
         {/* Document Preview */}
-        <div ref={documentContainerRef} style={{ width: '100%', flex: 1, padding: 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', display: 'flex', background: '#E5E5E5' }}>
+        <div ref={documentContainerRef} style={{
+          width: '100%',
+          flex: 1,
+          padding: isMobile ? 8 : 20,
+          overflow: 'auto',
+          flexDirection: 'column',
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          display: 'flex',
+          background: '#E5E5E5',
+          WebkitOverflowScrolling: 'touch'
+        }}>
           {document ? (
             (() => {
               const fileType = getFileType(document.filename, document.mimeType);
@@ -1058,7 +1135,7 @@ const DocumentViewer = () => {
                           >
                             <Page
                               pageNumber={index + 1}
-                              width={900 * (zoom / 100)}
+                              width={isMobile ? window.innerWidth - 16 : 900 * (zoom / 100)}
                               scale={getOptimalPDFScale()}
                               renderTextLayer={true}
                               renderAnnotationLayer={true}
@@ -1207,7 +1284,7 @@ const DocumentViewer = () => {
                           >
                             <Page
                               pageNumber={index + 1}
-                              width={900 * (zoom / 100)}
+                              width={isMobile ? window.innerWidth - 16 : 900 * (zoom / 100)}
                               scale={getOptimalPDFScale()}
                               renderTextLayer={true}
                               renderAnnotationLayer={true}
