@@ -1527,7 +1527,8 @@ const Documents = () => {
                   {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).map((doc) => {
                     // ✅ Check document status for visual indicators
                     const isUploading = doc.status === 'uploading';
-                    const isProcessing = doc.status === 'processing';
+                    // Processing status hidden - documents should display normally
+                    // const isProcessing = doc.status === 'processing';
                     const isCompleted = doc.status === 'completed';
                     const isFailed = doc.status === 'failed';
 
@@ -1637,19 +1638,19 @@ const Documents = () => {
                           gap: 14,
                           padding: 14,
                           borderRadius: 14,
-                          background: isUploading ? '#FFF9E6' : (isProcessing ? '#F0F9FF' : '#F5F5F5'),
+                          background: isUploading ? '#FFF9E6' : '#F5F5F5',
                           opacity: isUploading ? 0.8 : 1,
-                          border: isProcessing ? '1px solid #3B82F6' : 'none',
+                          border: 'none',
                           cursor: 'grab',
                           transition: 'all 0.2s ease'
                         }}
                         onMouseEnter={(e) => {
-                          if (!isUploading && !isProcessing) {
+                          if (!isUploading) {
                             e.currentTarget.style.background = '#E6E6EC';
                           }
                         }}
                         onMouseLeave={(e) => {
-                          if (!isUploading && !isProcessing) {
+                          if (!isUploading) {
                             e.currentTarget.style.background = '#F5F5F5';
                           }
                         }}
@@ -1691,21 +1692,8 @@ const Documents = () => {
                             </div>
                           )}
 
-                          {isProcessing && (
-                            <div style={{
-                              fontSize: 12,
-                              color: '#3B82F6',
-                              fontFamily: 'Plus Jakarta Sans',
-                              fontWeight: '600',
-                              marginTop: 6,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4
-                            }}>
-                              <span>⚙️</span>
-                              <span>Processing...</span>
-                            </div>
-                          )}
+                          {/* Processing badge - HIDDEN: Documents should display normally regardless of status */}
+                          {/* Users don't need to see processing status - it happens silently in the background */}
 
                           {isFailed && (
                             <div style={{

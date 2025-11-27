@@ -2576,7 +2576,7 @@ export const listDocuments = async (
 
   const where: any = {
     userId,
-    status: 'completed'  // ✅ Only return completed documents (hide pending/processing/failed/deleted)
+    status: { in: ['completed', 'processing', 'uploading'] }  // ✅ FIX: Include all active documents (matches folder count logic)
   };
   if (folderId !== undefined) {
     where.folderId = folderId === 'root' ? null : folderId;

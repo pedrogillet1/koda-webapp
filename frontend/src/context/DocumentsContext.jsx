@@ -41,8 +41,8 @@ export const DocumentsProvider = ({ children }) => {
     timeout: null,
     lastRefetch: 0
   });
-  const REFETCH_BATCH_DELAY = 500; // Wait 500ms to batch requests
-  const REFETCH_COOLDOWN = 2000; // Minimum 2s between refetches
+  const REFETCH_BATCH_DELAY = 1500; // ✅ FIX: Wait 1.5s to batch requests (was 500ms) - allows all documents to be created
+  const REFETCH_COOLDOWN = 3000; // ✅ FIX: Minimum 3s between refetches (was 2s) - prevents count fluctuation
 
   // Fetch all documents
   const fetchDocuments = useCallback(async () => {
@@ -174,10 +174,35 @@ export const DocumentsProvider = ({ children }) => {
 
       console.log('\n🗂️ FETCHED FOLDERS:', fetchedFolders.length, 'total');
       fetchedFolders.forEach(f => {
-        console.log(`  ${f.emoji || '📁'} ${f.name} (id: ${f.id}, parent: ${f.parentFolderId || 'ROOT'})`);
+        console.log(`  ${f.emoji || '📁'} ${f.name} (id: ${f.id}, count: ${f._count?.totalDocuments || 0})`);
       });
 
-      setFolders(fetchedFolders);
+      // ✅ FIX: Preserve optimistic counts if they're higher than backend counts
+      // This prevents count fluctuation during bulk uploads where documents are still being created
+      setFolders(prevFolders => {
+        return fetchedFolders.map(fetchedFolder => {
+          const prevFolder = prevFolders.find(pf => pf.id === fetchedFolder.id);
+          if (prevFolder && prevFolder._count) {
+            const prevTotal = prevFolder._count.totalDocuments || 0;
+            const fetchedTotal = fetchedFolder._count?.totalDocuments || 0;
+
+            // If previous optimistic count is higher, preserve it temporarily
+            // This happens when documents are being uploaded but haven't all committed to DB yet
+            if (prevTotal > fetchedTotal) {
+              console.log(`🛡️ Preserving optimistic count for ${fetchedFolder.name}: ${prevTotal} > ${fetchedTotal}`);
+              return {
+                ...fetchedFolder,
+                _count: {
+                  ...fetchedFolder._count,
+                  documents: Math.max(prevFolder._count.documents || 0, fetchedFolder._count?.documents || 0),
+                  totalDocuments: prevTotal
+                }
+              };
+            }
+          }
+          return fetchedFolder;
+        });
+      });
     } catch (error) {
       console.error('Error fetching folders:', error);
       // If auth error or rate limit, stop making more requests
@@ -669,9 +694,11 @@ export const DocumentsProvider = ({ children }) => {
     });
 
     socket.on('folder-created', () => {
-      console.log('➕ Folder created (optimistic update already applied)');
-      // No refresh - optimistic update already happened in createFolder()
+      console.log('➕ Folder created event received');
+      // ✅ FIX: Invalidate cache AND use smartRefetch to batch folder updates
+      // This prevents race conditions when multiple folders/documents are created
       invalidateCache();
+      smartRefetch(['folders']);
     });
 
     socket.on('folder-deleted', () => {
@@ -689,14 +716,9 @@ export const DocumentsProvider = ({ children }) => {
     // ⚡ NEW: Listen for folder tree updates (emitted after cache invalidation completes)
     socket.on('folder-tree-updated', (data) => {
       console.log('🌳 Folder tree updated event received:', data);
-      // ✅ BUG FIX #2: If deletion occurred, force refresh to ensure clean state
-      if (data?.deleted) {
-        invalidateCache();
-        setTimeout(() => {
-          console.log('🔄 [WebSocket] Refreshing data after folder-tree-updated (deleted) event...');
-          fetchAllData(true); // Force refresh
-        }, 500);
-      }
+      invalidateCache();
+      // ✅ FIX: Use smartRefetch to batch folder updates and prevent race conditions
+      smartRefetch(['folders']);
     });
 
     // ⚡ NEW: Listen for processing complete events (emitted after database commit completes)
@@ -710,8 +732,9 @@ export const DocumentsProvider = ({ children }) => {
         ));
       }
 
-      // Refresh folders to update counts
-      fetchFolders();
+      // ✅ FIX: Use smartRefetch to batch folder updates - prevents count fluctuation
+      // when multiple documents complete processing simultaneously
+      smartRefetch(['folders']);
     });
 
     // Listen for document uploads from FileContext

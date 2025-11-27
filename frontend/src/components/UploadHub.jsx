@@ -19,8 +19,8 @@ import { ReactComponent as MoveIcon } from '../assets/add.svg';
 import { ReactComponent as DeleteIcon } from '../assets/Trash can-red.svg';
 import LayeredFolderIcon from './LayeredFolderIcon';
 import api from '../services/api';
-import folderUploadService from '../services/folderUploadService';
-import presignedUploadService from '../services/presignedUploadService';
+// ✅ REFACTORED: Use unified upload service (replaces folderUploadService + presignedUploadService)
+import unifiedUploadService from '../services/unifiedUploadService';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -839,74 +839,67 @@ const UploadHub = () => {
           filesWithoutPath.forEach(f => console.error(`   - ${f.name}`));
         }
 
-        // ✅ OPTIMIZATION: Use presigned URLs for direct-to-S3 upload
-        presignedUploadService.uploadFolder(files, null, (progress, fileName, stage) => {
-          // Update progress in UI using folderName to identify the correct item
-          setUploadingFiles(prev => prev.map((f) => {
-            if (f.isFolder && f.folderName === item.folderName) {
-              return {
-                ...f,
-                progress: Math.round(progress),
-                currentFile: fileName,
-                stage: stage || 'Uploading...',
-                // Upload phase (0-50%): uploading
-                // Processing phase (50-100%): processing (handled by WebSocket)
-                status: progress >= 50 ? 'processing' : 'uploading'
-              };
-            }
-            return f;
-          }));
-        })
-          .then(async (results) => {
-            // Check upload results
-            const succeeded = results.filter(r => r.success);
-            const failed = results.filter(r => !r.success);
+        // ✅ REFACTORED: Use unified upload service (same as UniversalUploadModal)
+        try {
+          const results = await unifiedUploadService.uploadFolder(
+            files,
+            (progress) => {
+              // Update progress in UI using folderName to identify the correct item
+              setUploadingFiles(prev => prev.map((f) => {
+                if (f.isFolder && f.folderName === item.folderName) {
+                  return {
+                    ...f,
+                    progress: progress.percentage || 0,
+                    stage: progress.message || 'Uploading...',
+                    status: 'uploading'
+                  };
+                }
+                return f;
+              }));
+            },
+            null // categoryId - will be auto-categorized
+          );
 
-            console.log(`✅ Upload complete: ${succeeded.length}/${results.length} files succeeded`);
+          console.log(`✅ Upload complete: ${results.successCount}/${results.totalFiles} files succeeded`);
 
-            if (failed.length > 0) {
-              console.warn(`⚠️ ${failed.length} files failed:`, failed.map(f => f.fileName));
-            }
+          if (results.failureCount > 0) {
+            console.warn(`⚠️ ${results.failureCount} files failed`);
+          }
 
-            // Extract documentIds from successful uploads
-            const documentIds = succeeded.map(r => r.documentId);
+          // SUCCESS: Mark as completed
+          setUploadingFiles(prev => prev.map((f) =>
+            (f.isFolder && f.folderName === item.folderName) ? {
+              ...f,
+              status: 'completed',
+              progress: 100,
+              stage: null
+            } : f
+          ));
 
-            // SUCCESS: S3 upload complete, now processing in background
-            // Keep status as 'processing' - WebSocket events will handle progress 50-100%
-            // Store documentIds to track individual file processing
-            setUploadingFiles(prev => prev.map((f) =>
-              (f.isFolder && f.folderName === item.folderName) ? {
-                ...f,
-                status: 'processing',
-                progress: 50,
-                stage: 'Processing...',
-                documentIds, // Track which documents belong to this folder
-                totalFiles: results.length,
-                processedFiles: 0
-              } : f
-            ));
+          // ✅ Documents and folders will appear INSTANTLY via WebSocket events
+          console.log('✅ Upload complete - documents will appear instantly via WebSocket');
 
-            // ✅ Documents and folders will appear INSTANTLY via WebSocket events
-            // Backend emits 'created' event when documents are created
-            // DocumentsContext listens and updates all screens immediately
-            console.log('✅ Upload complete - documents will appear instantly via WebSocket');
-          })
-          .catch((error) => {
-            // ERROR: Mark folder as failed
-            console.error('❌ Error uploading folder:', error);
-            setUploadingFiles(prev => prev.map((f) =>
-              (f.isFolder && f.folderName === item.folderName) ? {
-                ...f,
-                status: 'failed',
-                error: error.message || 'Upload failed'
-              } : f
-            ));
+          // ✅ FIX: Remove completed folder from list after short delay to show success
+          setTimeout(() => {
+            setUploadingFiles(prev => prev.filter((f) => !(f.isFolder && f.folderName === item.folderName)));
+          }, 1500);
 
-            // Remove failed uploads after delay
-            setTimeout(() => {
-              setUploadingFiles(prev => prev.filter((f) => !(f.isFolder && f.folderName === item.folderName)));
-            }, 3000);
-          });
+        } catch (error) {
+          // ERROR: Mark folder as failed
+          console.error('❌ Error uploading folder:', error);
+          setUploadingFiles(prev => prev.map((f) =>
+            (f.isFolder && f.folderName === item.folderName) ? {
+              ...f,
+              status: 'failed',
+              error: error.message || 'Upload failed'
+            } : f
+          ));
+
+          // Remove failed uploads after delay
+          setTimeout(() => {
+            setUploadingFiles(prev => prev.filter((f) => !(f.isFolder && f.folderName === item.folderName)));
+          }, 3000);
+        }
       } else {
         // Handle individual file upload - DIRECT TO GCS!
         const file = item.file;

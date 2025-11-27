@@ -27,13 +27,14 @@ const getAllFolderIdsInTree = async (rootFolderId: string): Promise<string[]> =>
 
 /**
  * Helper: Count all documents in a folder tree recursively
+ * ✅ FIX: Include all document statuses (completed, processing, uploading) for accurate counts
  */
 const countDocumentsRecursively = async (folderId: string): Promise<number> => {
   const allFolderIds = await getAllFolderIdsInTree(folderId);
   const totalDocuments = await prisma.document.count({
     where: {
       folderId: { in: allFolderIds },
-      status: 'completed'
+      status: { in: ['completed', 'processing', 'uploading'] } // ✅ FIX: Count ALL document statuses
     },
   });
   return totalDocuments;
@@ -179,20 +180,60 @@ export const getInitialData = async (req: Request, res: Response) => {
       }),
     ]);
 
-    // ✅ FIX: Calculate totalDocuments for each folder (includes subfolders)
-    // This ensures categories show correct counts including nested files
-    const foldersWithTotalCount = await Promise.all(
-      folders.map(async (folder: any) => {
-        const totalDocuments = await countDocumentsRecursively(folder.id);
-        return {
-          ...folder,
-          _count: {
-            ...folder._count,
-            totalDocuments, // Total documents including all subfolders
-          },
-        };
-      })
-    );
+    // ✅ OPTIMIZED: Calculate totalDocuments using a SINGLE groupBy query instead of N+1 queries
+    // This is orders of magnitude faster than calling countDocumentsRecursively for each folder
+
+    // Step 1: Get all document counts grouped by folderId in ONE query
+    const docCounts = await prisma.document.groupBy({
+      by: ['folderId'],
+      _count: { id: true },
+      where: {
+        userId,
+        status: { in: ['completed', 'processing', 'uploading'] }
+      }
+    });
+
+    // Step 2: Create a fast lookup map for direct document counts per folder
+    const countMap = new Map<string, number>();
+    for (const group of docCounts) {
+      if (group.folderId) {
+        countMap.set(group.folderId, group._count.id);
+      }
+    }
+
+    // Step 3: Create a folder lookup map and initialize counts
+    const folderMap = new Map<string, any>();
+    for (const folder of folders) {
+      const directDocCount = countMap.get(folder.id) || 0;
+      folderMap.set(folder.id, {
+        ...folder,
+        _count: {
+          ...folder._count,
+          totalDocuments: directDocCount // Start with direct document count
+        }
+      });
+    }
+
+    // Step 4: Propagate counts up to parent folders (in-memory, very fast)
+    // For each folder, add its direct document count to all its ancestors
+    for (const folder of folders) {
+      const directCount = countMap.get(folder.id) || 0;
+      if (directCount > 0) {
+        let parentId = folder.parentFolderId;
+        while (parentId) {
+          const parent = folderMap.get(parentId);
+          if (parent) {
+            parent._count.totalDocuments += directCount;
+            parentId = parent.parentFolderId;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    // Step 5: Convert map back to array
+    const foldersWithTotalCount = Array.from(folderMap.values());
 
     const duration = Date.now() - startTime;
     console.log(`✅ [BATCH] Loaded ${documents.length} docs, ${foldersWithTotalCount.length} folders, ${recentDocuments.length} recent in ${duration}ms`);
