@@ -946,8 +946,11 @@ const Settings = () => {
           <div style={{ alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'stretch', gap: isMobile ? 12 : 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
             {/* Beta Access */}
             <div style={{ flex: '1 1 0', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 16, border: '1px #E6E6EC solid', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 20, display: 'flex' }}>
-              <div style={{ width: isMobile ? 56 : 70, height: isMobile ? 56 : 70, background: 'white', borderRadius: isMobile ? 12 : 14, border: '2px solid #181818', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src={crownIcon} alt="Crown" style={{ width: isMobile ? 48 : 60, height: isMobile ? 48 : 60 }} />
+              <div style={{ width: 48, height: 48, background: '#F3F3F5', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {/* Badge/Star Icon - Koda style */}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="#181818" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 4 : 8, display: 'flex' }}>
                 <div style={{ color: '#32302C', fontSize: isMobile ? 24 : 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: isMobile ? '32px' : '40px' }}>Beta Access</div>
@@ -961,32 +964,32 @@ const Settings = () => {
               <button
                 onClick={() => setShowFeedbackModal(true)}
                 style={{
-                  width: '100%',
                   paddingLeft: 18,
                   paddingRight: 18,
                   paddingTop: 10,
                   paddingBottom: 10,
-                  background: '#F5F5F5',
+                  background: '#F3F3F5',
                   borderRadius: 100,
-                  border: '1px #E6E6EC solid',
+                  border: '1px #E2E2E6 solid',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 8,
                   cursor: 'pointer',
-                  transition: 'background 0.2s'
+                  transition: 'background 0.2s ease',
+                  alignSelf: 'flex-start'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#E8E8EC'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#F3F3F5'}
               >
                 <div style={{
-                  color: '#32302C',
+                  color: '#181818',
                   fontSize: 16,
                   fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '600',
+                  fontWeight: '500',
                   lineHeight: '24px'
                 }}>
-                  Send Feedback
+                  Send feedback
                 </div>
               </button>
             </div>
@@ -1007,43 +1010,60 @@ const Settings = () => {
               cursor: 'default'
             }}
             >
-              <div style={{ width: isMobile ? 100 : 180, height: isMobile ? 100 : 180, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: isMobile ? 0 : 16, flexShrink: 0 }}>
-                <svg width={isMobile ? "100" : "180"} height={isMobile ? "100" : "180"} style={{ transform: 'rotate(-90deg)' }}>
+              <div style={{ width: isMobile ? 100 : 160, height: isMobile ? 100 : 160, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: isMobile ? 0 : 16, flexShrink: 0 }}>
+                <svg width={isMobile ? "100" : "160"} height={isMobile ? "100" : "160"} style={{ transform: 'rotate(-90deg)' }}>
                   {/* Background circle (unused storage) */}
                   <circle
-                    cx={isMobile ? "50" : "90"}
-                    cy={isMobile ? "50" : "90"}
-                    r={isMobile ? "38" : "74"}
+                    cx={isMobile ? "50" : "80"}
+                    cy={isMobile ? "50" : "80"}
+                    r={isMobile ? "38" : "60"}
                     fill="none"
-                    stroke="#E6E6EC"
-                    strokeWidth={isMobile ? "10" : "18"}
+                    stroke="#E2E2E6"
+                    strokeWidth={isMobile ? "8" : "12"}
                   />
                   {/* Progress circle (used storage) */}
                   <circle
-                    cx={isMobile ? "50" : "90"}
-                    cy={isMobile ? "50" : "90"}
-                    r={isMobile ? "38" : "74"}
+                    cx={isMobile ? "50" : "80"}
+                    cy={isMobile ? "50" : "80"}
+                    r={isMobile ? "38" : "60"}
                     fill="none"
                     stroke="#181818"
-                    strokeWidth={isMobile ? "10" : "18"}
-                    strokeDasharray={`${2 * Math.PI * (isMobile ? 38 : 74)}`}
-                    strokeDashoffset={`${2 * Math.PI * (isMobile ? 38 : 74) * (1 - storagePercentage / 100)}`}
+                    strokeWidth={isMobile ? "8" : "12"}
+                    strokeDasharray={`${2 * Math.PI * (isMobile ? 38 : 60)}`}
+                    strokeDashoffset={`${2 * Math.PI * (isMobile ? 38 : 60) * (1 - storagePercentage / 100)}`}
                     strokeLinecap="round"
                   />
                 </svg>
-                {/* Storage percentage text */}
+                {/* Storage percentage and label text */}
                 <div style={{
                   position: 'absolute',
                   top: '50%',
                   left: '50%',
                   transform: 'translate(-50%, -50%)',
-                  color: '#181818',
-                  fontSize: isMobile ? 16 : 28,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '700',
-                  lineHeight: isMobile ? '20px' : '32px'
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 2
                 }}>
-                  {Math.round(storagePercentage)}%
+                  <div style={{
+                    color: '#181818',
+                    fontSize: isMobile ? 16 : 24,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '700',
+                    lineHeight: isMobile ? '20px' : '28px'
+                  }}>
+                    {Math.round(storagePercentage)}%
+                  </div>
+                  <div style={{
+                    color: '#6C6B6E',
+                    fontSize: isMobile ? 10 : 12,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '500',
+                    lineHeight: '16px'
+                  }}>
+                    used
+                  </div>
                 </div>
               </div>
               <div style={{ alignSelf: isMobile ? 'auto' : 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: isMobile ? 'flex-end' : 'flex-start', gap: isMobile ? 4 : 8, display: 'flex', paddingLeft: isMobile ? 0 : 8, flex: isMobile ? 1 : 'none' }}>

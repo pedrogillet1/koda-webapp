@@ -25,19 +25,8 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
   const defaultEmojis = ['__FOLDER_SVG__', '🏠', '💼', '📊', '📄', '🎓', '💰'];
   const allEmojis = [
     '__FOLDER_SVG__', '🏠', '💼', '📊', '📄', '🎓', '💰',
-    '🏥', '🎯', '🎨', '🎭', '🎪', '🎬', '🎮', '🎲', '🎵',
-    '🎸', '🎹', '🎺', '🎻', '🏀', '⚽', '🏈', '⚾',
-    '🎾', '🏐', '🏉', '🎱', '🏓', '🏸', '🥊', '🥋',
-    '⛳', '⛸', '🎿', '⛷', '🏂', '🏋', '🤸', '🤺',
-    '🤼', '🤽', '🤾', '🤹', '🧘', '🏃', '🚴', '🚵',
-    '🏎', '🏍', '🛴', '🛹', '🚗', '🚕', '🚙', '🚌',
-    '🚎', '🏎', '🚓', '🚑', '🚒', '🚐', '🚚', '🚛',
-    '🚜', '🚲', '🛵', '🏍', '🚨', '🚔', '🚍', '🚘',
-    '✈', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥',
-    '⚓', '🎢', '🎡', '🎠', '🎪', '🗼', '🏰', '🏯',
-    '🗽', '⛪', '🕌', '🛕', '🕍', '⛩', '🕋', '⛲',
-    '⛺', '🏕', '🗻', '🏔', '⛰', '🏞', '🏜', '🏖',
-    '🏝', '🌋', '🗾', '🏟', '🏛', '🏗', '🏘', '🏚'
+    '🏥', '🎯', '🎨', '🎭', '🎬', '🎮', '🎲', '🎵', '🎸', '🏀', '⚽',
+    '✈', '🚀', '🗼', '🏰', '🌋', '🏞', '🏖', '🏝'
   ];
 
   const emojiOptions = showAllEmojis ? allEmojis : defaultEmojis;
@@ -323,18 +312,18 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                 onClick={() => setShowAllEmojis(!showAllEmojis)}
                 style={{
                   padding: '6px 12px',
-                  background: '#F5F5F5',
-                  border: '1px solid #E6E6EC',
+                  background: 'transparent',
+                  border: 'none',
                   borderRadius: 8,
                   cursor: 'pointer',
-                  fontSize: 12,
+                  fontSize: 14,
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '600',
                   color: '#32302C',
-                  transition: 'background 0.2s ease'
+                  transition: 'opacity 0.2s ease'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
               >
                 {showAllEmojis ? 'Show Less' : 'See All'}
               </button>
@@ -343,10 +332,10 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
               alignSelf: 'stretch',
               display: 'flex',
               flexWrap: showAllEmojis ? 'wrap' : 'nowrap',
-              gap: 8,
+              gap: 12,
               maxHeight: showAllEmojis ? 200 : 'auto',
               overflowY: showAllEmojis ? 'auto' : 'visible',
-              padding: 4
+              overflowX: showAllEmojis ? 'visible' : 'hidden'
             }}>
               {emojiOptions.map((emoji) => (
                 <button
@@ -355,28 +344,27 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                   style={{
                     width: 44,
                     height: 44,
-                    padding: emoji === '__FOLDER_SVG__' ? 8 : '10px 0',
-                    background: selectedEmoji === emoji ? '#171717' : '#F5F5F5',
-                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
-                    borderRadius: 100,
-                    outline: `1px ${selectedEmoji === emoji ? '#171717' : '#E6E6EC'} solid`,
-                    outlineOffset: '-1px',
+                    background: selectedEmoji === emoji ? '#E4E4E8' : 'transparent',
+                    borderRadius: 12,
+                    border: 'none',
                     justifyContent: 'center',
                     alignItems: 'center',
                     display: 'flex',
-                    border: 'none',
                     cursor: 'pointer',
-                    fontSize: 20,
-                    flexShrink: 0
+                    fontSize: 32,
+                    flexShrink: 0,
+                    transition: 'transform 0.2s ease, background 0.2s ease'
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
                   {emoji === '__FOLDER_SVG__' ? (
                     <img
                       src={folderIcon}
                       alt="Folder"
                       style={{
-                        width: 28,
-                        height: 28
+                        width: 32,
+                        height: 32
                       }}
                     />
                   ) : (
@@ -537,7 +525,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                     style={{
                       width: 44,
                       height: 44,
-                      background: selectedDocuments.includes(doc.id) ? '#171717' : 'white',
+                      background: selectedDocuments.includes(doc.id) ? '#E4E4E8' : 'white',
                       borderRadius: 100,
                       outline: '1px rgba(55, 53, 47, 0.09) solid',
                       outlineOffset: '-1px',
@@ -548,7 +536,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                     }}
                   >
                     {selectedDocuments.includes(doc.id) ? (
-                      <CheckIcon style={{width: 16, height: 16, color: 'white'}} />
+                      <CheckIcon style={{width: 16, height: 16, color: '#000000'}} />
                     ) : (
                       <AddIcon style={{width: 16, height: 16, color: '#171717'}} />
                     )}
