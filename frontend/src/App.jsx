@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { DocumentsProvider } from './context/DocumentsContext';
 import { ToastProvider } from './context/ToastContext';
 import { logPerformanceMetrics } from './utils/performance';
+import './styles/designSystem.css';
 import './styles/safari-fixes.css';
 import Login from './components/Login';
 import SignUp from './components/Signup';
