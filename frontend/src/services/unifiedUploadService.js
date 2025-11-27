@@ -438,7 +438,7 @@ async function notifyCompletionWithRetry(documentIds) {
       const response = await api.post('/api/presigned-urls/complete', {
         documentIds
       }, {
-        timeout: 10000
+        timeout: 60000 // ✅ FIX: Increased timeout to 60s for large uploads (was 10s)
       });
 
       console.log(`✅ [CONFIRM] Success: ${response.data.queued} documents queued`);
