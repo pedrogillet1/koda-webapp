@@ -1189,7 +1189,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       return;
     }
 
-    const { query, conversationId, answerLength = 'medium', documentId, attachedFiles, attachedDocuments = [] } = req.body;
+    const { query, conversationId, answerLength = 'medium', documentId, attachedFiles, attachedDocuments = [], regenerateMessageId } = req.body;
 
     if (!query || !conversationId) {
       res.status(400).json({ error: 'Query and conversationId are required' });
@@ -1874,15 +1874,36 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     const isFirstMessage = existingMessageCount === 0;
     console.log(`👋 [GREETING CHECK - STREAMING] Conversation ${conversationId}: ${existingMessageCount} existing messages, isFirstMessage: ${isFirstMessage}`);
 
-    // Save user message to database with attached files metadata
-    const userMessage = await prisma.message.create({
-      data: {
-        conversationId,
-        role: 'user',
-        content: query,
-        metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null,
-      },
-    });
+    // ✅ REGENERATION: Skip creating user message if we're regenerating an existing response
+    let userMessage: any;
+    if (regenerateMessageId) {
+      console.log(`🔄 [REGENERATE] Regenerating message ${regenerateMessageId}, skipping user message creation`);
+      // Find the original user message for this assistant message
+      const assistantMsg = await prisma.message.findUnique({
+        where: { id: regenerateMessageId }
+      });
+      if (assistantMsg) {
+        const originalUserMsg = await prisma.message.findFirst({
+          where: {
+            conversationId,
+            role: 'user',
+            createdAt: { lt: assistantMsg.createdAt }
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+        userMessage = originalUserMsg;
+      }
+    } else {
+      // Save user message to database with attached files metadata
+      userMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'user',
+          content: query,
+          metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null,
+        },
+      });
+    }
 
     // Generate streaming RAG answer with error handling
     let fullAnswer = '';
@@ -2012,20 +2033,41 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     }
 
     // Save assistant message to database with RAG metadata
-    const assistantMessage = await prisma.message.create({
-      data: {
-        conversationId,
-        role: 'assistant',
-        content: cleanedAnswer,
-        metadata: JSON.stringify({
-          ragSources: filteredSources,
-          contextId: result.contextId,
-          intent: result.intent,
-          confidence: result.confidence,
-          answerLength: finalAnswerLength
-        }),
-      },
-    });
+    // ✅ REGENERATION: Update existing message if regenerating, otherwise create new
+    let assistantMessage: any;
+    if (regenerateMessageId) {
+      console.log(`🔄 [REGENERATE] Updating existing message ${regenerateMessageId}`);
+      assistantMessage = await prisma.message.update({
+        where: { id: regenerateMessageId },
+        data: {
+          content: cleanedAnswer,
+          metadata: JSON.stringify({
+            ragSources: filteredSources,
+            contextId: result.contextId,
+            intent: result.intent,
+            confidence: result.confidence,
+            answerLength: finalAnswerLength,
+            regeneratedAt: new Date().toISOString()
+          }),
+          updatedAt: new Date()
+        },
+      });
+    } else {
+      assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: cleanedAnswer,
+          metadata: JSON.stringify({
+            ragSources: filteredSources,
+            contextId: result.contextId,
+            intent: result.intent,
+            confidence: result.confidence,
+            answerLength: finalAnswerLength
+          }),
+        },
+      });
+    }
 
     // Update conversation timestamp
     await prisma.conversation.update({

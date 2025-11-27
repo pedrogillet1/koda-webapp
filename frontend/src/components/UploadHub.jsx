@@ -1919,14 +1919,12 @@ const UploadHub = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: '#F5F5F5',
                 borderRadius: 12,
-                border: '1px solid #E6E6EC',
                 cursor: 'pointer',
-                transition: 'background 0.15s'
+                transition: 'background 200ms ease-in-out'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#EAEAEA'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
               <SearchIcon style={{width: 20, height: 20}} />
             </div>
