@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
@@ -100,20 +100,34 @@ const DocumentsPage = () => {
   const [sortColumn, setSortColumn] = useState('date'); // 'name', 'type', 'size', 'date'
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' or 'desc'
 
-  // Close dropdown when clicking outside
+  // Refs to track current state for event listener (avoids stale closures)
+  const openDropdownIdRef = useRef(openDropdownId);
+  const categoryMenuOpenRef = useRef(categoryMenuOpen);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    openDropdownIdRef.current = openDropdownId;
+  }, [openDropdownId]);
+
+  useEffect(() => {
+    categoryMenuOpenRef.current = categoryMenuOpen;
+  }, [categoryMenuOpen]);
+
+  // Close dropdown when clicking outside - attached ONCE on mount
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (openDropdownId && !event.target.closest('[data-dropdown]')) {
+      // Use refs to get current state values (avoids stale closures)
+      if (openDropdownIdRef.current && !event.target.closest('[data-dropdown]')) {
         setOpenDropdownId(null);
       }
-      if (categoryMenuOpen && !event.target.closest('[data-category-menu]')) {
+      if (categoryMenuOpenRef.current && !event.target.closest('[data-category-menu]')) {
         setCategoryMenuOpen(null);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [openDropdownId, categoryMenuOpen]);
+  }, []); // Empty array - listener attached ONCE, uses refs for current state
 
   // Refresh data when component mounts or becomes visible
   useEffect(() => {
@@ -747,7 +761,7 @@ const DocumentsPage = () => {
         <div style={{flex: 1, padding: spacing.xl, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: spacing.xl}}>
           {/* Smart Categories */}
           <div style={{display: 'flex', flexDirection: 'column', gap: spacing.md}}>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: spacing.md}}>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: spacing.md}}>
               <div onClick={() => setIsModalOpen(true)} style={{
                 padding: `${spacing.lg}px`,
                 background: colors.white,
@@ -757,14 +771,13 @@ const DocumentsPage = () => {
                 alignItems: 'center',
                 gap: spacing.sm,
                 cursor: 'pointer',
-                minHeight: 72,
-                width: '100%',
+                height: 72,
                 boxSizing: 'border-box'
               }}>
                 <div style={{width: 40, height: 40, background: colors.gray[100], borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                   <AddIcon style={{ width: 20, height: 20 }} />
                 </div>
-                <span style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: 1}}>Add New Smart Category</span>
+                <span style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0}}>Add New Smart Category</span>
               </div>
               {categories.map((category, index) => (
                 <div
@@ -820,8 +833,7 @@ const DocumentsPage = () => {
                     gap: spacing.sm,
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                     position: 'relative',
-                    minHeight: 72,
-                    width: '100%',
+                    height: 72,
                     boxSizing: 'border-box',
                     zIndex: categoryMenuOpen === category.id ? 99999 : 1
                   }}
@@ -830,12 +842,12 @@ const DocumentsPage = () => {
                     console.log('📁 DocumentsPage - Clicking folder:', category.name, 'ID:', category.id);
                     console.log('🔗 DocumentsPage - Navigating to:', `/folder/${category.id}`);
                     navigate(`/folder/${category.id}`);
-                  }} style={{display: 'flex', alignItems: 'center', gap: spacing.sm, flex: 1, cursor: 'pointer'}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
+                  }} style={{display: 'flex', alignItems: 'center', gap: spacing.sm, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
                     <div style={{width: 40, height: 40, background: colors.gray[100], borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0}}>
                       <CategoryIcon emoji={category.emoji} />
                     </div>
-                    <div style={{display: 'flex', flexDirection: 'column', gap: spacing.xs, flex: 1}}>
-                      <div style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: '19.60px'}}>{category.name}</div>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: spacing.xs, flex: 1, minWidth: 0}}>
+                      <div style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: '19.60px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{category.name}</div>
                       <div style={{color: colors.gray[500], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.medium, lineHeight: '15.40px'}}>
                         {category.fileCount || 0} {category.fileCount === 1 ? 'File' : 'Files'}
                       </div>

@@ -41,6 +41,7 @@ import { getCategoriesWithCounts, createCategory, deleteCategory, addDocumentToC
 import api from '../services/api';
 import chatService from '../services/chatService';
 import CategoryIcon from './CategoryIcon';
+import FileBreakdownDonut from './FileBreakdownDonut';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -97,8 +98,13 @@ const Documents = () => {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
-  const [categoryMenuOpen, setCategoryMenuOpen] = useState(null);
-  const [categoryMenuPosition, setCategoryMenuPosition] = useState({ top: 0, left: 0 });
+  // Combined state for category menu - stores both ID and position together
+  const [categoryMenu, setCategoryMenu] = useState({ id: null, top: 0, left: 0 });
+  // Legacy aliases for compatibility
+  const categoryMenuOpen = categoryMenu.id;
+  const categoryMenuPosition = { top: categoryMenu.top, left: categoryMenu.left };
+  const setCategoryMenuOpen = (id) => setCategoryMenu(prev => id === null ? { id: null, top: 0, left: 0 } : { ...prev, id });
+  const setCategoryMenuPosition = (pos) => setCategoryMenu(prev => ({ ...prev, ...pos }));
   const [editingCategory, setEditingCategory] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -220,20 +226,34 @@ const Documents = () => {
     };
   }, [contextDocuments]);
 
-  // Close dropdown when clicking outside
+  // Refs to track current state for event listener (avoids stale closures)
+  const openDropdownIdRef = useRef(openDropdownId);
+  const categoryMenuRef = useRef(categoryMenu);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    openDropdownIdRef.current = openDropdownId;
+  }, [openDropdownId]);
+
+  useEffect(() => {
+    categoryMenuRef.current = categoryMenu;
+  }, [categoryMenu]);
+
+  // Close dropdown when clicking outside - attached ONCE on mount
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (openDropdownId && !event.target.closest('[data-dropdown]')) {
+      // Use refs to get current state values (avoids stale closures)
+      if (openDropdownIdRef.current && !event.target.closest('[data-dropdown]')) {
         setOpenDropdownId(null);
       }
-      if (categoryMenuOpen && !event.target.closest('[data-category-menu]')) {
-        setCategoryMenuOpen(null);
+      if (categoryMenuRef.current.id && !event.target.closest('[data-category-menu]')) {
+        setCategoryMenu({ id: null, top: 0, left: 0 });
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [openDropdownId, categoryMenuOpen]);
+  }, []); // Empty array - listener attached ONCE, uses refs for current state
 
   // Refresh data when component mounts or becomes visible
   useEffect(() => {
@@ -1057,15 +1077,15 @@ const Documents = () => {
         <div style={{flex: 1, padding: isMobile ? 12 : 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20}}>
           {/* Smart Categories */}
           <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
-            {/* Categories - vertical list on mobile, row on desktop */}
-            <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 8 : 12}}>
-              <div onClick={() => setIsModalOpen(true)} style={{minWidth: 0, flex: isMobile ? 'none' : '1 1 0', height: isMobile ? 56 : 72, padding: isMobile ? '12px 16px' : 12, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', flexDirection: 'row', gap: isMobile ? 12 : 10, cursor: 'pointer'}}>
+            {/* Categories - vertical list on mobile, 5-column grid on desktop */}
+            <div style={{display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gridTemplateColumns: isMobile ? undefined : 'repeat(5, 1fr)', gap: isMobile ? 8 : 12}}>
+              <div onClick={() => setIsModalOpen(true)} style={{height: isMobile ? 56 : 72, padding: isMobile ? '12px 16px' : 12, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', flexDirection: 'row', gap: isMobile ? 12 : 10, cursor: 'pointer', boxSizing: 'border-box'}}>
                 <div style={{width: isMobile ? 40 : 48, height: isMobile ? 40 : 48, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                   <AddIcon style={{ width: isMobile ? 20 : 24, height: isMobile ? 20 : 24 }} />
                 </div>
                 <span style={{color: '#32302C', fontSize: isMobile ? 14 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, whiteSpace: 'nowrap', textAlign: 'left'}}>Add New Smart Category</span>
               </div>
-              {categories.slice(0, isMobile ? 4 : 5).map((category, index) => (
+              {categories.slice(0, isMobile ? 4 : 4).map((category, index) => (
                 <div
                   key={`${category.id}-${category.emoji}`}
                   onDragOver={(e) => {
@@ -1094,9 +1114,8 @@ const Documents = () => {
                     }
                   }}
                   style={{
-                    flex: isMobile ? 'none' : 1,
                     padding: isMobile ? '12px 16px' : 10,
-                    height: isMobile ? 56 : 'auto',
+                    height: isMobile ? 56 : 72,
                     background: dragOverCategoryId === category.id ? '#F0F0F0' : 'white',
                     borderRadius: isMobile ? 12 : 14,
                     border: dragOverCategoryId === category.id ? '2px dashed #32302C' : '1px #E6E6EC solid',
@@ -1106,7 +1125,8 @@ const Documents = () => {
                     justifyContent: 'flex-start',
                     gap: isMobile ? 12 : 8,
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease',
-                    position: 'relative'
+                    position: 'relative',
+                    boxSizing: 'border-box'
                   }}
                 >
                   <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: isMobile ? 12 : 10, flex: 1, cursor: 'pointer', minWidth: 0, textAlign: 'left'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(0)')}>
@@ -1125,17 +1145,18 @@ const Documents = () => {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (categoryMenuOpen === category.id) {
-                          setCategoryMenuOpen(null);
+                          setCategoryMenu({ id: null, top: 0, left: 0 });
                         } else {
                           const buttonRect = e.currentTarget.getBoundingClientRect();
                           const dropdownHeight = 160;
                           const spaceBelow = window.innerHeight - buttonRect.bottom;
                           const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
-                          setCategoryMenuPosition({
+                          // Single state update with both position and ID
+                          setCategoryMenu({
+                            id: category.id,
                             top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
                             left: buttonRect.right - 160
                           });
-                          setCategoryMenuOpen(category.id);
                         }
                       }}
                       style={{
@@ -1275,10 +1296,10 @@ const Documents = () => {
               </div>
             )}
 
-            {/* Second Row: Next 5 Categories + See All - Hidden on mobile */}
-            {!isMobile && categories.length > 5 && (
-              <div style={{display: 'flex', gap: 12}}>
-                {categories.slice(5, 10).map((category, index) => (
+            {/* Second Row: Next 5 Categories - Hidden on mobile */}
+            {!isMobile && categories.length > 4 && (
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12}}>
+                {categories.slice(4, categories.length > 8 ? 8 : 9).map((category, index) => (
                   <div
                     key={`${category.id}-${category.emoji}`}
                     onDragOver={(e) => {
@@ -1306,8 +1327,6 @@ const Documents = () => {
                       }
                     }}
                     style={{
-                      minWidth: 0,
-                      flex: '1 1 0',
                       height: 72,
                       padding: 12,
                       background: dragOverCategoryId === category.id ? '#F0F0F0' : 'white',
@@ -1317,7 +1336,8 @@ const Documents = () => {
                       alignItems: 'center',
                       gap: 10,
                       transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease',
-                      position: 'relative'
+                      position: 'relative',
+                      boxSizing: 'border-box'
                     }}
                   >
                     <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
@@ -1336,17 +1356,18 @@ const Documents = () => {
                         onClick={(e) => {
                           e.stopPropagation();
                           if (categoryMenuOpen === category.id) {
-                            setCategoryMenuOpen(null);
+                            setCategoryMenu({ id: null, top: 0, left: 0 });
                           } else {
                             const buttonRect = e.currentTarget.getBoundingClientRect();
                             const dropdownHeight = 160;
                             const spaceBelow = window.innerHeight - buttonRect.bottom;
                             const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
-                            setCategoryMenuPosition({
+                            // Single state update with both position and ID
+                            setCategoryMenu({
+                              id: category.id,
                               top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
                               left: buttonRect.right - 160
                             });
-                            setCategoryMenuOpen(category.id);
                           }
                         }}
                         style={{
@@ -1467,99 +1488,43 @@ const Documents = () => {
                     </div>
                   </div>
                 ))}
-                <div
-                  onClick={() => navigate('/documents')}
-                  style={{
-                    minWidth: 0,
-                    flex: '1 1 0',
-                    height: 72,
-                    padding: 12,
-                    background: 'white',
-                    borderRadius: 14,
-                    border: '1px #E6E6EC solid',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 10,
-                    cursor: 'pointer',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                  onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                >
-                  <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                    See All ({categories.length})
-                  </span>
-                </div>
+
+                {/* "See All" button as last item in row 2 - only show if more categories exist */}
+                {categories.length > 8 && (
+                  <div
+                    onClick={() => navigate('/documents')}
+                    style={{
+                      height: 72,
+                      padding: 12,
+                      background: 'white',
+                      borderRadius: 14,
+                      border: '1px #E6E6EC solid',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                      boxSizing: 'border-box'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                  >
+                    <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                      See All ({categories.length})
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* File Breakdown + Upcoming Actions (Side by Side on desktop, stacked on mobile) */}
-          <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 12 : 20, flex: isMobile ? 'none' : 1, minHeight: isMobile ? 'auto' : 0}}>
-            {/* File Breakdown */}
-            <div style={{width: isMobile ? '100%' : '40%', padding: isMobile ? 12 : 16, background: 'white', borderRadius: isMobile ? 12 : 20, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16, overflow: 'visible', flexShrink: 0}}>
-              <div style={{color: '#101828', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '26px'}}>File Breakdown</div>
+          {/* File Breakdown - Full width card */}
+          <div style={{width: '100%'}}>
+            <FileBreakdownDonut showEncryptionMessage={false} />
+          </div>
 
-              {/* Chart and Legend Container - Centered */}
-              <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16, justifyContent: 'center'}}>
-              {/* Semicircle Chart - Hidden on mobile */}
-              {!isMobile && <div style={{position: 'relative', width: '100%', height: 200, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', pointerEvents: 'none'}}>
-                <div style={{width: '100%', height: '300px', position: 'absolute', bottom: 0}}>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                      <Pie
-                        data={fileData}
-                        cx="50%"
-                        cy="100%"
-                        startAngle={180}
-                        endAngle={0}
-                        innerRadius={90}
-                        outerRadius={150}
-                        paddingAngle={2}
-                        dataKey="value"
-                        stroke="none"
-                        isAnimationActive={false}
-                      >
-                        {fileData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div style={{position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 10, textAlign: 'center'}}>
-                  <div style={{color: '#32302C', fontSize: 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '40px'}}>{totalFiles} Files</div>
-                  <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px'}}>Total</div>
-                </div>
-              </div>}
-
-              {/* File Legend - 2x2 Grid */}
-              <div style={{padding: isMobile ? 10 : 14, background: '#F5F5F5', borderRadius: isMobile ? 12 : 18, border: '1px #E6E6EC solid', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 12}}>
-                {fileData.map((item, index) => (
-                  <div key={index} style={{display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12}}>
-                    <div style={{width: isMobile ? 32 : 40, height: isMobile ? 32 : 40, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                      {item.name === 'Spreadsheet' && <SpreadsheetIcon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
-                      {item.name === 'Document' && <Document2Icon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
-                      {item.name === 'Image' && <ImageIcon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
-                      {item.name === 'Other' && <InfoCircleIcon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
-                    </div>
-                    <div style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 2 : 4, minWidth: 0}}>
-                      <div style={{color: '#32302C', fontSize: isMobile ? 12 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2'}}>{item.name}</div>
-                      <div style={{display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 8, flexWrap: 'wrap'}}>
-                        <div style={{color: '#6C6B6E', fontSize: isMobile ? 11 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '1.2'}}>{item.value} Files</div>
-                        {!isMobile && <div style={{width: 4, height: 4, background: '#6C6B6E', borderRadius: '50%', opacity: 0.9}} />}
-                        {!isMobile && <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px'}}>{item.size}</div>}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              </div>
-            </div>
-
-            {/* Your Files */}
-            <div style={{width: isMobile ? '100%' : '60%', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
+          {/* Your Files - Full width card below */}
+          <div style={{width: '100%', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24}}>
                 <div style={{color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
                 {contextDocuments.filter(doc => !doc.folderId && !doc.folder).length > 6 && (
@@ -1659,7 +1624,7 @@ const Documents = () => {
                       return sortDirection === 'asc' ? comparison : -comparison;
                     });
 
-                    const docsToShow = sortedDocs.slice(0, 6);
+                    const docsToShow = sortedDocs.slice(0, 12);
                     return docsToShow.map((doc, index) => {
                     // ✅ Check document status for visual indicators
                     const isUploading = doc.status === 'uploading';
@@ -2081,7 +2046,6 @@ const Documents = () => {
               )}
             </div>
           </div>
-        </div>
 
         {/* Drag and Drop Overlay */}
         {isDraggingOver && (
