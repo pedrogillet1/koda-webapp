@@ -208,13 +208,27 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
 
 /**
  * Get single folder with contents
+ * ✅ FIX: Now includes _count for subfolders and calculates totalDocuments recursively
  */
 export const getFolder = async (folderId: string, userId: string) => {
   const folder = await prisma.folder.findUnique({
     where: { id: folderId },
     include: {
-      subfolders: true,
+      // ✅ FIX: Include _count in subfolders query
+      subfolders: {
+        include: {
+          _count: {
+            select: {
+              documents: true,
+              subfolders: true,
+            },
+          },
+        },
+      },
       documents: {
+        where: {
+          status: 'completed', // Only return completed documents
+        },
         include: {
           tags: {
             include: {
@@ -235,7 +249,25 @@ export const getFolder = async (folderId: string, userId: string) => {
     throw new Error('Unauthorized');
   }
 
-  return folder;
+  // ✅ FIX: Calculate totalDocuments recursively for each subfolder
+  const subfoldersWithTotalCount = await Promise.all(
+    folder.subfolders.map(async (subfolder: any) => {
+      const totalDocuments = await countDocumentsRecursively(subfolder.id);
+      return {
+        ...subfolder,
+        _count: {
+          ...subfolder._count,
+          totalDocuments, // Total documents including all nested subfolders
+        },
+      };
+    })
+  );
+
+  // Return folder with enhanced subfolders
+  return {
+    ...folder,
+    subfolders: subfoldersWithTotalCount,
+  };
 };
 
 /**

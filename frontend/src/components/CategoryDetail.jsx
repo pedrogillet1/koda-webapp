@@ -1795,7 +1795,8 @@ const CategoryDetail = () => {
                             fontFamily: 'Plus Jakarta Sans',
                             margin: 0
                           }}>
-                            {folder._count?.documents || 0} document{folder._count?.documents !== 1 ? 's' : ''}
+                            {/* ✅ FIX: Use totalDocuments for recursive count, fallback to documents */}
+                            {folder._count?.totalDocuments ?? folder._count?.documents ?? 0} document{(folder._count?.totalDocuments ?? folder._count?.documents ?? 0) !== 1 ? 's' : ''}
                           </p>
                         </div>
                       </div>
