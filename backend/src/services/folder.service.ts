@@ -167,21 +167,15 @@ const countDocumentsRecursively = async (folderId: string): Promise<number> => {
 
 /**
  * Get folder tree for a user
+ * ✅ OPTIMIZED: Uses single groupBy query instead of N+1 recursive queries
  */
 export const getFolderTree = async (userId: string, includeAll: boolean = false) => {
-  const where: any = { userId };
+  // --- ⚡ START: PERFORMANCE OPTIMIZATION ⚡ ---
 
-  // Only filter by parentFolderId if we DON'T want all folders
-  if (!includeAll) {
-    where.parentFolderId = null; // Only get root-level categories
-  }
-
-  // When includeAll=true, return a FLAT list (no nested subfolders)
-  // When includeAll=false, include nested subfolders structure
-  const folders = await prisma.folder.findMany({
-    where,
+  // 1. Get ALL folders for the user in a flat list (we need all for recursive count calculation)
+  const allFolders = await prisma.folder.findMany({
+    where: { userId },
     include: {
-      subfolders: includeAll ? false : true, // Only nest when NOT returning all
       _count: {
         select: {
           documents: true,
@@ -189,25 +183,79 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
         },
       },
     },
-    orderBy: { createdAt: 'desc' }, // ✅ Newest first
+    orderBy: { createdAt: 'desc' },
   });
 
-  // ⚡ OPTIMIZED: Always calculate recursive document count for ALL folders
-  // This ensures the frontend always has accurate total counts
-  const foldersWithTotalCount = await Promise.all(
-    folders.map(async (folder) => {
-      const totalDocuments = await countDocumentsRecursively(folder.id);
-      return {
-        ...folder,
-        _count: {
-          ...folder._count,
-          totalDocuments, // Total documents including all subfolders
-        },
-      };
-    })
-  );
+  // 2. Get all document counts grouped by folderId in a SINGLE query
+  const docCounts = await prisma.document.groupBy({
+    by: ['folderId'],
+    _count: { id: true },
+    where: {
+      userId,
+      status: { in: ['completed', 'processing', 'uploading'] }
+    }
+  });
 
-  return foldersWithTotalCount;
+  // 3. Create a fast lookup map for direct document counts per folder
+  const countMap = new Map<string, number>();
+  for (const group of docCounts) {
+    if (group.folderId) {
+      countMap.set(group.folderId, group._count.id);
+    }
+  }
+
+  // 4. Create a folder lookup map and initialize counts
+  const folderMap = new Map<string, any>();
+  for (const folder of allFolders) {
+    const directDocCount = countMap.get(folder.id) || 0;
+    folderMap.set(folder.id, {
+      ...folder,
+      subfolders: [], // Will be populated if includeAll is false
+      _count: {
+        ...folder._count,
+        totalDocuments: directDocCount // Start with direct document count
+      }
+    });
+  }
+
+  // 5. Propagate counts up to parent folders (in-memory, very fast)
+  for (const folder of allFolders) {
+    const directCount = countMap.get(folder.id) || 0;
+    if (directCount > 0) {
+      let parentId = folder.parentFolderId;
+      while (parentId) {
+        const parent = folderMap.get(parentId);
+        if (parent) {
+          parent._count.totalDocuments += directCount;
+          parentId = parent.parentFolderId;
+        } else {
+          break;
+        }
+      }
+    }
+  }
+
+  // --- ⚡ END: PERFORMANCE OPTIMIZATION ⚡ ---
+
+  // 6. Build the result based on includeAll flag
+  if (includeAll) {
+    // Return flat list of ALL folders with correct counts
+    return Array.from(folderMap.values());
+  }
+
+  // Build nested tree structure for root-level folders only
+  for (const folder of folderMap.values()) {
+    if (folder.parentFolderId) {
+      const parent = folderMap.get(folder.parentFolderId);
+      if (parent) {
+        parent.subfolders.push(folder);
+      }
+    }
+  }
+
+  // Return only root-level folders (with nested subfolders)
+  const rootFolders = Array.from(folderMap.values()).filter(f => !f.parentFolderId);
+  return rootFolders;
 };
 
 /**

@@ -5,6 +5,7 @@ import { ReactComponent as FolderIcon } from '../assets/folder_icon.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 // ✅ REFACTORED: Use unified upload service (replaces folderUploadService + presignedUploadService)
 import unifiedUploadService from '../services/unifiedUploadService';
+import { useDocuments } from '../context/DocumentsContext';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -18,8 +19,8 @@ import mp3Icon from '../assets/mp3.svg';
 import folderIcon from '../assets/folder_icon.svg';
 
 const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComplete, initialFiles = null }) => {
-  // ✅ FIX: Removed refreshAll - WebSocket events now handle document updates
-  // Documents appear via document-created and processing-complete events
+  // ✅ FIX: Get fetchFolders to refresh categories after upload
+  const { fetchFolders, invalidateCache } = useDocuments();
 
   const [uploadingFiles, setUploadingFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -404,12 +405,15 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       setTimeout(() => setShowNotification(false), 5000);
     }
 
-    // ✅ FIX: Don't call refreshAll() - WebSocket events will update state
-    // Previously: Called refreshAll() which fetched from batch endpoint
-    // Batch endpoint only returns 'completed' documents, removing 'processing' ones
-    // This caused files to disappear after upload
+    // ✅ FIX: Immediately refresh folders after upload to show the new category
+    // This is important for folder uploads that create new categories
     console.log(`✅ Upload complete: ${totalSuccessCount} succeeded, ${totalFailureCount} failed`);
-    console.log('📡 Documents will appear via WebSocket events (no refresh needed)');
+    console.log('🔄 Refreshing folders to show new category...');
+
+    // Invalidate cache and fetch folders immediately
+    invalidateCache();
+    await fetchFolders();
+    console.log('✅ Folders refreshed - new category should now be visible');
 
     setIsUploading(false);
 
