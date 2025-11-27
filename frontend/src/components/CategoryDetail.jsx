@@ -133,6 +133,7 @@ const CategoryDetail = () => {
   // State declarations
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [dropdownMenuPosition, setDropdownMenuPosition] = useState({ top: 0, left: 0 });
   const [renamingDocId, setRenamingDocId] = useState(null);
   const [newFileName, setNewFileName] = useState('');
   const [sortBy, setSortBy] = useState('timeAdded');
@@ -1979,7 +1980,19 @@ const CategoryDetail = () => {
                             data-dropdown-id={doc.id}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setOpenDropdownId(openDropdownId === doc.id ? null : doc.id);
+                              if (openDropdownId === doc.id) {
+                                setOpenDropdownId(null);
+                              } else {
+                                const buttonRect = e.currentTarget.getBoundingClientRect();
+                                const dropdownHeight = 180;
+                                const spaceBelow = window.innerHeight - buttonRect.bottom;
+                                const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
+                                setDropdownMenuPosition({
+                                  top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
+                                  left: buttonRect.right - 160
+                                });
+                                setOpenDropdownId(doc.id);
+                              }
                             }}
                             style={{
                               width: 28,
@@ -2011,16 +2024,15 @@ const CategoryDetail = () => {
                             <div
                               onClick={(e) => e.stopPropagation()}
                               style={{
-                                position: 'absolute',
-                                top: '100%',
-                                right: 0,
-                                marginTop: 4,
+                                position: 'fixed',
+                                top: dropdownMenuPosition.top,
+                                left: dropdownMenuPosition.left,
                                 background: 'white',
                                 border: '1px solid #E5E7EB',
                                 borderRadius: 8,
                                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
                                 zIndex: 10000,
-                                minWidth: 140
+                                minWidth: 160
                               }}
                             >
                               <button
@@ -2342,7 +2354,19 @@ const CategoryDetail = () => {
                                 data-dropdown-id={`list-${doc.id}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setOpenDropdownId(openDropdownId === doc.id ? null : doc.id);
+                                  if (openDropdownId === doc.id) {
+                                    setOpenDropdownId(null);
+                                  } else {
+                                    const buttonRect = e.currentTarget.getBoundingClientRect();
+                                    const dropdownHeight = 180;
+                                    const spaceBelow = window.innerHeight - buttonRect.bottom;
+                                    const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
+                                    setDropdownMenuPosition({
+                                      top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
+                                      left: buttonRect.right - 160
+                                    });
+                                    setOpenDropdownId(doc.id);
+                                  }
                                 }}
                                 style={{
                                   width: 32,
@@ -2375,28 +2399,14 @@ const CategoryDetail = () => {
                                 <div
                                   style={{
                                     position: 'fixed',
-                                    top: (() => {
-                                      const button = document.querySelector(`[data-dropdown-id="list-${doc.id}"]`);
-                                      if (button) {
-                                        const rect = button.getBoundingClientRect();
-                                        return rect.bottom + 4 + 'px';
-                                      }
-                                      return '0px';
-                                    })(),
-                                    right: (() => {
-                                      const button = document.querySelector(`[data-dropdown-id="list-${doc.id}"]`);
-                                      if (button) {
-                                        const rect = button.getBoundingClientRect();
-                                        return (window.innerWidth - rect.right) + 'px';
-                                      }
-                                      return '0px';
-                                    })(),
+                                    top: dropdownMenuPosition.top,
+                                    left: dropdownMenuPosition.left,
                                     background: 'white',
                                     border: '1px solid #E5E7EB',
                                     borderRadius: 8,
                                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                                    zIndex: 9999,
-                                    minWidth: 140
+                                    zIndex: 10000,
+                                    minWidth: 160
                                   }}
                                 >
                                   <button

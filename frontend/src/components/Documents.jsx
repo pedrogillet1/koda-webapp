@@ -97,6 +97,7 @@ const Documents = () => {
   const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(null);
+  const [categoryMenuPosition, setCategoryMenuPosition] = useState({ top: 0, left: 0 });
   const [editingCategory, setEditingCategory] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -1115,7 +1116,19 @@ const Documents = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setCategoryMenuOpen(categoryMenuOpen === category.id ? null : category.id);
+                        if (categoryMenuOpen === category.id) {
+                          setCategoryMenuOpen(null);
+                        } else {
+                          const buttonRect = e.currentTarget.getBoundingClientRect();
+                          const dropdownHeight = 160;
+                          const spaceBelow = window.innerHeight - buttonRect.bottom;
+                          const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
+                          setCategoryMenuPosition({
+                            top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
+                            left: buttonRect.right - 160
+                          });
+                          setCategoryMenuOpen(category.id);
+                        }
                       }}
                       style={{
                         width: 28,
@@ -1134,15 +1147,14 @@ const Documents = () => {
                     </button>
                     {categoryMenuOpen === category.id && (
                       <div style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: '100%',
-                        marginTop: 4,
+                        position: 'fixed',
+                        top: categoryMenuPosition.top,
+                        left: categoryMenuPosition.left,
                         background: 'white',
                         borderRadius: 12,
                         border: '1px solid #E6E6EC',
                         boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                        zIndex: 1000,
+                        zIndex: 10000,
                         minWidth: 160,
                         overflow: 'hidden'
                       }}>
@@ -1315,7 +1327,19 @@ const Documents = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setCategoryMenuOpen(categoryMenuOpen === category.id ? null : category.id);
+                          if (categoryMenuOpen === category.id) {
+                            setCategoryMenuOpen(null);
+                          } else {
+                            const buttonRect = e.currentTarget.getBoundingClientRect();
+                            const dropdownHeight = 160;
+                            const spaceBelow = window.innerHeight - buttonRect.bottom;
+                            const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
+                            setCategoryMenuPosition({
+                              top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
+                              left: buttonRect.right - 160
+                            });
+                            setCategoryMenuOpen(category.id);
+                          }
                         }}
                         style={{
                           width: 28,
@@ -1334,15 +1358,14 @@ const Documents = () => {
                       </button>
                       {categoryMenuOpen === category.id && (
                         <div style={{
-                          position: 'absolute',
-                          right: 0,
-                          top: '100%',
-                          marginTop: 4,
+                          position: 'fixed',
+                          top: categoryMenuPosition.top,
+                          left: categoryMenuPosition.left,
                           background: 'white',
                           borderRadius: 12,
                           border: '1px solid #E6E6EC',
                           boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                          zIndex: 1000,
+                          zIndex: 10000,
                           minWidth: 160,
                           overflow: 'hidden'
                         }}>

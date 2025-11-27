@@ -1,31 +1,31 @@
 const colors = {
-  // Neutrals
+  // Neutrals - Koda brand colors
   neutral: {
     0: '#FFFFFF',      // Pure white
     50: '#F9FAFB',     // Very light gray (backgrounds)
-    100: '#F3F4F6',    // Light gray (hover states)
-    200: '#E5E7EB',    // Light gray (borders)
+    100: '#F5F5F5',    // Light gray (hover states, input backgrounds)
+    200: '#E6E6EC',    // Light gray (borders)
     300: '#D1D5DB',    // Medium gray (disabled)
     400: '#9CA3AF',    // Medium gray (secondary text)
-    500: '#6B7280',    // Gray (tertiary text)
-    600: '#4B5563',    // Dark gray (primary text)
+    500: '#6C6B6E',    // Gray (tertiary text) - Koda muted text
+    600: '#55534E',    // Dark gray
     700: '#374151',    // Darker gray
     800: '#1F2937',    // Very dark gray
-    900: '#111827'     // Almost black (text)
+    900: '#32302C'     // Almost black (text) - Koda primary text
   },
 
-  // Primary (Blue)
+  // Primary (Dark - Koda brand)
   primary: {
-    50: '#EFF6FF',
-    100: '#DBEAFE',
-    200: '#BFDBFE',
-    300: '#93C5FD',
-    400: '#60A5FA',
-    500: '#3B82F6',
-    600: '#2563EB',
-    700: '#1D4ED8',
-    800: '#1E40AF',
-    900: '#1E3A8A'
+    50: '#F5F5F5',
+    100: '#E6E6EC',
+    200: '#D1D5DB',
+    300: '#9CA3AF',
+    400: '#6B7280',
+    500: '#4B5563',
+    600: '#374151',
+    700: '#1F2937',
+    800: '#181818',    // Koda primary button
+    900: '#0F0F0F'     // Koda primary hover
   },
 
   // Success (Green)
@@ -35,7 +35,7 @@ const colors = {
     200: '#BBF7D0',
     300: '#86EFAC',
     400: '#4ADE80',
-    500: '#22C55E',
+    500: '#34A853',    // Koda success green
     600: '#16A34A',
     700: '#15803D',
     800: '#166534',
@@ -44,12 +44,12 @@ const colors = {
 
   // Error (Red)
   error: {
-    50: '#FEF2F2',
+    50: '#FEF3F2',     // Koda error background hover
     100: '#FEE2E2',
     200: '#FECACA',
     300: '#FCA5A5',
     400: '#F87171',
-    500: '#EF4444',
+    500: '#D92D20',    // Koda error red
     600: '#DC2626',
     700: '#B91C1C',
     800: '#991B1B',
@@ -63,7 +63,7 @@ const colors = {
     200: '#FDE68A',
     300: '#FCD34D',
     400: '#FBBF24',
-    500: '#F59E0B',
+    500: '#FBBC04',    // Koda warning yellow
     600: '#D97706',
     700: '#B45309',
     800: '#92400E',
