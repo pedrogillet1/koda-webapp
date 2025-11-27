@@ -6,6 +6,23 @@ import { ReactComponent as ExpandIcon } from '../assets/expand.svg';
 import * as chatService from '../services/chatService';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 
+// CSS for blinking cursor animation
+const titleAnimationStyles = `
+    @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+    }
+    .title-cursor {
+        display: inline-block;
+        width: 2px;
+        height: 14px;
+        background: #32302C;
+        margin-left: 2px;
+        animation: blink 0.8s infinite;
+        vertical-align: middle;
+    }
+`;
+
 const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onConversationUpdate }) => {
     const [conversations, setConversations] = useState(() => {
         // Load from cache immediately for instant display
@@ -29,6 +46,9 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
     // ✅ NEW: Track if we should show the ephemeral "New Chat" placeholder
     const [showNewChatPlaceholder, setShowNewChatPlaceholder] = useState(true);
 
+    // ✅ NEW: Track animated title generation (ChatGPT-style)
+    const [animatingTitles, setAnimatingTitles] = useState({}); // { conversationId: { text: "...", isAnimating: true } }
+
     // Track if initial load is complete
     const initialLoadCompleteRef = useRef(false);
     // Track conversation IDs we just added via handleNewChat to prevent useEffect duplicates
@@ -41,6 +61,104 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
         };
         doLoad();
     }, []);
+
+    // ✅ NEW: Listen for title streaming events (ChatGPT-style animated title)
+    useEffect(() => {
+        let retryTimer = null;
+        let cleanupFn = null;
+
+        const attachListeners = () => {
+            const socket = chatService.getSocket();
+            if (!socket) {
+                // Retry after a short delay if socket not ready
+                console.log('🔌 [ChatHistory] Socket not ready, retrying in 500ms...');
+                retryTimer = setTimeout(attachListeners, 500);
+                return;
+            }
+
+            console.log('🔌 [ChatHistory] Attaching title streaming listeners');
+
+            // Title generation started
+            const handleTitleStart = (data) => {
+                console.log('🏷️ [ChatHistory] Title generation started:', data.conversationId);
+                setAnimatingTitles(prev => ({
+                    ...prev,
+                    [data.conversationId]: { text: '', isAnimating: true }
+                }));
+            };
+
+            // Title chunk received (character-by-character)
+            const handleTitleChunk = (data) => {
+                console.log('🏷️ [ChatHistory] Title chunk:', data.chunk);
+                setAnimatingTitles(prev => ({
+                    ...prev,
+                    [data.conversationId]: {
+                        text: (prev[data.conversationId]?.text || '') + data.chunk,
+                        isAnimating: true
+                    }
+                }));
+            };
+
+            // Title generation complete
+            const handleTitleComplete = (data) => {
+                console.log('🏷️ [ChatHistory] Title generation complete:', data.title);
+
+                // Stop animation
+                setAnimatingTitles(prev => {
+                    const updated = { ...prev };
+                    delete updated[data.conversationId];
+                    return updated;
+                });
+
+                // Update the conversation in the list with final title
+                setConversations(prevConversations => {
+                    const existingIndex = prevConversations.findIndex(c => c.id === data.conversationId);
+
+                    if (existingIndex !== -1) {
+                        const updated = [...prevConversations];
+                        updated[existingIndex] = {
+                            ...updated[existingIndex],
+                            title: data.title,
+                            updatedAt: data.updatedAt || new Date().toISOString()
+                        };
+                        sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
+                        return updated;
+                    }
+                    return prevConversations;
+                });
+
+                // Also notify parent component
+                if (onConversationUpdate) {
+                    onConversationUpdate({
+                        id: data.conversationId,
+                        title: data.title,
+                        updatedAt: data.updatedAt
+                    });
+                }
+            };
+
+            // Attach listeners
+            socket.on('title:generating:start', handleTitleStart);
+            socket.on('title:generating:chunk', handleTitleChunk);
+            socket.on('title:generating:complete', handleTitleComplete);
+
+            // Store cleanup function
+            cleanupFn = () => {
+                socket.off('title:generating:start', handleTitleStart);
+                socket.off('title:generating:chunk', handleTitleChunk);
+                socket.off('title:generating:complete', handleTitleComplete);
+            };
+        };
+
+        // Start attaching listeners
+        attachListeners();
+
+        // Cleanup
+        return () => {
+            if (retryTimer) clearTimeout(retryTimer);
+            if (cleanupFn) cleanupFn();
+        };
+    }, [onConversationUpdate]);
 
     // ✅ FIX: Always ensure currentConversation is in the list
     // This runs when currentConversation changes
@@ -386,6 +504,24 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
         }
     `;
 
+    // Helper to render conversation title with animation (ChatGPT-style)
+    const renderTitle = (convo) => {
+        const animating = animatingTitles[convo.id];
+
+        if (animating?.isAnimating) {
+            // Show animated title with blinking cursor
+            return (
+                <span>
+                    {animating.text || ''}
+                    <span className="title-cursor" />
+                </span>
+            );
+        }
+
+        // Show regular title
+        return convo.title || 'New Chat';
+    };
+
     // SearchModal Component
     const SearchModal = () => (
         <div
@@ -567,7 +703,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                                                 textOverflow: 'ellipsis',
                                                 whiteSpace: 'nowrap'
                                             }}>
-                                                {convo.title || 'New Chat'}
+                                                {renderTitle(convo)}
                                             </div>
                                         </div>
                                     ))}
@@ -592,8 +728,9 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
 
     return (
         <>
-            {/* Inject custom scrollbar styles */}
+            {/* Inject custom scrollbar and title animation styles */}
             <style>{scrollbarStyles}</style>
+            <style>{titleAnimationStyles}</style>
 
             <div style={{
                 width: isExpanded ? 314 : 64,
@@ -774,7 +911,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                                         }}
                                     >
                                         <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {convo.title || 'New Chat'}
+                                            {renderTitle(convo)}
                                         </div>
                                         {/* Don't show delete button for ephemeral conversations */}
                                         {hoveredConversation === convo.id && convo.id !== 'new' && (

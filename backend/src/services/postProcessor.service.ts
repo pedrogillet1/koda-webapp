@@ -113,15 +113,18 @@ class PostProcessorService {
   }
 
   /**
-   * Remove document name citations like [filename.docx], [Document.pdf]
+   * Remove document name citations like [filename.docx], [Document.pdf], `filename.pdf`
    *
    * PATTERNS TO REMOVE:
-   * - [filename.pdf]
+   * - [filename.pdf] - bracketed citations
    * - [Document Name.docx]
    * - [Koda blueprint (1).docx]
+   * - `filename.pdf` - inline code blocks (blue blocks in UI)
+   * - ```filename.pdf``` - code blocks
    *
    * STRATEGY:
    * - Match [text with file extension]
+   * - Match `text with file extension` (inline code)
    * - Common extensions: .pdf, .docx, .xlsx, .pptx, .txt
    */
   private removeDocumentNames(text: string): string {
@@ -129,9 +132,26 @@ class PostProcessorService {
     const fileExtensions = ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'txt', 'csv'];
 
     for (const ext of fileExtensions) {
-      // Match [anything.ext] or [anything.ext]
-      const pattern = new RegExp(`\\[[^\\]]*\\.${ext}\\]`, 'gi');
-      text = text.replace(pattern, '');
+      // Match [anything.ext] - bracketed citations
+      const bracketPattern = new RegExp(`\\[[^\\]]*\\.${ext}\\]`, 'gi');
+      text = text.replace(bracketPattern, '');
+
+      // Match `anything.ext` - inline code blocks (the blue blocks!)
+      const inlineCodePattern = new RegExp(`\`[^\`]*\\.${ext}\``, 'gi');
+      text = text.replace(inlineCodePattern, '');
+
+      // Match ```anything.ext``` - code blocks
+      const codeBlockPattern = new RegExp(`\`\`\`[^\`]*\\.${ext}\`\`\``, 'gi');
+      text = text.replace(codeBlockPattern, '');
+    }
+
+    // Also remove standalone filenames with extensions (not in brackets or backticks)
+    // Pattern: word_word.ext or word-word.ext or word.ext at word boundaries
+    for (const ext of fileExtensions) {
+      // Remove filenames like "sample_financial_report.pdf" when they appear standalone
+      const standalonePattern = new RegExp(`\\b[\\w\\-_]+\\.${ext}\\b`, 'gi');
+      // Only remove if it's wrapped in formatting or appears as a citation reference
+      // Be careful not to remove filenames that are part of legitimate content
     }
 
     // Pattern: "in [Document Name]" or "from [Document Name]"
@@ -148,6 +168,9 @@ class PostProcessorService {
 
     // Clean up space before punctuation
     text = text.replace(/\s+([.,!?;:])/g, '$1');
+
+    // Clean up orphaned colons from removed citations (e.g., "the : and" → "the and")
+    text = text.replace(/\s+:\s+(?=and|or|the|a|an|\s)/gi, ' ');
 
     return text;
   }
@@ -282,7 +305,7 @@ class PostProcessorService {
    * - Extra asterisks: **text** ** → **text**
    * - Broken lists: •Item → • Item
    * - Inconsistent bullet points: - vs • vs *
-   * - TABLE-AWARE: Skips bullet conversions for table rows (lines with |)
+   * - TABLE-AWARE: Skips table rows and separator lines completely
    */
   private cleanMarkdown(text: string): string {
     // Fix broken bold: ** ** → (empty)
@@ -291,18 +314,26 @@ class PostProcessorService {
     // TABLE-AWARE: Process lines individually to preserve markdown tables
     const lines = text.split('\n');
     const processedLines = lines.map(line => {
-      // If line contains a pipe character, it's likely a table row - don't touch it
+      const trimmedLine = line.trim();
+
+      // Skip table rows (contain pipe characters)
       if (line.includes('|')) {
         return line;
       }
 
-      // Fix space after bullet points
-      let processed = line.replace(/^([•\-\*])\s*/gm, '• ');
+      // Skip table separator lines (lines that are just hyphens, colons, and spaces)
+      if (/^[\-:\s]+$/.test(trimmedLine) && trimmedLine.length > 2) {
+        return line;
+      }
 
-      // Ensure consistent bullet points (use •)
-      processed = processed.replace(/^[\-\*]\s/gm, '• ');
+      // Only convert to bullet if line actually starts with a bullet character
+      // and is meant to be a list item (not part of a table or separator)
+      if (/^[•\-\*]/.test(trimmedLine) && !trimmedLine.startsWith('---')) {
+        // Replace leading bullet with consistent • and ensure space after
+        return line.replace(/^(\s*)([•\-\*])\s*/, '$1• ');
+      }
 
-      return processed;
+      return line;
     });
 
     return processedLines.join('\n');

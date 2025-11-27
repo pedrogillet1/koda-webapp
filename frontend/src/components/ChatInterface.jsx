@@ -821,11 +821,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         scrollToBottom();
 
         // Update cache when messages change (excluding optimistic messages)
+        // ✅ FIX: Also update timestamp so cache is fresh after new messages arrive
         if (currentConversation?.id && messages.length > 0) {
             const realMessages = messages.filter(m => !m.isOptimistic);
             if (realMessages.length > 0) {
                 const cacheKey = `koda_chat_messages_${currentConversation.id}`;
+                const cacheTimestampKey = `${cacheKey}_timestamp`;
                 sessionStorage.setItem(cacheKey, JSON.stringify(realMessages));
+                sessionStorage.setItem(cacheTimestampKey, Date.now().toString());
+                console.log(`💾 Cache updated with ${realMessages.length} messages (timestamp refreshed)`);
             }
         }
     }, [messages, currentConversation]);
@@ -1941,12 +1945,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     ));
                     console.log('❌ Message failed, updated status to failed');
                 }
-            } else if (currentConversation?.id && user?.id && socketReady) {
+            } else if (conversationId && user?.id && socketReady) {
                 // ✅ Only use WebSocket if socket is ready
-                console.log('🔌 Sending via WebSocket:', { conversationId: currentConversation.id, userId: user.id, documentId: uploadedDocument?.id });
+                // ✅ FIX: Use local conversationId variable (may be newly created) instead of currentConversation.id prop (may be stale)
+                console.log('🔌 Sending via WebSocket:', { conversationId: conversationId, userId: user.id, documentId: uploadedDocument?.id });
                 // Send via WebSocket for real-time response
                 chatService.sendMessageRealtime(
-                    currentConversation.id,
+                    conversationId,
                     user.id,
                     messageText,
                     uploadedDocument?.id

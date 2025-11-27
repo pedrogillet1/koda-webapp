@@ -115,9 +115,13 @@ class GeminiCacheService {
       // Add current query
       fullPrompt += `# Current Query\n\n${query}`;
 
+      // ⏱️ TIMING: Log context sizes to find bottleneck
+      const totalPromptSize = systemPrompt.length + fullPrompt.length;
       console.log('🔄 [CACHE] Using implicit caching via systemInstruction');
-      console.log(`📊 [CACHE] System prompt length: ${systemPrompt.length} chars`);
-      console.log(`📊 [CACHE] Document context length: ${documentContext.length} chars`);
+      console.log(`📊 [CACHE] System prompt: ${systemPrompt.length} chars`);
+      console.log(`📊 [CACHE] Document context: ${documentContext.length} chars`);
+      console.log(`📊 [CACHE] Full prompt: ${fullPrompt.length} chars`);
+      console.log(`📊 [CACHE] TOTAL to Gemini: ${totalPromptSize} chars (~${Math.round(totalPromptSize/4)} tokens)`);
 
       // ✅ NEW: Add timeout to prevent infinite generation
       const STREAMING_TIMEOUT_MS = 120000; // 2 minutes timeout
@@ -130,18 +134,36 @@ class GeminiCacheService {
       // Generate with streaming wrapped in timeout AND retry logic
       const streamingPromise = retryStreamingWithBackoff(
         async (chunkCallback: (chunk: string) => void) => {
+          // ⏱️ TIMING: Measure time to first chunk
+          const apiCallStart = Date.now();
+          console.log(`⏱️ [TIMING] Starting Gemini API call...`);
+
           const result = await model.generateContentStream(fullPrompt);
+
+          const streamStartTime = Date.now();
+          console.log(`⏱️ [TIMING] Stream created in ${streamStartTime - apiCallStart}ms`);
+
           let fullResponse = '';
-          let lastChunkTime = Date.now();
+          let firstChunkReceived = false;
+          let chunkCount = 0;
 
           for await (const chunk of result.stream) {
             const chunkText = chunk.text();
             fullResponse += chunkText;
-            lastChunkTime = Date.now();
+            chunkCount++;
+
+            // ⏱️ TIMING: Log time to first chunk (TTFC)
+            if (!firstChunkReceived) {
+              console.log(`⏱️ [TIMING] TIME TO FIRST CHUNK: ${Date.now() - apiCallStart}ms`);
+              firstChunkReceived = true;
+            }
 
             // Stream to client in real-time via callback
             chunkCallback(chunkText);
           }
+
+          const totalTime = Date.now() - apiCallStart;
+          console.log(`⏱️ [TIMING] TOTAL STREAMING TIME: ${totalTime}ms (${chunkCount} chunks, ${fullResponse.length} chars)`);
 
           console.log('✅ [CACHE] Response generated with implicit caching');
 

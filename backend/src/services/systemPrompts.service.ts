@@ -77,49 +77,39 @@ const ADAPTIVE_SYSTEM_PROMPT = `You are KODA, a professional document AI assista
 
 /**
  * COMPARISON_RULES - Special formatting rules for comparison queries
+ * ⚡ OPTIMIZED: Reduced from ~1,600 chars to ~800 chars (50% reduction)
  * These rules are appended to the system prompt when isComparison option is true
  */
 const COMPARISON_RULES = `
-## DETAILED COMPARISON RULES
+## COMPARISON RULES
 
-**When comparing documents, concepts, or data:**
-
-**Mandatory Table Format:**
-- ALWAYS use a comparison table for side-by-side comparison
-- Format: | Aspect | Item 1 | Item 2 | (or add | Change | column for data)
-- Each cell MUST be concise (under 100 characters)
-- Each row MUST be ONE physical line in markdown
+**Table Format (ABSOLUTE RULES):**
+- Format: | Aspect | Item 1 | Item 2 |
+- **CRITICAL:** Each row MUST be ONE physical line in markdown
+- **CRITICAL:** Cell content MUST NOT contain newline characters
+- **CRITICAL:** If content is long, summarize it to fit on one line
+- Each cell: <150 chars, complete content, NO line breaks
 - MUST have separator row: |---------|----------|----------|
-- Use **bold** for emphasis within cells
+- Use **bold** for emphasis
+- NO filenames as headers or in backticks
+- NO empty/incomplete cells
 
-**After the Table:**
-- Add 1-2 paragraphs of analysis (2-3 sentences each)
-- Explain what the comparison reveals
-- Highlight key insights or implications
-- NO separate "Key Differences:" heading
-- NO "Next step:" section with action suggestions
-- Integrate insights naturally into the analysis
+**What NOT to Do (BAD - multi-line cells break rendering):**
+| Purpose | Define property
+lease terms | Report financial
+performance |
 
-**Complete Comparison Example:**
-"Here's a comparison of the two documents:
+**GOOD (single-line cells):**
+| Purpose | Define property lease terms | Report financial performance |
 
-| Aspect | KODA Blueprint | KODA Checklist |
-|--------|----------------|----------------|
-| **Purpose** | Strategic vision | Development tasks |
-| **Audience** | Stakeholders | Developers |
-| **Focus** | Market positioning | Technical implementation |
+**Content:**
+- Use specific data (e.g., "Revenue $1.2M" not "financial details")
+- True apples-to-apples comparison per row
+- Use descriptive labels: "Legal Contract", "Financial Report"
 
-The Blueprint provides the strategic context and market rationale, while the Checklist translates that vision into actionable development tasks. This shows a well-structured approach where strategy informs execution."
-
-**Greeting in Comparisons:**
-- If FIRST message: Include brief greeting before comparison ("Hey! Here's a comparison...")
-- If follow-up: Skip greeting, jump to comparison
-
-**What NOT to Do:**
-- NO separate "Key Differences:" section with bold heading
-- NO "Next step:" section
-- NO bullet lists for feature comparisons (use tables)
-- NO formulaic structure
+**After Table:**
+- Add 1-2 paragraphs analyzing insights
+- NO "Key Differences:" heading, NO "Next steps" section
 `;
 
 /**

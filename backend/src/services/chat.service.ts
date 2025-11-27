@@ -385,17 +385,12 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
     data: { updatedAt: new Date() },
   });
 
-  // ✅ FIX #5: Auto-generate title after SECOND user message (not first)
+  // ✅ UPDATED: Auto-generate title after FIRST user message (animated title)
+  // Note: In non-streaming, conversationHistory is fetched AFTER the user message is saved, so count is 1 for first message
   const userMessageCount = conversationHistory.filter(m => m.role === 'user').length;
-  if (userMessageCount === 2) {  // Exactly 2 user messages (first + second)
-    // Get full conversation context for better titles
-    const allMessages = await prisma.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: 'asc' }
-    });
-
-    const conversationContext = allMessages.map(m => `${m.role}: ${m.content}`).join('\n');
-    await autoGenerateTitle(conversationId, userId, conversationContext, fullResponse);
+  if (userMessageCount === 1) {  // First user message - generate animated title
+    console.log('🏷️ [TITLE] Triggering animated title generation for first message');
+    await autoGenerateTitle(conversationId, userId, content, fullResponse);
   }
 
   // ⚡ CACHE: Invalidate conversation cache after new message
@@ -552,17 +547,14 @@ export const sendMessageStreaming = async (
   }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
 
   // ⚡ PERFORMANCE: Auto-generate title async (fire-and-forget)
-  // ✅ FIX #5: Auto-generate title after SECOND user message (not first)
+  // ✅ UPDATED: Auto-generate title after FIRST user message (animated title)
+  // Note: conversationHistory is fetched BEFORE the user message is saved, so count is 0 for first message
   const userMessageCount = conversationHistory.filter(m => m.role === 'user').length;
-  if (userMessageCount === 2) {  // Exactly 2 user messages (first + second)
+  if (userMessageCount === 0) {  // First user message - generate animated title
     // Fire-and-forget title generation (don't block response)
-    prisma.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: 'asc' }
-    }).then(allMessages => {
-      const conversationContext = allMessages.map(m => `${m.role}: ${m.content}`).join('\n');
-      return autoGenerateTitle(conversationId, userId, conversationContext, fullResponse);
-    }).catch(err => console.error('❌ Error generating title:', err));
+    console.log('🏷️ [TITLE] Triggering animated title generation for first message');
+    autoGenerateTitle(conversationId, userId, content, fullResponse)
+      .catch(err => console.error('❌ Error generating title:', err));
   }
 
   // ✅ NEW: Extract memory insights after sufficient conversation (fire-and-forget)

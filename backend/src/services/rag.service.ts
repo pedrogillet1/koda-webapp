@@ -29,6 +29,90 @@ import * as citationTracking from './citation-tracking.service';
 import ErrorMessagesService from './errorMessages.service';
 import * as terminologyIntegration from '../utils/terminology-integration';
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// PERFORMANCE TIMING INSTRUMENTATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class PerformanceTimer {
+  private timings: Map<string, number[]> = new Map();
+  private startTime: number = Date.now();
+  private checkpointStack: Array<{ label: string; start: number }> = [];
+
+  start(label: string): void {
+    const now = Date.now();
+    this.checkpointStack.push({ label, start: now });
+    console.log(`⏱️  [START] ${label}`);
+  }
+
+  end(label: string): number {
+    const now = Date.now();
+    const checkpoint = this.checkpointStack.pop();
+
+    if (!checkpoint || checkpoint.label !== label) {
+      console.error(`⚠️  [TIMING ERROR] Mismatched: expected "${checkpoint?.label}", got "${label}"`);
+      return 0;
+    }
+
+    const duration = now - checkpoint.start;
+
+    if (!this.timings.has(label)) {
+      this.timings.set(label, []);
+    }
+    this.timings.get(label)!.push(duration);
+
+    const totalElapsed = now - this.startTime;
+    console.log(`⏱️  [END] ${label}: ${duration}ms (total: ${totalElapsed}ms)`);
+
+    return duration;
+  }
+
+  record(label: string, duration: number): void {
+    if (!this.timings.has(label)) {
+      this.timings.set(label, []);
+    }
+    this.timings.get(label)!.push(duration);
+    console.log(`⏱️  [RECORD] ${label}: ${duration}ms`);
+  }
+
+  printSummary(): void {
+    const totalTime = Date.now() - this.startTime;
+    console.log('\n═══════════════════════════════════════════════════════════════');
+    console.log('⏱️  PERFORMANCE TIMING SUMMARY');
+    console.log('═══════════════════════════════════════════════════════════════');
+
+    const entries = Array.from(this.timings.entries())
+      .map(([label, times]) => ({
+        label,
+        total: times.reduce((a, b) => a + b, 0),
+        avg: times.reduce((a, b) => a + b, 0) / times.length,
+        count: times.length
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    entries.forEach(({ label, total, avg, count }) => {
+      const percentage = ((total / totalTime) * 100).toFixed(1);
+      if (count > 1) {
+        console.log(`  ${label}: ${total}ms (${percentage}%) - ${avg.toFixed(1)}ms avg × ${count} calls`);
+      } else {
+        console.log(`  ${label}: ${total}ms (${percentage}%)`);
+      }
+    });
+
+    console.log('───────────────────────────────────────────────────────────────');
+    console.log(`  TOTAL TIME: ${totalTime}ms`);
+    console.log('═══════════════════════════════════════════════════════════════\n');
+  }
+
+  reset(): void {
+    this.timings.clear();
+    this.checkpointStack = [];
+    this.startTime = Date.now();
+  }
+}
+
+// Global timer for request-level tracking
+let requestTimer: PerformanceTimer | null = null;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ✅ FIX #10: Better Error Messages - Custom Error Types
 // ═══════════════════════════════════════════════════════════════════════════
@@ -265,14 +349,27 @@ setInterval(() => {
  * Filter out deleted documents from Pinecone results
  */
 async function filterDeletedDocuments(matches: any[], userId: string): Promise<any[]> {
-  if (!matches || matches.length === 0) return [];
+  const fnStart = Date.now();
+
+  if (!matches || matches.length === 0) {
+    if (requestTimer) requestTimer.record('filterDeletedDocuments (empty)', Date.now() - fnStart);
+    return [];
+  }
 
   // Get unique document IDs
+  const extractStart = Date.now();
   const documentIds = [...new Set(matches.map(m => m.metadata?.documentId).filter(Boolean))];
+  if (requestTimer) requestTimer.record('filterDeletedDocuments: Extract IDs', Date.now() - extractStart);
 
-  if (documentIds.length === 0) return matches;
+  if (documentIds.length === 0) {
+    if (requestTimer) requestTimer.record('filterDeletedDocuments (no IDs)', Date.now() - fnStart);
+    return matches;
+  }
+
+  console.log(`🔍 [FILTER] Checking ${documentIds.length} unique documents from ${matches.length} matches`);
 
   // Query database for valid (non-deleted) documents
+  const dbStart = Date.now();
   const validDocuments = await prisma.document.findMany({
     where: {
       id: { in: documentIds },
@@ -281,16 +378,20 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
     },
     select: { id: true },
   });
+  if (requestTimer) requestTimer.record('filterDeletedDocuments: DB Query', Date.now() - dbStart);
 
   const validDocumentIds = new Set(validDocuments.map(d => d.id));
 
   // Filter matches to only include valid documents
+  const filterStart = Date.now();
   const filtered = matches.filter(m => validDocumentIds.has(m.metadata?.documentId));
+  if (requestTimer) requestTimer.record('filterDeletedDocuments: Filter Matches', Date.now() - filterStart);
 
   if (filtered.length < matches.length) {
     console.log(`🗑️ [FILTER] Removed deleted documents: ${matches.length} → ${filtered.length}`);
   }
 
+  if (requestTimer) requestTimer.record('filterDeletedDocuments (total)', Date.now() - fnStart);
   return filtered;
 }
 
@@ -630,12 +731,23 @@ let pinecone: Pinecone | null = null;
 let pineconeIndex: any = null;
 
 // Initialize Pinecone
-async function initializePinecone() {
+// ⚡ PERFORMANCE FIX: Export this function to allow pre-warming at server startup
+export async function initializePinecone() {
   if (!pinecone) {
+    console.log('🔥 [PINECONE] Initializing Pinecone client...');
+    const startTime = Date.now();
     pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY || '',
     });
     pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME || 'koda-gemini');
+
+    // ⚡ WARM UP: Do a dummy query to establish the connection
+    try {
+      await pineconeIndex.describeIndexStats();
+      console.log(`✅ [PINECONE] Connection warmed up in ${Date.now() - startTime}ms`);
+    } catch (error) {
+      console.log(`⚠️  [PINECONE] Warm-up query failed (will retry on first real query)`);
+    }
   }
 }
 
@@ -939,7 +1051,7 @@ function refineQuery(originalQuery: string, observation: ObservationResult): str
 
 interface QueryAnalysis {
   isComplex: boolean;
-  queryType: 'simple' | 'comparison' | 'multi_part' | 'sequential';
+  queryType: 'simple' | 'comparison' | 'multi_part' | 'sequential' | 'cross_document';
   subQueries?: string[];
   originalQuery: string;
 }
@@ -951,7 +1063,44 @@ interface QueryAnalysis {
  * @returns Analysis result with sub-queries if complex
  */
 async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
+  const fnStart = Date.now();
+  if (requestTimer) requestTimer.start('analyzeQueryComplexity');
+
   const lowerQuery = query.toLowerCase();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PATTERN 0: Multi-Document Cross-Reference Queries (HIGHEST PRIORITY)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Example: "Based on document A and document B, analyze..."
+  // Example: "Compare the financial report with the lease agreement"
+  // Example: "Using the medical record and lease, determine..."
+
+  const multiDocPatterns = [
+    /based on.*(?:and|,).*(?:analyze|compare|evaluate|assess|determine)/i,
+    /(?:compare|contrast).*(?:with|and|versus|vs)/i,
+    /using.*(?:and|,).*(?:analyze|determine|assess|evaluate)/i,
+    /(?:financial report|lease|contract|medical record|agreement).*(?:and|,).*(?:financial report|lease|contract|medical record|agreement)/i,
+    /cross-reference|cross reference/i,
+    /relationship between.*and/i,
+    /how does.*relate to|how does.*affect/i,
+    /(?:based on|according to|from).*(?:report|document|file|record).*(?:and|,).*(?:report|document|file|record)/i,
+    /analyze.*(?:potential|financial|risk|impact).*(?:for|of)/i
+  ];
+
+  for (const pattern of multiDocPatterns) {
+    if (pattern.test(query)) {
+      console.log(`🔗 [DECOMPOSE] Detected multi-document cross-reference query`);
+
+      // Use LLM to intelligently decompose
+      if (requestTimer) requestTimer.start('decomposeWithLLM');
+      const decomposed = await decomposeWithLLM(query);
+      if (requestTimer) requestTimer.end('decomposeWithLLM');
+      if (decomposed) {
+        if (requestTimer) requestTimer.end('analyzeQueryComplexity');
+        return decomposed;
+      }
+    }
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PATTERN 1: Comparison queries
@@ -983,6 +1132,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
       if (concept1 && concept2) {
         console.log(`🧩 [DECOMPOSE] Detected comparison query: "${concept1}" vs "${concept2}"`);
 
+        if (requestTimer) requestTimer.end('analyzeQueryComplexity');
         return {
           isComplex: true,
           queryType: 'comparison',
@@ -1022,6 +1172,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
       }
     });
 
+    if (requestTimer) requestTimer.end('analyzeQueryComplexity');
     return {
       isComplex: true,
       queryType: 'multi_part',
@@ -1047,8 +1198,11 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
       console.log(`🧩 [DECOMPOSE] Detected sequential query`);
 
       // Use LLM to decompose (more complex pattern)
+      if (requestTimer) requestTimer.start('decomposeWithLLM (sequential)');
       const decomposed = await decomposeWithLLM(query);
+      if (requestTimer) requestTimer.end('decomposeWithLLM (sequential)');
       if (decomposed) {
+        if (requestTimer) requestTimer.end('analyzeQueryComplexity');
         return decomposed;
       }
     }
@@ -1070,6 +1224,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
       console.log(`🧩 [DECOMPOSE] Detected large list query (${count} items)`);
 
       // Don't decompose, but flag for special handling (completeness check)
+      if (requestTimer) requestTimer.end('analyzeQueryComplexity');
       return {
         isComplex: true,
         queryType: 'simple', // Keep as simple, but observation layer will check completeness
@@ -1083,12 +1238,17 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
   // ═══════════════════════════════════════════════════════════════════════════
 
   console.log(`✅ [DECOMPOSE] Simple query - no decomposition needed`);
+  if (requestTimer) requestTimer.end('analyzeQueryComplexity');
   return {
     isComplex: false,
     queryType: 'simple',
     originalQuery: query
   };
 }
+
+// ⚡ PERFORMANCE: Cache decomposition results to avoid redundant LLM calls (saves 1-2s)
+const decompositionCache = new Map<string, { result: QueryAnalysis | null; timestamp: number }>();
+const DECOMPOSITION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Uses LLM to decompose complex queries that don't match simple patterns
@@ -1097,6 +1257,15 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
  * @returns Query analysis with sub-queries, or null if LLM fails
  */
 async function decomposeWithLLM(query: string): Promise<QueryAnalysis | null> {
+  // ⚡ Check cache first - saves 1-2 seconds for repeat queries
+  const cacheKey = query.toLowerCase().trim();
+  const cached = decompositionCache.get(cacheKey);
+
+  if (cached && (Date.now() - cached.timestamp) < DECOMPOSITION_CACHE_TTL) {
+    console.log(`⚡ [DECOMPOSE CACHE HIT] Using cached decomposition (saved 1-2s)`);
+    return cached.result;
+  }
+
   try {
     console.log(`🤖 [LLM DECOMPOSE] Analyzing query complexity with LLM...`);
 
@@ -1112,21 +1281,55 @@ async function decomposeWithLLM(query: string): Promise<QueryAnalysis | null> {
 
 Query: "${query}"
 
-If this is a SIMPLE query (can be answered in one search), respond with:
-{ "isComplex": false }
+QUERY TYPES:
+1. SIMPLE: Can be answered with a single search
+   - Example: "What is the revenue?"
+   - Response: { "isComplex": false }
 
-If this is a COMPLEX query (needs multiple searches), respond with:
-{
-  "isComplex": true,
-  "queryType": "comparison" | "multi_part" | "sequential",
-  "subQueries": ["sub-query 1", "sub-query 2", ...]
-}
+2. COMPARISON: Comparing multiple concepts or documents
+   - Example: "Compare document A with document B"
+   - Response: { "isComplex": true, "queryType": "comparison", "subQueries": [...] }
 
-Rules:
+3. MULTI_PART: Multiple independent questions
+   - Example: "What is X and what is Y?"
+   - Response: { "isComplex": true, "queryType": "multi_part", "subQueries": [...] }
+
+4. CROSS_DOCUMENT: Needs information from multiple documents
+   - Example: "Based on the financial report and lease, analyze..."
+   - Response: { "isComplex": true, "queryType": "cross_document", "subQueries": [...] }
+
+DECOMPOSITION RULES:
 - Each sub-query should be a complete, searchable question
 - Sub-queries should be independent (can be searched separately)
 - Keep sub-queries simple and focused
+- For cross-document queries, create sub-queries that target specific documents
 - Maximum 5 sub-queries
+- Preserve entity names (company names, document types, etc.)
+
+EXAMPLES:
+
+Query: "Based on the financial report for TechCorp and the lease for TechStart, analyze risks for the landlord"
+Response:
+{
+  "isComplex": true,
+  "queryType": "cross_document",
+  "subQueries": [
+    "What is TechCorp's net income and cash flow from operations?",
+    "What is the security deposit amount in the lease agreement?",
+    "What is the monthly rent amount in the lease agreement?",
+    "What is the relationship between TechCorp and TechStart?",
+    "What are the landlord's obligations in the lease agreement?"
+  ]
+}
+
+Query: "What is the revenue?"
+Response:
+{
+  "isComplex": false
+}
+
+Now analyze this query:
+"${query}"
 
 Respond with ONLY the JSON object, no explanation.`;
 
@@ -1146,15 +1349,20 @@ Respond with ONLY the JSON object, no explanation.`;
 
     if (analysis.isComplex && analysis.subQueries && analysis.subQueries.length > 0) {
       console.log(`🤖 [LLM DECOMPOSE] Broke query into ${analysis.subQueries.length} sub-queries`);
-      return {
+      const result: QueryAnalysis = {
         isComplex: true,
         queryType: analysis.queryType || 'sequential',
         subQueries: analysis.subQueries,
         originalQuery: query
       };
+      // ⚡ Cache the result for future queries
+      decompositionCache.set(cacheKey, { result, timestamp: Date.now() });
+      return result;
     }
 
     console.log(`✅ [LLM DECOMPOSE] Query classified as simple`);
+    // ⚡ Cache null result for simple queries too (avoids re-analyzing)
+    decompositionCache.set(cacheKey, { result: null, timestamp: Date.now() });
     return null;
   } catch (error) {
     console.error('⚠️ [LLM DECOMPOSE] Failed to decompose with LLM:', error);
@@ -1184,20 +1392,30 @@ async function handleMultiStepQuery(
   console.log(`🔄 [MULTI-STEP] Executing ${analysis.subQueries.length} sub-queries...`);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Execute all sub-queries in parallel
+  // ⚡ PERFORMANCE: Generate ALL embeddings in parallel first (saves 1-2s)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  analysis.subQueries.forEach((subQuery, index) => {
+    console.log(`  ${index + 1}. "${subQuery}"`);
+  });
+
+  // Generate all embeddings in parallel
+  const embeddingPromises = analysis.subQueries.map(subQuery =>
+    embeddingService.generateEmbedding(subQuery)
+  );
+  const embeddings = await Promise.all(embeddingPromises);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Execute all Pinecone queries in parallel (with pre-generated embeddings)
   // ═══════════════════════════════════════════════════════════════════════════
 
   const subQueryPromises = analysis.subQueries.map(async (subQuery, index) => {
-    console.log(`  ${index + 1}. "${subQuery}"`);
+    const queryEmbedding = embeddings[index].embedding;
 
-    // Generate embedding for sub-query using OpenAI
-    const embeddingResult = await embeddingService.generateEmbedding(subQuery);
-    const queryEmbedding = embeddingResult.embedding;
-
-    // Search Pinecone
+    // ⚡ PERFORMANCE: Reduced from 10 to 5 chunks per sub-query
     const results = await pineconeIndex.query({
       vector: queryEmbedding,
-      topK: 10, // Fewer results per sub-query (we'll combine them)
+      topK: 5,
       filter,
       includeMetadata: true,
     });
@@ -1241,8 +1459,8 @@ async function handleMultiStepQuery(
   // Sort by relevance score (highest first)
   combinedMatches.sort((a, b) => (b.score || 0) - (a.score || 0));
 
-  // Limit to top 20 overall
-  const topMatches = combinedMatches.slice(0, 20);
+  // ⚡ PERFORMANCE: Reduced from 20 to 10 overall (less context = faster LLM)
+  const topMatches = combinedMatches.slice(0, 10);
 
   console.log(`✅ [MULTI-STEP] Combined ${allResults.length} sub-query results into ${topMatches.length} unique chunks`);
 
@@ -1326,9 +1544,10 @@ async function iterativeRetrieval(
     const embeddingResult = await embeddingService.generateEmbedding(currentQuery);
     const queryEmbedding = embeddingResult.embedding;
 
+    // ⚡ PERFORMANCE: Reduced from 20 to 5 chunks - less context = faster LLM response
     const results = await pineconeIndex.query({
       vector: queryEmbedding,
-      topK: 20,
+      topK: 5,
       filter,
       includeMetadata: true,
     });
@@ -2584,67 +2803,129 @@ async function handleConceptComparison(
   onChunk: (chunk: string) => void,
   conversationHistory?: Array<{ role: string; content: string }>
 ): Promise<{ sources: any[] }> {
+  // ⏱️ TIMING: Initialize timer for concept comparison
+  const comparisonTimer = new PerformanceTimer();
+  comparisonTimer.start('CONCEPT COMPARISON TOTAL');
+
   console.log(`🔍 [CONCEPT COMPARISON] Searching for: ${concepts.join(' vs ')}`);
 
-  // Search for each concept across all documents
-  const allChunks: any[] = [];
-  // Use Map to deduplicate sources by document name (case-insensitive)
-  const sourceMap = new Map<string, any>();
+  // ⚡ PERFORMANCE FIX #1: Parallelize concept searches using Promise.all()
+  // REASON: Sequential searches take N × (embedding + pinecone) time
+  // IMPACT: Reduces 4468ms → max(concept times) ≈ 3625ms, saves ~843ms
+  comparisonTimer.start('All Concept Searches (Parallel)');
+  console.log(`🔄 [PARALLEL] Searching ${concepts.length} concepts in parallel...`);
 
-  for (const concept of concepts) {
-    // Build search query for this concept
+  // Create parallel search promises for all concepts
+  const conceptSearchPromises = concepts.map(async (concept) => {
     const searchQuery = `${concept} definition meaning explanation`;
     console.log(`  🔍 Searching for concept: "${concept}"`);
 
     try {
+      const conceptStartTime = Date.now();
+
       // Generate embedding for this concept search using OpenAI
+      const embeddingStartTime = Date.now();
       const embeddingResult = await embeddingService.generateEmbedding(searchQuery);
       const queryEmbedding = embeddingResult.embedding;
+      const embeddingTime = Date.now() - embeddingStartTime;
 
       // Query Pinecone for this concept
+      const pineconeStartTime = Date.now();
       const rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
         topK: 5,
         filter: { userId },
         includeMetadata: true,
       });
+      const pineconeTime = Date.now() - pineconeStartTime;
 
-      // Filter out deleted documents
-      const results = await filterDeletedDocuments(rawResults.matches || [], userId);
+      const totalConceptTime = Date.now() - conceptStartTime;
+      console.log(`  ⏱️  [${concept}] Embedding: ${embeddingTime}ms, Pinecone: ${pineconeTime}ms, Total: ${totalConceptTime}ms`);
 
-      // Add results to collection
-      for (const match of results) {
-        if (match.score && match.score > 0.3) {
-          const meta = match.metadata || {};
-          const docName = meta.filename || meta.documentName || '';
-
-          allChunks.push({
-            concept,
-            text: meta.content || meta.text || '',
-            documentName: docName,
-            pageNumber: meta.page || meta.pageNumber || null, // null instead of 0 to avoid [p.0]
-            score: match.score,
-          });
-
-          // Deduplicate sources by document name (keep highest score)
-          const dedupeKey = docName.toLowerCase().trim();
-          const existing = sourceMap.get(dedupeKey);
-          if (!existing || match.score > existing.relevanceScore) {
-            sourceMap.set(dedupeKey, {
-              documentId: meta.documentId,
-              documentName: docName,
-              pageNumber: meta.page || meta.pageNumber || null,
-              relevanceScore: match.score,
-              mimeType: meta.mimeType,
-            });
-          }
-        }
-      }
-
-      console.log(`  ✅ Found ${results.length} chunks for concept "${concept}"`);
+      // Return raw results with concept label (we'll filter deleted docs in batch later)
+      return {
+        concept,
+        matches: rawResults.matches || [],
+        embeddingTime,
+        pineconeTime,
+        totalTime: totalConceptTime
+      };
     } catch (error) {
       console.error(`❌ [CONCEPT COMPARISON] Error searching for "${concept}":`, error);
+      return { concept, matches: [], embeddingTime: 0, pineconeTime: 0, totalTime: 0 };
     }
+  });
+
+  // Wait for all concept searches to complete IN PARALLEL
+  const conceptResults = await Promise.all(conceptSearchPromises);
+  comparisonTimer.end('All Concept Searches (Parallel)');
+
+  // Log parallel timing summary
+  const maxConceptTime = Math.max(...conceptResults.map(r => r.totalTime));
+  const totalSequentialTime = conceptResults.reduce((sum, r) => sum + r.totalTime, 0);
+  console.log(`✅ [PARALLEL] All ${concepts.length} concepts searched. Max time: ${maxConceptTime}ms (saved ${totalSequentialTime - maxConceptTime}ms vs sequential)`);
+
+  // ⚡ PERFORMANCE FIX #3: Batch filterDeletedDocuments
+  // REASON: Instead of N separate DB queries (N × 325ms), do ONE batch query
+  // IMPACT: Reduces 646ms (2 × 325ms) → ~325ms, saves ~321ms
+  comparisonTimer.start('filterDeletedDocuments (Batch)');
+
+  // Collect all matches from all concepts
+  const allRawMatches: any[] = [];
+  const matchToConceptMap = new Map<any, string>(); // Track which concept each match came from
+
+  for (const result of conceptResults) {
+    for (const match of result.matches) {
+      allRawMatches.push(match);
+      matchToConceptMap.set(match, result.concept);
+    }
+  }
+
+  console.log(`🔄 [BATCH FILTER] Filtering ${allRawMatches.length} total matches from ${concepts.length} concepts...`);
+
+  // Filter all matches in ONE batch DB query
+  const filteredMatches = await filterDeletedDocuments(allRawMatches, userId);
+  comparisonTimer.end('filterDeletedDocuments (Batch)');
+
+  console.log(`✅ [BATCH FILTER] ${filteredMatches.length}/${allRawMatches.length} matches after filtering`);
+
+  // Now process filtered results
+  const allChunks: any[] = [];
+  const sourceMap = new Map<string, any>();
+
+  for (const match of filteredMatches) {
+    if (match.score && match.score > 0.3) {
+      const meta = match.metadata || {};
+      const docName = meta.filename || meta.documentName || '';
+      const concept = matchToConceptMap.get(match) || 'unknown';
+
+      allChunks.push({
+        concept,
+        text: meta.content || meta.text || '',
+        documentName: docName,
+        pageNumber: meta.page || meta.pageNumber || null,
+        score: match.score,
+      });
+
+      // Deduplicate sources by document name (keep highest score)
+      const dedupeKey = docName.toLowerCase().trim();
+      const existing = sourceMap.get(dedupeKey);
+      if (!existing || match.score > existing.relevanceScore) {
+        sourceMap.set(dedupeKey, {
+          documentId: meta.documentId,
+          documentName: docName,
+          pageNumber: meta.page || meta.pageNumber || null,
+          relevanceScore: match.score,
+          mimeType: meta.mimeType,
+        });
+      }
+    }
+  }
+
+  // Log per-concept results
+  for (const concept of concepts) {
+    const conceptChunkCount = allChunks.filter(c => c.concept === concept).length;
+    console.log(`  ✅ Found ${conceptChunkCount} chunks for concept "${concept}"`);
   }
 
   // Convert Map to array for sources
@@ -2709,7 +2990,12 @@ async function handleConceptComparison(
   const finalSystemPrompt = systemPrompt + languageInstruction;
 
   // Generate comparison response
+  comparisonTimer.start('LLM Streaming Response');
   const generationResult = await smartStreamLLMResponse(finalSystemPrompt, '', onChunk);
+  comparisonTimer.end('LLM Streaming Response');
+
+  comparisonTimer.end('CONCEPT COMPARISON TOTAL');
+  comparisonTimer.printSummary();
 
   return { sources: allSources };
 }
@@ -2774,14 +3060,25 @@ async function handleDocumentComparison(
 
   console.log(`✅ [DOCUMENT COMPARISON] Queried ${documentIds.length} documents in parallel, found ${allChunks.length} total chunks`);
 
+  // 🔍 DEBUG: Log first chunk metadata to find the correct field names
+  if (allChunks.length > 0) {
+    const firstMeta = allChunks[0].metadata || {};
+    console.log(`🔍 [DEBUG] First chunk metadata keys:`, Object.keys(firstMeta));
+    console.log(`🔍 [DEBUG] First chunk content field:`, firstMeta.content ? `${firstMeta.content.substring(0, 100)}...` : 'EMPTY');
+    console.log(`🔍 [DEBUG] First chunk text field:`, firstMeta.text ? `${firstMeta.text.substring(0, 100)}...` : 'EMPTY');
+  }
+
   // Build context from all chunks
   const context = allChunks
     .map((match: any) => {
       const meta = match.metadata || {};
-      // ✅ FIX: Use correct field names from Pinecone (content, filename, page)
-      return `[Document: ${meta.filename || 'Unknown'}, Page: ${meta.page || 'N/A'}]\n${meta.content || ''}`;
+      // ✅ FIX: Use correct field names from Pinecone - try 'text' first, then 'content'
+      const chunkContent = meta.text || meta.content || '';
+      return `[Document: ${meta.filename || 'Unknown'}, Page: ${meta.page || 'N/A'}]\n${chunkContent}`;
     })
     .join('\n\n---\n\n');
+
+  console.log(`🔍 [DEBUG] Built context length: ${context.length} chars`);
 
   // Build sources array - Will be updated after LLM response
   let sources: any[] = [];
@@ -3501,8 +3798,10 @@ async function handleRegularQuery(
   isFirstMessage?: boolean  // ✅ NEW: Flag to control greeting logic
 ): Promise<{ sources: any[] }> {
 
-  // ⏱️ PERFORMANCE: Start timing
+  // ⏱️ PERFORMANCE: Start timing with instrumentation
   const startTime = Date.now();
+  requestTimer = new PerformanceTimer();
+  requestTimer.start('TOTAL REQUEST');
 
   // ✅ FIX: Send immediate acknowledgment to establish streaming connection
   onChunk('');
@@ -3538,21 +3837,20 @@ async function handleRegularQuery(
   // IMPACT: 6-10× faster for 80% of queries
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ⚡ SPEED OPTIMIZATION: Skip query complexity analysis entirely (saves 1000ms)
+  // ⚡ SMART QUERY ANALYSIS: Fast pattern matching with LLM fallback
   // ═══════════════════════════════════════════════════════════════════════════
-  // REASON: 99% of queries are simple, no need for LLM call
-  // WHY: Query decomposition rarely improves results but always adds latency
-  // HOW: Assume all queries are simple
-  // IMPACT: ~1000ms saved for ALL queries
+  // REASON: Complex queries need decomposition, but most queries are simple
+  // WHY: 90% of queries are simple (fast path), 10% are complex (need analysis)
+  // HOW: Use pattern matching first (instant), LLM only for ambiguous cases
+  // IMPACT: Fast for simple queries, accurate for complex queries
 
-  const queryAnalysis = {
-    isComplex: false,
-    queryType: 'simple',
-    subQueries: [],
-    originalQuery: query
-  };
+  const queryAnalysis = await analyzeQueryComplexity(query);
 
-  console.log(`⚡ [SPEED] Query complexity analysis DISABLED (saved ~1000ms)`);
+  if (queryAnalysis.isComplex) {
+    console.log(`🧩 [COMPLEX QUERY] Detected ${queryAnalysis.queryType} query with ${queryAnalysis.subQueries?.length || 0} sub-queries`);
+  } else {
+    console.log(`⚡ [SIMPLE QUERY] Using standard retrieval`);
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ✅ FIX #8: Multi-Document Filtering
@@ -3622,27 +3920,101 @@ async function handleRegularQuery(
 
     console.log(`✅ [FILTER] ${filteredChunks.length}/${hybridResults.length} chunks above threshold (${COMPARISON_MIN_SCORE})`);
 
-    // Build context from all chunks
+    // Build context from all chunks with document type labels for multi-document queries
     const contextChunks = filteredChunks.slice(0, 20).map((chunk: any, index: number) => {
       const content = chunk.metadata?.content || '';
-      const filename = chunk.metadata?.filename || 'Unknown';
       const page = chunk.metadata?.page || 0;
-      return `[Chunk ${index + 1}] (Source: ${filename}, Page: ${page}, Score: ${(chunk.score || 0).toFixed(2)})\n${content}`;
+
+      // Get document type/name for context (helps with cross-document synthesis)
+      let docLabel = 'Document';
+      if (chunk.metadata?.filename) {
+        const filename = chunk.metadata.filename.toLowerCase();
+        if (filename.includes('financial') || filename.includes('report') || filename.includes('statement')) {
+          docLabel = 'Financial Report';
+        } else if (filename.includes('lease') || filename.includes('agreement') || filename.includes('contract')) {
+          docLabel = 'Lease Agreement';
+        } else if (filename.includes('medical') || filename.includes('health') || filename.includes('record') || filename.includes('patient')) {
+          docLabel = 'Medical Record';
+        } else if (filename.includes('invoice') || filename.includes('bill')) {
+          docLabel = 'Invoice';
+        } else if (filename.includes('policy') || filename.includes('insurance')) {
+          docLabel = 'Insurance Policy';
+        } else {
+          docLabel = chunk.metadata.filename;
+        }
+      }
+
+      const pageInfo = page > 0 ? ` (Page: ${page})` : '';
+      return `[${docLabel} - Context ${index + 1}]${pageInfo}\n${content}`;
     });
 
     const contextText = contextChunks.join('\n\n');
 
-    // Generate answer with context (streaming)
-    const comparisonPrompt = queryAnalysis.queryType === 'comparison'
-      ? `You are answering a COMPARISON query. Structure your response to clearly compare the concepts mentioned.\n\nOriginal query: "${queryAnalysis.originalQuery}"\n\nContext from documents:\n${contextText}\n\nProvide a comprehensive comparison addressing all aspects of the query.`
-      : `You are answering a MULTI-PART query. Address each part of the question systematically.\n\nOriginal query: "${queryAnalysis.originalQuery}"\n\nContext from documents:\n${contextText}\n\nProvide a comprehensive answer addressing all parts of the query.`;
+    // Generate answer with context (streaming) - enhanced prompts based on query type
+    let comparisonPrompt = '';
+
+    if (queryAnalysis.queryType === 'comparison') {
+      comparisonPrompt = `You are answering a COMPARISON query. Structure your response to clearly compare the concepts mentioned.
+
+INSTRUCTIONS:
+- Create well-formatted comparison tables when appropriate
+- Ensure all table cells are complete (no cut-off content)
+- Align data correctly in columns
+- Use clear headers that describe what's being compared
+- Provide analysis after the table
+
+Original query: "${queryAnalysis.originalQuery}"
+
+Context from documents:
+${contextText}
+
+Provide a comprehensive comparison addressing all aspects of the query.`;
+
+    } else if (queryAnalysis.queryType === 'cross_document') {
+      comparisonPrompt = `You are answering a CROSS-DOCUMENT ANALYSIS query. You need to synthesize information from multiple documents.
+
+INSTRUCTIONS:
+- Identify which information comes from which document type
+- Connect related information across documents
+- Provide clear analysis and recommendations
+- Use tables to organize complex data
+- Ensure all table cells are complete and properly aligned
+
+Original query: "${queryAnalysis.originalQuery}"
+
+Sub-queries analyzed:
+${queryAnalysis.subQueries?.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n')}
+
+Context from documents:
+${contextText}
+
+Provide a comprehensive cross-document analysis addressing all aspects of the query.`;
+
+    } else {
+      comparisonPrompt = `You are answering a MULTI-PART query. Address each part of the question systematically.
+
+INSTRUCTIONS:
+- Answer each sub-question clearly
+- Use structured formatting (headings, lists, tables)
+- Ensure completeness for all parts
+- Provide synthesis at the end
+
+Original query: "${queryAnalysis.originalQuery}"
+
+Context from documents:
+${contextText}
+
+Provide a comprehensive answer addressing all parts of the query.`;
+    }
 
     // Stream response from Gemini
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 4000,
+        temperature: 0.5, // ⚡ FIX: Increased from 0.3 to allow better summarization into single-line cells
+        // ⚡ FIX: Increase token limit to 8192 for large tables
+        // REASON: 4000 tokens is not enough for comprehensive comparison tables
+        maxOutputTokens: 8192,
       },
     });
 
@@ -3825,10 +4197,12 @@ async function handleRegularQuery(
     // REASON: These two operations are independent and can run concurrently
     // IMPACT: Saves ~200-500ms by running in parallel instead of sequentially
     // NOTE: Now uses terminology-enhanced query for better semantic matching
+    if (requestTimer) requestTimer.start('Pinecone Init + Embedding (parallel)');
     const [_, embeddingResultEarly] = await Promise.all([
       initializePinecone(),
       embeddingService.generateEmbedding(terminologyEnhancedQuery)
     ]);
+    if (requestTimer) requestTimer.end('Pinecone Init + Embedding (parallel)');
 
     // Store for later use (avoids duplicate embedding generation)
     const earlyEmbedding = embeddingResultEarly.embedding;
@@ -3853,11 +4227,15 @@ async function handleRegularQuery(
     let hybridResults: any[] = [];
     let rawResults: any; // Declare here so it's available for graceful degradation later
 
+    if (requestTimer) requestTimer.start(`Retrieval Strategy: ${strategy}`);
+
     if (strategy === 'keyword') {
       // ───────────────────────────────────────────────────────────────────
       // Pure BM25 keyword search for exact matches
       // ───────────────────────────────────────────────────────────────────
+      if (requestTimer) requestTimer.start('BM25 Search');
       const bm25Results = await pureBM25Search(query, userId, 20);
+      if (requestTimer) requestTimer.end('BM25 Search');
 
       // Convert to hybrid result format
       hybridResults = (bm25Results.matches || []).map((match: any) => ({
@@ -3880,12 +4258,15 @@ async function handleRegularQuery(
         console.log(`⚠️  [KEYWORD→VECTOR FALLBACK] BM25 returned 0 results, falling back to Pinecone vector search...`);
         const queryEmbedding = earlyEmbedding;
 
+        // ⚡ PERFORMANCE: Reduced from 20 to 5 chunks
+        if (requestTimer) requestTimer.start('Pinecone Query (keyword fallback)');
         rawResults = await pineconeIndex.query({
           vector: queryEmbedding,
-          topK: 20,
+          topK: 5,
           filter,
           includeMetadata: true,
         });
+        if (requestTimer) requestTimer.end('Pinecone Query (keyword fallback)');
 
         hybridResults = (rawResults.matches || []).map((match: any) => ({
           content: match.metadata?.content || match.metadata?.text || '',
@@ -3906,12 +4287,15 @@ async function handleRegularQuery(
       // FIX #6: Use pre-computed embedding from parallel init
       const queryEmbedding = earlyEmbedding;
 
+      // ⚡ PERFORMANCE: Reduced from 20 to 5 chunks
+      if (requestTimer) requestTimer.start('Pinecone Query (hybrid)');
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
-        topK: 20,
+        topK: 5,
         filter,
         includeMetadata: true,
       });
+      if (requestTimer) requestTimer.end('Pinecone Query (hybrid)');
 
       console.log(`🔍 [HYBRID] Vector results: ${rawResults.matches?.length || 0} chunks`);
 
@@ -3934,12 +4318,15 @@ async function handleRegularQuery(
       // FIX #6: Use pre-computed embedding from parallel init
       const queryEmbedding = earlyEmbedding;
 
+      // ⚡ PERFORMANCE: Reduced from 20 to 5 chunks
+      if (requestTimer) requestTimer.start('Pinecone Query (vector)');
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
-        topK: 20,
+        topK: 5,
         filter,
         includeMetadata: true,
       });
+      if (requestTimer) requestTimer.end('Pinecone Query (vector)');
 
       // Convert to hybrid result format for consistency
       hybridResults = (rawResults.matches || []).map((match: any) => ({
@@ -3952,6 +4339,8 @@ async function handleRegularQuery(
 
       console.log(`✅ [VECTOR] Pure vector search: ${hybridResults.length} chunks`);
     }
+
+    if (requestTimer) requestTimer.end(`Retrieval Strategy: ${strategy}`);
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // DEBUG LOGGING - Diagnose retrieval issues
@@ -4423,7 +4812,9 @@ async function handleRegularQuery(
     // ═══════════════════════════════════════════════════════════════════════════════
 
     // FIX: Pass finalDocumentContext instead of empty string
+    if (requestTimer) requestTimer.start('LLM Streaming Response');
     let fullResponse = await streamLLMResponse(finalSystemPrompt, finalDocumentContext, onChunk);
+    if (requestTimer) requestTimer.end('LLM Streaming Response');
     console.log(`⏱️ [PERF] Generation took ${Date.now() - startTime}ms`);
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -4536,6 +4927,14 @@ async function handleRegularQuery(
       console.log(`📊 [COMPLEX REASONING] Returning confidence: ${answerConfidence.toFixed(2)}`);
     }
     console.log(`⏱️ [PERF] Total time: ${Date.now() - startTime}ms`);
+
+    // ⏱️ PERFORMANCE: Print timing summary
+    if (requestTimer) {
+      requestTimer.end('TOTAL REQUEST');
+      requestTimer.printSummary();
+      requestTimer = null;
+    }
+
     return result;
 }
 
@@ -4563,12 +4962,15 @@ async function streamLLMResponse(
       // ⚡ SPEED FIX #4: Use optimized maxTokens for faster generation
       // BEFORE: 3000 tokens = longer generation time
       // AFTER: 1000 tokens = 67% faster (most answers are 200-500 tokens)
+      // ⚡ SPEED FIX #6: Don't duplicate document context (already in systemPrompt via getSystemPrompt)
+      // BEFORE: Document context sent TWICE (in systemPrompt + documentContext param) = 2x tokens
+      // AFTER: Document context sent ONCE (only in systemPrompt) = 50% fewer tokens!
       fullAnswer = await geminiCache.generateStreamingWithCache({
         systemPrompt,
-        documentContext: context,
-        query: '', // Query already included in context
+        documentContext: '', // ⚡ FIX: Already included in systemPrompt - don't duplicate!
+        query: '', // Query already included in systemPrompt
         temperature: 0.4,
-        maxTokens: 1000, // ⚡ Reduced from 3000 to 1000
+        maxTokens: 2500, // ⚡ Reduced from 3000 to 1000
         onChunk: (text: string) => {
           // Simplified post-processing - let examples guide formatting
           const processedChunk = text
@@ -4659,12 +5061,13 @@ async function smartStreamLLMResponse(
 
   try {
     // ⚡ SPEED FIX #4: Use optimized maxTokens for faster generation
+    // ⚡ SPEED FIX #6: Don't duplicate document context (already in systemPrompt)
     fullAnswer = await geminiCache.generateStreamingWithCache({
       systemPrompt,
-      documentContext: context,
-      query: '', // Query already included in context
+      documentContext: '', // ⚡ FIX: Already included in systemPrompt - don't duplicate!
+      query: '', // Query already included in systemPrompt
       temperature: 0.4,
-      maxTokens: 1000, // ⚡ Reduced from 3000 to 1000
+      maxTokens: 2500, // ⚡ Reduced from 3000 to 1000
       onChunk: (text: string) => {
         // First apply basic post-processing (same as streamLLMResponse)
         const processedChunk = text

@@ -9,6 +9,7 @@ import responsePostProcessor from '../services/responsePostProcessor.service'; /
 import { Intent } from '../types/intent.types';
 import fileActionsService from '../services/fileActions.service';
 import { generateConversationTitle } from '../services/gemini.service';
+import cacheService from '../services/cache.service'; // ✅ FIX: Cache invalidation after saving messages
 
 /**
  * RAG Controller
@@ -1830,6 +1831,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       where: { id: conversationId },
       data: { updatedAt: new Date() },
     });
+
+    // ✅ FIX: Invalidate conversation cache so refresh shows latest messages
+    cacheService.invalidateConversationCache(userId, conversationId)
+      .then(() => console.log(`🗑️  [Cache] Invalidated conversation cache for ${conversationId.substring(0, 8)}...`))
+      .catch(err => console.error('❌ Error invalidating cache:', err));
 
     // Auto-generate conversation title (non-blocking)
     const messageCount = await prisma.message.count({

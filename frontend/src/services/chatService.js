@@ -468,8 +468,29 @@ export const sendAdaptiveMessageStreaming = async (
 
   let buffer = '';
 
+  // ⚡ FIX: Add streaming timeout to prevent stalled UI
+  const STREAM_TIMEOUT = 30000; // 30 seconds
+
+  // Helper function to read with timeout
+  const readWithTimeout = async () => {
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Stream timed out. Please try again.')), STREAM_TIMEOUT);
+    });
+    return Promise.race([reader.read(), timeoutPromise]);
+  };
+
   while (true) {
-    const { value, done } = await reader.read();
+    let value, done;
+    try {
+      const result = await readWithTimeout();
+      value = result.value;
+      done = result.done;
+    } catch (timeoutError) {
+      console.error('❌ Stream timed out after 30 seconds');
+      reader.cancel();
+      throw timeoutError;
+    }
+
     if (done) {
       console.log('🏁 Stream finished (done=true)');
       break;
@@ -672,6 +693,58 @@ export const removeMessageListeners = () => {
   }
 };
 
+// ============================================================================
+// TITLE STREAMING EVENTS (ChatGPT-style animated title generation)
+// ============================================================================
+
+/**
+ * Listen for title generation start event
+ */
+export const onTitleGeneratingStart = (callback) => {
+  if (socket) {
+    socket.on('title:generating:start', callback);
+  }
+};
+
+/**
+ * Listen for title generation chunks (character-by-character)
+ */
+export const onTitleGeneratingChunk = (callback) => {
+  if (socket) {
+    socket.on('title:generating:chunk', callback);
+  }
+};
+
+/**
+ * Listen for title generation complete event
+ */
+export const onTitleGeneratingComplete = (callback) => {
+  if (socket) {
+    socket.on('title:generating:complete', callback);
+  }
+};
+
+/**
+ * Listen for conversation updated event (fallback for instant title)
+ */
+export const onConversationUpdated = (callback) => {
+  if (socket) {
+    socket.on('conversation:updated', callback);
+  }
+};
+
+/**
+ * Remove title streaming listeners
+ */
+export const removeTitleListeners = () => {
+  if (socket) {
+    socket.removeAllListeners('title:generating:start');
+    socket.removeAllListeners('title:generating:chunk');
+    socket.removeAllListeners('title:generating:complete');
+    socket.removeAllListeners('conversation:updated');
+  }
+};
+
 // RAG API Functions
 
 /**
@@ -799,6 +872,12 @@ export default {
   onMessageComplete,
   onResearchProgress,
   removeMessageListeners,
+  // Title streaming exports
+  onTitleGeneratingStart,
+  onTitleGeneratingChunk,
+  onTitleGeneratingComplete,
+  onConversationUpdated,
+  removeTitleListeners,
   queryWithRAG,
   answerFollowUp,
   getRAGContext,

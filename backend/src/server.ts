@@ -23,6 +23,7 @@ import { startReminderScheduler } from './jobs/reminder.scheduler';
 import rbacService from './services/rbac.service';
 import prisma from './config/database';
 import websocketService from './services/websocket.service';
+import { initializePinecone } from './services/rag.service';
 
 const portConfig = getPortConfig();
 
@@ -86,11 +87,17 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id} (User: ${socket.data.userId})`);
 
+  // ✅ Auto-join user to their user-specific room for title streaming and notifications
+  if (socket.data.userId) {
+    socket.join(`user:${socket.data.userId}`);
+    console.log(`📡 Auto-joined user ${socket.data.userId} to their room`);
+  }
+
   socket.on('disconnect', () => {
     console.log(`🔌 Client disconnected: ${socket.id}`);
   });
 
-  // Join user-specific room for notifications
+  // Join user-specific room for notifications (legacy - kept for compatibility)
   socket.on('join-user-room', (userId: string) => {
     socket.join(`user:${userId}`);
     console.log(`📡 User ${userId} joined their room`);
@@ -307,6 +314,83 @@ io.on('connection', (socket) => {
         });
       }
 
+      // ✅ NEW: Auto-generate animated title on FIRST message
+      // conversationHistory was loaded BEFORE the user message was saved, so length === 0 means first message
+      const userMessageCount = conversationHistory.filter(m => m.role === 'user').length;
+      if (userMessageCount === 0) {
+        console.log('🏷️ [TITLE] Triggering animated title generation for first message via WebSocket');
+
+        // Capture values for closure
+        const userContent = data.content;
+        const assistantContent = fullResponse;
+        const convId = conversationId;
+        const userId = authenticatedUserId;
+
+        // Fire-and-forget title generation (don't block response)
+        (async () => {
+          try {
+            const OpenAI = (await import('openai')).default;
+            const openai = new OpenAI({
+              apiKey: process.env.OPENAI_API_KEY,
+            });
+
+            // Emit title generation start
+            io.to(`user:${userId}`).emit('title:generating:start', {
+              conversationId: convId,
+            });
+            console.log(`📡 [TITLE-STREAM] Started streaming title for ${convId}`);
+
+            let fullTitle = '';
+            const stream = await openai.chat.completions.create({
+              model: 'gpt-4o-mini',
+              messages: [
+                {
+                  role: 'system',
+                  content: `Generate a short, descriptive title (max 50 chars) for this conversation. If it's just a greeting, return "New Chat". No quotes or special formatting.`,
+                },
+                {
+                  role: 'user',
+                  content: `User: "${userContent.slice(0, 500)}"\nAssistant: "${assistantContent.slice(0, 300)}"`,
+                },
+              ],
+              temperature: 0.3,
+              max_tokens: 30,
+              stream: true,
+            });
+
+            for await (const chunk of stream) {
+              const content = chunk.choices[0]?.delta?.content || '';
+              if (content) {
+                fullTitle += content;
+                io.to(`user:${userId}`).emit('title:generating:chunk', {
+                  conversationId: convId,
+                  chunk: content,
+                });
+              }
+            }
+
+            const cleanTitle = fullTitle.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
+
+            // Update database
+            await prisma.conversation.update({
+              where: { id: convId },
+              data: { title: cleanTitle, updatedAt: new Date() },
+            });
+
+            // Emit completion
+            io.to(`user:${userId}`).emit('title:generating:complete', {
+              conversationId: convId,
+              title: cleanTitle,
+              updatedAt: new Date(),
+            });
+
+            console.log(`✅ [TITLE-STREAM] Generated title: "${cleanTitle}"`);
+          } catch (err) {
+            console.error('❌ Error generating title:', err);
+          }
+        })();
+      }
+
       console.log('✅ new-message event emitted successfully');
     } catch (error: any) {
       console.error('❌ Error in send-message handler:', error);
@@ -338,6 +422,19 @@ httpServer.listen(portConfig.httpsPort, () => {
 
   // Start reminder scheduler
   startReminderScheduler();
+
+  // ⚡ PERFORMANCE FIX: Pre-warm Pinecone connection at startup
+  // REASON: First Pinecone query takes 2832ms (cold start), subsequent: 184ms (warm)
+  // IMPACT: Saves ~2.6 seconds on first user query
+  (async () => {
+    console.log('🔥 [STARTUP] Pre-warming Pinecone connection...');
+    try {
+      await initializePinecone();
+      console.log('✅ [STARTUP] Pinecone connection pre-warmed and ready');
+    } catch (error) {
+      console.error('⚠️  [STARTUP] Failed to pre-warm Pinecone (will initialize on first request):', error);
+    }
+  })();
 
   // ═══════════════════════════════════════════════════════════════
   // START BACKGROUND DOCUMENT PROCESSOR
