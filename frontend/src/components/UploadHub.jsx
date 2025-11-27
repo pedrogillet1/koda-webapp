@@ -8,7 +8,6 @@ import CreateCategoryModal from './CreateCategoryModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import RenameModal from './RenameModal';
 import CreateFolderModal from './CreateFolderModal';
-import UploadProgressModal from './UploadProgressModal';
 import { useToast } from '../context/ToastContext';
 import { useDocuments } from '../context/DocumentsContext';
 import { ReactComponent as SearchIcon} from '../assets/Search.svg';
@@ -269,7 +268,6 @@ const UploadHub = () => {
   const [isLibraryExpanded, setIsLibraryExpanded] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [modalSearchQuery, setModalSearchQuery] = useState('');
-  const [showUploadProgressModal, setShowUploadProgressModal] = useState(false); // Unified upload progress modal
   const embeddingTimeoutsRef = useRef({}); // Track embedding timeouts for slow processing warnings
 
   // ✅ Listen for document processing updates via WebSocket
@@ -575,8 +573,6 @@ const UploadHub = () => {
       console.time('📊 File drop → UI render');
       startTransition(() => {
         setUploadingFiles(prev => [...pendingFiles, ...prev]);
-        // Show the upload progress modal
-        setShowUploadProgressModal(true);
 
         // ⚡ PERFORMANCE: Log timing
         const endTime = performance.now();
@@ -692,8 +688,6 @@ const UploadHub = () => {
 
       console.log(`✅ Processed ${processedItems.length} item(s) from drag-and-drop`);
       setUploadingFiles(prev => [...processedItems, ...prev]);
-      // Show the upload progress modal
-      setShowUploadProgressModal(true);
     } else {
       // Fallback to old behavior for browsers that don't support DataTransferItemList
       const files = Array.from(e.dataTransfer.files);
@@ -719,8 +713,6 @@ const UploadHub = () => {
       }));
 
       setUploadingFiles(prev => [...pendingFiles, ...prev]);
-      // Show the upload progress modal
-      setShowUploadProgressModal(true);
     }
   };
 
@@ -2430,9 +2422,9 @@ const UploadHub = () => {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          background: 'white',
-          height: '100vh',
-          position: 'relative'
+          background: '#F9FAFB',
+          position: 'relative',
+          overflowY: 'auto'
         }}
       >
         {/* Header */}
@@ -2440,22 +2432,24 @@ const UploadHub = () => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: isMobile ? '16px' : '20px 24px',
+          padding: isMobile ? '16px' : '24px 24px 20px 24px',
           paddingLeft: isMobile ? 70 : 24,
-          borderBottom: '1px solid #E5E7EB',
+          borderBottom: 'none',
+          background: '#F9FAFB',
           height: isMobile ? 60 : 'auto'
         }}>
-          <h2 style={{fontSize: isMobile ? 18 : 20, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Upload Documents</h2>
+          <h2 style={{fontSize: isMobile ? 18 : 24, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Upload Documents</h2>
         </div>
 
         {/* Content */}
         <div style={{
           flex: 1,
           overflowY: 'auto',
-          padding: isMobile ? 16 : 24,
+          padding: isMobile ? 16 : '24px 24px 24px 24px',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: uploadingFiles.length > 0 ? 'flex-start' : 'center'
+          justifyContent: uploadingFiles.length > 0 ? 'flex-start' : 'center',
+          alignItems: uploadingFiles.length > 0 ? 'stretch' : 'center'
         }}>
           {/* Drag-drop zone */}
           <div {...getRootProps()} style={{
@@ -2465,16 +2459,14 @@ const UploadHub = () => {
             textAlign: 'center',
             marginBottom: uploadingFiles.length > 0 ? 24 : 0,
             cursor: 'pointer',
-            background: '#F9FAFB',
+            background: 'white',
             flexShrink: 0,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
             transition: 'all 0.3s ease-out',
-            width: isMobile ? '100%' : 800,
             maxWidth: isMobile ? '100%' : 800,
-            height: isMobile ? 'auto' : 400,
             minHeight: isMobile ? 300 : 400,
             alignSelf: 'center'
           }}>
@@ -2533,7 +2525,7 @@ const UploadHub = () => {
 
           {/* Upload progress list */}
           {uploadingFiles.length > 0 && (
-            <div style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
+            <div style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12, width: '100%', maxWidth: 800, alignSelf: 'center'}}>
               {uploadingFiles.map((f, index) => {
                 const isError = f.status === 'failed';
                 const progressWidth = f.status === 'completed' ? 100 : (f.progress || 0);
@@ -2936,11 +2928,15 @@ const UploadHub = () => {
         {/* Footer with Upload Buttons - Always show when files are present */}
         {uploadingFiles.length > 0 && (
           <div style={{
-            padding: '16px 24px',
-            borderTop: '1px solid #E5E7EB',
-            background: 'white',
+            padding: '24px 24px 24px 24px',
+            borderTop: 'none',
+            background: '#F9FAFB',
             display: 'flex',
-            gap: 12
+            justifyContent: 'center',
+            gap: 12,
+            maxWidth: 800,
+            alignSelf: 'center',
+            width: '100%'
           }}>
             <button
               onClick={() => setUploadingFiles([])}
@@ -3064,34 +3060,6 @@ const UploadHub = () => {
       </div>
 
       {/* Notifications are now handled by the unified ToastProvider */}
-
-      {/* Unified Upload Progress Modal */}
-      <UploadProgressModal
-        isOpen={showUploadProgressModal}
-        files={uploadingFiles}
-        onClose={() => {
-          // Only close if no uploads are in progress
-          const uploadingCount = uploadingFiles.filter(f => f.status === 'uploading').length;
-          if (uploadingCount === 0) {
-            setShowUploadProgressModal(false);
-            // Clear completed uploads
-            setUploadingFiles(prev => prev.filter(f => f.status !== 'completed'));
-          }
-        }}
-        onRetry={(file, index) => {
-          // Reset file status and re-add to upload queue
-          console.log('🔄 Retrying upload:', file.isFolder ? file.folderName : file.file?.name);
-          setUploadingFiles(prev => prev.map((f, i) =>
-            i === index ? { ...f, status: 'pending', error: null, errorDetails: null, progress: 0 } : f
-          ));
-        }}
-        title="Upload Documents"
-        removeFile={(fileName) => {
-          setUploadingFiles(prev => prev.filter(f =>
-            (f.isFolder ? f.folderName : f.file?.name) !== fileName
-          ));
-        }}
-      />
 
       <NotificationPanel
         showNotificationsPopup={showNotificationsPopup}
