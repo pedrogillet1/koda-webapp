@@ -407,10 +407,29 @@ async function processDocumentWithTimeout(
     const extractionStartTime = Date.now();
     console.log(`⏱️ [TIMING] Starting text extraction for ${mimeType}...`);
 
+    // Progress update: extraction starting (5%)
+    emitToUser(userId, 'document-processing-update', {
+      documentId,
+      stage: 'extracting',
+      progress: 5,
+      message: 'Extracting text from document...',
+      filename
+    });
+
     // Check if it's a PowerPoint file - use Python PPTX extractor
     const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
     if (isPPTX) {
       console.log('📊 Using Python PPTX extractor for PowerPoint...');
+
+      // Progress update: PowerPoint extraction starting (8%)
+      emitToUser(userId, 'document-processing-update', {
+        documentId,
+        stage: 'extracting',
+        progress: 8,
+        message: 'Processing PowerPoint slides...',
+        filename
+      });
+
       try {
         // Save file buffer to temporary file
         const tempDir = os.tmpdir();
