@@ -1,9 +1,19 @@
 import React, { useState } from 'react';
 import { useDocuments } from '../context/DocumentsContext';
 
+// Import actual Koda file type icons
+import pdfIcon from '../assets/pdf-icon.png';
+import docIcon from '../assets/doc-icon.png';
+import xlsIcon from '../assets/xls.png';
+import jpgIcon from '../assets/jpg-icon.png';
+import pngIcon from '../assets/png-icon.png';
+import pptxIcon from '../assets/pptx.png';
+import movIcon from '../assets/mov.png';
+import mp4Icon from '../assets/mp4.png';
+
 const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
   const { documents } = useDocuments();
-  const [hoveredIcon, setHoveredIcon] = useState(null);
+  const [hoveredType, setHoveredType] = useState(null);
 
   // Get file extension from document
   const getFileExtension = (doc) => {
@@ -27,7 +37,6 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
       'jpeg': 'jpg',
       'mov': 'mov',
       'mp4': 'mp4',
-      'txt': 'txt',
     };
     return mainTypes[ext] || 'other';
   };
@@ -50,130 +59,41 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
 
   const totalFiles = documents.length;
 
-  // Unified color system - exact hex values from icon backgrounds (single source of truth)
+  // Unified color system - exact hex values from icon backgrounds
   const colorMap = {
-    'png': '#22C55E',   // Bright Green - matches PNG icon
-    'jpg': '#16A34A',   // Forest Green - matches JPG icon
-    'pdf': '#8B0000',   // Dark Red - matches PDF icon
-    'docx': '#2563EB',  // Blue - matches DOC icon
-    'xlsx': '#10B981',  // Teal Green - matches XLS icon
-    'pptx': '#DC2626',  // Red - matches PPTX icon
-    'mov': '#3B82F6',   // Light Blue - matches MOV icon
-    'mp4': '#A855F7',   // Purple - matches MP4 icon
-    'txt': '#6B7280',   // Gray - matches TXT icon
-    'other': '#6B7280'  // Gray - Other files
+    'png': '#22C55E',   // Bright Green
+    'jpg': '#16A34A',   // Forest Green
+    'pdf': '#8B0000',   // Dark Red
+    'docx': '#2563EB',  // Blue
+    'xlsx': '#10B981',  // Teal Green
+    'pptx': '#DC2626',  // Red
+    'mov': '#3B82F6',   // Light Blue
+    'mp4': '#A855F7',   // Purple
+    'other': '#6B7280'  // Gray
   };
 
-  // Psychology-based balanced pyramid layout
-  // Layer 1: Hero Elements (Top Center) - Most common file types
-  // Layer 2: Primary Elements (Middle) - Important file types
-  // Layer 3: Secondary Elements (Lower) - Less common
-  // Layer 4: Tertiary Elements (Bottom) - Rare file types
-
-  const iconPositions = [
-    // Layer 1: Hero Elements (Top Center)
-    {
-      type: 'png',
-      label: 'PNG',
-      size: 100,
-      top: 0,
-      left: 120,
-      zIndex: 5,
-      rotation: 0,
-      fontSize: 24
-    },
-    {
-      type: 'jpg',
-      label: 'JPG',
-      size: 90,
-      top: 20,
-      left: 250,
-      zIndex: 4,
-      rotation: 5,
-      fontSize: 20
-    },
-    // Layer 2: Primary Elements (Middle)
-    {
-      type: 'pdf',
-      label: 'PDF',
-      size: 70,
-      top: 110,
-      left: 30,
-      zIndex: 3,
-      rotation: -8,
-      fontSize: 14
-    },
-    {
-      type: 'docx',
-      label: 'DOC',
-      size: 70,
-      top: 110,
-      left: 300,
-      zIndex: 3,
-      rotation: 8,
-      fontSize: 14
-    },
-    // Layer 3: Secondary Elements (Lower)
-    {
-      type: 'mov',
-      label: 'MOV',
-      size: 55,
-      top: 190,
-      left: 70,
-      zIndex: 2,
-      rotation: -5,
-      fontSize: 11
-    },
-    {
-      type: 'xlsx',
-      label: 'XLS',
-      size: 55,
-      top: 190,
-      left: 180,
-      zIndex: 2,
-      rotation: 0,
-      fontSize: 11
-    },
-    {
-      type: 'mp4',
-      label: 'MP4',
-      size: 55,
-      top: 190,
-      left: 290,
-      zIndex: 2,
-      rotation: 5,
-      fontSize: 11
-    },
-    // Layer 4: Tertiary Elements (Bottom Corners)
-    {
-      type: 'pptx',
-      label: 'PPT',
-      size: 45,
-      top: 255,
-      left: 50,
-      zIndex: 1,
-      rotation: -10,
-      fontSize: 9
-    },
-    {
-      type: 'txt',
-      label: 'TXT',
-      size: 45,
-      top: 255,
-      left: 310,
-      zIndex: 1,
-      rotation: 10,
-      fontSize: 9
-    }
+  // V2: 2×4 grid (8 items) - TXT/Other omitted for cleaner layout
+  // Row 1: PNG, JPG, PDF, DOC
+  // Row 2: MOV, XLS, MP4, PPTX
+  const gridData = [
+    { type: 'png', label: 'PNG', icon: pngIcon, color: colorMap['png'] },
+    { type: 'jpg', label: 'JPG', icon: jpgIcon, color: colorMap['jpg'] },
+    { type: 'pdf', label: 'PDF', icon: pdfIcon, color: colorMap['pdf'] },
+    { type: 'docx', label: 'DOC', icon: docIcon, color: colorMap['docx'] },
+    { type: 'mov', label: 'MOV', icon: movIcon, color: colorMap['mov'] },
+    { type: 'xlsx', label: 'XLS', icon: xlsIcon, color: colorMap['xlsx'] },
+    { type: 'mp4', label: 'MP4', icon: mp4Icon, color: colorMap['mp4'] },
+    { type: 'pptx', label: 'PPTX', icon: pptxIcon, color: colorMap['pptx'] }
   ];
 
-  // Get border radius based on size
-  const getBorderRadius = (size) => {
-    if (size >= 90) return 12;
-    if (size >= 70) return 10;
-    if (size >= 55) return 8;
-    return 6;
-  };
+  // Filter to only show file types that exist in documents
+  const activeGridData = gridData.filter(item => {
+    const count = extensionBreakdown[item.type]?.count || 0;
+    return count > 0;
+  });
+
+  // Use active data if files exist, otherwise show all (dimmed)
+  const displayData = activeGridData.length > 0 ? activeGridData : gridData;
 
   return (
     <div style={{
@@ -205,79 +125,123 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
         </div>
       </div>
 
-      {/* Psychology-Based Icon Grid Container */}
+      {/* Launchpad-Style Icon Grid */}
       <div style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         flex: 1,
-        justifyContent: 'center',
-        gap: '20px'
+        justifyContent: 'center'
       }}>
-        {/* Balanced Pyramid Icon Grid */}
+        {/* Icon Grid - Launchpad: 4×2 layout, 56px horizontal gap, 32px vertical gap */}
         <div style={{
-          position: 'relative',
-          width: 400,
-          height: 320,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center'
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 80px)',
+          gap: '32px 56px',
+          marginTop: '24px',
+          marginBottom: '32px',
+          justifyContent: 'center'
         }}>
-          {iconPositions.map((icon) => {
-            const fileCount = extensionBreakdown[icon.type]?.count || 0;
+          {displayData.map((item) => {
+            const fileCount = extensionBreakdown[item.type]?.count || 0;
             const hasFiles = fileCount > 0;
-            const isHovered = hoveredIcon === icon.type;
-            const otherIsHovered = hoveredIcon !== null && hoveredIcon !== icon.type;
+            const isHovered = hoveredType === item.type;
+            const otherIsHovered = hoveredType !== null && hoveredType !== item.type;
 
             return (
               <div
-                key={icon.type}
-                onMouseEnter={() => hasFiles && setHoveredIcon(icon.type)}
-                onMouseLeave={() => setHoveredIcon(null)}
+                key={item.type}
                 style={{
-                  position: 'absolute',
-                  top: icon.top,
-                  left: icon.left,
-                  width: icon.size,
-                  height: icon.size,
-                  background: colorMap[icon.type] || '#8C919E',
-                  borderRadius: getBorderRadius(icon.size),
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: hasFiles ? 'pointer' : 'default',
-                  transition: 'all 0.25s ease-out',
-                  zIndex: isHovered ? 10 : icon.zIndex,
-                  opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.4 : 1),
-                  transform: isHovered
-                    ? 'scale(1.2) rotate(0deg)'
-                    : `scale(1) rotate(${icon.rotation}deg)`,
-                  boxShadow: isHovered
-                    ? '0 12px 24px rgba(0, 0, 0, 0.15)'
-                    : '0 4px 12px rgba(0, 0, 0, 0.08)'
+                  gap: '4px',
+                  width: 80,
+                  opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.5 : 1),
+                  transition: 'opacity 0.2s ease'
                 }}
-                title={hasFiles ? `${icon.label}: ${fileCount} files` : icon.label}
+                onMouseEnter={() => hasFiles && setHoveredType(item.type)}
+                onMouseLeave={() => setHoveredType(null)}
               >
+                {/* Icon Container with Floating Bubble Effect */}
+                <div
+                  style={{
+                    width: 80,
+                    height: 80,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: hasFiles ? 'pointer' : 'default',
+                    transition: 'transform 0.2s ease',
+                    transform: isHovered ? 'scale(1.1)' : 'scale(1)',
+                    position: 'relative'
+                  }}
+                >
+                  {/* Floating Bubble - 60×60, white @ 40% opacity, blur + shadow */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      width: 60,
+                      height: 60,
+                      borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.4)',
+                      filter: 'blur(14px)',
+                      boxShadow: '0 8px 20px rgba(0, 0, 0, 0.06)',
+                      zIndex: 0
+                    }}
+                  />
+                  {/* Icon - 40×40, radius 10 */}
+                  <img
+                    src={item.icon}
+                    alt={item.label}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      objectFit: 'contain',
+                      position: 'relative',
+                      zIndex: 1,
+                      transition: 'transform 0.2s ease'
+                    }}
+                  />
+                </div>
+
+                {/* Labels - V2: Stacked with icon, 4px gap */}
                 <div style={{
-                  color: 'white',
-                  fontSize: icon.fontSize,
-                  fontWeight: '700',
-                  fontFamily: 'Plus Jakarta Sans',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '2px',
+                  textAlign: 'center'
                 }}>
-                  {icon.label}
+                  <div style={{
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#32302C',
+                    fontFamily: 'Plus Jakarta Sans'
+                  }}>
+                    {item.label}
+                  </div>
+                  <div style={{
+                    fontSize: '12px',
+                    fontWeight: '400',
+                    color: '#6C6B6E',
+                    fontFamily: 'Plus Jakarta Sans'
+                  }}>
+                    {fileCount} {fileCount === 1 ? 'File' : 'Files'}
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* File Count Bar */}
+        {/* Files Bar */}
         <div style={{
-          width: '100%',
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px'
+          gap: '8px',
+          width: '100%'
         }}>
           <div style={{
             display: 'flex',
@@ -304,81 +268,39 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
             </div>
           </div>
 
-          {/* Progress bar based on file count - muted colors at 80% opacity */}
+          {/* Progress bar - unified colors @ 80% opacity */}
           <div style={{
             width: '100%',
-            height: '10px',
+            height: '8px',
             background: '#F3F3F5',
-            borderRadius: '5px',
+            borderRadius: '4px',
             overflow: 'hidden',
             display: 'flex'
           }}>
-            {iconPositions.map((icon) => {
-              const count = extensionBreakdown[icon.type]?.count || 0;
+            {gridData.map((item) => {
+              const count = extensionBreakdown[item.type]?.count || 0;
               const widthPercent = totalCount > 0 ? (count / totalCount) * 100 : 0;
               if (widthPercent === 0) return null;
 
-              // Convert hex to rgba with 80% opacity
-              const hexToRgba = (hex) => {
-                const r = parseInt(hex.slice(1, 3), 16);
-                const g = parseInt(hex.slice(3, 5), 16);
-                const b = parseInt(hex.slice(5, 7), 16);
-                return `rgba(${r}, ${g}, ${b}, 0.8)`;
-              };
+              const isHovered = hoveredType === item.type;
 
               return (
                 <div
-                  key={icon.type}
+                  key={item.type}
                   style={{
                     width: `${widthPercent}%`,
                     height: '100%',
-                    background: hexToRgba(colorMap[icon.type] || '#8C919E'),
-                    transition: 'width 0.3s ease'
+                    background: item.color,
+                    opacity: isHovered ? 1 : 0.8,
+                    transition: 'opacity 0.2s ease, width 0.3s ease',
+                    cursor: 'pointer'
                   }}
-                  onMouseEnter={() => setHoveredIcon(icon.type)}
-                  onMouseLeave={() => setHoveredIcon(null)}
+                  onMouseEnter={() => setHoveredType(item.type)}
+                  onMouseLeave={() => setHoveredType(null)}
                 />
               );
             })}
           </div>
-        </div>
-
-        {/* Horizontal Legend - Psychology: Natural reading direction */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          flexWrap: 'wrap',
-          gap: '8px 16px',
-          padding: '12px 0',
-          fontSize: '12px',
-          fontFamily: 'Plus Jakarta Sans',
-          color: '#6C6B6E',
-          borderTop: '1px solid #E6E6EC',
-          width: '100%'
-        }}>
-          {iconPositions.map((icon) => {
-            const count = extensionBreakdown[icon.type]?.count || 0;
-            if (count === 0) return null;
-
-            const isHovered = hoveredIcon === icon.type;
-
-            return (
-              <div
-                key={icon.type}
-                style={{
-                  cursor: 'pointer',
-                  opacity: hoveredIcon === null || isHovered ? 1 : 0.5,
-                  transition: 'opacity 0.2s ease',
-                  fontWeight: isHovered ? '600' : '500',
-                  color: isHovered ? '#32302C' : '#6C6B6E'
-                }}
-                onMouseEnter={() => setHoveredIcon(icon.type)}
-                onMouseLeave={() => setHoveredIcon(null)}
-              >
-                {icon.label} ({count})
-              </div>
-            );
-          })}
         </div>
       </div>
 
