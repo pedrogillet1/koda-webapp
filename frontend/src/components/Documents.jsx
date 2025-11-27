@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -1654,7 +1655,8 @@ const Documents = () => {
                       return sortDirection === 'asc' ? comparison : -comparison;
                     });
 
-                    return sortedDocs.slice(0, 6).map((doc) => {
+                    const docsToShow = sortedDocs.slice(0, 6);
+                    return docsToShow.map((doc, index) => {
                     // ✅ Check document status for visual indicators
                     const isUploading = doc.status === 'uploading';
                     // Processing status hidden - documents should display normally
@@ -1897,15 +1899,14 @@ const Documents = () => {
                               if (openDropdownId === doc.id) {
                                 setOpenDropdownId(null);
                               } else {
-                                // Calculate if dropdown should open upward or downward
+                                // Check if this is one of the last 2 documents (show dropup for bottom items)
+                                const isLastDoc = index >= docsToShow.length - 2;
                                 const buttonRect = e.currentTarget.getBoundingClientRect();
-                                const dropdownHeight = 180; // Approximate height of dropdown menu
-                                const spaceBelow = window.innerHeight - buttonRect.bottom;
-                                const spaceAbove = buttonRect.top;
-
                                 setDropdownPosition({
                                   [doc.id]: {
-                                    openUpward: spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+                                    openUpward: isLastDoc,
+                                    top: isLastDoc ? buttonRect.top - 180 : buttonRect.bottom + 4,
+                                    left: buttonRect.right - 160
                                   }
                                 });
                                 setOpenDropdownId(doc.id);
@@ -1932,20 +1933,17 @@ const Documents = () => {
                             ⋯
                           </button>
 
-                          {openDropdownId === doc.id && (
+                          {openDropdownId === doc.id && ReactDOM.createPortal(
                             <div
                               style={{
-                                position: 'absolute',
-                                ...(dropdownPosition[doc.id]?.openUpward
-                                  ? { bottom: '100%', marginBottom: 4 }
-                                  : { top: '100%', marginTop: 4 }
-                                ),
-                                right: 0,
+                                position: 'fixed',
+                                top: dropdownPosition[doc.id]?.top || 0,
+                                left: dropdownPosition[doc.id]?.left || 0,
                                 background: 'white',
-                                boxShadow: '0px 4px 6px -2px rgba(16, 24, 40, 0.03)',
+                                boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
                                 borderRadius: 12,
                                 border: '1px solid #E6E6EC',
-                                zIndex: 1000,
+                                zIndex: 10000,
                                 minWidth: 160
                               }}
                             >
@@ -2063,7 +2061,8 @@ const Documents = () => {
                                   Delete
                                 </button>
                               </div>
-                            </div>
+                            </div>,
+                            document.body
                           )}
                         </div>
                       </div>

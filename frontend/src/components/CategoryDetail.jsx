@@ -2327,7 +2327,19 @@ const CategoryDetail = () => {
                             data-dropdown-id={`list-${doc.id}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setOpenDropdownId(openDropdownId === doc.id ? null : doc.id);
+                              if (openDropdownId === doc.id) {
+                                setOpenDropdownId(null);
+                              } else {
+                                const buttonRect = e.currentTarget.getBoundingClientRect();
+                                const dropdownHeight = 180;
+                                const spaceBelow = window.innerHeight - buttonRect.bottom;
+                                const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
+                                setDropdownMenuPosition({
+                                  top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
+                                  left: buttonRect.right - 160
+                                });
+                                setOpenDropdownId(doc.id);
+                              }
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
