@@ -1264,6 +1264,17 @@ async function processDocumentWithTimeout(
       filename
     });
 
+    // ✅ FIX: Emit processing-complete event with full document data
+    // This allows frontend to update document status in state
+    const completedDocument = await prisma.document.findUnique({
+      where: { id: documentId },
+      include: { folder: { select: { id: true, name: true, emoji: true } } }
+    });
+    if (completedDocument) {
+      emitToUser(userId, 'processing-complete', completedDocument);
+      console.log(`✅ Emitted processing-complete event for: ${filename}`);
+    }
+
   } catch (error: any) {
     // This catch block should never be reached due to outer try-catch,
     // but kept as a safety net

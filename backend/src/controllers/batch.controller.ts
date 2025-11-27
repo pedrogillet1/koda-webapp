@@ -107,11 +107,11 @@ export const getInitialData = async (req: Request, res: Response) => {
     // ✅ OPTIMIZATION: Load all data in PARALLEL with a single Promise.all
     const [documents, folders, recentDocuments] = await Promise.all([
       // Load all documents with joins (no N+1)
-      // ✅ Only return completed documents (hide pending/processing/failed)
+      // ✅ FIX: Include 'processing' and 'uploading' documents so they appear in UI immediately
       prisma.document.findMany({
         where: {
           userId,
-          status: 'completed'
+          status: { in: ['completed', 'processing', 'uploading'] }
         },
         include: {
           folder: {
@@ -165,11 +165,11 @@ export const getInitialData = async (req: Request, res: Response) => {
       }),
 
       // Load recent documents (top 5)
-      // ✅ Only return completed documents (hide pending/processing/failed)
+      // ✅ FIX: Include processing/uploading documents in recent list
       prisma.document.findMany({
         where: {
           userId,
-          status: 'completed'
+          status: { in: ['completed', 'processing', 'uploading'] }
         },
         include: {
           folder: true,

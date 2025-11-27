@@ -620,13 +620,20 @@ export const DocumentsProvider = ({ children }) => {
       // No refresh - optimistic update already happened
     });
 
-    socket.on('document-created', (data) => {
-      console.log('➕ Document created event received:', data);
+    socket.on('document-created', (newDocument) => {
+      console.log('➕ Document created event received:', newDocument);
 
-      // ✅ INSTANT UPLOAD FIX: Don't fetch - optimistic update already added the document!
-      // Fetching here would overwrite the optimistic update and make the document disappear
-      // The document will update its status via 'processing-complete' event when ready
-      console.log('✅ Document already in UI via optimistic update - no fetch needed');
+      // ✅ FIX: Add the new document to the state immediately
+      // This ensures that the document appears in the UI without a full refresh
+      if (newDocument && newDocument.id) {
+        setDocuments(prev => {
+          // Avoid duplicates
+          if (prev.find(d => d.id === newDocument.id)) {
+            return prev;
+          }
+          return [newDocument, ...prev];
+        });
+      }
 
       // ✅ Invalidate cache so next fetchAllData() gets fresh data
       invalidateCache();
@@ -676,10 +683,18 @@ export const DocumentsProvider = ({ children }) => {
     });
 
     // ⚡ NEW: Listen for processing complete events (emitted after database commit completes)
-    socket.on('processing-complete', (data) => {
-      console.log('✅ Processing complete event received:', data);
-      // Don't refresh - folder counts already updated via optimistic updates
-      // Processing status is updated via document-processing-update event
+    socket.on('processing-complete', (updatedDocument) => {
+      console.log('✅ Processing complete event received:', updatedDocument);
+
+      // ✅ FIX: Update the document in the state to 'completed'
+      if (updatedDocument && updatedDocument.id) {
+        setDocuments(prev => prev.map(doc =>
+          doc.id === updatedDocument.id ? { ...doc, ...updatedDocument, status: 'completed' } : doc
+        ));
+      }
+
+      // Refresh folders to update counts
+      fetchFolders();
     });
 
     // Listen for document uploads from FileContext
@@ -1440,22 +1455,15 @@ export const DocumentsProvider = ({ children }) => {
   const refreshAll = useCallback(async () => {
     console.log('🔄 [DocumentsContext] Refreshing all data...');
 
-    // ✅ PROGRESSIVE RENDERING: Don't wait for all - let each update independently
-    // This allows UI to render data as it arrives (folders → documents → recent)
-    // Fastest data (folders, 300-500ms) appears first, improving perceived speed
+    // ✅ FIX: Wait for all promises to complete before returning
+    // This ensures that when refreshAll() is called, it waits for all data to be loaded
+    await Promise.all([
+      fetchFolders(),
+      fetchDocuments(),
+      fetchRecentDocuments(),
+    ]).catch(err => console.error('❌ [DocumentsContext] Fetch error:', err));
 
-    // Start all fetches in parallel
-    const promises = [
-      fetchFolders(),           // Fastest (300-500ms)
-      fetchDocuments(),         // Medium (500-800ms)
-      fetchRecentDocuments()    // Variable (400-600ms)
-    ];
-
-    // Don't await - let each complete independently and update state
-    // Each fetch calls its own setState, triggering progressive re-renders
-    promises.forEach(p => p.catch(err => console.error('❌ [DocumentsContext] Fetch error:', err)));
-
-    console.log('✅ [DocumentsContext] All fetches started (progressive rendering enabled)');
+    console.log('✅ [DocumentsContext] All fetches completed');
   }, [fetchDocuments, fetchFolders, fetchRecentDocuments]);
 
   const value = {
