@@ -38,8 +38,7 @@ const MessageActions = ({ message, onRegenerate, isRegenerating = false }) => {
       >
         {isRegenerating ? (
           <>
-            <span className="action-icon">⏳</span>
-            <span className="action-text">Regenerating...</span>
+            <span className="action-text">Sending...</span>
           </>
         ) : (
           <>

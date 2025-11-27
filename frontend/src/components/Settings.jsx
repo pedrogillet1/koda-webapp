@@ -529,8 +529,10 @@ const Settings = () => {
     return ext || 'File';
   };
 
-  // Get 5 most recent documents with sorting
+  // Get 5 most recent documents with sorting (only root-level documents, not in folders)
+  // Check both folderId (scalar) and folder (relation object) for robustness
   const recentDocuments = documents
+    .filter(doc => !doc.folderId && !doc.folder)
     .slice()
     .sort((a, b) => {
       let comparison = 0;

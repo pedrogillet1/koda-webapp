@@ -1029,10 +1029,11 @@ const DocumentsPage = () => {
             </div>
 
             {(() => {
-              // Only show documents in Recently Added, not category folders
-              // If you want to show subfolders (folders inside categories), filter for folders WITH parentFolderId
+              // Only show documents that are NOT in any folder (root-level documents)
+              // Documents inside folders/categories should only appear when viewing that folder
+              const rootDocuments = contextDocuments.filter(doc => !doc.folderId && !doc.folder);
               const combinedItems = [
-                ...contextDocuments.map(d => ({ ...d, isDocument: true }))
+                ...rootDocuments.map(d => ({ ...d, isDocument: true }))
               ];
 
               // Helper function to get file type for sorting

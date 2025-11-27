@@ -1326,29 +1326,168 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             console.log('🔄 Regenerating message:', messageId);
             setRegeneratingMessageId(messageId);
 
-            // Call the regenerate API endpoint
-            const response = await api.post(`/api/chat/messages/${messageId}/regenerate`);
-
-            if (response.data.success) {
-                // Update the message in the messages array
-                setMessages(prevMessages =>
-                    prevMessages.map(msg =>
-                        msg.id === messageId
-                            ? { ...msg, content: response.data.message.content }
-                            : msg
-                    )
-                );
-
-                console.log('✅ Message regenerated successfully');
-            } else {
-                console.error('❌ Regeneration failed:', response.data.error);
-                alert('Failed to regenerate message. Please try again.');
+            // Find the assistant message being regenerated
+            const assistantMessage = messages.find(msg => msg.id === messageId);
+            if (!assistantMessage) {
+                console.error('❌ Message not found');
+                return;
             }
+
+            // Find the user message that triggered this response (the one right before it)
+            const messageIndex = messages.findIndex(msg => msg.id === messageId);
+            let userMessage = null;
+            for (let i = messageIndex - 1; i >= 0; i--) {
+                if (messages[i].role === 'user') {
+                    userMessage = messages[i];
+                    break;
+                }
+            }
+
+            if (!userMessage) {
+                console.error('❌ Could not find original user query');
+                alert('Could not find the original question to regenerate.');
+                return;
+            }
+
+            console.log('📝 Regenerating response for query:', userMessage.content?.substring(0, 50));
+
+            // Store original content for error recovery
+            const originalContent = assistantMessage.content;
+
+            // Show loading state - clear the assistant message content and show typing indicator
+            setIsLoading(true);
+            setCurrentStage({ stage: 'searching', message: 'Regenerating response...' });
+
+            // Clear the current message content to show loading
+            setMessages(prevMessages =>
+                prevMessages.map(msg =>
+                    msg.id === messageId
+                        ? { ...msg, content: '', isRegenerating: true, originalContent }
+                        : msg
+                )
+            );
+
+            // Use SSE streaming for regeneration
+            const token = localStorage.getItem('accessToken');
+            const requestBody = {
+                conversationId: currentConversation?.id,
+                query: userMessage.content,
+                researchMode: false,
+                attachedDocumentId: userMessage.attachedDocumentId || null,
+                regenerateMessageId: messageId, // Tell backend we're regenerating
+            };
+
+            const response = await fetch(
+                `${process.env.REACT_APP_API_URL}/api/rag/query/stream`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify(requestBody),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let streamedContent = '';
+
+            setCurrentStage({ stage: 'generating', message: 'Generating new response...' });
+
+            while (true) {
+                const { value, done } = await reader.read();
+
+                if (done) {
+                    console.log('✅ Regeneration stream complete');
+                    break;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.type === 'content' && data.content) {
+                                streamedContent += data.content;
+                                // Update the message with streamed content
+                                setMessages(prevMessages =>
+                                    prevMessages.map(msg =>
+                                        msg.id === messageId
+                                            ? { ...msg, content: streamedContent, isRegenerating: true }
+                                            : msg
+                                    )
+                                );
+                            } else if (data.type === 'sources') {
+                                // Update sources
+                                setMessages(prevMessages =>
+                                    prevMessages.map(msg =>
+                                        msg.id === messageId
+                                            ? { ...msg, sources: data.sources }
+                                            : msg
+                                    )
+                                );
+                            } else if (data.type === 'done') {
+                                // Update with final sources and formatted answer
+                                if (data.sources || data.formattedAnswer) {
+                                    setMessages(prevMessages =>
+                                        prevMessages.map(msg =>
+                                            msg.id === messageId
+                                                ? {
+                                                    ...msg,
+                                                    content: data.formattedAnswer || streamedContent,
+                                                    sources: data.sources || msg.sources
+                                                }
+                                                : msg
+                                        )
+                                    );
+                                }
+                                break;
+                            } else if (data.type === 'error') {
+                                console.error('❌ Regeneration error:', data.error);
+                                break;
+                            }
+                        } catch (e) {
+                            // Ignore parse errors for incomplete chunks
+                        }
+                    }
+                }
+            }
+
+            // Finalize the message - remove temporary flags
+            setMessages(prevMessages =>
+                prevMessages.map(msg =>
+                    msg.id === messageId
+                        ? { ...msg, isRegenerating: false, originalContent: undefined }
+                        : msg
+                )
+            );
+
+            console.log('✅ Message regenerated successfully');
+
         } catch (error) {
             console.error('❌ Error regenerating message:', error);
+            // Restore the original message content if there was an error
+            setMessages(prevMessages =>
+                prevMessages.map(msg =>
+                    msg.id === messageId && msg.originalContent
+                        ? { ...msg, content: msg.originalContent, isRegenerating: false, originalContent: undefined }
+                        : msg
+                )
+            );
             alert('Failed to regenerate message. Please try again.');
         } finally {
             setRegeneratingMessageId(null);
+            setIsLoading(false);
         }
     };
 
@@ -2179,7 +2318,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             >
                                 {msg.role === 'assistant' ? (
                                     // Assistant message with styled card
-                                    <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', maxWidth: '75%'}}>
+                                    // Show typing indicator when regenerating with no content
+                                    msg.isRegenerating && !msg.content ? (
+                                        <TypingIndicator userName="Koda" stage={currentStage} />
+                                    ) : (
+                                    <div className="assistant-message" style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', maxWidth: '75%'}}>
                                         <div style={{padding: 12, background: 'white', borderRadius: 18, border: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                             <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
                                                 <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
@@ -2374,9 +2517,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             )}
                                                         </div>
 
-                                                    {/* ✅ Show Document Sources for RAG queries, hide for file actions */}
-                                                    {/* Hide sources if message is a file action (rename, delete, move, create folder) */}
-                                                    {msg.role === 'assistant' && !msg.content?.match(/File (renamed|moved|deleted)|Folder (created|renamed|deleted)|successfully/i) && (() => {
+                                                    {/* ✅ Show Document Sources for RAG queries, hide for file actions and regenerating */}
+                                                    {/* Hide sources if message is a file action (rename, delete, move, create folder) or regenerating */}
+                                                    {msg.role === 'assistant' && !msg.isRegenerating && !msg.content?.match(/File (renamed|moved|deleted)|Folder (created|renamed|deleted)|successfully/i) && (() => {
                                                         const sources = msg.ragSources || [];
 
                                                         // Group sources by document NAME to show unique documents (not by ID)
@@ -2828,14 +2971,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             </div>
                                         </div>
 
-                                        {/* Message Actions (Regenerate, Copy) */}
-                                        <MessageActions
-                                            message={msg}
-                                            onRegenerate={handleRegenerate}
-                                            isRegenerating={regeneratingMessageId === msg.id}
-                                        />
+                                        {/* Message Actions (Regenerate, Copy) - Hide when regenerating */}
+                                        {!msg.isRegenerating && (
+                                            <MessageActions
+                                                message={msg}
+                                                onRegenerate={handleRegenerate}
+                                                isRegenerating={regeneratingMessageId === msg.id}
+                                            />
+                                        )}
                                 </div>
-                                ) : (
+                                )) : (
                                     // User message
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', maxWidth: '70%' }}>
                                         {/* Attached files display - check both optimistic attachedFiles and metadata */}
@@ -3105,8 +3250,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             </div>
                         )}
 
-                        {/* Loading Indicator - show ONLY when waiting for response, hide once streaming starts */}
-                        {(isLoading && !streamingMessage && !displayedText) && (
+                        {/* Loading Indicator - show ONLY when waiting for NEW response, hide when streaming or regenerating */}
+                        {(isLoading && !streamingMessage && !displayedText && !regeneratingMessageId) && (
                             <TypingIndicator userName="Koda" stage={currentStage} />
                         )}
                         <div ref={messagesEndRef} />
