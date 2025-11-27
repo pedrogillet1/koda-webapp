@@ -14,7 +14,7 @@ import mp4Icon from '../assets/mp4.png';
 
 const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
   const { documents } = useDocuments();
-  const [hoveredSegment, setHoveredSegment] = useState(null);
+  const [hoveredIcon, setHoveredIcon] = useState(null);
 
   // Get file extension from document
   const getFileExtension = (doc) => {
@@ -25,7 +25,6 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
 
   // Normalize extension - group uncommon types under 'other'
   const normalizeExtension = (ext) => {
-    // Main file types to show individually
     const mainTypes = {
       'pdf': 'pdf',
       'docx': 'docx',
@@ -39,47 +38,13 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
       'jpeg': 'jpg',
       'mov': 'mov',
       'mp4': 'mp4',
+      'txt': 'txt',
     };
-
-    // Return main type or 'other' for everything else
     return mainTypes[ext] || 'other';
-  };
-
-  // Get icon for file type
-  const getFileIcon = (ext) => {
-    const iconMap = {
-      'pdf': pdfIcon,
-      'docx': docIcon,
-      'xlsx': xlsIcon,
-      'pptx': pptxIcon,
-      'jpg': jpgIcon,
-      'png': pngIcon,
-      'mov': movIcon,
-      'mp4': mp4Icon,
-      'other': txtIcon,
-    };
-    return iconMap[ext] || txtIcon;
-  };
-
-  // Get display name for file type
-  const getDisplayName = (ext) => {
-    const nameMap = {
-      'pdf': 'PDF',
-      'docx': 'DOCX',
-      'xlsx': 'XLSX',
-      'pptx': 'PPTX',
-      'jpg': 'JPG',
-      'png': 'PNG',
-      'mov': 'MOV',
-      'mp4': 'MP4',
-      'other': 'Other',
-    };
-    return nameMap[ext] || 'Other';
   };
 
   // Group documents by file extension
   const extensionBreakdown = {};
-  let totalSize = 0;
   let totalCount = 0;
 
   documents.forEach(doc => {
@@ -87,105 +52,116 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
     const normalizedExt = normalizeExtension(ext);
 
     if (!extensionBreakdown[normalizedExt]) {
-      extensionBreakdown[normalizedExt] = { count: 0, size: 0, originalExt: ext };
+      extensionBreakdown[normalizedExt] = { count: 0 };
     }
 
     extensionBreakdown[normalizedExt].count++;
-    extensionBreakdown[normalizedExt].size += doc.size || doc.fileSize || 0;
-    totalSize += doc.size || doc.fileSize || 0;
     totalCount++;
   });
 
-  // Color palette mapped to file types (matches icon colors)
-  const fileTypeColors = {
-    'png': '#4CAF50',   // Green - PNG icon color
-    'jpg': '#2196F3',   // Blue - JPG icon color
-    'pdf': '#F44336',   // Red - PDF icon color
-    'docx': '#1565C0',  // Dark Blue - DOCX icon color
-    'xlsx': '#4CAF50',  // Green - XLSX icon color
-    'pptx': '#FF5722',  // Orange-Red - PPTX icon color
-    'mov': '#9C27B0',   // Purple - MOV icon color
-    'mp4': '#E91E63',   // Pink - MP4 icon color
-    'other': '#9E9E9E', // Grey - Other files
-  };
-
-  // Sort extensions by count (largest first)
-  const sortedExtensions = Object.keys(extensionBreakdown)
-    .filter(ext => extensionBreakdown[ext].count > 0)
-    .sort((a, b) => extensionBreakdown[b].count - extensionBreakdown[a].count);
-
-  // Calculate donut segments based on COUNT for accurate proportions
-  let currentAngle = -90; // Start at 12 o'clock (top)
-  const donutSegments = sortedExtensions.map((ext, index) => {
-    const count = extensionBreakdown[ext].count;
-    const percentage = totalCount > 0 ? (count / totalCount) * 100 : 0;
-    const angleSpan = (percentage / 100) * 360;
-    const gapAngle = sortedExtensions.length > 1 ? 2 : 0; // Small gap between segments
-
-    const segment = {
-      ext,
-      displayName: getDisplayName(ext),
-      count: count,
-      size: extensionBreakdown[ext].size,
-      percentage,
-      startAngle: currentAngle,
-      endAngle: currentAngle + angleSpan - gapAngle,
-      color: fileTypeColors[ext] || '#9E9E9E'
-    };
-    currentAngle += angleSpan;
-    return segment;
-  });
-
-  // SVG arc path helper - smooth arcs like Storage donut
-  const createArcPath = (startAngle, endAngle, innerRadius, outerRadius, cx, cy) => {
-    if (endAngle - startAngle <= 0) return '';
-
-    const polarToCartesian = (centerX, centerY, radius, angleInDegrees) => {
-      const angleInRadians = angleInDegrees * Math.PI / 180.0;
-      return {
-        x: centerX + (radius * Math.cos(angleInRadians)),
-        y: centerY + (radius * Math.sin(angleInRadians))
-      };
-    };
-
-    const outerStart = polarToCartesian(cx, cy, outerRadius, startAngle);
-    const outerEnd = polarToCartesian(cx, cy, outerRadius, endAngle);
-    const innerStart = polarToCartesian(cx, cy, innerRadius, startAngle);
-    const innerEnd = polarToCartesian(cx, cy, innerRadius, endAngle);
-
-    const largeArcFlag = (endAngle - startAngle) > 180 ? 1 : 0;
-
-    const d = [
-      `M ${outerStart.x} ${outerStart.y}`,
-      `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${outerEnd.x} ${outerEnd.y}`,
-      `L ${innerEnd.x} ${innerEnd.y}`,
-      `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${innerStart.x} ${innerStart.y}`,
-      'Z'
-    ].join(' ');
-
-    return d;
-  };
-
-  // Format file size
-  const formatSize = (bytes) => {
-    if (!bytes || bytes === 0) return '0 B';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-  };
-
   const totalFiles = documents.length;
 
-  // Chart dimensions - thinner ring like Storage donut
-  const chartSize = 200;
-  const cx = chartSize / 2;
-  const cy = chartSize / 2;
-  const outerRadius = 90;
-  const innerRadius = 60;
+  // Icon positioning data for the overlapping grid
+  const iconPositions = [
+    {
+      type: 'pdf',
+      icon: pdfIcon,
+      size: 60,
+      top: 10,
+      left: 20,
+      zIndex: 3,
+      rotation: -15,
+      label: 'PDF'
+    },
+    {
+      type: 'jpg',
+      icon: jpgIcon,
+      size: 90,
+      top: 0,
+      left: 140,
+      zIndex: 5,
+      rotation: 5,
+      label: 'JPG'
+    },
+    {
+      type: 'docx',
+      icon: docIcon,
+      size: 55,
+      top: 15,
+      left: 270,
+      zIndex: 3,
+      rotation: 12,
+      label: 'DOCX'
+    },
+    {
+      type: 'txt',
+      icon: txtIcon,
+      size: 45,
+      top: 90,
+      left: 50,
+      zIndex: 2,
+      rotation: -8,
+      label: 'TXT'
+    },
+    {
+      type: 'png',
+      icon: pngIcon,
+      size: 80,
+      top: 70,
+      left: 145,
+      zIndex: 4,
+      rotation: -3,
+      label: 'PNG'
+    },
+    {
+      type: 'mov',
+      icon: movIcon,
+      size: 50,
+      top: 85,
+      left: 260,
+      zIndex: 2,
+      rotation: 10,
+      label: 'MOV'
+    },
+    {
+      type: 'xlsx',
+      icon: xlsIcon,
+      size: 48,
+      top: 160,
+      left: 80,
+      zIndex: 1,
+      rotation: -5,
+      label: 'XLSX'
+    },
+    {
+      type: 'mp4',
+      icon: mp4Icon,
+      size: 52,
+      top: 155,
+      left: 170,
+      zIndex: 1,
+      rotation: 3,
+      label: 'MP4'
+    },
+    {
+      type: 'pptx',
+      icon: pptxIcon,
+      size: 46,
+      top: 165,
+      left: 255,
+      zIndex: 1,
+      rotation: 8,
+      label: 'PPTX'
+    }
+  ];
 
-  // Always use 3 columns for consistent layout
-  const gridColumns = 3;
+  // Filter to only show icons for file types that exist in documents
+  const activeIconPositions = iconPositions.filter(icon => {
+    return extensionBreakdown[icon.type] && extensionBreakdown[icon.type].count > 0;
+  });
+
+  // If no files, show all icons dimmed
+  const iconsToShow = activeIconPositions.length > 0 ? activeIconPositions : iconPositions;
 
   return (
     <div style={{
@@ -199,7 +175,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
       boxSizing: 'border-box',
       ...style
     }}>
-      {/* Header - matches Your Files header */}
+      {/* Header */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -217,56 +193,100 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
         </div>
       </div>
 
-      {/* Chart and Legend Container */}
+      {/* Icon Grid Container */}
       <div style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         flex: 1,
         justifyContent: 'center',
-        gap: '20px'
+        gap: '24px'
       }}>
-        {/* Donut Chart */}
+        {/* Overlapping Icon Grid */}
         <div style={{
           position: 'relative',
-          width: chartSize,
-          height: chartSize,
+          width: 360,
+          height: 240,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
         }}>
-          <svg width={chartSize} height={chartSize} viewBox={`0 0 ${chartSize} ${chartSize}`}>
-            {donutSegments.length > 0 ? (
-              donutSegments.map((segment, index) => (
-                <path
-                  key={index}
-                  d={createArcPath(segment.startAngle, segment.endAngle, innerRadius, outerRadius, cx, cy)}
-                  fill={segment.color}
-                  stroke="white"
-                  strokeWidth="2"
-                  opacity={hoveredSegment === null || hoveredSegment === index ? 1 : 0.4}
-                  style={{
-                    transition: 'opacity 0.2s ease',
-                    cursor: 'pointer'
-                  }}
-                  onMouseEnter={() => setHoveredSegment(index)}
-                  onMouseLeave={() => setHoveredSegment(null)}
-                />
-              ))
-            ) : (
-              // Empty state - full gray ring
-              <circle
-                cx={cx}
-                cy={cy}
-                r={(outerRadius + innerRadius) / 2}
-                fill="none"
-                stroke="#E6E6EC"
-                strokeWidth={outerRadius - innerRadius}
-              />
-            )}
-          </svg>
+          {/* Icon Grid */}
+          <div style={{
+            position: 'relative',
+            width: 340,
+            height: 220
+          }}>
+            {iconsToShow.map((icon) => {
+              const fileCount = extensionBreakdown[icon.type]?.count || 0;
+              const hasFiles = fileCount > 0;
 
-          {/* Center Label */}
+              return (
+                <div
+                  key={icon.type}
+                  style={{
+                    position: 'absolute',
+                    top: `${icon.top}px`,
+                    left: `${icon.left}px`,
+                    width: `${icon.size}px`,
+                    height: `${icon.size}px`,
+                    zIndex: hoveredIcon && hoveredIcon !== icon.type ? 1 : (hoveredIcon === icon.type ? 10 : icon.zIndex),
+                    opacity: !hasFiles ? 0.3 : (hoveredIcon && hoveredIcon !== icon.type ? 0.5 : 1),
+                    transform: hoveredIcon === icon.type
+                      ? `scale(1.2) rotate(0deg)`
+                      : `scale(1) rotate(${icon.rotation}deg)`,
+                    transition: 'all 0.3s ease-out',
+                    cursor: hasFiles ? 'pointer' : 'default',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'white',
+                    boxShadow: hoveredIcon === icon.type
+                      ? '0 12px 24px rgba(0,0,0,0.2)'
+                      : '0 4px 12px rgba(0,0,0,0.08)'
+                  }}
+                  onMouseEnter={() => hasFiles && setHoveredIcon(icon.type)}
+                  onMouseLeave={() => setHoveredIcon(null)}
+                  title={hasFiles ? `${icon.label}: ${fileCount} files` : icon.label}
+                >
+                  <img
+                    src={icon.icon}
+                    alt={icon.label}
+                    style={{
+                      width: '70%',
+                      height: '70%',
+                      objectFit: 'contain',
+                      pointerEvents: 'none'
+                    }}
+                  />
+
+                  {/* File count badge */}
+                  {hasFiles && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: -4,
+                      right: -4,
+                      background: '#32302C',
+                      color: 'white',
+                      fontSize: '10px',
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '600',
+                      padding: '2px 6px',
+                      borderRadius: '10px',
+                      minWidth: '18px',
+                      textAlign: 'center',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }}>
+                      {fileCount}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Center Total Label */}
           <div style={{
             position: 'absolute',
             top: '50%',
@@ -276,11 +296,15 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
             display: 'flex',
             flexDirection: 'column',
             gap: '2px',
-            pointerEvents: 'none'
+            pointerEvents: 'none',
+            background: 'rgba(255,255,255,0.9)',
+            padding: '12px 16px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
           }}>
             <div style={{
               color: '#32302C',
-              fontSize: '24px',
+              fontSize: '28px',
               fontFamily: 'Plus Jakarta Sans',
               fontWeight: '700',
               lineHeight: '32px'
@@ -294,12 +318,12 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
               fontWeight: '500',
               lineHeight: '16px'
             }}>
-              Files
+              Total Files
             </div>
           </div>
         </div>
 
-        {/* Storage Bar */}
+        {/* File Count Bar */}
         <div style={{
           width: '100%',
           display: 'flex',
@@ -318,7 +342,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
               fontWeight: '600',
               lineHeight: '20px'
             }}>
-              Storage
+              Files
             </div>
             <div style={{
               color: '#6C6B6E',
@@ -327,10 +351,11 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
               fontWeight: '500',
               lineHeight: '20px'
             }}>
-              {formatSize(totalSize)} of 2 TB Used
+              {totalFiles} Files
             </div>
           </div>
-          {/* Progress bar */}
+
+          {/* Progress bar based on file count */}
           <div style={{
             width: '100%',
             height: '10px',
@@ -339,110 +364,114 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
             overflow: 'hidden',
             display: 'flex'
           }}>
-            {donutSegments.map((segment, index) => {
-              const widthPercent = totalSize > 0 ? (segment.size / totalSize) * 100 : 0;
-              const isFirst = index === 0;
-              const isLast = index === donutSegments.length - 1;
+            {/* Color segments for each file type */}
+            {iconPositions.map((icon, index) => {
+              const count = extensionBreakdown[icon.type]?.count || 0;
+              const widthPercent = totalCount > 0 ? (count / totalCount) * 100 : 0;
+              if (widthPercent === 0) return null;
+
+              // Color mapping for each file type
+              const colorMap = {
+                'pdf': '#DC2626',
+                'jpg': '#06B6D4',
+                'docx': '#2563EB',
+                'txt': '#6B7280',
+                'png': '#22C55E',
+                'mov': '#3B82F6',
+                'xlsx': '#16A34A',
+                'mp4': '#A855F7',
+                'pptx': '#F97316',
+                'other': '#9CA3AF'
+              };
+
               return (
                 <div
-                  key={index}
+                  key={icon.type}
                   style={{
                     width: `${widthPercent}%`,
                     height: '100%',
-                    background: segment.color,
-                    transition: 'width 0.3s ease',
-                    borderTopLeftRadius: isFirst ? '5px' : '0',
-                    borderBottomLeftRadius: isFirst ? '5px' : '0',
-                    borderTopRightRadius: isLast ? '5px' : '0',
-                    borderBottomRightRadius: isLast ? '5px' : '0'
+                    background: colorMap[icon.type] || '#9CA3AF',
+                    transition: 'width 0.3s ease'
                   }}
-                  onMouseEnter={() => setHoveredSegment(donutSegments.findIndex(s => s.ext === segment.ext))}
-                  onMouseLeave={() => setHoveredSegment(null)}
+                  onMouseEnter={() => setHoveredIcon(icon.type)}
+                  onMouseLeave={() => setHoveredIcon(null)}
                 />
               );
             })}
           </div>
         </div>
 
-        {/* Legend - Clean 3-column grid on card background */}
+        {/* Legend - File types with counts */}
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '16px 32px',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '12px 20px',
           width: '100%',
-          boxSizing: 'border-box',
+          justifyContent: 'center',
+          alignItems: 'center',
           paddingTop: '8px'
         }}>
-          {donutSegments.map((segment, index) => (
-            <div
-              key={index}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '8px 12px',
-                cursor: 'pointer',
-                opacity: hoveredSegment === null || hoveredSegment === index ? 1 : 0.4,
-                transition: 'all 0.2s ease',
-                borderRadius: '10px',
-                background: hoveredSegment === index ? '#F5F5F5' : 'transparent'
-              }}
-              onMouseEnter={() => setHoveredSegment(index)}
-              onMouseLeave={() => setHoveredSegment(null)}
-            >
-              {/* Color indicator dot matching donut/bar color */}
-              <div style={{
-                width: '10px',
-                height: '10px',
-                borderRadius: '50%',
-                background: segment.color,
-                flexShrink: 0
-              }} />
+          {iconPositions.map((icon) => {
+            const count = extensionBreakdown[icon.type]?.count || 0;
+            if (count === 0) return null;
 
-              {/* File type icon */}
-              <img
-                src={getFileIcon(segment.ext)}
-                alt={segment.displayName}
+            return (
+              <div
+                key={icon.type}
                 style={{
-                  width: 28,
-                  height: 28,
-                  objectFit: 'contain',
-                  flexShrink: 0
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 10px',
+                  cursor: 'pointer',
+                  opacity: hoveredIcon === null || hoveredIcon === icon.type ? 1 : 0.4,
+                  transition: 'all 0.2s ease',
+                  borderRadius: '8px',
+                  background: hoveredIcon === icon.type ? '#F5F5F5' : 'transparent'
                 }}
-              />
-
-              {/* Text content */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '2px',
-                minWidth: 0
-              }}>
+                onMouseEnter={() => setHoveredIcon(icon.type)}
+                onMouseLeave={() => setHoveredIcon(null)}
+              >
+                <img
+                  src={icon.icon}
+                  alt={icon.label}
+                  style={{
+                    width: 24,
+                    height: 24,
+                    objectFit: 'contain'
+                  }}
+                />
                 <div style={{
-                  color: '#32302C',
-                  fontSize: '14px',
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '600',
-                  lineHeight: '1.2'
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1px'
                 }}>
-                  {segment.displayName}
-                </div>
-                <div style={{
-                  color: '#6C6B6E',
-                  fontSize: '12px',
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '500',
-                  lineHeight: '1.2'
-                }}>
-                  {segment.count} {segment.count === 1 ? 'File' : 'Files'}
+                  <div style={{
+                    color: '#32302C',
+                    fontSize: '12px',
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600',
+                    lineHeight: '1.2'
+                  }}>
+                    {icon.label}
+                  </div>
+                  <div style={{
+                    color: '#6C6B6E',
+                    fontSize: '10px',
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '500',
+                    lineHeight: '1.2'
+                  }}>
+                    {count} {count === 1 ? 'File' : 'Files'}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* Encryption Message - at bottom with divider */}
+      {/* Encryption Message */}
       {showEncryptionMessage && (
         <>
           <div style={{
