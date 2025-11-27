@@ -89,11 +89,11 @@ export const confirmUpload = async (req: Request, res: Response): Promise<void> 
     await cacheService.invalidateUserCache(req.user.id);
     console.log('🗑️ [Cache] Invalidated user cache synchronously');
 
-    // ✅ INSTANT UPLOAD FIX: Emit events immediately (no delay!)
+    // ✅ INSTANT UPLOAD FIX: Emit FULL document object via WebSocket
     // Document is created with status: 'processing'
-    // Frontend will show it immediately and update when processing completes
-    emitDocumentEvent(req.user.id, 'created', document.id);
-    console.log('📡 [WebSocket] Emitted document-created event');
+    // Frontend will add it to state immediately and show it in the UI
+    emitToUser(req.user.id, 'document-created', document);
+    console.log('📡 [WebSocket] Emitted document-created event with full document object');
 
     // Emit folder-tree-updated event to refresh folder tree
     emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
@@ -212,10 +212,10 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       plaintextForEmbeddings: plaintextForEmbeddings || undefined, // ⚡ TEXT EXTRACTION: Pass plaintext for embeddings
     });
 
-    // ✅ INSTANT UPLOAD: Emit events immediately (no delay!)
-    // Document is returned with status='processing', frontend will update when complete
-    emitDocumentEvent(req.user.id, 'created', document.id);
-    console.log('📡 [WebSocket] Emitted document-created event immediately');
+    // ✅ INSTANT UPLOAD: Emit FULL document object via WebSocket
+    // Document is returned with status='processing', frontend will add it to state immediately
+    emitToUser(req.user.id, 'document-created', document);
+    console.log('📡 [WebSocket] Emitted document-created event with full document object');
 
     // Invalidate cache immediately
     await cacheService.invalidateDocumentListCache(req.user.id);

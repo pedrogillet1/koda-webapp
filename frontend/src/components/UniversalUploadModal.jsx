@@ -3,7 +3,6 @@ import { useDropzone } from 'react-dropzone';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as FolderIcon } from '../assets/folder_icon.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
-import { useDocuments } from '../context/DocumentsContext';
 // ✅ REFACTORED: Use unified upload service (replaces folderUploadService + presignedUploadService)
 import unifiedUploadService from '../services/unifiedUploadService';
 import pdfIcon from '../assets/pdf-icon.png';
@@ -19,8 +18,8 @@ import mp3Icon from '../assets/mp3.svg';
 import folderIcon from '../assets/folder_icon.svg';
 
 const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComplete, initialFiles = null }) => {
-  // Get context functions for refreshing after uploads
-  const { refreshAll } = useDocuments();
+  // ✅ FIX: Removed refreshAll - WebSocket events now handle document updates
+  // Documents appear via document-created and processing-complete events
 
   const [uploadingFiles, setUploadingFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -405,9 +404,12 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       setTimeout(() => setShowNotification(false), 5000);
     }
 
-    console.log('🔄 Refreshing documents after upload...');
-    await refreshAll();
+    // ✅ FIX: Don't call refreshAll() - WebSocket events will update state
+    // Previously: Called refreshAll() which fetched from batch endpoint
+    // Batch endpoint only returns 'completed' documents, removing 'processing' ones
+    // This caused files to disappear after upload
     console.log(`✅ Upload complete: ${totalSuccessCount} succeeded, ${totalFailureCount} failed`);
+    console.log('📡 Documents will appear via WebSocket events (no refresh needed)');
 
     setIsUploading(false);
 

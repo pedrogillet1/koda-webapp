@@ -154,8 +154,12 @@ const countDocumentsRecursively = async (folderId: string): Promise<number> => {
   const allFolderIds = await getAllFolderIdsInTree(folderId);
 
   // Count documents in ALL folders with a single query
+  // ✅ FIX: Include processing and uploading documents in count (not just completed)
   const totalDocuments = await prisma.document.count({
-    where: { folderId: { in: allFolderIds } },
+    where: {
+      folderId: { in: allFolderIds },
+      status: { in: ["completed", "processing", "uploading"] }
+    },
   });
 
   return totalDocuments;
