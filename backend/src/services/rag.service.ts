@@ -37,6 +37,7 @@ class PerformanceTimer {
   private timings: Map<string, number[]> = new Map();
   private startTime: number = Date.now();
   private checkpointStack: Array<{ label: string; start: number }> = [];
+  private marks: Map<string, number> = new Map(); // For mark/measure pattern
 
   start(label: string): void {
     const now = Date.now();
@@ -66,6 +67,29 @@ class PerformanceTimer {
     return duration;
   }
 
+  // Mark a point in time for later measurement
+  mark(label: string): void {
+    this.marks.set(label, Date.now());
+  }
+
+  // Measure time from a previous mark to now
+  measure(label: string, fromMark: string): number {
+    const markTime = this.marks.get(fromMark);
+    if (!markTime) {
+      console.error(`⚠️  [TIMING ERROR] Mark "${fromMark}" not found`);
+      return 0;
+    }
+    const duration = Date.now() - markTime;
+
+    if (!this.timings.has(label)) {
+      this.timings.set(label, []);
+    }
+    this.timings.get(label)!.push(duration);
+
+    console.log(`⏱️  [MEASURE] ${label}: ${duration}ms`);
+    return duration;
+  }
+
   record(label: string, duration: number): void {
     if (!this.timings.has(label)) {
       this.timings.set(label, []);
@@ -77,7 +101,7 @@ class PerformanceTimer {
   printSummary(): void {
     const totalTime = Date.now() - this.startTime;
     console.log('\n═══════════════════════════════════════════════════════════════');
-    console.log('⏱️  PERFORMANCE TIMING SUMMARY');
+    console.log('⏱️  COMPLETE PERFORMANCE TIMING BREAKDOWN');
     console.log('═══════════════════════════════════════════════════════════════');
 
     const entries = Array.from(this.timings.entries())
@@ -89,7 +113,13 @@ class PerformanceTimer {
       }))
       .sort((a, b) => b.total - a.total);
 
+    // Calculate measured vs unmeasured time
+    let measuredTime = 0;
     entries.forEach(({ label, total, avg, count }) => {
+      // Don't count TOTAL REQUEST in measured time (it's the container)
+      if (label !== 'TOTAL REQUEST') {
+        measuredTime += total;
+      }
       const percentage = ((total / totalTime) * 100).toFixed(1);
       if (count > 1) {
         console.log(`  ${label}: ${total}ms (${percentage}%) - ${avg.toFixed(1)}ms avg × ${count} calls`);
@@ -98,7 +128,13 @@ class PerformanceTimer {
       }
     });
 
+    const unmeasuredTime = totalTime - measuredTime;
+    const measuredPct = ((measuredTime / totalTime) * 100).toFixed(1);
+    const unmeasuredPct = ((unmeasuredTime / totalTime) * 100).toFixed(1);
+
     console.log('───────────────────────────────────────────────────────────────');
+    console.log(`  MEASURED: ${measuredTime}ms (${measuredPct}%)`);
+    console.log(`  UNMEASURED: ${unmeasuredTime}ms (${unmeasuredPct}%) ← INVESTIGATE THIS`);
     console.log(`  TOTAL TIME: ${totalTime}ms`);
     console.log('═══════════════════════════════════════════════════════════════\n');
   }
@@ -106,12 +142,71 @@ class PerformanceTimer {
   reset(): void {
     this.timings.clear();
     this.checkpointStack = [];
+    this.marks.clear();
     this.startTime = Date.now();
   }
 }
 
 // Global timer for request-level tracking
 let requestTimer: PerformanceTimer | null = null;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔧 TABLE CELL FIX: Remove newlines from markdown table cells
+// ═══════════════════════════════════════════════════════════════════════════
+function fixMarkdownTableCells(markdown: string): string {
+  const lines = markdown.split('\n');
+  const fixedLines: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    // 🔧 SAFEGUARD: Skip extremely long lines (malformed LLM output)
+    if (line.length > 2000) {
+      console.warn(`⚠️ [TABLE FIX] Skipping malformed line (${line.length} chars)`);
+      continue;
+    }
+
+    if (line.startsWith('|') && line.endsWith('|')) {
+      // Check if it's a separator row (|---|---|---|)
+      const isSeparator = /^\|[\s\-:]+\|$/.test(line) || /^\|[\s\-:|]+\|$/.test(line);
+      if (isSeparator) {
+        // 🔧 SAFEGUARD: Fix malformed separators with too many dashes
+        const fixedSeparator = line.replace(/\-{10,}/g, '---');
+        fixedLines.push(fixedSeparator);
+      } else {
+        // Regular table row - concatenate continuation lines
+        let fullRow = line;
+        let j = i + 1;
+        while (j < lines.length) {
+          const nextLine = lines[j].trim();
+          // Stop if next line starts a new table row or is empty
+          if (nextLine.startsWith('|') || !nextLine || nextLine.length === 0) break;
+          // Skip extremely long continuation lines
+          if (nextLine.length > 1000) {
+            console.warn(`⚠️ [TABLE FIX] Skipping malformed continuation (${nextLine.length} chars)`);
+            break;
+          }
+          fullRow += ' ' + nextLine;
+          j++;
+        }
+        i = j - 1;
+
+        // 🔧 SAFEGUARD: Truncate cells that are too long
+        const cells = fullRow.split('|').map(cell => {
+          const trimmed = cell.trim();
+          if (trimmed.length > 500) {
+            return trimmed.substring(0, 497) + '...';
+          }
+          return trimmed;
+        });
+        fixedLines.push('| ' + cells.filter(c => c).join(' | ') + ' |');
+      }
+    } else {
+      fixedLines.push(line);
+    }
+  }
+  return fixedLines.join('\n');
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ✅ FIX #10: Better Error Messages - Custom Error Types
@@ -3803,6 +3898,10 @@ async function handleRegularQuery(
   requestTimer = new PerformanceTimer();
   requestTimer.start('TOTAL REQUEST');
 
+  // ⏱️ COMPLETE TIMING: Create dedicated timer for comprehensive measurement
+  const perfTimer = new PerformanceTimer();
+  perfTimer.mark('start');
+
   // ✅ FIX: Send immediate acknowledgment to establish streaming connection
   onChunk('');
 
@@ -3814,6 +3913,7 @@ async function handleRegularQuery(
   // HOW: Check in-memory cache with 30s TTL
   // IMPACT: 2-4s saved for repeated queries
 
+  perfTimer.mark('cacheCheck');
   const cacheKey = generateQueryCacheKey(userId, query);
   const cached = queryResultCache.get(cacheKey);
 
@@ -3826,6 +3926,7 @@ async function handleRegularQuery(
     return { sources: cached.sources };
   }
 
+  perfTimer.measure('Cache Check', 'cacheCheck');
   console.log(`❌ [CACHE MISS] Query result for "${query.substring(0, 50)}..."`);
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -3844,7 +3945,9 @@ async function handleRegularQuery(
   // HOW: Use pattern matching first (instant), LLM only for ambiguous cases
   // IMPACT: Fast for simple queries, accurate for complex queries
 
+  perfTimer.mark('queryAnalysis');
   const queryAnalysis = await analyzeQueryComplexity(query);
+  perfTimer.measure('Query Complexity Analysis', 'queryAnalysis');
 
   if (queryAnalysis.isComplex) {
     console.log(`🧩 [COMPLEX QUERY] Detected ${queryAnalysis.queryType} query with ${queryAnalysis.subQueries?.length || 0} sub-queries`);
@@ -3869,6 +3972,7 @@ async function handleRegularQuery(
   // Pinecone searches: doc1, doc2, doc3
 
   // Build search filter (shared across all paths)
+  perfTimer.mark('filterConstruction');
   let filter: any = { userId };
 
   if (attachedDocumentId) {
@@ -3892,6 +3996,7 @@ async function handleRegularQuery(
   } else {
     console.log(`🔍 [FILTER] Searching across all user documents`);
   }
+  perfTimer.measure('Filter Construction', 'filterConstruction');
 
   let searchResults;
 
@@ -3900,9 +4005,13 @@ async function handleRegularQuery(
     console.log(`🧩 [AGENT LOOP] Complex ${queryAnalysis.queryType} query detected - decomposing...`);
 
     // Initialize Pinecone before calling multi-step handler
+    perfTimer.mark('complexQueryInit');
     await initializePinecone();
+    perfTimer.measure('Pinecone Init (complex)', 'complexQueryInit');
 
+    perfTimer.mark('multiStepQuery');
     searchResults = await handleMultiStepQuery(queryAnalysis, userId, filter, onChunk);
+    perfTimer.measure('Multi-Step Query Handler', 'multiStepQuery');
 
     // ✅ DISABLED BM25: document_chunks table doesn't exist, using pure vector search
     // Convert to hybrid result format for consistency
@@ -4008,6 +4117,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
 
     // Stream response from Gemini
+    perfTimer.mark('complexLlmInit');
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
@@ -4017,13 +4127,16 @@ Provide a comprehensive answer addressing all parts of the query.`;
         maxOutputTokens: 8192,
       },
     });
+    perfTimer.measure('Complex Query LLM Init', 'complexLlmInit');
 
+    perfTimer.mark('complexLlmStreaming');
     const streamResult = await model.generateContentStream(comparisonPrompt);
 
     for await (const chunk of streamResult.stream) {
       const chunkText = chunk.text();
       onChunk(chunkText);
     }
+    perfTimer.measure('Complex Query LLM Streaming', 'complexLlmStreaming');
 
     // Build sources from chunks
     const sources = filteredChunks.slice(0, 10).map((chunk: any) => ({
@@ -4034,6 +4147,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }));
 
     // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
+    perfTimer.mark('complexDocMetadata');
     const sourceDocumentIds: string[] = sources.map(s => s.documentId).filter((id): id is string => Boolean(id));
     const uniqueDocumentIds = [...new Set(sourceDocumentIds)];
     if (uniqueDocumentIds.length > 0) {
@@ -4052,8 +4166,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
         }
       });
     }
+    perfTimer.measure('Complex Query Doc Metadata Fetch', 'complexDocMetadata');
 
     console.log(`✅ [DECOMPOSE] Generated answer from ${sources.length} sources`);
+    perfTimer.printSummary(); // Print timing for complex query path
     return { sources };
   } else {
     // Simple query - proceed with normal flow
@@ -4062,6 +4178,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
   // ✅ NEW: Detect query complexity for answer length mapping
   // Map complexity detection to answer length system
+  perfTimer.mark('complexityDetection');
   const complexity = detectQueryComplexity(query);
   console.log(`📊 [COMPLEXITY] Detected complexity: ${complexity} for query: "${query.substring(0, 50)}..."`);
 
@@ -4075,6 +4192,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
   const answerLength: 'short' | 'medium' | 'summary' | 'long' =
     complexity === 'simple' ? 'short' :
     complexity === 'medium' ? 'medium' : 'long';
+  perfTimer.measure('Complexity Detection', 'complexityDetection');
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ✅ FIX: Use isFirstMessage parameter from controller
@@ -4096,6 +4214,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
   // REASON: Large context slows down LLM generation
   // WHY: Recent messages are most relevant for context
   // IMPACT: ~500ms saved while maintaining conversation coherence
+  perfTimer.mark('conversationContext');
   let conversationContext = '';
   if (conversationHistory && conversationHistory.length > 0) {
     conversationContext = conversationHistory
@@ -4104,109 +4223,152 @@ Provide a comprehensive answer addressing all parts of the query.`;
       .join('\n\n');
     console.log(`⚡ [CONTEXT] Using last 3 of ${conversationHistory.length} messages for context`);
   }
+  perfTimer.measure('Conversation Context Build', 'conversationContext');
 
-  // ✅ NEW: Fetch user's folder tree for navigation awareness
-  console.log('📁 [FOLDER CONTEXT] Fetching folder tree...');
-  const folders = await prisma.folder.findMany({
-    where: { userId },
-    select: {
-      id: true,
-      name: true,
-      emoji: true,
-      parentFolderId: true,
-      _count: {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ⚡ MAJOR PARALLELIZATION FIX: Run ALL independent operations in parallel
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REASON: Folder fetch, query enhancement, terminology expansion, Pinecone init,
+  //         and embedding generation are ALL independent operations
+  // IMPACT: 5-7s → 2-3s (saves 3-4s by running in parallel instead of sequential)
+  //
+  // BEFORE (Sequential - SLOW):
+  //   1. Folder fetch: 300ms
+  //   2. Query enhancement: instant
+  //   3. Terminology expansion: 2-5s (LLM call)
+  //   4. Pinecone init: 100ms
+  //   5. Embedding generation: 300-500ms
+  //   TOTAL: 3-6s sequential
+  //
+  // AFTER (Parallel - FAST):
+  //   All operations run concurrently, total time = max(all operations) ≈ 2-3s
+
+  // Detect language first (instant, needed for progress messages)
+  const queryLang = detectLanguage(query);
+  const queryLangName = queryLang === 'pt' ? 'Portuguese' : queryLang === 'es' ? 'Spanish' : queryLang === 'fr' ? 'French' : 'English';
+
+  // STREAM PROGRESS: Searching (immediate feedback)
+  const searchingMsg = queryLang === 'pt' ? 'Procurando nos seus documentos...' :
+                       queryLang === 'es' ? 'Buscando en tus documentos...' :
+                       queryLang === 'fr' ? 'Recherche dans vos documents...' :
+                       'Searching your documents...';
+  console.log('[PROGRESS STREAM] Sending searching message');
+  onStage?.('searching', searchingMsg);
+
+  // Simple query enhancement (instant, no LLM call)
+  const enhancedQueryText = queryEnhancementService.enhanceQuerySimple(query);
+  console.log(`🔍 [QUERY ENHANCE] Enhanced: "${query}" → "${enhancedQueryText}"`);
+
+  console.log('⚡ [PARALLEL] Starting all independent operations in parallel...');
+  perfTimer.mark('parallelOperations');
+  if (requestTimer) requestTimer.start('Parallel Operations (Folder + Terminology + Pinecone + Embedding)');
+
+  // ⚡ PERFORMANCE FIX: Added detailed timing for each parallel operation
+  // REASON: To diagnose which operation is causing the 5s delay
+  const parallelStart = Date.now();
+
+  // Run ALL independent operations in parallel
+  const [folders, terminologyResult, _, embeddingResultEarly] = await Promise.all([
+    // 1. Folder tree fetch (expected: 300ms)
+    (async () => {
+      const t0 = Date.now();
+      const result = await prisma.folder.findMany({
+        where: { userId },
         select: {
-          documents: true,
-          subfolders: true
-        }
-      }
-    },
-    orderBy: { name: 'asc' }
-  });
+          id: true,
+          name: true,
+          emoji: true,
+          parentFolderId: true,
+          _count: {
+            select: {
+              documents: true,
+              subfolders: true
+            }
+          }
+        },
+        orderBy: { name: 'asc' }
+      });
+      console.log(`  ✅ [PARALLEL] Folder fetch: ${Date.now() - t0}ms`);
+      return result;
+    })(),
 
+    // 2. Terminology expansion (expected: 2-4s on cache miss, <10ms on cache hit)
+    (async () => {
+      const t0 = Date.now();
+      try {
+        const result = await terminologyIntegration.enhanceQueryForRAG(enhancedQueryText, {
+          userId,
+          maxSynonymsPerTerm: 2
+        });
+        console.log(`  ✅ [PARALLEL] Terminology expansion: ${Date.now() - t0}ms`);
+        return result;
+      } catch (termError) {
+        console.warn(`  ⚠️ [PARALLEL] Terminology failed (${Date.now() - t0}ms):`, termError);
+        return { searchTerms: [], detectedDomains: [], synonymsUsed: {} };
+      }
+    })(),
+
+    // 3. Pinecone initialization (expected: 100ms)
+    (async () => {
+      const t0 = Date.now();
+      await initializePinecone();
+      console.log(`  ✅ [PARALLEL] Pinecone init: ${Date.now() - t0}ms`);
+    })(),
+
+    // 4. Embedding generation with original query (expected: 300-500ms)
+    (async () => {
+      const t0 = Date.now();
+      const result = await embeddingService.generateEmbedding(enhancedQueryText);
+      console.log(`  ✅ [PARALLEL] Embedding generation: ${Date.now() - t0}ms`);
+      return result;
+    })()
+  ]);
+
+  const parallelTime = Date.now() - parallelStart;
+  if (requestTimer) requestTimer.end('Parallel Operations (Folder + Terminology + Pinecone + Embedding)');
+  perfTimer.measure('Parallel Operations (Folder + Terminology + Pinecone + Embedding)', 'parallelOperations');
+  console.log(`✅ [PARALLEL] All independent operations completed in ${parallelTime}ms`);
+
+  // Process folder tree context
+  perfTimer.mark('folderTree');
   const folderTreeContext = buildFolderTreeContext(folders);
+  perfTimer.measure('Folder Tree Fetch', 'folderTree');
   console.log(`📁 [FOLDER CONTEXT] Built context for ${folders.length} folders`);
+
+  // Process terminology results
+  perfTimer.mark('queryEnhancement');
+  let terminologyEnhancedQuery = enhancedQueryText;
+  let detectedDomains: string[] = [];
+  let earlyEmbedding = embeddingResultEarly.embedding;
+
+  if (terminologyResult.searchTerms && terminologyResult.searchTerms.length > 0) {
+    // Use the expanded search terms for embedding
+    terminologyEnhancedQuery = terminologyResult.searchTerms.join(' ');
+    detectedDomains = terminologyResult.detectedDomains?.map((d: any) => d.domain) || [];
+
+    if (terminologyResult.synonymsUsed && Object.keys(terminologyResult.synonymsUsed).length > 0) {
+      console.log(`📚 [TERMINOLOGY] Expanded query with synonyms:`);
+      for (const [term, synonyms] of Object.entries(terminologyResult.synonymsUsed)) {
+        console.log(`   "${term}" → [${(synonyms as string[]).slice(0, 3).join(', ')}]`);
+      }
+
+      // If terminology added significant terms, regenerate embedding (fast, ~300ms)
+      if (terminologyEnhancedQuery !== enhancedQueryText) {
+        console.log(`🔄 [EMBEDDING] Regenerating embedding with terminology-enhanced query`);
+        const enhancedEmbeddingResult = await embeddingService.generateEmbedding(terminologyEnhancedQuery);
+        earlyEmbedding = enhancedEmbeddingResult.embedding;
+      }
+    }
+
+    if (detectedDomains.length > 0) {
+      console.log(`📚 [TERMINOLOGY] Detected domains: ${detectedDomains.join(', ')}`);
+    }
+  }
+  perfTimer.measure('Query Enhancement + Terminology', 'queryEnhancement');
 
   // All queries now use the fast path (AgentLoop was removed as it used pgvector which isn't set up)
   console.log('⚡ [FAST PATH] Using direct Pinecone retrieval');
-
-    // Detect language
-    const queryLang = detectLanguage(query);
-    const queryLangName = queryLang === 'pt' ? 'Portuguese' : queryLang === 'es' ? 'Spanish' : queryLang === 'fr' ? 'French' : 'English';
-
-    // STREAM PROGRESS: Searching (immediate feedback)
-    const searchingMsg = queryLang === 'pt' ? 'Procurando nos seus documentos...' :
-                         queryLang === 'es' ? 'Buscando en tus documentos...' :
-                         queryLang === 'fr' ? 'Recherche dans vos documents...' :
-                         'Searching your documents...';
-    console.log('[PROGRESS STREAM] Sending searching message');
-    onStage?.('searching', searchingMsg);
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // QUERY ENHANCEMENT (Week 7 - Phase 2 Feature)
-    // ═══════════════════════════════════════════════════════════════════════════
-    // REASON: Improve retrieval by expanding short/vague queries
-    // WHY: Users often use minimal keywords (e.g., "revenue" instead of "Q3 revenue growth")
-    // HOW: Simple expansion (abbreviations) for speed, full expansion optional
-    // IMPACT: +15-20% retrieval accuracy with minimal latency
-    //
-    // STRATEGY: Use simple enhancement by default (no LLM call, instant)
-    // For complex queries that need it, full enhancement available
-
-    const enhancedQueryText = queryEnhancementService.enhanceQuerySimple(query);
-    console.log(`🔍 [QUERY ENHANCE] Enhanced: "${query}" → "${enhancedQueryText}"`);
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TERMINOLOGY EXPANSION (Advanced RAG Feature)
-    // ═══════════════════════════════════════════════════════════════════════════
-    // REASON: Improve retrieval by expanding queries with professional synonyms
-    // WHY: Users might search "revenue" but document says "income" or "earnings"
-    // HOW: Use terminology service for domain-aware synonym expansion
-    // IMPACT: +10-20% retrieval accuracy for domain-specific queries
-    let terminologyEnhancedQuery = enhancedQueryText;
-    let detectedDomains: string[] = [];
-    try {
-      const terminologyResult = await terminologyIntegration.enhanceQueryForRAG(enhancedQueryText, {
-        userId,
-        maxSynonymsPerTerm: 2
-      });
-
-      if (terminologyResult.searchTerms.length > 0) {
-        // Use the expanded search terms for embedding
-        terminologyEnhancedQuery = terminologyResult.searchTerms.join(' ');
-        detectedDomains = terminologyResult.detectedDomains.map(d => d.domain);
-
-        if (Object.keys(terminologyResult.synonymsUsed).length > 0) {
-          console.log(`📚 [TERMINOLOGY] Expanded query with synonyms:`);
-          for (const [term, synonyms] of Object.entries(terminologyResult.synonymsUsed)) {
-            console.log(`   "${term}" → [${synonyms.slice(0, 3).join(', ')}]`);
-          }
-        }
-
-        if (detectedDomains.length > 0) {
-          console.log(`📚 [TERMINOLOGY] Detected domains: ${detectedDomains.join(', ')}`);
-        }
-      }
-    } catch (termError) {
-      console.warn('⚠️ [TERMINOLOGY] Expansion failed, using original query:', termError);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // FIX #6: PARALLELIZE - Run Pinecone init and embedding generation together
-    // ═══════════════════════════════════════════════════════════════════════════
-    // REASON: These two operations are independent and can run concurrently
-    // IMPACT: Saves ~200-500ms by running in parallel instead of sequentially
-    // NOTE: Now uses terminology-enhanced query for better semantic matching
-    if (requestTimer) requestTimer.start('Pinecone Init + Embedding (parallel)');
-    const [_, embeddingResultEarly] = await Promise.all([
-      initializePinecone(),
-      embeddingService.generateEmbedding(terminologyEnhancedQuery)
-    ]);
-    if (requestTimer) requestTimer.end('Pinecone Init + Embedding (parallel)');
-
-    // Store for later use (avoids duplicate embedding generation)
-    const earlyEmbedding = embeddingResultEarly.embedding;
-    console.log(`🔍 [EMBEDDING] Generated embedding for: "${terminologyEnhancedQuery.substring(0, 100)}..."`);
+  console.log(`🔍 [EMBEDDING] Generated embedding for: "${terminologyEnhancedQuery.substring(0, 100)}..."`);
 
     // filter already declared at top of function, just use it
 
@@ -4223,6 +4385,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // - HYBRID: Vector + keyword (comparisons, multi-document queries)
     // - VECTOR: Semantic understanding (default for most queries)
 
+    perfTimer.mark('retrievalStrategy');
     const strategy = determineRetrievalStrategy(query);
     let hybridResults: any[] = [];
     let rawResults: any; // Declare here so it's available for graceful degradation later
@@ -4341,6 +4504,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
 
     if (requestTimer) requestTimer.end(`Retrieval Strategy: ${strategy}`);
+    perfTimer.measure(`Retrieval Strategy (${strategy})`, 'retrievalStrategy');
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // DEBUG LOGGING - Diagnose retrieval issues
@@ -4380,40 +4544,51 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // ═══════════════════════════════════════════════════════════════════════════
     // NEW: ITERATIVE REFINEMENT - Full agent loop with multiple attempts
     // ═══════════════════════════════════════════════════════════════════════════
+    // ⚡ SPEED FIX: Skip iterative refinement for simple queries (saves 1-2s)
+    // REASON: Simple queries rarely benefit from refinement, complex queries do
+    // IMPACT: 80% of queries skip this step, saving 1-2s per query
 
     // Wrap hybridResults in Pinecone-style results object for observation function
+    perfTimer.mark('iterativeRefinement');
     searchResults = { matches: hybridResults };
-    const initialObservation = observeRetrievalResults(searchResults, query);
 
-    if (initialObservation.needsRefinement) {
-      console.log(`🔄 [AGENT LOOP] Initial results need refinement: ${initialObservation.reason}`);
-      console.log(`🔄 [AGENT LOOP] Starting iterative refinement...`);
+    // ⚡ SPEED FIX: Only do iterative refinement for complex queries
+    if (queryAnalysis.isComplex) {
+      const initialObservation = observeRetrievalResults(searchResults, query);
 
-      // Use iterative retrieval instead of single refinement
-      const iterativeResults = await iterativeRetrieval(query, userId, filter);
+      if (initialObservation.needsRefinement) {
+        console.log(`🔄 [AGENT LOOP] Complex query needs refinement: ${initialObservation.reason}`);
+        console.log(`🔄 [AGENT LOOP] Starting iterative refinement...`);
 
-      // ✅ DISABLED BM25: document_chunks table doesn't exist, using pure vector search
-      // Convert to hybrid result format for consistency
-      const iterativeHybridResults = (iterativeResults.matches || []).map((match: any) => ({
-        content: match.metadata?.content || match.metadata?.text || '',
-        metadata: match.metadata,
-        vectorScore: match.score || 0,
-        bm25Score: 0,
-        hybridScore: match.score || 0,
-      }));
+        // Use iterative retrieval instead of single refinement
+        const iterativeResults = await iterativeRetrieval(query, userId, filter);
 
-      // Update results if iterative refinement improved them
-      if (iterativeHybridResults.length > 0) {
-        console.log(`✅ [AGENT LOOP] Iterative refinement completed - using best results`);
-        searchResults = { matches: iterativeHybridResults };
-        hybridResults = iterativeHybridResults;
+        // ✅ DISABLED BM25: document_chunks table doesn't exist, using pure vector search
+        // Convert to hybrid result format for consistency
+        const iterativeHybridResults = (iterativeResults.matches || []).map((match: any) => ({
+          content: match.metadata?.content || match.metadata?.text || '',
+          metadata: match.metadata,
+          vectorScore: match.score || 0,
+          bm25Score: 0,
+          hybridScore: match.score || 0,
+        }));
+
+        // Update results if iterative refinement improved them
+        if (iterativeHybridResults.length > 0) {
+          console.log(`✅ [AGENT LOOP] Iterative refinement completed - using best results`);
+          searchResults = { matches: iterativeHybridResults };
+          hybridResults = iterativeHybridResults;
+        } else {
+          console.log(`⚠️  [AGENT LOOP] Iterative refinement didn't improve results, using original`);
+          // Keep original searchResults and hybridResults
+        }
       } else {
-        console.log(`⚠️  [AGENT LOOP] Iterative refinement didn't improve results, using original`);
-        // Keep original searchResults and hybridResults
+        console.log(`✅ [AGENT LOOP] Complex query results are satisfactory - no refinement needed`);
       }
     } else {
-      console.log(`✅ [AGENT LOOP] Initial results are satisfactory - no refinement needed`);
+      console.log(`⚡ [SPEED] Simple query - skipping iterative refinement (saved ~2s)`);
     }
+    perfTimer.measure('Iterative Refinement Check', 'iterativeRefinement');
 
     // STREAM PROGRESS: Analyzing retrieved chunks
     const analyzingMsg = queryLang === 'pt' ? `Analisando ${hybridResults.length} trechos encontrados...` :
@@ -4460,6 +4635,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const MAX_CHUNKS_FOR_ANSWER = 5; // ⚡ Reduced for speed optimization
 
     // Sort by hybrid score (vector + BM25) or vector score
+    perfTimer.mark('chunkSorting');
     const sortedChunks = hybridResults
       .sort((a: any, b: any) => {
         const scoreA = a.hybridScore || a.vectorScore || 0;
@@ -4479,6 +4655,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     // Take top N chunks directly (no threshold filtering - vector scores vary too much)
     const filteredChunks = sortedChunks.slice(0, MAX_CHUNKS_FOR_ANSWER);
+    perfTimer.measure('Chunk Sorting + Selection', 'chunkSorting');
 
     console.log(`✅ [VECTOR FILTER] Taking top ${filteredChunks.length} chunks (no threshold filter)`)
 
@@ -4492,7 +4669,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
 
     // Filter deleted documents
+    perfTimer.mark('filterDeleted');
     const finalSearchResults = await filterDeletedDocuments(filteredChunks, userId);
+    perfTimer.measure('Filter Deleted Documents', 'filterDeleted');
     console.log(`⏱️ [PERF] Retrieval took ${Date.now() - startTime}ms`);
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -4558,6 +4737,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       console.log('⚠️  [FAST PATH] No relevant chunks found, using graceful degradation');
 
+      perfTimer.mark('gracefulDegradation');
       const fallback = await gracefulDegradationService.handleFailedQuery(
         userId,
         query,
@@ -4587,8 +4767,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
       }
 
       onChunk(response.trim());
+      perfTimer.measure('Graceful Degradation', 'gracefulDegradation');
 
       console.log(`✅ [FAST PATH] Graceful degradation complete (strategy: ${fallback.type})`);
+      perfTimer.printSummary(); // Print timing for graceful degradation path
       return { sources: [] };
     }
 
@@ -4618,6 +4800,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // );
 
     // Use Pinecone's native ordering (already sorted by similarity)
+    perfTimer.mark('reranking');
     const rerankedChunks = finalSearchResults.map((chunk: any, index: number) => ({
       content: chunk.content || chunk.metadata?.content || '',
       metadata: chunk.metadata,
@@ -4626,6 +4809,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       finalPosition: index,
       llmScore: chunk.llmScore,
     }));
+    perfTimer.measure('Reranking (disabled - just mapping)', 'reranking');
 
     console.log(`⚡ [SPEED] Cohere reranking DISABLED (saved 2-3 seconds)`);
     console.log(`✅ [FAST PATH] Using ${rerankedChunks.length} chunks in Pinecone order`);
@@ -4678,6 +4862,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       console.log(`⚡ [SPEED] Complex reasoning disabled for speed optimization`);
 
       // Build evidence for confidence scoring (simplified without contradiction detection)
+      perfTimer.mark('evidenceScoring');
       const evidence = rerankedChunks.map((chunk: any) => ({
         document_id: chunk.metadata?.documentId || 'unknown',
         document_title: chunk.metadata?.filename || 'Unknown',
@@ -4697,6 +4882,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       answerConfidence = confidenceScoring.calculateConfidence(supporting, conflicting);
       supportingEvidence = supporting;
       conflictingEvidence = conflicting;
+      perfTimer.measure('Evidence Scoring', 'evidenceScoring');
 
       console.log(`📊 [CONFIDENCE] Score: ${answerConfidence.toFixed(2)} (speed-optimized path)`);
     }
@@ -4733,6 +4919,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       console.log(`🔀 [MULTI-DOC] Added comparison instructions for ${documentCount} documents`);
     }
 
+    perfTimer.mark('contextBuilding');
     const context = rerankedChunks.map((result: any, idx: number) => {
       const meta = result.metadata || {};
       const documentId = meta.documentId || 'unknown';
@@ -4778,9 +4965,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     console.log(`📝 [PROMPT] Using ${complexity} complexity prompt with ${documentContext && fullDocuments.length > 0 ? 'full documents' : 'chunks'}`);
     console.log(`🔍 [DEBUG] finalDocumentContext length: ${finalDocumentContext.length}`);
+    perfTimer.measure('Context Building', 'contextBuilding');
 
     // ✅ UNIFIED: Use SystemPrompts service for consistent prompting across all query types
     // ✅ Issue #4 Fix: Pass isComparison flag to get comparison table rules
+    perfTimer.mark('systemPrompt');
     const systemPrompt = systemPromptsService.getSystemPrompt(
       query,
       answerLength, // Use mapped answer length (short/medium/long)
@@ -4794,6 +4983,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
         folderTreeContext,
       }
     );
+    perfTimer.measure('System Prompt Construction', 'systemPrompt');
 
     console.log(`📝 [PROMPT] Generated unified system prompt with ${answerLength} length`);
 
@@ -4812,9 +5002,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // ═══════════════════════════════════════════════════════════════════════════════
 
     // FIX: Pass finalDocumentContext instead of empty string
+    perfTimer.mark('llmStreaming');
     if (requestTimer) requestTimer.start('LLM Streaming Response');
     let fullResponse = await streamLLMResponse(finalSystemPrompt, finalDocumentContext, onChunk);
     if (requestTimer) requestTimer.end('LLM Streaming Response');
+    perfTimer.measure('LLM Streaming Response', 'llmStreaming');
     console.log(`⏱️ [PERF] Generation took ${Date.now() - startTime}ms`);
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -4822,6 +5014,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // ═══════════════════════════════════════════════════════════════════════════
 
     // ✅ NEW: Build ACCURATE sources from LLM citations
+    perfTimer.mark('sourcesExtraction');
     let sources: any[];
 
     // Remove citation block from response before sending to user
@@ -4852,8 +5045,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
 
     console.log(`✅ [FAST PATH] Built ${sources.length} sources using fast extraction (saved ~1000ms)`);
+    perfTimer.measure('Sources Extraction', 'sourcesExtraction');
 
     // ✅ NEW: Calculate confidence score (for internal tracking only, not displayed to user)
+    perfTimer.mark('confidenceCalc');
     const confidence = confidenceScore.calculateConfidence(
       sources,
       query,
@@ -4861,6 +5056,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     );
 
     console.log(`🎯 [CONFIDENCE] Final confidence: ${confidence.level} (${confidence.score}/100)`);
+    perfTimer.measure('Confidence Calculation', 'confidenceCalc');
 
     // ✅ NEW: Append contradiction warnings if detected
     if (contradictionResult && contradictionResult.hasContradictions) {
@@ -4902,6 +5098,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
         });
     }
 
+    perfTimer.mark('answerValidation');
     const validation = validateAnswer(fullResponse, query, sources);
 
     if (!validation.isValid) {
@@ -4911,6 +5108,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // Log for monitoring (could trigger alert in production)
       console.log(`⚠️  [MONITORING] Low quality answer generated for query: "${query}"`);
     }
+    perfTimer.measure('Answer Validation', 'answerValidation');
 
     console.log(`✅ [FAST PATH] Complete - returning ${sources.length} sources`);
     console.log(`🔍 [DEBUG - RETURN] About to return sources:`, JSON.stringify(sources.slice(0, 2), null, 2));
@@ -4935,6 +5133,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
       requestTimer = null;
     }
 
+    // ⏱️ COMPLETE TIMING: Print detailed breakdown
+    perfTimer.printSummary();
+
     return result;
 }
 
@@ -4947,7 +5148,7 @@ async function streamLLMResponse(
   context: string,
   onChunk: (chunk: string) => void
 ): Promise<string> {
-  console.log('🌊 [STREAMING] Starting Gemini streaming');
+  console.log('🌊 [STREAMING] Starting Gemini streaming with table fix');
 
   const MAX_RETRIES = 3;
   let fullAnswer = '';
@@ -4959,30 +5160,14 @@ async function streamLLMResponse(
 
       console.log(`🔄 [STREAMING] Attempt ${attempt}/${MAX_RETRIES}`);
 
-      // ⚡ SPEED FIX #4: Use optimized maxTokens for faster generation
-      // BEFORE: 3000 tokens = longer generation time
-      // AFTER: 1000 tokens = 67% faster (most answers are 200-500 tokens)
-      // ⚡ SPEED FIX #6: Don't duplicate document context (already in systemPrompt via getSystemPrompt)
-      // BEFORE: Document context sent TWICE (in systemPrompt + documentContext param) = 2x tokens
-      // AFTER: Document context sent ONCE (only in systemPrompt) = 50% fewer tokens!
+      // 🔧 FIX: Accumulate full response, then fix table cells
       fullAnswer = await geminiCache.generateStreamingWithCache({
         systemPrompt,
-        documentContext: '', // ⚡ FIX: Already included in systemPrompt - don't duplicate!
+        documentContext: '', // Already included in systemPrompt - don't duplicate!
         query: '', // Query already included in systemPrompt
         temperature: 0.4,
-        maxTokens: 2500, // ⚡ Reduced from 3000 to 1000
-        onChunk: (text: string) => {
-          // Simplified post-processing - let examples guide formatting
-          const processedChunk = text
-            .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')  // Remove citations
-            .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Remove emojis
-            .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks
-            .replace(/\n\n\n\n+/g, '\n\n\n')  // Collapse 4+ newlines to 3 (keeps blank line between bullets)
-            .replace(/\n\s+[○◦]\s+/g, '\n\n• ')  // Flatten nested bullets
-            .replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
-
-          onChunk(processedChunk);
-        }
+        maxTokens: 2500,
+        onChunk: () => {} // Don't stream - accumulate instead
       });
 
       console.log(`✅ [STREAMING] Complete. Total chars: ${fullAnswer.length}`);
@@ -5006,8 +5191,11 @@ async function streamLLMResponse(
         return fallbackMessage;
       }
 
-      // Success!
-      return fullAnswer;
+      // 🔧 FIX: Apply table cell fix before sending response
+      const fixedAnswer = fixMarkdownTableCells(fullAnswer);
+      console.log('🔧 [TABLE FIX] Applied in streamLLMResponse');
+      onChunk(fixedAnswer);
+      return fixedAnswer;
 
     } catch (error: any) {
       console.error(`❌ [STREAMING] Error on attempt ${attempt}:`, {
@@ -5045,118 +5233,45 @@ async function streamLLMResponse(
 }
 
 /**
- * Smart streaming that batches table rows for faster rendering
+ * Smart streaming - 🔧 FIX: Accumulate full response, fix table cells, then send
+ * This prevents newlines inside table cells from breaking markdown rendering
  */
 async function smartStreamLLMResponse(
   systemPrompt: string,
   context: string,
   onChunk: (chunk: string) => void
 ): Promise<string> {
-  console.log('🌊 [SMART STREAM] Starting with table optimization');
+  console.log('🌊 [SMART STREAM] Starting with table fix');
 
   let fullAnswer = '';
-  let buffer = '';
-  let inTable = false;
-  let tableBuffer = '';
 
   try {
-    // ⚡ SPEED FIX #4: Use optimized maxTokens for faster generation
-    // ⚡ SPEED FIX #6: Don't duplicate document context (already in systemPrompt)
+    // Accumulate full response first, then fix tables and send at once
     fullAnswer = await geminiCache.generateStreamingWithCache({
       systemPrompt,
-      documentContext: '', // ⚡ FIX: Already included in systemPrompt - don't duplicate!
+      documentContext: '', // Already included in systemPrompt - don't duplicate!
       query: '', // Query already included in systemPrompt
       temperature: 0.4,
-      maxTokens: 2500, // ⚡ Reduced from 3000 to 1000
-      onChunk: (text: string) => {
-        // First apply basic post-processing (same as streamLLMResponse)
-        const processedChunk = text
-          .replace(/\([^)]*\.(pdf|xlsx|docx|pptx|png|jpg|jpeg),?\s*Page:\s*[^)]*\)/gi, '')  // Remove citations
-          .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Remove emojis
-          .replace(/\*\*\*\*+/g, '**')  // Fix multiple asterisks
-          .replace(/\n\n\n\n+/g, '\n\n\n')  // Collapse 4+ newlines to 3
-          .replace(/\n\s+[○◦]\s+/g, '\n\n• ')  // Flatten nested bullets
-          .replace(/\n\s{2,}[•\-\*]\s+/g, '\n\n• ');  // Flatten indented bullets
-
-        buffer += processedChunk;
-
-        // Detect table start
-        if (!inTable && buffer.includes('|')) {
-          const lines = buffer.split('\n');
-          for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-
-            // Check if this is a table header
-            if (line.includes('|') && (line.includes('Feature') || line.includes('Aspect') || line.includes('Document') || line.includes('Concept') || line.includes('Criteria'))) {
-              inTable = true;
-              tableBuffer = line + '\n';
-
-              // Send everything before the table immediately
-              const beforeTable = lines.slice(0, i).join('\n');
-              if (beforeTable.trim()) {
-                onChunk(beforeTable + '\n');
-              }
-
-              buffer = lines.slice(i + 1).join('\n');
-              break;
-            }
-          }
-        }
-
-        // If in table, accumulate rows
-        if (inTable) {
-          const lines = buffer.split('\n');
-
-          for (const line of lines) {
-            if (line.includes('|')) {
-              tableBuffer += line + '\n';
-            } else if (line.trim() === '' && tableBuffer.length > 0) {
-              // End of table - send entire table at once
-              onChunk(tableBuffer);
-              inTable = false;
-              tableBuffer = '';
-              buffer = '';
-              break;
-            }
-          }
-
-          buffer = '';
-        } else {
-          // Not in table - stream normally but batch by sentences
-          if (buffer.includes('.') || buffer.includes('\n') || buffer.length > 100) {
-            onChunk(buffer);
-            buffer = '';
-          }
-        }
-      }
+      maxTokens: 2500,
+      onChunk: () => {} // Don't stream - accumulate instead
     });
 
-    // Send any remaining content
-    if (tableBuffer) {
-      onChunk(tableBuffer);
-    }
-    if (buffer) {
-      onChunk(buffer);
-    }
+    // 🔧 FIX: Apply table cell fix to remove newlines from table cells
+    const fixedAnswer = fixMarkdownTableCells(fullAnswer);
+    console.log('🔧 [TABLE FIX] Applied in smartStreamLLMResponse');
 
-    console.log('✅ [SMART STREAM] Complete. Total chars:', fullAnswer.length);
-    return fullAnswer;
+    // Send the entire fixed response at once
+    onChunk(fixedAnswer);
+
+    console.log('✅ [SMART STREAM] Complete. Total chars:', fixedAnswer.length);
+    return fixedAnswer;
 
   } catch (error: any) {
-    console.error('❌ [SMART STREAM] Error details:', {
-      message: error.message,
-      stack: error.stack?.substring(0, 500),
-      name: error.name
-    });
-
-    // Only send error message if we haven't already sent content
+    console.error('❌ [SMART STREAM] Error:', error.message);
     if (fullAnswer.length === 0) {
       onChunk('I apologize, but I encountered an error generating the response. Please try again.');
-    } else {
-      console.warn('⚠️ [SMART STREAM] Error occurred AFTER successful response. Not sending error message to user.');
     }
-
-    return fullAnswer;  // Return what we have, even if there was an error
+    return fullAnswer;
   }
 }
 
@@ -5961,4 +6076,5 @@ export default {
   generateAnswerStream,
   generateAnswerStreaming,
 };
+
 

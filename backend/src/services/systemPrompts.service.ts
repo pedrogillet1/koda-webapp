@@ -627,7 +627,10 @@ ${context}
 
     // Add comparison rules if needed
     if (options.isComparison) {
+      console.log('📊 [COMPARISON RULES] Adding table formatting rules to system prompt');
       systemPrompt += '\n\n' + COMPARISON_RULES;
+    } else {
+      console.log('📊 [COMPARISON] isComparison=false, skipping table rules');
     }
 
     // Add document context section

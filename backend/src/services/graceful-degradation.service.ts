@@ -59,11 +59,11 @@ export class GracefulDegradationService {
       console.log('✅ [STRATEGY 1] Found related information');
       return {
         type: 'partial',
-        message: `I couldn't find exact information about "${query}", but here's what I found that might be related:`,
+        message: `I couldn't find a direct answer to "${query}", but I did find some related information that might help:`,
         relatedInfo: relatedInfo.content,
         suggestions: [
           'Would you like me to search for something more specific?',
-          'I can also help you upload documents that might contain this information.'
+          'If you have other documents that might contain this info, feel free to upload them.'
         ]
       };
     }
@@ -80,7 +80,7 @@ export class GracefulDegradationService {
       console.log('✅ [STRATEGY 2] Generated upload suggestions');
       return {
         type: 'suggestion',
-        message: `I don't have information about "${query}" yet. To help you better, consider uploading:`,
+        message: `I searched through your documents but didn't find information about "${query}". Here are some documents that would help me answer this:`,
         suggestions: uploadSuggestions
       };
     }
@@ -97,28 +97,48 @@ export class GracefulDegradationService {
       console.log('✅ [STRATEGY 3] Generated alternative queries');
       return {
         type: 'alternative',
-        message: `I couldn't find information about "${query}". Did you mean one of these?`,
+        message: `I couldn't find anything about "${query}" in your documents. Here are some similar questions I can answer:`,
         alternativeQueries: alternatives
       };
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // STRATEGY 4: Acknowledge Gap Gracefully
+    // STRATEGY 4: Acknowledge Gap Gracefully (with natural language variety)
     // ──────────────────────────────────────────────────────────────────────
     // REASON: Final fallback, be honest and helpful
     // WHY: Better than generic error message
     // IMPACT: Maintains trust, reduces frustration
 
+    // Vary the message for a more natural feel
+    const gracefulMessages = [
+      `I searched through your documents but couldn't find information about "${query}". This might be because the information isn't there, or it's phrased differently than I expected.`,
+      `I wasn't able to find an answer to "${query}" in the documents you've uploaded. Let me suggest a few things that might help:`,
+      `I don't have information on "${query}" yet. Here's what you can try:`,
+    ];
+
+    // Pick a random message for variety
+    const randomMessage = gracefulMessages[Math.floor(Math.random() * gracefulMessages.length)];
+
     console.log('✅ [STRATEGY 4] Graceful acknowledgment');
     return {
       type: 'graceful',
-      message: `I don't have information about "${query}" in your current documents.`,
+      message: randomMessage,
       suggestions: [
-        'Try rephrasing your question',
-        'Upload documents that might contain this information',
-        'Ask about a different topic from your existing documents'
+        `Try rephrasing your question with different keywords (e.g., instead of "${this.extractKeyTerm(query)}", try synonyms or related terms).`,
+        'Upload a document that you think contains this information - I\'ll analyze it right away.',
+        'Ask me a broader question to see what information is available on this topic.'
       ]
     };
+  }
+
+  /**
+   * Extract a key term from the query for suggestion examples
+   */
+  private extractKeyTerm(query: string): string {
+    // Remove common question words and get the most relevant term
+    const stopWords = ['what', 'is', 'the', 'how', 'do', 'does', 'can', 'will', 'are', 'for', 'to', 'a', 'an', 'of', 'in', 'on', 'about'];
+    const words = query.toLowerCase().split(/\s+/).filter(word => !stopWords.includes(word) && word.length > 2);
+    return words.slice(0, 2).join(' ') || 'your topic';
   }
 
   /**
@@ -211,11 +231,11 @@ Otherwise, provide a brief summary (2-3 sentences) of the related information.`;
       });
 
       if (documents.length === 0) {
-        // New user, provide general suggestions
+        // New user, provide natural, actionable suggestions
         return [
-          'Documents related to your query',
-          'PDFs, Word documents, or text files with relevant information',
-          'Screenshots or images if applicable'
+          'Any contracts, agreements, or legal documents you want to reference',
+          'PDFs, Word docs, or spreadsheets with the information you need',
+          'Reports, presentations, or meeting notes that might help'
         ];
       }
 
