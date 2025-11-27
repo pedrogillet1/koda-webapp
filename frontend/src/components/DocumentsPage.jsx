@@ -96,6 +96,10 @@ const DocumentsPage = () => {
   const [droppedFiles, setDroppedFiles] = useState(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
+  // Sorting state for Your Files table
+  const [sortColumn, setSortColumn] = useState('date'); // 'name', 'type', 'size', 'date'
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' or 'desc'
+
   // Refs to track current state for event listener (avoids stale closures)
   const openDropdownIdRef = useRef(openDropdownId);
   const categoryMenuOpenRef = useRef(categoryMenuOpen);
@@ -549,20 +553,12 @@ const DocumentsPage = () => {
                     transition: 'all 0.2s'
                   }}
                 >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M14 5.33333V13.3333C14 13.687 13.8595 14.0261 13.6095 14.2761C13.3594 14.5262 13.0203 14.6667 12.6667 14.6667H3.33333C2.97971 14.6667 2.64057 14.5262 2.39052 14.2761C2.14048 14.0261 2 13.687 2 13.3333V5.33333" stroke="#32302C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6 7.33333V11.3333" stroke="#32302C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M10 7.33333V11.3333" stroke="#32302C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M1.33334 5.33333H14.6667" stroke="#32302C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M10.6667 2H5.33334L4 5.33333H12L10.6667 2Z" stroke="#32302C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
                   <div style={{
                     color: '#32302C',
                     fontSize: 16,
                     fontFamily: 'Plus Jakarta Sans',
                     fontWeight: '600',
-                    lineHeight: '24px',
-                    wordWrap: 'break-word'
+                    lineHeight: '24px'
                   }}>
                     Move
                   </div>
@@ -1026,12 +1022,94 @@ const DocumentsPage = () => {
                 ...contextDocuments.map(d => ({ ...d, isDocument: true }))
               ];
 
+              // Helper function to get file type for sorting
+              const getFileTypeForSort = (doc) => {
+                if (doc.isFolder) return 'Folder';
+                const filename = doc?.filename || '';
+                const ext = filename.match(/\.([^.]+)$/)?.[1]?.toUpperCase() || '';
+                return ext || 'File';
+              };
+
+              // Sort based on current sort column and direction
               const recentItems = combinedItems
-                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                .slice()
+                .sort((a, b) => {
+                  let comparison = 0;
+
+                  switch (sortColumn) {
+                    case 'name':
+                      const nameA = a.isFolder ? (a.name || '') : (a.filename || '');
+                      const nameB = b.isFolder ? (b.name || '') : (b.filename || '');
+                      comparison = nameA.localeCompare(nameB);
+                      break;
+                    case 'type':
+                      comparison = getFileTypeForSort(a).localeCompare(getFileTypeForSort(b));
+                      break;
+                    case 'size':
+                      const sizeA = a.isFolder ? (a.fileCount || 0) : (a.fileSize || 0);
+                      const sizeB = b.isFolder ? (b.fileCount || 0) : (b.fileSize || 0);
+                      comparison = sizeA - sizeB;
+                      break;
+                    case 'date':
+                    default:
+                      comparison = new Date(a.createdAt) - new Date(b.createdAt);
+                      break;
+                  }
+
+                  return sortDirection === 'asc' ? comparison : -comparison;
+                })
                 .slice(0, 10);
 
               return recentItems.length > 0 ? (
-              <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
+              <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
+                {/* Table Header */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
+                  gap: 16,
+                  padding: '12px 16px',
+                  borderBottom: '1px solid #E6E6EC',
+                  marginBottom: 8
+                }}>
+                  {[
+                    { key: 'name', label: 'Name' },
+                    { key: 'type', label: 'Type' },
+                    { key: 'size', label: 'Size' },
+                    { key: 'date', label: 'Date' }
+                  ].map(col => (
+                    <div
+                      key={col.key}
+                      onClick={() => {
+                        if (sortColumn === col.key) {
+                          setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortColumn(col.key);
+                          setSortDirection('asc');
+                        }
+                      }}
+                      style={{
+                        color: sortColumn === col.key ? '#171717' : '#6C6B6E',
+                        fontSize: 12,
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: '600',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        userSelect: 'none'
+                      }}
+                    >
+                      {col.label}
+                      {sortColumn === col.key && (
+                        <span style={{ fontSize: 10 }}>
+                          {sortDirection === 'asc' ? '▲' : '▼'}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                  <div></div>
+                </div>
                 {recentItems.map((item) => {
                   // If it's a folder, render folder
                   if (item.isFolder) {
@@ -1040,29 +1118,30 @@ const DocumentsPage = () => {
                         key={item.id}
                         onClick={() => navigate(`/folder/${item.id}`)}
                         style={{
-                          display: 'flex',
+                          display: 'grid',
+                          gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
+                          gap: 16,
                           alignItems: 'center',
-                          gap: 12,
-                          padding: 12,
-                          borderRadius: 12,
-                          background: '#F5F5F5',
+                          padding: '12px 16px',
+                          borderRadius: 10,
+                          background: 'white',
+                          border: '1px solid #E6E6EC',
                           cursor: 'pointer',
-                          transition: 'background 0.2s ease'
+                          transition: 'all 0.2s ease'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#F9F9F9'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
                       >
-                        <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                          <img src={folderIcon} alt="Folder" style={{width: 24, height: 24}} />
-                        </div>
-                        <div style={{flex: 1, overflow: 'hidden'}}>
-                          <div style={{color: '#111827', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', marginBottom: 4}}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden'}}>
+                          <img src={folderIcon} alt="Folder" style={{width: 32, height: 32, flexShrink: 0}} />
+                          <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                             {item.name}
                           </div>
-                          <div style={{color: '#6B7280', fontSize: 12, fontFamily: 'Plus Jakarta Sans'}}>
-                            {item.fileCount || 0} {item.fileCount === 1 ? 'File' : 'Files'}
-                          </div>
                         </div>
+                        <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>Folder</div>
+                        <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{item.fileCount || 0} items</div>
+                        <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{new Date(item.createdAt).toLocaleDateString()}</div>
+                        <div></div>
                       </div>
                     );
                   }
@@ -1146,6 +1225,38 @@ const DocumentsPage = () => {
                     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
                   };
 
+                  const getFileType = (doc) => {
+                    const mimeType = doc?.mimeType || '';
+                    const filename = doc?.filename || '';
+
+                    // Get extension from filename
+                    const ext = filename.match(/\.([^.]+)$/)?.[1]?.toUpperCase() || '';
+
+                    if (mimeType === 'application/pdf' || ext === 'PDF') return 'PDF';
+                    if (ext === 'DOC') return 'DOC';
+                    if (ext === 'DOCX') return 'DOCX';
+                    if (ext === 'XLS') return 'XLS';
+                    if (ext === 'XLSX') return 'XLSX';
+                    if (ext === 'PPT') return 'PPT';
+                    if (ext === 'PPTX') return 'PPTX';
+                    if (ext === 'TXT') return 'TXT';
+                    if (ext === 'CSV') return 'CSV';
+                    if (ext === 'PNG') return 'PNG';
+                    if (ext === 'JPG' || ext === 'JPEG') return 'JPG';
+                    if (ext === 'GIF') return 'GIF';
+                    if (ext === 'WEBP') return 'WEBP';
+                    if (ext === 'MP4') return 'MP4';
+                    if (ext === 'MOV') return 'MOV';
+                    if (ext === 'AVI') return 'AVI';
+                    if (ext === 'MKV') return 'MKV';
+                    if (ext === 'MP3') return 'MP3';
+                    if (ext === 'WAV') return 'WAV';
+                    if (ext === 'AAC') return 'AAC';
+                    if (ext === 'M4A') return 'M4A';
+
+                    return ext || 'File';
+                  };
+
                   return (
                     <div
                       key={doc.id}
@@ -1177,43 +1288,43 @@ const DocumentsPage = () => {
                         }
                       }}
                       style={{
-                        display: 'flex',
+                        display: 'grid',
+                        gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
+                        gap: 16,
                         alignItems: 'center',
-                        gap: 12,
-                        padding: 12,
-                        borderRadius: 12,
-                        background: isSelectMode && isSelected(doc.id) ? '#111827' : '#F5F5F5',
-                        cursor: isSelectMode ? 'pointer' : 'grab',
-                        transition: 'background 0.2s ease'
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        background: isSelectMode && isSelected(doc.id) ? '#111827' : 'white',
+                        border: isSelectMode && isSelected(doc.id) ? '1px solid #111827' : '1px solid #E6E6EC',
+                        cursor: isSelectMode ? 'pointer' : 'pointer',
+                        transition: 'all 0.2s ease'
                       }}
                       onMouseEnter={(e) => {
-                        if (!isSelectMode) {
-                          e.currentTarget.style.background = '#E6E6EC';
-                        } else if (!isSelected(doc.id)) {
-                          e.currentTarget.style.background = '#E6E6EC';
+                        if (!isSelectMode || !isSelected(doc.id)) {
+                          e.currentTarget.style.background = '#F9F9F9';
                         }
                       }}
                       onMouseLeave={(e) => {
                         if (!isSelectMode) {
-                          e.currentTarget.style.background = '#F5F5F5';
+                          e.currentTarget.style.background = 'white';
                         } else if (!isSelected(doc.id)) {
-                          e.currentTarget.style.background = '#F5F5F5';
+                          e.currentTarget.style.background = 'white';
                         }
                       }}
                     >
-                      <img
-                        src={getFileIcon(doc)}
-                        alt="File icon"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          aspectRatio: '1/1',
-                          imageRendering: '-webkit-optimize-contrast',
-                          objectFit: 'contain',
-                          shapeRendering: 'geometricPrecision'
-                        }}
-                      />
-                      <div style={{flex: 1, overflow: 'hidden'}}>
+                      {/* Name Column */}
+                      <div style={{display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden'}}>
+                        <img
+                          src={getFileIcon(doc)}
+                          alt="File icon"
+                          style={{
+                            width: 32,
+                            height: 32,
+                            flexShrink: 0,
+                            imageRendering: '-webkit-optimize-contrast',
+                            objectFit: 'contain'
+                          }}
+                        />
                         <div style={{
                           color: isSelectMode && isSelected(doc.id) ? 'white' : '#32302C',
                           fontSize: 14,
@@ -1225,16 +1336,32 @@ const DocumentsPage = () => {
                         }}>
                           {doc.filename}
                         </div>
-                        <div style={{
-                          color: isSelectMode && isSelected(doc.id) ? '#D1D5DB' : '#6C6B6E',
-                          fontSize: 12,
-                          fontFamily: 'Plus Jakarta Sans',
-                          fontWeight: '500',
-                          marginTop: 4
-                        }}>
-                          {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
-                        </div>
                       </div>
+                      {/* Type Column */}
+                      <div style={{
+                        color: isSelectMode && isSelected(doc.id) ? '#D1D5DB' : '#6C6B6E',
+                        fontSize: 13,
+                        fontFamily: 'Plus Jakarta Sans'
+                      }}>
+                        {getFileType(doc)}
+                      </div>
+                      {/* Size Column */}
+                      <div style={{
+                        color: isSelectMode && isSelected(doc.id) ? '#D1D5DB' : '#6C6B6E',
+                        fontSize: 13,
+                        fontFamily: 'Plus Jakarta Sans'
+                      }}>
+                        {formatBytes(doc.fileSize)}
+                      </div>
+                      {/* Date Column */}
+                      <div style={{
+                        color: isSelectMode && isSelected(doc.id) ? '#D1D5DB' : '#6C6B6E',
+                        fontSize: 13,
+                        fontFamily: 'Plus Jakarta Sans'
+                      }}>
+                        {new Date(doc.createdAt).toLocaleDateString()}
+                      </div>
+                      {/* Actions Column */}
                       {!isSelectMode && <div style={{position: 'relative'}} data-dropdown>
                         <button
                           onClick={(e) => {
@@ -1392,6 +1519,7 @@ const DocumentsPage = () => {
                           </div>
                         )}
                       </div>}
+                      {isSelectMode && <div></div>}
                     </div>
                   );
                 })}

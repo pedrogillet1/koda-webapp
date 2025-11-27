@@ -148,7 +148,10 @@ const DocumentViewer = () => {
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [showAskKoda, setShowAskKoda] = useState(true);
+  const [showAskKoda, setShowAskKoda] = useState(() => {
+    // Only show if not dismissed in this session
+    return sessionStorage.getItem('askKodaDismissed') !== 'true';
+  });
   const [showExtractedText, setShowExtractedText] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -1578,6 +1581,7 @@ const DocumentViewer = () => {
           <button
             onClick={(e) => {
               e.stopPropagation();
+              sessionStorage.setItem('askKodaDismissed', 'true');
               setShowAskKoda(false);
             }}
             style={{
