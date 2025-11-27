@@ -5,6 +5,7 @@ import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection.js';
 import { useToast } from '../context/ToastContext';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { colors, spacing, radius, typography } from '../constants/designTokens';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import CreateCategoryModal from './CreateCategoryModal';
@@ -81,6 +82,7 @@ const DocumentsPage = () => {
   const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(null);
+  const [categoryMenuPosition, setCategoryMenuPosition] = useState({ top: 0, left: 0 });
   const [editingCategory, setEditingCategory] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -434,13 +436,29 @@ const DocumentsPage = () => {
         onDragLeave={handlePageDragLeave}
       >
         {/* Header */}
-        <div style={{height: 84, paddingLeft: 20, paddingRight: 20, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-          <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px'}}>
+        <div style={{
+          height: 84,
+          paddingLeft: spacing.xl,
+          paddingRight: spacing.xl,
+          background: colors.white,
+          borderBottom: `1px solid ${colors.gray[300]}`,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div style={{
+            color: colors.gray[900],
+            fontSize: typography.sizes.xl,
+            fontFamily: typography.fontFamily,
+            fontWeight: typography.weights.bold,
+            textTransform: 'capitalize',
+            lineHeight: typography.lineHeights.xl
+          }}>
             Documents
           </div>
           {/* Hide search and select controls on mobile */}
           {!isMobile && (
-          <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: spacing.md}}>
             {isSelectMode ? (
               <>
                 {/* Delete Button in Select Mode */}
@@ -726,32 +744,44 @@ const DocumentsPage = () => {
         </div>
 
         {/* Scrollable Content */}
-        <div style={{flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20}}>
+        <div style={{flex: 1, padding: spacing.xl, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: spacing.xl}}>
           {/* Smart Categories */}
-          <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12}}>
-              <div onClick={() => setIsModalOpen(true)} style={{padding: 14, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', minHeight: 72, width: '100%', boxSizing: 'border-box'}}>
-                <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+          <div style={{display: 'flex', flexDirection: 'column', gap: spacing.md}}>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: spacing.md}}>
+              <div onClick={() => setIsModalOpen(true)} style={{
+                padding: `${spacing.lg}px`,
+                background: colors.white,
+                borderRadius: radius.xl,
+                border: `1px solid ${colors.gray[300]}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: spacing.sm,
+                cursor: 'pointer',
+                minHeight: 72,
+                width: '100%',
+                boxSizing: 'border-box'
+              }}>
+                <div style={{width: 40, height: 40, background: colors.gray[100], borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                   <AddIcon style={{ width: 20, height: 20 }} />
                 </div>
-                <span style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: 1}}>Add New Smart Category</span>
+                <span style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: 1}}>Add New Smart Category</span>
               </div>
               {categories.map((category, index) => (
                 <div
                   key={index}
                   onDragOver={(e) => {
                     e.preventDefault();
-                    e.currentTarget.style.background = '#E0E7FF';
-                    e.currentTarget.style.border = '2px dashed #4F46E5';
+                    e.currentTarget.style.background = colors.primary[50];
+                    e.currentTarget.style.border = `2px dashed ${colors.primary[800]}`;
                   }}
                   onDragLeave={(e) => {
-                    e.currentTarget.style.background = 'white';
-                    e.currentTarget.style.border = '1px #E6E6EC solid';
+                    e.currentTarget.style.background = colors.white;
+                    e.currentTarget.style.border = `1px solid ${colors.gray[300]}`;
                   }}
                   onDrop={async (e) => {
                     e.preventDefault();
-                    e.currentTarget.style.background = 'white';
-                    e.currentTarget.style.border = '1px #E6E6EC solid';
+                    e.currentTarget.style.background = colors.white;
+                    e.currentTarget.style.border = `1px solid ${colors.gray[300]}`;
 
                     try {
                       const data = JSON.parse(e.dataTransfer.getData('application/json'));
@@ -780,19 +810,33 @@ const DocumentsPage = () => {
                       // On error, the moveToFolder function will rollback automatically
                     }
                   }}
-                  style={{padding: 10, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 8, transition: 'transform 0.2s ease, box-shadow 0.2s ease', position: 'relative', minHeight: 72, width: '100%', boxSizing: 'border-box', zIndex: categoryMenuOpen === category.id ? 99999 : 1}}
+                  style={{
+                    padding: spacing.md,
+                    background: colors.white,
+                    borderRadius: radius.xl,
+                    border: `1px solid ${colors.gray[300]}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: spacing.sm,
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    position: 'relative',
+                    minHeight: 72,
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    zIndex: categoryMenuOpen === category.id ? 99999 : 1
+                  }}
                 >
                   <div onClick={() => {
                     console.log('📁 DocumentsPage - Clicking folder:', category.name, 'ID:', category.id);
                     console.log('🔗 DocumentsPage - Navigating to:', `/folder/${category.id}`);
                     navigate(`/folder/${category.id}`);
-                  }} style={{display: 'flex', alignItems: 'center', gap: 8, flex: 1, cursor: 'pointer'}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
-                    <div style={{width: 40, height: 40, background: '#F6F6F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0}}>
+                  }} style={{display: 'flex', alignItems: 'center', gap: spacing.sm, flex: 1, cursor: 'pointer'}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
+                    <div style={{width: 40, height: 40, background: colors.gray[100], borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0}}>
                       <CategoryIcon emoji={category.emoji} />
                     </div>
-                    <div style={{display: 'flex', flexDirection: 'column', gap: 4, flex: 1}}>
-                      <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px'}}>{category.name}</div>
-                      <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px'}}>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: spacing.xs, flex: 1}}>
+                      <div style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: '19.60px'}}>{category.name}</div>
+                      <div style={{color: colors.gray[500], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.medium, lineHeight: '15.40px'}}>
                         {category.fileCount || 0} {category.fileCount === 1 ? 'File' : 'Files'}
                       </div>
                     </div>
@@ -801,7 +845,19 @@ const DocumentsPage = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setCategoryMenuOpen(categoryMenuOpen === category.id ? null : category.id);
+                        if (categoryMenuOpen === category.id) {
+                          setCategoryMenuOpen(null);
+                        } else {
+                          const buttonRect = e.currentTarget.getBoundingClientRect();
+                          const dropdownHeight = 160;
+                          const spaceBelow = window.innerHeight - buttonRect.bottom;
+                          const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
+                          setCategoryMenuPosition({
+                            top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
+                            left: buttonRect.right - 160
+                          });
+                          setCategoryMenuOpen(category.id);
+                        }
                       }}
                       style={{
                         width: 28,
@@ -821,15 +877,14 @@ const DocumentsPage = () => {
                     {categoryMenuOpen === category.id && (
                       <div
                         style={{
-                          position: 'absolute',
-                          top: '100%',
-                          right: 0,
-                          marginTop: 4,
+                          position: 'fixed',
+                          top: categoryMenuPosition.top,
+                          left: categoryMenuPosition.left,
                           background: 'white',
                           borderRadius: 12,
                           border: '1px solid #E6E6EC',
                           boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                          zIndex: 99999,
+                          zIndex: 10000,
                           minWidth: 160,
                           overflow: 'hidden'
                         }}
@@ -930,12 +985,19 @@ const DocumentsPage = () => {
           </div>
 
           {/* Recently Added - Full Width */}
-          <div style={{padding: 24, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column'}}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24}}>
-              <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
+          <div style={{
+            padding: spacing.xxl,
+            background: colors.white,
+            borderRadius: radius.xl,
+            border: `1px solid ${colors.gray[300]}`,
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xxl}}>
+              <div style={{color: colors.gray[900], fontSize: typography.sizes.lg, fontFamily: typography.fontFamily, fontWeight: typography.weights.bold}}>Your Files</div>
               <div
                 onClick={() => navigate('/category/recently-added')}
-                style={{color: '#171717', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '22.40px', cursor: 'pointer'}}
+                style={{color: colors.gray[900], fontSize: typography.sizes.md, fontFamily: typography.fontFamily, fontWeight: typography.weights.bold, lineHeight: '22.40px', cursor: 'pointer'}}
               >
                 See All
               </div>

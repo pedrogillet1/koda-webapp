@@ -20,6 +20,7 @@ import { useDocuments } from '../context/DocumentsContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import kodaLogoWhite from '../assets/koda-logo_white.svg';
+import { spacing, radius, typography } from '../design/tokens';
 
 const LeftNav = ({ onNotificationClick }) => {
     const navigate = useNavigate();
@@ -212,66 +213,66 @@ const LeftNav = ({ onNotificationClick }) => {
 
     // Desktop: Original sidebar
     return (
-        <div style={{width: isExpanded ? 205 : 84, height: '100%', background: '#181818', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: isExpanded ? 'flex-start' : 'center', padding: '20px 0', transition: 'width 0.3s ease'}}>
+        <div style={{width: isExpanded ? 205 : 84, height: '100%', background: '#181818', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: isExpanded ? 'flex-start' : 'center', padding: `${spacing.xl} 0`, transition: 'width 0.3s ease'}}>
             {/* Top Icons */}
-            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: 12, width: '100%', paddingLeft: isExpanded ? 20 : 0, paddingRight: isExpanded ? 20 : 0}}>
-                <div style={{paddingBottom: 12, borderBottom: '1px solid rgba(255, 255, 255, 0.20)', display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', width: '100%'}}>
-                    <div onClick={() => navigate('/home')} style={{display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', cursor: 'pointer', marginLeft: isExpanded ? 8 : 0}}>
+            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: spacing.md, width: '100%', paddingLeft: isExpanded ? spacing.xl : 0, paddingRight: isExpanded ? spacing.xl : 0}}>
+                <div style={{paddingBottom: spacing.md, borderBottom: '1px solid rgba(255, 255, 255, 0.20)', display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', width: '100%'}}>
+                    <div onClick={() => navigate('/home')} style={{display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', cursor: 'pointer', marginLeft: isExpanded ? spacing.sm : 0}}>
                         <img style={{height: 80}} src={kodaLogoWhite} alt="KODA Logo" />
                     </div>
                 </div>
-                <div style={{display: 'flex', flexDirection: 'column', gap: 16, width: '100%', alignItems: isExpanded ? 'flex-start' : 'center'}}>
-                    <div onClick={() => navigate('/home')} style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/home' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12, justifyContent: isExpanded ? 'flex-start' : 'center'}}>
+                <div style={{display: 'flex', flexDirection: 'column', gap: spacing.lg, width: '100%', alignItems: isExpanded ? 'flex-start' : 'center'}}>
+                    <div onClick={() => navigate('/home')} style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/home' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center'}}>
                         {location.pathname === '/home' ? (
                             <HouseFilledIcon style={{width: 20, height: 20}} />
                         ) : (
                             <HouseIcon style={{width: 20, height: 20}} />
                         )}
-                        {isExpanded && <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Home</span>}
+                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Home</span>}
                     </div>
                     <div
                         onClick={() => navigate('/documents')}
                         onMouseEnter={handleDocumentsHover}
-                        style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/documents' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12, justifyContent: isExpanded ? 'flex-start' : 'center'}}
+                        style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/documents' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center'}}
                     >
                         {location.pathname === '/documents' ? (
                             <Folder1FilledIcon style={{width: 20, height: 20}} />
                         ) : (
                             <Folder1Icon style={{width: 20, height: 20}} />
                         )}
-                        {isExpanded && <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Documents</span>}
+                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Documents</span>}
                     </div>
-                    <div onClick={() => navigate('/chat')} style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/chat' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12, justifyContent: isExpanded ? 'flex-start' : 'center'}}>
+                    <div onClick={() => navigate('/chat')} style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/chat' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center'}}>
                         {location.pathname === '/chat' ? (
                             <MessageFilledIcon style={{width: 20, height: 20, fill: 'white'}} />
                         ) : (
                             <MessageIcon style={{width: 20, height: 20, fill: 'white'}} />
                         )}
-                        {isExpanded && <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Chat</span>}
+                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Chat</span>}
                     </div>
-                    <div onClick={() => navigate('/upload-hub')} style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/upload-hub' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12, justifyContent: isExpanded ? 'flex-start' : 'center'}}>
+                    <div onClick={() => navigate('/upload-hub')} style={{padding: spacing.sm, borderRadius: radius.md, cursor: 'pointer', background: location.pathname === '/upload-hub' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: isExpanded ? 'flex-start' : 'center'}}>
                         {location.pathname === '/upload-hub' ? (
                             <UploadIcon style={{width: 20, height: 20, color: 'white'}} />
                         ) : (
                             <LogoutIcon style={{width: 20, height: 20, stroke: 'white', fill: 'none'}} />
                         )}
-                        {isExpanded && <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Upload</span>}
+                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Upload</span>}
                     </div>
                 </div>
             </div>
 
             {/* Bottom Icons */}
-            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: 12, borderTop: '1px solid rgba(255, 255, 255, 0.20)', paddingTop: 20, width: '100%', paddingLeft: isExpanded ? 20 : 0, paddingRight: isExpanded ? 20 : 0}}>
-                <div onClick={onNotificationClick} style={{padding: 8, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: 12, cursor: 'pointer', minWidth: 36}}>
+            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: spacing.md, borderTop: '1px solid rgba(255, 255, 255, 0.20)', paddingTop: spacing.xl, width: '100%', paddingLeft: isExpanded ? spacing.xl : 0, paddingRight: isExpanded ? spacing.xl : 0}}>
+                <div onClick={onNotificationClick} style={{padding: spacing.sm, borderRadius: radius.lg, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36}}>
                     <div style={{position: 'relative', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                         <NotificationIcon style={{width: 20, height: 20}} />
                         {hasUnreadNotifications && (
                             <div style={{ width: 8, height: 8, position: 'absolute', right: -2, top: -2, background: '#D92D20', borderRadius: 9999 }} />
                         )}
                     </div>
-                    {isExpanded && <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Notifications</span>}
+                    {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Notifications</span>}
                 </div>
-                <div onClick={() => navigate('/settings')} style={{padding: 8, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: 12, cursor: 'pointer', minWidth: 36}}>
+                <div onClick={() => navigate('/settings')} style={{padding: spacing.sm, borderRadius: radius.lg, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36}}>
                     <div style={{width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                         {location.pathname === '/settings' ? (
                             <SettingsFilledIcon style={{width: 20, height: 20, fill: 'white'}} />
@@ -279,16 +280,16 @@ const LeftNav = ({ onNotificationClick }) => {
                             <SettingsIcon style={{width: 20, height: 20, fill: 'white'}} />
                         )}
                     </div>
-                    {isExpanded && <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Settings</span>}
+                    {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Settings</span>}
                 </div>
                 <div
                     onClick={handleAuthButtonClick}
-                    style={{padding: 8, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: 12, cursor: 'pointer', minWidth: 36}}
+                    style={{padding: spacing.sm, borderRadius: radius.lg, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36}}
                 >
                     <div style={{width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                         <SignoutIcon style={{width: 20, height: 20, fill: 'white'}} />
                     </div>
-                    {isExpanded && <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>
+                    {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>
                         {user ? 'Sign Out' : 'Sign In'}
                     </span>}
                 </div>
