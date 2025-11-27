@@ -223,7 +223,7 @@ const formatFileSize = (bytes) => {
 const UploadHub = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { showSuccess } = useToast();
+  const { showSuccess, showError, showUploadSuccess, showUploadError } = useToast();
   // ⚡ PERFORMANCE FIX: Use documents/folders from context (no duplicate API calls)
   const { documents: contextDocuments, folders: contextFolders, socket, fetchDocuments, fetchFolders } = useDocuments();
   const { encryptionPassword } = useAuth(); // ⚡ ZERO-KNOWLEDGE ENCRYPTION
@@ -349,17 +349,10 @@ const UploadHub = () => {
             return false; // Remove this individual file (it's the one that completed)
           });
 
-          // If all files are done, show notification
+          // If all files are done, show notification using unified toast
           if (newCompletedCount === totalFiles && totalFiles > 0) {
             console.log('🎉 All files processed! Showing notification...');
-            setUploadedCount(newCompletedCount);
-            setNotificationType('success');
-            setShowNotification(true);
-
-            setTimeout(() => {
-              setShowNotification(false);
-              setUploadedCount(0);
-            }, 3000);
+            showUploadSuccess(newCompletedCount);
           }
 
           return updatedFiles;
@@ -492,17 +485,8 @@ const UploadHub = () => {
     console.log('🔔 Notification state:', { showNotification, uploadedCount, notificationType });
   }, [showNotification, uploadedCount, notificationType]);
 
-  // Check upload status for error notifications
-  useEffect(() => {
-    const failedCount = uploadingFiles.filter(f => f.status === 'failed').length;
-    const uploadingCount = uploadingFiles.filter(f => f.status === 'uploading').length;
-
-    if (failedCount > 0 && uploadingCount === 0) {
-      setNotificationType('error');
-      setShowNotification(true);
-      setTimeout(() => setShowNotification(false), 5000);
-    }
-  }, [uploadingFiles]);
+  // Note: Error notifications are now handled individually in the upload catch blocks
+  // using the unified Toast system with detailed error messages and retry options
 
   const formatFileSize = (bytes) => {
     if (!bytes) return '0 B';
@@ -887,20 +871,68 @@ const UploadHub = () => {
           }, 1500);
 
         } catch (error) {
-          // ERROR: Mark folder as failed
+          // ERROR: Mark folder as failed with detailed error message
           console.error('❌ Error uploading folder:', error);
+
+          // Extract detailed error message
+          let errorMessage = 'Upload failed';
+          let errorDetails = null;
+
+          // Parse specific error types for better user feedback
+          const errorMsg = error.message || '';
+          if (errorMsg.includes('No valid files') || errorMsg.includes('filtered out')) {
+            errorMessage = 'No valid files in folder';
+            errorDetails = 'All files were filtered out (hidden files, unsupported types, or empty files)';
+          } else if (errorMsg.includes('webkitRelativePath')) {
+            errorMessage = 'Folder upload not supported';
+            errorDetails = 'Please use Chrome, Edge, or Firefox for folder uploads';
+          } else if (errorMsg.includes('timeout') || errorMsg.includes('ETIMEDOUT')) {
+            errorMessage = 'Upload timeout';
+            errorDetails = 'Connection lost. Please check your internet and try again.';
+          } else if (errorMsg.includes('Unauthorized') || errorMsg.includes('401')) {
+            errorMessage = 'Authentication failed';
+            errorDetails = 'Your session may have expired. Please refresh the page and try again.';
+          } else if (errorMsg.includes('413') || errorMsg.includes('too large')) {
+            errorMessage = 'Files too large';
+            errorDetails = 'Maximum file size is 500MB. Please reduce file size and try again.';
+          } else if (errorMsg.includes('Network') || errorMsg.includes('fetch')) {
+            errorMessage = 'Network error';
+            errorDetails = 'Unable to connect to server. Please check your connection.';
+          } else if (errorMsg) {
+            errorMessage = 'Upload failed';
+            errorDetails = errorMsg;
+          }
+
+          // Show error notification with retry option
+          showUploadError(errorMessage, errorDetails, () => {
+            // Retry handler - reset the folder status and re-queue
+            console.log('🔄 Retrying folder upload:', item.folderName);
+            setUploadingFiles(prev => prev.map((f) =>
+              (f.isFolder && f.folderName === item.folderName) ? {
+                ...f,
+                status: 'uploading',
+                error: null,
+                progress: 0,
+                stage: 'Preparing retry...'
+              } : f
+            ));
+            // Note: The actual retry will happen on next processUploadQueue cycle
+          });
+
+          // Mark as failed in UI (but keep visible for retry)
           setUploadingFiles(prev => prev.map((f) =>
             (f.isFolder && f.folderName === item.folderName) ? {
               ...f,
               status: 'failed',
-              error: error.message || 'Upload failed'
+              error: errorMessage,
+              errorDetails: errorDetails
             } : f
           ));
 
-          // Remove failed uploads after delay
+          // Remove failed uploads after longer delay (give user time to see error)
           setTimeout(() => {
-            setUploadingFiles(prev => prev.filter((f) => !(f.isFolder && f.folderName === item.folderName)));
-          }, 3000);
+            setUploadingFiles(prev => prev.filter((f) => !(f.isFolder && f.folderName === item.folderName && f.status === 'failed')));
+          }, 10000);
         }
       } else {
         // Handle individual file upload - DIRECT TO GCS!
@@ -1191,9 +1223,8 @@ const UploadHub = () => {
     if (newCompletedCount === totalFilesCount && totalFilesCount > 0) {
       console.log('🎉 All files uploaded! Showing notification...');
 
-      setUploadedCount(newCompletedCount);
-      setNotificationType('success');
-      setShowNotification(true);
+      // Show success notification using unified toast
+      showUploadSuccess(newCompletedCount);
 
       // Reload documents and folders using DocumentsContext
       const loadData = async () => {
@@ -1201,11 +1232,6 @@ const UploadHub = () => {
         await fetchFolders();   // Update global context
       };
       loadData();
-
-      setTimeout(() => {
-        setShowNotification(false);
-        setUploadedCount(0);
-      }, 3000);
     }
   };
 
@@ -3029,82 +3055,7 @@ const UploadHub = () => {
         )}
       </div>
 
-      {/* Success/Error Notification */}
-      {showNotification && (uploadedCount > 0 || notificationType === 'error') && (
-        <div style={{
-          position: 'fixed',
-          top: 20,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 'calc(100% - 700px)',
-          maxWidth: '960px',
-          minWidth: '400px',
-          zIndex: 99999,
-          animation: 'slideDown 0.3s ease-out'
-        }}>
-          <div style={{
-            width: '100%',
-            padding: '6px 16px',
-            background: '#181818',
-            borderRadius: 14,
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: 10,
-            display: 'inline-flex'
-          }}>
-            {notificationType === 'success' ? (
-              <>
-                <div style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  background: '#34A853',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}>
-                  <CheckIcon style={{width: 12, height: 12}} />
-                </div>
-                <div style={{
-                  flex: '1 1 0',
-                  color: 'white',
-                  fontSize: 13,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '400',
-                  lineHeight: '18px',
-                  wordWrap: 'break-word'
-                }}>
-                  {uploadedCount} document{uploadedCount > 1 ? 's have' : ' has'} been successfully uploaded.
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{width: 24, height: 24, position: 'relative', flexShrink: 0}}>
-                  <div style={{width: 20.57, height: 20.57, left: 1.71, top: 1.71, position: 'absolute', background: 'rgba(217, 45, 32, 0.60)', borderRadius: 9999}} />
-                  <div style={{width: 24, height: 24, left: 0, top: 0, position: 'absolute', background: 'rgba(217, 45, 32, 0.60)', borderRadius: 9999}} />
-                  <div style={{width: 17.14, height: 17.14, left: 3.43, top: 3.43, position: 'absolute', background: '#D92D20', overflow: 'hidden', borderRadius: 8.57, outline: '1.07px #D92D20 solid', outlineOffset: '-1.07px'}}>
-                    <div style={{width: 9.33, height: 9.33, left: 3.91, top: 3.91, position: 'absolute'}}>
-                      <div style={{width: 7.78, height: 7.19, left: 0.78, top: 1.17, position: 'absolute', borderRadius: 3.89, outline: '0.80px white solid', outlineOffset: '-0.40px'}} />
-                    </div>
-                  </div>
-                </div>
-                <div style={{
-                  flex: '1 1 0',
-                  color: 'white',
-                  fontSize: 13,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '400',
-                  lineHeight: '18px',
-                  wordWrap: 'break-word'
-                }}>
-                  Hmm… the upload didn't work. Please retry.
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Notifications are now handled by the unified ToastProvider */}
 
       <NotificationPanel
         showNotificationsPopup={showNotificationsPopup}

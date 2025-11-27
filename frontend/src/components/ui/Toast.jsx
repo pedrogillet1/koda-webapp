@@ -7,13 +7,15 @@ import { colors, spacing, radius, zIndex, typography, transitions } from '../../
  *
  * @param {string} type - Toast type: 'success' | 'error' | 'warning' | 'info'
  * @param {string} message - Notification message
- * @param {number} duration - Auto-dismiss duration in ms (default: 5000)
+ * @param {string} details - Optional secondary message with more details
+ * @param {number} duration - Auto-dismiss duration in ms (default: 5000, 0 = no auto-dismiss)
  * @param {function} onClose - Function to call when toast is dismissed
  * @param {object} action - Optional action button: {label, onClick}
  */
 export default function Toast({
   type = 'success',
   message,
+  details,
   duration = 5000,
   onClose,
   action,
@@ -21,6 +23,7 @@ export default function Toast({
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
+    // Only auto-dismiss if duration > 0
     if (duration > 0) {
       const timer = setTimeout(() => {
         setIsVisible(false);
@@ -35,6 +38,13 @@ export default function Toast({
     setTimeout(onClose, 200);
   };
 
+  const handleAction = () => {
+    if (action?.onClick) {
+      action.onClick();
+    }
+    // Don't auto-close on action - let the action decide
+  };
+
   const typeStyles = {
     success: {
       background: colors.primary,
@@ -47,14 +57,14 @@ export default function Toast({
       iconBg: colors.error,
     },
     warning: {
-      background: colors.warning,
-      color: colors.gray[900],
-      iconBg: colors.warning,
+      background: colors.primary,
+      color: colors.white,
+      iconBg: '#FBBC04', // Warning yellow
     },
     info: {
       background: colors.primary,
       color: colors.white,
-      iconBg: colors.gray[500],
+      iconBg: '#2563EB', // Info blue
     },
   };
 
@@ -73,6 +83,7 @@ export default function Toast({
         zIndex: zIndex.toast,
         opacity: isVisible ? 1 : 0,
         transition: 'opacity 0.2s ease, transform 0.2s ease',
+        pointerEvents: 'auto',
       }}
     >
       <div
@@ -82,46 +93,65 @@ export default function Toast({
           background: style.background,
           borderRadius: radius.xl,
           display: 'flex',
-          alignItems: 'center',
+          alignItems: details ? 'flex-start' : 'center',
           gap: spacing.md,
           fontFamily: typography.fontFamily,
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
         }}
       >
         {/* Icon */}
         <ToastIcon type={type} iconBg={style.iconBg} />
 
-        {/* Message */}
-        <div
-          style={{
-            flex: 1,
-            color: style.color,
-            fontSize: typography.sizes.sm,
-            fontWeight: typography.weights.regular,
-            lineHeight: typography.lineHeights.sm,
-            wordWrap: 'break-word',
-          }}
-        >
-          {message}
+        {/* Message Content */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              color: style.color,
+              fontSize: typography.sizes.sm,
+              fontWeight: typography.weights.regular,
+              lineHeight: typography.lineHeights.sm,
+              wordWrap: 'break-word',
+            }}
+          >
+            {message}
+          </div>
+          {details && (
+            <div
+              style={{
+                color: style.color,
+                fontSize: typography.sizes.xs,
+                fontWeight: typography.weights.regular,
+                lineHeight: '16px',
+                marginTop: spacing.xs,
+                opacity: 0.8,
+                wordWrap: 'break-word',
+              }}
+            >
+              {details}
+            </div>
+          )}
         </div>
 
         {/* Action Button */}
         {action && (
           <button
-            onClick={action.onClick}
+            onClick={handleAction}
             style={{
-              background: 'transparent',
+              background: 'rgba(255, 255, 255, 0.15)',
               border: 'none',
               color: style.color,
               cursor: 'pointer',
               fontWeight: typography.weights.semibold,
-              textDecoration: 'underline',
-              fontSize: typography.sizes.sm,
+              fontSize: typography.sizes.xs,
               fontFamily: typography.fontFamily,
-              padding: 0,
+              padding: `${spacing.sm}px ${spacing.md}px`,
+              borderRadius: radius.md,
               transition: transitions.fast,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'none')}
-            onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)')}
           >
             {action.label}
           </button>
@@ -143,11 +173,11 @@ export default function Toast({
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            opacity: 0.8,
+            opacity: 0.7,
             transition: transitions.fast,
           }}
           onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = 0.8)}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = 0.7)}
         >
           ×
         </button>
@@ -198,9 +228,9 @@ function ToastIcon({ type, iconBg }) {
           flexShrink: 0,
         }}
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path
-            d="M6 4V6.5M6 8.5H6.005M10.5 6C10.5 8.48528 8.48528 10.5 6 10.5C3.51472 10.5 1.5 8.48528 1.5 6C1.5 3.51472 3.51472 1.5 6 1.5C8.48528 1.5 10.5 3.51472 10.5 6Z"
+            d="M7 4.5V7.5M7 10H7.005"
             stroke="white"
             strokeWidth="1.5"
             strokeLinecap="round"
@@ -217,16 +247,18 @@ function ToastIcon({ type, iconBg }) {
         style={{
           width: 24,
           height: 24,
+          borderRadius: '50%',
+          background: iconBg,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
         }}
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path
-            d="M10 7V10M10 13H10.01M3.86 16H16.14C17.26 16 17.98 14.78 17.42 13.82L11.28 3.5C10.72 2.54 9.28 2.54 8.72 3.5L2.58 13.82C2.02 14.78 2.74 16 3.86 16Z"
-            stroke={colors.gray[900]}
+            d="M7 5V7M7 9H7.005"
+            stroke="#000"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -252,7 +284,7 @@ function ToastIcon({ type, iconBg }) {
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
         <path
-          d="M6 8V6M6 4H6.005M10.5 6C10.5 8.48528 8.48528 10.5 6 10.5C3.51472 10.5 1.5 8.48528 1.5 6C1.5 3.51472 3.51472 1.5 6 1.5C8.48528 1.5 10.5 3.51472 10.5 6Z"
+          d="M6 8V6M6 4H6.005"
           stroke="white"
           strokeWidth="1.5"
           strokeLinecap="round"

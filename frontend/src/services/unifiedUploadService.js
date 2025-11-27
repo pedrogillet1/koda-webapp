@@ -597,7 +597,13 @@ async function uploadFolder(files, onProgress, existingCategoryId = null) {
     const { validFiles, skippedFiles } = filterFiles(Array.from(files));
 
     if (validFiles.length === 0) {
-      throw new Error('No valid files to upload. All files were filtered out.');
+      // Provide detailed information about why files were skipped
+      const skippedReasons = skippedFiles.slice(0, 5).map(f => {
+        const fileName = f.file?.name || f.file?.webkitRelativePath?.split('/').pop() || 'unknown';
+        return `"${fileName}" (${f.reason || 'filtered'})`;
+      }).join(', ');
+      const extraCount = skippedFiles.length > 5 ? ` and ${skippedFiles.length - 5} more` : '';
+      throw new Error(`No valid files to upload. Skipped: ${skippedReasons}${extraCount}`);
     }
 
     console.log(`✅ After filtering: ${validFiles.length} valid files (removed ${skippedFiles.length})`);
