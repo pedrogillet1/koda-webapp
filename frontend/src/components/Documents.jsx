@@ -41,6 +41,7 @@ import { getCategoriesWithCounts, createCategory, deleteCategory, addDocumentToC
 import api from '../services/api';
 import chatService from '../services/chatService';
 import CategoryIcon from './CategoryIcon';
+import FileBreakdownDonut from './FileBreakdownDonut';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -1517,71 +1518,13 @@ const Documents = () => {
             )}
           </div>
 
-          {/* File Breakdown + Upcoming Actions (Side by Side on desktop, stacked on mobile) */}
-          <div style={{display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 12 : 20, flex: isMobile ? 'none' : 1, minHeight: isMobile ? 'auto' : 0}}>
-            {/* File Breakdown */}
-            <div style={{width: isMobile ? '100%' : '40%', padding: isMobile ? 12 : 16, background: 'white', borderRadius: isMobile ? 12 : 20, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16, overflow: 'visible', flexShrink: 0}}>
-              <div style={{color: '#101828', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '26px'}}>File Breakdown</div>
+          {/* File Breakdown - Full width card */}
+          <div style={{width: '100%'}}>
+            <FileBreakdownDonut showEncryptionMessage={false} />
+          </div>
 
-              {/* Chart and Legend Container - Centered */}
-              <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16, justifyContent: 'center'}}>
-              {/* Semicircle Chart - Hidden on mobile */}
-              {!isMobile && <div style={{position: 'relative', width: '100%', height: 200, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', pointerEvents: 'none'}}>
-                <div style={{width: '100%', height: '300px', position: 'absolute', bottom: 0}}>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                      <Pie
-                        data={fileData}
-                        cx="50%"
-                        cy="100%"
-                        startAngle={180}
-                        endAngle={0}
-                        innerRadius={90}
-                        outerRadius={150}
-                        paddingAngle={2}
-                        dataKey="value"
-                        stroke="none"
-                        isAnimationActive={false}
-                      >
-                        {fileData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div style={{position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 10, textAlign: 'center'}}>
-                  <div style={{color: '#32302C', fontSize: 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '40px'}}>{totalFiles} Files</div>
-                  <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px'}}>Total</div>
-                </div>
-              </div>}
-
-              {/* File Legend - 2x2 Grid */}
-              <div style={{padding: isMobile ? 10 : 14, background: '#F5F5F5', borderRadius: isMobile ? 12 : 18, border: '1px #E6E6EC solid', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 12}}>
-                {fileData.map((item, index) => (
-                  <div key={index} style={{display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12}}>
-                    <div style={{width: isMobile ? 32 : 40, height: isMobile ? 32 : 40, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                      {item.name === 'Spreadsheet' && <SpreadsheetIcon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
-                      {item.name === 'Document' && <Document2Icon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
-                      {item.name === 'Image' && <ImageIcon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
-                      {item.name === 'Other' && <InfoCircleIcon style={{width: isMobile ? 16 : 20, height: isMobile ? 16 : 20}} />}
-                    </div>
-                    <div style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 2 : 4, minWidth: 0}}>
-                      <div style={{color: '#32302C', fontSize: isMobile ? 12 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2'}}>{item.name}</div>
-                      <div style={{display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 8, flexWrap: 'wrap'}}>
-                        <div style={{color: '#6C6B6E', fontSize: isMobile ? 11 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '1.2'}}>{item.value} Files</div>
-                        {!isMobile && <div style={{width: 4, height: 4, background: '#6C6B6E', borderRadius: '50%', opacity: 0.9}} />}
-                        {!isMobile && <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '15.40px'}}>{item.size}</div>}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              </div>
-            </div>
-
-            {/* Your Files */}
-            <div style={{width: isMobile ? '100%' : '60%', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
+          {/* Your Files - Full width card below */}
+          <div style={{width: '100%', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24}}>
                 <div style={{color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
                 {contextDocuments.length > 6 && (
@@ -2099,7 +2042,6 @@ const Documents = () => {
               )}
             </div>
           </div>
-        </div>
 
         {/* Drag and Drop Overlay */}
         {isDraggingOver && (

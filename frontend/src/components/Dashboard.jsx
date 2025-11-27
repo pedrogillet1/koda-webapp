@@ -2,7 +2,7 @@ import React from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import CategoryGrid from './CategoryGrid';
-import FileBreakdown from './FileBreakdown';
+import FileBreakdownDonut from './FileBreakdownDonut';
 import UpcomingActions from './UpcomingActions';
 import QuickAccess from './QuickAccess';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -65,7 +65,7 @@ const Dashboard = () => {
               width: isMobile ? '100%' : 'auto',
               minHeight: isMobile ? '300px' : 'auto'
             }}>
-              <FileBreakdown />
+              <FileBreakdownDonut showEncryptionMessage={false} />
             </div>
 
             {/* Upcoming Actions and Quick Access - stack vertically */}
