@@ -971,35 +971,8 @@ const Documents = () => {
                                       shapeRendering: 'geometricPrecision'
                                     }}
                                   />
-                                  {/* Processing badge */}
-                                  {doc.status === 'processing' && (
-                                    <div style={{
-                                      position: 'absolute',
-                                      bottom: -4,
-                                      right: -4,
-                                      background: '#3B82F6',
-                                      color: 'white',
-                                      padding: '2px 6px',
-                                      borderRadius: '4px',
-                                      fontSize: '9px',
-                                      fontWeight: '600',
-                                      fontFamily: 'Plus Jakarta Sans',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '3px',
-                                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-                                    }}>
-                                      <div style={{
-                                        width: 6,
-                                        height: 6,
-                                        border: '1.5px solid white',
-                                        borderTopColor: 'transparent',
-                                        borderRadius: '50%',
-                                        animation: 'spin 0.8s linear infinite'
-                                      }} />
-                                      {doc.processingProgress ? `${doc.processingProgress}%` : '...'}
-                                    </div>
-                                  )}
+                                  {/* Processing badge - HIDDEN: Documents should display normally regardless of status */}
+                                  {/* Users don't need to see processing status - it happens silently in the background */}
                                   {/* Failed badge */}
                                   {doc.status === 'failed' && (
                                     <div style={{
