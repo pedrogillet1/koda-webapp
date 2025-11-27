@@ -19,6 +19,7 @@ import { ReactComponent as RenameIcon } from '../assets/Edit 5.svg';
 import { ReactComponent as MoveIcon } from '../assets/add.svg';
 import { ReactComponent as DeleteIcon } from '../assets/Trash can-red.svg';
 import LayeredFolderIcon from './LayeredFolderIcon';
+import FolderBrowserModal from './FolderBrowserModal';
 import api from '../services/api';
 // ✅ REFACTORED: Use unified upload service (replaces folderUploadService + presignedUploadService)
 import unifiedUploadService from '../services/unifiedUploadService';
@@ -269,6 +270,12 @@ const UploadHub = () => {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [modalSearchQuery, setModalSearchQuery] = useState('');
   const embeddingTimeoutsRef = useRef({}); // Track embedding timeouts for slow processing warnings
+  const [folderBrowserModal, setFolderBrowserModal] = useState({
+    isOpen: false,
+    folderIndex: null,
+    folderName: '',
+    files: []
+  });
 
   // ✅ Listen for document processing updates via WebSocket
   useEffect(() => {
@@ -714,6 +721,63 @@ const UploadHub = () => {
 
       setUploadingFiles(prev => [...pendingFiles, ...prev]);
     }
+  };
+
+  // Open folder browser modal
+  const handleOpenFolderBrowser = (folderIndex) => {
+    const folder = uploadingFiles[folderIndex];
+    if (folder && folder.isFolder) {
+      setFolderBrowserModal({
+        isOpen: true,
+        folderIndex: folderIndex,
+        folderName: folder.folderName,
+        files: folder.files
+      });
+    }
+  };
+
+  // Close folder browser modal
+  const handleCloseFolderBrowser = () => {
+    setFolderBrowserModal({
+      isOpen: false,
+      folderIndex: null,
+      folderName: '',
+      files: []
+    });
+  };
+
+  // Remove file from folder (called from modal)
+  const handleRemoveFileFromFolder = (relativePath) => {
+    const folderIndex = folderBrowserModal.folderIndex;
+    if (folderIndex === null) return;
+
+    setUploadingFiles(prev => {
+      const newFiles = [...prev];
+      const folder = newFiles[folderIndex];
+      if (folder && folder.isFolder && folder.files) {
+        // Filter out the file with the matching relativePath
+        folder.files = folder.files.filter(f => {
+          const filePath = f.webkitRelativePath || f.name;
+          return filePath !== relativePath;
+        });
+        // Update file count and total size
+        folder.fileCount = folder.files.length;
+        folder.totalSize = folder.files.reduce((sum, f) => sum + (f.size || 0), 0);
+
+        // If no files left, remove the folder entirely
+        if (folder.files.length === 0) {
+          newFiles.splice(folderIndex, 1);
+          handleCloseFolderBrowser();
+        } else {
+          // Update modal files
+          setFolderBrowserModal(prev => ({
+            ...prev,
+            files: folder.files
+          }));
+        }
+      }
+      return newFiles;
+    });
   };
 
   const handleConfirmUpload = async () => {
@@ -2531,19 +2595,36 @@ const UploadHub = () => {
                 const progressWidth = f.status === 'completed' ? 100 : (f.progress || 0);
 
                 return (
-                  <div key={index} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 16,
-                    padding: 16,
-                    background: 'white',
-                    outline: isError ? '2px solid #EF4444' : 'none',
-                    outlineOffset: '-2px',
-                    border: `1px solid ${isError ? '#EF4444' : '#E5E7EB'}`,
-                    borderRadius: 8,
-                    transition: 'box-shadow 0.15s',
-                    position: 'relative'
-                  }}>
+                  <div
+                    key={index}
+                    onClick={() => f.isFolder && f.status === 'pending' && handleOpenFolderBrowser(index)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 16,
+                      padding: 16,
+                      background: 'white',
+                      outline: isError ? '2px solid #EF4444' : 'none',
+                      outlineOffset: '-2px',
+                      border: `1px solid ${isError ? '#EF4444' : '#E5E7EB'}`,
+                      borderRadius: 8,
+                      transition: 'box-shadow 0.15s, border-color 0.15s',
+                      position: 'relative',
+                      cursor: f.isFolder && f.status === 'pending' ? 'pointer' : 'default'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (f.isFolder && f.status === 'pending') {
+                        e.currentTarget.style.borderColor = '#D1D5DB';
+                        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (f.isFolder && f.status === 'pending') {
+                        e.currentTarget.style.borderColor = isError ? '#EF4444' : '#E5E7EB';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }
+                    }}
+                  >
                     {/* Icon (File or Folder) */}
                     <div style={{
                       width: 64,
@@ -2591,11 +2672,11 @@ const UploadHub = () => {
                           flex: 1
                         }}>{f.isFolder ? f.folderName : f.file.name}</p>
                         <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-                          {f.status === 'pending' && (
+                          {f.status === 'pending' && !f.isFolder && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setShowCategoryModal(f.isFolder ? f.folderName : f.file.name);
+                                setShowCategoryModal(f.file.name);
                               }}
                               style={{
                                 padding: '6px 12px',
@@ -3296,6 +3377,15 @@ const UploadHub = () => {
 
       {/* Search Modal */}
       <SearchModal />
+
+      {/* Folder Browser Modal */}
+      <FolderBrowserModal
+        isOpen={folderBrowserModal.isOpen}
+        onClose={handleCloseFolderBrowser}
+        folderName={folderBrowserModal.folderName}
+        files={folderBrowserModal.files}
+        onRemoveFile={handleRemoveFileFromFolder}
+      />
 
       {/* Animation Keyframes */}
       <style dangerouslySetInnerHTML={{ __html: `

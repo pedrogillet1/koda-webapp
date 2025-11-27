@@ -358,6 +358,37 @@ const CategoryDetail = () => {
     }
   };
 
+  // Helper function to get file type display
+  const getFileTypeDisplay = (doc) => {
+    const mimeType = doc?.mimeType || '';
+    const filename = doc?.filename || '';
+    const ext = filename.match(/\.([^.]+)$/)?.[1]?.toUpperCase() || '';
+
+    if (mimeType === 'application/pdf' || ext === 'PDF') return 'PDF';
+    if (ext === 'DOC') return 'DOC';
+    if (ext === 'DOCX') return 'DOCX';
+    if (ext === 'XLS') return 'XLS';
+    if (ext === 'XLSX') return 'XLSX';
+    if (ext === 'PPT') return 'PPT';
+    if (ext === 'PPTX') return 'PPTX';
+    if (ext === 'TXT') return 'TXT';
+    if (ext === 'CSV') return 'CSV';
+    if (ext === 'PNG') return 'PNG';
+    if (ext === 'JPG' || ext === 'JPEG') return 'JPG';
+    if (ext === 'GIF') return 'GIF';
+    if (ext === 'WEBP') return 'WEBP';
+    if (ext === 'MP4') return 'MP4';
+    if (ext === 'MOV') return 'MOV';
+    if (ext === 'AVI') return 'AVI';
+    if (ext === 'MKV') return 'MKV';
+    if (ext === 'MP3') return 'MP3';
+    if (ext === 'WAV') return 'WAV';
+    if (ext === 'AAC') return 'AAC';
+    if (ext === 'M4A') return 'M4A';
+
+    return ext || 'File';
+  };
+
   // Filter and sort documents
   const filteredDocuments = documents.filter(doc =>
     doc.filename?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -368,6 +399,11 @@ const CategoryDetail = () => {
       return sortOrder === 'asc'
         ? a.filename.localeCompare(b.filename)
         : b.filename.localeCompare(a.filename);
+    }
+    if (sortBy === 'type') {
+      return sortOrder === 'asc'
+        ? getFileTypeDisplay(a).localeCompare(getFileTypeDisplay(b))
+        : getFileTypeDisplay(b).localeCompare(getFileTypeDisplay(a));
     }
     if (sortBy === 'size') {
       return sortOrder === 'asc'
@@ -2145,231 +2181,159 @@ const CategoryDetail = () => {
                     ))}
                   </div>
                 ) : (
-                  <div style={{
-                    background: 'white',
-                    border: '1px solid #E5E7EB',
-                    borderRadius: 12,
-                    overflow: 'hidden'
-                  }}>
-                    <table style={{
-                      width: '100%',
-                      borderCollapse: 'collapse'
+                  // List View - Card-based layout matching Documents page
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Table Header */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
+                      gap: 12,
+                      padding: '10px 14px',
+                      borderBottom: '1px solid #E6E6EC',
+                      marginBottom: 8
                     }}>
-                      <thead>
-                        <tr style={{
-                          background: '#F9FAFB',
-                          borderBottom: '1px solid #E5E7EB'
-                        }}>
-                          <th
-                            onClick={() => handleSort('name')}
+                      {[
+                        { key: 'name', label: 'Name' },
+                        { key: 'type', label: 'Type' },
+                        { key: 'size', label: 'Size' },
+                        { key: 'timeAdded', label: 'Date' }
+                      ].map(col => (
+                        <div
+                          key={col.key}
+                          onClick={() => handleSort(col.key)}
+                          style={{
+                            color: sortBy === col.key ? '#171717' : '#6C6B6E',
+                            fontSize: 11,
+                            fontFamily: 'Plus Jakarta Sans',
+                            fontWeight: '600',
+                            textTransform: 'uppercase',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            userSelect: 'none'
+                          }}
+                        >
+                          {col.label}
+                          {sortBy === col.key && (
+                            <span style={{ fontSize: 10 }}>
+                              {sortOrder === 'asc' ? '▲' : '▼'}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      <div></div>
+                    </div>
+                    {sortedDocuments.map((doc) => (
+                      <div
+                        key={doc.id}
+                        draggable="true"
+                        onDragStart={(e) => handleDocumentDragStart(e, doc)}
+                        onDragEnd={handleDocumentDragEnd}
+                        onClick={() => {
+                          if (isSelectMode) {
+                            toggleDocument(doc.id);
+                          } else {
+                            navigate(`/document/${doc.id}`);
+                          }
+                        }}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
+                          gap: 12,
+                          alignItems: 'center',
+                          padding: '10px 14px',
+                          borderRadius: 10,
+                          background: isSelected(doc.id) ? '#111827' : 'white',
+                          border: isSelected(doc.id) ? '1px solid #111827' : '1px solid #E6E6EC',
+                          cursor: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 'move' : 'pointer',
+                          transition: 'all 0.2s ease',
+                          opacity: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 0.5 : 1
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected(doc.id)) {
+                            e.currentTarget.style.background = '#F9F9F9';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected(doc.id)) {
+                            e.currentTarget.style.background = 'white';
+                          }
+                        }}
+                      >
+                        {/* Name Column */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
+                          <img
+                            src={getFileIcon(doc)}
+                            alt="File icon"
+                            style={{ width: 32, height: 32, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain' }}
+                          />
+                          {renamingDocId === doc.id ? (
+                            <input
+                              type="text"
+                              value={newFileName}
+                              onChange={(e) => setNewFileName(e.target.value)}
+                              onBlur={() => handleRenameSubmit(doc.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleRenameSubmit(doc.id);
+                                } else if (e.key === 'Escape') {
+                                  setRenamingDocId(null);
+                                  setNewFileName('');
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: 14,
+                                fontFamily: 'Plus Jakarta Sans',
+                                fontWeight: '600',
+                                color: '#32302C',
+                                border: '1px solid #181818',
+                                borderRadius: 6,
+                                outline: 'none',
+                                background: 'white',
+                                flex: 1
+                              }}
+                            />
+                          ) : (
+                            <div style={{ color: isSelected(doc.id) ? 'white' : '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {doc.filename}
+                            </div>
+                          )}
+                        </div>
+                        {/* Type Column */}
+                        <div style={{ color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{getFileTypeDisplay(doc)}</div>
+                        {/* Size Column */}
+                        <div style={{ color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{formatFileSize(doc.fileSize)}</div>
+                        {/* Date Column */}
+                        <div style={{ color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{new Date(doc.createdAt).toLocaleDateString()}</div>
+                        {/* Actions */}
+                        <div style={{ position: 'relative' }} data-dropdown>
+                          <button
+                            data-dropdown-id={`list-${doc.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenDropdownId(openDropdownId === doc.id ? null : doc.id);
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
                             style={{
-                              padding: '12px 16px',
-                              textAlign: 'left',
-                              fontSize: 13,
-                              fontWeight: '600',
-                              color: '#6B7280',
-                              fontFamily: 'Plus Jakarta Sans',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px',
+                              width: 32,
+                              height: 32,
+                              background: 'white',
+                              borderRadius: '50%',
+                              border: '1px solid #E6E6EC',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               cursor: 'pointer',
-                              userSelect: 'none'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#F3F4F6'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                          >
-                            File Name {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
-                          </th>
-                          <th
-                            onClick={() => handleSort('timeAdded')}
-                            style={{
-                              padding: '12px 16px',
-                              textAlign: 'left',
-                              fontSize: 13,
-                              fontWeight: '600',
-                              color: '#6B7280',
-                              fontFamily: 'Plus Jakarta Sans',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px',
-                              cursor: 'pointer',
-                              userSelect: 'none'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#F3F4F6'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                          >
-                            Time Added {sortBy === 'timeAdded' && (sortOrder === 'asc' ? '↑' : '↓')}
-                          </th>
-                          <th
-                            onClick={() => handleSort('size')}
-                            style={{
-                              padding: '12px 16px',
-                              textAlign: 'left',
-                              fontSize: 13,
-                              fontWeight: '600',
-                              color: '#6B7280',
-                              fontFamily: 'Plus Jakarta Sans',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px',
-                              cursor: 'pointer',
-                              userSelect: 'none'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#F3F4F6'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                          >
-                            Size {sortBy === 'size' && (sortOrder === 'asc' ? '↑' : '↓')}
-                          </th>
-                          <th style={{
-                            width: 60,
-                            textAlign: 'center',
-                            padding: '12px 16px'
-                          }}></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sortedDocuments.map((doc) => (
-                          <tr
-                            key={doc.id}
-                            className="document-row"
-                            draggable="true"
-                            onDragStart={(e) => handleDocumentDragStart(e, doc)}
-                            onDragEnd={handleDocumentDragEnd}
-                            onClick={() => {
-                              if (isSelectMode) {
-                                toggleDocument(doc.id);
-                              } else {
-                                navigate(`/document/${doc.id}`);
-                              }
-                            }}
-                            style={{
-                              borderBottom: '1px solid #F3F4F6',
-                              background: isSelected(doc.id) ? '#111827' : 'white',
-                              cursor: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 'move' : 'pointer',
-                              transition: 'background 0.2s',
-                              opacity: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 0.5 : 1,
-                              borderLeft: isSelected(doc.id) ? '3px solid #111827' : '3px solid transparent'
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!isSelected(doc.id)) {
-                                e.currentTarget.style.background = '#F9FAFB';
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isSelected(doc.id)) {
-                                e.currentTarget.style.background = 'white';
-                              }
+                              transition: 'all 0.2s ease'
                             }}
                           >
-                            {/* File Name Cell */}
-                            <td style={{
-                              padding: '14px 16px',
-                              fontSize: 14,
-                              color: isSelected(doc.id) ? 'white' : '#374151',
-                              fontFamily: 'Plus Jakarta Sans'
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <img
-                                  src={getFileIcon(doc)}
-                                  alt="file icon"
-                                  style={{ width: 24, height: 24, objectFit: 'contain', aspectRatio: '1/1' }}
-                                />
-                                {renamingDocId === doc.id ? (
-                                  <input
-                                    type="text"
-                                    value={newFileName}
-                                    onChange={(e) => setNewFileName(e.target.value)}
-                                    onBlur={() => handleRenameSubmit(doc.id)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        handleRenameSubmit(doc.id);
-                                      } else if (e.key === 'Escape') {
-                                        setRenamingDocId(null);
-                                        setNewFileName('');
-                                      }
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    autoFocus
-                                    style={{
-                                      padding: '4px 8px',
-                                      fontSize: 14,
-                                      fontFamily: 'Plus Jakarta Sans',
-                                      fontWeight: '500',
-                                      color: '#111827',
-                                      border: '1px solid #181818',
-                                      borderRadius: 6,
-                                      outline: 'none',
-                                      background: 'white',
-                                      flex: 1
-                                    }}
-                                  />
-                                ) : (
-                                  <span style={{
-                                    fontWeight: '500',
-                                    color: isSelected(doc.id) ? 'white' : '#111827'
-                                  }}>
-                                    {doc.filename}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-
-                            {/* Time Added Cell */}
-                            <td style={{
-                              padding: '14px 16px',
-                              fontSize: 14,
-                              color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6B7280',
-                              fontFamily: 'Plus Jakarta Sans'
-                            }}>
-                              {formatTime(doc.createdAt)}
-                            </td>
-
-                            {/* Size Cell */}
-                            <td style={{
-                              padding: '14px 16px',
-                              fontSize: 14,
-                              color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6B7280',
-                              fontFamily: 'Plus Jakarta Sans',
-                              fontVariantNumeric: 'tabular-nums'
-                            }}>
-                              {formatFileSize(doc.fileSize)}
-                            </td>
-
-                            {/* Actions Cell */}
-                            <td style={{
-                              padding: '14px 16px',
-                              textAlign: 'center',
-                              position: 'relative'
-                            }} data-dropdown>
-                              <button
-                                data-dropdown-id={`list-${doc.id}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenDropdownId(openDropdownId === doc.id ? null : doc.id);
-                                }}
-                                style={{
-                                  width: 32,
-                                  height: 32,
-                                  background: 'transparent',
-                                  border: 'none',
-                                  borderRadius: 6,
-                                  fontSize: 18,
-                                  color: '#9CA3AF',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  margin: '0 auto'
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = '#F3F4F6';
-                                  e.currentTarget.style.color = '#6B7280';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = 'transparent';
-                                  e.currentTarget.style.color = '#9CA3AF';
-                                }}
-                              >
-                                ⋯
-                              </button>
+                            <span style={{ color: '#6C6B6E', fontSize: 16, lineHeight: 1 }}>⋯</span>
+                          </button>
 
                               {openDropdownId === doc.id && (
                                 <div
@@ -2516,11 +2480,9 @@ const CategoryDetail = () => {
                                   </button>
                                 </div>
                               )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

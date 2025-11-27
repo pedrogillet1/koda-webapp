@@ -156,6 +156,10 @@ const Settings = () => {
   // Notifications popup
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
 
+  // Sorting state for Recently Added table
+  const [sortColumn, setSortColumn] = useState('date'); // 'name', 'type', 'size', 'date'
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' or 'desc'
+
   // Load notification preferences from localStorage
   useEffect(() => {
     const savedPreferences = localStorage.getItem('notificationPreferences');
@@ -487,9 +491,68 @@ const Settings = () => {
     }
   };
 
-  // Get 5 most recent documents
+  // Helper function to get file type for sorting
+  const getFileTypeForSort = (doc) => {
+    const filename = doc?.filename || '';
+    const ext = filename.match(/\.([^.]+)$/)?.[1]?.toUpperCase() || '';
+    return ext || 'File';
+  };
+
+  // Helper function to get display file type
+  const getFileTypeDisplay = (doc) => {
+    const mimeType = doc?.mimeType || '';
+    const filename = doc?.filename || '';
+    const ext = filename.match(/\.([^.]+)$/)?.[1]?.toUpperCase() || '';
+
+    if (mimeType === 'application/pdf' || ext === 'PDF') return 'PDF';
+    if (ext === 'DOC') return 'DOC';
+    if (ext === 'DOCX') return 'DOCX';
+    if (ext === 'XLS') return 'XLS';
+    if (ext === 'XLSX') return 'XLSX';
+    if (ext === 'PPT') return 'PPT';
+    if (ext === 'PPTX') return 'PPTX';
+    if (ext === 'TXT') return 'TXT';
+    if (ext === 'CSV') return 'CSV';
+    if (ext === 'PNG') return 'PNG';
+    if (ext === 'JPG' || ext === 'JPEG') return 'JPG';
+    if (ext === 'GIF') return 'GIF';
+    if (ext === 'WEBP') return 'WEBP';
+    if (ext === 'MP4') return 'MP4';
+    if (ext === 'MOV') return 'MOV';
+    if (ext === 'AVI') return 'AVI';
+    if (ext === 'MKV') return 'MKV';
+    if (ext === 'MP3') return 'MP3';
+    if (ext === 'WAV') return 'WAV';
+    if (ext === 'AAC') return 'AAC';
+    if (ext === 'M4A') return 'M4A';
+
+    return ext || 'File';
+  };
+
+  // Get 5 most recent documents with sorting
   const recentDocuments = documents
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice()
+    .sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortColumn) {
+        case 'name':
+          comparison = (a.filename || '').localeCompare(b.filename || '');
+          break;
+        case 'type':
+          comparison = getFileTypeForSort(a).localeCompare(getFileTypeForSort(b));
+          break;
+        case 'size':
+          comparison = (a.fileSize || 0) - (b.fileSize || 0);
+          break;
+        case 'date':
+        default:
+          comparison = new Date(a.createdAt) - new Date(b.createdAt);
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    })
     .slice(0, 5);
 
   const storagePercentage = (totalStorage / storageLimit) * 100;
@@ -1085,12 +1148,61 @@ const Settings = () => {
               </div>
 
               {recentDocuments.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {/* Table Header */}
+                  {!isMobile && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2fr 1fr 1fr 1fr',
+                      gap: 12,
+                      padding: '10px 14px',
+                      borderBottom: '1px solid #E6E6EC',
+                      marginBottom: 8
+                    }}>
+                      {[
+                        { key: 'name', label: 'Name' },
+                        { key: 'type', label: 'Type' },
+                        { key: 'size', label: 'Size' },
+                        { key: 'date', label: 'Date' }
+                      ].map(col => (
+                        <div
+                          key={col.key}
+                          onClick={() => {
+                            if (sortColumn === col.key) {
+                              setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortColumn(col.key);
+                              setSortDirection('asc');
+                            }
+                          }}
+                          style={{
+                            color: sortColumn === col.key ? '#171717' : '#6C6B6E',
+                            fontSize: 11,
+                            fontFamily: 'Plus Jakarta Sans',
+                            fontWeight: '600',
+                            textTransform: 'uppercase',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            userSelect: 'none'
+                          }}
+                        >
+                          {col.label}
+                          {sortColumn === col.key && (
+                            <span style={{ fontSize: 10 }}>
+                              {sortDirection === 'asc' ? '▲' : '▼'}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {recentDocuments.map((doc) => (
                     <div
                       key={doc.id}
                       onClick={() => navigate(`/document/${doc.id}`)}
-                      style={{
+                      style={isMobile ? {
                         display: 'flex',
                         alignItems: 'center',
                         gap: 12,
@@ -1099,19 +1211,63 @@ const Settings = () => {
                         background: '#F5F5F5',
                         cursor: 'pointer',
                         transition: 'background 0.2s ease'
+                      } : {
+                        display: 'grid',
+                        gridTemplateColumns: '2fr 1fr 1fr 1fr',
+                        gap: 12,
+                        alignItems: 'center',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        background: 'white',
+                        border: '1px solid #E6E6EC',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        marginBottom: 0
                       }}
-                      onMouseOver={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                      onMouseOut={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                      onMouseEnter={(e) => {
+                        if (!isMobile) {
+                          e.currentTarget.style.background = '#F9F9F9';
+                        } else {
+                          e.currentTarget.style.background = '#E6E6EC';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isMobile) {
+                          e.currentTarget.style.background = 'white';
+                        } else {
+                          e.currentTarget.style.background = '#F5F5F5';
+                        }
+                      }}
                     >
-                      <img src={getFileIcon(doc)} alt="File icon" style={{ width: 40, height: 40, aspectRatio: '1/1' }} />
-                      <div style={{ flex: 1, overflow: 'hidden' }}>
-                        <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {doc.filename}
-                        </div>
-                        <div style={{ color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 4 }}>
-                          {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
+                      {isMobile ? (
+                        <>
+                          <img src={getFileIcon(doc)} alt="File icon" style={{ width: 40, height: 40, aspectRatio: '1/1' }} />
+                          <div style={{ flex: 1, overflow: 'hidden' }}>
+                            <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {doc.filename}
+                            </div>
+                            <div style={{ color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 4 }}>
+                              {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Name Column */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
+                            <img src={getFileIcon(doc)} alt="File icon" style={{ width: 32, height: 32, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain' }} />
+                            <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {doc.filename}
+                            </div>
+                          </div>
+                          {/* Type Column */}
+                          <div style={{ color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{getFileTypeDisplay(doc)}</div>
+                          {/* Size Column */}
+                          <div style={{ color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{formatBytes(doc.fileSize)}</div>
+                          {/* Date Column */}
+                          <div style={{ color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{new Date(doc.createdAt).toLocaleDateString()}</div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>

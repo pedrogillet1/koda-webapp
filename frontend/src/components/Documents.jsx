@@ -101,7 +101,10 @@ const Documents = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadCategoryId, setUploadCategoryId] = useState(null);
-  const [showAskKoda, setShowAskKoda] = useState(true);
+  const [showAskKoda, setShowAskKoda] = useState(() => {
+    // Only show if not dismissed in this session
+    return sessionStorage.getItem('askKodaDismissed') !== 'true';
+  });
   const [showUniversalUploadModal, setShowUniversalUploadModal] = useState(false);
   const [showCreateFromMoveModal, setShowCreateFromMoveModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -112,6 +115,10 @@ const Documents = () => {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [categoriesRefreshKey, setCategoriesRefreshKey] = useState(0);
   const [dragOverCategoryId, setDragOverCategoryId] = useState(null);
+
+  // Sorting state for Your Files table
+  const [sortColumn, setSortColumn] = useState('date'); // 'name', 'type', 'size', 'date'
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' or 'desc'
 
   // Multi-select functionality
   const {
@@ -1542,8 +1549,89 @@ const Documents = () => {
               </div>
 
               {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).length > 0 ? (
-                <div style={{display: 'flex', flexDirection: 'column', gap: 16, flex: 1, overflowY: 'auto', minHeight: 0}}>
-                  {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).map((doc) => {
+                <div style={{display: 'flex', flexDirection: 'column', gap: 0, flex: 1, overflowY: 'auto', minHeight: 0}}>
+                  {/* Table Header */}
+                  {!isMobile && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
+                      gap: 12,
+                      padding: '10px 14px',
+                      borderBottom: '1px solid #E6E6EC',
+                      marginBottom: 8
+                    }}>
+                      {[
+                        { key: 'name', label: 'Name' },
+                        { key: 'type', label: 'Type' },
+                        { key: 'size', label: 'Size' },
+                        { key: 'date', label: 'Date' }
+                      ].map(col => (
+                        <div
+                          key={col.key}
+                          onClick={() => {
+                            if (sortColumn === col.key) {
+                              setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                            } else {
+                              setSortColumn(col.key);
+                              setSortDirection('asc');
+                            }
+                          }}
+                          style={{
+                            color: sortColumn === col.key ? '#171717' : '#6C6B6E',
+                            fontSize: 11,
+                            fontFamily: 'Plus Jakarta Sans',
+                            fontWeight: '600',
+                            textTransform: 'uppercase',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            userSelect: 'none'
+                          }}
+                        >
+                          {col.label}
+                          {sortColumn === col.key && (
+                            <span style={{ fontSize: 10 }}>
+                              {sortDirection === 'asc' ? '▲' : '▼'}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      <div></div>
+                    </div>
+                  )}
+                  {(() => {
+                    // Helper function to get file type for sorting
+                    const getFileTypeForSort = (doc) => {
+                      const filename = doc?.filename || '';
+                      const ext = filename.match(/\.([^.]+)$/)?.[1]?.toUpperCase() || '';
+                      return ext || 'File';
+                    };
+
+                    // Sort documents based on current sort column and direction
+                    const sortedDocs = contextDocuments.slice().sort((a, b) => {
+                      let comparison = 0;
+
+                      switch (sortColumn) {
+                        case 'name':
+                          comparison = (a.filename || '').localeCompare(b.filename || '');
+                          break;
+                        case 'type':
+                          comparison = getFileTypeForSort(a).localeCompare(getFileTypeForSort(b));
+                          break;
+                        case 'size':
+                          comparison = (a.fileSize || 0) - (b.fileSize || 0);
+                          break;
+                        case 'date':
+                        default:
+                          comparison = new Date(a.createdAt) - new Date(b.createdAt);
+                          break;
+                      }
+
+                      return sortDirection === 'asc' ? comparison : -comparison;
+                    });
+
+                    return sortedDocs.slice(0, 6).map((doc) => {
                     // ✅ Check document status for visual indicators
                     const isUploading = doc.status === 'uploading';
                     // Processing status hidden - documents should display normally
@@ -1636,6 +1724,38 @@ const Documents = () => {
                       return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
                     };
 
+                    const getFileType = (doc) => {
+                      const mimeType = doc?.mimeType || '';
+                      const filename = doc?.filename || '';
+
+                      // Get extension from filename
+                      const ext = filename.match(/\.([^.]+)$/)?.[1]?.toUpperCase() || '';
+
+                      if (mimeType === 'application/pdf' || ext === 'PDF') return 'PDF';
+                      if (ext === 'DOC') return 'DOC';
+                      if (ext === 'DOCX') return 'DOCX';
+                      if (ext === 'XLS') return 'XLS';
+                      if (ext === 'XLSX') return 'XLSX';
+                      if (ext === 'PPT') return 'PPT';
+                      if (ext === 'PPTX') return 'PPTX';
+                      if (ext === 'TXT') return 'TXT';
+                      if (ext === 'CSV') return 'CSV';
+                      if (ext === 'PNG') return 'PNG';
+                      if (ext === 'JPG' || ext === 'JPEG') return 'JPG';
+                      if (ext === 'GIF') return 'GIF';
+                      if (ext === 'WEBP') return 'WEBP';
+                      if (ext === 'MP4') return 'MP4';
+                      if (ext === 'MOV') return 'MOV';
+                      if (ext === 'AVI') return 'AVI';
+                      if (ext === 'MKV') return 'MKV';
+                      if (ext === 'MP3') return 'MP3';
+                      if (ext === 'WAV') return 'WAV';
+                      if (ext === 'AAC') return 'AAC';
+                      if (ext === 'M4A') return 'M4A';
+
+                      return ext || 'File';
+                    };
+
                     return (
                       <div
                         key={doc.id}
@@ -1651,7 +1771,7 @@ const Documents = () => {
                           e.currentTarget.style.opacity = '1';
                         }}
                         onClick={() => navigate(`/document/${doc.id}`)}
-                        style={{
+                        style={isMobile ? {
                           display: 'flex',
                           alignItems: 'center',
                           gap: 14,
@@ -1661,75 +1781,87 @@ const Documents = () => {
                           opacity: isUploading ? 0.8 : 1,
                           border: 'none',
                           cursor: 'grab',
-                          transition: 'all 0.2s ease'
+                          transition: 'all 0.2s ease',
+                          marginBottom: 12
+                        } : {
+                          display: 'grid',
+                          gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
+                          gap: 12,
+                          alignItems: 'center',
+                          padding: '10px 14px',
+                          borderRadius: 10,
+                          background: isUploading ? '#FFF9E6' : 'white',
+                          border: '1px solid #E6E6EC',
+                          opacity: isUploading ? 0.8 : 1,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          marginBottom: 8
                         }}
                         onMouseEnter={(e) => {
-                          if (!isUploading) {
-                            e.currentTarget.style.background = '#E6E6EC';
+                          if (!isUploading && !isMobile) {
+                            e.currentTarget.style.background = '#F9F9F9';
                           }
                         }}
                         onMouseLeave={(e) => {
-                          if (!isUploading) {
-                            e.currentTarget.style.background = '#F5F5F5';
+                          if (!isUploading && !isMobile) {
+                            e.currentTarget.style.background = 'white';
                           }
                         }}
                       >
-                        <img
-                          src={getFileIcon(doc)}
-                          alt="File icon"
-                          style={{
-                            width: 48,
-                            height: 48,
-                            aspectRatio: '1/1',
-                            imageRendering: '-webkit-optimize-contrast',
-                            objectFit: 'contain',
-                            shapeRendering: 'geometricPrecision'
-                          }}
-                        />
-                        <div style={{flex: 1, overflow: 'hidden'}}>
-                          <div style={{color: '#32302C', fontSize: 17, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
-                            {doc.filename}
-                          </div>
-                          <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 5}}>
-                            {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
-                          </div>
-
-                          {/* ✅ Status indicator */}
-                          {isUploading && (
-                            <div style={{
-                              fontSize: 12,
-                              color: '#F59E0B',
-                              fontFamily: 'Plus Jakarta Sans',
-                              fontWeight: '600',
-                              marginTop: 6,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4
-                            }}>
-                              <span>⏳</span>
-                              <span>Uploading...</span>
+                        {isMobile ? (
+                          <>
+                            <img
+                              src={getFileIcon(doc)}
+                              alt="File icon"
+                              style={{
+                                width: 48,
+                                height: 48,
+                                aspectRatio: '1/1',
+                                imageRendering: '-webkit-optimize-contrast',
+                                objectFit: 'contain',
+                                shapeRendering: 'geometricPrecision'
+                              }}
+                            />
+                            <div style={{flex: 1, overflow: 'hidden'}}>
+                              <div style={{color: '#32302C', fontSize: 17, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                                {doc.filename}
+                              </div>
+                              <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 5}}>
+                                {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
+                              </div>
+                              {isUploading && (
+                                <div style={{fontSize: 12, color: '#F59E0B', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4}}>
+                                  <span>⏳</span><span>Uploading...</span>
+                                </div>
+                              )}
+                              {isFailed && (
+                                <div style={{fontSize: 12, color: '#EF4444', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4}}>
+                                  <span>❌</span><span>Failed</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-
-                          {/* Processing badge - HIDDEN: Documents should display normally regardless of status */}
-                          {/* Users don't need to see processing status - it happens silently in the background */}
-
-                          {isFailed && (
-                            <div style={{
-                              fontSize: 12,
-                              color: '#EF4444',
-                              fontFamily: 'Plus Jakarta Sans',
-                              fontWeight: '600',
-                              marginTop: 6,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4
-                            }}>
-                              <span>❌</span>
-                              <span>Failed</span>
+                          </>
+                        ) : (
+                          <>
+                            {/* Name Column */}
+                            <div style={{display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden'}}>
+                              <img
+                                src={getFileIcon(doc)}
+                                alt="File icon"
+                                style={{width: 32, height: 32, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain'}}
+                              />
+                              <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                                {doc.filename}
+                              </div>
                             </div>
-                          )}
-                        </div>
+                            {/* Type Column */}
+                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{getFileType(doc)}</div>
+                            {/* Size Column */}
+                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{formatBytes(doc.fileSize)}</div>
+                            {/* Date Column */}
+                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{new Date(doc.createdAt).toLocaleDateString()}</div>
+                          </>
+                        )}
                         <div style={{position: 'relative'}} data-dropdown>
                           <button
                             ref={(el) => {
@@ -1913,7 +2045,8 @@ const Documents = () => {
                         </div>
                       </div>
                     );
-                  })}
+                  });
+                  })()}
                 </div>
               ) : (
                 <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: 200}}>
@@ -2528,6 +2661,7 @@ const Documents = () => {
           <button
             onClick={(e) => {
               e.stopPropagation();
+              sessionStorage.setItem('askKodaDismissed', 'true');
               setShowAskKoda(false);
             }}
             style={{
