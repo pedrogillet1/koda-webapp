@@ -633,6 +633,23 @@ export const DocumentsProvider = ({ children }) => {
           }
           return [newDocument, ...prev];
         });
+
+        // ✅ FIX: Update folder document count when document is added
+        if (newDocument.folderId) {
+          setFolders(prev => prev.map(folder => {
+            if (folder.id === newDocument.folderId) {
+              return {
+                ...folder,
+                _count: {
+                  ...folder._count,
+                  documents: (folder._count?.documents || 0) + 1,
+                  totalDocuments: (folder._count?.totalDocuments || 0) + 1,
+                }
+              };
+            }
+            return folder;
+          }));
+        }
       }
 
       // ✅ Invalidate cache so next fetchAllData() gets fresh data
