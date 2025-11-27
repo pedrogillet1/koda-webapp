@@ -1562,7 +1562,7 @@ const Documents = () => {
             <div style={{width: isMobile ? '100%' : '60%', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24}}>
                 <div style={{color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
-                {contextDocuments.length > 6 && (
+                {contextDocuments.filter(doc => !doc.folderId && !doc.folder).length > 6 && (
                   <div
                     onClick={() => navigate('/category/recently-added')}
                     style={{color: '#171717', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '22.40px', cursor: 'pointer'}}
@@ -1572,7 +1572,7 @@ const Documents = () => {
                 )}
               </div>
 
-              {contextDocuments.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6).length > 0 ? (
+              {contextDocuments.filter(doc => !doc.folderId && !doc.folder).length > 0 ? (
                 <div style={{display: 'flex', flexDirection: 'column', gap: 0, flex: 1, overflowY: 'auto', minHeight: 0}}>
                   {/* Table Header */}
                   {!isMobile && (
@@ -1632,8 +1632,12 @@ const Documents = () => {
                       return ext || 'File';
                     };
 
+                    // Filter out documents that are in folders (only show root-level documents)
+                    // Check both folderId (scalar) and folder (relation object) for robustness
+                    const rootDocuments = contextDocuments.filter(doc => !doc.folderId && !doc.folder);
+
                     // Sort documents based on current sort column and direction
-                    const sortedDocs = contextDocuments.slice().sort((a, b) => {
+                    const sortedDocs = rootDocuments.slice().sort((a, b) => {
                       let comparison = 0;
 
                       switch (sortColumn) {
