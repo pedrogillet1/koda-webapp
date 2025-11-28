@@ -936,7 +936,7 @@ const Settings = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#181818',
-                fontSize: 20,
+                fontSize: 28,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700'
               }}>

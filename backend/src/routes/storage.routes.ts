@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticateToken } from '../middleware/auth.middleware';
 import * as storageController from '../controllers/storage.controller';
 
 const router = Router();
 
 // All routes require authentication
-router.use(authenticate);
+router.use(authenticateToken);
 
 /**
  * GET /api/storage
