@@ -2612,7 +2612,6 @@ const Documents = () => {
       <UniversalUploadModal
         isOpen={showUniversalUploadModal}
         onClose={() => {
-          console.log('📁 Documents - Closing modal, clearing droppedFiles');
           setShowUniversalUploadModal(false);
           setDroppedFiles(null);
         }}
@@ -2622,12 +2621,6 @@ const Documents = () => {
         }}
         initialFiles={droppedFiles}
       />
-      {/* Debug: Log when props change */}
-      {console.log('📁 Documents - Rendering modal with:', {
-        isOpen: showUniversalUploadModal,
-        droppedFiles: droppedFiles,
-        fileCount: droppedFiles?.length
-      })}
 
       {/* Delete Confirmation Modal */}
       <DeleteConfirmationModal
