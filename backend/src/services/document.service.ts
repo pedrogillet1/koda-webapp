@@ -12,6 +12,7 @@ import encryptionService from './encryption.service';
 import pptxProcessorService from './pptxProcessor.service';
 import nerService from './ner.service';
 import fileValidator from './fileValidator.service';
+import storageService from './storage.service';
 import { invalidateUserCache } from '../controllers/batch.controller';
 import fs from 'fs';
 import os from 'os';
@@ -255,6 +256,9 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
       folder: true,
     },
   });
+
+  // 📊 STORAGE TRACKING: Increment user storage usage
+  await storageService.incrementStorage(userId, encryptedFileBuffer.length);
 
   // ⚡ ASYNCHRONOUS PROCESSING - Don't wait for all steps to complete
   console.log('🔄 Starting document processing asynchronously...');
@@ -2735,6 +2739,9 @@ export const deleteDocument = async (documentId: string, userId: string) => {
     throw new Error('Unauthorized');
   }
 
+  // Store file size before deletion for storage tracking
+  const fileSize = document.fileSize;
+
   // Delete from GCS
   await deleteFile(document.encryptedFilename);
 
@@ -2751,6 +2758,9 @@ export const deleteDocument = async (documentId: string, userId: string) => {
   await prisma.document.delete({
     where: { id: documentId },
   });
+
+  // 📊 STORAGE TRACKING: Decrement user storage usage
+  await storageService.decrementStorage(userId, fileSize);
 
   // Invalidate caches
   await cacheService.invalidateUserCache(userId);

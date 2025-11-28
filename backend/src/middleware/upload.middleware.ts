@@ -1,5 +1,7 @@
 import multer from 'multer';
 import path from 'path';
+import { Request, Response, NextFunction } from 'express';
+import storageService from '../services/storage.service';
 
 // Configure multer for memory storage (we'll upload directly to GCS)
 const storage = multer.memoryStorage();
@@ -142,3 +144,120 @@ export const uploadAudio = multer({
     fileSize: 25 * 1024 * 1024, // 25MB limit for audio
   },
 }).single('audio');
+
+/**
+ * Middleware to check storage capacity before upload
+ * Should be used BEFORE multer middleware in the route chain
+ */
+export const checkStorageCapacity = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    // Get file size from Content-Length header
+    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+
+    if (contentLength === 0) {
+      // If we can't determine size from header, let it through
+      // The actual check will happen after multer processes the file
+      next();
+      return;
+    }
+
+    // Check capacity
+    const capacityCheck = await storageService.hasCapacity(req.user.id, contentLength);
+
+    if (!capacityCheck.hasCapacity) {
+      console.log(`🚫 [Storage] Upload blocked - insufficient storage`);
+      console.log(`   Required: ${storageService.formatBytes(capacityCheck.required)}`);
+      console.log(`   Available: ${storageService.formatBytes(capacityCheck.available)}`);
+      console.log(`   Shortfall: ${storageService.formatBytes(capacityCheck.shortfall)}`);
+
+      res.status(507).json({
+        error: 'Insufficient storage',
+        code: 'STORAGE_LIMIT_EXCEEDED',
+        message: `You don't have enough storage space. You need ${storageService.formatBytes(capacityCheck.required)} but only have ${storageService.formatBytes(capacityCheck.available)} available.`,
+        required: capacityCheck.required,
+        available: capacityCheck.available,
+        shortfall: capacityCheck.shortfall,
+        requiredFormatted: storageService.formatBytes(capacityCheck.required),
+        availableFormatted: storageService.formatBytes(capacityCheck.available),
+        shortfallFormatted: storageService.formatBytes(capacityCheck.shortfall)
+      });
+      return;
+    }
+
+    next();
+  } catch (error) {
+    const err = error as Error;
+    console.error('❌ [Storage] Error checking capacity:', err.message);
+    // Don't block upload on capacity check errors
+    next();
+  }
+};
+
+/**
+ * Middleware to check storage capacity AFTER multer has processed the file
+ * Use this if content-length header is unreliable
+ */
+export const checkStorageCapacityAfterUpload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    // Calculate total file size from uploaded files
+    let totalSize = 0;
+
+    if (req.file) {
+      totalSize = req.file.size;
+    } else if (req.files) {
+      if (Array.isArray(req.files)) {
+        totalSize = req.files.reduce((sum, file) => sum + file.size, 0);
+      } else {
+        // req.files is an object with field names as keys
+        for (const fieldName of Object.keys(req.files)) {
+          const fieldFiles = req.files[fieldName];
+          totalSize += fieldFiles.reduce((sum: number, file: Express.Multer.File) => sum + file.size, 0);
+        }
+      }
+    }
+
+    if (totalSize === 0) {
+      next();
+      return;
+    }
+
+    // Check capacity
+    const capacityCheck = await storageService.hasCapacity(req.user.id, totalSize);
+
+    if (!capacityCheck.hasCapacity) {
+      console.log(`🚫 [Storage] Upload blocked after processing - insufficient storage`);
+      console.log(`   Required: ${storageService.formatBytes(capacityCheck.required)}`);
+      console.log(`   Available: ${storageService.formatBytes(capacityCheck.available)}`);
+
+      res.status(507).json({
+        error: 'Insufficient storage',
+        code: 'STORAGE_LIMIT_EXCEEDED',
+        message: `You don't have enough storage space. You need ${storageService.formatBytes(capacityCheck.required)} but only have ${storageService.formatBytes(capacityCheck.available)} available.`,
+        required: capacityCheck.required,
+        available: capacityCheck.available,
+        shortfall: capacityCheck.shortfall,
+        requiredFormatted: storageService.formatBytes(capacityCheck.required),
+        availableFormatted: storageService.formatBytes(capacityCheck.available),
+        shortfallFormatted: storageService.formatBytes(capacityCheck.shortfall)
+      });
+      return;
+    }
+
+    next();
+  } catch (error) {
+    const err = error as Error;
+    console.error('❌ [Storage] Error checking capacity after upload:', err.message);
+    // Don't block upload on capacity check errors
+    next();
+  }
+};

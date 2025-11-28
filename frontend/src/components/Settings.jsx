@@ -72,7 +72,11 @@ const Settings = () => {
     const cached = sessionStorage.getItem('koda_settings_totalStorage');
     return cached ? parseInt(cached, 10) : 0;
   });
-  const [storageLimit] = useState(1024 * 1024 * 1024); // 1GB in bytes
+  const [storageLimit, setStorageLimit] = useState(() => {
+    // Load from cache or default to 5GB (beta limit)
+    const cached = sessionStorage.getItem('koda_settings_storageLimit');
+    return cached ? parseInt(cached, 10) : 5 * 1024 * 1024 * 1024; // 5GB default
+  });
   const [user, setUser] = useState(() => {
     // Load from cache for instant display
     const cached = localStorage.getItem('user');
@@ -198,6 +202,25 @@ const Settings = () => {
     fetchUser();
   }, []);
 
+  // Fetch storage info from API
+  useEffect(() => {
+    const fetchStorageInfo = async () => {
+      try {
+        const response = await api.get('/api/storage');
+        if (response.data) {
+          setTotalStorage(response.data.used || 0);
+          setStorageLimit(response.data.limit || 5 * 1024 * 1024 * 1024);
+          sessionStorage.setItem('koda_settings_totalStorage', (response.data.used || 0).toString());
+          sessionStorage.setItem('koda_settings_storageLimit', (response.data.limit || 5 * 1024 * 1024 * 1024).toString());
+        }
+      } catch (error) {
+        console.error('Error fetching storage info:', error);
+      }
+    };
+
+    fetchStorageInfo();
+  }, []);
+
   // Fetch documents and calculate statistics
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -205,10 +228,6 @@ const Settings = () => {
         const response = await api.get('/api/documents');
         const docs = response.data.documents || [];
         setDocuments(docs);
-
-        // Calculate total storage
-        const total = docs.reduce((sum, doc) => sum + (doc.fileSize || 0), 0);
-        setTotalStorage(total);
 
         // Calculate file breakdown by type
         const breakdown = {
@@ -258,7 +277,6 @@ const Settings = () => {
         // Cache all settings data
         sessionStorage.setItem('koda_settings_documents', JSON.stringify(docs));
         sessionStorage.setItem('koda_settings_fileData', JSON.stringify(chartData));
-        sessionStorage.setItem('koda_settings_totalStorage', total.toString());
       } catch (error) {
         console.error('Error fetching documents:', error);
       }
@@ -1065,7 +1083,7 @@ const Settings = () => {
                 <div style={{ color: '#6C6B6E', fontSize: isMobile ? 12 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', letterSpacing: '0.5px' }}>Storage</div>
                 <div style={{ marginTop: isMobile ? 0 : 4 }}>
                   <span style={{ color: '#32302C', fontSize: isMobile ? 20 : 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: isMobile ? '28px' : '40px' }}>{formatBytes(totalStorage)} </span>
-                  <span style={{ color: '#B9B9B9', fontSize: isMobile ? 20 : 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: isMobile ? '28px' : '40px' }}>/ 1GB</span>
+                  <span style={{ color: '#B9B9B9', fontSize: isMobile ? 20 : 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: isMobile ? '28px' : '40px' }}>/ {formatBytes(storageLimit)}</span>
                 </div>
               </div>
             </div>

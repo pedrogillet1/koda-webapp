@@ -22,6 +22,7 @@ import searchRoutes from './routes/search.routes';
 import memoryRoutes from './routes/memory.routes';
 import devRoutes from './routes/dev.routes';
 import presignedUrlRoutes from './routes/presigned-url.routes';
+import storageRoutes from './routes/storage.routes';
 // TODO: Temporarily disabled routes with deleted service dependencies
 // import dataProtectionRoutes from './routes/dataProtection.routes';
 // import documentGenerationRoutes from './routes/documentGeneration.routes';
@@ -206,6 +207,7 @@ app.use('/api/batch', batchRoutes); // Batch API endpoints for optimized data lo
 app.use('/api/search', searchRoutes); // Semantic search endpoints using vector embeddings
 app.use('/api/memories', memoryRoutes); // Cross-session memory management endpoints
 app.use('/api/presigned-urls', presignedUrlRoutes); // Presigned URL generation for direct-to-S3 uploads
+app.use('/api/storage', storageRoutes); // Storage usage and limits (5GB beta)
 // DEV ONLY: Development endpoints
 if (config.NODE_ENV === 'development') {
   app.use('/api/dev', devRoutes);
