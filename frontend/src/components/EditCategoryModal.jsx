@@ -485,7 +485,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                     }
                   }}
                 >
-                  <img src={getFileIcon(doc.filename)} alt="File" style={{width: 40, height: 40, flexShrink: 0}} />
+                  <img src={getFileIcon(doc.filename)} alt="File" style={{width: 40, height: 40, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
                   <div style={{
                     flex: '1 1 0',
                     flexDirection: 'column',

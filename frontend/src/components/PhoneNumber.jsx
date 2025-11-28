@@ -11,6 +11,7 @@ const PhoneNumber = () => {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [phoneFocused, setPhoneFocused] = useState(false);
     const navigate = useNavigate();
     const { user } = useAuth();
 
@@ -65,53 +66,171 @@ const PhoneNumber = () => {
     };
 
     return (
-        <div style={{width: '100%', height: '100%', background: 'white', position: 'relative'}}>
-            <div onClick={() => navigate(-1)} style={{position: 'absolute', top: 32, left: 32, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
-                <img src={backArrow} alt="Back" />
-                <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>Back</div>
-            </div>
-            <div style={{width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-                <div style={{width: 500, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 32, display: 'flex'}}>
-                    <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
-                        <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '40px', wordWrap: 'break-word'}}>Enter Your Phone</div>
-                        <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', wordWrap: 'break-word'}}>Authenticate your account via SMS.</div>
-                    </div>
-                    <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 20, display: 'flex'}}>
-                        <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex'}}>
-                            <label style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>Phone Number <span style={{color: '#ef4444'}}>*</span></label>
-                            <div style={{alignSelf: 'stretch', minHeight: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', overflow: 'visible', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
-                                <PhoneInput
-                                    international
-                                    defaultCountry="US"
-                                    value={phoneNumber}
-                                    onChange={setPhoneNumber}
-                                    placeholder="Enter phone number"
-                                    style={{
-                                        flex: '1 1 0',
-                                        width: '100%',
-                                        border: 'none',
-                                        background: 'transparent'
-                                    }}
-                                    className="custom-phone-input"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                    {error && (
-                        <div style={{alignSelf: 'stretch', background: '#FEE2E2', color: '#DC2626', padding: '12px 16px', borderRadius: 8, fontSize: 14}}>
-                            {error}
-                        </div>
-                    )}
-                    <div style={{alignSelf: 'stretch', borderRadius: 12, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 24, display: 'flex'}}>
-                        <button onClick={handleSendCode} disabled={isLoading} style={{alignSelf: 'stretch', height: 52, borderRadius: 14, border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer', padding: 0, background: 'transparent', opacity: isLoading ? 0.6 : 1}}>
-                            <div style={{width: '100%', height: 52, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex'}}>
-                                <div style={{color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>
-                                    {isLoading ? 'Sending Code...' : 'Send Code'}
-                                </div>
-                            </div>
-                        </button>
+        <div style={{
+            width: '100vw',
+            height: '100vh',
+            background: '#FFF',
+            position: 'relative'
+        }}>
+            {/* Back Button */}
+            <button
+                onClick={() => navigate(-1)}
+                style={{
+                    position: 'absolute',
+                    top: '24px',
+                    left: '24px',
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '16px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: '#000',
+                    padding: 0
+                }}
+            >
+                ← Back
+            </button>
+
+            {/* Content Container */}
+            <div style={{
+                width: '100%',
+                maxWidth: '400px',
+                margin: '0 auto',
+                padding: '0 24px',
+                boxSizing: 'border-box',
+                paddingTop: '140px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center'
+            }}>
+                {/* Icon */}
+                <div style={{
+                    marginBottom: '32px',
+                    fontSize: '72px',
+                    textShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                    display: 'inline-block',
+                    transform: 'rotate(-15deg)'
+                }}>
+                    📱
+                </div>
+
+                <h1 style={{
+                    fontSize: '32px',
+                    fontWeight: '600',
+                    textAlign: 'center',
+                    margin: 0,
+                    marginBottom: '16px'
+                }}>
+                    Enter Your Phone
+                </h1>
+
+                <p style={{
+                    fontSize: '16px',
+                    color: '#666',
+                    textAlign: 'center',
+                    margin: 0,
+                    marginBottom: '48px',
+                    lineHeight: '1.5'
+                }}>
+                    Authenticate your account via SMS.
+                </p>
+
+                {/* Phone Input */}
+                <div style={{
+                    width: '100%',
+                    marginBottom: '12px'
+                }}>
+                    <label style={{
+                        display: 'block',
+                        color: '#32302C',
+                        fontSize: 14,
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontWeight: '600',
+                        lineHeight: '20px',
+                        marginBottom: '6px',
+                        textAlign: 'left'
+                    }}>
+                        Phone Number <span style={{color: '#ef4444'}}>*</span>
+                    </label>
+                    <div
+                        onFocus={() => setPhoneFocused(true)}
+                        onBlur={() => setPhoneFocused(false)}
+                        style={{
+                            width: '100%',
+                            minHeight: 52,
+                            paddingLeft: 18,
+                            paddingRight: 18,
+                            paddingTop: 10,
+                            paddingBottom: 10,
+                            background: 'transparent',
+                            overflow: 'visible',
+                            borderRadius: 26,
+                            border: phoneFocused ? '1px solid #181818' : '1px solid #E0E0E0',
+                            boxSizing: 'border-box',
+                            display: 'flex',
+                            alignItems: 'center',
+                            transform: phoneFocused ? 'scale(1.02)' : 'scale(1)',
+                            transition: 'transform 0.2s ease, border-color 0.2s ease'
+                        }}
+                    >
+                        <PhoneInput
+                            international
+                            defaultCountry="US"
+                            value={phoneNumber}
+                            onChange={setPhoneNumber}
+                            placeholder="Enter phone number"
+                            style={{
+                                flex: '1 1 0',
+                                width: '100%',
+                                border: 'none',
+                                background: 'transparent'
+                            }}
+                            className="custom-phone-input"
+                        />
                     </div>
                 </div>
+
+                {error && (
+                    <div style={{
+                        width: '100%',
+                        background: '#FEE2E2',
+                        color: '#DC2626',
+                        padding: '12px 16px',
+                        borderRadius: 26,
+                        fontSize: 14,
+                        marginBottom: '12px',
+                        boxSizing: 'border-box'
+                    }}>
+                        {error}
+                    </div>
+                )}
+
+                {/* Send Code Button */}
+                <button
+                    onClick={handleSendCode}
+                    disabled={isLoading}
+                    style={{
+                        width: '100%',
+                        height: '52px',
+                        padding: '14px 24px',
+                        marginTop: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(24, 24, 24, 0.90)',
+                        border: 'none',
+                        borderRadius: '26px',
+                        cursor: isLoading ? 'not-allowed' : 'pointer',
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        color: 'white',
+                        opacity: isLoading ? 0.6 : 1
+                    }}
+                >
+                    {isLoading ? 'Sending Code...' : 'Send Code'}
+                </button>
             </div>
         </div>
     );

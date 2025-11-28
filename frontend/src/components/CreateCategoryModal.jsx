@@ -379,7 +379,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
                   }
                 }}
               >
-                <CategoryIcon emoji={emoji} style={{fontSize: 20}} />
+                <CategoryIcon emoji={emoji} size={20} />
               </button>
             ))}
           </div>
@@ -513,7 +513,8 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
                       imageRendering: '-webkit-optimize-contrast',
                       objectFit: 'contain',
                       shapeRendering: 'geometricPrecision',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                     }}
                   />
                   <div style={{

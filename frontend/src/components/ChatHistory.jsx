@@ -733,7 +733,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
             <style>{titleAnimationStyles}</style>
 
             <div style={{
-                width: isExpanded ? 320 : 80,
+                width: isExpanded ? 314 : 64,
                 height: '100%',
                 padding: 20,
                 background: 'white',
@@ -758,10 +758,10 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                             justifyContent: 'center',
                             alignItems: 'center',
                             cursor: 'pointer',
-                            transition: 'background 200ms ease-in-out'
+                            transition: 'background 200ms ease-in-out, transform 0.15s ease'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                         <ExpandIcon style={{width: 20, height: 20}} />
                     </div>
@@ -777,10 +777,10 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                             justifyContent: 'center',
                             alignItems: 'center',
                             cursor: 'pointer',
-                            transition: 'background 200ms ease-in-out'
+                            transition: 'background 200ms ease-in-out, transform 0.15s ease'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                         <PencilIcon style={{width: 20, height: 20}} />
                     </div>
@@ -796,10 +796,10 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                             justifyContent: 'center',
                             alignItems: 'center',
                             cursor: 'pointer',
-                            transition: 'background 200ms ease-in-out'
+                            transition: 'background 200ms ease-in-out, transform 0.15s ease'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                         <SearchIcon style={{width: 20, height: 20}} />
                     </div>
@@ -821,11 +821,11 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                         justifyContent: 'center',
                         alignItems: 'center',
                         cursor: 'pointer',
-                        transition: 'background 200ms ease-in-out',
+                        transition: 'background 200ms ease-in-out, transform 0.15s ease',
                         background: 'transparent',
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
                 >
                     <ExpandIcon style={{width: 20, height: 20, transform: 'rotate(180deg)'}} />
                 </div>

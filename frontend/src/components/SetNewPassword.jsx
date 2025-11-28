@@ -405,7 +405,7 @@ function SetNewPassword() {
             marginBottom: '16px',
             background: '#FEE2E2',
             border: '1px solid #FCA5A5',
-            borderRadius: '8px',
+            borderRadius: '26px',
             color: '#DC2626',
             fontSize: '14px',
           }}>

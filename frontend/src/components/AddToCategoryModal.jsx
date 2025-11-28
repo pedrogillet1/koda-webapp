@@ -265,7 +265,7 @@ const AddToCategoryModal = ({
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: 'center'
                   }}>
-                    <CategoryIcon emoji={category.emoji || '__FOLDER_SVG__'} style={{fontSize: 24}} />
+                    <CategoryIcon emoji={category.emoji || '__FOLDER_SVG__'} size={24} />
                   </div>
 
                   {/* Category name */}

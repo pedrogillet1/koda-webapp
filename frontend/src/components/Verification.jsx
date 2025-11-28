@@ -8,6 +8,9 @@ const Verification = () => {
     const [timer, setTimer] = useState(30);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [focusedIndex, setFocusedIndex] = useState(-1);
+    const [changeNumberHover, setChangeNumberHover] = useState(false);
+    const [resendHover, setResendHover] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
     const inputsRef = useRef([]);
@@ -142,6 +145,20 @@ const Verification = () => {
         }
     };
 
+    const handlePaste = (e) => {
+        e.preventDefault();
+        const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+        if (pastedData) {
+            const newCode = [...code];
+            for (let i = 0; i < pastedData.length && i < 6; i++) {
+                newCode[i] = pastedData[i];
+            }
+            setCode(newCode);
+            const nextIndex = Math.min(pastedData.length, 5);
+            inputsRef.current[nextIndex]?.focus();
+        }
+    };
+
     const handleKeyDown = (e, index) => {
         if (e.key === 'Backspace' && code[index] === '' && index > 0) {
             inputsRef.current[index - 1].focus();
@@ -151,74 +168,206 @@ const Verification = () => {
     const isVerifyDisabled = code.join('').length !== 6;
 
     return (
-        <div style={{width: '100%', height: '100%', background: 'white', position: 'relative'}}>
-            <div onClick={() => navigate(-1)} style={{position: 'absolute', top: 32, left: 32, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
-                <img src={backArrow} alt="Back" />
-                <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>Back</div>
-            </div>
-            <div style={{width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-                <div style={{width: 500, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 32, display: 'flex'}}>
-                    <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
-                        <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '40px', wordWrap: 'break-word'}}>2-Step Verification</div>
-                        <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', wordWrap: 'break-word'}}>Keep your Koda account safe. Enter the 6-digit code sent to your phone.</div>
-                    </div>
-                    <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
-                        <div style={{alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', display: 'inline-flex'}}>
-                            <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>Phone</div>
-                            <div onClick={() => navigate('/phone-number')} style={{cursor: 'pointer', color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '20px', wordWrap: 'break-word'}}>Change number</div>
-                        </div>
-                        <div style={{alignSelf: 'stretch', color: '#181818', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', wordWrap: 'break-word'}}>{phoneNumber.replace(/(\d{3})(?=\d{3}$)/, '••• ')}</div>
-                    </div>
-                    <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 32, display: 'flex'}}>
-                        <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
-                            <label style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>Enter Code</label>
-                            <div style={{alignSelf: 'stretch', display: 'flex', justifyContent: 'space-between', gap: 8}}>
-                                {code.map((digit, index) => (
-                                    <input
-                                        key={index}
-                                        ref={el => inputsRef.current[index] = el}
-                                        type="text"
-                                        maxLength="1"
-                                        value={digit}
-                                        onChange={(e) => handleChange(e, index)}
-                                        onKeyDown={(e) => handleKeyDown(e, index)}
-                                        style={{
-                                            width: '52px',
-                                            height: '60px',
-                                            textAlign: 'center',
-                                            fontSize: 30,
-                                            fontFamily: 'Plus Jakarta Sans',
-                                            fontWeight: '600',
-                                            color: '#32302C',
-                                            background: '#F5F5F5',
-                                            borderRadius: 14,
-                                            border: `1px solid ${inputsRef.current[index] === document.activeElement ? '#181818' : '#E6E6EC'}`,
-                                            outline: 'none'
-                                        }}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                        <div style={{alignSelf: 'stretch', justifyContent: 'center', alignItems: 'center', gap: 6, display: 'inline-flex'}}>
-                            <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '20px', wordWrap: 'break-word'}}>Didn’t get a code?</div>
-                            <div onClick={handleResendCode} style={{cursor: timer === 0 ? 'pointer' : 'default', color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>
-                                {timer > 0 ? `Resend in 00:${timer.toString().padStart(2, '0')}` : 'Click To Resend'}
-                            </div>
-                        </div>
-                    </div>
-                    {error && (
-                        <div style={{alignSelf: 'stretch', background: '#FEE2E2', color: '#DC2626', padding: '12px 16px', borderRadius: 8, fontSize: 14}}>
-                            {error}
-                        </div>
-                    )}
-                    <button onClick={handleVerify} style={{alignSelf: 'stretch', height: 52, borderRadius: 14, border: 'none', cursor: isVerifyDisabled || isLoading ? 'not-allowed' : 'pointer', background: isVerifyDisabled || isLoading ? '#F5F5F5' : '#181818', padding: 0, opacity: isLoading ? 0.6 : 1}} disabled={isVerifyDisabled || isLoading}>
-                        <div style={{width: '100%', height: 52, overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex'}}>
-                            <div style={{color: isVerifyDisabled || isLoading ? '#6C6B6E' : 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>
-                                {isLoading ? 'Verifying...' : 'Verify & Continue'}
-                            </div>
-                        </div>
-                    </button>
+        <div style={{
+            width: '100vw',
+            height: '100vh',
+            background: '#FFF',
+            position: 'relative'
+        }}>
+            {/* Back Button */}
+            <button
+                onClick={() => navigate(-1)}
+                style={{
+                    position: 'absolute',
+                    top: '24px',
+                    left: '24px',
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '16px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: '#000',
+                    padding: 0
+                }}
+            >
+                ← Back
+            </button>
+
+            {/* Content Container */}
+            <div style={{
+                width: '100%',
+                maxWidth: '400px',
+                margin: '0 auto',
+                padding: '0 24px',
+                boxSizing: 'border-box',
+                paddingTop: '140px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center'
+            }}>
+                {/* Icon */}
+                <div style={{
+                    marginBottom: '32px',
+                    fontSize: '72px',
+                    textShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+                }}>
+                    💬
                 </div>
+
+                <h1 style={{
+                    fontSize: '32px',
+                    fontWeight: '600',
+                    textAlign: 'center',
+                    margin: 0,
+                    marginBottom: '16px'
+                }}>
+                    2-Step Verification
+                </h1>
+
+                <p style={{
+                    fontSize: '16px',
+                    color: '#666',
+                    textAlign: 'center',
+                    margin: 0,
+                    marginBottom: '32px',
+                    lineHeight: '1.5'
+                }}>
+                    Keep your Koda account safe. Enter the 6-digit code sent to your phone.
+                </p>
+
+                {/* Phone Display */}
+                <div style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    marginBottom: '24px'
+                }}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
+                        <div style={{color: '#181818', fontSize: 14, fontWeight: '600'}}>Phone</div>
+                        <div
+                            onClick={() => navigate('/phone-number')}
+                            onMouseEnter={() => setChangeNumberHover(true)}
+                            onMouseLeave={() => setChangeNumberHover(false)}
+                            style={{
+                                cursor: 'pointer',
+                                color: '#181818',
+                                fontSize: 14,
+                                fontWeight: '600',
+                                transform: changeNumberHover ? 'scale(1.05)' : 'scale(1)',
+                                transition: 'transform 0.2s ease'
+                            }}
+                        >
+                            Change number
+                        </div>
+                    </div>
+                    <div style={{color: '#181818', fontSize: 16, fontWeight: '500'}}>{phoneNumber.replace(/(\d{3})(?=\d{3}$)/, '••• ')}</div>
+                </div>
+
+                {/* Code Input */}
+                <div style={{
+                    width: '100%',
+                    marginBottom: '24px'
+                }}>
+                    <label style={{
+                        display: 'block',
+                        color: '#32302C',
+                        fontSize: 14,
+                        fontWeight: '600',
+                        marginBottom: '12px',
+                        textAlign: 'left'
+                    }}>
+                        Enter Code
+                    </label>
+                    <div style={{display: 'flex', justifyContent: 'center', gap: 12}}>
+                        {code.map((digit, index) => (
+                            <input
+                                key={index}
+                                ref={el => inputsRef.current[index] = el}
+                                type="text"
+                                maxLength="1"
+                                value={digit}
+                                onChange={(e) => handleChange(e, index)}
+                                onKeyDown={(e) => handleKeyDown(e, index)}
+                                onPaste={handlePaste}
+                                onFocus={() => setFocusedIndex(index)}
+                                onBlur={() => setFocusedIndex(-1)}
+                                style={{
+                                    width: '48px',
+                                    height: '48px',
+                                    textAlign: 'center',
+                                    fontSize: 24,
+                                    fontWeight: '600',
+                                    color: '#32302C',
+                                    background: 'transparent',
+                                    borderRadius: '50%',
+                                    border: `1px solid ${focusedIndex === index ? '#181818' : '#E6E6EC'}`,
+                                    outline: 'none',
+                                    transform: focusedIndex === index ? 'scale(1.1)' : 'scale(1)',
+                                    transition: 'transform 0.2s ease, border-color 0.2s ease'
+                                }}
+                            />
+                        ))}
+                    </div>
+                </div>
+
+                {/* Resend Code */}
+                <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: '24px'}}>
+                    <span style={{color: '#6C6B6E', fontSize: 14, fontWeight: '500'}}>Didn't get a code?</span>
+                    <span
+                        onClick={handleResendCode}
+                        onMouseEnter={() => timer === 0 && setResendHover(true)}
+                        onMouseLeave={() => setResendHover(false)}
+                        style={{
+                            cursor: timer === 0 ? 'pointer' : 'default',
+                            color: '#181818',
+                            fontSize: 14,
+                            fontWeight: '600',
+                            transform: resendHover && timer === 0 ? 'scale(1.05)' : 'scale(1)',
+                            transition: 'transform 0.2s ease'
+                        }}
+                    >
+                        {timer > 0 ? `Resend in 00:${timer.toString().padStart(2, '0')}` : 'Click To Resend'}
+                    </span>
+                </div>
+
+                {error && (
+                    <div style={{
+                        width: '100%',
+                        background: '#FEE2E2',
+                        color: '#DC2626',
+                        padding: '12px 16px',
+                        borderRadius: 26,
+                        fontSize: 14,
+                        marginBottom: '16px',
+                        boxSizing: 'border-box'
+                    }}>
+                        {error}
+                    </div>
+                )}
+
+                {/* Verify Button */}
+                <button
+                    onClick={handleVerify}
+                    disabled={isVerifyDisabled || isLoading}
+                    style={{
+                        width: '100%',
+                        height: '52px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: isVerifyDisabled || isLoading ? '#F5F5F5' : '#181818',
+                        border: 'none',
+                        borderRadius: '26px',
+                        cursor: isVerifyDisabled || isLoading ? 'not-allowed' : 'pointer',
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        color: isVerifyDisabled || isLoading ? '#6C6B6E' : 'white',
+                        opacity: isLoading ? 0.6 : 1
+                    }}
+                >
+                    {isLoading ? 'Verifying...' : 'Verify & Continue'}
+                </button>
             </div>
         </div>
     );

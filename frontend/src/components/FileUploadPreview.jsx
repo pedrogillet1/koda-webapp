@@ -106,14 +106,6 @@ export default function FileUploadPreview({ file, progress = 0, onRemove }) {
           )}
         </div>
 
-        {!isComplete && (
-          <div className="progress-bar">
-            <div
-              className="progress-fill"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        )}
       </div>
 
       {onRemove && (

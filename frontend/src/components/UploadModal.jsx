@@ -172,19 +172,19 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
   };
 
   const getFileIcon = (filename) => {
-    if (!filename) return folderIcon;
+    if (!filename) return txtIcon;
     const ext = filename.toLowerCase();
     if (ext.match(/\.(pdf)$/)) return pdfIcon;
     if (ext.match(/\.(doc|docx)$/)) return docIcon;
-    if (ext.match(/\.(txt|csv)$/)) return txtIcon;
+    if (ext.match(/\.(txt|csv|svg|html|htm|json|xml|md|rtf)$/)) return txtIcon;
     if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
     if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
     if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-    if (ext.match(/\.(png|gif|webp)$/)) return pngIcon;
+    if (ext.match(/\.(png|gif|webp|bmp|tiff|tif|ico)$/)) return pngIcon;
     if (ext.match(/\.(mov)$/)) return movIcon;
-    if (ext.match(/\.(mp4)$/)) return mp4Icon;
-    if (ext.match(/\.(mp3)$/)) return mp3Icon;
-    return folderIcon; // Default fallback icon
+    if (ext.match(/\.(mp4|avi|mpeg|mpg|webm)$/)) return mp4Icon;
+    if (ext.match(/\.(mp3|wav|m4a|oga|weba)$/)) return mp3Icon;
+    return txtIcon; // Default fallback icon for unknown files
   };
 
   if (!isOpen) return null;
@@ -293,16 +293,16 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
               onClick={() => fileInputRef.current?.click()}
               style={{
                 alignSelf: 'stretch',
-                height: 420,
+                minHeight: 420,
                 paddingLeft: 40,
                 paddingRight: 40,
-                paddingTop: 60,
-                paddingBottom: 60,
+                paddingTop: 40,
+                paddingBottom: 40,
                 background: '#F5F5F5',
-                overflow: 'hidden',
+                overflow: 'visible',
                 borderRadius: 20,
-                outline: '2px rgba(108, 107, 110, 0.40) solid',
-                outlineOffset: '-2px',
+                outline: '1px #E6E6EC solid',
+                outlineOffset: '-1px',
                 flexDirection: 'column',
                 justifyContent: 'center',
                 alignItems: 'center',
@@ -414,7 +414,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                     paddingBottom: 10,
                     background: 'white',
                     overflow: 'hidden',
-                    borderRadius: 14,
+                    borderRadius: 100,
                     outline: '1px #E6E6EC solid',
                     outlineOffset: '-1px',
                     justifyContent: 'center',
@@ -447,7 +447,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                     paddingBottom: 10,
                     background: 'white',
                     overflow: 'hidden',
-                    borderRadius: 14,
+                    borderRadius: 100,
                     outline: '1px #E6E6EC solid',
                     outlineOffset: '-1px',
                     justifyContent: 'center',
@@ -493,16 +493,16 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
               <div
                 style={{
                   alignSelf: 'stretch',
-                  height: 420,
+                  minHeight: 420,
                   paddingLeft: 40,
                   paddingRight: 40,
-                  paddingTop: 60,
-                  paddingBottom: 60,
+                  paddingTop: 40,
+                  paddingBottom: 40,
                   background: '#F5F5F5',
-                  overflow: 'hidden',
+                  overflow: 'visible',
                   borderRadius: 20,
-                  outline: '2px rgba(108, 107, 110, 0.40) solid',
-                  outlineOffset: '-2px',
+                  outline: '1px #E6E6EC solid',
+                  outlineOffset: '-1px',
                   flexDirection: 'column',
                   justifyContent: 'center',
                   alignItems: 'center',
@@ -605,7 +605,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                     paddingBottom: 10,
                     background: 'white',
                     overflow: 'hidden',
-                    borderRadius: 14,
+                    borderRadius: 100,
                     outline: '1px #E6E6EC solid',
                     outlineOffset: '-1px',
                     justifyContent: 'center',
@@ -647,7 +647,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                         padding: 14,
                         position: 'relative',
                         background: 'white',
-                        borderRadius: 18,
+                        borderRadius: 100,
                         outline: '1px #E6E6EC solid',
                         outlineOffset: '-1px',
                         justifyContent: 'flex-start',
@@ -698,8 +698,8 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                     }}>
                       {/* File Icon */}
                       <div style={{
-                        width: 40,
-                        height: 40,
+                        width: 48,
+                        height: 48,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
@@ -708,8 +708,8 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                           src={icon}
                           alt={file.name}
                           style={{
-                            width: 40,
-                            height: 40,
+                            width: 48,
+                            height: 48,
                             objectFit: 'contain'
                           }}
                         />
@@ -813,7 +813,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                       padding: 14,
                       position: 'relative',
                       background: 'white',
-                      borderRadius: 18,
+                      borderRadius: 100,
                       outline: '1px #E6E6EC solid',
                       outlineOffset: '-1px',
                       justifyContent: 'flex-start',
@@ -831,8 +831,8 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                     }}>
                       {/* File Icon */}
                       <div style={{
-                        width: 40,
-                        height: 40,
+                        width: 48,
+                        height: 48,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
@@ -841,8 +841,8 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                           src={icon}
                           alt={file.name}
                           style={{
-                            width: 40,
-                            height: 40,
+                            width: 48,
+                            height: 48,
                             objectFit: 'contain'
                           }}
                         />
@@ -939,7 +939,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
             <div style={{
               flex: '1 1 0',
               height: 52,
-              borderRadius: 14,
+              borderRadius: 100,
               justifyContent: 'flex-start',
               alignItems: 'flex-start',
               display: 'flex'
@@ -951,7 +951,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                   height: 52,
                   background: 'rgba(24, 24, 24, 0.90)',
                   overflow: 'hidden',
-                  borderRadius: 14,
+                  borderRadius: 100,
                   justifyContent: 'center',
                   alignItems: 'center',
                   gap: 8,
@@ -984,7 +984,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                 paddingTop: 10,
                 paddingBottom: 10,
                 background: '#F5F5F5',
-                borderRadius: 14,
+                borderRadius: 100,
                 outline: '1px #E6E6EC solid',
                 outlineOffset: '-1px',
                 justifyContent: 'center',
@@ -1016,7 +1016,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                   height: 52,
                   background: 'rgba(24, 24, 24, 0.90)',
                   overflow: 'hidden',
-                  borderRadius: 14,
+                  borderRadius: 100,
                   justifyContent: 'center',
                   alignItems: 'center',
                   gap: 8,
@@ -1046,7 +1046,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                 paddingTop: 10,
                 paddingBottom: 10,
                 background: '#F5F5F5',
-                borderRadius: 14,
+                borderRadius: 100,
                 outline: '1px #E6E6EC solid',
                 outlineOffset: '-1px',
                 justifyContent: 'center',
@@ -1074,7 +1074,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
               <div style={{
                 flex: '1 1 0',
                 height: 52,
-                borderRadius: 14,
+                borderRadius: 100,
                 justifyContent: 'flex-start',
                 alignItems: 'flex-start',
                 display: 'flex'
@@ -1086,7 +1086,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                     height: 52,
                     background: 'rgba(24, 24, 24, 0.90)',
                     overflow: 'hidden',
-                    borderRadius: 14,
+                    borderRadius: 100,
                     justifyContent: 'center',
                     alignItems: 'center',
                     gap: 8,

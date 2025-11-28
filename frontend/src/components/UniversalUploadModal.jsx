@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
-import { ReactComponent as FolderIcon } from '../assets/folder_icon.svg';
+import fileTypesStackIcon from '../assets/file-types-stack.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 // ✅ REFACTORED: Use unified upload service (replaces folderUploadService + presignedUploadService)
 import unifiedUploadService from '../services/unifiedUploadService';
@@ -263,7 +263,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
     maxSize: 500 * 1024 * 1024, // 500MB
     multiple: true,
     noClick: true, // Disable click on root div, we'll use manual button
-    noDrag: true, // Disable react-dropzone drag handling, we'll use custom handler for folders
+    noDrag: false, // Enable drag-and-drop
   });
 
   const formatFileSize = (bytes) => {
@@ -274,19 +274,19 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   };
 
   const getFileIcon = (filename) => {
-    if (!filename) return folderIcon;
+    if (!filename) return txtIcon;
     const ext = filename.toLowerCase();
     if (ext.match(/\.(pdf)$/)) return pdfIcon;
     if (ext.match(/\.(doc|docx)$/)) return docIcon;
-    if (ext.match(/\.(txt|csv)$/)) return txtIcon;
+    if (ext.match(/\.(txt|csv|svg|html|htm|json|xml|md|rtf)$/)) return txtIcon;
     if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
     if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
     if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-    if (ext.match(/\.(png|gif|webp)$/)) return pngIcon;
+    if (ext.match(/\.(png|gif|webp|bmp|tiff|tif|ico)$/)) return pngIcon;
     if (ext.match(/\.(mov)$/)) return movIcon;
-    if (ext.match(/\.(mp4)$/)) return mp4Icon;
-    if (ext.match(/\.(mp3)$/)) return mp3Icon;
-    return folderIcon; // Default fallback icon
+    if (ext.match(/\.(mp4|avi|mpeg|mpg|webm)$/)) return mp4Icon;
+    if (ext.match(/\.(mp3|wav|m4a|oga|weba)$/)) return mp3Icon;
+    return txtIcon; // Default fallback icon for unknown files
   };
 
   const removeFile = (fileId) => {
@@ -561,20 +561,21 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
           display: 'flex'
         }}>
           <div
-            {...getRootProps()}
-            onDrop={handleDragDrop}
+            {...getRootProps({
+              onDrop: handleDragDrop
+            })}
             style={{
               alignSelf: 'stretch',
-              height: 320,
+              minHeight: 420,
               paddingLeft: 40,
               paddingRight: 40,
-              paddingTop: 60,
-              paddingBottom: 60,
-              background: isDragActive ? '#F0F9FF' : '#F5F5F5',
-              overflow: 'hidden',
+              paddingTop: 40,
+              paddingBottom: 40,
+              background: isDragActive ? '#EFEFEF' : '#F5F5F5',
+              overflow: 'visible',
               borderRadius: 20,
-              outline: isDragActive ? '2px #3B82F6 dashed' : '2px rgba(108, 107, 110, 0.40) dashed',
-              outlineOffset: '-2px',
+              outline: '1px #E6E6EC solid',
+              outlineOffset: '-1px',
               flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
@@ -586,8 +587,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
           >
             <input {...getInputProps()} />
 
-            {/* Folder Icon */}
-            <FolderIcon style={{ width: '120px', height: '120px', minWidth: '120px', minHeight: '120px', display: 'block' }} />
+            {/* File Types Stack Icon */}
+            <img src={fileTypesStackIcon} alt="File Types" style={{ width: '360px', height: '183px', minWidth: '360px', minHeight: '183px', display: 'block' }} />
 
             <div style={{
               flexDirection: 'column',
@@ -647,7 +648,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   paddingTop: 10,
                   paddingBottom: 10,
                   background: 'white',
-                  borderRadius: 14,
+                  borderRadius: 100,
                   outline: '1px #E6E6EC solid',
                   outlineOffset: '-1px',
                   justifyContent: 'center',
@@ -682,7 +683,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   paddingTop: 10,
                   paddingBottom: 10,
                   background: 'white',
-                  borderRadius: 14,
+                  borderRadius: 100,
                   outline: '1px #E6E6EC solid',
                   outlineOffset: '-1px',
                   justifyContent: 'center',
@@ -729,7 +730,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
               width: '100%',
               padding: 10,
               background: 'rgba(24, 24, 24, 0.90)',
-              borderRadius: 14,
+              borderRadius: 100,
               flexDirection: 'row',
               justifyContent: 'flex-start',
               alignItems: 'center',
@@ -816,7 +817,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                     height: 72,
                     padding: 14,
                     background: 'white',
-                    borderRadius: 18,
+                    borderRadius: 100,
                     outline: '1px #E6E6EC solid',
                     outlineOffset: '-1px',
                     justifyContent: 'center',
@@ -851,7 +852,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   padding: 14,
                   position: 'relative',
                   background: 'white',
-                  borderRadius: 18,
+                  borderRadius: 100,
                   outline: item.status === 'failed' ? '2px #EF4444 solid' : '1px #E6E6EC solid',
                   outlineOffset: '-1px',
                   justifyContent: 'flex-start',
@@ -915,8 +916,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                 }}>
                   {/* File/Folder icon */}
                   <div style={{
-                    width: 40,
-                    height: 40,
+                    width: 48,
+                    height: 48,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
@@ -925,8 +926,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                       src={item.isFolder ? folderIcon : getFileIcon(item.file.name)}
                       alt={item.isFolder ? item.folderName : item.file.name}
                       style={{
-                        width: 40,
-                        height: 40,
+                        width: 48,
+                        height: 48,
                         objectFit: 'contain'
                       }}
                     />
@@ -1040,7 +1041,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   paddingTop: 10,
                   paddingBottom: 10,
                   background: '#F5F5F5',
-                  borderRadius: 14,
+                  borderRadius: 100,
                   outline: '1px #E6E6EC solid',
                   outlineOffset: '-1px',
                   justifyContent: 'center',
@@ -1071,7 +1072,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   flex: '1 1 0',
                   height: 52,
                   background: (isUploading || uploadingFiles.filter(f => f.status === 'pending').length === 0) ? '#E6E6EC' : '#181818',
-                  borderRadius: 14,
+                  borderRadius: 100,
                   justifyContent: 'center',
                   alignItems: 'center',
                   gap: 8,
@@ -1113,7 +1114,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
             width: '100%',
             padding: '6px 16px',
             background: 'rgba(24, 24, 24, 0.90)',
-            borderRadius: 14,
+            borderRadius: 100,
             justifyContent: 'center',
             alignItems: 'center',
             gap: 10,

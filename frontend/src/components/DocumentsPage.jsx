@@ -41,6 +41,7 @@ import mp4Icon from '../assets/mp4.png';
 import mp3Icon from '../assets/mp3.svg';
 import CategoryIcon from './CategoryIcon';
 import DocumentsLoadingSkeleton from './DocumentsLoadingSkeleton';
+import filesIcon from '../assets/files-icon.svg';
 
 const DocumentsPage = () => {
   const navigate = useNavigate();
@@ -422,7 +423,7 @@ const DocumentsPage = () => {
   // ✅ Show loading skeleton on first load (when loading and no data)
   if (loading && contextDocuments.length === 0 && contextFolders.length === 0) {
     return (
-      <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
+      <div style={{width: '100%', height: '100vh', background: '#F4F4F6', overflow: 'hidden', display: 'flex'}}>
         <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
         <div style={{flex: 1, overflow: 'hidden'}}>
           <DocumentsLoadingSkeleton />
@@ -432,7 +433,7 @@ const DocumentsPage = () => {
   }
 
   return (
-    <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
+    <div style={{width: '100%', height: '100vh', background: '#F4F4F6', overflow: 'hidden', display: 'flex'}}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Main Content */}
@@ -853,8 +854,8 @@ const DocumentsPage = () => {
                     console.log('🔗 DocumentsPage - Navigating to:', `/folder/${category.id}`);
                     navigate(`/folder/${category.id}`);
                   }} style={{display: 'flex', alignItems: 'center', gap: spacing.sm, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
-                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, flexShrink: 0}}>
-                      <CategoryIcon emoji={category.emoji} />
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                      <CategoryIcon emoji={category.emoji} size={40} />
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: spacing.xs, flex: 1, minWidth: 0}}>
                       <div style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: '19.60px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{category.name}</div>
@@ -1153,14 +1154,23 @@ const DocumentsPage = () => {
                           background: 'white',
                           border: '1px solid #E6E6EC',
                           cursor: 'pointer',
-                          transition: 'all 0.2s ease'
+                          transition: 'all 0.2s ease',
+                          transform: 'translateY(0)'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = isMobile ? '#EBEBEB' : '#F9F9F9'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = isMobile ? '#F5F5F5' : 'white'}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#F9F9F9';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'white';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
                       >
                         {isMobile ? (
                           <>
-                            <img src={folderIcon} alt="Folder" style={{width: 48, height: 48, flexShrink: 0}} />
+                            <img src={folderIcon} alt="Folder" style={{width: 48, height: 48, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
                             <div style={{flex: 1, overflow: 'hidden'}}>
                               <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                                 {item.name}
@@ -1173,7 +1183,7 @@ const DocumentsPage = () => {
                         ) : (
                           <>
                             <div style={{display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden'}}>
-                              <img src={folderIcon} alt="Folder" style={{width: 32, height: 32, flexShrink: 0}} />
+                              <img src={folderIcon} alt="Folder" style={{width: 40, height: 40, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
                               <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                                 {item.name}
                               </div>
@@ -1349,7 +1359,8 @@ const DocumentsPage = () => {
                         background: isSelectMode && isSelected(doc.id) ? '#F3F3F5' : 'white',
                         border: '1px solid #E6E6EC',
                         cursor: isSelectMode ? 'pointer' : 'pointer',
-                        transition: 'background 0.2s ease'
+                        transition: 'all 0.2s ease',
+                        transform: 'translateY(0)'
                       }}
                       onMouseEnter={(e) => {
                         if (isMobile) return;
@@ -1358,10 +1369,14 @@ const DocumentsPage = () => {
                         } else {
                           e.currentTarget.style.background = '#F7F7F9';
                         }
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                       }}
                       onMouseLeave={(e) => {
                         if (isMobile) return;
                         e.currentTarget.style.background = isSelectMode && isSelected(doc.id) ? '#F3F3F5' : 'white';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
                       {isMobile ? (
@@ -1374,7 +1389,8 @@ const DocumentsPage = () => {
                               height: 48,
                               flexShrink: 0,
                               imageRendering: '-webkit-optimize-contrast',
-                              objectFit: 'contain'
+                              objectFit: 'contain',
+                              filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                             }}
                           />
                           <div style={{flex: 1, overflow: 'hidden'}}>
@@ -1408,11 +1424,12 @@ const DocumentsPage = () => {
                               src={getFileIcon(doc)}
                               alt="File icon"
                               style={{
-                                width: 32,
-                                height: 32,
+                                width: 40,
+                                height: 40,
                                 flexShrink: 0,
                                 imageRendering: '-webkit-optimize-contrast',
-                                objectFit: 'contain'
+                                objectFit: 'contain',
+                                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                               }}
                             />
                             <div style={{
@@ -1631,12 +1648,12 @@ const DocumentsPage = () => {
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(23, 23, 23, 0.95)',
+              background: 'rgba(250, 250, 250, 0.85)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 20,
+              gap: 24,
               zIndex: 999,
               pointerEvents: 'none',
               animation: 'fadeIn 0.2s ease-in'
@@ -1650,31 +1667,20 @@ const DocumentsPage = () => {
                 }
               `}
             </style>
-            <div
+            <img
+              src={filesIcon}
+              alt="Files"
               style={{
-                width: 120,
-                height: 120,
-                background: 'white',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                animation: 'pulse 1.5s ease-in-out infinite'
+                width: 400,
+                height: 'auto',
+                opacity: 1.0,
+                transform: 'scale(1.0)',
+                transition: 'opacity 250ms ease-out, transform 250ms ease-out'
               }}
-            >
-              <style>
-                {`
-                  @keyframes pulse {
-                    0%, 100% { transform: scale(1); }
-                    50% { transform: scale(1.05); }
-                  }
-                `}
-              </style>
-              <LogoutBlackIcon style={{ width: 60, height: 60 }} />
-            </div>
+            />
             <div
               style={{
-                color: 'white',
+                color: '#181818',
                 fontSize: 32,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700',
@@ -1685,7 +1691,7 @@ const DocumentsPage = () => {
             </div>
             <div
               style={{
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: 'rgba(24, 24, 24, 0.6)',
                 fontSize: 18,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '500',

@@ -73,7 +73,7 @@ const FileRow = ({
         alignItems: 'center',
         gap: spacing.md,
         padding: spacing.md,
-        borderRadius: radius.lg,
+        borderRadius: 100,
         background: getBackgroundColor(),
         cursor: isSelectMode ? 'pointer' : 'grab',
         transition: 'background 0.15s ease-out',
@@ -92,7 +92,8 @@ const FileRow = ({
           imageRendering: '-webkit-optimize-contrast',
           objectFit: 'contain',
           shapeRendering: 'geometricPrecision',
-          flexShrink: 0
+          flexShrink: 0,
+          filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
         }}
       />
 
