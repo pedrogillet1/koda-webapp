@@ -1211,8 +1211,8 @@ const UploadHub = () => {
           // ⚡ EDGE CASE: Set timeout warning for slow embeddings (30 seconds)
           const timeoutId = setTimeout(() => {
             console.warn('⚠️ Embeddings taking longer than expected for:', document.id);
-            showSuccess('AI chat processing is taking longer than expected. It will be ready soon.', 'warning');
-          }, 30000); // 30 seconds
+            showSuccess('Document processing is taking longer than expected. Your file will be ready for AI chat soon.', 'warning');
+          }, 60000); // 60 seconds
 
           embeddingTimeoutsRef.current[document.id] = timeoutId;
 

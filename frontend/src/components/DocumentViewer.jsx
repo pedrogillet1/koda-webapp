@@ -289,7 +289,7 @@ const DocumentViewer = () => {
 
     // Check if it's a relative API path (starts with /api/) or already a full backend URL
     const isRelativeApiPath = documentUrl.startsWith('/api/');
-    const isBackendUrl = documentUrl.includes('koda-backend.ngrok.app') || documentUrl.includes('localhost:5000');
+    const isBackendUrl = documentUrl.includes('getkoda.ai') || documentUrl.includes('localhost:5000');
     const isS3Url = documentUrl.includes('s3.amazonaws.com') || documentUrl.includes('.s3.');
     const isStreamEndpoint = documentUrl.includes('/stream');
 
@@ -330,7 +330,7 @@ const DocumentViewer = () => {
       };
     } else if (isRelativeApiPath) {
       // Relative API path - prepend backend URL
-      const API_URL = process.env.REACT_APP_API_URL || 'https://koda-backend.ngrok.app';
+      const API_URL = process.env.REACT_APP_API_URL || 'https://getkoda.ai';
       const fullUrl = `${API_URL}${documentUrl}`;
       console.log(`🔗 Relative API path detected, using backend URL: ${fullUrl}`);
       setActualDocumentUrl(fullUrl);

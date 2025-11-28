@@ -2,8 +2,8 @@ import axios from 'axios';
 import { io } from 'socket.io-client';
 import { encryptData, decryptData } from '../utils/encryption';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://koda-backend.ngrok.app';
-const WS_URL = process.env.REACT_APP_WS_URL || 'https://koda-backend.ngrok.app';
+const API_URL = process.env.REACT_APP_API_URL || 'https://getkoda.ai';
+const WS_URL = process.env.REACT_APP_WS_URL || 'https://getkoda.ai';
 
 // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Get encryption password from AuthContext
 // This will be passed to functions that need encryption
