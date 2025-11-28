@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
@@ -12,12 +13,15 @@ import jpgIcon from '../assets/jpg-icon.png';
 import pngIcon from '../assets/png-icon.png';
 import pptxIcon from '../assets/pptx.png';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocuments = [], preSelectedDocumentId = null }) => {
   const [categoryName, setCategoryName] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState('__FOLDER_SVG__');
   const [documents, setDocuments] = useState([]);
   const [selectedDocuments, setSelectedDocuments] = useState([]);
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [nameError, setNameError] = useState(false);
@@ -114,6 +118,12 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
   };
 
   const handleCreate = () => {
+    // ✅ Auth check: Redirect to signup if not authenticated
+    if (!isAuthenticated) {
+      navigate('/signup');
+      return;
+    }
+
     let hasError = false;
 
     // Check if category name is empty

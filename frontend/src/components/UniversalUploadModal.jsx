@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { useNavigate } from 'react-router-dom';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import fileTypesStackIcon from '../assets/file-types-stack.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
@@ -7,6 +8,7 @@ import UploadProgressBar from './UploadProgressBar';
 // ✅ REFACTORED: Use unified upload service (replaces folderUploadService + presignedUploadService)
 import unifiedUploadService from '../services/unifiedUploadService';
 import { useDocuments } from '../context/DocumentsContext';
+import { useAuth } from '../context/AuthContext';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -22,6 +24,8 @@ import folderIcon from '../assets/folder_icon.svg';
 const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComplete, initialFiles = null }) => {
   // ✅ FIX: Get fetchFolders to refresh categories after upload
   const { fetchFolders, invalidateCache } = useDocuments();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   const [uploadingFiles, setUploadingFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -296,6 +300,12 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
 
   // ✅ REFACTORED: Use unified upload service for all uploads
   const handleUploadAll = async () => {
+    // ✅ Auth check: Redirect to signup if not authenticated
+    if (!isAuthenticated) {
+      navigate('/signup');
+      return;
+    }
+
     const pendingFiles = uploadingFiles.filter(f => f.status === 'pending');
     if (pendingFiles.length === 0) return;
 

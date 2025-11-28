@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * CreateFolderModal - Modal for creating new folders
@@ -6,6 +8,8 @@ import React, { useState, useEffect } from 'react';
  */
 const CreateFolderModal = ({ isOpen, onClose, onConfirm }) => {
   const [folderName, setFolderName] = useState('');
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (isOpen) {
@@ -19,6 +23,13 @@ const CreateFolderModal = ({ isOpen, onClose, onConfirm }) => {
     if (e && e.preventDefault) {
       e.preventDefault();
     }
+
+    // ✅ Auth check: Redirect to signup if not authenticated
+    if (!isAuthenticated) {
+      navigate('/signup');
+      return;
+    }
+
     if (folderName.trim()) {
       onConfirm(folderName.trim());
       setFolderName('');

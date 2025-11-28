@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * Delete Confirmation Modal
@@ -8,8 +10,19 @@ import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemType = 'item' }) => {
   const [cancelHover, setCancelHover] = useState(false);
   const [deleteHover, setDeleteHover] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   if (!isOpen) return null;
+
+  // ✅ Auth check wrapper for delete action
+  const handleDelete = () => {
+    if (!isAuthenticated) {
+      navigate('/signup');
+      return;
+    }
+    onConfirm();
+  };
 
   // Format the item name for display
   const getDisplayName = () => {
@@ -111,7 +124,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemTyp
               <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '24px'}}>Cancel</div>
             </div>
             <div
-              onClick={onConfirm}
+              onClick={handleDelete}
               onMouseEnter={() => setDeleteHover(true)}
               onMouseLeave={() => setDeleteHover(false)}
               style={{

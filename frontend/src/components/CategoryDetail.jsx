@@ -2301,7 +2301,6 @@ const CategoryDetail = () => {
                           borderRadius: 10,
                           background: isSelected(doc.id) ? '#E8E8EC' : 'white',
                           border: isSelected(doc.id) ? '2px solid #D1D1D6' : '2px solid #E6E6EC',
-                          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                           cursor: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 'move' : 'pointer',
                           transition: 'all 0.2s ease',
                           opacity: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 0.5 : 1

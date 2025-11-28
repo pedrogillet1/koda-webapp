@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import WelcomeModal from './WelcomeModal';
+import WelcomePopup from './WelcomePopup';
 
 /**
  * Protected Route Component
@@ -8,11 +8,11 @@ import WelcomeModal from './WelcomeModal';
  * Instead of redirecting unauthenticated users to login,
  * it shows the page content with a welcome popup.
  * Users can dismiss the popup and continue exploring,
- * or click the popup to sign in.
+ * or click the popup to sign up.
+ * Popup reappears on page refresh.
  */
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated, loading } = useAuth();
-    const [showWelcome, setShowWelcome] = useState(true);
 
     if (loading) {
         return (
@@ -41,10 +41,7 @@ const ProtectedRoute = ({ children }) => {
         return (
             <>
                 {children}
-                <WelcomeModal
-                    isOpen={showWelcome}
-                    onClose={() => setShowWelcome(false)}
-                />
+                <WelcomePopup isOpen={true} />
             </>
         );
     }

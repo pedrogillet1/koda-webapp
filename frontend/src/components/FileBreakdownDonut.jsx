@@ -94,8 +94,9 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
     return count > 0;
   });
 
-  // Use active data if files exist, otherwise show all (dimmed)
-  const displayData = activeGridData.length > 0 ? activeGridData : gridData;
+  // On mobile, always show all 8 items to maintain 2x4 grid
+  // On desktop, show active data if files exist, otherwise show all (dimmed)
+  const displayData = isMobile ? gridData : (activeGridData.length > 0 ? activeGridData : gridData);
 
   return (
     <div style={{
@@ -214,15 +215,18 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
             })}
           </div>
         ) : (
-          /* Grid Layout - centered icons based on available types */
+          /* Grid Layout - 2 rows x 4 columns on mobile, centered on desktop */
           <div style={{
-            display: 'flex',
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            gap: isMobile ? '16px 12px' : (compact ? '0 24px' : '0 48px'),
+            display: isMobile ? 'grid' : 'flex',
+            gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : undefined,
+            gridTemplateRows: isMobile ? 'repeat(2, auto)' : undefined,
+            flexDirection: isMobile ? undefined : 'row',
+            flexWrap: isMobile ? undefined : 'wrap',
+            gap: isMobile ? '12px 8px' : (compact ? '0 24px' : '0 48px'),
             marginTop: compact ? '4px' : '8px',
             marginBottom: compact ? '12px' : '24px',
-            justifyContent: 'center',
+            justifyContent: isMobile ? undefined : 'center',
+            justifyItems: isMobile ? 'center' : undefined,
             alignItems: 'flex-start',
             width: '100%'
           }}>
@@ -240,7 +244,8 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: '0px',
-                    width: isMobile ? 40 : (compact ? 48 : 72),
+                    width: isMobile ? 'auto' : (compact ? 48 : 72),
+                    minWidth: isMobile ? 0 : undefined,
                     opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.5 : 1),
                     transform: isHovered ? 'scale(1.08)' : 'scale(1)',
                     transition: 'opacity 0.2s ease-out, transform 0.2s ease-out',

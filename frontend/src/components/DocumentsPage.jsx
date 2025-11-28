@@ -1036,7 +1036,6 @@ const DocumentsPage = () => {
             background: colors.white,
             borderRadius: 20,
             border: `2px solid ${colors.gray[300]}`,
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
             display: 'flex',
             flexDirection: 'column'
           }}>
@@ -1174,20 +1173,14 @@ const DocumentsPage = () => {
                           borderRadius: 10,
                           background: 'white',
                           border: '2px solid #E6E6EC',
-                          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                           cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                          transform: 'translateY(0)'
+                          transition: 'background 0.2s ease'
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background = '#F9F9F9';
-                          e.currentTarget.style.transform = 'translateY(-2px)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.background = 'white';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
                         {isMobile ? (
@@ -1380,10 +1373,8 @@ const DocumentsPage = () => {
                         borderRadius: 10,
                         background: isSelectMode && isSelected(doc.id) ? '#F3F3F5' : 'white',
                         border: '2px solid #E6E6EC',
-                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                         cursor: isSelectMode ? 'pointer' : 'pointer',
-                        transition: 'all 0.2s ease',
-                        transform: 'translateY(0)'
+                        transition: 'background 0.2s ease'
                       }}
                       onMouseEnter={(e) => {
                         if (isMobile) return;
@@ -1392,14 +1383,10 @@ const DocumentsPage = () => {
                         } else {
                           e.currentTarget.style.background = '#F7F7F9';
                         }
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                       }}
                       onMouseLeave={(e) => {
                         if (isMobile) return;
                         e.currentTarget.style.background = isSelectMode && isSelected(doc.id) ? '#F3F3F5' : 'white';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
                       {isMobile ? (
