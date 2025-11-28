@@ -4,16 +4,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../services/api';
 import { previewCache } from '../services/previewCache';
 import { useIsMobile } from '../hooks/useIsMobile';
-import pdfIcon from '../assets/pdf-icon.png';
-import docIcon from '../assets/doc-icon.png';
-import txtIcon from '../assets/txt-icon.png';
-import xlsIcon from '../assets/xls.png';
-import jpgIcon from '../assets/jpg-icon.png';
-import pngIcon from '../assets/png-icon.png';
-import pptxIcon from '../assets/pptx.png';
-import movIcon from '../assets/mov.png';
-import mp4Icon from '../assets/mp4.png';
-import mp3Icon from '../assets/mp3.svg';
+import { getFileIcon } from '../utils/iconMapper';
 import { downloadFile } from '../utils/browserUtils';
 
 // Set up the worker for pdf.js
@@ -27,8 +18,32 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
   const [totalPages, setTotalPages] = useState(1);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
   const previewContainerRef = useRef(null);
   const pageRefs = useRef({});
+
+  // Helper function to determine document type
+  const getDocumentType = () => {
+    if (!document) return 'unknown';
+    const extension = document.filename?.split('.').pop()?.toLowerCase();
+    const mimeType = document.mimeType;
+
+    // Check for images
+    if (mimeType?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(extension)) {
+      return 'image';
+    }
+    // Check for PDF
+    if (mimeType === 'application/pdf' || extension === 'pdf') {
+      return 'pdf';
+    }
+    // Check for DOCX
+    if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        ['doc', 'docx'].includes(extension)) {
+      return 'docx';
+    }
+    return 'other';
+  };
 
   // Memoize file config and options for react-pdf
   const fileConfig = useMemo(() => previewUrl ? { url: previewUrl } : null, [previewUrl]);
@@ -50,6 +65,10 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
   useEffect(() => {
     if (!isOpen || !document) return;
 
+    // Reset states when document changes
+    setImageLoading(true);
+    setImageError(false);
+
     const loadPreview = async () => {
       // ✅ PHASE 1 OPTIMIZATION: Check cache first (instant - <50ms)
       if (previewCache.has(document.id)) {
@@ -61,16 +80,20 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
 
       setIsLoading(true);
       try {
-        // Check if document is DOCX - use preview endpoint for PDF conversion
+        // Check document type
         const extension = document.filename?.split('.').pop()?.toLowerCase();
-        const isDocx = document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        const mimeType = document.mimeType;
+        const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
                        extension === 'docx' || extension === 'doc';
+        const isImage = mimeType?.startsWith('image/') ||
+                        ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(extension);
 
         console.log('🔍 Document type detection:', {
           filename: document.filename,
           extension,
-          mimeType: document.mimeType,
-          isDocx
+          mimeType,
+          isDocx,
+          isImage
         });
 
         if (isDocx) {
@@ -100,7 +123,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
             throw docxError; // Re-throw to be caught by outer catch
           }
         } else {
-          // For PDF files, get document stream as blob
+          // For images and PDF files, get document stream as blob
           const response = await api.get(`/api/documents/${document.id}/stream`, {
             responseType: 'blob'
           });
@@ -113,7 +136,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
           previewCache.set(document.id, url);
           setPreviewUrl(url);
 
-          console.log('📄 Document preview loaded and cached:', url);
+          console.log(`📄 ${isImage ? 'Image' : 'Document'} preview loaded and cached:`, url);
         }
       } catch (error) {
         console.error('❌ Error loading document preview:', error);
@@ -217,48 +240,6 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
     navigate(`/document/${document.id}?zoom=${zoom}&page=${currentPage}`);
   };
 
-  // Get file type icon
-  const getFileIcon = () => {
-    if (!document) return pdfIcon;
-
-    // Get extension from filename
-    const extension = document.filename?.split('.').pop()?.toLowerCase();
-
-    // Check mimeType first for most reliable detection
-    if (document.mimeType) {
-      if (document.mimeType === 'application/pdf') return pdfIcon;
-      if (document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-          document.mimeType === 'application/msword') return docIcon;
-      if (document.mimeType === 'text/plain') return txtIcon;
-      if (document.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-          document.mimeType === 'application/vnd.ms-excel') return xlsIcon;
-      if (document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
-          document.mimeType === 'application/vnd.ms-powerpoint') return pptxIcon;
-      if (document.mimeType === 'image/jpeg') return jpgIcon;
-      if (document.mimeType === 'image/png') return pngIcon;
-      if (document.mimeType === 'video/quicktime') return movIcon;
-      if (document.mimeType === 'video/mp4') return mp4Icon;
-      if (document.mimeType === 'audio/mpeg' || document.mimeType === 'audio/mp3') return mp3Icon;
-    }
-
-    // Fallback to filename extension
-    if (extension) {
-      if (extension === 'pdf') return pdfIcon;
-      if (['doc', 'docx'].includes(extension)) return docIcon;
-      if (extension === 'txt') return txtIcon;
-      if (['xls', 'xlsx'].includes(extension)) return xlsIcon;
-      if (['ppt', 'pptx'].includes(extension)) return pptxIcon;
-      if (['jpg', 'jpeg'].includes(extension)) return jpgIcon;
-      if (extension === 'png') return pngIcon;
-      if (extension === 'mov') return movIcon;
-      if (extension === 'mp4') return mp4Icon;
-      if (extension === 'mp3') return mp3Icon;
-    }
-
-    return pdfIcon; // default
-  };
-
-
   if (!isOpen || !document) return null;
 
   return (
@@ -300,16 +281,16 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header Bar */}
+        {/* Header Bar - matches DocumentViewer design */}
         <div
           style={{
-            height: isMobile ? 60 : 56,
+            height: isMobile ? 68 : 72,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            paddingLeft: isMobile ? 16 : 28,
+            paddingLeft: isMobile ? 16 : 24,
             paddingRight: isMobile ? 12 : 20,
-            borderBottom: '1px solid #DADADA',
+            borderBottom: '1px solid #E6E6EC',
             background: '#FFFFFF',
             position: 'relative'
           }}
@@ -318,36 +299,38 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            maxWidth: isMobile ? '50%' : '35%',
+            gap: 12,
+            maxWidth: isMobile ? '50%' : '45%',
             overflow: 'hidden'
           }}>
             <img
-              src={getFileIcon()}
+              src={getFileIcon(document.filename, document.mimeType)}
               alt="File"
               style={{
-                width: isMobile ? 18 : 20,
-                height: isMobile ? 18 : 20,
+                width: isMobile ? 32 : 38,
+                height: isMobile ? 32 : 38,
+                objectFit: 'contain',
                 flexShrink: 0
               }}
             />
-            <div
+            <span
               style={{
-                fontSize: isMobile ? 13 : 15,
-                fontWeight: '500',
-                color: '#1A1A1A',
+                fontSize: isMobile ? 16 : 18,
+                fontWeight: '700',
+                color: '#323232',
                 fontFamily: 'Plus Jakarta Sans',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
-                textOverflow: 'ellipsis'
+                textOverflow: 'ellipsis',
+                lineHeight: isMobile ? '22px' : '26px'
               }}
             >
               {document.filename || 'Document'}
-            </div>
+            </span>
           </div>
 
-          {/* Center Section - Page Indicator (hidden on mobile, shown in bottom toolbar) */}
-          {!isMobile && (
+          {/* Center Section - Page Indicator (hidden on mobile and for images) */}
+          {!isMobile && getDocumentType() !== 'image' && (
             <div style={{
               position: 'absolute',
               left: '50%',
@@ -369,19 +352,15 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
             {!isMobile && <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              border: '1px solid #DADADA',
-              borderRadius: 6,
-              padding: '4px 6px',
-              background: '#FFFFFF'
+              gap: 12
             }}>
               {/* Zoom Out */}
               <button
                 onClick={handleZoomOut}
                 disabled={zoom <= 50}
                 style={{
-                  width: 24,
-                  height: 24,
+                  width: 32,
+                  height: 32,
                   border: 'none',
                   background: 'transparent',
                   borderRadius: 4,
@@ -400,20 +379,28 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                   if (zoom > 50) e.currentTarget.style.background = 'transparent';
                 }}
               >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M4 8H12" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
 
-              {/* Zoom Percentage Display */}
+              {/* Zoom Percentage Display - Pill/Cylinder shape */}
               <div style={{
                 fontSize: 13,
                 fontWeight: '600',
                 color: '#1A1A1A',
                 fontFamily: 'Plus Jakarta Sans',
-                minWidth: 42,
+                minWidth: 54,
+                height: 32,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 textAlign: 'center',
-                userSelect: 'none'
+                userSelect: 'none',
+                border: '1px solid #DADADA',
+                borderRadius: 50,
+                background: '#FFFFFF',
+                padding: '0 12px'
               }}>
                 {zoom}%
               </div>
@@ -423,8 +410,8 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                 onClick={handleZoomIn}
                 disabled={zoom >= 200}
                 style={{
-                  width: 24,
-                  height: 24,
+                  width: 32,
+                  height: 32,
                   border: 'none',
                   background: 'transparent',
                   borderRadius: 4,
@@ -443,7 +430,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                   if (zoom < 200) e.currentTarget.style.background = 'transparent';
                 }}
               >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M8 4V12M4 8H12" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
@@ -457,8 +444,8 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                 width: 32,
                 height: 32,
                 border: '1px solid #DADADA',
-                background: 'transparent',
-                borderRadius: 6,
+                background: '#FFFFFF',
+                borderRadius: 50,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -486,9 +473,9 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
               style={{
                 width: isMobile ? 36 : 32,
                 height: isMobile ? 36 : 32,
-                border: '1px solid #DADADA',
+                border: 'none',
                 background: isMobile ? '#F5F5F5' : 'transparent',
-                borderRadius: isMobile ? 8 : 6,
+                borderRadius: isMobile ? 8 : 4,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -539,87 +526,148 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
             </div>
           ) : previewUrl ? (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-              <Document
-                file={fileConfig}
-                onLoadSuccess={onDocumentLoadSuccess}
-                onLoadError={(error) => {
-                  console.error('❌ PDF Load Error:', error);
-                  console.error('PDF URL:', previewUrl);
-                  console.error('Document:', document);
-                }}
-                options={pdfOptions}
-                loading={
-                  <div style={{
-                    padding: 40,
-                    background: 'white',
-                    borderRadius: 12,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                    color: '#6C6C6C',
-                    fontSize: 16,
-                    fontFamily: 'Plus Jakarta Sans'
-                  }}>
-                    Loading PDF...
-                  </div>
-                }
-                error={
-                  <div style={{
-                    padding: 40,
-                    background: 'white',
-                    borderRadius: 12,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{ fontSize: 64, marginBottom: 20 }}>📄</div>
-                    <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
-                      Failed to load document preview
+              {/* Render based on document type */}
+              {getDocumentType() === 'image' ? (
+                /* Image Preview */
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  {imageLoading && !imageError && (
+                    <div style={{
+                      padding: 40,
+                      background: 'white',
+                      borderRadius: 12,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      color: '#6C6B6E',
+                      fontSize: 16,
+                      fontFamily: 'Plus Jakarta Sans'
+                    }}>
+                      Loading image...
                     </div>
-                    <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
-                      {document.filename}
+                  )}
+                  {imageError ? (
+                    <div style={{
+                      padding: 40,
+                      background: 'white',
+                      borderRadius: 12,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: 64, marginBottom: 20 }}>🖼️</div>
+                      <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
+                        Failed to load image
+                      </div>
+                      <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
+                        {document.filename}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 13, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans' }}>
-                      The document may still be processing. Please try opening the full preview.
-                    </div>
-                  </div>
-                }
-              >
-                {Array.from(new Array(totalPages), (el, index) => (
-                  <div
-                    key={`page_${index + 1}`}
-                    ref={(el) => {
-                      if (el) {
-                        pageRefs.current[index + 1] = el;
-                      }
-                    }}
-                    data-page-number={index + 1}
-                    style={{
-                      marginBottom: index < totalPages - 1 ? '20px' : '0'
-                    }}
-                  >
-                    <Page
-                      pageNumber={index + 1}
-                      width={isMobile ? window.innerWidth - 24 : 700 * (zoom / 100)}
-                      renderTextLayer={true}
-                      renderAnnotationLayer={true}
-                      loading={
-                        <div style={{
-                          width: isMobile ? window.innerWidth - 24 : 700 * (zoom / 100),
-                          height: isMobile ? (window.innerWidth - 24) * 1.3 : 900 * (zoom / 100),
-                          background: 'white',
-                          borderRadius: 8,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#6C6C6C',
-                          fontFamily: 'Plus Jakarta Sans'
-                        }}>
-                          Loading page {index + 1}...
-                        </div>
-                      }
+                  ) : (
+                    <img
+                      src={previewUrl}
+                      alt={document.filename}
+                      onLoad={() => {
+                        console.log(`✅ Image loaded successfully`);
+                        setImageLoading(false);
+                      }}
+                      onError={(e) => {
+                        console.error(`❌ Image failed to load:`, e);
+                        setImageLoading(false);
+                        setImageError(true);
+                      }}
+                      style={{
+                        maxWidth: `${zoom}%`,
+                        maxHeight: '100%',
+                        objectFit: 'contain',
+                        borderRadius: 8,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        display: imageLoading ? 'none' : 'block',
+                        transition: 'max-width 0.2s ease'
+                      }}
                     />
-                  </div>
-                ))}
-              </Document>
+                  )}
+                </div>
+              ) : (
+                /* PDF Preview (for PDF, DOCX, etc.) */
+                <Document
+                  file={fileConfig}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={(error) => {
+                    console.error('❌ PDF Load Error:', error);
+                    console.error('PDF URL:', previewUrl);
+                    console.error('Document:', document);
+                  }}
+                  options={pdfOptions}
+                  loading={
+                    <div style={{
+                      padding: 40,
+                      background: 'white',
+                      borderRadius: 12,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      color: '#6C6C6C',
+                      fontSize: 16,
+                      fontFamily: 'Plus Jakarta Sans'
+                    }}>
+                      Loading PDF...
+                    </div>
+                  }
+                  error={
+                    <div style={{
+                      padding: 40,
+                      background: 'white',
+                      borderRadius: 12,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: 64, marginBottom: 20 }}>📄</div>
+                      <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
+                        Failed to load document preview
+                      </div>
+                      <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
+                        {document.filename}
+                      </div>
+                      <div style={{ fontSize: 13, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans' }}>
+                        The document may still be processing. Please try opening the full preview.
+                      </div>
+                    </div>
+                  }
+                >
+                  {Array.from(new Array(totalPages), (el, index) => (
+                    <div
+                      key={`page_${index + 1}`}
+                      ref={(el) => {
+                        if (el) {
+                          pageRefs.current[index + 1] = el;
+                        }
+                      }}
+                      data-page-number={index + 1}
+                      style={{
+                        marginBottom: index < totalPages - 1 ? '20px' : '0'
+                      }}
+                    >
+                      <Page
+                        pageNumber={index + 1}
+                        width={isMobile ? window.innerWidth - 24 : 700 * (zoom / 100)}
+                        renderTextLayer={true}
+                        renderAnnotationLayer={true}
+                        loading={
+                          <div style={{
+                            width: isMobile ? window.innerWidth - 24 : 700 * (zoom / 100),
+                            height: isMobile ? (window.innerWidth - 24) * 1.3 : 900 * (zoom / 100),
+                            background: 'white',
+                            borderRadius: 8,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#6C6C6C',
+                            fontFamily: 'Plus Jakarta Sans'
+                          }}>
+                            Loading page {index + 1}...
+                          </div>
+                        }
+                      />
+                    </div>
+                  ))}
+                </Document>
+              )}
             </div>
           ) : (
             <div

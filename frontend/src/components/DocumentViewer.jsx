@@ -1098,19 +1098,22 @@ const DocumentViewer = () => {
 
               {/* Zoom Dropdown */}
               {showZoomDropdown && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  marginTop: 4,
-                  background: 'white',
-                  borderRadius: 12,
-                  border: '1px solid #E6E6EC',
-                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                  zIndex: 1000,
-                  minWidth: 100,
-                  overflow: 'hidden'
-                }}>
+                <div
+                  data-dropdown
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: 4,
+                    background: 'white',
+                    borderRadius: 12,
+                    border: '1px solid #E6E6EC',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                    zIndex: 1001,
+                    minWidth: 100,
+                    overflow: 'hidden',
+                    padding: 8
+                  }}>
                   {zoomPresets.map((preset) => (
                     <div
                       key={preset}
@@ -1119,17 +1122,18 @@ const DocumentViewer = () => {
                         setShowZoomDropdown(false);
                       }}
                       style={{
-                        padding: '10px 16px',
+                        padding: '10px 14px',
                         cursor: 'pointer',
                         background: zoom === preset ? '#F5F5F5' : 'white',
                         color: '#181818',
                         fontSize: 14,
                         fontFamily: 'Plus Jakarta Sans',
                         fontWeight: zoom === preset ? '600' : '500',
-                        transition: 'background 0.2s ease'
+                        transition: 'background 0.2s ease',
+                        borderRadius: 6
                       }}
                       onMouseEnter={(e) => {
-                        if (zoom !== preset) e.currentTarget.style.background = '#F9FAFB';
+                        if (zoom !== preset) e.currentTarget.style.background = '#F5F5F5';
                       }}
                       onMouseLeave={(e) => {
                         if (zoom !== preset) e.currentTarget.style.background = 'white';

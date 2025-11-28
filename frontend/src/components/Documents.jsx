@@ -1208,7 +1208,7 @@ const Documents = () => {
                       <DotsIcon style={{width: 24, height: 24}} />
                     </button>
                     {categoryMenuOpen === category.id && (
-                      <div style={{
+                      <div data-dropdown style={{
                         position: 'fixed',
                         top: categoryMenuPosition.top,
                         left: categoryMenuPosition.left,
@@ -1216,7 +1216,7 @@ const Documents = () => {
                         borderRadius: 12,
                         border: '1px solid #E6E6EC',
                         boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                        zIndex: 10000,
+                        zIndex: 1001,
                         minWidth: 160,
                         overflow: 'hidden'
                       }}>
@@ -1241,9 +1241,10 @@ const Documents = () => {
                             fontFamily: 'Plus Jakarta Sans',
                             fontWeight: '500',
                             color: '#32302C',
-                            transition: 'background 0.2s ease'
+                            transition: 'background 0.2s ease',
+                            textAlign: 'left'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
                           <EditIcon style={{width: 16, height: 16}} />
@@ -1271,9 +1272,10 @@ const Documents = () => {
                             fontFamily: 'Plus Jakarta Sans',
                             fontWeight: '500',
                             color: '#32302C',
-                            transition: 'background 0.2s ease'
+                            transition: 'background 0.2s ease',
+                            textAlign: 'left'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
                           <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
@@ -1299,9 +1301,10 @@ const Documents = () => {
                             fontFamily: 'Plus Jakarta Sans',
                             fontWeight: '500',
                             color: '#D92D20',
-                            transition: 'background 0.2s ease'
+                            transition: 'background 0.2s ease',
+                            textAlign: 'left'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#FEF3F2'}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
                           <TrashCanIcon style={{width: 16, height: 16}} />
@@ -1423,7 +1426,7 @@ const Documents = () => {
                         <DotsIcon style={{width: 24, height: 24}} />
                       </button>
                       {categoryMenuOpen === category.id && (
-                        <div style={{
+                        <div data-dropdown style={{
                           position: 'fixed',
                           top: categoryMenuPosition.top,
                           left: categoryMenuPosition.left,
@@ -1431,7 +1434,7 @@ const Documents = () => {
                           borderRadius: 12,
                           border: '1px solid #E6E6EC',
                           boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                          zIndex: 10000,
+                          zIndex: 1001,
                           minWidth: 160,
                           overflow: 'hidden'
                         }}>
@@ -1455,9 +1458,10 @@ const Documents = () => {
                               fontFamily: 'Plus Jakarta Sans',
                               fontWeight: '500',
                               color: '#32302C',
-                              transition: 'background 0.2s ease'
+                              transition: 'background 0.2s ease',
+                              textAlign: 'left'
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
                             <EditIcon style={{width: 16, height: 16}} />
@@ -1484,9 +1488,10 @@ const Documents = () => {
                               fontFamily: 'Plus Jakarta Sans',
                               fontWeight: '500',
                               color: '#32302C',
-                              transition: 'background 0.2s ease'
+                              transition: 'background 0.2s ease',
+                              textAlign: 'left'
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
                             <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
@@ -1512,9 +1517,10 @@ const Documents = () => {
                               fontFamily: 'Plus Jakarta Sans',
                               fontWeight: '500',
                               color: '#D92D20',
-                              transition: 'background 0.2s ease'
+                              transition: 'background 0.2s ease',
+                              textAlign: 'left'
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#FEF3F2'}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
                             <TrashCanIcon style={{width: 16, height: 16}} />
@@ -1940,19 +1946,21 @@ const Documents = () => {
 
                           {openDropdownId === doc.id && ReactDOM.createPortal(
                             <div
+                              data-dropdown
                               style={{
                                 position: 'fixed',
                                 top: dropdownPosition[doc.id]?.top || 0,
                                 left: dropdownPosition[doc.id]?.left || 0,
                                 background: 'white',
-                                boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                                 borderRadius: 12,
                                 border: '1px solid #E6E6EC',
-                                zIndex: 10000,
-                                minWidth: 160
+                                zIndex: 1001,
+                                minWidth: 160,
+                                overflow: 'hidden'
                               }}
                             >
-                              <div style={{padding: 4, display: 'flex', flexDirection: 'column', gap: 1}}>
+                              <div style={{padding: 8, display: 'flex', flexDirection: 'column', gap: 0}}>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1962,7 +1970,7 @@ const Documents = () => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 6,
-                                    padding: '8px 14px',
+                                    padding: '10px 14px',
                                     background: 'transparent',
                                     border: 'none',
                                     borderRadius: 6,
@@ -1972,7 +1980,8 @@ const Documents = () => {
                                     fontWeight: '500',
                                     color: '#32302C',
                                     transition: 'background 0.2s ease',
-                                    textAlign: 'left'
+                                    textAlign: 'left',
+                                    width: '100%'
                                   }}
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -1990,7 +1999,7 @@ const Documents = () => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 6,
-                                    padding: '8px 14px',
+                                    padding: '10px 14px',
                                     background: 'transparent',
                                     border: 'none',
                                     borderRadius: 6,
@@ -2000,7 +2009,8 @@ const Documents = () => {
                                     fontWeight: '500',
                                     color: '#32302C',
                                     transition: 'background 0.2s ease',
-                                    textAlign: 'left'
+                                    textAlign: 'left',
+                                    width: '100%'
                                   }}
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -2018,7 +2028,7 @@ const Documents = () => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 6,
-                                    padding: '8px 14px',
+                                    padding: '10px 14px',
                                     background: 'transparent',
                                     border: 'none',
                                     borderRadius: 6,
@@ -2028,7 +2038,8 @@ const Documents = () => {
                                     fontWeight: '500',
                                     color: '#32302C',
                                     transition: 'background 0.2s ease',
-                                    textAlign: 'left'
+                                    textAlign: 'left',
+                                    width: '100%'
                                   }}
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -2047,7 +2058,7 @@ const Documents = () => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 6,
-                                    padding: '8px 14px',
+                                    padding: '10px 14px',
                                     background: 'transparent',
                                     border: 'none',
                                     borderRadius: 6,
@@ -2055,9 +2066,10 @@ const Documents = () => {
                                     fontSize: 14,
                                     fontFamily: 'Plus Jakarta Sans',
                                     fontWeight: '500',
-                                    color: '#DC2626',
+                                    color: '#D92D20',
                                     transition: 'background 0.2s ease',
-                                    textAlign: 'left'
+                                    textAlign: 'left',
+                                    width: '100%'
                                   }}
                                   onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'}
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}

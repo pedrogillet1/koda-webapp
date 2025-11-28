@@ -1682,6 +1682,7 @@ const CategoryDetail = () => {
                           {/* Dropdown Menu */}
                           {openFolderMenuId === folder.id && (
                             <div
+                              data-dropdown
                               onClick={(e) => e.stopPropagation()}
                               style={{
                               position: 'absolute',
@@ -1689,11 +1690,13 @@ const CategoryDetail = () => {
                               right: 0,
                               marginTop: 4,
                               background: 'white',
-                              boxShadow: '0px 4px 6px -2px rgba(16, 24, 40, 0.03)',
-                              borderRadius: 8,
-                              outline: '1px #E6E6EC solid',
+                              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                              borderRadius: 12,
+                              border: '1px solid #E6E6EC',
                               minWidth: 150,
-                              zIndex: 99999  // ✅ FIX: Increased from 10000 to ensure dropdown appears above folder blocks
+                              zIndex: 1001,
+                              overflow: 'hidden',
+                              padding: 8
                             }}>
                               <button
                                 onClick={(e) => {
@@ -1702,7 +1705,7 @@ const CategoryDetail = () => {
                                 }}
                                 style={{
                                   width: '100%',
-                                  padding: '8px 12px',
+                                  padding: '10px 14px',
                                   background: 'none',
                                   border: 'none',
                                   textAlign: 'left',
@@ -1711,9 +1714,10 @@ const CategoryDetail = () => {
                                   fontWeight: '500',
                                   color: '#32302C',
                                   cursor: 'pointer',
-                                  borderRadius: '8px 8px 0 0'
+                                  borderRadius: 6,
+                                  transition: 'background 0.2s'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                                onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
                                 Open
@@ -1727,18 +1731,19 @@ const CategoryDetail = () => {
                                 }}
                                 style={{
                                   width: '100%',
-                                  padding: '8px 12px',
+                                  padding: '10px 14px',
                                   background: 'none',
                                   border: 'none',
-                                  borderTop: '1px solid #F3F4F6',
                                   textAlign: 'left',
                                   fontSize: 14,
                                   fontFamily: 'Plus Jakarta Sans',
                                   fontWeight: '500',
                                   color: '#32302C',
-                                  cursor: 'pointer'
+                                  cursor: 'pointer',
+                                  borderRadius: 6,
+                                  transition: 'background 0.2s'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                                onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
                                 Rename
@@ -1757,18 +1762,19 @@ const CategoryDetail = () => {
                                 }}
                                 style={{
                                   width: '100%',
-                                  padding: '8px 12px',
+                                  padding: '10px 14px',
                                   background: 'none',
                                   border: 'none',
-                                  borderTop: '1px solid #F3F4F6',
                                   textAlign: 'left',
                                   fontSize: 14,
                                   fontFamily: 'Plus Jakarta Sans',
                                   fontWeight: '500',
                                   color: '#32302C',
-                                  cursor: 'pointer'
+                                  cursor: 'pointer',
+                                  borderRadius: 6,
+                                  transition: 'background 0.2s'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                                onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
                                 Move
@@ -1790,17 +1796,17 @@ const CategoryDetail = () => {
                                 }}
                                 style={{
                                   width: '100%',
-                                  padding: '8px 12px',
+                                  padding: '10px 14px',
                                   background: 'none',
                                   border: 'none',
-                                  borderTop: '1px solid #F3F4F6',
                                   textAlign: 'left',
                                   fontSize: 14,
                                   fontFamily: 'Plus Jakarta Sans',
                                   fontWeight: '500',
                                   color: '#D92D20',
                                   cursor: 'pointer',
-                                  borderRadius: '0 0 8px 8px'
+                                  borderRadius: 6,
+                                  transition: 'background 0.2s'
                                 }}
                                 onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -2072,17 +2078,20 @@ const CategoryDetail = () => {
 
                           {openDropdownId === doc.id && (
                             <div
+                              data-dropdown
                               onClick={(e) => e.stopPropagation()}
                               style={{
                                 position: 'fixed',
                                 top: dropdownMenuPosition.top,
                                 left: dropdownMenuPosition.left,
                                 background: 'white',
-                                border: '1px solid #E5E7EB',
-                                borderRadius: 8,
-                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                                zIndex: 10000,
-                                minWidth: 160
+                                border: '1px solid #E6E6EC',
+                                borderRadius: 12,
+                                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                                zIndex: 1001,
+                                minWidth: 160,
+                                overflow: 'hidden',
+                                padding: 8
                               }}
                             >
                               <button
@@ -2095,7 +2104,7 @@ const CategoryDetail = () => {
                                   alignItems: 'center',
                                   gap: 6,
                                   width: '100%',
-                                  padding: '8px 14px',
+                                  padding: '10px 14px',
                                   background: 'none',
                                   border: 'none',
                                   textAlign: 'left',
@@ -2124,7 +2133,7 @@ const CategoryDetail = () => {
                                   alignItems: 'center',
                                   gap: 6,
                                   width: '100%',
-                                  padding: '8px 14px',
+                                  padding: '10px 14px',
                                   background: 'none',
                                   border: 'none',
                                   textAlign: 'left',
@@ -2153,7 +2162,7 @@ const CategoryDetail = () => {
                                   alignItems: 'center',
                                   gap: 6,
                                   width: '100%',
-                                  padding: '8px 14px',
+                                  padding: '10px 14px',
                                   background: 'none',
                                   border: 'none',
                                   textAlign: 'left',
@@ -2182,12 +2191,12 @@ const CategoryDetail = () => {
                                   alignItems: 'center',
                                   gap: 6,
                                   width: '100%',
-                                  padding: '8px 14px',
+                                  padding: '10px 14px',
                                   background: 'none',
                                   border: 'none',
                                   textAlign: 'left',
                                   fontSize: 14,
-                                  color: '#DC2626',
+                                  color: '#D92D20',
                                   fontFamily: 'Plus Jakarta Sans',
                                   fontWeight: '500',
                                   cursor: 'pointer',
@@ -2408,16 +2417,19 @@ const CategoryDetail = () => {
 
                               {openDropdownId === doc.id && (
                                 <div
+                                  data-dropdown
                                   style={{
                                     position: 'fixed',
                                     top: dropdownMenuPosition.top,
                                     left: dropdownMenuPosition.left,
                                     background: 'white',
-                                    border: '1px solid #E5E7EB',
-                                    borderRadius: 8,
-                                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                                    zIndex: 10000,
-                                    minWidth: 160
+                                    border: '1px solid #E6E6EC',
+                                    borderRadius: 12,
+                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                                    zIndex: 1001,
+                                    minWidth: 160,
+                                    overflow: 'hidden',
+                                    padding: 8
                                   }}
                                 >
                                   <button
@@ -2430,7 +2442,7 @@ const CategoryDetail = () => {
                                       alignItems: 'center',
                                       gap: 6,
                                       width: '100%',
-                                      padding: '8px 14px',
+                                      padding: '10px 14px',
                                       background: 'none',
                                       border: 'none',
                                       textAlign: 'left',
@@ -2459,7 +2471,7 @@ const CategoryDetail = () => {
                                       alignItems: 'center',
                                       gap: 6,
                                       width: '100%',
-                                      padding: '8px 14px',
+                                      padding: '10px 14px',
                                       background: 'none',
                                       border: 'none',
                                       textAlign: 'left',
@@ -2488,7 +2500,7 @@ const CategoryDetail = () => {
                                       alignItems: 'center',
                                       gap: 6,
                                       width: '100%',
-                                      padding: '8px 14px',
+                                      padding: '10px 14px',
                                       background: 'none',
                                       border: 'none',
                                       textAlign: 'left',
@@ -2517,12 +2529,12 @@ const CategoryDetail = () => {
                                       alignItems: 'center',
                                       gap: 6,
                                       width: '100%',
-                                      padding: '8px 14px',
+                                      padding: '10px 14px',
                                       background: 'none',
                                       border: 'none',
                                       textAlign: 'left',
                                       fontSize: 14,
-                                      color: '#DC2626',
+                                      color: '#D92D20',
                                       fontFamily: 'Plus Jakarta Sans',
                                       fontWeight: '500',
                                       cursor: 'pointer',

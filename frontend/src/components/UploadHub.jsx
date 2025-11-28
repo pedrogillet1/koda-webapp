@@ -2045,20 +2045,23 @@ const UploadHub = () => {
 
                       {openDropdownId === item.id && (
                         <div
+                          data-dropdown
                           style={{
                             position: 'absolute',
                             top: '100%',
                             right: 0,
                             marginTop: 4,
                             background: 'white',
-                            boxShadow: '0px 4px 6px -2px rgba(16, 24, 40, 0.03)',
+                            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                             borderRadius: 12,
                             border: '1px solid #E6E6EC',
-                            zIndex: 1000,
-                            minWidth: 160
+                            zIndex: 1001,
+                            minWidth: 160,
+                            overflow: 'hidden',
+                            padding: 8
                           }}
                         >
-                          <div style={{padding: 4, display: 'flex', flexDirection: 'column', gap: 1}}>
+                          <div style={{display: 'flex', flexDirection: 'column', gap: 1}}>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -2069,7 +2072,8 @@ const UploadHub = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 6,
-                                padding: '8px 14px',
+                                width: '100%',
+                                padding: '10px 14px',
                                 background: 'transparent',
                                 border: 'none',
                                 borderRadius: 6,
@@ -2097,7 +2101,8 @@ const UploadHub = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 6,
-                                padding: '8px 14px',
+                                width: '100%',
+                                padding: '10px 14px',
                                 background: 'transparent',
                                 border: 'none',
                                 borderRadius: 6,
@@ -2125,7 +2130,8 @@ const UploadHub = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 6,
-                                padding: '8px 14px',
+                                width: '100%',
+                                padding: '10px 14px',
                                 background: 'transparent',
                                 border: 'none',
                                 borderRadius: 6,
@@ -2133,7 +2139,7 @@ const UploadHub = () => {
                                 fontSize: 14,
                                 fontFamily: 'Plus Jakarta Sans',
                                 fontWeight: '500',
-                                color: '#DC2626',
+                                color: '#D92D20',
                                 transition: 'background 0.2s ease',
                                 textAlign: 'left'
                               }}
@@ -2351,20 +2357,23 @@ const UploadHub = () => {
 
                     {openDropdownId === item.id && (
                       <div
+                        data-dropdown
                         style={{
                           position: 'absolute',
                           top: '100%',
                           right: 0,
                           marginTop: 4,
                           background: 'white',
-                          boxShadow: '0px 4px 6px -2px rgba(16, 24, 40, 0.03)',
+                          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                           borderRadius: 12,
                           border: '1px solid #E6E6EC',
-                          zIndex: 1000,
-                          minWidth: 160
+                          zIndex: 1001,
+                          minWidth: 160,
+                          overflow: 'hidden',
+                          padding: 8
                         }}
                       >
-                        <div style={{padding: 4, display: 'flex', flexDirection: 'column', gap: 1}}>
+                        <div style={{display: 'flex', flexDirection: 'column', gap: 1}}>
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -2389,7 +2398,8 @@ const UploadHub = () => {
                               display: 'flex',
                               alignItems: 'center',
                               gap: 6,
-                              padding: '8px 14px',
+                              width: '100%',
+                              padding: '10px 14px',
                               background: 'transparent',
                               border: 'none',
                               borderRadius: 6,
@@ -2418,7 +2428,8 @@ const UploadHub = () => {
                               display: 'flex',
                               alignItems: 'center',
                               gap: 6,
-                              padding: '8px 14px',
+                              width: '100%',
+                              padding: '10px 14px',
                               background: 'transparent',
                               border: 'none',
                               borderRadius: 6,
@@ -2446,7 +2457,8 @@ const UploadHub = () => {
                               display: 'flex',
                               alignItems: 'center',
                               gap: 6,
-                              padding: '8px 14px',
+                              width: '100%',
+                              padding: '10px 14px',
                               background: 'transparent',
                               border: 'none',
                               borderRadius: 6,
@@ -2474,7 +2486,8 @@ const UploadHub = () => {
                               display: 'flex',
                               alignItems: 'center',
                               gap: 6,
-                              padding: '8px 14px',
+                              width: '100%',
+                              padding: '10px 14px',
                               background: 'transparent',
                               border: 'none',
                               borderRadius: 6,
@@ -2482,7 +2495,7 @@ const UploadHub = () => {
                               fontSize: 14,
                               fontFamily: 'Plus Jakarta Sans',
                               fontWeight: '500',
-                              color: '#DC2626',
+                              color: '#D92D20',
                               transition: 'background 0.2s ease',
                               textAlign: 'left'
                             }}
@@ -2803,20 +2816,23 @@ const UploadHub = () => {
 
                               {openDropdownId === (f.isFolder ? f.folderName : f.file.name) && (
                                 <div
+                                  data-dropdown
                                   style={{
                                     position: 'absolute',
                                     top: '100%',
                                     right: 0,
                                     marginTop: 4,
                                     background: 'white',
-                                    boxShadow: '0px 4px 6px -2px rgba(16, 24, 40, 0.03)',
+                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                                     borderRadius: 12,
                                     border: '1px solid #E6E6EC',
-                                    zIndex: 1000,
-                                    minWidth: 160
+                                    zIndex: 1001,
+                                    minWidth: 160,
+                                    overflow: 'hidden',
+                                    padding: 8
                                   }}
                                 >
-                                  <div style={{padding: 4, display: 'flex', flexDirection: 'column', gap: 1}}>
+                                  <div style={{display: 'flex', flexDirection: 'column', gap: 1}}>
                                     <button
                                       onClick={async (e) => {
                                         e.stopPropagation();
@@ -2841,7 +2857,8 @@ const UploadHub = () => {
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: 6,
-                                        padding: '8px 14px',
+                                        width: '100%',
+                                        padding: '10px 14px',
                                         background: 'transparent',
                                         border: 'none',
                                         borderRadius: 6,
@@ -2869,7 +2886,8 @@ const UploadHub = () => {
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: 6,
-                                        padding: '8px 14px',
+                                        width: '100%',
+                                        padding: '10px 14px',
                                         background: 'transparent',
                                         border: 'none',
                                         borderRadius: 6,
@@ -2896,7 +2914,8 @@ const UploadHub = () => {
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: 6,
-                                        padding: '8px 14px',
+                                        width: '100%',
+                                        padding: '10px 14px',
                                         background: 'transparent',
                                         border: 'none',
                                         borderRadius: 6,
@@ -2929,7 +2948,8 @@ const UploadHub = () => {
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: 6,
-                                        padding: '8px 14px',
+                                        width: '100%',
+                                        padding: '10px 14px',
                                         background: 'transparent',
                                         border: 'none',
                                         borderRadius: 6,
@@ -2937,7 +2957,7 @@ const UploadHub = () => {
                                         fontSize: 14,
                                         fontFamily: 'Plus Jakarta Sans',
                                         fontWeight: '500',
-                                        color: '#DC2626',
+                                        color: '#D92D20',
                                         transition: 'background 0.2s ease',
                                         textAlign: 'left'
                                       }}

@@ -13,16 +13,7 @@ import * as chatService from '../services/chatService';
 // Character animation caused infinite generation bugs - now displaying chunks directly
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useIsMobile } from '../hooks/useIsMobile';
-import pdfIcon from '../assets/pdf-icon.png';
-import docIcon from '../assets/doc-icon.png';
-import txtIcon from '../assets/txt-icon.png';
-import xlsIcon from '../assets/xls.png';
-import jpgIcon from '../assets/jpg-icon.png';
-import pngIcon from '../assets/png-icon.png';
-import pptxIcon from '../assets/pptx.png';
-import movIcon from '../assets/mov.png';
-import mp4Icon from '../assets/mp4.png';
-import mp3Icon from '../assets/mp3.svg';
+import { getFileIcon } from '../utils/iconMapper';
 import GeneratedDocumentCard from './GeneratedDocumentCard';
 import DocumentCard from './DocumentCard';
 import DocumentPreviewModal from './DocumentPreviewModal';
@@ -198,27 +189,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             console.error('Preload failed for:', doc.filename, error);
             // Fail silently - user can still click to load
         }
-    };
-
-    // Helper function to get file icon based on extension
-    const getFileIcon = (filename) => {
-        if (!filename) {
-            return docIcon;
-        }
-        const ext = filename.toLowerCase();
-
-        if (ext.match(/\.(pdf)$/)) return pdfIcon;
-        if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-        if (ext.match(/\.(png)$/)) return pngIcon;
-        if (ext.match(/\.(doc|docx)$/)) return docIcon;
-        if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
-        if (ext.match(/\.(txt)$/)) return txtIcon;
-        if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
-        if (ext.match(/\.(mov)$/)) return movIcon;
-        if (ext.match(/\.(mp4)$/)) return mp4Icon;
-        if (ext.match(/\.(mp3)$/)) return mp3Icon;
-
-        return docIcon; // Default icon
     };
 
     // Helper function to check if file is an image
@@ -1799,7 +1769,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             createdAt: new Date().toISOString(),
             isOptimistic: true,
             status: 'sending', // ← Track message status: 'sending' | 'sent' | 'failed'
-            attachedFiles: documentsToAttach.map(doc => ({ id: doc.id, name: doc.name, type: doc.type })),
+            attachedFiles: documentsToAttach.map(doc => ({
+                id: doc.id,
+                name: doc.name || doc.filename,
+                type: doc.type || doc.mimeType
+            })),
         };
         setMessages((prev) => {
             // Check if this exact message was just added (prevent double-send)
@@ -2378,8 +2352,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     <div className="assistant-message" style={{display: 'flex', gap: 12, alignItems: 'flex-start', maxWidth: '70%'}}>
                                         {/* Koda Avatar - Sphere Icon */}
                                         <img src={sphere} alt="Koda" style={{
-                                            width: 32,
-                                            height: 32,
+                                            width: 40,
+                                            height: 40,
                                             flexShrink: 0,
                                             marginTop: 4
                                         }} />
@@ -2468,22 +2442,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 >
                                                                     {/* File Icon */}
                                                                     <img
-                                                                        src={
-                                                                            msg.metadata.document.mimeType === 'application/pdf' ? pdfIcon :
-                                                                            msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ? docIcon :
-                                                                            msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ? xlsIcon :
-                                                                            msg.metadata.document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ? pptxIcon :
-                                                                            msg.metadata.document.mimeType === 'text/plain' ? txtIcon :
-                                                                            msg.metadata.document.mimeType === 'image/jpeg' ? jpgIcon :
-                                                                            msg.metadata.document.mimeType === 'image/png' ? pngIcon :
-                                                                            msg.metadata.document.mimeType === 'video/quicktime' ? movIcon :
-                                                                            msg.metadata.document.mimeType === 'video/mp4' ? mp4Icon :
-                                                                            msg.metadata.document.mimeType === 'audio/mpeg' ? mp3Icon :
-                                                                            msg.metadata.document.mimeType?.startsWith('image/') ? pngIcon :
-                                                                            msg.metadata.document.mimeType?.startsWith('video/') ? mp4Icon :
-                                                                            msg.metadata.document.mimeType?.startsWith('audio/') ? mp3Icon :
-                                                                            pdfIcon
-                                                                        }
+                                                                        src={getFileIcon(msg.metadata.document.filename, msg.metadata.document.mimeType)}
                                                                         alt="file icon"
                                                                         style={{
                                                                             width: '32px',
@@ -2614,40 +2573,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
                                                         const isExpanded = expandedSources[`${msg.id}-rag`];
 
-                                                        // Helper function to get file icon based on filename
-                                                        const getFileIcon = (filename, mimeType) => {
-                                                            if (!filename) return docIcon;
-
-                                                            // Try to determine icon from filename extension first
-                                                            const ext = filename.toLowerCase();
-                                                            if (ext.match(/\.(pdf)$/)) return pdfIcon;
-                                                            if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-                                                            if (ext.match(/\.(png)$/)) return pngIcon;
-                                                            if (ext.match(/\.(doc|docx)$/)) return docIcon;
-                                                            if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
-                                                            if (ext.match(/\.(txt)$/)) return txtIcon;
-                                                            if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
-                                                            if (ext.match(/\.(mov)$/)) return movIcon;
-                                                            if (ext.match(/\.(mp4)$/)) return mp4Icon;
-                                                            if (ext.match(/\.(mp3)$/)) return mp3Icon;
-
-                                                            // If no extension match and mimeType is provided, use mimeType
-                                                            if (mimeType) {
-                                                                if (mimeType.includes('pdf')) return pdfIcon;
-                                                                if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return jpgIcon;
-                                                                if (mimeType.includes('png')) return pngIcon;
-                                                                if (mimeType.includes('msword') || mimeType.includes('wordprocessingml')) return docIcon;
-                                                                if (mimeType.includes('excel') || mimeType.includes('spreadsheetml')) return xlsIcon;
-                                                                if (mimeType.includes('text/plain')) return txtIcon;
-                                                                if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return pptxIcon;
-                                                                if (mimeType.includes('quicktime')) return movIcon;
-                                                                if (mimeType.includes('mp4')) return mp4Icon;
-                                                                if (mimeType.includes('mp3') || mimeType.includes('mpeg')) return mp3Icon;
-                                                            }
-
-                                                            return docIcon; // Default icon
-                                                        };
-
                                                         return (
                                                             <div style={{ width: '100%', marginTop: 12 }}>
                                                                 {/* Toggle Button for Document Sources */}
@@ -2746,7 +2671,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                     position: 'relative',
                                                                                     overflow: 'hidden'
                                                                                 }}
-                                                                                onClick={() => navigate(`/document/${doc.documentId}`)}
+                                                                                onClick={() => setPreviewDocument({
+                                                                                    id: doc.documentId,
+                                                                                    filename: doc.documentName,
+                                                                                    mimeType: doc.mimeType
+                                                                                })}
                                                                                 onMouseEnter={(e) => {
                                                                                     e.currentTarget.style.background = 'linear-gradient(135deg, #F0F0F0 0%, #E6E6EC 100%)';
                                                                                     e.currentTarget.style.borderColor = '#D1D1D6';
@@ -2791,11 +2720,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                             whiteSpace: 'nowrap'
                                                                                         }}>
                                                                                             {doc.documentName || 'Unknown Document'}
-                                                                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink: 0}}>
-                                                                                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                                                                                                <polyline points="15 3 21 3 21 9" />
-                                                                                                <line x1="10" y1="14" x2="21" y2="3" />
-                                                                                            </svg>
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
@@ -3082,8 +3006,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 if (attachedFile.id) {
                                                                     preloadPreview({
                                                                         id: attachedFile.id,
-                                                                        filename: attachedFile.name,
-                                                                        mimeType: attachedFile.type
+                                                                        filename: attachedFile.name || attachedFile.filename,
+                                                                        mimeType: attachedFile.type || attachedFile.mimeType
                                                                     });
                                                                 }
                                                             }}
@@ -3092,8 +3016,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                     // DocumentPreviewModal expects 'filename' property
                                                                     setPreviewDocument({
                                                                         id: attachedFile.id,
-                                                                        filename: attachedFile.name,
-                                                                        mimeType: attachedFile.type
+                                                                        filename: attachedFile.name || attachedFile.filename,
+                                                                        mimeType: attachedFile.type || attachedFile.mimeType
                                                                     });
                                                                 }
                                                             }}
@@ -3127,7 +3051,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                         >
                                                             {/* File icon - using proper getFileIcon function */}
                                                             <img
-                                                                src={getFileIcon(attachedFile.name)}
+                                                                src={getFileIcon(attachedFile.name || attachedFile.filename || 'file', attachedFile.type || attachedFile.mimeType)}
                                                                 alt="File icon"
                                                                 style={{
                                                                     width: 40,
@@ -3150,7 +3074,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                     overflow: 'hidden',
                                                                     textOverflow: 'ellipsis',
                                                                 }}>
-                                                                    {attachedFile.name}
+                                                                    {attachedFile.name || attachedFile.filename || 'Attached file'}
                                                                 </div>
                                                             </div>
                                                         </div>
