@@ -2771,7 +2771,7 @@ const Documents = () => {
               e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 10, display: 'flex' }}>
+            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 4, display: 'flex' }}>
               <img
                 src={sphereIcon}
                 alt="Koda"
