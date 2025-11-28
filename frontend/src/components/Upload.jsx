@@ -145,7 +145,7 @@ const Upload = () => {
                 </div>
 
                 <div style={{alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 12 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: isMobile ? 12 : 20, display: 'flex'}}>
-                    <div {...getRootProps()} style={{alignSelf: 'stretch', flex: '1 1 0', minHeight: isMobile ? 300 : 420, paddingLeft: isMobile ? 16 : 40, paddingRight: isMobile ? 16 : 40, paddingTop: isMobile ? 32 : 40, paddingBottom: isMobile ? 32 : 40, background: '#F5F5F5', overflow: 'visible', borderRadius: isMobile ? 16 : 20, border: '1px solid #E6E6EC', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: isMobile ? 20 : 32, display: 'flex', cursor: 'pointer'}}>
+                    <div {...getRootProps()} style={{alignSelf: 'stretch', flex: '1 1 0', minHeight: isMobile ? 300 : 420, paddingLeft: isMobile ? 16 : 40, paddingRight: isMobile ? 16 : 40, paddingTop: isMobile ? 32 : 40, paddingBottom: isMobile ? 32 : 40, background: '#F5F5F5', overflow: 'visible', borderRadius: isMobile ? 16 : 20, border: '2px solid #E6E6EC', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: isMobile ? 20 : 32, display: 'flex', cursor: 'pointer'}}>
                         <input {...getInputProps()} />
                         <div style={{
                             width: 85.38,
@@ -341,12 +341,13 @@ const Upload = () => {
                             }}>
                                 {/* Drag-drop zone */}
                                 <div {...getRootProps()} style={{
-                                    border: '1px solid #E6E6EC',
+                                    border: '2px solid #E6E6EC',
                                     borderRadius: isMobile ? 16 : 20,
                                     padding: isMobile ? '32px 16px' : '48px 24px',
                                     textAlign: 'center',
                                     marginBottom: isMobile ? 16 : 24,
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)'
                                 }}>
                                     <input {...getInputProps()} />
                                     <div style={{

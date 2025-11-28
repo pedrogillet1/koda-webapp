@@ -77,12 +77,9 @@ export default function FileUploadPreview({ file, progress = 0, onRemove }) {
         </div>
       )}
 
+      {/* Always show file type icon on the left */}
       <div className="file-thumbnail">
-        {thumbnail ? (
-          <img src={thumbnail} alt={file?.name || 'Preview'} className="thumbnail-image" />
-        ) : (
-          <img src={getFileIcon()} alt={file?.name || 'File'} className="file-icon" />
-        )}
+        <img src={getFileIcon()} alt={file?.name || 'File'} className="file-icon" />
       </div>
 
       <div className="file-info">
@@ -107,6 +104,13 @@ export default function FileUploadPreview({ file, progress = 0, onRemove }) {
         </div>
 
       </div>
+
+      {/* Image thumbnail preview on the right */}
+      {thumbnail && (
+        <div className="image-preview-thumbnail">
+          <img src={thumbnail} alt={file?.name || 'Preview'} />
+        </div>
+      )}
 
       {onRemove && (
         <button

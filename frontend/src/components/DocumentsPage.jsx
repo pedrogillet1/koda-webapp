@@ -790,7 +790,8 @@ const DocumentsPage = () => {
                 padding: `${spacing.lg}px`,
                 background: colors.white,
                 borderRadius: radius.xl,
-                border: `1px solid ${colors.gray[300]}`,
+                border: `2px solid ${colors.gray[300]}`,
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: spacing.sm,
@@ -852,7 +853,8 @@ const DocumentsPage = () => {
                     padding: spacing.md,
                     background: colors.white,
                     borderRadius: radius.xl,
-                    border: `1px solid ${colors.gray[300]}`,
+                    border: `2px solid ${colors.gray[300]}`,
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: spacing.sm,
@@ -1028,8 +1030,9 @@ const DocumentsPage = () => {
           <div style={{
             padding: spacing.xxl,
             background: colors.white,
-            borderRadius: radius.xl,
-            border: `1px solid ${colors.gray[300]}`,
+            borderRadius: 20,
+            border: `2px solid ${colors.gray[300]}`,
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
             display: 'flex',
             flexDirection: 'column'
           }}>
@@ -1166,7 +1169,8 @@ const DocumentsPage = () => {
                           padding: '12px 16px',
                           borderRadius: 10,
                           background: 'white',
-                          border: '1px solid #E6E6EC',
+                          border: '2px solid #E6E6EC',
+                          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                           cursor: 'pointer',
                           transition: 'all 0.2s ease',
                           transform: 'translateY(0)'
@@ -1371,7 +1375,8 @@ const DocumentsPage = () => {
                         padding: '12px 16px',
                         borderRadius: 10,
                         background: isSelectMode && isSelected(doc.id) ? '#F3F3F5' : 'white',
-                        border: '1px solid #E6E6EC',
+                        border: '2px solid #E6E6EC',
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                         cursor: isSelectMode ? 'pointer' : 'pointer',
                         transition: 'all 0.2s ease',
                         transform: 'translateY(0)'

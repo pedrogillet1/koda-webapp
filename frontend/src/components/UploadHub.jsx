@@ -1864,7 +1864,7 @@ const UploadHub = () => {
       }}>
         <div style={{padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
           {isLibraryExpanded && (
-            <h3 style={{fontSize: 18, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Library</h3>
+            <h3 style={{fontSize: 20, fontWeight: '700', color: '#32302C', margin: 0, fontFamily: 'Plus Jakarta Sans', lineHeight: '30px', textTransform: 'capitalize', textShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)'}}>Library</h3>
           )}
           <button
             onClick={() => setIsLibraryExpanded(!isLibraryExpanded)}
@@ -2531,12 +2531,13 @@ const UploadHub = () => {
           flexShrink: 0
         }}>
           <h2 style={{
-            fontSize: isMobile ? 18 : 24,
+            fontSize: isMobile ? 18 : 20,
             fontWeight: '700',
-            color: '#111827',
+            color: '#32302C',
             margin: 0,
             fontFamily: 'Plus Jakarta Sans',
-            lineHeight: '30px'
+            lineHeight: '30px',
+            textTransform: 'capitalize'
           }}>
             Upload Hub
           </h2>
@@ -2554,8 +2555,8 @@ const UploadHub = () => {
         }}>
           {/* Drag-drop zone */}
           <div {...getRootProps()} style={{
-            border: '1px solid #E6E6EC',
-            borderRadius: isMobile ? 16 : 16,
+            border: '2px solid #E6E6EC',
+            borderRadius: isMobile ? 16 : 20,
             padding: isMobile ? 24 : 48,
             textAlign: 'center',
             marginBottom: uploadingFiles.length > 0 ? 24 : 0,
@@ -2570,11 +2571,29 @@ const UploadHub = () => {
             maxWidth: isMobile ? '100%' : 800,
             minHeight: isMobile ? 300 : 400,
             alignSelf: 'center',
-            boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06)'
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)'
           }}>
             <input {...getInputProps()} />
             {/* File types stack icon */}
-            <img src={fileTypesStackIcon} alt="File Types" style={{width: isMobile ? 220 : 360, height: isMobile ? 112 : 183, margin: isMobile ? '0 auto 16px' : '0 auto 24px'}} />
+            <img
+              src={fileTypesStackIcon}
+              alt="File Types"
+              style={{
+                width: isMobile ? 220 : 360,
+                height: isMobile ? 112 : 183,
+                margin: isMobile ? '0 auto 16px' : '0 auto 24px',
+                filter: 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15))',
+                transition: 'transform 0.3s ease, filter 0.3s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)';
+                e.currentTarget.style.filter = 'drop-shadow(0 12px 24px rgba(0, 0, 0, 0.2))';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.filter = 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15))';
+              }}
+            />
             <h3 style={{fontSize: isMobile ? 16 : 18, fontWeight: '600', color: '#111827', margin: '0 0 8px 0', fontFamily: 'Plus Jakarta Sans'}}>{isMobile ? 'Tap to Upload' : 'Upload Documents Or Drag-N-Drop'}</h3>
             <p style={{fontSize: isMobile ? 13 : 14, color: '#6B7280', margin: isMobile ? '0 0 16px 0' : '0 0 24px 0', lineHeight: 1.5, fontFamily: 'Plus Jakarta Sans'}}>{isMobile ? 'All file types supported (max 500MB)' : 'Upload files or folders'}<br/>{!isMobile && 'All file types supported (max 500MB per file)'}</p>
             <div style={{display: 'flex', gap: isMobile ? 8 : 12, flexDirection: isMobile ? 'column' : 'row', width: isMobile ? '100%' : 'auto', maxWidth: isMobile ? 200 : 'none'}}>

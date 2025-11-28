@@ -182,6 +182,7 @@ const RecoveryVerificationBanner = () => {
 const AddPhoneModal = ({ onClose, onSuccess, onError }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [phoneFocused, setPhoneFocused] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -217,43 +218,153 @@ const AddPhoneModal = ({ onClose, onSuccess, onError }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="phone-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Add Recovery Phone</h2>
-          <button className="close-button" onClick={onClose}>×</button>
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10000
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: '420px',
+          margin: '0 24px',
+          padding: '48px 32px',
+          background: 'white',
+          borderRadius: 24,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+        }}
+      >
+        {/* Phone Icon */}
+        <div style={{
+          marginBottom: '24px',
+          fontSize: '72px',
+          textShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          display: 'inline-block',
+          transform: 'rotate(-15deg)'
+        }}>
+          📱
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="phoneNumber">Phone Number</label>
-            <PhoneInput
-              international
-              defaultCountry="US"
-              value={phoneNumber}
-              onChange={setPhoneNumber}
-              placeholder="234 567 8900"
-              className="phone-input-field"
-              disabled={submitting}
-            />
-            <p className="form-hint">Select your country and enter your phone number</p>
-          </div>
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={onClose}
-              disabled={submitting}
+
+        {/* Title */}
+        <h1 style={{
+          fontSize: '32px',
+          fontWeight: '600',
+          fontFamily: 'Plus Jakarta Sans',
+          textAlign: 'center',
+          margin: 0,
+          marginBottom: '12px',
+          color: '#32302C'
+        }}>
+          Enter Your Phone
+        </h1>
+
+        {/* Subtitle */}
+        <p style={{
+          fontSize: '16px',
+          color: '#666',
+          textAlign: 'center',
+          margin: 0,
+          marginBottom: '32px',
+          lineHeight: '1.5',
+          fontFamily: 'Plus Jakarta Sans'
+        }}>
+          Authenticate your account via SMS.
+        </p>
+
+        {/* Phone Input */}
+        <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+          <div style={{ width: '100%', marginBottom: '16px' }}>
+            <label style={{
+              display: 'block',
+              color: '#32302C',
+              fontSize: 14,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '600',
+              lineHeight: '20px',
+              marginBottom: '8px',
+              textAlign: 'left'
+            }}>
+              Phone Number <span style={{color: '#ef4444'}}>*</span>
+            </label>
+            <div
+              onFocus={() => setPhoneFocused(true)}
+              onBlur={() => setPhoneFocused(false)}
+              style={{
+                width: '100%',
+                minHeight: 52,
+                paddingLeft: 18,
+                paddingRight: 18,
+                paddingTop: 10,
+                paddingBottom: 10,
+                background: 'transparent',
+                overflow: 'visible',
+                borderRadius: 26,
+                border: phoneFocused ? '1px solid #181818' : '1px solid #E0E0E0',
+                boxSizing: 'border-box',
+                display: 'flex',
+                alignItems: 'center',
+                transform: phoneFocused ? 'scale(1.02)' : 'scale(1)',
+                transition: 'transform 0.2s ease, border-color 0.2s ease'
+              }}
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="button-primary"
-              disabled={submitting}
-            >
-              {submitting ? 'Adding...' : 'Add Phone'}
-            </button>
+              <PhoneInput
+                international
+                defaultCountry="US"
+                value={phoneNumber}
+                onChange={setPhoneNumber}
+                placeholder="Enter phone number"
+                disabled={submitting}
+                style={{
+                  flex: '1 1 0',
+                  width: '100%',
+                  border: 'none',
+                  background: 'transparent'
+                }}
+                className="custom-phone-input"
+              />
+            </div>
           </div>
+
+          {/* Send Code Button */}
+          <button
+            type="submit"
+            disabled={submitting}
+            style={{
+              width: '100%',
+              height: '52px',
+              padding: '14px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(24, 24, 24, 0.90)',
+              border: 'none',
+              borderRadius: '26px',
+              cursor: submitting ? 'not-allowed' : 'pointer',
+              fontSize: '16px',
+              fontWeight: '600',
+              fontFamily: 'Plus Jakarta Sans',
+              color: 'white',
+              opacity: submitting ? 0.6 : 1,
+              transition: 'opacity 0.2s ease'
+            }}
+          >
+            {submitting ? 'Sending Code...' : 'Send Code'}
+          </button>
         </form>
       </div>
     </div>

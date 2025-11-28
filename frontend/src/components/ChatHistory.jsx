@@ -110,6 +110,13 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                     return updated;
                 });
 
+                // ✅ FIX: Validate title before updating
+                const validTitle = data.title?.trim() || 'New Chat';
+                if (!validTitle || validTitle === '') {
+                    console.warn('⚠️ [ChatHistory] Invalid title received:', data.title);
+                    return;
+                }
+
                 // Update the conversation in the list with final title
                 setConversations(prevConversations => {
                     const existingIndex = prevConversations.findIndex(c => c.id === data.conversationId);
@@ -118,7 +125,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                         const updated = [...prevConversations];
                         updated[existingIndex] = {
                             ...updated[existingIndex],
-                            title: data.title,
+                            title: validTitle,
                             updatedAt: data.updatedAt || new Date().toISOString()
                         };
                         sessionStorage.setItem('koda_chat_conversations', JSON.stringify(updated));
@@ -131,7 +138,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                 if (onConversationUpdate) {
                     onConversationUpdate({
                         id: data.conversationId,
-                        title: data.title,
+                        title: validTitle,
                         updatedAt: data.updatedAt
                     });
                 }
@@ -247,8 +254,19 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
         try {
             console.log('📥 [ChatHistory] Loading conversations from API...');
             const data = await chatService.getConversations();
-            const apiConversations = data.conversations || data;
-            console.log(`✅ [ChatHistory] Loaded ${apiConversations.length} conversations from API`);
+            let apiConversations = data.conversations || data;
+
+            // ✅ FIX: Filter out conversations with empty/invalid titles
+            apiConversations = apiConversations.filter(conv => {
+                // Remove if title is empty, null, or only whitespace
+                if (!conv.title || typeof conv.title !== 'string' || conv.title.trim() === '') {
+                    console.warn('⚠️ [ChatHistory] Skipping conversation with invalid title:', conv.id);
+                    return false;
+                }
+                return true;
+            });
+
+            console.log(`✅ [ChatHistory] Loaded ${apiConversations.length} valid conversations from API`);
 
             // ✅ FIX: Always preserve currentConversation if it exists
             // This handles the race condition where a conversation is auto-created before API fetch completes
@@ -401,14 +419,28 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
 
     // ✅ NEW: Handle selecting a conversation - hide placeholder when selecting existing chat
     const handleSelectConversation = (conversation) => {
-        console.log('📌 [ChatHistory] Selecting conversation:', conversation.id);
+        // ✅ FIX: Validate conversation before selecting
+        if (!conversation.id) {
+            console.error('❌ [ChatHistory] Invalid conversation - missing ID');
+            return;
+        }
+
+        // ✅ FIX: Validate and sanitize title
+        let validatedConversation = conversation;
+        if (!conversation.title || typeof conversation.title !== 'string' || conversation.title.trim() === '') {
+            console.warn('⚠️ [ChatHistory] Conversation has invalid title:', conversation.id);
+            // Still allow selection, but use default title
+            validatedConversation = { ...conversation, title: conversation.title?.trim() || 'New Chat' };
+        }
+
+        console.log('📌 [ChatHistory] Selecting conversation:', validatedConversation.id);
 
         // Hide placeholder when selecting an existing chat (not the ephemeral 'new' one)
-        if (conversation.id !== 'new') {
+        if (validatedConversation.id !== 'new') {
             setShowNewChatPlaceholder(false);
         }
 
-        onSelectConversation?.(conversation);
+        onSelectConversation?.(validatedConversation);
     };
 
     // ✅ NEW: Build display list with ephemeral placeholder if needed
@@ -417,13 +449,18 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
 
         // Add ephemeral "New Chat" at the top if it should be shown
         if (showNewChatPlaceholder && currentConversation?.id === 'new') {
-            list.unshift({
-                id: 'new',
-                title: 'New Chat',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                isEphemeral: true
-            });
+            // ✅ FIX: Check if 'new' already exists to prevent duplicates
+            const hasNewChat = list.some(c => c.id === 'new');
+
+            if (!hasNewChat) {
+                list.unshift({
+                    id: 'new',
+                    title: 'New Chat',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    isEphemeral: true
+                });
+            }
         }
 
         return list;
@@ -518,8 +555,21 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
             );
         }
 
-        // Show regular title
-        return convo.title || 'New Chat';
+        // ✅ FIX: Sanitize and validate title
+        const title = convo.title?.trim() || 'New Chat';
+
+        // Prevent showing empty or whitespace-only titles
+        if (!title || title === '') {
+            return 'New Chat';
+        }
+
+        // Limit title length to prevent overflow
+        const maxLength = 50;
+        if (title.length > maxLength) {
+            return title.substring(0, maxLength) + '...';
+        }
+
+        return title;
     };
 
     // SearchModal Component
@@ -820,7 +870,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
             {/* Expanded sidebar header */}
             {isExpanded && (
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                <div style={{color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Chat</div>
+                <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '30px', textShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)'}}>Chat</div>
                 {/* Collapse Button */}
                 <div
                     onClick={() => setIsExpanded(false)}

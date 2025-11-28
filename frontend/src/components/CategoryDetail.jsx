@@ -2283,7 +2283,8 @@ const CategoryDetail = () => {
                           padding: '10px 14px',
                           borderRadius: 10,
                           background: isSelected(doc.id) ? '#111827' : 'white',
-                          border: isSelected(doc.id) ? '1px solid #111827' : '1px solid #E6E6EC',
+                          border: isSelected(doc.id) ? '1px solid #111827' : '2px solid #E6E6EC',
+                          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                           cursor: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 'move' : 'pointer',
                           transition: 'all 0.2s ease',
                           opacity: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 0.5 : 1
@@ -2635,8 +2636,9 @@ const CategoryDetail = () => {
                 <div style={{
                   padding: 12,
                   background: '#F5F5F5',
-                  borderRadius: 12,
-                  border: '1px #E6E6EC solid',
+                  borderRadius: 20,
+                  border: '2px solid #E6E6EC',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 12

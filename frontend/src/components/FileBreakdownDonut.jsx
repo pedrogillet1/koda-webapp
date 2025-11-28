@@ -101,8 +101,9 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
     <div style={{
       padding: compact ? '16px' : '24px',
       background: 'white',
-      borderRadius: '14px',
-      border: '1px solid #E6E6EC',
+      borderRadius: isMobile ? '14px' : '20px',
+      border: '2px solid #E6E6EC',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
       display: 'flex',
       flexDirection: 'column',
       flex: 1,

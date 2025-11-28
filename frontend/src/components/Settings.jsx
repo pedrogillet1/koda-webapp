@@ -889,13 +889,17 @@ const Settings = () => {
         {/* Content */}
         {activeSection === 'general' && (
         <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 16 : 32, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 16, display: 'flex' }}>
+          {/* General Header */}
+          <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px', textShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)'}}>
+            General
+          </div>
           {/* Recovery Verification Banner */}
           <RecoveryVerificationBanner />
 
           {/* Profile Card - Row 1 */}
           <div
             onClick={() => setActiveSection('profile')}
-            style={{ alignSelf: 'stretch', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 16, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 12 : 20, display: 'flex', cursor: 'pointer', transition: 'background 0.2s ease' }}
+            style={{ alignSelf: 'stretch', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 20, border: '2px solid #E6E6EC', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 12 : 20, display: 'flex', cursor: 'pointer', transition: 'background 0.2s ease' }}
             onMouseOver={(e) => e.currentTarget.style.background = '#F5F5F5'}
             onMouseOut={(e) => e.currentTarget.style.background = 'white'}
           >
@@ -937,10 +941,17 @@ const Settings = () => {
             </div>
           </div>
 
-          {/* Plan and Storage Cards - Row 2 */}
-          <div style={{ alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'stretch', gap: isMobile ? 12 : 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+          {/* Cards Grid - 2x2 layout */}
+          <div style={{
+            alignSelf: 'stretch',
+            display: isMobile ? 'flex' : 'grid',
+            flexDirection: isMobile ? 'column' : undefined,
+            gridTemplateColumns: isMobile ? undefined : '1fr 1fr',
+            gridTemplateRows: isMobile ? undefined : 'auto auto',
+            gap: isMobile ? 12 : 24
+          }}>
             {/* Beta Access */}
-            <div style={{ flex: '1 1 0', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 16, border: '1px #E6E6EC solid', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 8 : 12, display: 'flex' }}>
+            <div style={{ padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 20, border: '2px solid #E6E6EC', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 8 : 12, display: 'flex' }}>
               <img src={crownIcon} alt="Crown" style={{ width: 100, height: 80, objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))' }} />
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 4 : 8, display: 'flex' }}>
                 <div style={{ color: '#32302C', fontSize: isMobile ? 24 : 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: isMobile ? '32px' : '40px' }}>Beta Access</div>
@@ -986,17 +997,16 @@ const Settings = () => {
 
             {/* Storage */}
             <div style={{
-              flex: '1 1 0',
               padding: isMobile ? 16 : 24,
               background: 'white',
-              borderRadius: isMobile ? 12 : 16,
-              border: '1px #E6E6EC solid',
+              borderRadius: isMobile ? 12 : 20,
+              border: '2px solid #E6E6EC',
               flexDirection: 'column',
               justifyContent: 'flex-start',
               alignItems: 'flex-start',
               gap: isMobile ? 12 : 16,
               display: 'flex',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
               cursor: 'default'
             }}
             >
@@ -1045,17 +1055,14 @@ const Settings = () => {
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* File Breakdown and Recently Added - Row 3 */}
-          <div style={{ alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'stretch', gap: isMobile ? 12 : 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
             {/* File Breakdown */}
-            <div style={{ flex: '1 1 0', height: isMobile ? 'auto' : 520, display: 'flex' }}>
+            <div style={{ display: 'flex' }}>
               <FileBreakdownDonut showEncryptionMessage={false} compact={true} semicircle={true} style={{ flex: 1, height: '100%' }} />
             </div>
 
             {/* Recently Added */}
-            <div style={{ flex: '1 1 0', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 16, border: '1px #E6E6EC solid', height: isMobile ? 'auto' : 520, flexDirection: 'column', display: 'flex' }}>
+            <div style={{ padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 20, border: '2px solid #E6E6EC', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)', flexDirection: 'column', display: 'flex' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24 }}>
                 <div style={{ color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700' }}>Recently Added</div>
                 <button
@@ -1116,7 +1123,7 @@ const Settings = () => {
                         background: 'white',
                         border: '1px solid #E6E6EC',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease'
+                        transition: 'background 0.15s ease'
                       } : {
                         display: 'grid',
                         gridTemplateColumns: '2fr 1fr 1fr 1fr',
@@ -1127,17 +1134,13 @@ const Settings = () => {
                         background: 'white',
                         border: '1px solid #E6E6EC',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease'
+                        transition: 'background 0.15s ease'
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = '#F7F7F9';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.06)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = 'white';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
                       {isMobile ? (

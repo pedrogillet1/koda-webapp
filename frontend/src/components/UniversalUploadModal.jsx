@@ -588,7 +588,27 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
             <input {...getInputProps()} />
 
             {/* File Types Stack Icon */}
-            <img src={fileTypesStackIcon} alt="File Types" style={{ width: '360px', height: '183px', minWidth: '360px', minHeight: '183px', display: 'block' }} />
+            <img
+              src={fileTypesStackIcon}
+              alt="File Types"
+              style={{
+                width: '360px',
+                height: '183px',
+                minWidth: '360px',
+                minHeight: '183px',
+                display: 'block',
+                filter: 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15))',
+                transition: 'transform 0.3s ease, filter 0.3s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)';
+                e.currentTarget.style.filter = 'drop-shadow(0 12px 24px rgba(0, 0, 0, 0.2))';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.filter = 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15))';
+              }}
+            />
 
             <div style={{
               flexDirection: 'column',
