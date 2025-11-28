@@ -29,6 +29,7 @@ export interface StorageInfo {
 
 /**
  * Format bytes to human readable string
+ * Shows 2 decimals for GB+, 1 decimal for MB, 0 for smaller
  */
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -36,8 +37,11 @@ export function formatBytes(bytes: number): string {
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const value = bytes / Math.pow(k, i);
 
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  // Show 2 decimal places for GB and above, 1 for MB, 0 for smaller
+  const decimals = i >= 3 ? 2 : (i === 2 ? 1 : 0);
+  return value.toFixed(decimals) + ' ' + sizes[i];
 }
 
 /**
