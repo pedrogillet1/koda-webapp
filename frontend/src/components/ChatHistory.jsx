@@ -733,7 +733,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
             <style>{titleAnimationStyles}</style>
 
             <div style={{
-                width: isExpanded ? 320 : 80,
+                width: isExpanded ? 314 : 64,
                 height: '100%',
                 padding: 20,
                 background: 'white',

@@ -10,6 +10,7 @@ import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg
 import { ReactComponent as LogoutWhiteIcon } from '../assets/Logout-white.svg';
 import { ReactComponent as DownloadWhiteIcon } from '../assets/Download 3 white.svg';
 import logoSvg from '../assets/logo.svg';
+import sphereIcon from '../assets/sphere.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can.svg';
 import { ReactComponent as PrinterIcon } from '../assets/printer.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
@@ -459,6 +460,41 @@ const DocumentViewer = () => {
     return 'unknown';
   };
 
+  // Get file icon based on extension
+  const getFileIcon = (filename) => {
+    if (!filename) return null;
+    const extension = filename.split('.').pop().toLowerCase();
+
+    switch (extension) {
+      case 'pdf':
+        return pdfIcon;
+      case 'doc':
+      case 'docx':
+        return docIcon;
+      case 'xls':
+      case 'xlsx':
+        return xlsIcon;
+      case 'ppt':
+      case 'pptx':
+        return pptxIcon;
+      case 'jpg':
+      case 'jpeg':
+        return jpgIcon;
+      case 'png':
+        return pngIcon;
+      case 'txt':
+      case 'md':
+        return txtIcon;
+      case 'mov':
+        return movIcon;
+      case 'mp4':
+        return mp4Icon;
+      case 'mp3':
+        return mp3Icon;
+      default:
+        return txtIcon; // Default to txt icon for unknown types
+    }
+  };
 
   useEffect(() => {
     const fetchDocument = async () => {
@@ -693,14 +729,14 @@ const DocumentViewer = () => {
               e.currentTarget.style.background = 'white';
             }}
           >
-            <ArrowLeftIcon style={{ width: 18, height: 18, stroke: '#55534E' }} />
+            <ArrowLeftIcon style={{ width: 18, height: 18, stroke: '#181818' }} />
           </button>
 
           <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 4 : 8, display: 'inline-flex', minWidth: 0, overflow: 'hidden' }}>
             {/* Breadcrumb - hidden on mobile */}
             {!isMobile && (
               <div style={{ justifyContent: 'flex-start', alignItems: 'center', display: 'inline-flex' }}>
-                <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
+                <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
                   {/* Home or Documents */}
                   <div
                     onClick={() => navigate(breadcrumbStart.path)}
@@ -738,7 +774,17 @@ const DocumentViewer = () => {
                 </div>
               </div>
             )}
-            <div style={{ textAlign: 'left', width: '100%', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', overflow: 'hidden' }}>
+              <img
+                src={getFileIcon(document.filename)}
+                alt=""
+                style={{
+                  width: isMobile ? 32 : 38,
+                  height: isMobile ? 32 : 38,
+                  objectFit: 'contain',
+                  flexShrink: 0
+                }}
+              />
               <span style={{
                 color: '#323232',
                 fontSize: isMobile ? 16 : 20,
@@ -746,7 +792,6 @@ const DocumentViewer = () => {
                 fontWeight: '700',
                 lineHeight: isMobile ? '22px' : '30px',
                 wordWrap: 'break-word',
-                display: 'block',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap'
@@ -756,13 +801,24 @@ const DocumentViewer = () => {
 
           {/* Action buttons - simplified on mobile */}
           {!isMobile ? (
-            <div style={{ width: 400, borderRadius: 12, justifyContent: 'center', alignItems: 'flex-start', gap: 24, display: 'flex' }}>
-              <div style={{ justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex' }}>
+            <div style={{ borderRadius: 12, justifyContent: 'flex-end', alignItems: 'center', display: 'flex' }}>
+              {/* Utility icons group - trash & print */}
+              <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex', marginRight: 20 }}>
                 <button
                   onClick={() => setShowDeleteModal(true)}
-                  style={{ width: 42, height: 42, paddingLeft: 14, paddingRight: 14, paddingTop: 8, paddingBottom: 8, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                  style={{ width: 42, height: 42, background: 'white', overflow: 'hidden', borderRadius: 100, border: '1px solid #E6E6EC', justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#FEF2F2';
+                    e.currentTarget.style.borderColor = '#FECACA';
+                    e.currentTarget.querySelector('svg').style.stroke = '#C04040';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'white';
+                    e.currentTarget.style.borderColor = '#E6E6EC';
+                    e.currentTarget.querySelector('svg').style.stroke = '#181818';
+                  }}
                 >
-                  <TrashCanIcon style={{ width: 26, height: 26 }} />
+                  <TrashCanIcon style={{ width: 20, height: 20, stroke: '#181818', transition: 'stroke 0.2s ease' }} />
                 </button>
               <button
                 onClick={async () => {
@@ -835,36 +891,78 @@ const DocumentViewer = () => {
                     }
                   }
                 }}
-                style={{ width: 42, height: 42, paddingLeft: 14, paddingRight: 14, paddingTop: 8, paddingBottom: 8, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
-              >
-                <PrinterIcon style={{ width: 26, height: 26 }} />
-              </button>
-              <button
-                onClick={() => {
-                  // Clear current conversation to force a new chat
-                  sessionStorage.removeItem('currentConversationId');
-                  navigate(`/chat?documentId=${documentId}`, { state: { newConversation: true } });
+                style={{ width: 42, height: 42, background: 'white', overflow: 'hidden', borderRadius: 100, border: '1px solid #E6E6EC', justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#F5F5F5';
                 }}
-                style={{ width: 42, height: 42, paddingLeft: 14, paddingRight: 14, paddingTop: 8, paddingBottom: 8, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'white';
+                }}
               >
-                <img
-                  src={logoSvg}
-                  alt="Profile"
-                  style={{
-                    width: 29,
-                    height: 29,
-                    objectFit: 'contain',
-                    ...getImageRenderingCSS()
-                  }}
-                />
+                <PrinterIcon style={{ width: 20, height: 20 }} />
               </button>
             </div>
+            {/* Ask Koda Button - Opens document in chat */}
+            <button
+              onClick={() => {
+                // Clear current conversation to force a new chat
+                sessionStorage.removeItem('currentConversationId');
+                navigate(`/chat?documentId=${documentId}`, { state: { newConversation: true } });
+              }}
+              style={{
+                height: 40,
+                paddingLeft: 14,
+                paddingRight: 16,
+                background: 'white',
+                borderRadius: 24,
+                border: '1px solid #E2E2E6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                marginRight: 12
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#F5F5F5';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'white';
+              }}
+            >
+              <img
+                src={sphereIcon}
+                alt="Koda"
+                style={{
+                  width: 22,
+                  height: 22,
+                  objectFit: 'contain',
+                  ...getImageRenderingCSS()
+                }}
+              />
+              <div style={{ color: '#181818', fontSize: 13, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '18px' }}>Ask Koda</div>
+            </button>
             <button
               onClick={() => setShowShareModal(true)}
-              style={{ flex: '0.8 1 0', height: 42, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+              style={{ height: 42, paddingLeft: 16, paddingRight: 20, background: '#E8E8EA', overflow: 'hidden', borderRadius: 24, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer', transition: 'all 0.2s ease' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#DCDCDE';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#E8E8EA';
+              }}
+              onMouseDown={(e) => {
+                e.currentTarget.style.background = '#D0D0D2';
+                e.currentTarget.style.transform = 'scale(0.98)';
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.background = '#DCDCDE';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
             >
-              <DownloadWhiteIcon style={{ width: 19, height: 19 }} />
-              <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Download</div>
+              <DownloadIcon style={{ width: 18, height: 18 }} />
+              <div style={{ color: '#181818', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '22px' }}>Download</div>
             </button>
           </div>
           ) : (
@@ -921,21 +1019,34 @@ const DocumentViewer = () => {
                 setShowCategoryModal(true);
               }}
               style={{
-                paddingLeft: isMobile ? 8 : 12,
-                paddingRight: isMobile ? 8 : 12,
-                paddingTop: isMobile ? 6 : 8,
-                paddingBottom: isMobile ? 6 : 8,
-                background: '#000000',
-                borderRadius: 8,
-                border: 'none',
+                paddingLeft: isMobile ? 12 : 16,
+                paddingRight: isMobile ? 12 : 16,
+                paddingTop: isMobile ? 8 : 10,
+                paddingBottom: isMobile ? 8 : 10,
+                background: 'white',
+                borderRadius: 24,
+                border: '1px solid #E2E2E6',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                gap: 6,
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#F5F5F5';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'white';
               }}
             >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#181818" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                <line x1="12" y1="11" x2="12" y2="17"/>
+                <line x1="9" y1="14" x2="15" y2="14"/>
+              </svg>
               <span style={{
-                color: '#FFFFFF',
+                color: '#181818',
                 fontSize: isMobile ? 12 : 14,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '600',
@@ -950,17 +1061,37 @@ const DocumentViewer = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
             <button
               onClick={() => setZoom(prev => Math.max(50, prev - 25))}
-              style={{ width: 32, height: 32, background: 'white', border: 'none', borderRadius: 8, outline: '1px #E6E6EC solid', outlineOffset: '-1px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              style={{ width: 32, height: 32, background: 'transparent', border: 'none', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.2s ease' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#F0F0F0';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
             >
               <MinusIcon style={{ width: 16, height: 16 }} />
             </button>
-            <div style={{ height: 40, borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex', position: 'relative' }}>
+            <div style={{ height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', display: 'flex', position: 'relative' }}>
               <div
                 onClick={() => setShowZoomDropdown(!showZoomDropdown)}
-                style={{ alignSelf: 'stretch', paddingLeft: 12, paddingRight: 12, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer' }}
+                style={{ alignSelf: 'stretch', paddingLeft: 14, paddingRight: 12, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 20, border: '1px solid #E6E6EC', justifyContent: 'center', alignItems: 'center', gap: 6, display: 'flex', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#F9FAFB';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'white';
+                }}
               >
-                <div style={{ color: '#323232', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px', wordWrap: 'break-word' }}>{zoom}%</div>
-                <div style={{ fontSize: 12, transition: 'transform 0.2s ease', transform: showZoomDropdown ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</div>
+                <div style={{ color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px', wordWrap: 'break-word' }}>{zoom}%</div>
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  style={{ transition: 'transform 0.2s ease', transform: showZoomDropdown ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                >
+                  <path d="M3 4.5L6 7.5L9 4.5" stroke="#181818" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
 
               {/* Zoom Dropdown */}
@@ -989,7 +1120,7 @@ const DocumentViewer = () => {
                         padding: '10px 16px',
                         cursor: 'pointer',
                         background: zoom === preset ? '#F5F5F5' : 'white',
-                        color: '#323232',
+                        color: '#181818',
                         fontSize: 14,
                         fontFamily: 'Plus Jakarta Sans',
                         fontWeight: zoom === preset ? '600' : '500',
@@ -1010,7 +1141,13 @@ const DocumentViewer = () => {
             </div>
             <button
               onClick={() => setZoom(prev => Math.min(200, prev + 25))}
-              style={{ width: 32, height: 32, background: 'white', border: 'none', borderRadius: 8, outline: '1px #E6E6EC solid', outlineOffset: '-1px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              style={{ width: 32, height: 32, background: 'transparent', border: 'none', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.2s ease' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#F0F0F0';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
             >
               <PlusIcon style={{ width: 16, height: 16 }} />
             </button>
@@ -1022,14 +1159,16 @@ const DocumentViewer = () => {
         <div ref={documentContainerRef} style={{
           width: '100%',
           flex: 1,
-          padding: isMobile ? 8 : 20,
+          padding: isMobile ? 8 : 24,
           overflow: 'auto',
           flexDirection: 'column',
           justifyContent: 'flex-start',
           alignItems: 'center',
           display: 'flex',
-          background: '#E5E5E5',
-          WebkitOverflowScrolling: 'touch'
+          background: '#E8E8EA',
+          WebkitOverflowScrolling: 'touch',
+          boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.06)',
+          borderTop: '1px solid #D8D8DA'
         }}>
           {document ? (
             (() => {

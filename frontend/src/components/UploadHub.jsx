@@ -34,6 +34,8 @@ import movIcon from '../assets/mov.png';
 import mp4Icon from '../assets/mp4.png';
 import mp3Icon from '../assets/mp3.svg';
 import folderIcon from '../assets/folder_icon.svg';
+import fileTypesStackIcon from '../assets/file-types-stack.svg';
+import filesIcon from '../assets/files-icon.svg';
 import { generateThumbnail, supportsThumbnail } from '../utils/thumbnailGenerator';
 import { encryptFile, encryptData } from '../utils/encryption';
 import { extractText } from '../utils/textExtraction';
@@ -227,7 +229,7 @@ const UploadHub = () => {
   const { showSuccess, showError, showUploadSuccess, showUploadError } = useToast();
   // ⚡ PERFORMANCE FIX: Use documents/folders from context (no duplicate API calls)
   const { documents: contextDocuments, folders: contextFolders, socket, fetchDocuments, fetchFolders } = useDocuments();
-  const { encryptionPassword } = useAuth(); // ⚡ ZERO-KNOWLEDGE ENCRYPTION
+  const { encryptionPassword, user } = useAuth(); // ⚡ ZERO-KNOWLEDGE ENCRYPTION
 
   // Local state for real-time WebSocket updates (initialized from context)
   const [documents, setDocuments] = useState([]);
@@ -1840,16 +1842,16 @@ const UploadHub = () => {
 
       {/* Left Sidebar - Library - Hidden on mobile */}
       {!isMobile && <div style={{
-        width: isLibraryExpanded ? 320 : 80,
-        background: '#F9FAFB',
-        borderRight: '1px solid #E5E7EB',
+        width: isLibraryExpanded ? 314 : 64,
+        background: 'white',
+        borderRight: '1px solid #E6E6EC',
         display: 'flex',
         flexDirection: 'column',
         height: '100vh',
         overflowY: 'auto',
         transition: 'width 0.3s ease'
       }}>
-        <div style={{padding: 20, borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+        <div style={{padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
           {isLibraryExpanded && (
             <h3 style={{fontSize: 18, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Library</h3>
           )}
@@ -2484,23 +2486,32 @@ const UploadHub = () => {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          background: '#F9FAFB',
+          background: '#F4F4F6',
           position: 'relative',
           overflowY: 'auto'
         }}
       >
         {/* Header */}
         <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: isMobile ? '16px' : '24px 24px 20px 24px',
+          height: isMobile ? 70 : 84,
           paddingLeft: isMobile ? 70 : 24,
-          borderBottom: 'none',
-          background: '#F9FAFB',
-          height: isMobile ? 60 : 'auto'
+          paddingRight: isMobile ? 16 : 24,
+          background: 'white',
+          borderBottom: '1px solid #E6E6EC',
+          display: 'flex',
+          alignItems: 'center',
+          flexShrink: 0
         }}>
-          <h2 style={{fontSize: isMobile ? 18 : 24, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Upload Documents</h2>
+          <h2 style={{
+            fontSize: isMobile ? 18 : 24,
+            fontWeight: '700',
+            color: '#111827',
+            margin: 0,
+            fontFamily: 'Plus Jakarta Sans',
+            lineHeight: '30px'
+          }}>
+            Upload Hub
+          </h2>
         </div>
 
         {/* Content */}
@@ -2515,8 +2526,8 @@ const UploadHub = () => {
         }}>
           {/* Drag-drop zone */}
           <div {...getRootProps()} style={{
-            border: '2px dashed #D1D5DB',
-            borderRadius: isMobile ? 16 : 12,
+            border: '1px solid #E6E6EC',
+            borderRadius: isMobile ? 16 : 16,
             padding: isMobile ? 24 : 48,
             textAlign: 'center',
             marginBottom: uploadingFiles.length > 0 ? 24 : 0,
@@ -2530,11 +2541,12 @@ const UploadHub = () => {
             transition: 'all 0.3s ease-out',
             maxWidth: isMobile ? '100%' : 800,
             minHeight: isMobile ? 300 : 400,
-            alignSelf: 'center'
+            alignSelf: 'center',
+            boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06)'
           }}>
             <input {...getInputProps()} />
-            {/* Folder icon */}
-            <img src={folderIcon} alt="Folder" style={{width: isMobile ? 80 : 120, height: isMobile ? 80 : 120, margin: isMobile ? '0 auto 16px' : '0 auto 24px'}} />
+            {/* File types stack icon */}
+            <img src={fileTypesStackIcon} alt="File Types" style={{width: isMobile ? 220 : 360, height: isMobile ? 112 : 183, margin: isMobile ? '0 auto 16px' : '0 auto 24px'}} />
             <h3 style={{fontSize: isMobile ? 16 : 18, fontWeight: '600', color: '#111827', margin: '0 0 8px 0', fontFamily: 'Plus Jakarta Sans'}}>{isMobile ? 'Tap to Upload' : 'Upload Documents Or Drag-N-Drop'}</h3>
             <p style={{fontSize: isMobile ? 13 : 14, color: '#6B7280', margin: isMobile ? '0 0 16px 0' : '0 0 24px 0', lineHeight: 1.5, fontFamily: 'Plus Jakarta Sans'}}>{isMobile ? 'All file types supported (max 500MB)' : 'Upload files or folders'}<br/>{!isMobile && 'All file types supported (max 500MB per file)'}</p>
             <div style={{display: 'flex', gap: isMobile ? 8 : 12, flexDirection: isMobile ? 'column' : 'row', width: isMobile ? '100%' : 'auto', maxWidth: isMobile ? 200 : 'none'}}>
@@ -2544,7 +2556,7 @@ const UploadHub = () => {
                   padding: isMobile ? '12px 20px' : '10px 24px',
                   background: 'white',
                   border: '1px solid #D1D5DB',
-                  borderRadius: 8,
+                  borderRadius: 24,
                   fontSize: 14,
                   fontWeight: '500',
                   color: '#374151',
@@ -2562,7 +2574,7 @@ const UploadHub = () => {
                   padding: '10px 24px',
                   background: 'white',
                   border: '1px solid #D1D5DB',
-                  borderRadius: 8,
+                  borderRadius: 24,
                   fontSize: 14,
                   fontWeight: '500',
                   color: '#374151',
@@ -2605,7 +2617,7 @@ const UploadHub = () => {
                       outline: isError ? '2px solid #EF4444' : 'none',
                       outlineOffset: '-2px',
                       border: `1px solid ${isError ? '#EF4444' : '#E5E7EB'}`,
-                      borderRadius: 8,
+                      borderRadius: 20,
                       transition: 'box-shadow 0.15s, border-color 0.15s',
                       position: 'relative',
                       cursor: f.isFolder && f.status === 'pending' ? 'pointer' : 'default'
@@ -2670,31 +2682,6 @@ const UploadHub = () => {
                           flex: 1
                         }}>{f.isFolder ? f.folderName : f.file.name}</p>
                         <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-                          {f.status === 'pending' && !f.isFolder && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowCategoryModal(f.file.name);
-                              }}
-                              style={{
-                                padding: '6px 12px',
-                                background: '#F5F5F5',
-                                border: '1px solid #E6E6EC',
-                                borderRadius: 8,
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: '600',
-                                color: '#323232',
-                                flexShrink: 0,
-                                transition: 'all 0.15s',
-                                fontFamily: 'Plus Jakarta Sans'
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                            >
-                              Add to Category
-                            </button>
-                          )}
                           {isError && (
                             <button
                               onClick={(e) => {
@@ -3009,7 +2996,7 @@ const UploadHub = () => {
           <div style={{
             padding: '24px 24px 24px 24px',
             borderTop: 'none',
-            background: '#F9FAFB',
+            background: '#F4F4F6',
             display: 'flex',
             justifyContent: 'center',
             gap: 12,
@@ -3026,7 +3013,7 @@ const UploadHub = () => {
                 background: 'white',
                 color: '#111827',
                 border: '1px solid #E5E7EB',
-                borderRadius: 8,
+                borderRadius: 24,
                 fontSize: 16,
                 fontWeight: '600',
                 cursor: uploadingFiles.filter(f => f.status === 'uploading').length > 0 ? 'not-allowed' : 'pointer',
@@ -3046,7 +3033,7 @@ const UploadHub = () => {
                 background: '#111827',
                 color: 'white',
                 border: 'none',
-                borderRadius: 8,
+                borderRadius: 24,
                 fontSize: 16,
                 fontWeight: '600',
                 cursor: (uploadingFiles.filter(f => f.status === 'uploading').length > 0 || uploadingFiles.filter(f => f.status === 'pending').length === 0) ? 'not-allowed' : 'pointer',
@@ -3072,12 +3059,12 @@ const UploadHub = () => {
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(23, 23, 23, 0.95)',
+              background: 'rgba(250, 250, 250, 0.85)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 20,
+              gap: 24,
               zIndex: 9999,
               pointerEvents: 'none',
               animation: 'fadeIn 0.2s ease-in'
@@ -3091,26 +3078,20 @@ const UploadHub = () => {
                 }
               `}
             </style>
-            <div
+            <img
+              src={filesIcon}
+              alt="Files"
               style={{
-                width: 120,
-                height: 120,
-                background: 'white',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                width: 400,
+                height: 'auto',
                 opacity: isDraggingOver ? 1.0 : 0.75,
-                transform: isDraggingOver ? 'scale(1.08)' : 'scale(1.0)',
-                boxShadow: isDraggingOver ? '0 0 24px rgba(255, 255, 255, 0.12)' : 'none',
-                transition: 'opacity 250ms ease-out, transform 250ms ease-out, box-shadow 250ms ease-out'
+                transform: isDraggingOver ? 'scale(1.05)' : 'scale(1.0)',
+                transition: 'opacity 250ms ease-out, transform 250ms ease-out'
               }}
-            >
-              <LogoutBlackIcon style={{ width: 60, height: 60 }} />
-            </div>
+            />
             <div
               style={{
-                color: 'white',
+                color: '#181818',
                 fontSize: 32,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700',
@@ -3123,7 +3104,7 @@ const UploadHub = () => {
             </div>
             <div
               style={{
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: 'rgba(24, 24, 24, 0.6)',
                 fontSize: 18,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '500',

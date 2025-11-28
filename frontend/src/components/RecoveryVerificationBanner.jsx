@@ -3,7 +3,6 @@ import axios from 'axios';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
 import '../styles/RecoveryVerificationBanner.css';
-import { ReactComponent as CallIcon } from '../assets/Call.svg';
 
 const RecoveryVerificationBanner = () => {
   const [verificationStatus, setVerificationStatus] = useState(null);
@@ -118,7 +117,7 @@ const RecoveryVerificationBanner = () => {
     // Email verified, no phone added
     console.log('📊 [Banner] Showing: Add phone');
     bannerContent = {
-      icon: <CallIcon style={{ width: 48, height: 48 }} />,
+      icon: <span style={{ fontSize: 40, display: 'inline-block', transform: 'rotate(-15deg)', filter: 'drop-shadow(2px 4px 6px rgba(0, 0, 0, 0.2))' }}>📱</span>,
       title: 'Add a recovery phone',
       body: 'Use your phone as a second way to recover your account.',
       ctaText: 'Add phone',
@@ -128,7 +127,7 @@ const RecoveryVerificationBanner = () => {
     // Email verified, phone added but not verified
     console.log('📊 [Banner] Showing: Verify phone');
     bannerContent = {
-      icon: <CallIcon style={{ width: 48, height: 48 }} />,
+      icon: <span style={{ fontSize: 40, display: 'inline-block', transform: 'rotate(-15deg)', filter: 'drop-shadow(2px 4px 6px rgba(0, 0, 0, 0.2))' }}>📱</span>,
       title: 'Verify your recovery phone',
       body: `Add a second way to regain access. We'll send a verification link to ${verificationStatus.maskedPhone}.`,
       ctaText: 'Send verification link',

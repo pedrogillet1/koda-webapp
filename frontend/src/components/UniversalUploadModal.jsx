@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
-import { ReactComponent as FolderIcon } from '../assets/folder_icon.svg';
+import fileTypesStackIcon from '../assets/file-types-stack.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 // ✅ REFACTORED: Use unified upload service (replaces folderUploadService + presignedUploadService)
 import unifiedUploadService from '../services/unifiedUploadService';
@@ -586,8 +586,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
           >
             <input {...getInputProps()} />
 
-            {/* Folder Icon */}
-            <FolderIcon style={{ width: '120px', height: '120px', minWidth: '120px', minHeight: '120px', display: 'block' }} />
+            {/* File Types Stack Icon */}
+            <img src={fileTypesStackIcon} alt="File Types" style={{ width: '360px', height: '183px', minWidth: '360px', minHeight: '183px', display: 'block' }} />
 
             <div style={{
               flexDirection: 'column',

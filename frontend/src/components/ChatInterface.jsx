@@ -6,6 +6,8 @@ import { ReactComponent as SendIcon } from '../assets/arrow-narrow-up.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import { ReactComponent as UploadIconDrag } from '../assets/upload.svg';
 import sphere from '../assets/sphere.svg';
+import kodaLogo from '../assets/koda-logo_1.svg';
+import filesIcon from '../assets/files-icon.svg';
 import * as chatService from '../services/chatService';
 // REMOVED: import useStreamingText from '../hooks/useStreamingText';
 // Character animation caused infinite generation bugs - now displaying chunks directly
@@ -2255,7 +2257,30 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const userName = user?.firstName || 'there';
 
     return (
-        <div style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column'}}>
+        <div style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column', background: '#F4F4F6'}}>
+            {/* Header */}
+            <div style={{
+                height: isMobile ? 70 : 84,
+                paddingLeft: isMobile ? 70 : 24,
+                paddingRight: isMobile ? 16 : 24,
+                background: 'white',
+                borderBottom: '1px solid #E6E6EC',
+                display: 'flex',
+                alignItems: 'center',
+                flexShrink: 0
+            }}>
+                <h2 style={{
+                    fontSize: isMobile ? 18 : 24,
+                    fontWeight: '700',
+                    color: '#111827',
+                    margin: 0,
+                    fontFamily: 'Plus Jakarta Sans',
+                    lineHeight: '30px'
+                }}>
+                    Chat
+                </h2>
+            </div>
+
             {/* Error Banner */}
             <ErrorBanner
                 error={error}
@@ -2311,7 +2336,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             <div
                                 key={msg.isOptimistic ? `optimistic-${index}-${msg.createdAt}` : msg.id || `msg-${index}`}
                                 style={{
-                                    marginBottom: 16,
+                                    marginBottom: 32,
                                     display: 'flex',
                                     justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
                                 }}
@@ -2323,7 +2348,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         <TypingIndicator userName="Koda" stage={currentStage} />
                                     ) : (
                                     <div className="assistant-message" style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', maxWidth: '75%'}}>
-                                        <div style={{padding: 12, background: 'white', borderRadius: 18, border: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
+                                        {/* Sphere icon before AI response */}
+                                        <img src={sphere} alt="Koda" style={{ width: 36, height: 36, marginBottom: 4 }} />
+                                        <div style={{padding: '0', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                             <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
                                                 <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
                                                         <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
@@ -2599,10 +2626,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                     }}
                                                                     style={{
                                                                         width: '100%',
-                                                                        padding: '10px 14px',
-                                                                        background: 'white',
+                                                                        padding: '10px 18px',
+                                                                        background: 'transparent',
                                                                         border: '1px solid #E6E6EC',
-                                                                        borderRadius: 10,
+                                                                        borderRadius: 24,
                                                                         cursor: 'pointer',
                                                                         fontSize: 13,
                                                                         fontWeight: '600',
@@ -2612,8 +2639,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                         alignItems: 'center',
                                                                         justifyContent: 'space-between'
                                                                     }}
-                                                                    onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                                                                    onMouseEnter={(e) => {
+                                                                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.5)';
+                                                                        e.currentTarget.style.transform = 'scale(1.02)';
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        e.currentTarget.style.background = 'transparent';
+                                                                        e.currentTarget.style.transform = 'scale(1)';
+                                                                    }}
                                                                 >
                                                                     <div style={{
                                                                         display: 'flex',
@@ -3091,11 +3124,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         {msg.content && msg.content.trim() && (
                                             <div
                                                 style={{
-                                                    padding: '12px 16px',
-                                                    borderRadius: 12,
-                                                    width: '100%',
-                                                    background: '#171717',
-                                                    color: 'white',
+                                                    padding: '12px 20px',
+                                                    borderRadius: 24,
+                                                    background: 'rgba(255, 255, 255, 0.85)',
+                                                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                                                    color: '#32302C',
                                                     fontSize: 16,
                                                     lineHeight: '24px',
                                                     // ✅ INSTANT FEEDBACK: Visual status indication
@@ -3270,12 +3303,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             left: 0,
                             right: 0,
                             bottom: 0,
-                            background: 'rgba(23, 23, 23, 0.95)',
+                            background: 'rgba(250, 250, 250, 0.85)',
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: 20,
+                            gap: 24,
                             zIndex: 999,
                             pointerEvents: 'none',
                             animation: 'fadeIn 0.2s ease-in'
@@ -3287,29 +3320,22 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     from { opacity: 0; }
                                     to { opacity: 1; }
                                 }
-                                @keyframes pulse {
-                                    0%, 100% { transform: scale(1); }
-                                    50% { transform: scale(1.05); }
-                                }
                             `}
                         </style>
-                        <div
+                        <img
+                            src={filesIcon}
+                            alt="Files"
                             style={{
-                                width: 120,
-                                height: 120,
-                                background: 'white',
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                animation: 'pulse 1.5s ease-in-out infinite'
+                                width: 400,
+                                height: 'auto',
+                                opacity: 1.0,
+                                transform: 'scale(1.0)',
+                                transition: 'opacity 250ms ease-out, transform 250ms ease-out'
                             }}
-                        >
-                            <UploadIconDrag style={{ width: 60, height: 60, color: '#32302C' }} />
-                        </div>
+                        />
                         <div
                             style={{
-                                color: 'white',
+                                color: '#181818',
                                 fontSize: 32,
                                 fontFamily: 'Plus Jakarta Sans',
                                 fontWeight: '700',
@@ -3320,7 +3346,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         </div>
                         <div
                             style={{
-                                color: 'rgba(255, 255, 255, 0.7)',
+                                color: 'rgba(24, 24, 24, 0.6)',
                                 fontSize: 18,
                                 fontFamily: 'Plus Jakarta Sans',
                                 fontWeight: '500',
@@ -3335,7 +3361,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             {/* Message Input */}
             <div
-                style={{padding: 20, background: 'white', borderTop: '1px solid #E6E6EC'}}
+                style={{padding: '8px 20px 20px 20px', background: 'transparent', borderTop: 'none'}}
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -3496,7 +3522,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 const docs = attachedDocuments.length > 0
                                     ? attachedDocuments
                                     : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                                return docs.length > 0 ? docs[0].name : '';
+                                if (docs.length > 0) {
+                                    return docs[0].name || docs[0].filename || docs[0].originalName || '';
+                                }
+                                return '';
                             })())}
                             alt="File icon"
                             style={{
@@ -3514,7 +3543,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     const docs = attachedDocuments.length > 0
                                         ? attachedDocuments
                                         : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                                    return docs.length === 1 ? docs[0].name : `${docs.length} documents attached`;
+                                    if (docs.length === 1) {
+                                        // Get filename from name, filename, or originalName property
+                                        return docs[0].name || docs[0].filename || docs[0].originalName || 'Document';
+                                    }
+                                    return `${docs.length} documents attached`;
                                 })()}
                             </div>
                             <div style={{fontSize: 12, color: '#8E8E93'}}>
@@ -3522,9 +3555,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     const docs = attachedDocuments.length > 0
                                         ? attachedDocuments
                                         : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                                    return docs.length === 1
-                                        ? 'Ready to answer questions about this document'
-                                        : 'Ready to compare and analyze these documents';
+                                    if (docs.length === 1) {
+                                        // Show file size if available
+                                        const size = docs[0].size;
+                                        if (size) {
+                                            const formatSize = (bytes) => {
+                                                if (bytes < 1024) return bytes + ' B';
+                                                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                                                return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+                                            };
+                                            return formatSize(size);
+                                        }
+                                        return 'Ready to chat';
+                                    }
+                                    return `${docs.length} files attached`;
                                 })()}
                             </div>
                         </div>
@@ -3559,10 +3603,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }}
                     style={{
-                        padding: 13,
-                        background: '#F5F5F5',
-                        borderRadius: 18,
-                        border: 'none',
+                        padding: '14px 18px',
+                        background: 'white',
+                        borderRadius: 24,
+                        border: '1px solid #E0E0E0',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 13,
@@ -3677,7 +3722,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 <div style={{
                     marginTop: 14,
                     paddingTop: 11,
-                    borderTop: '1px solid #A2A2A7',
+                    borderTop: '1px solid #E5E5E5',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',

@@ -38,6 +38,7 @@ import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import logoSvg from '../assets/logo.svg';
 import kodaLogo from '../assets/koda-logo_1.svg';
 import logoCopyWhite from '../assets/Logo copy.svg';
+import filesIcon from '../assets/files-icon.svg';
 import { getCategoriesWithCounts, createCategory, deleteCategory, addDocumentToCategory } from '../utils/categoryManager';
 import api from '../services/api';
 import chatService from '../services/chatService';
@@ -2068,12 +2069,12 @@ const Documents = () => {
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(23, 23, 23, 0.95)',
+              background: 'rgba(250, 250, 250, 0.85)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 20,
+              gap: 24,
               zIndex: 999,
               pointerEvents: 'none',
               animation: 'fadeIn 0.2s ease-in'
@@ -2087,26 +2088,20 @@ const Documents = () => {
                 }
               `}
             </style>
-            <div
+            <img
+              src={filesIcon}
+              alt="Files"
               style={{
-                width: 120,
-                height: 120,
-                background: 'white',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                width: 400,
+                height: 'auto',
                 opacity: isDraggingOver ? 1.0 : 0.75,
-                transform: isDraggingOver ? 'scale(1.08)' : 'scale(1.0)',
-                boxShadow: isDraggingOver ? '0 0 24px rgba(255, 255, 255, 0.12)' : 'none',
-                transition: 'opacity 250ms ease-out, transform 250ms ease-out, box-shadow 250ms ease-out'
+                transform: isDraggingOver ? 'scale(1.05)' : 'scale(1.0)',
+                transition: 'opacity 250ms ease-out, transform 250ms ease-out'
               }}
-            >
-              <LogoutBlackIcon style={{ width: 60, height: 60 }} />
-            </div>
+            />
             <div
               style={{
-                color: 'white',
+                color: '#181818',
                 fontSize: 32,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700',
@@ -2119,7 +2114,7 @@ const Documents = () => {
             </div>
             <div
               style={{
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: 'rgba(24, 24, 24, 0.6)',
                 fontSize: 18,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '500',
