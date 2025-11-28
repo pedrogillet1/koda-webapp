@@ -11,6 +11,7 @@ import CategoryIcon from './CategoryIcon';
 import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection';
 import { useToast } from '../context/ToastContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import folderIcon from '../assets/folder_icon.svg';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can-red.svg';
@@ -121,6 +122,7 @@ const CategoryDetail = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showSuccess } = useToast();
+  const isMobile = useIsMobile();
   const {
     documents: contextDocuments,
     folders: contextFolders,
@@ -2201,7 +2203,8 @@ const CategoryDetail = () => {
                 ) : (
                   // List View - Card-based layout matching Documents page
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {/* Table Header */}
+                    {/* Table Header - Hidden on mobile */}
+                    {!isMobile && (
                     <div style={{
                       display: 'grid',
                       gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
@@ -2242,10 +2245,11 @@ const CategoryDetail = () => {
                       ))}
                       <div></div>
                     </div>
+                    )}
                     {sortedDocuments.map((doc) => (
                       <div
                         key={doc.id}
-                        draggable="true"
+                        draggable={!isMobile}
                         onDragStart={(e) => handleDocumentDragStart(e, doc)}
                         onDragEnd={handleDocumentDragEnd}
                         onClick={() => {
@@ -2255,7 +2259,17 @@ const CategoryDetail = () => {
                             navigate(`/document/${doc.id}`);
                           }
                         }}
-                        style={{
+                        style={isMobile ? {
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 14,
+                          padding: 14,
+                          borderRadius: 14,
+                          background: isSelected(doc.id) ? '#E8E8EC' : '#F5F5F5',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          marginBottom: 8
+                        } : {
                           display: 'grid',
                           gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
                           gap: 12,
@@ -2269,16 +2283,36 @@ const CategoryDetail = () => {
                           opacity: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 0.5 : 1
                         }}
                         onMouseEnter={(e) => {
+                          if (isMobile) return;
                           if (!isSelected(doc.id)) {
                             e.currentTarget.style.background = '#F9F9F9';
                           }
                         }}
                         onMouseLeave={(e) => {
+                          if (isMobile) return;
                           if (!isSelected(doc.id)) {
                             e.currentTarget.style.background = 'white';
                           }
                         }}
                       >
+                        {isMobile ? (
+                          <>
+                            <img
+                              src={getFileIcon(doc)}
+                              alt="File icon"
+                              style={{ width: 48, height: 48, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain' }}
+                            />
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                              <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {doc.filename}
+                              </div>
+                              <div style={{ color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 5 }}>
+                                {formatFileSize(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                        <>
                         {/* Name Column */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
                           <img
@@ -2327,8 +2361,8 @@ const CategoryDetail = () => {
                         <div style={{ color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{formatFileSize(doc.fileSize)}</div>
                         {/* Date Column */}
                         <div style={{ color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{new Date(doc.createdAt).toLocaleDateString()}</div>
-                        {/* Actions */}
-                        <div style={{ position: 'relative' }} data-dropdown>
+                        {/* Actions - Hidden on mobile */}
+                        {!isMobile && <div style={{ position: 'relative' }} data-dropdown>
                           <button
                             data-dropdown-id={`list-${doc.id}`}
                             onClick={(e) => {
@@ -2496,7 +2530,9 @@ const CategoryDetail = () => {
                                   </button>
                                 </div>
                               )}
-                        </div>
+                        </div>}
+                        </>
+                        )}
                       </div>
                     ))}
                   </div>

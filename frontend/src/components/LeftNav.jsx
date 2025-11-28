@@ -23,7 +23,7 @@ import api from '../services/api';
 import kodaLogoWhite from '../assets/koda-logo_white.svg';
 import { spacing, radius, typography } from '../design/tokens';
 
-const LeftNav = ({ onNotificationClick }) => {
+const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const isMobile = useIsMobile();
@@ -75,7 +75,7 @@ const LeftNav = ({ onNotificationClick }) => {
                     onClick={() => setIsMobileMenuOpen(true)}
                     style={{
                         position: 'fixed',
-                        top: 16,
+                        top: hamburgerTop,
                         left: 16,
                         zIndex: 1000,
                         width: 44,
@@ -201,13 +201,13 @@ const LeftNav = ({ onNotificationClick }) => {
                             </span>
                         </div>
                     </div>
-
-                    {/* Logout Modal */}
-                    <LogoutModal
-                        isOpen={showLogoutModal}
-                        onClose={() => setShowLogoutModal(false)}
-                    />
                 </div>
+
+                {/* Logout Modal - Outside the sidebar so it shows fullscreen */}
+                <LogoutModal
+                    isOpen={showLogoutModal}
+                    onClose={() => setShowLogoutModal(false)}
+                />
             </>
         );
     }

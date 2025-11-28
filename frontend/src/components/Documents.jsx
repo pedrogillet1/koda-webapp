@@ -527,17 +527,17 @@ const Documents = () => {
 
   return (
     <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
-      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
+      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} hamburgerTop={isMobile ? 48 : 16} />
 
       {/* Main Content */}
       <div
-        style={{flex: 1, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative'}}
+        style={{flex: 1, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden', maxWidth: '100%'}}
         onDrop={handlePageDrop}
         onDragOver={handlePageDragOver}
         onDragLeave={handlePageDragLeave}
       >
         {/* Header */}
-        <div style={{minHeight: isMobile ? 'auto' : 84, paddingLeft: isMobile ? 70 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 12 : 0, paddingBottom: isMobile ? 12 : 0, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'center' : 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 12 : 0}}>
+        <div style={{minHeight: isMobile ? 'auto' : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 12 : 0, paddingBottom: isMobile ? 12 : 0, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'center' : 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 12 : 0}}>
           {isSelectMode ? (
             <>
               {/* Left: Back arrow + Documents title */}
@@ -580,7 +580,7 @@ const Documents = () => {
               </div>
             </>
           ) : (
-            <div style={{color: '#32302C', fontSize: isMobile ? 16 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px'}}>
+            <div style={{color: '#32302C', fontSize: isMobile ? 16 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', textAlign: isMobile ? 'center' : 'left'}}>
               Welcome{isMobile ? '' : ' Back'}, {user && (user.firstName || user.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.email?.split('@')[0] || 'User'}!
             </div>
           )}
@@ -725,7 +725,7 @@ const Documents = () => {
               </>
             ) : (
               <>
-                <div style={{position: 'relative', height: isMobile ? 44 : 52, display: 'flex', alignItems: 'center', flex: isMobile ? 1 : 'none'}}>
+                <div style={{position: 'relative', height: isMobile ? 44 : 52, display: 'flex', alignItems: 'center', flex: isMobile ? 1 : 'none', marginLeft: isMobile ? 54 : 0}}>
                   <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
                   <input
                     type="text"
@@ -1083,7 +1083,7 @@ const Documents = () => {
         </div>
 
         {/* Scrollable Content */}
-        <div style={{flex: 1, padding: isMobile ? 12 : 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20}}>
+        <div style={{flex: 1, padding: isMobile ? 12 : 20, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20, maxWidth: '100%', boxSizing: 'border-box'}}>
           {/* Smart Categories */}
           <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
             {/* Categories - vertical list on mobile, 5-column grid on desktop */}
@@ -1534,12 +1534,12 @@ const Documents = () => {
           </div>
 
           {/* File Breakdown - Full width card */}
-          <div style={{width: '100%'}}>
+          <div style={{width: '100%', maxWidth: '100%', boxSizing: 'border-box'}}>
             <FileBreakdownDonut showEncryptionMessage={false} />
           </div>
 
           {/* Your Files - Full width card below */}
-          <div style={{width: '100%', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column'}}>
+          <div style={{width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24}}>
                 <div style={{color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
                 {contextDocuments.filter(doc => !doc.folderId && !doc.folder).length > 6 && (
@@ -1832,10 +1832,10 @@ const Documents = () => {
                               }}
                             />
                             <div style={{flex: 1, overflow: 'hidden'}}>
-                              <div style={{color: '#32302C', fontSize: 17, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                              <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                                 {doc.filename}
                               </div>
-                              <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 5}}>
+                              <div style={{color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 5}}>
                                 {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
                               </div>
                               {isUploading && (

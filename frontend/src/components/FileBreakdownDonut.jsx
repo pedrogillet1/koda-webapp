@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useDocuments } from '../context/DocumentsContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // Import actual Koda file type icons
 import pdfIcon from '../assets/pdf-icon.png';
@@ -14,6 +15,7 @@ import mp4Icon from '../assets/mp4.png';
 const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
   const { documents } = useDocuments();
   const [hoveredType, setHoveredType] = useState(null);
+  const isMobile = useIsMobile();
 
   // Get file extension from document
   const getFileExtension = (doc) => {
@@ -97,14 +99,16 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
 
   return (
     <div style={{
-      padding: '24px',
+      padding: isMobile ? '16px' : '24px',
       background: 'white',
-      borderRadius: '14px',
+      borderRadius: isMobile ? '12px' : '14px',
       border: '1px solid #E6E6EC',
       display: 'flex',
       flexDirection: 'column',
       flex: 1,
       boxSizing: 'border-box',
+      overflow: 'hidden',
+      maxWidth: '100%',
       ...style
     }}>
       {/* Header - V3: Reduced bottom margin */}
@@ -116,7 +120,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
       }}>
         <div style={{
           color: '#32302C',
-          fontSize: '18px',
+          fontSize: isMobile ? '16px' : '18px',
           fontFamily: 'Plus Jakarta Sans',
           fontWeight: '700',
           lineHeight: '26px'
@@ -133,14 +137,15 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
         flex: 1,
         justifyContent: 'center'
       }}>
-        {/* Icon Grid - 8×1 single row layout */}
+        {/* Icon Grid - responsive: 3 columns on mobile, 8 on desktop */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(8, 72px)',
-          gap: '0 48px',
+          gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(8, 72px)',
+          gap: isMobile ? '16px 12px' : '0 48px',
           marginTop: '8px',
-          marginBottom: '24px',
-          justifyContent: 'center'
+          marginBottom: isMobile ? '16px' : '24px',
+          justifyContent: 'center',
+          width: '100%'
         }}>
           {displayData.map((item) => {
             const fileCount = extensionBreakdown[item.type]?.count || 0;
@@ -156,7 +161,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
                   flexDirection: 'column',
                   alignItems: 'center',
                   gap: '0px',
-                  width: 72,
+                  width: isMobile ? '100%' : 72,
                   opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.5 : 1),
                   transition: 'opacity 0.2s ease-out'
                 }}
@@ -166,21 +171,21 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
                 {/* Icon Container - tighter fit */}
                 <div
                   style={{
-                    width: 72,
-                    height: 72,
+                    width: isMobile ? 40 : 72,
+                    height: isMobile ? 40 : 72,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: hasFiles ? 'pointer' : 'default'
                   }}
                 >
-                  {/* Icon - 72×72 */}
+                  {/* Icon - responsive size */}
                   <img
                     src={item.icon}
                     alt={item.label}
                     style={{
-                      width: 72,
-                      height: 72,
+                      width: isMobile ? 40 : 72,
+                      height: isMobile ? 40 : 72,
                       objectFit: 'contain',
                       transform: isHovered ? 'scale(1.1)' : 'scale(1)',
                       transition: 'transform 0.2s ease-out'
@@ -197,7 +202,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
                   textAlign: 'center'
                 }}>
                   <div style={{
-                    fontSize: '14px',
+                    fontSize: isMobile ? '12px' : '14px',
                     fontWeight: '500',
                     color: '#32302C',
                     fontFamily: 'Plus Jakarta Sans'
@@ -205,7 +210,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, style = {} }) => {
                     {item.label}
                   </div>
                   <div style={{
-                    fontSize: '12px',
+                    fontSize: isMobile ? '10px' : '12px',
                     fontWeight: '400',
                     color: '#6C6B6E',
                     fontFamily: 'Plus Jakarta Sans'
