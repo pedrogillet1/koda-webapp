@@ -7,6 +7,7 @@ function RecoverAccess() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleContinue = async () => {
     setError('');
@@ -110,8 +111,21 @@ function RecoverAccess() {
         margin: '0 auto',
         padding: '0 24px',
         boxSizing: 'border-box',
-        paddingTop: '140px'
+        paddingTop: '140px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        textAlign: 'center'
       }}>
+        {/* Icon */}
+        <div style={{
+          marginBottom: '32px',
+          fontSize: '72px',
+          textShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+        }}>
+          🔑
+        </div>
+
         <h1 style={{
           fontSize: '32px',
           fontWeight: '600',
@@ -139,7 +153,9 @@ function RecoverAccess() {
             fontSize: '14px',
             fontWeight: '500',
             marginBottom: '8px',
-            color: '#000'
+            color: '#000',
+            textAlign: 'left',
+            paddingLeft: '20px'
           }}>
             Email
           </label>
@@ -149,16 +165,20 @@ function RecoverAccess() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onKeyPress={handleKeyPress}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             style={{
               width: '100%',
               height: '52px',
-              padding: '14px 16px',
+              padding: '14px 20px',
               fontSize: '16px',
-              border: '1px solid #E0E0E0',
-              borderRadius: '8px',
+              border: isFocused ? '1px solid #181818' : '1px solid #E0E0E0',
+              borderRadius: '26px',
               outline: 'none',
               boxSizing: 'border-box',
-              backgroundColor: '#F9F9F9'
+              backgroundColor: 'transparent',
+              transform: isFocused ? 'scale(1.02)' : 'scale(1)',
+              transition: 'transform 0.2s ease, border-color 0.2s ease'
             }}
             disabled={loading}
           />
@@ -171,7 +191,7 @@ function RecoverAccess() {
             marginBottom: '16px',
             background: '#FEE',
             border: '1px solid #FCC',
-            borderRadius: '8px',
+            borderRadius: '26px',
             color: '#C00',
             fontSize: '14px'
           }}>
@@ -191,7 +211,7 @@ function RecoverAccess() {
             color: '#FFF',
             background: loading ? '#666' : '#000',
             border: 'none',
-            borderRadius: '8px',
+            borderRadius: '26px',
             cursor: loading ? 'not-allowed' : 'pointer',
             boxSizing: 'border-box'
           }}

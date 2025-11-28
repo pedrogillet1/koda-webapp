@@ -9,7 +9,7 @@ import folderIcon from '../assets/folder_icon.svg';
  * @param {object} style - Optional inline styles to apply
  * @param {string} className - Optional CSS class name
  */
-const CategoryIcon = ({ emoji, style = {}, className = '' }) => {
+const CategoryIcon = ({ emoji, style = {}, className = '', size = 40 }) => {
   // Use folder SVG for: special identifier, null/empty, or default folder emoji
   const useFolderSvg = !emoji || emoji === '__FOLDER_SVG__' || emoji === '📁';
 
@@ -20,9 +20,10 @@ const CategoryIcon = ({ emoji, style = {}, className = '' }) => {
         alt="Folder"
         className={className}
         style={{
-          width: '1em',
-          height: '1em',
+          width: size,
+          height: size,
           objectFit: 'contain',
+          filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))',
           ...style
         }}
       />
@@ -36,6 +37,8 @@ const CategoryIcon = ({ emoji, style = {}, className = '' }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        fontSize: size,
+        filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))',
         ...style
       }}
     >

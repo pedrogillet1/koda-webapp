@@ -1168,7 +1168,7 @@ const Settings = () => {
                         alignItems: 'center',
                         gap: 12,
                         padding: 12,
-                        borderRadius: 12,
+                        borderRadius: 100,
                         background: '#F5F5F5',
                         cursor: 'pointer',
                         transition: 'background 0.2s ease'
@@ -1178,7 +1178,7 @@ const Settings = () => {
                         gap: 12,
                         alignItems: 'center',
                         padding: '10px 14px',
-                        borderRadius: 10,
+                        borderRadius: 100,
                         background: 'white',
                         border: '1px solid #E6E6EC',
                         cursor: 'pointer',
@@ -1187,7 +1187,9 @@ const Settings = () => {
                       }}
                       onMouseEnter={(e) => {
                         if (!isMobile) {
-                          e.currentTarget.style.background = '#F9F9F9';
+                          e.currentTarget.style.background = '#F7F7F9';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                         } else {
                           e.currentTarget.style.background = '#E6E6EC';
                         }
@@ -1195,6 +1197,8 @@ const Settings = () => {
                       onMouseLeave={(e) => {
                         if (!isMobile) {
                           e.currentTarget.style.background = 'white';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
                         } else {
                           e.currentTarget.style.background = '#F5F5F5';
                         }
@@ -1202,7 +1206,7 @@ const Settings = () => {
                     >
                       {isMobile ? (
                         <>
-                          <img src={getFileIcon(doc)} alt="File icon" style={{ width: 40, height: 40, aspectRatio: '1/1' }} />
+                          <img src={getFileIcon(doc)} alt="File icon" style={{ width: 40, height: 40, aspectRatio: '1/1', filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))' }} />
                           <div style={{ flex: 1, overflow: 'hidden' }}>
                             <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {doc.filename}
@@ -1216,7 +1220,7 @@ const Settings = () => {
                         <>
                           {/* Name Column */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
-                            <img src={getFileIcon(doc)} alt="File icon" style={{ width: 32, height: 32, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain' }} />
+                            <img src={getFileIcon(doc)} alt="File icon" style={{ width: 40, height: 40, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))' }} />
                             <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {doc.filename}
                             </div>
@@ -1363,7 +1367,7 @@ const Settings = () => {
                     />
                   </div>
                   {profileError && (
-                    <div style={{ color: '#DC2626', background: '#FEE2E2', padding: '12px 16px', borderRadius: 8, fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', alignSelf: 'stretch' }}>
+                    <div style={{ color: '#DC2626', background: '#FEE2E2', padding: '12px 16px', borderRadius: 26, fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', alignSelf: 'stretch' }}>
                       {profileError}
                     </div>
                   )}

@@ -145,7 +145,7 @@ const Upload = () => {
                 </div>
 
                 <div style={{alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 12 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: isMobile ? 12 : 20, display: 'flex'}}>
-                    <div {...getRootProps()} style={{alignSelf: 'stretch', flex: '1 1 0', minHeight: isMobile ? 300 : 'auto', paddingLeft: isMobile ? 16 : 40, paddingRight: isMobile ? 16 : 40, paddingTop: isMobile ? 32 : 60, paddingBottom: isMobile ? 32 : 60, background: '#F5F5F5', overflow: 'hidden', borderRadius: isMobile ? 16 : 20, border: '2px dashed rgba(108, 107, 110, 0.40)', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: isMobile ? 20 : 32, display: 'flex', cursor: 'pointer'}}>
+                    <div {...getRootProps()} style={{alignSelf: 'stretch', flex: '1 1 0', minHeight: isMobile ? 300 : 420, paddingLeft: isMobile ? 16 : 40, paddingRight: isMobile ? 16 : 40, paddingTop: isMobile ? 32 : 40, paddingBottom: isMobile ? 32 : 40, background: '#F5F5F5', overflow: 'visible', borderRadius: isMobile ? 16 : 20, border: '1px solid #E6E6EC', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: isMobile ? 20 : 32, display: 'flex', cursor: 'pointer'}}>
                         <input {...getInputProps()} />
                         <div style={{
                             width: 85.38,
@@ -190,8 +190,8 @@ const Upload = () => {
                             }}>{isMobile ? 'All file types supported (max 15MB)' : 'Upload your first document           All file types supported (max 15MB)'}</div>
                         </div>
                         <div style={{width: isMobile ? '100%' : 340, maxWidth: isMobile ? 280 : 340, borderRadius: 12, justifyContent: 'center', alignItems: 'flex-start', gap: 8, display: 'flex', flexDirection: 'column'}}>
-                            <div onClick={(e) => { e.stopPropagation(); open(); }} style={{width: '100%', height: isMobile ? 48 : 52, borderRadius: 14, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex', cursor: 'pointer'}}>
-                                <div style={{flex: '1 1 0', alignSelf: 'stretch', paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, border: '1px solid #E6E6EC', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex'}}>
+                            <div onClick={(e) => { e.stopPropagation(); open(); }} style={{width: '100%', height: isMobile ? 48 : 52, borderRadius: 100, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex', cursor: 'pointer'}}>
+                                <div style={{flex: '1 1 0', alignSelf: 'stretch', paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 100, border: '1px solid #E6E6EC', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex'}}>
                                     <div style={{color: '#323232', fontSize: isMobile ? 14 : 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>Select Files</div>
                                 </div>
                             </div>
@@ -341,8 +341,8 @@ const Upload = () => {
                             }}>
                                 {/* Drag-drop zone */}
                                 <div {...getRootProps()} style={{
-                                    border: '2px dashed #D1D5DB',
-                                    borderRadius: isMobile ? 8 : 12,
+                                    border: '1px solid #E6E6EC',
+                                    borderRadius: isMobile ? 16 : 20,
                                     padding: isMobile ? '32px 16px' : '48px 24px',
                                     textAlign: 'center',
                                     marginBottom: isMobile ? 16 : 24,
@@ -380,8 +380,8 @@ const Upload = () => {
                                         style={{
                                             padding: isMobile ? '12px 20px' : '10px 24px',
                                             background: 'white',
-                                            border: '1px solid #D1D5DB',
-                                            borderRadius: 8,
+                                            border: '1px solid #E6E6EC',
+                                            borderRadius: 100,
                                             fontSize: 14,
                                             fontWeight: '500',
                                             color: '#374151',

@@ -851,7 +851,7 @@ const Documents = () => {
                                 justifyContent: 'center',
                                 fontSize: 20
                               }}>
-                                <CategoryIcon emoji={folder.emoji || '__FOLDER_SVG__'} style={{width: 20, height: 20}} />
+                                <CategoryIcon emoji={folder.emoji || '__FOLDER_SVG__'} size={20} />
                               </div>
                               <div style={{flex: 1, overflow: 'hidden'}}>
                                 <div style={{
@@ -1008,7 +1008,8 @@ const Documents = () => {
                                       aspectRatio: '1/1',
                                       imageRendering: '-webkit-optimize-contrast',
                                       objectFit: 'contain',
-                                      shapeRendering: 'geometricPrecision'
+                                      shapeRendering: 'geometricPrecision',
+                                      filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                                     }}
                                   />
                                   {/* Processing badge - HIDDEN: Documents should display normally regardless of status */}
@@ -1089,7 +1090,7 @@ const Documents = () => {
           <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
             {/* Categories - vertical list on mobile, 5-column grid on desktop */}
             <div style={{display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gridTemplateColumns: isMobile ? undefined : 'repeat(5, 1fr)', gap: isMobile ? 8 : 12}}>
-              <div onClick={() => setIsModalOpen(true)} style={{height: isMobile ? 56 : 72, padding: isMobile ? '12px 16px' : 12, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', flexDirection: 'row', gap: isMobile ? 12 : 10, cursor: 'pointer', boxSizing: 'border-box', transition: 'transform 0.2s ease, box-shadow 0.2s ease'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(0)')}>
+              <div onClick={() => setIsModalOpen(true)} style={{height: isMobile ? 56 : 72, padding: isMobile ? '12px 16px' : 12, background: 'white', borderRadius: 14, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', flexDirection: 'row', gap: isMobile ? 12 : 10, cursor: 'pointer', boxSizing: 'border-box', transition: 'transform 0.2s ease, box-shadow 0.2s ease'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(0)')}>
                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                   <AddIcon style={{ width: isMobile ? 24 : 28, height: isMobile ? 24 : 28 }} />
                 </div>
@@ -1127,7 +1128,7 @@ const Documents = () => {
                     padding: isMobile ? '12px 16px' : 10,
                     height: isMobile ? 56 : 72,
                     background: dragOverCategoryId === category.id ? '#F0F0F0' : 'white',
-                    borderRadius: isMobile ? 12 : 14,
+                    borderRadius: 14,
                     border: dragOverCategoryId === category.id ? '2px dashed #32302C' : '1px #E6E6EC solid',
                     display: 'flex',
                     flexDirection: 'row',
@@ -1140,8 +1141,8 @@ const Documents = () => {
                   }}
                 >
                   <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: isMobile ? 12 : 10, flex: 1, cursor: 'pointer', minWidth: 0, textAlign: 'left'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(0)')}>
-                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 32 : 36, flexShrink: 0}}>
-                      <CategoryIcon emoji={category.emoji} />
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                      <CategoryIcon emoji={category.emoji} size={40} />
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 2 : 4, flex: 1, alignItems: 'flex-start', minWidth: 0}}>
                       <div style={{color: '#32302C', fontSize: isMobile ? 14 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%'}}>{category.name}</div>
@@ -1354,8 +1355,8 @@ const Documents = () => {
                     }}
                   >
                     <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
-                      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, flexShrink: 0}}>
-                        <CategoryIcon emoji={category.emoji} />
+                      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                        <CategoryIcon emoji={category.emoji} size={40} />
                       </div>
                       <div style={{display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0}}>
                         <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{category.name}</div>
@@ -1540,7 +1541,7 @@ const Documents = () => {
           </div>
 
           {/* Your Files - Full width card below */}
-          <div style={{width: '100%', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 14, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column'}}>
+          <div style={{width: '100%', padding: isMobile ? 16 : 24, background: 'white', borderRadius: 24, border: '1px #E6E6EC solid', display: 'flex', flexDirection: 'column'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24}}>
                 <div style={{color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
                 {contextDocuments.filter(doc => !doc.folderId && !doc.folder).length > 6 && (
@@ -1786,7 +1787,7 @@ const Documents = () => {
                           alignItems: 'center',
                           gap: 14,
                           padding: 14,
-                          borderRadius: 14,
+                          borderRadius: 100,
                           background: isUploading ? '#FFF9E6' : '#F5F5F5',
                           opacity: isUploading ? 0.8 : 1,
                           border: 'none',
@@ -1799,7 +1800,7 @@ const Documents = () => {
                           gap: 12,
                           alignItems: 'center',
                           padding: '10px 14px',
-                          borderRadius: 10,
+                          borderRadius: 100,
                           background: isUploading ? '#FFF9E6' : 'white',
                           border: '1px solid #E6E6EC',
                           opacity: isUploading ? 0.8 : 1,
@@ -1809,12 +1810,16 @@ const Documents = () => {
                         }}
                         onMouseEnter={(e) => {
                           if (!isUploading && !isMobile) {
-                            e.currentTarget.style.background = '#F9F9F9';
+                            e.currentTarget.style.background = '#F7F7F9';
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                           }
                         }}
                         onMouseLeave={(e) => {
                           if (!isUploading && !isMobile) {
                             e.currentTarget.style.background = 'white';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = 'none';
                           }
                         }}
                       >
@@ -1829,7 +1834,8 @@ const Documents = () => {
                                 aspectRatio: '1/1',
                                 imageRendering: '-webkit-optimize-contrast',
                                 objectFit: 'contain',
-                                shapeRendering: 'geometricPrecision'
+                                shapeRendering: 'geometricPrecision',
+                                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                               }}
                             />
                             <div style={{flex: 1, overflow: 'hidden'}}>
@@ -1858,7 +1864,7 @@ const Documents = () => {
                               <img
                                 src={getFileIcon(doc)}
                                 alt="File icon"
-                                style={{width: 32, height: 32, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain'}}
+                                style={{width: 40, height: 40, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}}
                               />
                               <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                                 {doc.filename}
@@ -2260,7 +2266,8 @@ const Documents = () => {
                       imageRendering: '-webkit-optimize-contrast',
                       objectFit: 'contain',
                       shapeRendering: 'geometricPrecision',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                     }}
                   />
                   <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -2353,7 +2360,7 @@ const Documents = () => {
                         justifyContent: 'center',
                         fontSize: 20
                       }}>
-                        <CategoryIcon emoji={category.emoji} style={{width: 18, height: 18}} />
+                        <CategoryIcon emoji={category.emoji} size={18} />
                       </div>
 
                       {/* Category Name */}
@@ -2695,15 +2702,15 @@ const Documents = () => {
             }}
             style={{
               height: 56,
-              paddingLeft: 16,
-              paddingRight: 16,
+              paddingLeft: 10,
+              paddingRight: 20,
               paddingTop: 10,
               paddingBottom: 10,
               left: 0,
               top: 0,
               position: 'absolute',
               background: '#171717',
-              borderRadius: 16,
+              borderRadius: 100,
               justifyContent: 'flex-start',
               alignItems: 'center',
               display: 'inline-flex',

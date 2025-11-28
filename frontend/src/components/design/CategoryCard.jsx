@@ -37,7 +37,7 @@ const CategoryCard = ({
         style={{
           padding: '14px',
           background: isHovered ? colors.neutral[100] : 'white',
-          borderRadius: radius.xl,
+          borderRadius: 14,
           border: `1px solid ${colors.neutral[200]}`,
           display: 'flex',
           alignItems: 'center',
@@ -86,7 +86,7 @@ const CategoryCard = ({
       style={{
         padding: '10px',
         background: isHovered ? colors.neutral[50] : 'white',
-        borderRadius: radius.xl,
+        borderRadius: 14,
         border: `1px solid ${colors.neutral[200]}`,
         display: 'flex',
         alignItems: 'center',

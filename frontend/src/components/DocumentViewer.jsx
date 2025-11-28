@@ -1754,15 +1754,15 @@ const DocumentViewer = () => {
             }}
             style={{
               height: 56,
-              paddingLeft: 16,
-              paddingRight: 16,
+              paddingLeft: 10,
+              paddingRight: 20,
               paddingTop: 10,
               paddingBottom: 10,
               bottom: 0,
               right: 0,
               position: 'absolute',
               background: '#171717',
-              borderRadius: 16,
+              borderRadius: 100,
               justifyContent: 'flex-start',
               alignItems: 'center',
               display: 'inline-flex',
@@ -2134,7 +2134,8 @@ const DocumentViewer = () => {
                       imageRendering: '-webkit-optimize-contrast',
                       objectFit: 'contain',
                       shapeRendering: 'geometricPrecision',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                     }}
                   />
                   <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -2227,7 +2228,7 @@ const DocumentViewer = () => {
                         justifyContent: 'center',
                         fontSize: 20
                       }}>
-                        <CategoryIcon emoji={category.emoji} style={{width: 18, height: 18}} />
+                        <CategoryIcon emoji={category.emoji} size={18} />
                       </div>
 
                       {/* Category Name */}

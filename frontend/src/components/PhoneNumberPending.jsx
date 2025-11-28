@@ -45,6 +45,16 @@ const PhoneNumberPending = () => {
       </div>
 
       <div style={{width: '100%', maxWidth: 450, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32, flexGrow: 1, justifyContent: 'center'}}>
+        {/* Icon */}
+        <div style={{
+          marginBottom: '8px',
+          fontSize: '72px',
+          textShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          display: 'inline-block',
+          transform: 'rotate(-15deg)'
+        }}>
+          📱
+        </div>
         <div style={{alignSelf: 'stretch', textAlign: 'center', flexDirection: 'column', gap: 12}}>
           <div style={{color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600'}}>Enter Your Phone Number</div>
           <div style={{color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>We'll send you a verification code via SMS.</div>
@@ -62,7 +72,7 @@ const PhoneNumberPending = () => {
                 height: 52,
                 padding: '0 18px',
                 background: '#F5F5F5',
-                borderRadius: 14,
+                borderRadius: 26,
                 border: '1px solid #E6E6EC',
                 fontSize: 16,
                 outline: 'none'
@@ -71,7 +81,7 @@ const PhoneNumberPending = () => {
           </div>
 
           {error && (
-            <div style={{background: '#FEE2E2', color: '#DC2626', padding: '12px 16px', borderRadius: 8, fontSize: 14}}>
+            <div style={{background: '#FEE2E2', color: '#DC2626', padding: '12px 16px', borderRadius: 26, fontSize: 14}}>
               {error}
             </div>
           )}
@@ -83,7 +93,7 @@ const PhoneNumberPending = () => {
               height: 52,
               background: (!phoneNumber || isLoading) ? '#F5F5F5' : '#181818',
               color: (!phoneNumber || isLoading) ? '#6C6B6E' : 'white',
-              borderRadius: 14,
+              borderRadius: 26,
               border: 'none',
               fontSize: 16,
               fontWeight: '600',

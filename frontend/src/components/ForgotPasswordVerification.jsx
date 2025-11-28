@@ -8,6 +8,8 @@ function ForgotPasswordVerification() {
   const { method } = location.state || {};
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [resendHover, setResendHover] = useState(false);
+  const [backHover, setBackHover] = useState(false);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -77,17 +79,11 @@ function ForgotPasswordVerification() {
         alignItems: 'center',
         textAlign: 'center'
       }}>
-        {/* Blue Icon Circle */}
+        {/* Icon */}
         <div style={{
-          width: '80px',
-          height: '80px',
-          borderRadius: '50%',
-          background: '#E3F2FD',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
           marginBottom: '32px',
-          fontSize: '40px'
+          fontSize: '72px',
+          textShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
         }}>
           {isEmail ? '📧' : '💬'}
         </div>
@@ -118,6 +114,8 @@ function ForgotPasswordVerification() {
           {canResend ? (
             <button
               onClick={handleResend}
+              onMouseEnter={() => setResendHover(true)}
+              onMouseLeave={() => setResendHover(false)}
               style={{
                 background: 'none',
                 border: 'none',
@@ -125,7 +123,9 @@ function ForgotPasswordVerification() {
                 fontWeight: '600',
                 cursor: 'pointer',
                 textDecoration: 'underline',
-                fontSize: '14px'
+                fontSize: '14px',
+                transform: resendHover ? 'scale(1.05)' : 'scale(1)',
+                transition: 'transform 0.2s ease'
               }}
             >
               Resend
@@ -139,6 +139,8 @@ function ForgotPasswordVerification() {
 
         <button
           onClick={() => navigate('/login')}
+          onMouseEnter={() => setBackHover(true)}
+          onMouseLeave={() => setBackHover(false)}
           style={{
             width: '100%',
             height: '52px',
@@ -147,10 +149,12 @@ function ForgotPasswordVerification() {
             fontWeight: '600',
             color: '#000',
             background: '#FFF',
-            border: '1px solid #E0E0E0',
-            borderRadius: '8px',
+            border: backHover ? '1px solid #181818' : '1px solid #E0E0E0',
+            borderRadius: '26px',
             cursor: 'pointer',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            transform: backHover ? 'scale(1.02)' : 'scale(1)',
+            transition: 'transform 0.2s ease, border-color 0.2s ease'
           }}
         >
           Back to Log In

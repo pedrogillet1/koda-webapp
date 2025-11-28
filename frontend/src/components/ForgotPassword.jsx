@@ -11,6 +11,8 @@ function ForgotPassword() {
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailHover, setEmailHover] = useState(false);
+  const [smsHover, setSmsHover] = useState(false);
 
   useEffect(() => {
     console.log('🔐 [ForgotPassword] Component mounted');
@@ -107,8 +109,21 @@ function ForgotPassword() {
         margin: '0 auto',
         padding: '0 24px',
         boxSizing: 'border-box',
-        paddingTop: '140px'
+        paddingTop: '140px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        textAlign: 'center'
       }}>
+        {/* Icon */}
+        <div style={{
+          marginBottom: '32px',
+          fontSize: '72px',
+          textShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+        }}>
+          🔐
+        </div>
+
         <h1 style={{
           fontSize: '32px',
           fontWeight: '600',
@@ -133,22 +148,26 @@ function ForgotPassword() {
         {/* Email Option */}
         <button
           onClick={() => canUseEmail && setSelectedMethod('email')}
+          onMouseEnter={() => setEmailHover(true)}
+          onMouseLeave={() => setEmailHover(false)}
           disabled={!canUseEmail}
           style={{
             width: '100%',
-            padding: '16px',
+            padding: '16px 20px',
             marginBottom: '12px',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            background: selectedMethod === 'email' ? '#F0F0F0' : '#FFF',
-            border: selectedMethod === 'email' ? '2px solid #000' : '1px solid #E0E0E0',
-            borderRadius: '8px',
+            background: selectedMethod === 'email' ? '#F5F5F5' : '#FFF',
+            border: selectedMethod === 'email' ? '1px solid #181818' : '1px solid #E0E0E0',
+            borderRadius: '26px',
             cursor: canUseEmail ? 'pointer' : 'not-allowed',
-            opacity: canUseEmail ? 1 : 0.5
+            opacity: canUseEmail ? 1 : 0.5,
+            transform: canUseEmail && emailHover ? 'scale(1.02)' : 'scale(1)',
+            transition: 'transform 0.2s ease, border-color 0.2s ease'
           }}
         >
-          <div style={{ width: '24px', height: '24px' }}>📧</div>
+          <div style={{ width: '32px', height: '32px', fontSize: '28px', textShadow: '0 2px 6px rgba(0, 0, 0, 0.15)' }}>📧</div>
           <div style={{ flex: 1, textAlign: 'left' }}>
             <div style={{ fontSize: '16px', fontWeight: '600', color: canUseEmail ? '#000' : '#999', marginBottom: '4px' }}>
               Send Via Email
@@ -177,22 +196,26 @@ function ForgotPassword() {
         {/* Phone Option */}
         <button
           onClick={() => canUsePhone && setSelectedMethod('sms')}
+          onMouseEnter={() => setSmsHover(true)}
+          onMouseLeave={() => setSmsHover(false)}
           disabled={!canUsePhone}
           style={{
             width: '100%',
-            padding: '16px',
+            padding: '16px 20px',
             marginBottom: '24px',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            background: selectedMethod === 'sms' ? '#F0F0F0' : '#FFF',
-            border: selectedMethod === 'sms' ? '2px solid #000' : '1px solid #E0E0E0',
-            borderRadius: '8px',
+            background: selectedMethod === 'sms' ? '#F5F5F5' : '#FFF',
+            border: selectedMethod === 'sms' ? '1px solid #181818' : '1px solid #E0E0E0',
+            borderRadius: '26px',
             cursor: canUsePhone ? 'pointer' : 'not-allowed',
-            opacity: canUsePhone ? 1 : 0.5
+            opacity: canUsePhone ? 1 : 0.5,
+            transform: canUsePhone && smsHover ? 'scale(1.02)' : 'scale(1)',
+            transition: 'transform 0.2s ease, border-color 0.2s ease'
           }}
         >
-          <div style={{ width: '24px', height: '24px' }}>💬</div>
+          <div style={{ width: '32px', height: '32px', fontSize: '28px', textShadow: '0 2px 6px rgba(0, 0, 0, 0.15)' }}>💬</div>
           <div style={{ flex: 1, textAlign: 'left' }}>
             <div style={{ fontSize: '16px', fontWeight: '600', color: canUsePhone ? '#000' : '#999', marginBottom: '4px' }}>
               Send Via Messages
@@ -226,11 +249,11 @@ function ForgotPassword() {
         {error && (
           <div style={{
             width: '100%',
-            padding: '12px',
+            padding: '14px 20px',
             marginBottom: '16px',
             background: '#FEE',
             border: '1px solid #FCC',
-            borderRadius: '8px',
+            borderRadius: '26px',
             color: '#C00',
             fontSize: '14px'
           }}>
@@ -248,9 +271,9 @@ function ForgotPassword() {
             fontSize: '16px',
             fontWeight: '600',
             color: '#FFF',
-            background: (!selectedMethod || loading) ? '#666' : '#000',
+            background: (!selectedMethod || loading) ? '#999' : '#000',
             border: 'none',
-            borderRadius: '8px',
+            borderRadius: '26px',
             cursor: (!selectedMethod || loading) ? 'not-allowed' : 'pointer',
             boxSizing: 'border-box'
           }}

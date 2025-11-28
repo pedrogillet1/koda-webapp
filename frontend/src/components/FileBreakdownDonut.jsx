@@ -196,19 +196,23 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                       />
                     </div>
                     <div style={{
-                      fontSize: '12px',
+                      fontSize: isHovered ? '14px' : '12px',
                       fontWeight: '600',
                       color: '#32302C',
                       fontFamily: 'Plus Jakarta Sans',
-                      textAlign: 'center'
+                      textAlign: 'center',
+                      transform: isHovered ? 'scale(1.1)' : 'scale(1)',
+                      transition: 'transform 0.2s ease-out, font-size 0.2s ease-out'
                     }}>
                       {item.label}
                     </div>
                     <div style={{
-                      fontSize: '11px',
+                      fontSize: isHovered ? '13px' : '11px',
                       fontWeight: '500',
                       color: '#6C6B6E',
-                      fontFamily: 'Plus Jakarta Sans'
+                      fontFamily: 'Plus Jakarta Sans',
+                      transform: isHovered ? 'scale(1.1)' : 'scale(1)',
+                      transition: 'transform 0.2s ease-out, font-size 0.2s ease-out'
                     }}>
                       {fileCount}
                     </div>
@@ -268,19 +272,23 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                       />
                     </div>
                     <div style={{
-                      fontSize: '12px',
+                      fontSize: isHovered ? '14px' : '12px',
                       fontWeight: '600',
                       color: '#32302C',
                       fontFamily: 'Plus Jakarta Sans',
-                      textAlign: 'center'
+                      textAlign: 'center',
+                      transform: isHovered ? 'scale(1.1)' : 'scale(1)',
+                      transition: 'transform 0.2s ease-out, font-size 0.2s ease-out'
                     }}>
                       {item.label}
                     </div>
                     <div style={{
-                      fontSize: '11px',
+                      fontSize: isHovered ? '13px' : '11px',
                       fontWeight: '500',
                       color: '#6C6B6E',
-                      fontFamily: 'Plus Jakarta Sans'
+                      fontFamily: 'Plus Jakarta Sans',
+                      transform: isHovered ? 'scale(1.1)' : 'scale(1)',
+                      transition: 'transform 0.2s ease-out, font-size 0.2s ease-out'
                     }}>
                       {fileCount}
                     </div>
@@ -315,7 +323,9 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                     gap: '0px',
                     width: compact ? 48 : 72,
                     opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.5 : 1),
-                    transition: 'opacity 0.2s ease-out'
+                    transform: isHovered ? 'scale(1.08)' : 'scale(1)',
+                    transition: 'opacity 0.2s ease-out, transform 0.2s ease-out',
+                    cursor: hasFiles ? 'pointer' : 'default'
                   }}
                   onMouseEnter={() => hasFiles && setHoveredType(item.type)}
                   onMouseLeave={() => setHoveredType(null)}
@@ -327,8 +337,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                       height: compact ? 48 : 72,
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: hasFiles ? 'pointer' : 'default'
+                      justifyContent: 'center'
                     }}
                   >
                     {/* Icon */}
@@ -338,9 +347,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                       style={{
                         width: compact ? 48 : 72,
                         height: compact ? 48 : 72,
-                        objectFit: 'contain',
-                        transform: isHovered ? 'scale(1.1)' : 'scale(1)',
-                        transition: 'transform 0.2s ease-out'
+                        objectFit: 'contain'
                       }}
                     />
                   </div>
@@ -411,10 +418,10 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
           {/* Progress bar - V3: Animated segments on hover */}
           <div style={{
             width: '100%',
-            height: compact ? '6px' : '8px',
+            height: compact ? '8px' : '10px',
             background: '#F3F3F5',
-            borderRadius: '4px',
-            overflow: 'visible',
+            borderRadius: '100px',
+            overflow: 'hidden',
             display: 'flex',
             position: 'relative'
           }}>

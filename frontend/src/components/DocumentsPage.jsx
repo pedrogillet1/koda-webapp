@@ -854,8 +854,8 @@ const DocumentsPage = () => {
                     console.log('🔗 DocumentsPage - Navigating to:', `/folder/${category.id}`);
                     navigate(`/folder/${category.id}`);
                   }} style={{display: 'flex', alignItems: 'center', gap: spacing.sm, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
-                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, flexShrink: 0}}>
-                      <CategoryIcon emoji={category.emoji} />
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
+                      <CategoryIcon emoji={category.emoji} size={40} />
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: spacing.xs, flex: 1, minWidth: 0}}>
                       <div style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: '19.60px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{category.name}</div>
@@ -1143,21 +1143,21 @@ const DocumentsPage = () => {
                           border: '1px solid #E6E6EC',
                           cursor: 'pointer',
                           transition: 'all 0.2s ease',
-                          transform: 'scale(1)'
+                          transform: 'translateY(0)'
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background = '#F9F9F9';
-                          e.currentTarget.style.transform = 'scale(1.01)';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
                           e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.background = 'white';
-                          e.currentTarget.style.transform = 'scale(1)';
+                          e.currentTarget.style.transform = 'translateY(0)';
                           e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
                         <div style={{display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden'}}>
-                          <img src={folderIcon} alt="Folder" style={{width: 32, height: 32, flexShrink: 0}} />
+                          <img src={folderIcon} alt="Folder" style={{width: 40, height: 40, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
                           <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                             {item.name}
                           </div>
@@ -1322,7 +1322,7 @@ const DocumentsPage = () => {
                         border: '1px solid #E6E6EC',
                         cursor: isSelectMode ? 'pointer' : 'pointer',
                         transition: 'all 0.2s ease',
-                        transform: 'scale(1)'
+                        transform: 'translateY(0)'
                       }}
                       onMouseEnter={(e) => {
                         if (isSelectMode && isSelected(doc.id)) {
@@ -1330,12 +1330,12 @@ const DocumentsPage = () => {
                         } else {
                           e.currentTarget.style.background = '#F7F7F9';
                         }
-                        e.currentTarget.style.transform = 'scale(1.01)';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
                         e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = isSelectMode && isSelected(doc.id) ? '#F3F3F5' : 'white';
-                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.transform = 'translateY(0)';
                         e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
@@ -1345,11 +1345,12 @@ const DocumentsPage = () => {
                           src={getFileIcon(doc)}
                           alt="File icon"
                           style={{
-                            width: 32,
-                            height: 32,
+                            width: 40,
+                            height: 40,
                             flexShrink: 0,
                             imageRendering: '-webkit-optimize-contrast',
-                            objectFit: 'contain'
+                            objectFit: 'contain',
+                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                           }}
                         />
                         <div style={{

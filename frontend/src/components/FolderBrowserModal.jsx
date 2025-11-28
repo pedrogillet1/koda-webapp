@@ -672,7 +672,7 @@ const FolderBrowserModal = ({
                         <img
                           src={getFileIcon(file.name)}
                           alt={file.type}
-                          style={{ width: 32, height: 32, objectFit: 'contain', flexShrink: 0 }}
+                          style={{ width: 40, height: 40, objectFit: 'contain', flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))' }}
                         />
                         <span
                           style={{

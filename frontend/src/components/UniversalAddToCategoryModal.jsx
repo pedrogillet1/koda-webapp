@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
-import folderIcon from '../assets/folder_icon.svg';
+import CategoryIcon from './CategoryIcon';
 import api from '../services/api';
 
 const UniversalAddToCategoryModal = ({
@@ -282,25 +282,7 @@ const UniversalAddToCategoryModal = ({
                         gap: 6,
                         display: 'flex'
                       }}>
-                        <div style={{
-                          width: 44,
-                          height: 44,
-                          paddingTop: 10,
-                          paddingBottom: 10,
-                          background: '#F5F5F5',
-                          boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
-                          borderRadius: 100,
-                          outline: '1px #E6E6EC solid',
-                          outlineOffset: '-1px',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          gap: 6,
-                          display: 'flex',
-                          fontSize: 20,
-                          lineHeight: 1
-                        }}>
-                          <img src={folderIcon} alt="folder" style={{width: 20, height: 20}} />
-                        </div>
+                        <CategoryIcon emoji={category.emoji} size={40} />
                         <div style={{
                           alignSelf: 'stretch',
                           textAlign: 'center',

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import logo from '../assets/logo.png';
+import logo from '../assets/logo.svg';
 import googleIcon from '../assets/Social icon 2.svg';
 import appleIcon from '../assets/Social icon.svg';
 import hideIcon from '../assets/Hide.svg';
@@ -22,6 +22,12 @@ const SignUp = () => {
     hasNumber: false,
     hasSpecialChar: false,
   });
+  const [nameFocused, setNameFocused] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [loginHover, setLoginHover] = useState(false);
+  const [termsHover, setTermsHover] = useState(false);
+  const [privacyHover, setPrivacyHover] = useState(false);
 
 
   useEffect(() => {
@@ -114,8 +120,8 @@ const SignUp = () => {
   return (
     <div style={{width: '100%', minHeight: '100vh', padding: '40px 20px', background: 'white', overflowY: 'auto', overflowX: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
       <div style={{width: '100%', maxWidth: 'var(--container-max-width)', padding: 'var(--container-padding)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32}}>
-        <img style={{width: 66, height: 66}} src={logo} alt="Logo" />
-        
+        <img style={{width: 120, height: 120, filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))'}} src={logo} alt="Logo" />
+
         <div style={{alignSelf: 'stretch', textAlign: 'center', flexDirection: 'column', gap: 12}}>
           <div style={{color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600'}}>Create Your Account</div>
           <div style={{color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>Fill in the form to create your Koda account.</div>
@@ -124,16 +130,70 @@ const SignUp = () => {
         <form onSubmit={handleSignUp} style={{alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 20}}>
           <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
             <label style={{fontWeight: '600', fontSize: 14}}>Name</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your name" style={{height: 52, padding: '0 18px', background: '#F5F5F5', borderRadius: 14, border: '1px solid #E6E6EC', fontSize: 16}}/>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onFocus={() => setNameFocused(true)}
+              onBlur={() => setNameFocused(false)}
+              placeholder="Enter your name"
+              style={{
+                height: 52,
+                padding: '0 20px',
+                background: 'transparent',
+                borderRadius: 26,
+                border: nameFocused ? '1px solid #181818' : '1px solid #E6E6EC',
+                fontSize: 16,
+                outline: 'none',
+                transform: nameFocused ? 'scale(1.02)' : 'scale(1)',
+                transition: 'transform 0.2s ease, border-color 0.2s ease'
+              }}
+            />
           </div>
           <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
             <label style={{fontWeight: '600', fontSize: 14}}>Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" style={{height: 52, padding: '0 18px', background: '#F5F5F5', borderRadius: 14, border: '1px solid #E6E6EC', fontSize: 16}}/>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onFocus={() => setEmailFocused(true)}
+              onBlur={() => setEmailFocused(false)}
+              placeholder="Enter your email"
+              style={{
+                height: 52,
+                padding: '0 20px',
+                background: 'transparent',
+                borderRadius: 26,
+                border: emailFocused ? '1px solid #181818' : '1px solid #E6E6EC',
+                fontSize: 16,
+                outline: 'none',
+                transform: emailFocused ? 'scale(1.02)' : 'scale(1)',
+                transition: 'transform 0.2s ease, border-color 0.2s ease'
+              }}
+            />
           </div>
           <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
             <label style={{fontWeight: '600', fontSize: 14}}>Password</label>
-            <div style={{display: 'flex', alignItems: 'center', height: 52, padding: '0 18px', background: '#F5F5F5', borderRadius: 14, border: '1px solid #E6E6EC'}}>
-              <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={{flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 16}}/>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              height: 52,
+              padding: '0 20px',
+              background: 'transparent',
+              borderRadius: 26,
+              border: passwordFocused ? '1px solid #181818' : '1px solid #E6E6EC',
+              transform: passwordFocused ? 'scale(1.02)' : 'scale(1)',
+              transition: 'transform 0.2s ease, border-color 0.2s ease'
+            }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setPasswordFocused(true)}
+                onBlur={() => setPasswordFocused(false)}
+                placeholder="••••••••"
+                style={{flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 16}}
+              />
               <img src={hideIcon} alt="Show/Hide" onClick={() => setShowPassword(!showPassword)} style={{cursor: 'pointer'}}/>
             </div>
           </div>
@@ -146,16 +206,28 @@ const SignUp = () => {
             <ValidationItem text="One special character (!@#$%^&*...)" isValid={passwordCriteria.hasSpecialChar} />
           </div>
 
-          {error && <div style={{color: '#DC2626', background: '#FEE2E2', padding: '12px 16px', borderRadius: 8, marginTop: 8}}>{error}</div>}
+          {error && <div style={{color: '#DC2626', background: '#FEE2E2', padding: '12px 16px', borderRadius: 26, marginTop: 8}}>{error}</div>}
 
-          <button type="submit" disabled={isLoading} style={{height: 52, background: 'rgba(24, 24, 24, 0.90)', color: 'white', borderRadius: 14, border: 'none', fontSize: 16, fontWeight: '600', cursor: 'pointer', marginTop: 12, opacity: isLoading ? 0.6 : 1}}>
+          <button type="submit" disabled={isLoading} style={{height: 52, background: 'rgba(24, 24, 24, 0.90)', color: 'white', borderRadius: 26, border: 'none', fontSize: 16, fontWeight: '600', cursor: 'pointer', marginTop: 12, opacity: isLoading ? 0.6 : 1}}>
             {isLoading ? 'Creating account...' : 'Continue'}
           </button>
         </form>
 
         <div style={{textAlign: 'center', fontSize: 14}}>
           <span style={{color: '#6C6B6E'}}>Already Have An Account? </span>
-          <Link to="/login" style={{fontWeight: '700', color: '#181818', textDecoration: 'none'}}>Log In</Link>
+          <Link
+            to="/login"
+            style={{
+              fontWeight: '700',
+              color: '#181818',
+              textDecoration: 'none',
+              display: 'inline-block',
+              transform: loginHover ? 'scale(1.05)' : 'scale(1)',
+              transition: 'transform 0.2s ease'
+            }}
+            onMouseEnter={() => setLoginHover(true)}
+            onMouseLeave={() => setLoginHover(false)}
+          >Log In</Link>
         </div>
 
         <div style={{alignSelf: 'stretch', display: 'flex', alignItems: 'center', gap: 8}}>
@@ -165,21 +237,45 @@ const SignUp = () => {
         </div>
 
         <div style={{alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 16}}>
-          <button onClick={handleGoogleSignUp} style={{height: 52, background: '#F5F5F5', borderRadius: 14, border: '1px solid #E6E6EC', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, cursor: 'pointer', fontSize: 16, fontWeight: '500'}}>
-            <img src={googleIcon} alt="Google icon" />
+          <button onClick={handleGoogleSignUp} style={{height: 52, background: 'transparent', borderRadius: 26, border: '1px solid #E6E6EC', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, cursor: 'pointer', fontSize: 16, fontWeight: '500'}}>
+            <img src={googleIcon} alt="Google icon" style={{filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))'}} />
             Sign Up with Google
           </button>
-          <button style={{height: 52, background: '#F5F5F5', borderRadius: 14, border: '1px solid #E6E6EC', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, cursor: 'pointer', fontSize: 16, fontWeight: '500'}}>
-            <img src={appleIcon} alt="Apple icon" />
+          <button style={{height: 52, background: 'transparent', borderRadius: 26, border: '1px solid #E6E6EC', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, cursor: 'pointer', fontSize: 16, fontWeight: '500'}}>
+            <img src={appleIcon} alt="Apple icon" style={{filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))'}} />
             Sign Up with Apple
           </button>
         </div>
 
         <div style={{textAlign: 'center', fontSize: 14}}>
           <span style={{color: '#6C6B6E'}}>By creating an account, you agree to our </span>
-          <Link to="/terms" style={{fontWeight: '600', color: '#181818', textDecoration: 'none'}}>Terms of Service</Link>
+          <Link
+            to="/terms"
+            style={{
+              fontWeight: '600',
+              color: '#181818',
+              textDecoration: 'none',
+              display: 'inline-block',
+              transform: termsHover ? 'scale(1.05)' : 'scale(1)',
+              transition: 'transform 0.2s ease'
+            }}
+            onMouseEnter={() => setTermsHover(true)}
+            onMouseLeave={() => setTermsHover(false)}
+          >Terms of Service</Link>
           <span style={{color: '#6C6B6E'}}> and </span>
-          <Link to="/privacy" style={{fontWeight: '600', color: '#181818', textDecoration: 'none'}}>Privacy Policy</Link>.
+          <Link
+            to="/privacy"
+            style={{
+              fontWeight: '600',
+              color: '#181818',
+              textDecoration: 'none',
+              display: 'inline-block',
+              transform: privacyHover ? 'scale(1.05)' : 'scale(1)',
+              transition: 'transform 0.2s ease'
+            }}
+            onMouseEnter={() => setPrivacyHover(true)}
+            onMouseLeave={() => setPrivacyHover(false)}
+          >Privacy Policy</Link>.
         </div>
       </div>
     </div>

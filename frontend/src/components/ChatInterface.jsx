@@ -1761,6 +1761,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         // Clear input immediately
         setMessage('');
+        // Reset textarea height
+        if (inputRef.current) {
+            inputRef.current.style.height = '24px';
+        }
         // ✅ FIX: Clear draft from localStorage when message is sent
         localStorage.removeItem(`koda_draft_${currentConversation?.id || 'new'}`);
         // DON'T clear attachedDocuments - they're needed for the API request
@@ -2739,7 +2743,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                             flexShrink: 0,
                                                                                             imageRendering: '-webkit-optimize-contrast',
                                                                                             objectFit: 'contain',
-                                                                                            shapeRendering: 'geometricPrecision'
+                                                                                            shapeRendering: 'geometricPrecision',
+                                                                                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                                                                                         }}
                                                                                     />
                                                                                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -2918,7 +2923,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                     width: 40,
                                                                                     height: 40,
                                                                                     objectFit: 'contain',
-                                                                                    flexShrink: 0
+                                                                                    flexShrink: 0,
+                                                                                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                                                                                 }}
                                                                             />
                                                                             <div style={{flex: 1}}>
@@ -3098,6 +3104,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                     objectFit: 'contain',
                                                                     shapeRendering: 'geometricPrecision',
                                                                     flexShrink: 0,
+                                                                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                                                                 }}
                                                             />
 
@@ -3361,7 +3368,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             {/* Message Input */}
             <div
-                style={{padding: '8px 20px 20px 20px', background: 'transparent', borderTop: 'none'}}
+                style={{
+                    padding: '8px 20px 20px 20px',
+                    background: 'transparent',
+                    borderTop: 'none',
+                    maxWidth: 768,
+                    margin: '0 auto',
+                    width: '100%'
+                }}
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -3534,7 +3548,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 imageRendering: '-webkit-optimize-contrast',
                                 objectFit: 'contain',
                                 shapeRendering: 'geometricPrecision',
-                                flexShrink: 0
+                                flexShrink: 0,
+                                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                             }}
                         />
                         <div style={{flex: 1}}>
@@ -3603,14 +3618,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }}
                     style={{
-                        padding: '14px 18px',
+                        padding: '10px 14px',
                         background: 'white',
                         borderRadius: 24,
                         border: '1px solid #E0E0E0',
                         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 13,
+                        gap: 12,
                         cursor: 'text'
                     }}
                 >
@@ -3623,6 +3638,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             setMessage(newValue);
                             // ✅ FIX: Save draft to localStorage
                             localStorage.setItem(`koda_draft_${currentConversation?.id || 'new'}`, newValue);
+                            // Auto-resize textarea
+                            e.target.style.height = 'auto';
+                            e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
                         }}
                         onPaste={handlePaste}
                         onKeyDown={(e) => {
@@ -3650,12 +3668,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             color: '#32302C',
                             cursor: 'text',
                             resize: 'none',
-                            overflow: 'auto',
-                            minHeight: '20px',
+                            overflow: 'hidden',
+                            overflowY: 'auto',
+                            minHeight: '24px',
                             maxHeight: '200px',
-                            lineHeight: '20px',
+                            height: '24px',
+                            lineHeight: '24px',
                             fontFamily: 'inherit',
-                            transition: 'height 0.1s ease',
                             padding: 0,
                             margin: 0
                         }}
@@ -3681,8 +3700,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             onClick={handleStopGeneration}
                             title="Stop generation"
                             style={{
-                                width: 40,
-                                height: 40,
+                                width: 32,
+                                height: 32,
                                 background: '#171717',
                                 borderRadius: '50%',
                                 border: 'none',
@@ -3690,30 +3709,32 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 display: 'flex',
                                 justifyContent: 'center',
                                 alignItems: 'center',
-                                transition: 'background 0.2s'
+                                transition: 'background 0.2s',
+                                flexShrink: 0
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.background = '#262626'}
                             onMouseLeave={(e) => e.currentTarget.style.background = '#171717'}
                         >
-                            <div style={{width: 14, height: 14, background: 'white', borderRadius: 2}} />
+                            <div style={{width: 12, height: 12, background: 'white', borderRadius: 2}} />
                         </button>
                     ) : (
                         <button
                             type="submit"
                             disabled={!message.trim() && pendingFiles.length === 0 && attachedDocuments.length === 0}
                             style={{
-                                width: 40,
-                                height: 40,
-                                background: (message.trim() || pendingFiles.length > 0 || attachedDocuments.length > 0) ? '#171717' : '#ccc',
+                                width: 32,
+                                height: 32,
+                                background: (message.trim() || pendingFiles.length > 0 || attachedDocuments.length > 0) ? '#171717' : '#D9D9D9',
                                 borderRadius: '50%',
                                 border: 'none',
                                 cursor: (message.trim() || pendingFiles.length > 0 || attachedDocuments.length > 0) ? 'pointer' : 'not-allowed',
                                 display: 'flex',
                                 justifyContent: 'center',
                                 alignItems: 'center',
+                                flexShrink: 0
                             }}
                         >
-                            <SendIcon style={{width: 18, height: 18, color: 'white'}} />
+                            <SendIcon style={{width: 16, height: 16, color: 'white'}} />
                         </button>
                     )}
                 </form>

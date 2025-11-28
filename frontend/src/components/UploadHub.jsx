@@ -1800,8 +1800,8 @@ const UploadHub = () => {
                           src={item.isFolder ? folderIcon : getFileIcon(item.filename)}
                           alt={item.isFolder ? 'Folder' : 'File'}
                           style={{
-                            width: 40,
-                            height: 40,
+                            width: 48,
+                            height: 48,
                             flexShrink: 0,
                             objectFit: 'contain'
                           }}
@@ -1968,7 +1968,7 @@ const UploadHub = () => {
                       }
                     }}
                   >
-                    <img src={folderIcon} alt="Folder" style={{width: 40, height: 40, flexShrink: 0}} />
+                    <img src={folderIcon} alt="Folder" style={{width: 48, height: 48, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
                     <div style={{flex: 1, minWidth: 0}}>
                       <p style={{
                         fontSize: 14,
@@ -2164,12 +2164,13 @@ const UploadHub = () => {
                               src={getFileIcon(doc.filename)}
                               alt="File icon"
                               style={{
-                                width: 40,
-                                height: 40,
+                                width: 48,
+                                height: 48,
                                 imageRendering: '-webkit-optimize-contrast',
                                 objectFit: 'contain',
                                 shapeRendering: 'geometricPrecision',
-                                flexShrink: 0
+                                flexShrink: 0,
+                                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                               }}
                             />
                             <div style={{flex: 1, minWidth: 0}}>
@@ -2225,7 +2226,8 @@ const UploadHub = () => {
                         imageRendering: '-webkit-optimize-contrast',
                         objectFit: 'contain',
                         shapeRendering: 'geometricPrecision',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                       }}
                     />
                     {/* ✅ Processing badge */}
@@ -2556,7 +2558,7 @@ const UploadHub = () => {
                   padding: isMobile ? '12px 20px' : '10px 24px',
                   background: 'white',
                   border: '1px solid #D1D5DB',
-                  borderRadius: 24,
+                  borderRadius: 100,
                   fontSize: 14,
                   fontWeight: '500',
                   color: '#374151',
@@ -2574,7 +2576,7 @@ const UploadHub = () => {
                   padding: '10px 24px',
                   background: 'white',
                   border: '1px solid #D1D5DB',
-                  borderRadius: 24,
+                  borderRadius: 100,
                   fontSize: 14,
                   fontWeight: '500',
                   color: '#374151',
@@ -2646,7 +2648,7 @@ const UploadHub = () => {
                       position: 'relative'
                     }}>
                       {f.isFolder ? (
-                        <img src={folderIcon} alt="Folder" style={{width: 48, height: 48}} />
+                        <img src={folderIcon} alt="Folder" style={{width: 48, height: 48, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
                       ) : (
                         <img
                           src={getFileIcon(f.file.name)}
@@ -2656,7 +2658,8 @@ const UploadHub = () => {
                             height: 64,
                             imageRendering: '-webkit-optimize-contrast',
                             objectFit: 'contain',
-                            shapeRendering: 'geometricPrecision'
+                            shapeRendering: 'geometricPrecision',
+                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                           }}
                         />
                       )}
@@ -3013,7 +3016,7 @@ const UploadHub = () => {
                 background: 'white',
                 color: '#111827',
                 border: '1px solid #E5E7EB',
-                borderRadius: 24,
+                borderRadius: 100,
                 fontSize: 16,
                 fontWeight: '600',
                 cursor: uploadingFiles.filter(f => f.status === 'uploading').length > 0 ? 'not-allowed' : 'pointer',
@@ -3033,7 +3036,7 @@ const UploadHub = () => {
                 background: '#111827',
                 color: 'white',
                 border: 'none',
-                borderRadius: 24,
+                borderRadius: 100,
                 fontSize: 16,
                 fontWeight: '600',
                 cursor: (uploadingFiles.filter(f => f.status === 'uploading').length > 0 || uploadingFiles.filter(f => f.status === 'pending').length === 0) ? 'not-allowed' : 'pointer',
@@ -3168,7 +3171,7 @@ const UploadHub = () => {
                       >
                         <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6}}>
                           <div style={{width: 44, height: 44, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)', borderRadius: 100, outline: '1px #E6E6EC solid', outlineOffset: '-1px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6}}>
-                            <img src={folderIcon} alt="Folder" style={{width: 20, height: 20}} />
+                            <img src={folderIcon} alt="Folder" style={{width: 20, height: 20, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
                           </div>
                           <div style={{textAlign: 'center', color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px'}}>{cat.name}</div>
                           {selectedCategories[showCategoryModal] === cat.name && (

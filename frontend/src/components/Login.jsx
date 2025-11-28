@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import logo from '../assets/logo.png';
+import logo from '../assets/logo.svg';
 import googleIcon from '../assets/Social icon 2.svg';
 import appleIcon from '../assets/Social icon.svg';
 
@@ -14,6 +14,11 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState({ type: null, message: '' });
   const [isLoading, setIsLoading] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [forgotHover, setForgotHover] = useState(false);
+  const [signupHover, setSignupHover] = useState(false);
+  const [checkboxHover, setCheckboxHover] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -67,7 +72,7 @@ const Login = () => {
   return (
     <div style={{width: '100%', minHeight: '100vh', padding: '40px 20px', background: 'white', overflowY: 'auto', overflowX: 'hidden', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', display: 'flex'}}>
       <div style={{width: '100%', maxWidth: 'var(--container-max-width)', padding: 'var(--container-padding)', borderRadius: 16, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 32, display: 'flex'}}>
-        <img style={{width: 66, height: 66, borderRadius: 100}} src={logo} alt="Logo" />
+        <img style={{width: 120, height: 120, borderRadius: 120, filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))'}} src={logo} alt="Logo" />
         <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
           <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '40px', wordWrap: 'break-word'}}>Welcome Back!</div>
           <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', wordWrap: 'break-word'}}>Keep your files safe. Ask questions. Get instant answers—only you have access.</div>
@@ -80,25 +85,29 @@ const Login = () => {
                 <div style={{
                   alignSelf: 'stretch',
                   height: 52,
-                  paddingLeft: 18,
-                  paddingRight: 18,
+                  paddingLeft: 20,
+                  paddingRight: 20,
                   paddingTop: 10,
                   paddingBottom: 10,
-                  background: '#F5F5F5',
+                  background: 'transparent',
                   overflow: 'hidden',
-                  borderRadius: 14,
-                  outline: loginError.type === 'email' ? '1px rgba(217, 45, 32, 0.40) solid' : '1px #E6E6EC solid',
+                  borderRadius: 26,
+                  outline: loginError.type === 'email' ? '1px rgba(217, 45, 32, 0.40) solid' : emailFocused ? '1px #181818 solid' : '1px #E6E6EC solid',
                   outlineOffset: '-1px',
                   justifyContent: 'flex-start',
                   alignItems: 'center',
                   gap: 8,
-                  display: 'inline-flex'
+                  display: 'inline-flex',
+                  transform: emailFocused ? 'scale(1.02)' : 'scale(1)',
+                  transition: 'transform 0.2s ease, outline 0.2s ease'
                 }}>
                   <div style={{flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      onFocus={() => setEmailFocused(true)}
+                      onBlur={() => setEmailFocused(false)}
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -123,25 +132,29 @@ const Login = () => {
                 <div style={{
                   alignSelf: 'stretch',
                   height: 52,
-                  paddingLeft: 18,
-                  paddingRight: 18,
+                  paddingLeft: 20,
+                  paddingRight: 20,
                   paddingTop: 10,
                   paddingBottom: 10,
-                  background: '#F5F5F5',
+                  background: 'transparent',
                   overflow: 'hidden',
-                  borderRadius: 14,
-                  outline: loginError.type === 'password' ? '1px rgba(217, 45, 32, 0.40) solid' : '1px #E6E6EC solid',
+                  borderRadius: 26,
+                  outline: loginError.type === 'password' ? '1px rgba(217, 45, 32, 0.40) solid' : passwordFocused ? '1px #181818 solid' : '1px #E6E6EC solid',
                   outlineOffset: '-1px',
                   justifyContent: 'flex-start',
                   alignItems: 'center',
                   gap: 8,
-                  display: 'inline-flex'
+                  display: 'inline-flex',
+                  transform: passwordFocused ? 'scale(1.02)' : 'scale(1)',
+                  transition: 'transform 0.2s ease, outline 0.2s ease'
                 }}>
                   <div style={{flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
                     <input
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      onFocus={() => setPasswordFocused(true)}
+                      onBlur={() => setPasswordFocused(false)}
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -188,18 +201,42 @@ const Login = () => {
             </div>
           </div>
           <div style={{alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', display: 'inline-flex'}}>
-            <div style={{justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
-              <div
-                onClick={() => setRememberMe(!rememberMe)}
-                style={{justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer'}}>
-                <div style={{width: 20, height: 20, position: 'relative', background: rememberMe ? '#181818' : '#F5F5F5', borderRadius: 6, border: '1px #E6E6EC solid', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-                  {rememberMe && <span style={{color: 'white', fontSize: 12}}>✓</span>}
-                </div>
+            <div
+              style={{justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer'}}
+              onClick={() => setRememberMe(!rememberMe)}
+              onMouseEnter={() => setCheckboxHover(true)}
+              onMouseLeave={() => setCheckboxHover(false)}
+            >
+              <div style={{
+                width: 20,
+                height: 20,
+                position: 'relative',
+                background: rememberMe ? '#181818' : 'transparent',
+                borderRadius: 6,
+                border: checkboxHover || rememberMe ? '1px #181818 solid' : '1px #E6E6EC solid',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                transform: checkboxHover ? 'scale(1.1)' : 'scale(1)',
+                transition: 'transform 0.2s ease, border-color 0.2s ease, background 0.2s ease'
+              }}>
+                {rememberMe && <span style={{color: 'white', fontSize: 12}}>✓</span>}
               </div>
               <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '20px', wordWrap: 'break-word'}}>Remember for 30 days</div>
             </div>
-            <Link to="/recover-access" style={{textDecoration: 'none'}}>
-              <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex'}}>
+            <Link
+              to="/recover-access"
+              style={{textDecoration: 'none'}}
+              onMouseEnter={() => setForgotHover(true)}
+              onMouseLeave={() => setForgotHover(false)}
+            >
+              <div style={{
+                justifyContent: 'flex-start',
+                alignItems: 'flex-start',
+                display: 'flex',
+                transform: forgotHover ? 'scale(1.05)' : 'scale(1)',
+                transition: 'transform 0.2s ease'
+              }}>
                 <div style={{justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer'}}>
                   <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>Forgot Password?</div>
                 </div>
@@ -215,7 +252,7 @@ const Login = () => {
               style={{
                 alignSelf: 'stretch',
                 height: 52,
-                borderRadius: 14,
+                borderRadius: 26,
                 justifyContent: 'flex-start',
                 alignItems: 'flex-start',
                 display: 'inline-flex',
@@ -223,7 +260,7 @@ const Login = () => {
                 cursor: isLoading ? 'not-allowed' : 'pointer',
                 opacity: isLoading ? 0.5 : 1
               }}>
-              <div style={{flex: '1 1 0', height: 52, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex'}}>
+              <div style={{flex: '1 1 0', height: 52, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 26, justifyContent: 'center', alignItems: 'center', display: 'flex'}}>
                 <div style={{color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>
                   {isLoading ? 'Logging in...' : 'Log In'}
                 </div>
@@ -233,8 +270,22 @@ const Login = () => {
               <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '20px', wordWrap: 'break-word'}}>Don't have an account?</div>
               <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex'}}>
                 <div style={{justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer'}}>
-                  <Link to="/signup" style={{textDecoration: 'none'}}>
-                    <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>Sign Up</div>
+                  <Link
+                    to="/signup"
+                    style={{textDecoration: 'none'}}
+                    onMouseEnter={() => setSignupHover(true)}
+                    onMouseLeave={() => setSignupHover(false)}
+                  >
+                    <div style={{
+                      color: '#181818',
+                      fontSize: 14,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '600',
+                      lineHeight: '20px',
+                      wordWrap: 'break-word',
+                      transform: signupHover ? 'scale(1.05)' : 'scale(1)',
+                      transition: 'transform 0.2s ease'
+                    }}>Sign Up</div>
                   </Link>
                 </div>
               </div>
@@ -249,17 +300,17 @@ const Login = () => {
         <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
           <button
             onClick={handleGoogleLogin}
-            style={{alignSelf: 'stretch', height: 52, borderRadius: 14, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex', border: 'none', cursor: 'pointer'}}>
-            <div style={{flex: '1 1 0', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 12, display: 'flex'}}>
-              <img src={googleIcon} alt="Google icon" />
+            style={{alignSelf: 'stretch', height: 52, borderRadius: 26, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex', border: 'none', cursor: 'pointer', background: 'transparent'}}>
+            <div style={{flex: '1 1 0', height: 52, paddingLeft: 20, paddingRight: 20, paddingTop: 10, paddingBottom: 10, background: 'transparent', overflow: 'hidden', borderRadius: 26, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 12, display: 'flex'}}>
+              <img src={googleIcon} alt="Google icon" style={{filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))'}} />
               <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>Log in with Google</div>
             </div>
           </button>
           <button
             onClick={handleAppleLogin}
-            style={{alignSelf: 'stretch', height: 52, borderRadius: 14, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex', border: 'none', cursor: 'pointer'}}>
-            <div style={{flex: '1 1 0', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 12, display: 'flex'}}>
-              <img src={appleIcon} alt="Apple icon" />
+            style={{alignSelf: 'stretch', height: 52, borderRadius: 26, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex', border: 'none', cursor: 'pointer', background: 'transparent'}}>
+            <div style={{flex: '1 1 0', height: 52, paddingLeft: 20, paddingRight: 20, paddingTop: 10, paddingBottom: 10, background: 'transparent', overflow: 'hidden', borderRadius: 26, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 12, display: 'flex'}}>
+              <img src={appleIcon} alt="Apple icon" style={{filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))'}} />
               <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>Log in with Apple</div>
             </div>
           </button>
