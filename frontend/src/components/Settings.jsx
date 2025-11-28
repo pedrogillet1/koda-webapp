@@ -1506,6 +1506,7 @@ const Settings = () => {
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleConfirmClearCache}
         itemName="cache and all documents"
+        itemType="cache"
       />
 
       <FeedbackModal

@@ -1913,8 +1913,8 @@ const CategoryDetail = () => {
                           }
                         }}
                         style={{
-                          background: isSelected(doc.id) ? '#111827' : 'white',
-                          border: isSelected(doc.id) ? '2px solid #111827' : '1px solid #E5E7EB',
+                          background: isSelected(doc.id) ? '#E8E8EC' : 'white',
+                          border: isSelected(doc.id) ? '2px solid #D1D1D6' : '1px solid #E5E7EB',
                           borderRadius: 12,
                           padding: 16,
                           cursor: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 'move' : 'pointer',
@@ -1925,14 +1925,18 @@ const CategoryDetail = () => {
                           zIndex: openDropdownId === doc.id ? 200 : 1
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#F9FAFB';
-                          e.currentTarget.style.borderColor = '#D1D5DB';
+                          if (!isSelected(doc.id)) {
+                            e.currentTarget.style.background = '#F9FAFB';
+                            e.currentTarget.style.borderColor = '#D1D5DB';
+                          }
                           e.currentTarget.style.transform = 'translateY(-2px)';
                           e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'white';
-                          e.currentTarget.style.borderColor = '#E5E7EB';
+                          if (!isSelected(doc.id)) {
+                            e.currentTarget.style.background = 'white';
+                            e.currentTarget.style.borderColor = '#E5E7EB';
+                          }
                           e.currentTarget.style.transform = 'translateY(0)';
                           e.currentTarget.style.boxShadow = 'none';
                         }}
@@ -2295,8 +2299,8 @@ const CategoryDetail = () => {
                           alignItems: 'center',
                           padding: '10px 14px',
                           borderRadius: 10,
-                          background: isSelected(doc.id) ? '#111827' : 'white',
-                          border: isSelected(doc.id) ? '1px solid #111827' : '2px solid #E6E6EC',
+                          background: isSelected(doc.id) ? '#E8E8EC' : 'white',
+                          border: isSelected(doc.id) ? '2px solid #D1D1D6' : '2px solid #E6E6EC',
                           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                           cursor: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 'move' : 'pointer',
                           transition: 'all 0.2s ease',
@@ -2370,17 +2374,17 @@ const CategoryDetail = () => {
                               }}
                             />
                           ) : (
-                            <div style={{ color: isSelected(doc.id) ? 'white' : '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {doc.filename}
                             </div>
                           )}
                         </div>
                         {/* Type Column */}
-                        <div style={{ color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{getFileTypeDisplay(doc)}</div>
+                        <div style={{ color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{getFileTypeDisplay(doc)}</div>
                         {/* Size Column */}
-                        <div style={{ color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{formatFileSize(doc.fileSize)}</div>
+                        <div style={{ color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{formatFileSize(doc.fileSize)}</div>
                         {/* Date Column */}
-                        <div style={{ color: isSelected(doc.id) ? 'rgba(255,255,255,0.8)' : '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{new Date(doc.createdAt).toLocaleDateString()}</div>
+                        <div style={{ color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{new Date(doc.createdAt).toLocaleDateString()}</div>
                         {/* Actions - Hidden on mobile */}
                         {!isMobile && <div style={{ position: 'relative' }} data-dropdown>
                           <button
@@ -2978,7 +2982,8 @@ const CategoryDetail = () => {
           setItemToDelete(null);
         }}
         onConfirm={handleConfirmDelete}
-        itemName={itemToDelete?.name}
+        itemName={itemToDelete?.name || 'this item'}
+        itemType={itemToDelete?.type || 'item'}
       />
 
       {/* Rename Modal */}

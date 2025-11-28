@@ -1869,7 +1869,8 @@ const DocumentsPage = () => {
             }
           })();
         }}
-        itemName={itemToDelete?.name || ''}
+        itemName={itemToDelete?.type === 'bulk-documents' ? `${itemToDelete?.count}` : (itemToDelete?.name || 'this item')}
+        itemType={itemToDelete?.type === 'bulk-documents' ? 'multiple' : (itemToDelete?.type || 'item')}
       />
 
       {/* Rename Modal */}

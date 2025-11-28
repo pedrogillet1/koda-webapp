@@ -3,6 +3,7 @@ import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { useDocuments } from '../context/DocumentsContext';
 import UniversalAddToCategoryModal from './UniversalAddToCategoryModal';
 import CreateCategoryModal from './CreateCategoryModal';
+import UploadProgressBar from './UploadProgressBar';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -657,34 +658,20 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                         overflow: 'hidden'
                       }}
                     >
-                      {/* Progress bar background */}
-                      <div style={{
-                        width: `${progress}%`,
-                        height: 72,
-                        left: 0,
-                        top: 0,
-                        position: 'absolute',
-                        background: 'rgba(169, 169, 169, 0.12)',
-                        borderTopLeftRadius: 18,
-                        borderBottomLeftRadius: 18,
-                        transition: 'width 0.3s ease-in-out',
-                        opacity: progress >= 100 ? 0 : 1,
-                        transitionProperty: progress >= 100 ? 'width 0.3s ease-in-out, opacity 400ms ease-out' : 'width 0.3s ease-in-out'
-                      }} />
-
-                      {/* Upload percentage counter */}
+                      {/* Progress bar */}
                       <div style={{
                         position: 'absolute',
-                        bottom: 12,
-                        right: 16,
-                        fontSize: 13,
-                        fontWeight: '500',
-                        color: '#6C6C6C',
-                        zIndex: 2,
-                        opacity: progress < 100 ? 1 : 0,
-                        transition: 'opacity 0.3s ease-out'
+                        bottom: 8,
+                        left: 12,
+                        right: 12,
+                        zIndex: 2
                       }}>
-                        {Math.round(progress)}%
+                        <UploadProgressBar
+                          progress={progress}
+                          status={progress >= 100 ? 'completed' : 'uploading'}
+                          showStatus={true}
+                          variant="default"
+                        />
                       </div>
 
                     <div style={{

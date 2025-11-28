@@ -3,6 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import fileTypesStackIcon from '../assets/file-types-stack.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
+import UploadProgressBar from './UploadProgressBar';
 // ✅ REFACTORED: Use unified upload service (replaces folderUploadService + presignedUploadService)
 import unifiedUploadService from '../services/unifiedUploadService';
 import { useDocuments } from '../context/DocumentsContext';
@@ -883,46 +884,21 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                 }}
               >
                 {/* Progress bar - Only show during upload */}
-                {item.status === 'uploading' && (
-                  <>
-                    <div style={{
-                      width: '100%',
-                      height: '100%',
-                      left: 0,
-                      top: 0,
-                      position: 'absolute',
-                      pointerEvents: 'none'
-                    }}>
-                      <div style={{
-                        width: `${item.progress}%`,
-                        height: '100%',
-                        left: 0,
-                        top: 0,
-                        position: 'absolute',
-                        background: 'rgba(169, 169, 169, 0.12)',
-                        borderTopLeftRadius: 18,
-                        borderBottomLeftRadius: 18,
-                        transition: 'width 0.3s ease-in-out',
-                        opacity: item.progress >= 100 ? 0 : 1,
-                        transitionProperty: item.progress >= 100 ? 'width 0.3s ease-in-out, opacity 400ms ease-out' : 'width 0.3s ease-in-out'
-                      }} />
-                    </div>
-
-                    {/* Upload percentage counter */}
-                    <div style={{
-                      position: 'absolute',
-                      bottom: 12,
-                      right: 16,
-                      fontSize: 13,
-                      fontWeight: '500',
-                      color: '#6C6C6C',
-                      zIndex: 2,
-                      opacity: item.progress < 100 ? 1 : 0,
-                      transition: 'opacity 0.3s ease-out'
-                    }}>
-                      {Math.round(item.progress)}%
-                    </div>
-                  </>
+                {(item.status === 'uploading' || item.status === 'completed') && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 8,
+                    left: 12,
+                    right: 12,
+                    zIndex: 2
+                  }}>
+                    <UploadProgressBar
+                      progress={item.progress}
+                      status={item.status}
+                      showStatus={true}
+                      variant="default"
+                    />
+                  </div>
                 )}
 
                 <div style={{

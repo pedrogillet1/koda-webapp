@@ -1049,7 +1049,8 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                     setItemToDelete(null);
                 }}
                 onConfirm={handleConfirmDelete}
-                itemName={itemToDelete?.type === 'all' ? 'all conversations' : itemToDelete?.name}
+                itemName={itemToDelete?.type === 'all' ? 'all conversations' : (itemToDelete?.name || 'this chat')}
+                itemType="chat"
             />
 
             {/* Search Modal */}

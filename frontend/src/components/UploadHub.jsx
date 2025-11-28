@@ -10,6 +10,7 @@ import RenameModal from './RenameModal';
 import CreateFolderModal from './CreateFolderModal';
 import { useToast } from '../context/ToastContext';
 import { useDocuments } from '../context/DocumentsContext';
+import UploadProgressBar from './UploadProgressBar';
 import { ReactComponent as SearchIcon} from '../assets/Search.svg';
 import { ReactComponent as CheckIcon} from '../assets/check.svg';
 import { ReactComponent as LogoutBlackIcon } from '../assets/Logout-black.svg';
@@ -3031,46 +3032,21 @@ const UploadHub = () => {
                       </p>
 
                       {/* Progress Bar - Show during upload AND processing */}
-                      {(f.status === 'uploading' || f.status === 'processing') && (
-                        <>
-                          <div style={{
-                            width: '100%',
-                            height: '100%',
-                            left: 0,
-                            top: 0,
-                            position: 'absolute',
-                            pointerEvents: 'none'
-                          }}>
-                            <div style={{
-                              width: `${progressWidth}%`,
-                              height: '100%',
-                              left: 0,
-                              top: 0,
-                              position: 'absolute',
-                              background: 'rgba(169, 169, 169, 0.12)',
-                              borderTopLeftRadius: 8,
-                              borderBottomLeftRadius: 8,
-                              transition: 'width 0.3s ease-in-out',
-                              opacity: progressWidth >= 100 ? 0 : 1,
-                              transitionProperty: progressWidth >= 100 ? 'width 0.3s ease-in-out, opacity 400ms ease-out' : 'width 0.3s ease-in-out'
-                            }} />
-                          </div>
-
-                          {/* Upload percentage counter */}
-                          <div style={{
-                            position: 'absolute',
-                            bottom: 12,
-                            right: 16,
-                            fontSize: 13,
-                            fontWeight: '500',
-                            color: '#6C6C6C',
-                            zIndex: 2,
-                            opacity: progressWidth < 100 ? 1 : 0,
-                            transition: 'opacity 0.3s ease-out'
-                          }}>
-                            {Math.round(progressWidth)}%
-                          </div>
-                        </>
+                      {(f.status === 'uploading' || f.status === 'processing' || f.status === 'completed') && (
+                        <div style={{
+                          position: 'absolute',
+                          bottom: 8,
+                          left: 12,
+                          right: 12,
+                          zIndex: 2
+                        }}>
+                          <UploadProgressBar
+                            progress={progressWidth}
+                            status={f.status === 'processing' ? 'uploading' : f.status}
+                            showStatus={true}
+                            variant="default"
+                          />
+                        </div>
                       )}
                     </div>
                   </div>
@@ -3375,7 +3351,8 @@ const UploadHub = () => {
             }
           })();
         }}
-        itemName={itemToDelete?.name || ''}
+        itemName={itemToDelete?.name || 'this item'}
+        itemType={itemToDelete?.type || 'item'}
       />
 
       {/* Rename Modal */}

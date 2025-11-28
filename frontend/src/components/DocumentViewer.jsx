@@ -11,6 +11,7 @@ import { ReactComponent as LogoutWhiteIcon } from '../assets/Logout-white.svg';
 import { ReactComponent as DownloadWhiteIcon } from '../assets/Download 3 white.svg';
 import logoSvg from '../assets/logo.svg';
 import sphereIcon from '../assets/sphere.svg';
+import kodaLogoWhite from '../assets/logo-white.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can.svg';
 import { ReactComponent as PrinterIcon } from '../assets/printer.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
@@ -1761,11 +1762,11 @@ const DocumentViewer = () => {
               navigate(`/chat?documentId=${documentId}`, { state: { newConversation: true } });
             }}
             style={{
-              height: 56,
-              paddingLeft: 10,
-              paddingRight: 20,
-              paddingTop: 10,
-              paddingBottom: 10,
+              height: 60,
+              paddingLeft: 4,
+              paddingRight: 18,
+              paddingTop: 8,
+              paddingBottom: 8,
               bottom: 0,
               right: 0,
               position: 'absolute',
@@ -1787,13 +1788,13 @@ const DocumentViewer = () => {
               e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 10, display: 'flex' }}>
+            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 0, display: 'flex' }}>
               <img
-                src={sphereIcon}
+                src={kodaLogoWhite}
                 alt="Koda"
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 50,
+                  height: 50,
                   flexShrink: 0
                 }}
               />
@@ -2015,7 +2016,8 @@ const DocumentViewer = () => {
             alert('Failed to delete document: ' + (error.response?.data?.error || error.message));
           }
         }}
-        itemName={document.filename}
+        itemName={document.filename || 'this document'}
+        itemType="document"
       />
 
       {/* Add to Category Modal */}

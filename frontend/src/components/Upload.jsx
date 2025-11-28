@@ -6,6 +6,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import LeftNav from './LeftNav';
 import { formatFileSize } from '../utils/crypto';
 import api from '../services/api';
+import UploadProgressBar from './UploadProgressBar';
 
 const Upload = () => {
     const navigate = useNavigate();
@@ -509,21 +510,12 @@ const Upload = () => {
 
                                                     {/* Progress Bar - Only show if NOT error */}
                                                     {!isError && (
-                                                        <div style={{
-                                                            width: '100%',
-                                                            height: 6,
-                                                            background: '#E5E7EB',
-                                                            borderRadius: 3,
-                                                            overflow: 'hidden'
-                                                        }}>
-                                                            <div style={{
-                                                                height: '100%',
-                                                                width: `${progressWidth}%`,
-                                                                background: f.status === 'completed' ? '#10B981' : 'linear-gradient(90deg, #3B82F6 0%, #2563EB 100%)',
-                                                                borderRadius: 3,
-                                                                transition: 'width 0.3s ease-out'
-                                                            }} />
-                                                        </div>
+                                                        <UploadProgressBar
+                                                            progress={progressWidth}
+                                                            status={f.status}
+                                                            showStatus={false}
+                                                            variant="compact"
+                                                        />
                                                     )}
 
                                                     {/* Error State - Show retry button */}

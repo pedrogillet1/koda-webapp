@@ -37,6 +37,7 @@ import { ReactComponent as UploadIconMenu } from '../assets/upload.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import logoSvg from '../assets/logo.svg';
 import sphereIcon from '../assets/sphere.svg';
+import kodaLogoWhite from '../assets/logo-white.svg';
 import kodaLogo from '../assets/koda-logo_1.svg';
 import logoCopyWhite from '../assets/Logo copy.svg';
 import filesIcon from '../assets/files-icon.svg';
@@ -2687,7 +2688,8 @@ const Documents = () => {
             }
           })();
         }}
-        itemName={itemToDelete?.name || ''}
+        itemName={itemToDelete?.type === 'bulk-documents' ? `${itemToDelete?.count}` : (itemToDelete?.name || 'this item')}
+        itemType={itemToDelete?.type === 'bulk-documents' ? 'multiple' : (itemToDelete?.type || 'item')}
       />
 
       {/* Rename Modal */}
@@ -2745,11 +2747,11 @@ const Documents = () => {
               }
             }}
             style={{
-              height: 56,
-              paddingLeft: 10,
-              paddingRight: 20,
-              paddingTop: 10,
-              paddingBottom: 10,
+              height: 60,
+              paddingLeft: 4,
+              paddingRight: 18,
+              paddingTop: 8,
+              paddingBottom: 8,
               left: 0,
               top: 0,
               position: 'absolute',
@@ -2771,13 +2773,13 @@ const Documents = () => {
               e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 4, display: 'flex' }}>
+            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 0, display: 'flex' }}>
               <img
-                src={sphereIcon}
+                src={kodaLogoWhite}
                 alt="Koda"
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 50,
+                  height: 50,
                   flexShrink: 0
                 }}
               />

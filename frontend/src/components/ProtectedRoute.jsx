@@ -1,10 +1,18 @@
-import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import WelcomeModal from './WelcomeModal';
 
+/**
+ * Protected Route Component
+ *
+ * Instead of redirecting unauthenticated users to login,
+ * it shows the page content with a welcome popup.
+ * Users can dismiss the popup and continue exploring,
+ * or click the popup to sign in.
+ */
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated, loading } = useAuth();
-    const location = useLocation();
+    const [showWelcome, setShowWelcome] = useState(true);
 
     if (loading) {
         return (
@@ -28,11 +36,20 @@ const ProtectedRoute = ({ children }) => {
         );
     }
 
+    // If not authenticated, show content + welcome popup
     if (!isAuthenticated) {
-        // Redirect to login but save the attempted location
-        return <Navigate to="/login" state={{ from: location }} replace />;
+        return (
+            <>
+                {children}
+                <WelcomeModal
+                    isOpen={showWelcome}
+                    onClose={() => setShowWelcome(false)}
+                />
+            </>
+        );
     }
 
+    // If authenticated, show content normally
     return children;
 };
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './FileUploadPreview.css';
+import UploadProgressBar from './UploadProgressBar';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -70,9 +71,11 @@ export default function FileUploadPreview({ file, progress = 0, onRemove }) {
       {/* Progress bar background */}
       {!isComplete && (
         <div className="progress-background">
-          <div
-            className="progress-fill-bg"
-            style={{ width: `${progress}%` }}
+          <UploadProgressBar
+            progress={progress}
+            status={isComplete ? 'completed' : 'uploading'}
+            showStatus={false}
+            variant="compact"
           />
         </div>
       )}
