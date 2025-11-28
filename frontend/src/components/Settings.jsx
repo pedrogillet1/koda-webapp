@@ -889,10 +889,6 @@ const Settings = () => {
         {/* Content */}
         {activeSection === 'general' && (
         <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 16 : 32, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 16, display: 'flex' }}>
-          {/* General Header */}
-          <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px', textShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)'}}>
-            General
-          </div>
           {/* Recovery Verification Banner */}
           <RecoveryVerificationBanner />
 
@@ -1544,7 +1540,7 @@ const Settings = () => {
             borderRadius: 16,
             padding: 32,
             zIndex: 9999,
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
           }}>
             <h2 style={{ fontSize: 24, fontWeight: '600', marginBottom: 8, textAlign: 'center' }}>
               Verify Your Phone

@@ -36,6 +36,7 @@ import { ReactComponent as DotsIcon } from '../assets/dots.svg';
 import { ReactComponent as UploadIconMenu } from '../assets/upload.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import logoSvg from '../assets/logo.svg';
+import sphereIcon from '../assets/sphere.svg';
 import kodaLogo from '../assets/koda-logo_1.svg';
 import logoCopyWhite from '../assets/Logo copy.svg';
 import filesIcon from '../assets/files-icon.svg';
@@ -2745,31 +2746,15 @@ const Documents = () => {
             }}
           >
             <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 10, display: 'flex' }}>
-              <div
+              <img
+                src={sphereIcon}
+                alt="Koda"
                 style={{
                   width: 36,
                   height: 36,
-                  padding: 6,
-                  background: 'white',
-                  borderRadius: 100,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  display: 'flex',
                   flexShrink: 0
                 }}
-              >
-                <img
-                  src={logoSvg}
-                  alt="Koda"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    imageRendering: '-webkit-optimize-contrast',
-                    shapeRendering: 'geometricPrecision'
-                  }}
-                />
-              </div>
+              />
               <div
                 style={{
                   color: 'white',

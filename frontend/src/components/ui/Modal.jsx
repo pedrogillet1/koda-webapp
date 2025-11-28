@@ -75,6 +75,7 @@ export default function Modal({
           paddingTop: spacing.lg,
           paddingBottom: spacing.lg,
           animation: 'slideUp 0.2s ease-out',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
         }}
         onClick={(e) => e.stopPropagation()}
       >

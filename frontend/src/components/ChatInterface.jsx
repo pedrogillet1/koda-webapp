@@ -3172,66 +3172,49 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                     fontFamily: 'Plus Jakarta Sans',
                                                     lineHeight: '24px',
                                                     // ✅ INSTANT FEEDBACK: Visual status indication
-                                                    opacity: msg.status === 'sending' ? 0.7 : 1,
+                                                    opacity: 1,
                                                     borderLeft: msg.status === 'failed' ? '3px solid #EF4444' : 'none',
-                                                    transition: 'opacity 0.2s ease',
                                                 }}
                                             >
                                                 {msg.content}
                                             </div>
                                         )}
 
-                                        {/* ✅ INSTANT FEEDBACK: Message status indicator */}
-                                        {msg.status && (
+                                        {/* Message status indicator - only show for failed messages */}
+                                        {msg.status === 'failed' && (
                                             <div style={{
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: 6,
                                                 fontSize: 11,
-                                                color: msg.status === 'failed' ? '#EF4444' : '#9CA3AF',
+                                                color: '#EF4444',
                                                 marginTop: 4,
                                             }}>
-                                                {msg.status === 'sending' && (
-                                                    <>
-                                                        <span style={{ fontSize: 10 }}>⏳</span>
-                                                        <span>Sending...</span>
-                                                    </>
-                                                )}
-                                                {msg.status === 'sent' && (
-                                                    <>
-                                                        <span style={{ color: '#10B981', fontSize: 10 }}>✓</span>
-                                                        <span>Sent</span>
-                                                    </>
-                                                )}
-                                                {msg.status === 'failed' && (
-                                                    <>
-                                                        <span style={{ fontSize: 10 }}>✗</span>
-                                                        <span>Failed to send</span>
-                                                        <button
-                                                            onClick={() => {
-                                                                // Remove failed message and retry
-                                                                setMessages((prev) => prev.filter(m => m.id !== msg.id));
-                                                                setMessage(msg.content);
-                                                                // Re-attach files if any
-                                                                if (msg.attachedFiles && msg.attachedFiles.length > 0) {
-                                                                    setAttachedDocuments(msg.attachedFiles);
-                                                                }
-                                                            }}
-                                                            style={{
-                                                                marginLeft: 8,
-                                                                padding: '2px 8px',
-                                                                fontSize: 11,
-                                                                background: '#EF4444',
-                                                                color: 'white',
-                                                                border: 'none',
-                                                                borderRadius: 4,
-                                                                cursor: 'pointer',
-                                                            }}
-                                                        >
-                                                            Retry
-                                                        </button>
-                                                    </>
-                                                )}
+                                                <span style={{ fontSize: 10 }}>✗</span>
+                                                <span>Failed to send</span>
+                                                <button
+                                                    onClick={() => {
+                                                        // Remove failed message and retry
+                                                        setMessages((prev) => prev.filter(m => m.id !== msg.id));
+                                                        setMessage(msg.content);
+                                                        // Re-attach files if any
+                                                        if (msg.attachedFiles && msg.attachedFiles.length > 0) {
+                                                            setAttachedDocuments(msg.attachedFiles);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        marginLeft: 8,
+                                                        padding: '2px 8px',
+                                                        fontSize: 11,
+                                                        background: '#EF4444',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: 4,
+                                                        cursor: 'pointer',
+                                                    }}
+                                                >
+                                                    Retry
+                                                </button>
                                             </div>
                                         )}
                                     </div>

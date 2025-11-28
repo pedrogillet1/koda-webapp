@@ -945,24 +945,24 @@ const DocumentViewer = () => {
             </button>
             <button
               onClick={() => setShowShareModal(true)}
-              style={{ height: 42, paddingLeft: 16, paddingRight: 20, background: '#E8E8EA', overflow: 'hidden', borderRadius: 24, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer', transition: 'all 0.2s ease' }}
+              style={{ height: 42, paddingLeft: 16, paddingRight: 20, background: '#181818', overflow: 'hidden', borderRadius: 24, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer', transition: 'all 0.2s ease' }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#DCDCDE';
+                e.currentTarget.style.background = '#333333';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#E8E8EA';
+                e.currentTarget.style.background = '#181818';
               }}
               onMouseDown={(e) => {
-                e.currentTarget.style.background = '#D0D0D2';
+                e.currentTarget.style.background = '#000000';
                 e.currentTarget.style.transform = 'scale(0.98)';
               }}
               onMouseUp={(e) => {
-                e.currentTarget.style.background = '#DCDCDE';
+                e.currentTarget.style.background = '#333333';
                 e.currentTarget.style.transform = 'scale(1)';
               }}
             >
-              <DownloadIcon style={{ width: 18, height: 18 }} />
-              <div style={{ color: '#181818', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '22px' }}>Download</div>
+              <DownloadWhiteIcon style={{ width: 18, height: 18 }} />
+              <div style={{ color: 'white', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '22px' }}>Download</div>
             </button>
           </div>
           ) : (
@@ -1069,7 +1069,9 @@ const DocumentViewer = () => {
                 e.currentTarget.style.background = 'transparent';
               }}
             >
-              <MinusIcon style={{ width: 16, height: 16 }} />
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M4 8H12" stroke="#181818" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
             </button>
             <div style={{ height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', display: 'flex', position: 'relative' }}>
               <div
@@ -1149,7 +1151,9 @@ const DocumentViewer = () => {
                 e.currentTarget.style.background = 'transparent';
               }}
             >
-              <PlusIcon style={{ width: 16, height: 16 }} />
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 4V12M4 8H12" stroke="#181818" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
             </button>
           </div>
           )}
@@ -1780,29 +1784,15 @@ const DocumentViewer = () => {
             }}
           >
             <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 10, display: 'flex' }}>
-              <div style={{
-                width: 36,
-                height: 36,
-                padding: 6,
-                background: 'white',
-                borderRadius: 100,
-                justifyContent: 'center',
-                alignItems: 'center',
-                display: 'flex',
-                flexShrink: 0
-              }}>
-                <img
-                  src={logoSvg}
-                  alt="Koda"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    imageRendering: '-webkit-optimize-contrast',
-                    shapeRendering: 'geometricPrecision'
-                  }}
-                />
-              </div>
+              <img
+                src={sphereIcon}
+                alt="Koda"
+                style={{
+                  width: 36,
+                  height: 36,
+                  flexShrink: 0
+                }}
+              />
               <div style={{ color: 'white', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>Need help finding something?</div>
             </div>
           </button>

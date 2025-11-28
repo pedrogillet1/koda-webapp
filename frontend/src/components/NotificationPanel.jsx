@@ -40,7 +40,8 @@ const NotificationPanel = ({ showNotificationsPopup, setShowNotificationsPopup }
         justifyContent: 'flex-start',
         alignItems: 'center',
         gap: 24,
-        display: 'flex'
+        display: 'flex',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
       }}>
         {/* Header with tabs and close button */}
         <div style={{ alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', gap: 10, display: 'flex' }}>

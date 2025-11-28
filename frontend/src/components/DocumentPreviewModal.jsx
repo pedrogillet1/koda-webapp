@@ -296,7 +296,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
           overflow: 'hidden',
           zIndex: 9999,
           animation: isMobile ? 'slideUp 250ms ease-out' : 'modalSlideIn 250ms ease-out',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
         }}
         onClick={(e) => e.stopPropagation()}
       >

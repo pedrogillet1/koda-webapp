@@ -93,7 +93,8 @@ const AddToCategoryModal = ({
         justifyContent: 'center',
         alignItems: 'center',
         gap: 18,
-        display: 'flex'
+        display: 'flex',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
       }}>
         {/* Header */}
         <div style={{

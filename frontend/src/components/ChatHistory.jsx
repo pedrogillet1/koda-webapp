@@ -596,7 +596,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                     maxHeight: '80vh',
                     background: 'white',
                     borderRadius: 16,
-                    boxShadow: '0 4px 24px rgba(0, 0, 0, 0.15)',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
