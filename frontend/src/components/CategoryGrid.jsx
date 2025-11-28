@@ -37,17 +37,17 @@ const CategoryGrid = () => {
   };
 
   // On mobile, show fewer categories initially (3 visible + "Add New" = 4 total)
-  // On desktop, show 11 visible + "Add New" = 12 total
-  const maxVisibleCategories = isMobile ? 3 : 11;
+  // On desktop, show 7 visible + "Add New" = 8 total (2 rows of 4)
+  const maxVisibleCategories = isMobile ? 3 : 7;
   const hasMoreCategories = categories.length > maxVisibleCategories;
   const visibleCategories = hasMoreCategories ? categories.slice(0, maxVisibleCategories) : categories;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 12, width: '100%', alignSelf: 'stretch' }}>
-      {/* Responsive grid - 2 columns on mobile, auto-fill on desktop */}
+      {/* Responsive grid - 2 columns on mobile, 4 columns on desktop */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
         gap: isMobile ? 10 : 12,
         width: '100%'
       }}>
@@ -102,15 +102,15 @@ const CategoryGrid = () => {
             key={category.id}
             onClick={() => handleCategoryClick(category.id)}
             style={{
-              padding: isMobile ? 12 : 10,
+              padding: isMobile ? 12 : '14px 16px',
               background: 'white',
               borderRadius: isMobile ? 12 : 14,
               border: '1px #E6E6EC solid',
               display: 'flex',
               flexDirection: isMobile ? 'column' : 'row',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: isMobile ? 8 : 8,
+              justifyContent: 'flex-start',
+              gap: isMobile ? 8 : 12,
               transition: 'transform 0.2s ease, box-shadow 0.2s ease',
               position: 'relative',
               minHeight: isMobile ? 100 : 72,
@@ -125,10 +125,10 @@ const CategoryGrid = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: isMobile ? 32 : 36,
+              fontSize: isMobile ? 36 : 42,
               flexShrink: 0
             }}>
-              <CategoryIcon emoji={category.emoji} />
+              <CategoryIcon emoji={category.emoji} size={isMobile ? 36 : 42} />
             </div>
             <div style={{
               display: 'flex',

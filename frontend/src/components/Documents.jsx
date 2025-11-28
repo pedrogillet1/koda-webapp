@@ -1106,15 +1106,15 @@ const Documents = () => {
         <div style={{flex: 1, padding: isMobile ? 12 : 20, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20, maxWidth: '100%', boxSizing: 'border-box'}}>
           {/* Smart Categories */}
           <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
-            {/* Categories - vertical list on mobile, 5-column grid on desktop */}
-            <div style={{display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gridTemplateColumns: isMobile ? undefined : 'repeat(5, 1fr)', gap: isMobile ? 8 : 12}}>
+            {/* Categories - vertical list on mobile, 4-column grid on desktop */}
+            <div style={{display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gridTemplateColumns: isMobile ? undefined : 'repeat(4, 1fr)', gap: isMobile ? 8 : 12}}>
               <div onClick={() => setIsModalOpen(true)} style={{height: isMobile ? 56 : 72, padding: isMobile ? '12px 16px' : 12, background: 'white', borderRadius: isMobile ? 14 : 20, border: '2px solid #E6E6EC', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', flexDirection: 'row', gap: isMobile ? 12 : 10, cursor: 'pointer', boxSizing: 'border-box', transition: 'transform 0.2s ease, box-shadow 0.2s ease'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(0)')}>
                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                   <AddIcon style={{ width: isMobile ? 24 : 28, height: isMobile ? 24 : 28 }} />
                 </div>
                 <span style={{color: '#32302C', fontSize: isMobile ? 14 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, whiteSpace: 'nowrap', textAlign: 'left'}}>Add New Smart Category</span>
               </div>
-              {categories.slice(0, isMobile ? 4 : 4).map((category, index) => (
+              {categories.slice(0, isMobile ? 4 : 3).map((category, index) => (
                 <div
                   key={`${category.id}-${category.emoji}`}
                   onDragOver={(e) => {
@@ -1143,7 +1143,7 @@ const Documents = () => {
                     }
                   }}
                   style={{
-                    padding: isMobile ? '12px 16px' : 10,
+                    padding: isMobile ? '12px 16px' : '14px 16px',
                     height: isMobile ? 56 : 72,
                     background: dragOverCategoryId === category.id ? '#F0F0F0' : 'white',
                     borderRadius: isMobile ? 14 : 20,
@@ -1153,15 +1153,15 @@ const Documents = () => {
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'flex-start',
-                    gap: isMobile ? 12 : 8,
+                    gap: isMobile ? 12 : 12,
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease',
                     position: 'relative',
                     boxSizing: 'border-box'
                   }}
                 >
-                  <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: isMobile ? 12 : 10, flex: 1, cursor: 'pointer', minWidth: 0, textAlign: 'left'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(0)')}>
+                  <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: isMobile ? 12 : 12, flex: 1, cursor: 'pointer', minWidth: 0, textAlign: 'left'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(0)')}>
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                      <CategoryIcon emoji={category.emoji} size={40} />
+                      <CategoryIcon emoji={category.emoji} size={isMobile ? 36 : 42} />
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 2 : 4, flex: 1, alignItems: 'flex-start', minWidth: 0}}>
                       <div style={{color: '#32302C', fontSize: isMobile ? 14 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%'}}>{category.name}</div>
@@ -1336,10 +1336,10 @@ const Documents = () => {
               </div>
             )}
 
-            {/* Second Row: Next 5 Categories - Hidden on mobile */}
-            {!isMobile && categories.length > 4 && (
-              <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12}}>
-                {categories.slice(4, categories.length > 8 ? 8 : 9).map((category, index) => (
+            {/* Second Row: Next 4 Categories - Hidden on mobile */}
+            {!isMobile && categories.length > 3 && (
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12}}>
+                {categories.slice(3, categories.length > 6 ? 6 : 7).map((category, index) => (
                   <div
                     key={`${category.id}-${category.emoji}`}
                     onDragOver={(e) => {
@@ -1368,22 +1368,22 @@ const Documents = () => {
                     }}
                     style={{
                       height: 72,
-                      padding: 12,
+                      padding: '14px 16px',
                       background: dragOverCategoryId === category.id ? '#F0F0F0' : 'white',
                       borderRadius: 20,
                       border: dragOverCategoryId === category.id ? '2px dashed #32302C' : '2px solid #E6E6EC',
                       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 10,
+                      gap: 12,
                       transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease',
                       position: 'relative',
                       boxSizing: 'border-box'
                     }}
                   >
-                    <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
+                    <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
                       <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                        <CategoryIcon emoji={category.emoji} size={40} />
+                        <CategoryIcon emoji={category.emoji} size={42} />
                       </div>
                       <div style={{display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0}}>
                         <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{category.name}</div>
@@ -1540,8 +1540,8 @@ const Documents = () => {
                   </div>
                 ))}
 
-                {/* "See All" button as last item in row 2 - only show if more categories exist */}
-                {categories.length > 8 && (
+                {/* "See All" button as last item in row 2 - only show if more than 7 categories exist */}
+                {categories.length > 7 && (
                   <div
                     onClick={() => navigate('/documents')}
                     style={{

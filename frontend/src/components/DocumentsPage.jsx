@@ -785,7 +785,7 @@ const DocumentsPage = () => {
         <div style={{flex: 1, padding: spacing.xl, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: spacing.xl}}>
           {/* Smart Categories */}
           <div style={{display: 'flex', flexDirection: 'column', gap: spacing.md}}>
-            <div style={{display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gridTemplateColumns: isMobile ? undefined : 'repeat(5, 1fr)', gap: spacing.md}}>
+            <div style={{display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gridTemplateColumns: isMobile ? undefined : 'repeat(4, 1fr)', gap: spacing.md}}>
               <div onClick={() => setIsModalOpen(true)} style={{
                 padding: `${spacing.lg}px`,
                 background: colors.white,
@@ -850,14 +850,14 @@ const DocumentsPage = () => {
                     }
                   }}
                   style={{
-                    padding: spacing.md,
+                    padding: '14px 16px',
                     background: colors.white,
                     borderRadius: radius.xl,
                     border: `2px solid ${colors.gray[300]}`,
                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: spacing.sm,
+                    gap: 12,
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                     position: 'relative',
                     height: 72,
@@ -869,9 +869,9 @@ const DocumentsPage = () => {
                     console.log('📁 DocumentsPage - Clicking folder:', category.name, 'ID:', category.id);
                     console.log('🔗 DocumentsPage - Navigating to:', `/folder/${category.id}`);
                     navigate(`/folder/${category.id}`);
-                  }} style={{display: 'flex', alignItems: 'center', gap: spacing.sm, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
+                  }} style={{display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                      <CategoryIcon emoji={category.emoji} size={40} />
+                      <CategoryIcon emoji={category.emoji} size={42} />
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: spacing.xs, flex: 1, minWidth: 0}}>
                       <div style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: '19.60px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{category.name}</div>
