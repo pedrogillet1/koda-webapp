@@ -505,19 +505,19 @@ const UploadHub = () => {
   };
 
   const getFileIcon = (filename) => {
-    if (!filename) return docIcon;
+    if (!filename) return txtIcon;
     const ext = filename.toLowerCase();
     if (ext.match(/\.(pdf)$/)) return pdfIcon;
-    if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
-    if (ext.match(/\.(png)$/)) return pngIcon;
     if (ext.match(/\.(doc|docx)$/)) return docIcon;
+    if (ext.match(/\.(txt|csv|svg|html|htm|json|xml|md|rtf)$/)) return txtIcon;
     if (ext.match(/\.(xls|xlsx)$/)) return xlsIcon;
-    if (ext.match(/\.(txt)$/)) return txtIcon;
     if (ext.match(/\.(ppt|pptx)$/)) return pptxIcon;
+    if (ext.match(/\.(jpg|jpeg)$/)) return jpgIcon;
+    if (ext.match(/\.(png|gif|webp|bmp|tiff|tif|ico)$/)) return pngIcon;
     if (ext.match(/\.(mov)$/)) return movIcon;
-    if (ext.match(/\.(mp4)$/)) return mp4Icon;
-    if (ext.match(/\.(mp3)$/)) return mp3Icon;
-    return docIcon; // Default icon
+    if (ext.match(/\.(mp4|avi|mpeg|mpg|webm)$/)) return mp4Icon;
+    if (ext.match(/\.(mp3|wav|m4a|oga|weba)$/)) return mp3Icon;
+    return txtIcon; // Default fallback icon for unknown files
   };
 
   // Filter both documents and folders
@@ -1868,12 +1868,12 @@ const UploadHub = () => {
               alignItems: 'center',
               justifyContent: 'center',
               padding: 0,
-              transition: 'background 0.15s',
+              transition: 'background 0.15s, transform 0.15s ease',
               marginLeft: isLibraryExpanded ? 0 : 'auto',
               marginRight: isLibraryExpanded ? 0 : 'auto'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
           >
             <ExpandIcon
               style={{
@@ -1923,10 +1923,10 @@ const UploadHub = () => {
                 justifyContent: 'center',
                 borderRadius: 12,
                 cursor: 'pointer',
-                transition: 'background 200ms ease-in-out'
+                transition: 'background 200ms ease-in-out, transform 0.15s ease'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
             >
               <SearchIcon style={{width: 20, height: 20}} />
             </div>
@@ -2555,13 +2555,19 @@ const UploadHub = () => {
               <button
                 onClick={(e) => { e.stopPropagation(); open(); }}
                 style={{
-                  padding: isMobile ? '12px 20px' : '10px 24px',
+                  height: 52,
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  paddingTop: 10,
+                  paddingBottom: 10,
                   background: 'white',
-                  border: '1px solid #D1D5DB',
+                  border: 'none',
                   borderRadius: 100,
-                  fontSize: 14,
-                  fontWeight: '500',
-                  color: '#374151',
+                  outline: '1px #E6E6EC solid',
+                  outlineOffset: '-1px',
+                  fontSize: 16,
+                  fontWeight: '600',
+                  color: '#323232',
                   cursor: 'pointer',
                   transition: 'all 0.15s',
                   fontFamily: 'Plus Jakarta Sans',
@@ -2573,13 +2579,19 @@ const UploadHub = () => {
               {!isMobile && <button
                 onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
                 style={{
-                  padding: '10px 24px',
+                  height: 52,
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  paddingTop: 10,
+                  paddingBottom: 10,
                   background: 'white',
-                  border: '1px solid #D1D5DB',
+                  border: 'none',
                   borderRadius: 100,
-                  fontSize: 14,
-                  fontWeight: '500',
-                  color: '#374151',
+                  outline: '1px #E6E6EC solid',
+                  outlineOffset: '-1px',
+                  fontSize: 16,
+                  fontWeight: '600',
+                  color: '#323232',
                   cursor: 'pointer',
                   transition: 'all 0.15s',
                   fontFamily: 'Plus Jakarta Sans'

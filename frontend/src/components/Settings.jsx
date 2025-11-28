@@ -706,15 +706,19 @@ const Settings = () => {
           <div
             onClick={() => setIsExpanded(true)}
             style={{
-              width: 24,
-              height: 24,
+              width: 44,
+              height: 44,
               background: 'transparent',
               justifyContent: 'center',
               alignItems: 'center',
               display: 'flex',
               cursor: 'pointer',
-              alignSelf: 'center'
+              alignSelf: 'center',
+              borderRadius: 12,
+              transition: 'background 0.2s ease-in-out, transform 0.15s ease'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
           >
             <ExpandIcon style={{ width: 20, height: 20 }} />
           </div>
@@ -760,9 +764,11 @@ const Settings = () => {
                   cursor: 'pointer',
                   background: activeSection === 'general' ? '#F5F5F5' : 'transparent',
                   borderRadius: 12,
-                  transition: 'background 0.2s ease-in-out',
+                  transition: 'background 0.2s ease-in-out, transform 0.15s ease',
                   alignSelf: 'center'
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; if (activeSection !== 'general') e.currentTarget.style.background = '#F5F5F5'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (activeSection !== 'general') e.currentTarget.style.background = 'transparent'; }}
               >
                 <LayersIcon style={{ width: 20, height: 20 }} />
               </div>
@@ -806,9 +812,11 @@ const Settings = () => {
                   cursor: 'pointer',
                   background: activeSection === 'profile' ? '#F5F5F5' : 'transparent',
                   borderRadius: 12,
-                  transition: 'background 0.2s ease-in-out',
+                  transition: 'background 0.2s ease-in-out, transform 0.15s ease',
                   alignSelf: 'center'
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; if (activeSection !== 'profile') e.currentTarget.style.background = '#F5F5F5'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (activeSection !== 'profile') e.currentTarget.style.background = 'transparent'; }}
               >
                 <UserIcon style={{ width: 20, height: 20 }} />
               </div>
@@ -852,9 +860,11 @@ const Settings = () => {
                   cursor: 'pointer',
                   background: activeSection === 'password' ? '#F5F5F5' : 'transparent',
                   borderRadius: 12,
-                  transition: 'background 0.2s ease-in-out',
+                  transition: 'background 0.2s ease-in-out, transform 0.15s ease',
                   alignSelf: 'center'
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; if (activeSection !== 'password') e.currentTarget.style.background = '#F5F5F5'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (activeSection !== 'password') e.currentTarget.style.background = 'transparent'; }}
               >
                 <KeyIcon style={{ width: 20, height: 20 }} />
               </div>
@@ -1168,7 +1178,7 @@ const Settings = () => {
                         alignItems: 'center',
                         gap: 12,
                         padding: 12,
-                        borderRadius: 100,
+                        borderRadius: 12,
                         background: '#F5F5F5',
                         cursor: 'pointer',
                         transition: 'background 0.2s ease'
@@ -1178,7 +1188,7 @@ const Settings = () => {
                         gap: 12,
                         alignItems: 'center',
                         padding: '10px 14px',
-                        borderRadius: 100,
+                        borderRadius: 10,
                         background: 'white',
                         border: '1px solid #E6E6EC',
                         cursor: 'pointer',
