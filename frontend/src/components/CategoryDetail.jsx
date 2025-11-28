@@ -1238,22 +1238,28 @@ const CategoryDetail = () => {
               ) : (
                 <>
                   {/* Search Bar */}
-                  <div style={{
-                    paddingLeft: 12,
-                    paddingRight: 12,
-                    paddingTop: 10,
-                    paddingBottom: 10,
-                    background: '#F5F5F5',
-                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
-                    overflow: 'hidden',
-                    borderRadius: 100,
-                    outline: '1px #E6E6EC solid',
-                    outlineOffset: '-1px',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    gap: 6,
-                    display: 'inline-flex'
-                  }}>
+                  <div
+                    style={{
+                      paddingLeft: 12,
+                      paddingRight: 12,
+                      paddingTop: 10,
+                      paddingBottom: 10,
+                      background: '#F5F5F5',
+                      boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                      overflow: 'hidden',
+                      borderRadius: 100,
+                      outline: '1px #E6E6EC solid',
+                      outlineOffset: '-1px',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 6,
+                      display: 'inline-flex',
+                      transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                      cursor: 'text'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(50, 48, 44, 0.1)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0px 0px 8px 1px rgba(0, 0, 0, 0.02)'; }}
+                  >
                     <div style={{justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
                       <SearchIcon style={{ width: 24, height: 24 }} />
                       <input

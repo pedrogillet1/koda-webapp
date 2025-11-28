@@ -138,166 +138,79 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
       }}>
         {/* Icon Layout - Semicircle or Grid */}
         {semicircle ? (
-          /* Zigzag Two-Row Layout - Perfectly Aligned */
+          /* Single Row Layout - All icons in one row */
           <div style={{
             display: 'flex',
-            flexDirection: 'column',
+            flexDirection: 'row',
             width: '100%',
             marginTop: 16,
             marginBottom: 16,
-            gap: 12
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            paddingLeft: '2%',
+            paddingRight: '2%'
           }}>
-            {/* Row 1: Items 0, 2, 4, 6 */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              width: '100%',
-              paddingLeft: '2%',
-              paddingRight: '2%'
-            }}>
-              {displayData.filter((_, index) => index % 2 === 0).map((item) => {
-                const fileCount = extensionBreakdown[item.type]?.count || 0;
-                const hasFiles = fileCount > 0;
-                const isHovered = hoveredType === item.type;
-                const otherIsHovered = hoveredType !== null && hoveredType !== item.type;
+            {displayData.map((item) => {
+              const fileCount = extensionBreakdown[item.type]?.count || 0;
+              const hasFiles = fileCount > 0;
+              const isHovered = hoveredType === item.type;
+              const otherIsHovered = hoveredType !== null && hoveredType !== item.type;
 
-                return (
+              return (
+                <div
+                  key={item.type}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.5 : 1),
+                    transition: 'opacity 0.2s ease-out, transform 0.15s ease',
+                    transform: isHovered ? 'scale(1.08)' : 'scale(1)',
+                    cursor: hasFiles ? 'pointer' : 'default'
+                  }}
+                  onMouseEnter={() => hasFiles && setHoveredType(item.type)}
+                  onMouseLeave={() => setHoveredType(null)}
+                >
                   <div
-                    key={item.type}
                     style={{
+                      width: 56,
+                      height: 56,
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
-                      gap: '4px',
-                      opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.5 : 1),
-                      transition: 'opacity 0.2s ease-out'
+                      justifyContent: 'center'
                     }}
-                    onMouseEnter={() => hasFiles && setHoveredType(item.type)}
-                    onMouseLeave={() => setHoveredType(null)}
                   >
-                    <div
+                    <img
+                      src={item.icon}
+                      alt={item.label}
                       style={{
-                        width: 64,
-                        height: 64,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: hasFiles ? 'pointer' : 'default'
+                        width: 56,
+                        height: 56,
+                        objectFit: 'contain'
                       }}
-                    >
-                      <img
-                        src={item.icon}
-                        alt={item.label}
-                        style={{
-                          width: 64,
-                          height: 64,
-                          objectFit: 'contain',
-                          transform: isHovered ? 'scale(1.1)' : 'scale(1)',
-                          transition: 'transform 0.2s ease-out'
-                        }}
-                      />
-                    </div>
-                    <div style={{
-                      fontSize: isHovered ? '14px' : '12px',
-                      fontWeight: '600',
-                      color: '#32302C',
-                      fontFamily: 'Plus Jakarta Sans',
-                      textAlign: 'center',
-                      transform: isHovered ? 'scale(1.1)' : 'scale(1)',
-                      transition: 'transform 0.2s ease-out, font-size 0.2s ease-out'
-                    }}>
-                      {item.label}
-                    </div>
-                    <div style={{
-                      fontSize: isHovered ? '13px' : '11px',
-                      fontWeight: '500',
-                      color: '#6C6B6E',
-                      fontFamily: 'Plus Jakarta Sans',
-                      transform: isHovered ? 'scale(1.1)' : 'scale(1)',
-                      transition: 'transform 0.2s ease-out, font-size 0.2s ease-out'
-                    }}>
-                      {fileCount}
-                    </div>
+                    />
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Row 2: Items 1, 3, 5, 7 - offset by half a column to align between row 1 items */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              width: '100%',
-              paddingLeft: 'calc(2% + 11.5%)',
-              paddingRight: 'calc(2% + 11.5%)'
-            }}>
-              {displayData.filter((_, index) => index % 2 === 1).map((item) => {
-                const fileCount = extensionBreakdown[item.type]?.count || 0;
-                const hasFiles = fileCount > 0;
-                const isHovered = hoveredType === item.type;
-                const otherIsHovered = hoveredType !== null && hoveredType !== item.type;
-
-                return (
-                  <div
-                    key={item.type}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '4px',
-                      opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.5 : 1),
-                      transition: 'opacity 0.2s ease-out'
-                    }}
-                    onMouseEnter={() => hasFiles && setHoveredType(item.type)}
-                    onMouseLeave={() => setHoveredType(null)}
-                  >
-                    <div
-                      style={{
-                        width: 64,
-                        height: 64,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: hasFiles ? 'pointer' : 'default'
-                      }}
-                    >
-                      <img
-                        src={item.icon}
-                        alt={item.label}
-                        style={{
-                          width: 64,
-                          height: 64,
-                          objectFit: 'contain',
-                          transform: isHovered ? 'scale(1.1)' : 'scale(1)',
-                          transition: 'transform 0.2s ease-out'
-                        }}
-                      />
-                    </div>
-                    <div style={{
-                      fontSize: isHovered ? '14px' : '12px',
-                      fontWeight: '600',
-                      color: '#32302C',
-                      fontFamily: 'Plus Jakarta Sans',
-                      textAlign: 'center',
-                      transform: isHovered ? 'scale(1.1)' : 'scale(1)',
-                      transition: 'transform 0.2s ease-out, font-size 0.2s ease-out'
-                    }}>
-                      {item.label}
-                    </div>
-                    <div style={{
-                      fontSize: isHovered ? '13px' : '11px',
-                      fontWeight: '500',
-                      color: '#6C6B6E',
-                      fontFamily: 'Plus Jakarta Sans',
-                      transform: isHovered ? 'scale(1.1)' : 'scale(1)',
-                      transition: 'transform 0.2s ease-out, font-size 0.2s ease-out'
-                    }}>
-                      {fileCount}
-                    </div>
+                  <div style={{
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    color: '#32302C',
+                    fontFamily: 'Plus Jakarta Sans',
+                    textAlign: 'center'
+                  }}>
+                    {item.label}
                   </div>
-                );
-              })}
-            </div>
+                  <div style={{
+                    fontSize: '11px',
+                    fontWeight: '500',
+                    color: '#6C6B6E',
+                    fontFamily: 'Plus Jakarta Sans'
+                  }}>
+                    {fileCount}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           /* Grid Layout - 8×1 single row on desktop, 3 columns on mobile */
@@ -421,7 +334,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
           {/* Progress bar - V3: Animated segments on hover */}
           <div style={{
             width: '100%',
-            height: compact ? '8px' : '10px',
+            height: compact ? '12px' : '16px',
             background: '#F3F3F5',
             borderRadius: '100px',
             overflow: 'hidden',

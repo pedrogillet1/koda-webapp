@@ -611,7 +611,18 @@ const DocumentsPage = () => {
               </>
             ) : (
               <>
-                <div style={{position: 'relative', height: 52, display: 'flex', alignItems: 'center'}}>
+                <div
+                  style={{
+                    position: 'relative',
+                    height: 52,
+                    display: 'flex',
+                    alignItems: 'center',
+                    transition: 'transform 0.15s ease',
+                    cursor: 'text'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                >
                   <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
                   <input
                     type="text"
@@ -631,8 +642,11 @@ const DocumentsPage = () => {
                       fontSize: 16,
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '500',
-                      lineHeight: '24px'
+                      lineHeight: '24px',
+                      transition: 'box-shadow 0.15s ease, border-color 0.15s ease'
                     }}
+                    onFocus={(e) => { e.target.style.boxShadow = '0 0 0 2px rgba(50, 48, 44, 0.1)'; e.target.style.borderColor = '#A2A2A7'; }}
+                    onBlur={(e) => { e.target.style.boxShadow = 'none'; e.target.style.borderColor = '#E6E6EC'; }}
                   />
 
                 {/* Search Results Dropdown */}
