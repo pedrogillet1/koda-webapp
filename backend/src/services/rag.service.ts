@@ -4744,27 +4744,15 @@ Provide a comprehensive answer addressing all parts of the query.`;
         rawResults.matches || []
       );
 
-      // Build fallback response
-      let response = fallback.message + '\n\n';
+      // Build fallback response - keep it natural and conversational
+      let response = fallback.message;
 
+      // Only add related info if found (already conversational)
       if (fallback.relatedInfo) {
-        response += fallback.relatedInfo + '\n\n';
+        response += '\n\n' + fallback.relatedInfo;
       }
 
-      if (fallback.suggestions && fallback.suggestions.length > 0) {
-        response += '**Suggestions:**\n';
-        fallback.suggestions.forEach(suggestion => {
-          response += `- ${suggestion}\n`;
-        });
-        response += '\n';
-      }
-
-      if (fallback.alternativeQueries && fallback.alternativeQueries.length > 0) {
-        response += '**Try asking:**\n';
-        fallback.alternativeQueries.forEach(alt => {
-          response += `- "${alt}"\n`;
-        });
-      }
+      // No bullet points or "Suggestions:" sections - the message is already conversational
 
       onChunk(response.trim());
       perfTimer.measure('Graceful Degradation', 'gracefulDegradation');
