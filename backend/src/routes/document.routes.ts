@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as documentController from '../controllers/document.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
-import { uploadSingle, uploadMultiple, uploadWithThumbnail } from '../middleware/upload.middleware';
+import { uploadSingle, uploadMultiple, uploadWithThumbnail, checkStorageCapacityAfterUpload } from '../middleware/upload.middleware';
 import { uploadLimiter, downloadLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -14,8 +14,9 @@ router.post('/upload-url', documentController.getUploadUrl);
 router.post('/:id/confirm-upload', documentController.confirmUpload);
 
 // Document routes (legacy upload via backend)
-router.post('/upload', uploadLimiter, uploadWithThumbnail, documentController.uploadDocument);
-router.post('/upload-multiple', uploadLimiter, uploadMultiple, documentController.uploadMultipleDocuments);
+// Storage capacity is checked AFTER multer processes the file (more accurate file size)
+router.post('/upload', uploadLimiter, uploadWithThumbnail, checkStorageCapacityAfterUpload, documentController.uploadDocument);
+router.post('/upload-multiple', uploadLimiter, uploadMultiple, checkStorageCapacityAfterUpload, documentController.uploadMultipleDocuments);
 
 // Bulk operations (MUST be before /:id routes to avoid matching)
 router.post('/reindex-all', documentController.reindexAllDocuments);
