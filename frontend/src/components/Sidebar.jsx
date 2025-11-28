@@ -2,7 +2,7 @@ import React from 'react';
 
 const Sidebar = () => {
   return (
-    <div style={{width: 84, height: '100%', background: '#181818', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', display: 'flex'}}>
+    <div style={{width: 84, height: '100%', background: 'rgba(24, 24, 24, 0.90)', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', display: 'flex'}}>
         <div style={{flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 16, display: 'flex'}}>
             <div style={{padding: '20px 0', borderBottom: '1px rgba(255, 255, 255, 0.20) solid', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 16, display: 'flex'}}>
                 <div style={{width: 44, height: 44, borderRadius: '50%', justifyContent: 'center', alignItems: 'center', display: 'flex'}}>

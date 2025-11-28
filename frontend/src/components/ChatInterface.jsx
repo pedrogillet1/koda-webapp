@@ -2936,7 +2936,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                     onClick={handleDownload}
                                                                                     style={{
                                                                                         padding: 8,
-                                                                                        background: '#181818',
+                                                                                        background: 'rgba(24, 24, 24, 0.90)',
                                                                                         border: 'none',
                                                                                         borderRadius: 8,
                                                                                         cursor: 'pointer',
@@ -2948,7 +2948,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                         minHeight: 36
                                                                                     }}
                                                                                     onMouseEnter={(e) => e.currentTarget.style.background = '#323232'}
-                                                                                    onMouseLeave={(e) => e.currentTarget.style.background = '#181818'}
+                                                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(24, 24, 24, 0.90)'}
                                                                                     title="Download file"
                                                                                 >
                                                                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -3346,7 +3346,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     <div style={{
                         marginBottom: 12,
                         padding: 12,
-                        background: '#181818',
+                        background: 'rgba(24, 24, 24, 0.90)',
                         borderRadius: 12,
                         border: '1px solid #323232',
                         display: 'flex',
@@ -3708,7 +3708,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     <div style={{
                         width: '100%',
                         padding: '6px 16px',
-                        background: '#181818',
+                        background: 'rgba(24, 24, 24, 0.90)',
                         borderRadius: 14,
                         justifyContent: 'center',
                         alignItems: 'center',

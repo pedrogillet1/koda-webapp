@@ -23,7 +23,7 @@ const Authentication = () => {
             onClick={() => navigate('/verify-email')}
             style={{
               height: 52,
-              background: '#181818',
+              background: 'rgba(24, 24, 24, 0.90)',
               color: 'white',
               borderRadius: 14,
               border: 'none',

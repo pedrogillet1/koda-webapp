@@ -148,7 +148,7 @@ const SignUp = () => {
 
           {error && <div style={{color: '#DC2626', background: '#FEE2E2', padding: '12px 16px', borderRadius: 8, marginTop: 8}}>{error}</div>}
 
-          <button type="submit" disabled={isLoading} style={{height: 52, background: '#181818', color: 'white', borderRadius: 14, border: 'none', fontSize: 16, fontWeight: '600', cursor: 'pointer', marginTop: 12, opacity: isLoading ? 0.6 : 1}}>
+          <button type="submit" disabled={isLoading} style={{height: 52, background: 'rgba(24, 24, 24, 0.90)', color: 'white', borderRadius: 14, border: 'none', fontSize: 16, fontWeight: '600', cursor: 'pointer', marginTop: 12, opacity: isLoading ? 0.6 : 1}}>
             {isLoading ? 'Creating account...' : 'Continue'}
           </button>
         </form>

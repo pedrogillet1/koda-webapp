@@ -324,7 +324,7 @@ const UniversalAddToCategoryModal = ({
                             right: 8,
                             top: -8,
                             position: 'absolute',
-                            background: '#181818',
+                            background: 'rgba(24, 24, 24, 0.90)',
                             overflow: 'hidden',
                             borderRadius: 6,
                             outline: '1px #181818 solid',

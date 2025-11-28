@@ -748,7 +748,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                   flex: 1,
                   height: 44,
                   borderRadius: 10,
-                  background: '#181818',
+                  background: 'rgba(24, 24, 24, 0.90)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',

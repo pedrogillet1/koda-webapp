@@ -3191,7 +3191,7 @@ const UploadHub = () => {
                           </div>
                           <div style={{textAlign: 'center', color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px'}}>{cat.name}</div>
                           {selectedCategories[showCategoryModal] === cat.name && (
-                            <div style={{width: 20, height: 20, position: 'absolute', right: 8, top: 8, background: '#181818', overflow: 'hidden', borderRadius: 6, outline: '1px #181818 solid', outlineOffset: '-1px'}}>
+                            <div style={{width: 20, height: 20, position: 'absolute', right: 8, top: 8, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 6, outline: '1px #181818 solid', outlineOffset: '-1px'}}>
                               <div style={{width: 14, height: 14, left: 3, top: 3, position: 'absolute', overflow: 'hidden'}}>
                                 <div style={{width: 9.33, height: 6.42, left: 2.33, top: 3.50, position: 'absolute', outline: '2px white solid', outlineOffset: '-1px'}} />
                               </div>
@@ -3237,7 +3237,7 @@ const UploadHub = () => {
               </button>
               <button
                 onClick={() => handleAddCategory(showCategoryModal)}
-                style={{flex: 1, height: 52, background: '#181818', borderRadius: 14, border: 'none', cursor: 'pointer', color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize'}}
+                style={{flex: 1, height: 52, background: 'rgba(24, 24, 24, 0.90)', borderRadius: 14, border: 'none', cursor: 'pointer', color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize'}}
               >
                 Add
               </button>

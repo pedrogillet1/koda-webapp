@@ -7,7 +7,7 @@ const PremiumBanner = () => {
       alignSelf: 'stretch',
       padding: '60px',
       position: 'relative',
-      background: '#181818',
+      background: 'rgba(24, 24, 24, 0.90)',
       overflow: 'hidden',
       borderRadius: 20,
       display: 'flex',

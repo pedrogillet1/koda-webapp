@@ -324,20 +324,15 @@ const Settings = () => {
   const getInitials = (userData) => {
     if (!userData) return 'U';
 
-    // Use firstName and lastName if available
-    if (userData.firstName && userData.lastName) {
-      return `${userData.firstName.charAt(0)}${userData.lastName.charAt(0)}`.toUpperCase();
-    }
-
-    // Use firstName only if available
+    // Use firstName if available (single letter)
     if (userData.firstName) {
-      return userData.firstName.substring(0, 2).toUpperCase();
+      return userData.firstName.charAt(0).toUpperCase();
     }
 
-    // Fallback to email
+    // Fallback to email (single letter)
     if (userData.email) {
       const username = userData.email.split('@')[0];
-      return username.substring(0, 2).toUpperCase();
+      return username.charAt(0).toUpperCase();
     }
 
     return 'U';
@@ -918,11 +913,11 @@ const Settings = () => {
                 width: 56,
                 height: 56,
                 borderRadius: '50%',
-                background: '#181818',
+                background: '#F3F3F5',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'white',
+                color: '#181818',
                 fontSize: 20,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700'
@@ -1435,7 +1430,7 @@ const Settings = () => {
               <div style={{ alignSelf: 'stretch', height: 52, borderRadius: 14, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                 <div
                   onClick={handleSaveChanges}
-                  style={{ flex: '1 1 0', height: 52, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
+                  style={{ flex: '1 1 0', height: 52, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
                 >
                   <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>Save changes</div>
                 </div>
@@ -1557,7 +1552,7 @@ const Settings = () => {
               <div style={{ alignSelf: 'stretch', height: 52, borderRadius: 14, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                 <div
                   onClick={handlePasswordChange}
-                  style={{ flex: '1 1 0', height: 52, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
+                  style={{ flex: '1 1 0', height: 52, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
                 >
                   <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>Save changes</div>
                 </div>

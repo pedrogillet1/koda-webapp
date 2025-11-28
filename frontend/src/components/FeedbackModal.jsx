@@ -249,7 +249,7 @@ const FeedbackModal = ({ isOpen, onClose }) => {
             }}
             onMouseLeave={(e) => {
               if (feedback.trim()) {
-                e.currentTarget.style.background = '#181818';
+                e.currentTarget.style.background = 'rgba(24, 24, 24, 0.90)';
               }
             }}
           >

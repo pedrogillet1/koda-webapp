@@ -60,7 +60,7 @@ const Upgrade = () => {
         {/* Content */}
         <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 20, display: 'flex' }}>
           {/* Hero Banner */}
-          <div style={{ alignSelf: 'stretch', paddingLeft: 60, paddingRight: 60, paddingTop: 70, paddingBottom: 70, position: 'relative', background: '#181818', overflow: 'hidden', borderRadius: 20, justifyContent: 'space-between', alignItems: 'center', gap: 10, display: 'flex' }}>
+          <div style={{ alignSelf: 'stretch', paddingLeft: 60, paddingRight: 60, paddingTop: 70, paddingBottom: 70, position: 'relative', background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 20, justifyContent: 'space-between', alignItems: 'center', gap: 10, display: 'flex' }}>
             <div style={{ flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 40, display: 'flex', zIndex: 1 }}>
               <div style={{ alignSelf: 'stretch', color: '#F8F8F8', fontSize: 40, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '50px' }}>
                 Upgrade your plan and alleviate your work with KODA.
@@ -172,7 +172,7 @@ const PricingCard = ({ title, price, period, description, features, isCurrent, b
             <div style={{ color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>Current</div>
           </div>
         ) : (
-          <div style={{ alignSelf: 'stretch', height: 52, background: '#181818', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}>
+          <div style={{ alignSelf: 'stretch', height: 52, background: 'rgba(24, 24, 24, 0.90)', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}>
             <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>Upgrade Now</div>
           </div>
         )}

@@ -618,7 +618,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
             style={{
               flex: 1,
               height: 52,
-              background: '#181818',
+              background: 'rgba(24, 24, 24, 0.90)',
               borderRadius: 14,
               display: 'flex',
               justifyContent: 'center',

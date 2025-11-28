@@ -108,7 +108,7 @@ const ForgotPasswordEmailSent = () => {
                         style={{
                             width: '100%',
                             height: 48,
-                            background: '#181818',
+                            background: 'rgba(24, 24, 24, 0.90)',
                             borderRadius: 12,
                             border: 'none',
                             cursor: 'pointer',

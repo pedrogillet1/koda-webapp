@@ -728,7 +728,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
             <div style={{
               width: '100%',
               padding: 10,
-              background: '#181818',
+              background: 'rgba(24, 24, 24, 0.90)',
               borderRadius: 14,
               flexDirection: 'row',
               justifyContent: 'flex-start',
@@ -1112,7 +1112,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
           <div style={{
             width: '100%',
             padding: '6px 16px',
-            background: '#181818',
+            background: 'rgba(24, 24, 24, 0.90)',
             borderRadius: 14,
             justifyContent: 'center',
             alignItems: 'center',

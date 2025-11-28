@@ -487,7 +487,7 @@ export default function UploadProgressModal({
         }}>
           <div style={{
             padding: '12px 16px',
-            background: '#181818',
+            background: 'rgba(24, 24, 24, 0.90)',
             borderRadius: 14,
             justifyContent: 'center',
             alignItems: 'center',

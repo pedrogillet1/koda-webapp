@@ -861,7 +861,7 @@ const DocumentViewer = () => {
             </div>
             <button
               onClick={() => setShowShareModal(true)}
-              style={{ flex: '0.8 1 0', height: 42, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
+              style={{ flex: '0.8 1 0', height: 42, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', border: 'none', cursor: 'pointer' }}
             >
               <DownloadWhiteIcon style={{ width: 19, height: 19 }} />
               <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word' }}>Download</div>
@@ -874,7 +874,7 @@ const DocumentViewer = () => {
               style={{
                 width: 36,
                 height: 36,
-                background: '#181818',
+                background: 'rgba(24, 24, 24, 0.90)',
                 borderRadius: 10,
                 display: 'flex',
                 alignItems: 'center',
@@ -1108,7 +1108,7 @@ const DocumentViewer = () => {
                               style={{
                                 display: 'inline-block',
                                 padding: '12px 24px',
-                                background: '#181818',
+                                background: 'rgba(24, 24, 24, 0.90)',
                                 color: 'white',
                                 borderRadius: 14,
                                 textDecoration: 'none',
@@ -1257,7 +1257,7 @@ const DocumentViewer = () => {
                               style={{
                                 display: 'inline-block',
                                 padding: '12px 24px',
-                                background: '#181818',
+                                background: 'rgba(24, 24, 24, 0.90)',
                                 color: 'white',
                                 borderRadius: 14,
                                 textDecoration: 'none',
@@ -1359,7 +1359,7 @@ const DocumentViewer = () => {
                             style={{
                               display: 'inline-block',
                               padding: '12px 24px',
-                              background: '#181818',
+                              background: 'rgba(24, 24, 24, 0.90)',
                               color: 'white',
                               borderRadius: 14,
                               textDecoration: 'none',
@@ -1499,7 +1499,7 @@ const DocumentViewer = () => {
                       <a href={documentUrl} download={document.filename} style={{
                         display: 'inline-block',
                         padding: '12px 24px',
-                        background: '#181818',
+                        background: 'rgba(24, 24, 24, 0.90)',
                         color: 'white',
                         borderRadius: 8,
                         textDecoration: 'none',
@@ -1543,7 +1543,7 @@ const DocumentViewer = () => {
                       <a href={documentUrl} download={document.filename} style={{
                         display: 'inline-block',
                         padding: '12px 24px',
-                        background: '#181818',
+                        background: 'rgba(24, 24, 24, 0.90)',
                         color: 'white',
                         borderRadius: 8,
                         textDecoration: 'none',

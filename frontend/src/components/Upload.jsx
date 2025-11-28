@@ -611,7 +611,7 @@ const Upload = () => {
             {/* Success/Error Notification */}
             {showNotification && (
                 <div style={{position: 'fixed', bottom: isMobile ? 16 : 20, left: '50%', transform: 'translateX(-50%)', zIndex: 10000, animation: 'slideUp 0.3s ease-out', width: isMobile ? 'calc(100% - 32px)' : 'auto', maxWidth: isMobile ? 'calc(100% - 32px)' : 'none'}}>
-                    <div style={{padding: isMobile ? 8 : 10, background: '#181818', borderRadius: isMobile ? 12 : 14, justifyContent: 'center', alignItems: 'center', gap: isMobile ? 8 : 12, display: 'flex', minWidth: isMobile ? 'auto' : 400}}>
+                    <div style={{padding: isMobile ? 8 : 10, background: 'rgba(24, 24, 24, 0.90)', borderRadius: isMobile ? 12 : 14, justifyContent: 'center', alignItems: 'center', gap: isMobile ? 8 : 12, display: 'flex', minWidth: isMobile ? 'auto' : 400}}>
                         {notificationType === 'success' ? (
                             <>
                                 <div style={{width: 36, height: 36, position: 'relative'}}>

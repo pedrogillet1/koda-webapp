@@ -236,7 +236,7 @@ const AddToCategoryModal = ({
                       right: 8,
                       width: 20,
                       height: 20,
-                      background: '#181818',
+                      background: 'rgba(24, 24, 24, 0.90)',
                       borderRadius: '50%',
                       display: 'flex',
                       alignItems: 'center',

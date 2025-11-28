@@ -949,7 +949,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                 style={{
                   flex: '1 1 0',
                   height: 52,
-                  background: '#181818',
+                  background: 'rgba(24, 24, 24, 0.90)',
                   overflow: 'hidden',
                   borderRadius: 14,
                   justifyContent: 'center',
@@ -1014,7 +1014,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                 style={{
                   flex: '1 1 0',
                   height: 52,
-                  background: '#181818',
+                  background: 'rgba(24, 24, 24, 0.90)',
                   overflow: 'hidden',
                   borderRadius: 14,
                   justifyContent: 'center',
@@ -1084,7 +1084,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                   style={{
                     flex: '1 1 0',
                     height: 52,
-                    background: '#181818',
+                    background: 'rgba(24, 24, 24, 0.90)',
                     overflow: 'hidden',
                     borderRadius: 14,
                     justifyContent: 'center',

@@ -592,7 +592,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
             style={{
               flex: '1 1 0',
               height: 52,
-              background: '#181818',
+              background: 'rgba(24, 24, 24, 0.90)',
               overflow: 'hidden',
               borderRadius: 14,
               justifyContent: 'center',

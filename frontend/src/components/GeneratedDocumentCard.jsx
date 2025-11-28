@@ -444,7 +444,7 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
                 disabled={isDownloading}
                 style={{
                   padding: '8px 14px',
-                  background: '#181818',
+                  background: 'rgba(24, 24, 24, 0.90)',
                   color: 'white',
                   border: '1px solid #181818',
                   borderRadius: 10,
@@ -461,7 +461,7 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
                   if (!isDownloading) e.currentTarget.style.background = '#323232';
                 }}
                 onMouseLeave={(e) => {
-                  if (!isDownloading) e.currentTarget.style.background = '#181818';
+                  if (!isDownloading) e.currentTarget.style.background = 'rgba(24, 24, 24, 0.90)';
                 }}
                 title="Download as Word Document"
               >

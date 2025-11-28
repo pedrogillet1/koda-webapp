@@ -104,7 +104,7 @@ const PhoneNumber = () => {
                     )}
                     <div style={{alignSelf: 'stretch', borderRadius: 12, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 24, display: 'flex'}}>
                         <button onClick={handleSendCode} disabled={isLoading} style={{alignSelf: 'stretch', height: 52, borderRadius: 14, border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer', padding: 0, background: 'transparent', opacity: isLoading ? 0.6 : 1}}>
-                            <div style={{width: '100%', height: 52, background: '#181818', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex'}}>
+                            <div style={{width: '100%', height: 52, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex'}}>
                                 <div style={{color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>
                                     {isLoading ? 'Sending Code...' : 'Send Code'}
                                 </div>
