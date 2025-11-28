@@ -80,7 +80,7 @@ const LeftNav = ({ onNotificationClick }) => {
                         zIndex: 1000,
                         width: 44,
                         height: 44,
-                        background: 'rgba(24, 24, 24, 0.90)',
+                        background: '#181818',
                         border: 'none',
                         borderRadius: 12,
                         display: 'flex',
@@ -119,7 +119,7 @@ const LeftNav = ({ onNotificationClick }) => {
                     left: 0,
                     bottom: 0,
                     width: 280,
-                    background: 'rgba(24, 24, 24, 0.90)',
+                    background: '#181818',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
@@ -214,7 +214,7 @@ const LeftNav = ({ onNotificationClick }) => {
 
     // Desktop: Original sidebar
     return (
-        <div style={{width: isExpanded ? 205 : 84, height: '100%', background: 'rgba(24, 24, 24, 0.90)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: isExpanded ? 'flex-start' : 'center', padding: `${spacing.xl} 0`, transition: 'width 0.3s ease'}}>
+        <div style={{width: isExpanded ? 205 : 84, height: '100%', background: '#181818', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: isExpanded ? 'flex-start' : 'center', padding: `${spacing.xl} 0`, transition: 'width 0.3s ease'}}>
             {/* Top Icons */}
             <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: spacing.md, width: '100%', paddingLeft: isExpanded ? spacing.xl : spacing.md, paddingRight: isExpanded ? spacing.xl : spacing.md}}>
                 <div style={{paddingBottom: spacing.md, borderBottom: '1px solid rgba(255, 255, 255, 0.20)', display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', width: '100%'}}>

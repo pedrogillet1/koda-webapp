@@ -391,8 +391,8 @@ Respond ONLY with valid JSON:`;
 }
 
 /**
- * Stage 4: Sophisticated Fallback
- * Generates a helpful response when no relevant context is found
+ * Stage 4: Natural Conversational Fallback
+ * Generates a helpful, human-like response when no relevant context is found
  */
 export async function generateSophisticatedFallback(
   query: string,
@@ -400,57 +400,63 @@ export async function generateSophisticatedFallback(
   partialContext?: string
 ): Promise<string> {
   try {
-    console.log('🧠 [Reasoning Stage 4] Generating sophisticated fallback...');
+    console.log('🧠 [Reasoning Stage 4] Generating natural fallback...');
 
     const prompt = `The user asked: "${query}"
 
 No exact information was found in their documents.${partialContext ? `\n\nHowever, some related information exists:\n${partialContext.substring(0, 500)}...` : ''}
 
-Generate a SOPHISTICATED FALLBACK response in ${language} that:
+Generate a NATURAL, CONVERSATIONAL fallback response in ${language} that:
 
-1. EXPLICITLY ACKNOWLEDGE the limitation
-   - "I searched your documents but couldn't find specific information about [topic]"
+1. ACKNOWLEDGE the limitation naturally (pick ONE style):
+   - "I couldn't find that specific information in your documents."
+   - "I searched through your documents but didn't find what you're looking for."
+   - "I don't see that information in the documents I have."
+   - "Hmm, I'm not finding that in your current documents."
 
-2. EXPLAIN WHY information isn't available
-   - "This might be because:"
-   - The information is in a document not yet uploaded
-   - It's discussed using different terminology
-   - It's in a section I haven't accessed yet
-
-${partialContext ? `3. PROVIDE PARTIAL ANSWER
-   - "Here's what I can tell you based on related information..."
+2. ${partialContext ? `PROVIDE PARTIAL ANSWER if available:
+   - "Here's what I found that might be related..."
    - Use the partial context to provide helpful insights
-   - Explain the gap between what was asked and what was found` : ''}
+   - Be specific about what you found vs. what was asked
 
-4. SUGGEST ALTERNATIVES
-   - "Would you like me to:"
-   - Search for related information
-   - Try different search terms
-   - Explain related concepts
+3. ` : ''}SUGGEST 2-3 HELPFUL NEXT STEPS (conversationally, NOT as a bullet list):
+   - Try rephrasing the question
+   - Mention a specific document name if they know it
+   - Upload the document that might contain this information
+   - Ask about a related topic
 
-FORMATTING:
-- Use **bold** for emphasis
-- Use bullet points for lists
+FORMATTING RULES:
+- Write in a SINGLE flowing paragraph (2-4 sentences max)
+- Use **bold** for key terms only
+- NO bullet points, NO numbered lists, NO "Suggestions:" heading
 - NO emojis
-- Professional tone
+- Sound like a helpful colleague, NOT a robot
 - Write ENTIRELY in ${language}
+- Keep it brief and actionable
+
+EXAMPLE (English):
+"I couldn't find specific information about that in your documents. Try rephrasing your question with different keywords, or let me know which document you think contains this info and I'll take another look."
 
 Generate the fallback response now:`;
 
     const result = await model.generateContent(prompt);
     const fallbackResponse = result.response.text().trim();
 
-    console.log('✅ [Reasoning Stage 4] Sophisticated fallback generated');
+    console.log('✅ [Reasoning Stage 4] Natural fallback generated');
 
     return fallbackResponse;
   } catch (error) {
     console.error('❌ [Reasoning Stage 4] Error generating fallback:', error);
 
-    // Ultimate fallback
+    // Ultimate fallback - also natural and conversational
     if (language === 'Portuguese' || language === 'pt') {
-      return `Não encontrei informações específicas sobre "${query}" nos seus documentos.\n\n**Próximo passo:** Tente reformular sua pergunta ou faça upload de documentos relevantes.`;
+      return `Não encontrei essa informação nos seus documentos. Tente reformular sua pergunta com palavras diferentes, ou me diga qual documento pode conter essa informação.`;
+    } else if (language === 'Spanish' || language === 'es') {
+      return `No encontré esa información en tus documentos. Intenta reformular tu pregunta con palabras diferentes, o dime qué documento podría contener esta información.`;
+    } else if (language === 'French' || language === 'fr') {
+      return `Je n'ai pas trouvé cette information dans vos documents. Essayez de reformuler votre question avec des mots différents, ou dites-moi quel document pourrait contenir cette information.`;
     } else {
-      return `I don't have specific information about "${query}" in your documents.\n\n**Next step:** Try rephrasing your question or upload relevant documents.`;
+      return `I couldn't find that information in your documents. Try rephrasing your question with different keywords, or let me know which document might contain this info.`;
     }
   }
 }

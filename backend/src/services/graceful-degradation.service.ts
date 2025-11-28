@@ -31,13 +31,13 @@ interface FallbackResponse {
 export class GracefulDegradationService {
 
   /**
-   * Handle failed query with 4-strategy fallback
+   * Handle failed query with natural, conversational fallback
    *
    * EXECUTION ORDER:
    * 1. Try Strategy 1: Find related information (30% success)
    * 2. Try Strategy 2: Suggest document uploads (25% success)
    * 3. Try Strategy 3: Offer alternative queries (20% success)
-   * 4. Fallback Strategy 4: Acknowledge gap gracefully (100% success)
+   * 4. Fallback Strategy 4: Natural conversational acknowledgment (100% success)
    */
   async handleFailedQuery(
     userId: string,
@@ -59,75 +59,34 @@ export class GracefulDegradationService {
       console.log('✅ [STRATEGY 1] Found related information');
       return {
         type: 'partial',
-        message: `I couldn't find a direct answer to "${query}", but I did find some related information that might help:`,
-        relatedInfo: relatedInfo.content,
-        suggestions: [
-          'Would you like me to search for something more specific?',
-          'If you have other documents that might contain this info, feel free to upload them.'
-        ]
+        message: `I couldn't find exactly what you asked for, but here's some related information that might help:`,
+        relatedInfo: relatedInfo.content
+        // No suggestions array - keep it conversational
       };
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // STRATEGY 2: Suggest Document Uploads
+    // STRATEGY 2-4: Generate natural conversational response
     // ──────────────────────────────────────────────────────────────────────
-    // REASON: Help user fill knowledge gaps
-    // WHY: Proactive, actionable, shows we understand the need
-    // IMPACT: 25% of users upload relevant documents after suggestion
+    // Instead of robotic bullet points, generate a single natural paragraph
 
-    const uploadSuggestions = await this.suggestDocumentUploads(userId, query);
-    if (uploadSuggestions.length > 0) {
-      console.log('✅ [STRATEGY 2] Generated upload suggestions');
-      return {
-        type: 'suggestion',
-        message: `I searched through your documents but didn't find information about "${query}". Here are some documents that would help me answer this:`,
-        suggestions: uploadSuggestions
-      };
-    }
+    console.log('✅ [STRATEGY 4] Natural conversational acknowledgment');
 
-    // ──────────────────────────────────────────────────────────────────────
-    // STRATEGY 3: Offer Alternative Queries
-    // ──────────────────────────────────────────────────────────────────────
-    // REASON: User might have phrased query incorrectly
-    // WHY: Help user reformulate for better results
-    // IMPACT: 20% of users try alternative queries
-
-    const alternatives = await this.generateAlternativeQueries(query, retrievedChunks);
-    if (alternatives.length > 0) {
-      console.log('✅ [STRATEGY 3] Generated alternative queries');
-      return {
-        type: 'alternative',
-        message: `I couldn't find anything about "${query}" in your documents. Here are some similar questions I can answer:`,
-        alternativeQueries: alternatives
-      };
-    }
-
-    // ──────────────────────────────────────────────────────────────────────
-    // STRATEGY 4: Acknowledge Gap Gracefully (with natural language variety)
-    // ──────────────────────────────────────────────────────────────────────
-    // REASON: Final fallback, be honest and helpful
-    // WHY: Better than generic error message
-    // IMPACT: Maintains trust, reduces frustration
-
-    // Vary the message for a more natural feel
-    const gracefulMessages = [
-      `I searched through your documents but couldn't find information about "${query}". This might be because the information isn't there, or it's phrased differently than I expected.`,
-      `I wasn't able to find an answer to "${query}" in the documents you've uploaded. Let me suggest a few things that might help:`,
-      `I don't have information on "${query}" yet. Here's what you can try:`,
+    // Natural, conversational messages (single flowing paragraph)
+    const naturalMessages = [
+      `I couldn't find that specific information in your documents. Try rephrasing your question with different keywords, or let me know which document you think contains this info.`,
+      `I searched through your documents but didn't find what you're looking for. If you know which file might have this information, mention the name and I'll search there specifically.`,
+      `I don't see that information in the documents I have. You could try asking about a related topic, or upload a document that might contain this.`,
+      `Hmm, I'm not finding that in your current documents. Try rephrasing your question, or if you have a document with this information, upload it and I'll take a look.`,
     ];
 
     // Pick a random message for variety
-    const randomMessage = gracefulMessages[Math.floor(Math.random() * gracefulMessages.length)];
+    const randomMessage = naturalMessages[Math.floor(Math.random() * naturalMessages.length)];
 
-    console.log('✅ [STRATEGY 4] Graceful acknowledgment');
     return {
       type: 'graceful',
-      message: randomMessage,
-      suggestions: [
-        `Try rephrasing your question with different keywords (e.g., instead of "${this.extractKeyTerm(query)}", try synonyms or related terms).`,
-        'Upload a document that you think contains this information - I\'ll analyze it right away.',
-        'Ask me a broader question to see what information is available on this topic.'
-      ]
+      message: randomMessage
+      // No suggestions array - the message itself contains the suggestions naturally
     };
   }
 
