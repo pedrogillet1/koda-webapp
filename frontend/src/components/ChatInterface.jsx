@@ -36,6 +36,7 @@ import FileUploadPreview from './FileUploadPreview';
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import './MarkdownStyles.css';
+import StreamingWelcomeMessage from './StreamingWelcomeMessage';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
 let globalSocketInitialized = false;
@@ -1752,6 +1753,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         const isUploadingFiles = uploadingFiles.length > 0;
         if ((!message.trim() && attachedDocuments.length === 0) || isLoading || isUploadingFiles) return;
 
+        // Mark that greeting has been shown for this session
+        sessionStorage.setItem('hasShownGreeting', 'true');
+
         let messageText = message;
         // ✅ NEW FLOW: Only use attachedDocuments (files were already uploaded on attach)
         const documentsToAttach = [...attachedDocuments]; // Store reference before clearing
@@ -2316,7 +2320,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             <div style={{margin: '0 auto 12px'}}>
                                 <img src={sphere} alt="Sphere" style={{width: 128, height: 128}} />
                             </div>
-                            <div style={{fontSize: 30, fontWeight: '600', color: '#32302C'}}>Hey {userName}. What are you looking for today?</div>
+                            <StreamingWelcomeMessage
+                                userName={userName}
+                                isFirstChat={messages.length === 0 && !sessionStorage.getItem('hasShownGreeting')}
+                            />
                         </div>
                     </div>
                 ) : (
