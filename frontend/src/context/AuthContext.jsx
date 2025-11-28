@@ -293,6 +293,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
+   * Login with Apple
+   */
+  const loginWithApple = () => {
+    authService.loginWithApple();
+  };
+
+  /**
    * Update user data in state
    */
   const updateUser = (userData) => {
@@ -334,6 +341,7 @@ export const AuthProvider = ({ children }) => {
     disable2FA,
     getBackupCodes,
     loginWithGoogle,
+    loginWithApple,
     updateUser,
     setAuthState,
   };

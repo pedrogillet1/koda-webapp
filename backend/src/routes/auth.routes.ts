@@ -24,6 +24,10 @@ router.post('/pending/verify-phone', authLimiter, authController.verifyPendingPh
 router.get('/google', oauthController.googleAuth);
 router.get('/google/callback', oauthController.googleCallback);
 
+// Apple OAuth routes
+router.get('/apple', oauthController.appleAuth);
+router.post('/apple/callback', oauthController.appleCallback);
+
 // Email and Phone Verification routes (protected)
 router.post('/verify/send-email', authenticateToken, authController.sendEmailVerification);
 router.post('/verify/email', authenticateToken, authController.verifyEmail);

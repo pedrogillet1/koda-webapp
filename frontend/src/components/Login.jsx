@@ -7,7 +7,7 @@ import appleIcon from '../assets/Social icon.svg';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, loginWithApple } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -66,7 +66,7 @@ const Login = () => {
 
   const handleAppleLogin = () => {
     // Apple login not implemented yet in backend
-    console.log('Apple login not yet implemented');
+    loginWithApple();
   };
 
   return (

@@ -246,6 +246,19 @@ const authService = {
   },
 
   /**
+   * Login with Apple OAuth
+   * Redirects to Apple OAuth page
+   */
+  loginWithApple() {
+    window.location.href = `${process.env.REACT_APP_API_URL}/api/auth/apple`;
+  },
+
+  /**
+   * Placeholder
+    window.location.href = `${process.env.REACT_APP_API_URL}/api/auth/google`;
+  },
+
+  /**
    * Get current user from localStorage
    * @returns {Object|null} - User data or null
    */

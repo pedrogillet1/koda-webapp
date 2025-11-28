@@ -13,6 +13,11 @@ interface EnvConfig {
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   GOOGLE_CALLBACK_URL: string;
+  APPLE_CLIENT_ID: string;
+  APPLE_TEAM_ID: string;
+  APPLE_KEY_ID: string;
+  APPLE_PRIVATE_KEY: string;
+  APPLE_CALLBACK_URL: string;
   FRONTEND_URL: string;
   ENCRYPTION_KEY: string;
   GCS_BUCKET_NAME: string;
@@ -32,7 +37,6 @@ interface EnvConfig {
   GEMINI_API_KEY: string;
   PINECONE_API_KEY: string;
   PINECONE_INDEX_NAME: string;
-  // Live Data APIs
   ALPHA_VANTAGE_API_KEY: string;
   FRED_API_KEY: string;
   NEWS_API_KEY: string;
@@ -57,6 +61,11 @@ export const config: EnvConfig = {
   GOOGLE_CLIENT_ID: getEnvVar('GOOGLE_CLIENT_ID'),
   GOOGLE_CLIENT_SECRET: getEnvVar('GOOGLE_CLIENT_SECRET'),
   GOOGLE_CALLBACK_URL: getEnvVar('GOOGLE_CALLBACK_URL'),
+  APPLE_CLIENT_ID: getEnvVar('APPLE_CLIENT_ID', false),
+  APPLE_TEAM_ID: getEnvVar('APPLE_TEAM_ID', false),
+  APPLE_KEY_ID: getEnvVar('APPLE_KEY_ID', false),
+  APPLE_PRIVATE_KEY: getEnvVar('APPLE_PRIVATE_KEY', false),
+  APPLE_CALLBACK_URL: getEnvVar('APPLE_CALLBACK_URL', false),
   FRONTEND_URL: getEnvVar('FRONTEND_URL'),
   ENCRYPTION_KEY: getEnvVar('ENCRYPTION_KEY'),
   GCS_BUCKET_NAME: getEnvVar('GCS_BUCKET_NAME'),
@@ -76,7 +85,6 @@ export const config: EnvConfig = {
   GEMINI_API_KEY: getEnvVar('GEMINI_API_KEY', false),
   PINECONE_API_KEY: getEnvVar('PINECONE_API_KEY'),
   PINECONE_INDEX_NAME: getEnvVar('PINECONE_INDEX_NAME'),
-  // Live Data APIs (optional - graceful degradation)
   ALPHA_VANTAGE_API_KEY: getEnvVar('ALPHA_VANTAGE_API_KEY', false),
   FRED_API_KEY: getEnvVar('FRED_API_KEY', false),
   NEWS_API_KEY: getEnvVar('NEWS_API_KEY', false),

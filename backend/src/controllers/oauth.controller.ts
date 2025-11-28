@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import passport from '../config/passport';
 import * as oauthService from '../services/oauth.service';
 import { config } from '../config/env';
+import appleSignin from 'apple-signin-auth';
 
 /**
  * Initiate Google OAuth
@@ -41,3 +42,54 @@ export const googleCallback = [
     }
   },
 ];
+
+/**
+ * Initiate Apple OAuth - redirect to Apple authorization URL
+ */
+export const appleAuth = (req: Request, res: Response) => {
+  const authUrl = appleSignin.getAuthorizationUrl({
+    clientID: config.APPLE_CLIENT_ID,
+    redirectUri: config.APPLE_CALLBACK_URL,
+    scope: 'name email',
+    responseMode: 'form_post',
+  } as any);
+  res.redirect(authUrl);
+};
+
+/**
+ * Apple OAuth callback - POST request with form data
+ */
+export const appleCallback = async (req: Request, res: Response) => {
+  try {
+    const { code, id_token, user: userStr } = req.body;
+
+    if (!id_token) {
+      console.error('Apple OAuth: No id_token received');
+      res.redirect(`${config.FRONTEND_URL}/login?error=no_token`);
+      return;
+    }
+
+    // Parse user data if provided (only sent on first authorization)
+    let userData;
+    if (userStr) {
+      try {
+        userData = JSON.parse(userStr);
+      } catch (e) {
+        console.log('Could not parse user data from Apple');
+      }
+    }
+
+    // Process Apple OAuth login
+    const result = await oauthService.appleOAuth({
+      idToken: id_token,
+      user: userData,
+    });
+
+    // Redirect to frontend with tokens
+    const redirectUrl = `${config.FRONTEND_URL}/auth/callback?accessToken=${result.tokens.accessToken}&refreshToken=${result.tokens.refreshToken}`;
+    res.redirect(redirectUrl);
+  } catch (error) {
+    console.error('Apple OAuth error:', error);
+    res.redirect(`${config.FRONTEND_URL}/login?error=apple_oauth_error`);
+  }
+};

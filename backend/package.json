@@ -55,6 +55,7 @@
     "@types/turndown": "^5.0.5",
     "@upstash/redis": "^1.35.6",
     "adm-zip": "^0.5.16",
+    "apple-signin-auth": "^2.0.0",
     "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "bull": "^4.16.5",
