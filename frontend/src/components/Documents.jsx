@@ -1179,13 +1179,17 @@ const Documents = () => {
                         } else {
                           const buttonRect = e.currentTarget.getBoundingClientRect();
                           const dropdownHeight = 160;
+                          const dropdownWidth = 160;
                           const spaceBelow = window.innerHeight - buttonRect.bottom;
                           const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
+                          // Calculate left position with bounds checking
+                          let leftPos = buttonRect.right - dropdownWidth;
+                          leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - dropdownWidth - 8));
                           // Single state update with both position and ID
                           setCategoryMenu({
                             id: category.id,
                             top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
-                            left: buttonRect.right - 160
+                            left: leftPos
                           });
                         }
                       }}
@@ -1397,13 +1401,17 @@ const Documents = () => {
                           } else {
                             const buttonRect = e.currentTarget.getBoundingClientRect();
                             const dropdownHeight = 160;
+                            const dropdownWidth = 160;
                             const spaceBelow = window.innerHeight - buttonRect.bottom;
                             const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
+                            // Calculate left position with bounds checking
+                            let leftPos = buttonRect.right - dropdownWidth;
+                            leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - dropdownWidth - 8));
                             // Single state update with both position and ID
                             setCategoryMenu({
                               id: category.id,
                               top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
-                              left: buttonRect.right - 160
+                              left: leftPos
                             });
                           }
                         }}
@@ -1913,14 +1921,20 @@ const Documents = () => {
                               if (openDropdownId === doc.id) {
                                 setOpenDropdownId(null);
                               } else {
-                                // Check if this is one of the last 2 documents (show dropup for bottom items)
-                                const isLastDoc = index >= docsToShow.length - 2;
+                                // Calculate dropdown position with proper bounds checking
                                 const buttonRect = e.currentTarget.getBoundingClientRect();
+                                const dropdownHeight = 180;
+                                const dropdownWidth = 160;
+                                const spaceBelow = window.innerHeight - buttonRect.bottom;
+                                const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
+                                // Calculate left position with bounds checking
+                                let leftPos = buttonRect.right - dropdownWidth;
+                                leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - dropdownWidth - 8));
                                 setDropdownPosition({
                                   [doc.id]: {
-                                    openUpward: isLastDoc,
-                                    top: isLastDoc ? buttonRect.top - 180 : buttonRect.bottom + 4,
-                                    left: buttonRect.right - 160
+                                    openUpward: openUpward,
+                                    top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
+                                    left: leftPos
                                   }
                                 });
                                 setOpenDropdownId(doc.id);

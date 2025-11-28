@@ -889,11 +889,15 @@ const DocumentsPage = () => {
                         } else {
                           const buttonRect = e.currentTarget.getBoundingClientRect();
                           const dropdownHeight = 160;
+                          const dropdownWidth = 160;
                           const spaceBelow = window.innerHeight - buttonRect.bottom;
                           const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
+                          // Calculate left position with bounds checking
+                          let leftPos = buttonRect.right - dropdownWidth;
+                          leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - dropdownWidth - 8));
                           setCategoryMenuPosition({
                             top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
-                            left: buttonRect.right - 160
+                            left: leftPos
                           });
                           setCategoryMenuOpen(category.id);
                         }

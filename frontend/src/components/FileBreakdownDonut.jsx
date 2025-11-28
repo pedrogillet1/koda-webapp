@@ -146,10 +146,10 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
             width: '100%',
             marginTop: 16,
             marginBottom: 16,
-            justifyContent: 'space-between',
+            justifyContent: 'center',
             alignItems: 'flex-start',
-            paddingLeft: '2%',
-            paddingRight: '2%'
+            gap: '32px',
+            flexWrap: 'wrap'
           }}>
             {displayData.map((item) => {
               const fileCount = extensionBreakdown[item.type]?.count || 0;
@@ -214,15 +214,17 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
             })}
           </div>
         ) : (
-          /* Grid Layout - 8×1 single row on desktop, 3 columns on mobile */
+          /* Grid Layout - centered icons based on available types */
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : (compact ? 'repeat(8, 48px)' : 'repeat(8, 72px)'),
+            display: 'flex',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
             gap: isMobile ? '16px 12px' : (compact ? '0 24px' : '0 48px'),
             marginTop: compact ? '4px' : '8px',
             marginBottom: compact ? '12px' : '24px',
             justifyContent: 'center',
-            width: isMobile ? '100%' : 'auto'
+            alignItems: 'flex-start',
+            width: '100%'
           }}>
             {displayData.map((item) => {
               const fileCount = extensionBreakdown[item.type]?.count || 0;
@@ -314,19 +316,19 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
           }}>
             <div style={{
               color: '#32302C',
-              fontSize: compact ? '14px' : '16px',
+              fontSize: compact ? '16px' : '20px',
               fontFamily: 'Plus Jakarta Sans',
               fontWeight: '700',
-              lineHeight: '24px'
+              lineHeight: '30px'
             }}>
               Files
             </div>
             <div style={{
-              color: '#6C6B6E',
-              fontSize: compact ? '14px' : '16px',
+              color: '#32302C',
+              fontSize: compact ? '16px' : '20px',
               fontFamily: 'Plus Jakarta Sans',
               fontWeight: '700',
-              lineHeight: '24px'
+              lineHeight: '30px'
             }}>
               {totalFiles} Files
             </div>

@@ -377,34 +377,6 @@ button:disabled, .btn:disabled {
   box-shadow: none !important;
 }
 
-/* Ripple effect container */
-button::after, .btn::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.4);
-  transform: translate(-50%, -50%);
-  transition: width 0.4s ease-out, height 0.4s ease-out, opacity 0.4s ease-out;
-  pointer-events: none;
-  opacity: 0;
-}
-
-/* Ripple effect on click */
-button:active::after, .btn:active::after {
-  width: 200px;
-  height: 200px;
-  opacity: 1;
-  transition: width 0s, height 0s, opacity 0s;
-}
-
-/* Dark button ripple (for light backgrounds) */
-button.btn-dark::after, .btn-dark::after {
-  background: rgba(0, 0, 0, 0.2);
-}
 
 /* Primary button enhanced states */
 button.btn-primary:hover:not(:disabled), .btn-primary:hover:not(:disabled) {

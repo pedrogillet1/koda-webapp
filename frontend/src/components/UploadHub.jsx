@@ -475,14 +475,15 @@ const UploadHub = () => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (openDropdownId !== null) {
+      // Only close if clicking outside the dropdown area
+      if (openDropdownId !== null && !event.target.closest('[data-dropdown]')) {
         setOpenDropdownId(null);
       }
     };
 
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [openDropdownId]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Track when all files have completed for notification
   const [uploadedCount, setUploadedCount] = React.useState(0);
@@ -2585,26 +2586,34 @@ const UploadHub = () => {
             minHeight: isMobile ? 300 : 400,
             alignSelf: 'center',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)'
-          }}>
+          }}
+          onMouseEnter={(e) => {
+            const img = e.currentTarget.querySelector('.file-types-icon');
+            if (img) {
+              img.style.transform = 'translateY(-4px) scale(1.02)';
+              img.style.filter = 'drop-shadow(0 12px 24px rgba(0, 0, 0, 0.2))';
+            }
+          }}
+          onMouseLeave={(e) => {
+            const img = e.currentTarget.querySelector('.file-types-icon');
+            if (img) {
+              img.style.transform = 'translateY(0) scale(1)';
+              img.style.filter = 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15))';
+            }
+          }}
+          >
             <input {...getInputProps()} />
             {/* File types stack icon */}
             <img
               src={fileTypesStackIcon}
               alt="File Types"
+              className="file-types-icon"
               style={{
-                width: isMobile ? 220 : 360,
-                height: isMobile ? 112 : 183,
-                margin: isMobile ? '0 auto 16px' : '0 auto 24px',
+                width: isMobile ? 260 : 420,
+                height: isMobile ? 132 : 214,
+                margin: isMobile ? '0 auto -16px' : '0 auto -24px',
                 filter: 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15))',
                 transition: 'transform 0.3s ease, filter 0.3s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)';
-                e.currentTarget.style.filter = 'drop-shadow(0 12px 24px rgba(0, 0, 0, 0.2))';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                e.currentTarget.style.filter = 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15))';
               }}
             />
             <h3 style={{fontSize: isMobile ? 16 : 18, fontWeight: '600', color: '#111827', margin: '0 0 8px 0', fontFamily: 'Plus Jakarta Sans'}}>{isMobile ? 'Tap to Upload' : 'Upload Documents Or Drag-N-Drop'}</h3>

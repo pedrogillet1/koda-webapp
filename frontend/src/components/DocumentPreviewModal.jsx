@@ -260,6 +260,41 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
         }}
       />
 
+      {/* Close button - positioned outside modal at top-right corner */}
+      {!isMobile && (
+        <button
+          onClick={onClose}
+          style={{
+            position: 'fixed',
+            top: 'calc(10vh - 12px)',
+            right: 'calc(10vw - 12px)',
+            width: 32,
+            height: 32,
+            border: 'none',
+            background: '#F5F5F5',
+            borderRadius: 50,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'opacity 200ms ease-out',
+            padding: 0,
+            zIndex: 10000,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = '0.7';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = '1';
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 4L4 12M4 4L12 12" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      )}
+
       {/* Modal */}
       <div
         style={{
@@ -356,30 +391,34 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
             }}>
               {/* Zoom Out */}
               <button
-                onClick={handleZoomOut}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (zoom > 50) handleZoomOut();
+                }}
                 disabled={zoom <= 50}
                 style={{
                   width: 32,
                   height: 32,
-                  border: 'none',
-                  background: 'transparent',
-                  borderRadius: 4,
+                  border: '1px solid #DADADA',
+                  background: '#FFFFFF',
+                  borderRadius: 50,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: zoom <= 50 ? 'not-allowed' : 'pointer',
                   opacity: zoom <= 50 ? 0.4 : 1,
-                  transition: 'background 150ms ease-out',
+                  transition: 'all 150ms ease-out',
                   padding: 0
                 }}
                 onMouseEnter={(e) => {
                   if (zoom > 50) e.currentTarget.style.background = '#F5F5F5';
                 }}
                 onMouseLeave={(e) => {
-                  if (zoom > 50) e.currentTarget.style.background = 'transparent';
+                  if (zoom > 50) e.currentTarget.style.background = '#FFFFFF';
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M4 8H12" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
@@ -407,30 +446,34 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
 
               {/* Zoom In */}
               <button
-                onClick={handleZoomIn}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (zoom < 200) handleZoomIn();
+                }}
                 disabled={zoom >= 200}
                 style={{
                   width: 32,
                   height: 32,
-                  border: 'none',
-                  background: 'transparent',
-                  borderRadius: 4,
+                  border: '1px solid #DADADA',
+                  background: '#FFFFFF',
+                  borderRadius: 50,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: zoom >= 200 ? 'not-allowed' : 'pointer',
                   opacity: zoom >= 200 ? 0.4 : 1,
-                  transition: 'background 150ms ease-out',
+                  transition: 'all 150ms ease-out',
                   padding: 0
                 }}
                 onMouseEnter={(e) => {
                   if (zoom < 200) e.currentTarget.style.background = '#F5F5F5';
                 }}
                 onMouseLeave={(e) => {
-                  if (zoom < 200) e.currentTarget.style.background = 'transparent';
+                  if (zoom < 200) e.currentTarget.style.background = '#FFFFFF';
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M8 4V12M4 8H12" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
@@ -467,33 +510,35 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
               </svg>
             </button>}
 
-            {/* Close */}
-            <button
-              onClick={onClose}
-              style={{
-                width: isMobile ? 36 : 32,
-                height: isMobile ? 36 : 32,
-                border: 'none',
-                background: isMobile ? '#F5F5F5' : 'transparent',
-                borderRadius: isMobile ? 8 : 4,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'opacity 200ms ease-out',
-                padding: 0
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '0.7';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '1';
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 4L4 12M4 4L12 12" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
+            {/* Close button - only shown on mobile (desktop has corner button) */}
+            {isMobile && (
+              <button
+                onClick={onClose}
+                style={{
+                  width: 36,
+                  height: 36,
+                  border: 'none',
+                  background: '#F5F5F5',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'opacity 200ms ease-out',
+                  padding: 0
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '0.7';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '1';
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 4L4 12M4 4L12 12" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 

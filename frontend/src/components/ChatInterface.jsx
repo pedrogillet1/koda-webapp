@@ -1790,8 +1790,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         setIsLoading(true);
 
-        // ✅ NEW FLOW: Files were already uploaded on attach, just use them
-        const uploadedDocuments = documentsToAttach.map(doc => ({ id: doc.id }));
+        // ✅ NEW FLOW: Files were already uploaded on attach, preserve all properties
+        const uploadedDocuments = documentsToAttach.map(doc => ({
+            id: doc.id,
+            filename: doc.filename,
+            mimeType: doc.mimeType,
+            name: doc.name,
+            type: doc.type,
+            status: doc.status,
+            fileSize: doc.fileSize
+        }));
 
         // If no message text was provided, add a default message
         if (documentsToAttach.length > 0 && !messageText.trim()) {
