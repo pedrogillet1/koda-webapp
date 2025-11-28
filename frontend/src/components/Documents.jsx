@@ -726,7 +726,6 @@ const Documents = () => {
               </>
             ) : (
               <>
-<<<<<<< HEAD
                 <div
                   style={{
                     position: 'relative',
@@ -734,15 +733,13 @@ const Documents = () => {
                     display: 'flex',
                     alignItems: 'center',
                     flex: isMobile ? 1 : 'none',
+                    marginLeft: isMobile ? 54 : 0,
                     transition: 'transform 0.15s ease',
                     cursor: 'text'
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
                 >
-=======
-                <div style={{position: 'relative', height: isMobile ? 44 : 52, display: 'flex', alignItems: 'center', flex: isMobile ? 1 : 'none', marginLeft: isMobile ? 54 : 0}}>
->>>>>>> 9658b401c56d2e1ee1d22fde7632cae952ccbb14
                   <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
                   <input
                     type="text"
