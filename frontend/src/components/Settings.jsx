@@ -287,9 +287,12 @@ const Settings = () => {
 
   const formatBytes = (bytes) => {
     if (bytes === 0) return '0 B';
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+    const value = bytes / Math.pow(1024, i);
+    // Show 2 decimal places for GB and above, 1 decimal for MB, 0 for smaller
+    const decimals = i >= 3 ? 2 : (i === 2 ? 1 : 0);
+    return value.toFixed(decimals) + ' ' + sizes[i];
   };
 
   const getFileIcon = (doc) => {
