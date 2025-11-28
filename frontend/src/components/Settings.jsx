@@ -636,7 +636,7 @@ const Settings = () => {
 
   return (
     <div style={{ width: '100%', height: '100vh', background: '#F4F4F6', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>
-      {!isMobile && <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />}
+      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} hamburgerTop={isMobile ? 22 : 16} />
 
       {/* Settings Sidebar - Hidden on mobile */}
       {!isMobile && <div style={{
@@ -854,18 +854,10 @@ const Settings = () => {
       {/* Main Content */}
       <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
         {/* Header */}
-        <div style={{ alignSelf: 'stretch', height: isMobile ? 60 : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: isMobile ? 'space-between' : 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
-          {isMobile && (
-            <div onClick={() => navigate(-1)} style={{ cursor: 'pointer', padding: 8 }}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M12.5 15L7.5 10L12.5 5" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-          )}
-          <div style={{ textAlign: 'center', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px' }}>
+        <div style={{ alignSelf: 'stretch', height: isMobile ? 76 : 84, paddingLeft: isMobile ? 70 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
+          <div style={{ textAlign: isMobile ? 'left' : 'center', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px' }}>
             {activeSection}
           </div>
-          {isMobile && <div style={{ width: 36 }} />}
         </div>
 
         {/* Mobile Section Tabs */}
@@ -1469,41 +1461,43 @@ const Settings = () => {
 
           {/* Notifications Panel */}
           <div style={{
-            width: 440,
-            height: 824,
+            width: isMobile ? '100%' : 440,
+            height: isMobile ? '100%' : 824,
             position: 'fixed',
-            left: 84,
-            top: 68,
+            left: isMobile ? 0 : 84,
+            top: isMobile ? 0 : 68,
+            bottom: isMobile ? 0 : 'auto',
+            right: isMobile ? 0 : 'auto',
             background: 'white',
-            borderRadius: 14,
+            borderRadius: isMobile ? 0 : 14,
             zIndex: 1000,
-            paddingLeft: 20,
-            paddingRight: 20,
-            paddingTop: 32,
-            paddingBottom: 32,
+            paddingLeft: isMobile ? 16 : 20,
+            paddingRight: isMobile ? 16 : 20,
+            paddingTop: isMobile ? 20 : 32,
+            paddingBottom: isMobile ? 20 : 32,
             overflow: 'auto',
             flexDirection: 'column',
             justifyContent: 'flex-start',
             alignItems: 'center',
-            gap: 24,
+            gap: isMobile ? 16 : 24,
             display: 'flex'
           }}>
             {/* Header with tabs and close button */}
             <div style={{ alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', gap: 10, display: 'flex' }}>
-              <div style={{ flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
-                <div style={{ height: 36, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex' }}>
-                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>All (0)</div>
+              <div style={{ flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                <div style={{ height: 36, paddingLeft: isMobile ? 14 : 18, paddingRight: isMobile ? 14 : 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex' }}>
+                  <div style={{ color: '#32302C', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>All (0)</div>
                 </div>
-                <div style={{ paddingLeft: 12, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderRadius: 6, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer' }}>
-                  <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Unread</div>
+                <div style={{ paddingLeft: isMobile ? 8 : 12, paddingRight: isMobile ? 8 : 12, paddingTop: 8, paddingBottom: 8, borderRadius: 6, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer' }}>
+                  <div style={{ color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Unread</div>
                 </div>
-                <div style={{ paddingLeft: 12, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderRadius: 6, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer' }}>
-                  <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Read</div>
+                <div style={{ paddingLeft: isMobile ? 8 : 12, paddingRight: isMobile ? 8 : 12, paddingTop: 8, paddingBottom: 8, borderRadius: 6, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer' }}>
+                  <div style={{ color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Read</div>
                 </div>
               </div>
               <div
                 onClick={() => setShowNotificationsPopup(false)}
-                style={{ width: 52, height: 52, padding: 8, background: '#171717', borderRadius: 100, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
+                style={{ width: isMobile ? 44 : 52, height: isMobile ? 44 : 52, padding: 8, background: '#171717', borderRadius: 100, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer', flexShrink: 0 }}
               >
                 <CheckDoubleIcon style={{ width: 20, height: 20 }} />
               </div>
@@ -1511,9 +1505,9 @@ const Settings = () => {
 
             {/* No notifications message */}
             <div style={{ alignSelf: 'stretch', flex: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 16, display: 'flex' }}>
-              <BellIcon style={{ width: 64, height: 64, opacity: 0.3 }} />
-              <div style={{ color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textAlign: 'center' }}>No notifications yet</div>
-              <div style={{ color: '#B9B9B9', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textAlign: 'center', maxWidth: 300 }}>
+              <BellIcon style={{ width: isMobile ? 48 : 64, height: isMobile ? 48 : 64, opacity: 0.3 }} />
+              <div style={{ color: '#6C6B6E', fontSize: isMobile ? 14 : 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textAlign: 'center' }}>No notifications yet</div>
+              <div style={{ color: '#B9B9B9', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textAlign: 'center', maxWidth: 300, padding: isMobile ? '0 16px' : 0 }}>
                 You're all caught up! Check back later for updates on your documents and account.
               </div>
             </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useDocuments } from '../context/DocumentsContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // Import actual Koda file type icons
 import pdfIcon from '../assets/pdf-icon.png';
@@ -14,6 +15,7 @@ import mp4Icon from '../assets/mp4.png';
 const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, semicircle = false, style = {} }) => {
   const { documents } = useDocuments();
   const [hoveredType, setHoveredType] = useState(null);
+  const isMobile = useIsMobile();
 
   // Get file extension from document
   const getFileExtension = (doc) => {
@@ -211,14 +213,15 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
             })}
           </div>
         ) : (
-          /* Grid Layout - 8×1 single row */
+          /* Grid Layout - 8×1 single row on desktop, 3 columns on mobile */
           <div style={{
             display: 'grid',
-            gridTemplateColumns: compact ? 'repeat(8, 48px)' : 'repeat(8, 72px)',
-            gap: compact ? '0 24px' : '0 48px',
+            gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : (compact ? 'repeat(8, 48px)' : 'repeat(8, 72px)'),
+            gap: isMobile ? '16px 12px' : (compact ? '0 24px' : '0 48px'),
             marginTop: compact ? '4px' : '8px',
             marginBottom: compact ? '12px' : '24px',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            width: isMobile ? '100%' : 'auto'
           }}>
             {displayData.map((item) => {
               const fileCount = extensionBreakdown[item.type]?.count || 0;
@@ -234,7 +237,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: '0px',
-                    width: compact ? 48 : 72,
+                    width: isMobile ? 40 : (compact ? 48 : 72),
                     opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.5 : 1),
                     transform: isHovered ? 'scale(1.08)' : 'scale(1)',
                     transition: 'opacity 0.2s ease-out, transform 0.2s ease-out',
@@ -246,8 +249,8 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                   {/* Icon Container - tighter fit */}
                   <div
                     style={{
-                      width: compact ? 48 : 72,
-                      height: compact ? 48 : 72,
+                      width: isMobile ? 40 : (compact ? 48 : 72),
+                      height: isMobile ? 40 : (compact ? 48 : 72),
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
@@ -258,8 +261,8 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                       src={item.icon}
                       alt={item.label}
                       style={{
-                        width: compact ? 48 : 72,
-                        height: compact ? 48 : 72,
+                        width: isMobile ? 40 : (compact ? 48 : 72),
+                        height: isMobile ? 40 : (compact ? 48 : 72),
                         objectFit: 'contain'
                       }}
                     />

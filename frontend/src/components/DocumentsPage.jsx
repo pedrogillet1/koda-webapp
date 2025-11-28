@@ -444,7 +444,6 @@ const DocumentsPage = () => {
           display: 'flex',
           flexDirection: 'column',
           position: 'relative',
-          paddingTop: isMobile ? '70px' : 0, // Space for hamburger button on mobile
           width: isMobile ? '100%' : 'auto'
         }}
         onDrop={handlePageDrop}
@@ -453,18 +452,19 @@ const DocumentsPage = () => {
       >
         {/* Header */}
         <div style={{
-          height: 84,
-          paddingLeft: spacing.xl,
-          paddingRight: spacing.xl,
+          height: isMobile ? 76 : 84,
+          paddingLeft: isMobile ? 70 : spacing.xl,
+          paddingRight: isMobile ? 16 : spacing.xl,
           background: colors.white,
           borderBottom: `1px solid ${colors.gray[300]}`,
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
+          justifyContent: isMobile ? 'flex-start' : 'space-between',
+          alignItems: 'center',
+          boxSizing: 'border-box'
         }}>
           <div style={{
             color: colors.gray[900],
-            fontSize: typography.sizes.xl,
+            fontSize: isMobile ? 18 : typography.sizes.xl,
             fontFamily: typography.fontFamily,
             fontWeight: typography.weights.bold,
             textTransform: 'capitalize',
@@ -785,7 +785,7 @@ const DocumentsPage = () => {
         <div style={{flex: 1, padding: spacing.xl, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: spacing.xl}}>
           {/* Smart Categories */}
           <div style={{display: 'flex', flexDirection: 'column', gap: spacing.md}}>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: spacing.md}}>
+            <div style={{display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gridTemplateColumns: isMobile ? undefined : 'repeat(5, 1fr)', gap: spacing.md}}>
               <div onClick={() => setIsModalOpen(true)} style={{
                 padding: `${spacing.lg}px`,
                 background: colors.white,
@@ -1091,7 +1091,8 @@ const DocumentsPage = () => {
 
               return recentItems.length > 0 ? (
               <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-                {/* Table Header */}
+                {/* Table Header - Hidden on mobile */}
+                {!isMobile && (
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
@@ -1139,6 +1140,7 @@ const DocumentsPage = () => {
                   ))}
                   <div></div>
                 </div>
+                )}
                 {recentItems.map((item) => {
                   // If it's a folder, render folder
                   if (item.isFolder) {
@@ -1146,7 +1148,17 @@ const DocumentsPage = () => {
                       <div
                         key={item.id}
                         onClick={() => navigate(`/folder/${item.id}`)}
-                        style={{
+                        style={isMobile ? {
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 14,
+                          padding: 14,
+                          borderRadius: 14,
+                          background: '#F5F5F5',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          marginBottom: 8
+                        } : {
                           display: 'grid',
                           gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
                           gap: 16,
@@ -1170,16 +1182,32 @@ const DocumentsPage = () => {
                           e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
-                        <div style={{display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden'}}>
-                          <img src={folderIcon} alt="Folder" style={{width: 40, height: 40, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
-                          <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
-                            {item.name}
-                          </div>
-                        </div>
-                        <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>Folder</div>
-                        <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{item.fileCount || 0} items</div>
-                        <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{new Date(item.createdAt).toLocaleDateString()}</div>
-                        <div></div>
+                        {isMobile ? (
+                          <>
+                            <img src={folderIcon} alt="Folder" style={{width: 48, height: 48, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
+                            <div style={{flex: 1, overflow: 'hidden'}}>
+                              <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                                {item.name}
+                              </div>
+                              <div style={{color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 5}}>
+                                {item.fileCount || 0} items
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden'}}>
+                              <img src={folderIcon} alt="Folder" style={{width: 40, height: 40, flexShrink: 0, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
+                              <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                                {item.name}
+                              </div>
+                            </div>
+                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>Folder</div>
+                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{item.fileCount || 0} items</div>
+                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{new Date(item.createdAt).toLocaleDateString()}</div>
+                            <div></div>
+                          </>
+                        )}
                       </div>
                     );
                   }
@@ -1298,7 +1326,7 @@ const DocumentsPage = () => {
                   return (
                     <div
                       key={doc.id}
-                      draggable
+                      draggable={!isMobile}
                       onDragStart={(e) => {
                         // If in select mode and this doc is selected, drag all selected docs
                         if (isSelectMode && isSelected(doc.id)) {
@@ -1325,7 +1353,17 @@ const DocumentsPage = () => {
                           navigate(`/document/${doc.id}`);
                         }
                       }}
-                      style={{
+                      style={isMobile ? {
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 14,
+                        padding: 14,
+                        borderRadius: 14,
+                        background: isSelectMode && isSelected(doc.id) ? '#E8E8EC' : '#F5F5F5',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        marginBottom: 8
+                      } : {
                         display: 'grid',
                         gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
                         gap: 16,
@@ -1339,6 +1377,7 @@ const DocumentsPage = () => {
                         transform: 'translateY(0)'
                       }}
                       onMouseEnter={(e) => {
+                        if (isMobile) return;
                         if (isSelectMode && isSelected(doc.id)) {
                           e.currentTarget.style.background = '#E8E8EC';
                         } else {
@@ -1348,63 +1387,105 @@ const DocumentsPage = () => {
                         e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                       }}
                       onMouseLeave={(e) => {
+                        if (isMobile) return;
                         e.currentTarget.style.background = isSelectMode && isSelected(doc.id) ? '#F3F3F5' : 'white';
                         e.currentTarget.style.transform = 'translateY(0)';
                         e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
-                      {/* Name Column */}
-                      <div style={{display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden'}}>
-                        <img
-                          src={getFileIcon(doc)}
-                          alt="File icon"
-                          style={{
-                            width: 40,
-                            height: 40,
-                            flexShrink: 0,
-                            imageRendering: '-webkit-optimize-contrast',
-                            objectFit: 'contain',
-                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
-                          }}
-                        />
-                        <div style={{
-                          color: '#32302C',
-                          fontSize: 14,
-                          fontFamily: 'Plus Jakarta Sans',
-                          fontWeight: '600',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {doc.filename}
-                        </div>
-                      </div>
-                      {/* Type Column */}
-                      <div style={{
-                        color: '#6C6B6E',
-                        fontSize: 13,
-                        fontFamily: 'Plus Jakarta Sans'
-                      }}>
-                        {getFileType(doc)}
-                      </div>
-                      {/* Size Column */}
-                      <div style={{
-                        color: '#6C6B6E',
-                        fontSize: 13,
-                        fontFamily: 'Plus Jakarta Sans'
-                      }}>
-                        {formatBytes(doc.fileSize)}
-                      </div>
-                      {/* Date Column */}
-                      <div style={{
-                        color: '#6C6B6E',
-                        fontSize: 13,
-                        fontFamily: 'Plus Jakarta Sans'
-                      }}>
-                        {new Date(doc.createdAt).toLocaleDateString()}
-                      </div>
-                      {/* Actions Column */}
-                      {!isSelectMode && <div style={{position: 'relative'}} data-dropdown>
+                      {isMobile ? (
+                        <>
+                          <img
+                            src={getFileIcon(doc)}
+                            alt="File icon"
+                            style={{
+                              width: 48,
+                              height: 48,
+                              flexShrink: 0,
+                              imageRendering: '-webkit-optimize-contrast',
+                              objectFit: 'contain',
+                              filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
+                            }}
+                          />
+                          <div style={{flex: 1, overflow: 'hidden'}}>
+                            <div style={{
+                              color: '#32302C',
+                              fontSize: 14,
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '600',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {doc.filename}
+                            </div>
+                            <div style={{
+                              color: '#6C6B6E',
+                              fontSize: 12,
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '500',
+                              marginTop: 5
+                            }}>
+                              {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Name Column */}
+                          <div style={{display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden'}}>
+                            <img
+                              src={getFileIcon(doc)}
+                              alt="File icon"
+                              style={{
+                                width: 40,
+                                height: 40,
+                                flexShrink: 0,
+                                imageRendering: '-webkit-optimize-contrast',
+                                objectFit: 'contain',
+                                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
+                              }}
+                            />
+                            <div style={{
+                              color: '#32302C',
+                              fontSize: 14,
+                              fontFamily: 'Plus Jakarta Sans',
+                              fontWeight: '600',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {doc.filename}
+                            </div>
+                          </div>
+                          {/* Type Column */}
+                          <div style={{
+                            color: '#6C6B6E',
+                            fontSize: 13,
+                            fontFamily: 'Plus Jakarta Sans'
+                          }}>
+                            {getFileType(doc)}
+                          </div>
+                          {/* Size Column */}
+                          <div style={{
+                            color: '#6C6B6E',
+                            fontSize: 13,
+                            fontFamily: 'Plus Jakarta Sans'
+                          }}>
+                            {formatBytes(doc.fileSize)}
+                          </div>
+                          {/* Date Column */}
+                          <div style={{
+                            color: '#6C6B6E',
+                            fontSize: 13,
+                            fontFamily: 'Plus Jakarta Sans'
+                          }}>
+                            {new Date(doc.createdAt).toLocaleDateString()}
+                          </div>
+                        </>
+                      )}
+                      {/* Actions Column - Hidden on mobile */}
+                      {!isSelectMode && !isMobile && <div style={{position: 'relative'}} data-dropdown>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
