@@ -162,10 +162,7 @@ const Settings = () => {
   // Notifications popup
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
 
-  // Sorting state for Recently Added table
-  const [sortColumn, setSortColumn] = useState('date'); // 'name', 'type', 'size', 'date'
-  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' or 'desc'
-
+  
   // Load notification preferences from localStorage
   useEffect(() => {
     const savedPreferences = localStorage.getItem('notificationPreferences');
@@ -361,6 +358,9 @@ const Settings = () => {
     return 'U';
   };
 
+  // Helper to capitalize first letter of a string
+  const capitalizeFirst = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
@@ -547,33 +547,13 @@ const Settings = () => {
     return ext || 'File';
   };
 
-  // Get 12 most recent documents with sorting (only root-level documents, not in folders)
+  // Get 5 most recent documents (only root-level documents, not in folders)
   // Check both folderId (scalar) and folder (relation object) for robustness
   const recentDocuments = documents
     .filter(doc => !doc.folderId && !doc.folder)
     .slice()
-    .sort((a, b) => {
-      let comparison = 0;
-
-      switch (sortColumn) {
-        case 'name':
-          comparison = (a.filename || '').localeCompare(b.filename || '');
-          break;
-        case 'type':
-          comparison = getFileTypeForSort(a).localeCompare(getFileTypeForSort(b));
-          break;
-        case 'size':
-          comparison = (a.fileSize || 0) - (b.fileSize || 0);
-          break;
-        case 'date':
-        default:
-          comparison = new Date(a.createdAt) - new Date(b.createdAt);
-          break;
-      }
-
-      return sortDirection === 'asc' ? comparison : -comparison;
-    })
-    .slice(0, 12);
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 5);
 
   const storagePercentage = (totalStorage / storageLimit) * 100;
 
@@ -683,18 +663,18 @@ const Settings = () => {
             <div
               onClick={() => setIsExpanded(false)}
               style={{
-                width: 32,
-                height: 32,
+                width: 44,
+                height: 44,
                 background: 'transparent',
-                borderRadius: 8,
+                borderRadius: 12,
                 justifyContent: 'center',
                 alignItems: 'center',
                 display: 'flex',
                 cursor: 'pointer',
-                transition: 'background 0.2s ease'
+                transition: 'background 0.2s ease, transform 0.15s ease'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
             >
               <ExpandIcon style={{ width: 20, height: 20, transform: 'rotate(180deg)' }} />
             </div>
@@ -725,7 +705,7 @@ const Settings = () => {
         )}
 
         <div style={{ alignSelf: 'stretch', flex: '1 1 0', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', display: 'flex' }}>
-          <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
+          <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: isExpanded ? 'flex-start' : 'center', display: 'flex', gap: isExpanded ? 0 : 12 }}>
             {/* General */}
             {isExpanded ? (
               <div
@@ -747,10 +727,10 @@ const Settings = () => {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <LayersIcon style={{ width: 16, height: 16 }} />
+                  <LayersIcon style={{ width: 20, height: 20 }} />
                   <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>General</div>
                 </div>
-                <Right3Icon style={{ width: 16, height: 16 }} />
+                <Right3Icon style={{ width: 20, height: 20 }} />
               </div>
             ) : (
               <div
@@ -764,8 +744,7 @@ const Settings = () => {
                   cursor: 'pointer',
                   background: activeSection === 'general' ? '#F5F5F5' : 'transparent',
                   borderRadius: 12,
-                  transition: 'background 0.2s ease-in-out, transform 0.15s ease',
-                  alignSelf: 'center'
+                  transition: 'background 0.2s ease-in-out, transform 0.15s ease'
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; if (activeSection !== 'general') e.currentTarget.style.background = '#F5F5F5'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (activeSection !== 'general') e.currentTarget.style.background = 'transparent'; }}
@@ -795,10 +774,10 @@ const Settings = () => {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <UserIcon style={{ width: 16, height: 16 }} />
+                  <UserIcon style={{ width: 20, height: 20 }} />
                   <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Profile</div>
                 </div>
-                <Right3Icon style={{ width: 16, height: 16 }} />
+                <Right3Icon style={{ width: 20, height: 20 }} />
               </div>
             ) : (
               <div
@@ -812,8 +791,7 @@ const Settings = () => {
                   cursor: 'pointer',
                   background: activeSection === 'profile' ? '#F5F5F5' : 'transparent',
                   borderRadius: 12,
-                  transition: 'background 0.2s ease-in-out, transform 0.15s ease',
-                  alignSelf: 'center'
+                  transition: 'background 0.2s ease-in-out, transform 0.15s ease'
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; if (activeSection !== 'profile') e.currentTarget.style.background = '#F5F5F5'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (activeSection !== 'profile') e.currentTarget.style.background = 'transparent'; }}
@@ -843,10 +821,10 @@ const Settings = () => {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <KeyIcon style={{ width: 16, height: 16 }} />
+                  <KeyIcon style={{ width: 20, height: 20 }} />
                   <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Password</div>
                 </div>
-                <Right3Icon style={{ width: 16, height: 16 }} />
+                <Right3Icon style={{ width: 20, height: 20 }} />
               </div>
             ) : (
               <div
@@ -860,8 +838,7 @@ const Settings = () => {
                   cursor: 'pointer',
                   background: activeSection === 'password' ? '#F5F5F5' : 'transparent',
                   borderRadius: 12,
-                  transition: 'background 0.2s ease-in-out, transform 0.15s ease',
-                  alignSelf: 'center'
+                  transition: 'background 0.2s ease-in-out, transform 0.15s ease'
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; if (activeSection !== 'password') e.currentTarget.style.background = '#F5F5F5'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (activeSection !== 'password') e.currentTarget.style.background = 'transparent'; }}
@@ -945,15 +922,13 @@ const Settings = () => {
               <div style={{
                 width: 56,
                 height: 56,
-                borderRadius: '50%',
-                background: '#F3F3F5',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#181818',
-                fontSize: 28,
+                fontSize: 42,
                 fontFamily: 'Plus Jakarta Sans',
-                fontWeight: '700'
+                fontWeight: '700',
+                color: '#181818'
               }}>
                 {user ? getInitials(user) : 'U'}
               </div>
@@ -961,8 +936,8 @@ const Settings = () => {
             <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 6, display: 'flex' }}>
               <div style={{ color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '28px' }}>
                 {user && (user.firstName || user.lastName)
-                  ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
-                  : user?.email.split('@')[0] || 'User'}
+                  ? `${capitalizeFirst(user.firstName) || ''} ${capitalizeFirst(user.lastName) || ''}`.trim()
+                  : capitalizeFirst(user?.email.split('@')[0]) || 'User'}
               </div>
               <div style={{ color: '#6C6B6E', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>
                 {user ? user.email : 'Loading...'}
@@ -974,7 +949,7 @@ const Settings = () => {
           <div style={{ alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'stretch', gap: isMobile ? 12 : 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
             {/* Beta Access */}
             <div style={{ flex: '1 1 0', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 16, border: '1px #E6E6EC solid', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 8 : 12, display: 'flex' }}>
-              <img src={crownIcon} alt="Crown" style={{ width: 100, height: 80, objectFit: 'contain' }} />
+              <img src={crownIcon} alt="Crown" style={{ width: 100, height: 80, objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))' }} />
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 4 : 8, display: 'flex' }}>
                 <div style={{ color: '#32302C', fontSize: isMobile ? 24 : 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: isMobile ? '32px' : '40px' }}>Beta Access</div>
                 <div style={{ color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>
@@ -1083,12 +1058,12 @@ const Settings = () => {
           {/* File Breakdown and Recently Added - Row 3 */}
           <div style={{ alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'stretch', gap: isMobile ? 12 : 24, display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
             {/* File Breakdown */}
-            <div style={{ flex: '1 1 0', height: isMobile ? 'auto' : 480, display: 'flex' }}>
+            <div style={{ flex: '1 1 0', height: isMobile ? 'auto' : 520, display: 'flex' }}>
               <FileBreakdownDonut showEncryptionMessage={false} compact={true} semicircle={true} style={{ flex: 1, height: '100%' }} />
             </div>
 
             {/* Recently Added */}
-            <div style={{ flex: '1 1 0', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 16, border: '1px #E6E6EC solid', height: isMobile ? 'auto' : 480, flexDirection: 'column', display: 'flex' }}>
+            <div style={{ flex: '1 1 0', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 16, border: '1px #E6E6EC solid', height: isMobile ? 'auto' : 520, flexDirection: 'column', display: 'flex' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24 }}>
                 <div style={{ color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700' }}>Recently Added</div>
                 <button
@@ -1119,8 +1094,8 @@ const Settings = () => {
               </div>
 
               {recentDocuments.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {/* Table Header */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+                  {/* Table Header - Static, no sorting */}
                   {!isMobile && (
                     <div style={{
                       display: 'grid',
@@ -1128,45 +1103,12 @@ const Settings = () => {
                       gap: 12,
                       padding: '10px 14px',
                       borderBottom: '1px solid #E6E6EC',
-                      marginBottom: 8
+                      marginBottom: 4
                     }}>
-                      {[
-                        { key: 'name', label: 'Name' },
-                        { key: 'type', label: 'Type' },
-                        { key: 'size', label: 'Size' },
-                        { key: 'date', label: 'Date' }
-                      ].map(col => (
-                        <div
-                          key={col.key}
-                          onClick={() => {
-                            if (sortColumn === col.key) {
-                              setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                            } else {
-                              setSortColumn(col.key);
-                              setSortDirection('asc');
-                            }
-                          }}
-                          style={{
-                            color: sortColumn === col.key ? '#171717' : '#6C6B6E',
-                            fontSize: 11,
-                            fontFamily: 'Plus Jakarta Sans',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            userSelect: 'none'
-                          }}
-                        >
-                          {col.label}
-                          {sortColumn === col.key && (
-                            <span style={{ fontSize: 10 }}>
-                              {sortDirection === 'asc' ? '▲' : '▼'}
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>Name</div>
+                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>Type</div>
+                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>Size</div>
+                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>Date</div>
                     </div>
                   )}
                   {recentDocuments.map((doc) => (
@@ -1178,10 +1120,11 @@ const Settings = () => {
                         alignItems: 'center',
                         gap: 12,
                         padding: 12,
-                        borderRadius: 12,
-                        background: '#F5F5F5',
+                        borderRadius: 10,
+                        background: 'white',
+                        border: '1px solid #E6E6EC',
                         cursor: 'pointer',
-                        transition: 'background 0.2s ease'
+                        transition: 'all 0.2s ease'
                       } : {
                         display: 'grid',
                         gridTemplateColumns: '2fr 1fr 1fr 1fr',
@@ -1192,54 +1135,41 @@ const Settings = () => {
                         background: 'white',
                         border: '1px solid #E6E6EC',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        marginBottom: 0
+                        transition: 'all 0.2s ease'
                       }}
                       onMouseEnter={(e) => {
-                        if (!isMobile) {
-                          e.currentTarget.style.background = '#F7F7F9';
-                          e.currentTarget.style.transform = 'translateY(-2px)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
-                        } else {
-                          e.currentTarget.style.background = '#E6E6EC';
-                        }
+                        e.currentTarget.style.background = '#F7F7F9';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.06)';
                       }}
                       onMouseLeave={(e) => {
-                        if (!isMobile) {
-                          e.currentTarget.style.background = 'white';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = 'none';
-                        } else {
-                          e.currentTarget.style.background = '#F5F5F5';
-                        }
+                        e.currentTarget.style.background = 'white';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
                       {isMobile ? (
                         <>
-                          <img src={getFileIcon(doc)} alt="File icon" style={{ width: 40, height: 40, aspectRatio: '1/1', filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))' }} />
+                          <img src={getFileIcon(doc)} alt="File icon" style={{ width: 40, height: 40, flexShrink: 0, objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))' }} />
                           <div style={{ flex: 1, overflow: 'hidden' }}>
                             <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {doc.filename}
                             </div>
-                            <div style={{ color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 4 }}>
+                            <div style={{ color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 2 }}>
                               {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
                             </div>
                           </div>
                         </>
                       ) : (
                         <>
-                          {/* Name Column */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
-                            <img src={getFileIcon(doc)} alt="File icon" style={{ width: 40, height: 40, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))' }} />
+                            <img src={getFileIcon(doc)} alt="File icon" style={{ width: 40, height: 40, flexShrink: 0, objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))' }} />
                             <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {doc.filename}
                             </div>
                           </div>
-                          {/* Type Column */}
                           <div style={{ color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{getFileTypeDisplay(doc)}</div>
-                          {/* Size Column */}
                           <div style={{ color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{formatBytes(doc.fileSize)}</div>
-                          {/* Date Column */}
                           <div style={{ color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{new Date(doc.createdAt).toLocaleDateString()}</div>
                         </>
                       )}

@@ -2258,7 +2258,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     };
 
-    const userName = user?.firstName || 'there';
+    const capitalizeFirst = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+    const userName = capitalizeFirst(user?.firstName) || 'there';
 
     return (
         <div style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column', background: '#F4F4F6'}}>

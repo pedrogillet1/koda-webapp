@@ -558,7 +558,15 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                     padding: '20px 20px 16px',
                     borderBottom: '1px solid #E6E6EC',
                 }}>
-                    <div style={{position: 'relative'}}>
+                    <div
+                        style={{
+                            position: 'relative',
+                            transition: 'transform 0.15s ease',
+                            cursor: 'text'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                    >
                         <input
                             type="text"
                             placeholder="Search chats..."
@@ -575,7 +583,10 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                                 outline: 'none',
                                 fontSize: 14,
                                 fontFamily: 'Plus Jakarta Sans',
+                                transition: 'box-shadow 0.15s ease, border-color 0.15s ease'
                             }}
+                            onFocus={(e) => { e.target.style.boxShadow = '0 0 0 2px rgba(50, 48, 44, 0.1)'; e.target.style.borderColor = '#A2A2A7'; }}
+                            onBlur={(e) => { e.target.style.boxShadow = 'none'; e.target.style.borderColor = '#E6E6EC'; }}
                         />
                         <SearchIcon style={{
                             width: 20,
@@ -861,13 +872,33 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                         <span>New Chat</span>
                     </button>
 
-                    <div style={{position: 'relative'}}>
+                    <div
+                        style={{
+                            position: 'relative',
+                            transition: 'transform 0.15s ease',
+                            cursor: 'text'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                    >
                         <input
                             type="text"
                             placeholder="Search for conversation..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            style={{width: '100%', height: 44, padding: '10px 12px 10px 40px', background: '#F5F5F5', borderRadius: 100, border: '1px solid #E6E6EC', outline: 'none', fontSize: 14}}
+                            style={{
+                                width: '100%',
+                                height: 44,
+                                padding: '10px 12px 10px 40px',
+                                background: '#F5F5F5',
+                                borderRadius: 100,
+                                border: '1px solid #E6E6EC',
+                                outline: 'none',
+                                fontSize: 14,
+                                transition: 'box-shadow 0.15s ease, border-color 0.15s ease'
+                            }}
+                            onFocus={(e) => { e.target.style.boxShadow = '0 0 0 2px rgba(50, 48, 44, 0.1)'; e.target.style.borderColor = '#A2A2A7'; }}
+                            onBlur={(e) => { e.target.style.boxShadow = 'none'; e.target.style.borderColor = '#E6E6EC'; }}
                         />
                         <SearchIcon style={{width: 20, height: 20, color: '#32302C', position: 'absolute', left: 12, top: 12}} />
                     </div>
