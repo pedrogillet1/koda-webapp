@@ -5009,10 +5009,66 @@ Provide a comprehensive answer addressing all parts of the query.`;
         sourceType: r.metadata?.sourceType
       })));
     } else {
-      console.error('âŒ [DEBUG] NO RESULTS FROM PINECONE - This is the root cause!');
-      console.log('ðŸ” [DEBUG] Query:', query);
-      console.log('ðŸ” [DEBUG] User ID:', userId);
-      console.log('ðŸ” [DEBUG] Filter:', JSON.stringify(filter));
+      console.error('❌ [DEBUG] NO RESULTS FROM PINECONE - This is the root cause!');
+      console.log('🔍 [DEBUG] Query:', query);
+      console.log('🔍 [DEBUG] User ID:', userId);
+      console.log('🔍 [DEBUG] Filter:', JSON.stringify(filter));
+      
+      // ✅ FIX: Fallback to database when Pinecone returns no results
+      console.log('🔄 [FALLBACK] Attempting to retrieve documents directly from database...');
+      
+      try {
+        // Get all user documents from database
+        const documents = await prisma.document.findMany({
+          where: {
+            userId,
+            status: 'completed'
+          },
+          select: {
+            id: true,
+            filename: true,
+            content: true,
+            createdAt: true
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10 // Limit to 10 most recent documents
+        });
+        
+        if (documents.length > 0) {
+          console.log(`✅ [FALLBACK] Retrieved ${documents.length} documents from database`);
+          
+          // Convert documents to hybrid result format
+          hybridResults = documents
+            .filter(doc => doc.content && doc.content.trim().length > 0)
+            .map(doc => ({
+              content: doc.content || '',
+              metadata: {
+                documentId: doc.id,
+                filename: doc.filename,
+                text: doc.content || '',
+                sourceType: 'database_fallback'
+              },
+              vectorScore: 0.5, // Default score for database fallback
+              bm25Score: 0,
+              hybridScore: 0.5
+            }));
+          
+          console.log(`✅ [FALLBACK] Created ${hybridResults.length} chunks from database documents`);
+          
+          // Update rawResults for consistency
+          rawResults = {
+            matches: hybridResults.map(hr => ({
+              id: hr.metadata.documentId,
+              score: hr.hybridScore,
+              metadata: hr.metadata
+            }))
+          };
+        } else {
+          console.log('⚠️ [FALLBACK] No documents found in database either');
+        }
+      } catch (error) {
+        console.error('❌ [FALLBACK] Database retrieval failed:', error);
+      }
     }
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
