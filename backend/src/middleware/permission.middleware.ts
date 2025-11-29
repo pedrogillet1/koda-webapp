@@ -34,7 +34,7 @@ export const requirePermission = (resource: string, action: string) => {
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
           description: `Attempted to access ${resource}:${action} without permission`,
-          metadata: {
+          document_metadata: {
             resource,
             action,
             path: req.path,
@@ -80,7 +80,7 @@ export const requireAllPermissions = (permissions: Array<{ resource: string; act
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
           description: `Attempted to access endpoint requiring multiple permissions`,
-          metadata: {
+          document_metadata: {
             requiredPermissions: permissions,
             path: req.path,
             method: req.method,
@@ -122,7 +122,7 @@ export const requireAnyPermission = (permissions: Array<{ resource: string; acti
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
           description: `Attempted to access endpoint without any required permissions`,
-          metadata: {
+          document_metadata: {
             requiredPermissions: permissions,
             path: req.path,
             method: req.method,
@@ -165,7 +165,7 @@ export const requireRole = (roleName: string) => {
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
           description: `Attempted to access endpoint requiring role: ${roleName}`,
-          metadata: {
+          document_metadata: {
             requiredRole: roleName,
             userRoles: userRoles.map(ur => ur.role.name),
             path: req.path,
@@ -211,7 +211,7 @@ export const requireAnyRole = (roleNames: string[]) => {
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
           description: `Attempted to access endpoint without required roles`,
-          metadata: {
+          document_metadata: {
             requiredRoles: roleNames,
             userRoles: userRoles.map(ur => ur.role.name),
             path: req.path,

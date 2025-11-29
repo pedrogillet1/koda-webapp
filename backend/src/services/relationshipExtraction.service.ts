@@ -82,7 +82,7 @@ export type RelationType =
 export interface KnowledgeGraph {
   entities: Entity[];
   relationships: Relationship[];
-  metadata: {
+  document_metadata: {
     documentId?: string;
     extractedAt: Date;
     totalEntities: number;
@@ -479,7 +479,7 @@ export async function extractRelationships(
   const graph: KnowledgeGraph = {
     entities,
     relationships,
-    metadata: {
+    document_metadata: {
       documentId,
       extractedAt: new Date(),
       totalEntities: entities.length,
@@ -624,7 +624,7 @@ export function mergeGraphs(
   return {
     entities: mergedEntities,
     relationships: allRelationships,
-    metadata: {
+    document_metadata: {
       extractedAt: new Date(),
       totalEntities: mergedEntities.length,
       totalRelationships: allRelationships.length,
@@ -663,17 +663,17 @@ export function getGraphSummary(graph: KnowledgeGraph): string {
 
   lines.push(`Knowledge Graph Summary`);
   lines.push(`=======================`);
-  lines.push(`Total Entities: ${graph.metadata.totalEntities}`);
-  lines.push(`Total Relationships: ${graph.metadata.totalRelationships}`);
+  lines.push(`Total Entities: ${graph.document_metadata.totalEntities}`);
+  lines.push(`Total Relationships: ${graph.document_metadata.totalRelationships}`);
 
   lines.push(`\nEntity Types:`);
-  for (const [type, count] of Object.entries(graph.metadata.entityTypes)) {
+  for (const [type, count] of Object.entries(graph.document_metadata.entityTypes)) {
     lines.push(`  - ${type}: ${count}`);
   }
 
-  if (Object.keys(graph.metadata.relationshipTypes).length > 0) {
+  if (Object.keys(graph.document_metadata.relationshipTypes).length > 0) {
     lines.push(`\nRelationship Types:`);
-    for (const [type, count] of Object.entries(graph.metadata.relationshipTypes)) {
+    for (const [type, count] of Object.entries(graph.document_metadata.relationshipTypes)) {
       lines.push(`  - ${type}: ${count}`);
     }
   }

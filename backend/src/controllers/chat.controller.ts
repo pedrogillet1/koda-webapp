@@ -516,7 +516,7 @@ export const regenerateMessage = async (req: Request, res: Response) => {
     console.log('🔄 Regenerating message:', messageId);
 
     // 1. Fetch the message to regenerate
-    const message = await prisma.message.findUnique({
+    const message = await prisma.messages.findUnique({
       where: { id: messageId },
       include: {
         conversation: true,
@@ -541,7 +541,7 @@ export const regenerateMessage = async (req: Request, res: Response) => {
     }
 
     // 4. Get the previous user message (the query that triggered this response)
-    const userMessage = await prisma.message.findFirst({
+    const userMessage = await prisma.messages.findFirst({
       where: {
         conversationId: message.conversationId,
         role: 'user',
@@ -564,7 +564,7 @@ export const regenerateMessage = async (req: Request, res: Response) => {
       userMessage.content || '',
       message.conversationId,
       'medium',
-      userMessage.attachedDocumentId || undefined
+      undefined // attachedDocumentId not stored on Message
     );
 
     let fullResponse = ragResult.answer || 'Sorry, I could not generate a response.';
@@ -580,16 +580,15 @@ export const regenerateMessage = async (req: Request, res: Response) => {
     }
 
     // 6. Update the existing assistant message with new content
-    const updatedMessage = await prisma.message.update({
+    const updatedMessage = await prisma.messages.update({
       where: { id: messageId },
       data: {
         content: fullResponse,
-        updatedAt: new Date(),
       },
     });
 
     // 7. Update conversation timestamp
-    await prisma.conversation.update({
+    await prisma.conversations.update({
       where: { id: message.conversationId },
       data: { updatedAt: new Date() },
     });
@@ -622,7 +621,7 @@ export const deleteEmptyConversations = async (req: Request, res: Response) => {
     const userId = req.user!.id;
 
     // Find all conversations with 0 messages
-    const emptyConversations = await prisma.conversation.findMany({
+    const emptyConversations = await prisma.conversations.findMany({
       where: { userId },
       include: {
         _count: {
@@ -641,7 +640,7 @@ export const deleteEmptyConversations = async (req: Request, res: Response) => {
     }
 
     // Delete all empty conversations
-    await prisma.conversation.deleteMany({
+    await prisma.conversations.deleteMany({
       where: {
         id: { in: emptyIds },
         userId,  // Security: ensure user owns these conversations

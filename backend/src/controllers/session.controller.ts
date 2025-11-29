@@ -150,9 +150,9 @@ export const uploadToSession = async (req: Request, res: Response) => {
         chunkIndex: idx,
         content: emb.text,
         embedding: emb.embedding,
-        metadata: {},
+        document_metadata: {},
       })),
-      metadata: {
+      document_metadata: {
         pageCount: extractionResult.pageCount,
         wordCount: extractionResult.wordCount,
         author: metadata.author,
@@ -169,7 +169,7 @@ export const uploadToSession = async (req: Request, res: Response) => {
       success: true,
       documentId,
       filename: file.originalname,
-      metadata: {
+      document_metadata: {
         wordCount: extractionResult.wordCount,
         pageCount: extractionResult.pageCount,
         language: metadata.language,
@@ -272,10 +272,9 @@ export const compareSessionDocuments = async (req: Request, res: Response) => {
 
     // Compare documents
     const comparison = await documentComparisonService.compareDocuments(
-      documentIds,
-      userId,
-      { comparisonType },
-      sessionId
+      documentIds[0],
+      documentIds[1],
+      userId
     );
 
     res.json({
@@ -323,7 +322,7 @@ export const saveSessionToLibrary = async (req: Request, res: Response) => {
     // Save each document to permanent storage
     for (const doc of docsToSave) {
       // Create document record
-      const document = await prisma.document.create({
+      const document = await prisma.documents.create({
         data: {
           userId,
           folderId: folderId || null,
@@ -337,15 +336,15 @@ export const saveSessionToLibrary = async (req: Request, res: Response) => {
       });
 
       // Create metadata record
-      await prisma.documentMetadata.create({
+      await prisma.documentsMetadatas.create({
         data: {
           documentId: document.id,
           extractedText: doc.extractedText,
-          wordCount: doc.metadata.wordCount,
-          pageCount: doc.metadata.pageCount,
-          author: doc.metadata.author,
-          creationDate: doc.metadata.creationDate,
-          language: doc.metadata.language,
+          wordCount: doc.document_metadata.wordCount,
+          pageCount: doc.document_metadata.pageCount,
+          author: doc.document_metadata.author,
+          creationDate: doc.document_metadata.creationDate,
+          language: doc.document_metadata.language,
         },
       });
 
@@ -447,7 +446,7 @@ export const listSessionDocuments = async (req: Request, res: Response) => {
         filename: d.filename,
         fileSize: d.fileSize,
         mimeType: d.mimeType,
-        metadata: d.metadata,
+        metadata: d.document_metadata,
         uploadedAt: d.uploadedAt,
       })),
     });

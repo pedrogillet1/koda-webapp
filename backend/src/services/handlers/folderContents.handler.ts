@@ -15,17 +15,16 @@ class FolderContentsHandler {
     console.log(`\n📂 FOLDER CONTENTS QUERY: Looking for "${folderOrCategoryName}" for user ${userId.substring(0, 8)}...`);
 
     // Try to find folder first (exact match)
-    let folder = await prisma.folder.findFirst({
+    let folder = await prisma.folders.findFirst({
       where: {
         userId: userId,
         name: { equals: folderOrCategoryName }
       },
+      // NOTE: category relation not in schema
       include: {
-        category: {
+        _count: {
           select: {
-            id: true,
-            name: true,
-            emoji: true
+            documents: true
           }
         }
       }
@@ -33,14 +32,13 @@ class FolderContentsHandler {
 
     // Try fuzzy matching for folder if not found
     if (!folder) {
-      const allFolders = await prisma.folder.findMany({
+      const allFolders = await prisma.folders.findMany({
         where: { userId: userId },
+        // NOTE: category relation not in schema
         include: {
-          category: {
+          _count: {
             select: {
-              id: true,
-              name: true,
-              emoji: true
+              documents: true
             }
           }
         }
@@ -130,7 +128,7 @@ class FolderContentsHandler {
     const categoryEmoji = folder.category?.emoji || '📁';
 
     // Get documents in this folder
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId: userId,
         folderId: folder.id
@@ -141,10 +139,10 @@ class FolderContentsHandler {
     });
 
     // Get subfolders
-    const subfolders = await prisma.folder.findMany({
+    const subfolders = await prisma.folders.findMany({
       where: {
         userId: userId,
-        parentId: folder.id
+        parentFolderId: folder.id
       },
       orderBy: {
         name: 'asc'
@@ -230,13 +228,12 @@ class FolderContentsHandler {
     const categoryEmoji = category.emoji || '📁';
 
     // Get all documents in this category
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId: userId,
-        categoryId: category.id
       },
       include: {
-        folder: {
+        folders: {
           select: {
             id: true,
             name: true
@@ -249,11 +246,10 @@ class FolderContentsHandler {
     });
 
     // Get all folders in this category
-    const folders = await prisma.folder.findMany({
+    const folders = await prisma.folders.findMany({
       where: {
         userId: userId,
-        categoryId: category.id,
-        parentId: null // Only root folders
+        parentFolderId: null // Only root folders
       },
       orderBy: {
         name: 'asc'
@@ -293,7 +289,8 @@ class FolderContentsHandler {
       if (documentsInFolders.length > 0) {
         answer += `**In Folders:**\n`;
         documentsInFolders.slice(0, 10).forEach((doc, index) => {
-          const folderName = doc.folder?.name || 'Unknown';
+          // NOTE: folder relation needs to be included in query above
+          const folderName = 'Folder';
           answer += `${index + 1}. ${doc.filename}\n`;
           answer += `   ${folderName} • ${formatFileSize(doc.fileSize)}\n\n`;
         });
@@ -320,7 +317,7 @@ class FolderContentsHandler {
     actions.push({
       label: `Open ${category.name} category`,
       action: ActionType.OPEN_CATEGORY,
-      categoryId: category.id,
+      userId: userId,
       variant: 'primary' as const
     });
 

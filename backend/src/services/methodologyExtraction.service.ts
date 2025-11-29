@@ -216,7 +216,7 @@ class MethodologyExtractionService {
         const llmResults = await this.extractWithLLM(text, documentId);
         llmMethodologies = llmResults.methodologies;
         llmFrameworks = llmResults.frameworks;
-        llmMetadata = llmResults.metadata;
+        llmMetadata = llmResults.document_metadata;
 
         console.log(`   🤖 LLM extraction: ${llmMethodologies.length} methodologies, ${llmFrameworks.length} frameworks`);
       } catch (error) {
@@ -417,12 +417,12 @@ Rules:
           sourceContext: '',
           documentId,
         })),
-        metadata: parsed.metadata || {},
+        metadata: parsed.document_metadata || {},
         processingTime: 0,
       };
     } catch (error) {
       console.error('❌ [METHODOLOGY] LLM extraction error:', error);
-      return { methodologies: [], frameworks: [], metadata: {}, processingTime: 0 };
+      return { methodologies: [], frameworks: [], document_metadata: {}, processingTime: 0 };
     }
   }
 
@@ -591,7 +591,7 @@ Rules:
     const byYear = new Map<number, Map<string, number>>();
 
     for (const doc of documents) {
-      const year = doc.metadata.year;
+      const year = doc.document_metadata.year;
 
       for (const m of doc.methodologies) {
         const key = this.normalizeMethodologyName(m.name);
@@ -846,7 +846,7 @@ Rules:
 
     try {
       // Check if we already have knowledge for this methodology
-      const existing = await prisma.methodologyKnowledge.findUnique({
+      const existing = await prisma.methodology_knowledge.findUnique({
         where: {
           userId_name: {
             userId,
@@ -883,7 +883,7 @@ Rules:
           : [];
         const mergedAliases = Array.from(new Set([...existingAliases, ...(knowledge.aliases || [])]));
 
-        await prisma.methodologyKnowledge.update({
+        await prisma.methodology_knowledge.update({
           where: {
             userId_name: {
               userId,
@@ -910,7 +910,7 @@ Rules:
         console.log(`   ✅ Updated existing knowledge (now ${newSourceDocs.length} sources)`);
       } else {
         // Create new knowledge entry
-        await prisma.methodologyKnowledge.create({
+        await prisma.methodology_knowledge.create({
           data: {
             userId,
             name: normalizedName,
@@ -982,7 +982,7 @@ Rules:
 
     try {
       // Try exact match first
-      let knowledge = await prisma.methodologyKnowledge.findUnique({
+      let knowledge = await prisma.methodology_knowledge.findUnique({
         where: {
           userId_name: {
             userId,
@@ -993,7 +993,7 @@ Rules:
 
       // If not found, try partial match on name or aliases
       if (!knowledge) {
-        const allKnowledge = await prisma.methodologyKnowledge.findMany({
+        const allKnowledge = await prisma.methodology_knowledge.findMany({
           where: { userId },
         });
 
@@ -1022,7 +1022,7 @@ Rules:
       }
 
       // Update access count
-      await prisma.methodologyKnowledge.update({
+      await prisma.methodology_knowledge.update({
         where: { id: knowledge.id },
         data: {
           lastAccessedAt: new Date(),
@@ -1113,7 +1113,7 @@ Rules:
    */
   async getAllMethodologyKnowledge(userId: string): Promise<MethodologyKnowledge[]> {
     try {
-      const allKnowledge = await prisma.methodologyKnowledge.findMany({
+      const allKnowledge = await prisma.methodology_knowledge.findMany({
         where: { userId },
         orderBy: [
           { documentCount: 'desc' },

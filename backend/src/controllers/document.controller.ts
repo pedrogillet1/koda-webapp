@@ -552,7 +552,7 @@ export const updateEncryptionMetadata = async (req: Request, res: Response): Pro
     const prisma = (await import('../config/database')).default;
 
     // Verify document belongs to user
-    const document = await prisma.document.findUnique({
+    const document = await prisma.documents.findUnique({
       where: { id },
       select: { userId: true, id: true }
     });
@@ -568,7 +568,7 @@ export const updateEncryptionMetadata = async (req: Request, res: Response): Pro
     }
 
     // Update document with encryption metadata
-    const updatedDocument = await prisma.document.update({
+    const updatedDocument = await prisma.documents.update({
       where: { id },
       data: {
         isEncrypted: isEncrypted || false,
@@ -620,7 +620,7 @@ export const updateMarkdown = async (req: Request, res: Response): Promise<void>
     const prisma = (await import('../config/database')).default;
 
     // Verify document belongs to user
-    const document = await prisma.document.findUnique({
+    const document = await prisma.documents.findUnique({
       where: { id },
       select: { userId: true, id: true }
     });
@@ -636,7 +636,7 @@ export const updateMarkdown = async (req: Request, res: Response): Promise<void>
     }
 
     // Update markdown content in metadata
-    const updatedMetadata = await prisma.documentMetadata.upsert({
+    const updatedMetadata = await prisma.documentsMetadatas.upsert({
       where: { documentId: id },
       update: { markdownContent },
       create: {
@@ -832,7 +832,7 @@ export const shareDocument = async (req: Request, res: Response): Promise<void> 
 
     // Get document and user info
     const prisma = (await import('../config/database')).default;
-    const document = await prisma.document.findUnique({
+    const document = await prisma.documents.findUnique({
       where: { id },
     });
 
@@ -846,7 +846,7 @@ export const shareDocument = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: req.user.id },
       select: { firstName: true, lastName: true, email: true }
     });
@@ -941,10 +941,10 @@ export const searchInDocument = async (req: Request, res: Response): Promise<voi
     const prisma = (await import('../config/database')).default;
 
     // Get document with metadata
-    const document = await prisma.document.findUnique({
+    const document = await prisma.documents.findUnique({
       where: { id },
       include: {
-        metadata: true,
+        document_metadata: true,
       },
     });
 
@@ -960,8 +960,8 @@ export const searchInDocument = async (req: Request, res: Response): Promise<voi
 
     // Get extracted text from metadata
     let extractedText = '';
-    if (document.metadata) {
-      extractedText = document.metadata.extractedText || '';
+    if (document.document_metadata) {
+      extractedText = document.document_metadata.extractedText || '';
     }
 
     if (!extractedText) {
@@ -1032,10 +1032,10 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
     const prisma = (await import('../config/database')).default;
 
     // Get document with metadata
-    const document = await prisma.document.findUnique({
+    const document = await prisma.documents.findUnique({
       where: { id },
       include: {
-        metadata: true,
+        document_metadata: true,
       },
     });
 
@@ -1057,15 +1057,15 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
     }
 
     // Get slides data from metadata (stored as JSON string)
-    console.log('📊 Raw slidesData from DB:', document.metadata?.slidesData);
-    console.log('📊 Raw pptxMetadata from DB:', document.metadata?.pptxMetadata);
+    console.log('📊 Raw slidesData from DB:', document.document_metadata?.slidesData);
+    console.log('📊 Raw pptxMetadata from DB:', document.document_metadata?.pptxMetadata);
 
     let slidesData: any[] = [];
     try {
-      if (document.metadata?.slidesData) {
-        slidesData = typeof document.metadata.slidesData === 'string'
-          ? JSON.parse(document.metadata.slidesData as string)
-          : document.metadata.slidesData as any[];
+      if (document.document_metadata?.slidesData) {
+        slidesData = typeof document.document_metadata.slidesData === 'string'
+          ? JSON.parse(document.document_metadata.slidesData as string)
+          : document.document_metadata.slidesData as any[];
       }
     } catch (error) {
       console.error('❌ Failed to parse slidesData:', error);
@@ -1074,10 +1074,10 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
     // Parse pptxMetadata if it's a string
     let pptxMetadata: any = {};
     try {
-      if (document.metadata?.pptxMetadata) {
-        pptxMetadata = typeof document.metadata.pptxMetadata === 'string'
-          ? JSON.parse(document.metadata.pptxMetadata as string)
-          : document.metadata.pptxMetadata;
+      if (document.document_metadata?.pptxMetadata) {
+        pptxMetadata = typeof document.document_metadata.pptxMetadata === 'string'
+          ? JSON.parse(document.document_metadata.pptxMetadata as string)
+          : document.document_metadata.pptxMetadata;
       }
     } catch (error) {
       console.error('❌ Failed to parse pptxMetadata:', error);
@@ -1212,10 +1212,10 @@ export const exportDocument = async (req: Request, res: Response): Promise<void>
     const prisma = (await import('../config/database')).default;
 
     // Get document with metadata
-    const document = await prisma.document.findUnique({
+    const document = await prisma.documents.findUnique({
       where: { id },
       include: {
-        metadata: true,
+        document_metadata: true,
       },
     });
 
@@ -1229,7 +1229,7 @@ export const exportDocument = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const markdownContent = document.metadata?.markdownContent || '';
+    const markdownContent = document.document_metadata?.markdownContent || '';
 
     if (!markdownContent) {
       res.status(400).json({ error: 'No markdown content available for export' });
@@ -1328,13 +1328,13 @@ export const reindexAllDocuments = async (req: Request, res: Response): Promise<
     const vectorEmbeddingService = (await import('../services/vectorEmbedding.service')).default;
 
     // Get all completed documents with extracted text
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId,
         status: 'completed'
       },
       include: {
-        metadata: true
+        document_metadata: true
       }
     });
 
@@ -1348,7 +1348,7 @@ export const reindexAllDocuments = async (req: Request, res: Response): Promise<
     for (const doc of documents) {
       try {
         // Skip documents without extracted text
-        if (!doc.metadata?.extractedText) {
+        if (!doc.document_metadata?.extractedText) {
           console.log(`⏭️  Skipping "${doc.filename}" - no extracted text`);
           skippedCount++;
           continue;
@@ -1356,18 +1356,18 @@ export const reindexAllDocuments = async (req: Request, res: Response): Promise<
 
         console.log(`\n🔄 Processing: "${doc.filename}"`);
         console.log(`   Document ID: ${doc.id.substring(0, 8)}...`);
-        console.log(`   Text length: ${doc.metadata.extractedText.length.toLocaleString()} characters`);
+        console.log(`   Text length: ${doc.document_metadata.extractedText.length.toLocaleString()} characters`);
 
         // Chunk the document using simple chunking
-        const docChunks = documentChunkingService.chunkText(doc.metadata.extractedText);
+        const docChunks = documentChunkingService.chunkText(doc.document_metadata.extractedText);
         console.log(`   Chunks created: ${docChunks.length}`);
 
         // Convert to format expected by vector embedding service
         const chunks = docChunks.map((chunk, index) => ({
           content: chunk,
-          metadata: {
+          document_metadata: {
             startChar: index * 500,
-            endChar: Math.min((index + 1) * 500, doc.metadata.extractedText.length)
+            endChar: Math.min((index + 1) * 500, doc.document_metadata.extractedText.length)
           }
         }));
 
@@ -1446,7 +1446,7 @@ export const getDocumentProgress = async (req: Request, res: Response): Promise<
     const progressData = await redisConnection.get(`progress:${documentId}`);
 
     if (progressData) {
-      const progress = JSON.parse(progressData);
+      const progress = JSON.parse(progressData as string);
       res.status(200).json(progress);
     } else {
       // No progress data in Redis - return status-based progress

@@ -164,8 +164,8 @@ export async function updateMemory(
     data: {
       ...(updates.content !== undefined && { content: updates.content }),
       ...(updates.importance !== undefined && { importance: updates.importance }),
-      ...(updates.metadata !== undefined && {
-        metadata: updates.metadata ? JSON.parse(JSON.stringify(updates.metadata)) : null
+      ...(updates.document_metadata !== undefined && {
+        metadata: updates.document_metadata ? JSON.parse(JSON.stringify(updates.document_metadata)) : null
       }),
     },
   });

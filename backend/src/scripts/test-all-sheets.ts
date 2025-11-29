@@ -36,8 +36,8 @@ async function testAllSheets() {
       console.log(`✅ Found ${results.length} results:\n`);
 
       results.forEach((result, idx) => {
-        const sheetInfo = result.metadata.sheet ? `Sheet: ${result.metadata.sheet}` : 'No sheet metadata';
-        const rowInfo = result.metadata.row ? `Row: ${result.metadata.row}` : '';
+        const sheetInfo = result.document_metadata.sheet ? `Sheet: ${result.document_metadata.sheet}` : 'No sheet metadata';
+        const rowInfo = result.document_metadata.row ? `Row: ${result.document_metadata.row}` : '';
         console.log(`${idx + 1}. ${sheetInfo} ${rowInfo}`);
         console.log(`   Similarity: ${result.similarity.toFixed(4)}`);
         console.log(`   Content: ${result.content.substring(0, 100)}...`);
@@ -47,7 +47,7 @@ async function testAllSheets() {
       // Find the B2 cell specifically
       const b2Result = results.find(r =>
         r.content.includes('B2:') &&
-        (r.metadata.row === 2 || r.content.includes('Row 2:'))
+        (r.document_metadata.row === 2 || r.content.includes('Row 2:'))
       );
 
       if (b2Result) {

@@ -1,16 +1,25 @@
 /** Backup Encryption Service - Minimal Stub (Non-MVP) */
 class BackupEncryptionService {
-  async createEncryptedBackup(userId: string) {
+  async createEncryptedBackup(_userId: string) {
     // Stub: Would create encrypted backup
     return { success: true, backupId: '', location: '' };
   }
-  async restoreFromBackup(backupId: string) {
+  async restoreFromBackup(_backupId: string) {
     // Stub: Would restore from encrypted backup
     return { success: true };
   }
-  async verifyBackup(backupId: string) {
+  async verifyBackup(_backupId: string) {
     // Stub: Would verify encrypted backup
     return { valid: true };
+  }
+  async createBackup(_userId: string, _options?: any) {
+    return { success: true, backupId: '', location: '', error: null as string | null, document_metadata: {} };
+  }
+  async listBackups(_userId?: string) {
+    return [];
+  }
+  async getBackupStats(_userId?: string) {
+    return { totalBackups: 0, totalSize: 0, lastBackup: null };
   }
 }
 

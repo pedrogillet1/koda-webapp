@@ -31,7 +31,7 @@ class HierarchyQueryHandler {
     });
 
     // Get all root folders (no parent)
-    const rootFolders = await prisma.folder.findMany({
+    const rootFolders = await prisma.folders.findMany({
       where: {
         userId: userId,
         parentId: null
@@ -55,7 +55,7 @@ class HierarchyQueryHandler {
     });
 
     // Get total document count
-    const totalDocuments = await prisma.document.count({
+    const totalDocuments = await prisma.documents.count({
       where: { userId: userId }
     });
 
@@ -171,7 +171,7 @@ class HierarchyQueryHandler {
    * Get detailed folder tree for a specific folder
    */
   async getFolderTree(folderId: string, userId: string, depth: number = 2): Promise<any> {
-    const folder = await prisma.folder.findUnique({
+    const folder = await prisma.folders.findUnique({
       where: { id: folderId },
       include: {
         category: true,
@@ -199,7 +199,7 @@ class HierarchyQueryHandler {
 
     // Recursively get subfolders if depth > 0
     if (depth > 0 && folder._count.subfolders > 0) {
-      const subfolders = await prisma.folder.findMany({
+      const subfolders = await prisma.folders.findMany({
         where: {
           parentId: folderId,
           userId: userId

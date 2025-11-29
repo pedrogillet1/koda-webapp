@@ -45,7 +45,7 @@ export const googleOAuth = async ({
   console.log('🔐 Google OAuth login:', email);
 
   // Find or create user
-  let user = await prisma.user.findUnique({
+  let user = await prisma.users.findUnique({
     where: { email: email.toLowerCase() },
   });
 
@@ -58,7 +58,7 @@ export const googleOAuth = async ({
     const lastName = nameParts.slice(1).join(' ') || null;
 
     // Create new user (OAuth users don't have passwords)
-    user = await prisma.user.create({
+    user = await prisma.users.create({
       data: {
         email: email.toLowerCase(),
         firstName,
@@ -76,7 +76,7 @@ export const googleOAuth = async ({
   } else {
     // Update googleId if not set
     if (!user.googleId) {
-      await prisma.user.update({
+      await prisma.users.update({
         where: { id: user.id },
         data: { googleId: id },
       });
@@ -142,7 +142,7 @@ export const appleOAuth = async ({
   console.log('🔐 Apple OAuth verified:', email);
 
   // Find or create user
-  let user = await prisma.user.findFirst({
+  let user = await prisma.users.findFirst({
     where: {
       OR: [
         { email: email.toLowerCase() },
@@ -157,7 +157,7 @@ export const appleOAuth = async ({
     const firstName = appleUser?.name?.firstName || null;
     const lastName = appleUser?.name?.lastName || null;
 
-    user = await prisma.user.create({
+    user = await prisma.users.create({
       data: {
         email: email.toLowerCase(),
         firstName,
@@ -175,7 +175,7 @@ export const appleOAuth = async ({
   } else {
     // Update appleId if not set
     if (!user.appleId) {
-      await prisma.user.update({
+      await prisma.users.update({
         where: { id: user.id },
         data: { appleId },
       });

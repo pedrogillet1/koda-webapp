@@ -25,7 +25,7 @@ export interface SessionDocument {
     embedding: number[];
     metadata: any;
   }>;
-  metadata: {
+  document_metadata: {
     pageCount?: number;
     wordCount?: number;
     author?: string;
@@ -259,7 +259,7 @@ class SessionStorageService {
             chunkIndex: chunk.chunkIndex,
             content: chunk.content,
             similarity,
-            metadata: chunk.metadata,
+            metadata: chunk.document_metadata,
           });
         }
       }
@@ -390,9 +390,9 @@ class SessionStorageService {
 
     for (const doc of documents) {
       stats.totalChunks += doc.chunks.length;
-      stats.totalWords += doc.metadata.wordCount || 0;
+      stats.totalWords += doc.document_metadata.wordCount || 0;
 
-      const fileType = doc.metadata.fileType;
+      const fileType = doc.document_metadata.fileType;
       stats.fileTypes[fileType] = (stats.fileTypes[fileType] || 0) + 1;
     }
 

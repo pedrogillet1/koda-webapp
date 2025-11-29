@@ -17,14 +17,40 @@ export enum ThreatLevel {
 }
 
 class SecurityMonitoringService {
-  async logEvent(event: string, data: any) { return true; }
+  async logEvent(_event: string, _data: any) { return true; }
   async getEvents() { return []; }
-  async recordSecurityEvent(data: any) { return true; }
-  async getRecentSecurityEvents(limit?: number) { return []; }
-  async getSecurityMetrics() { return {}; }
-  async detectBruteForce(userId: string) { return false; }
-  async detectMassDownload(userId: string) { return false; }
-  async detectSuspiciousIP(ip: string) { return false; }
-  async detectUnauthorizedAccess(userId: string, resource: string) { return false; }
+  async recordSecurityEvent(_data: any) { return true; }
+  async getRecentSecurityEvents(_limit?: number) { return []; }
+  async getSecurityMetrics(_hours?: number) { return {}; }
+  async detectBruteForce(_userId: string, _ipAddress?: string) {
+    return { detected: false, threatLevel: ThreatLevel.LOW };
+  }
+  async detectMassDownload(_userId: string, _ipAddress?: string) {
+    return { detected: false, threatLevel: ThreatLevel.LOW };
+  }
+  async detectSuspiciousIP(_ip: string) {
+    return { detected: false, threatLevel: ThreatLevel.LOW };
+  }
+  async detectUnauthorizedAccess(_userId: string, _resource?: string) {
+    return { detected: false, threatLevel: ThreatLevel.LOW };
+  }
+  async addToBlacklist(_ip: string, _reason: string, _durationHours?: number) {
+    return { success: true };
+  }
+  async removeFromBlacklist(_ip: string) {
+    return { success: true };
+  }
+  async getBlacklist() {
+    return [];
+  }
+  async getSuspiciousLogins(_userId: string, _limit?: number) {
+    return [];
+  }
+  async getSecurityScoreForUser(_userId: string) {
+    return { score: 100, factors: [] };
+  }
+  async getSecurityAlerts(_userId?: string) {
+    return [];
+  }
 }
 export default new SecurityMonitoringService();

@@ -107,11 +107,11 @@ export async function semanticSearch(params: SemanticSearchParams): Promise<Sear
   const documentScores = new Map<string, { score: number; content: string }>();
 
   for (const match of relevantMatches) {
-    const docId = match.metadata?.documentId;
+    const docId = match.document_metadata?.documentId;
     if (!docId) continue;
 
     const score = match.score || 0;
-    const content = match.metadata?.content || match.metadata?.text || '';
+    const content = match.document_metadata?.content || match.document_metadata?.text || '';
 
     const existing = documentScores.get(docId);
     if (!existing || score > existing.score) {
@@ -128,7 +128,7 @@ export async function semanticSearch(params: SemanticSearchParams): Promise<Sear
 
   const documentIds = Array.from(documentScores.keys());
 
-  const documents = await prisma.document.findMany({
+  const documents = await prisma.documents.findMany({
     where: {
       id: { in: documentIds },
       userId: userId,

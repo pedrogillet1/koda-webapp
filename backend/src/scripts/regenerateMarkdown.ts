@@ -22,7 +22,7 @@ interface ProcessingStats {
  * Check if a document needs markdown regeneration
  */
 async function needsMarkdownRegeneration(documentId: string): Promise<boolean> {
-  const metadata = await prisma.documentMetadata.findUnique({
+  const metadata = await prisma.documentsMetadatas.findUnique({
     where: { documentId },
     select: { markdownContent: true },
   });
@@ -83,7 +83,7 @@ async function processDocument(document: any, stats: ProcessingStats): Promise<v
     let markdownContent = null;
     let markdownStructure = null;
     let images: string[] = [];
-    let metadata: { pageCount?: number; wordCount?: number; sheetCount?: number; slideCount?: number } = {};
+    let document_metadata: { pageCount?: number; wordCount?: number; sheetCount?: number; slideCount?: number } = {};
 
     try {
       const conversionResult = await markdownConversionService.convertToMarkdown(
@@ -96,7 +96,7 @@ async function processDocument(document: any, stats: ProcessingStats): Promise<v
       markdownContent = conversionResult.markdownContent;
       markdownStructure = JSON.stringify(conversionResult.structure);
       images = conversionResult.images;
-      metadata = conversionResult.metadata;
+      metadata = conversionResult.document_metadata;
 
       console.log(`   ✅ Converted to markdown (${markdownContent.length} chars, ${conversionResult.structure.headings.length} headings)`);
     } catch (error) {
@@ -206,7 +206,7 @@ async function regenerateMarkdownBatch(
     }
 
     // Get all documents that need processing
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where,
       select: {
         id: true,

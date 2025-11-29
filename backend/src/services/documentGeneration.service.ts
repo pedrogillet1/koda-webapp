@@ -1,20 +1,32 @@
 /** Document Generation Service - Minimal Stub (Non-MVP) */
 class DocumentGenerationService {
-  async compareDocuments(userId: string, documentIds: string[], options?: any) {
+  async compareDocuments(_userId: string, _documentIds: string[], _options?: any) {
     // Stub: Would compare multiple documents
     return { comparison: '', differences: [] };
   }
-  async generateDocument(userId: string, prompt: string, options?: any) {
+  async generateDocument(_userId: string, _prompt: string, _options?: any) {
     // Stub: Would generate document from prompt
     return { documentId: '', content: '' };
   }
-  async summarizeDocument(userId: string, documentId: string) {
+  async summarizeDocument(_userId: string, _documentId: string) {
     // Stub: Would summarize document
     return { summary: '' };
   }
-  async extractKeyPoints(userId: string, documentId: string) {
+  async extractKeyPoints(_userId: string, _documentId: string) {
     // Stub: Would extract key points from document
     return { keyPoints: [] };
+  }
+  async generateFromPrompt(_userId: string, _prompt: string, _options?: any) {
+    return { documentId: '', content: '' };
+  }
+  async generateRenderableContent(_userId: string, _documentId?: string, _options?: any) {
+    return { content: '' };
+  }
+  async getGeneratedDocument(_documentId: string, _userId?: string) {
+    return null;
+  }
+  async getGeneratedDocumentsByUser(_userId: string) {
+    return [];
   }
 }
 

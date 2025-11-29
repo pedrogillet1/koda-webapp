@@ -46,7 +46,7 @@ async function initializeSystemTerminology() {
 
   try {
     // Load all terminology from database (seeded via seed-terminology.ts script)
-    const allTerms = await prisma.terminologyMap.findMany({
+    const allTerms = await prisma.terminology_maps.findMany({
       select: {
         term: true,
         synonyms: true,
@@ -117,7 +117,7 @@ export async function getSynonyms(
   // Check user-specific terminology if userId provided
   if (userId) {
     try {
-      const userTerms = await prisma.terminologyMap.findMany({
+      const userTerms = await prisma.terminology_maps.findMany({
         where: {
           userId,
           term: { contains: normalizedTerm, mode: 'insensitive' },
@@ -171,7 +171,7 @@ export async function expandQuery(
   let userTermsMap = new Map<string, string[]>();
   if (userId) {
     try {
-      const userTerms = await prisma.terminologyMap.findMany({
+      const userTerms = await prisma.terminology_maps.findMany({
         where: { userId }
       });
       // Build a map of term -> synonyms for O(1) lookup
@@ -306,7 +306,7 @@ export async function detectDomainContext(
   // Check user terminology
   if (userId) {
     try {
-      const userTerms = await prisma.terminologyMap.findMany({
+      const userTerms = await prisma.terminology_maps.findMany({
         where: { userId }
       });
 
@@ -350,7 +350,7 @@ export async function addUserTerminology(
   synonyms: string[],
   domain: string
 ): Promise<TerminologyEntry> {
-  const result = await prisma.terminologyMap.upsert({
+  const result = await prisma.terminology_maps.upsert({
     where: {
       userId_term_domain: {
         userId,
@@ -386,7 +386,7 @@ export async function getUserTerminology(
   userId: string,
   domain?: string
 ): Promise<TerminologyEntry[]> {
-  const terms = await prisma.terminologyMap.findMany({
+  const terms = await prisma.terminology_maps.findMany({
     where: {
       userId,
       ...(domain && { domain })
@@ -412,7 +412,7 @@ export async function deleteUserTerminology(
   termId: string
 ): Promise<boolean> {
   try {
-    await prisma.terminologyMap.delete({
+    await prisma.terminology_maps.delete({
       where: {
         id: termId,
         userId
@@ -445,7 +445,7 @@ export async function getTerminologyStats(userId?: string): Promise<{
   // Count user terms
   let userTermCount = 0;
   if (userId) {
-    const userTerms = await prisma.terminologyMap.findMany({
+    const userTerms = await prisma.terminology_maps.findMany({
       where: { userId }
     });
     userTermCount = userTerms.length;
@@ -493,7 +493,7 @@ export async function searchTerminology(
 
   // Search user terminology
   if (userId && results.length < limit) {
-    const userTerms = await prisma.terminologyMap.findMany({
+    const userTerms = await prisma.terminology_maps.findMany({
       where: {
         userId,
         OR: [

@@ -248,7 +248,7 @@ router.post(
       return res.json({
         message: 'Backup created successfully',
         backupId: result.backupId,
-        metadata: result.metadata,
+        metadata: result.document_metadata,
       });
     } catch (error) {
       console.error('Error creating backup:', error);

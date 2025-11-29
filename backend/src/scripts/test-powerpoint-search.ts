@@ -13,7 +13,7 @@ async function testPowerPointSearch() {
     console.log('🧪 Testing PowerPoint slide search...\n');
 
     // Get a PowerPoint document
-    const doc = await prisma.document.findFirst({
+    const doc = await prisma.documents.findFirst({
       where: {
         mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
       }
@@ -46,7 +46,7 @@ async function testPowerPointSearch() {
       console.log(`Result ${index + 1}:`);
       console.log(`  Similarity: ${result.similarity?.toFixed(3)}`);
       console.log(`  Document: ${result.document?.filename || 'Unknown'}`);
-      console.log(`  Metadata:`, result.metadata);
+      console.log(`  Metadata:`, result.document_metadata);
       console.log(`  Content preview: ${result.content?.substring(0, 200)}...`);
       console.log('');
     });
@@ -67,7 +67,7 @@ async function testPowerPointSearch() {
     specificResults.forEach((result, index) => {
       console.log(`Result ${index + 1}:`);
       console.log(`  Similarity: ${result.similarity?.toFixed(3)}`);
-      console.log(`  Slide: ${result.metadata?.slide || 'N/A'}`);
+      console.log(`  Slide: ${result.document_metadata?.slide || 'N/A'}`);
       console.log(`  Content preview: ${result.content?.substring(0, 300)}...`);
       console.log('');
     });

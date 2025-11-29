@@ -95,7 +95,7 @@ class ClarificationService {
       id: doc.id,
       label: doc.filename,
       description: this.buildDocumentDescription(doc),
-      metadata: {
+      document_metadata: {
         documentIds: [doc.id],
         folderId: doc.folderId || undefined,
         fileType: doc.fileType,
@@ -172,7 +172,7 @@ class ClarificationService {
     let folderMap = new Map<string, string>();
     if (folderIds.length > 0) {
       try {
-        const folders = await prisma.folder.findMany({
+        const folders = await prisma.folders.findMany({
           where: { id: { in: folderIds } },
           select: { id: true, name: true },
         });
@@ -188,7 +188,7 @@ class ClarificationService {
         label: folderId === 'root' ? '📁 Root folder' : `📁 ${folderMap.get(folderId) || 'Unknown folder'}`,
         description: `${docs.length} file${docs.length > 1 ? 's' : ''}`,
         count: docs.length,
-        metadata: {
+        document_metadata: {
           documentIds: docs.map(d => d.id),
           folderId: folderId === 'root' ? undefined : folderId,
         },
@@ -236,7 +236,7 @@ class ClarificationService {
         label: '📅 Today',
         description: `${groups.today.length} file${groups.today.length > 1 ? 's' : ''}`,
         count: groups.today.length,
-        metadata: { documentIds: groups.today.map(d => d.id), dateRange: 'today' },
+        document_metadata: { documentIds: groups.today.map(d => d.id), dateRange: 'today' },
       });
     }
 
@@ -246,7 +246,7 @@ class ClarificationService {
         label: '📅 This week',
         description: `${groups.thisWeek.length} file${groups.thisWeek.length > 1 ? 's' : ''}`,
         count: groups.thisWeek.length,
-        metadata: { documentIds: groups.thisWeek.map(d => d.id), dateRange: 'thisWeek' },
+        document_metadata: { documentIds: groups.thisWeek.map(d => d.id), dateRange: 'thisWeek' },
       });
     }
 
@@ -256,7 +256,7 @@ class ClarificationService {
         label: '📅 This month',
         description: `${groups.thisMonth.length} file${groups.thisMonth.length > 1 ? 's' : ''}`,
         count: groups.thisMonth.length,
-        metadata: { documentIds: groups.thisMonth.map(d => d.id), dateRange: 'thisMonth' },
+        document_metadata: { documentIds: groups.thisMonth.map(d => d.id), dateRange: 'thisMonth' },
       });
     }
 
@@ -266,7 +266,7 @@ class ClarificationService {
         label: '📅 Older',
         description: `${groups.older.length} file${groups.older.length > 1 ? 's' : ''}`,
         count: groups.older.length,
-        metadata: { documentIds: groups.older.map(d => d.id), dateRange: 'older' },
+        document_metadata: { documentIds: groups.older.map(d => d.id), dateRange: 'older' },
       });
     }
 
@@ -310,7 +310,7 @@ class ClarificationService {
         label: `${typeIcons[type] || '📎'} ${type.toUpperCase()} files`,
         description: `${docs.length} file${docs.length > 1 ? 's' : ''}`,
         count: docs.length,
-        metadata: {
+        document_metadata: {
           documentIds: docs.map(d => d.id),
           fileType: type,
         },
@@ -345,7 +345,7 @@ class ClarificationService {
       id: doc.id,
       label: doc.filename,
       description: this.buildDocumentDescription(doc),
-      metadata: {
+      document_metadata: {
         documentIds: [doc.id],
         folderId: doc.folderId || undefined,
         fileType: doc.fileType,
@@ -358,7 +358,7 @@ class ClarificationService {
         id: 'show_all',
         label: `📋 Show all ${matches.length} results`,
         description: 'View complete list',
-        metadata: {
+        document_metadata: {
           documentIds: matches.map(d => d.id),
         },
       });
@@ -543,12 +543,12 @@ class ClarificationService {
         {
           id: document.id,
           label: 'Yes, that\'s the one',
-          metadata: { documentIds: [document.id] },
+          document_metadata: { documentIds: [document.id] },
         },
         {
           id: 'search_more',
           label: 'No, search for something else',
-          metadata: {},
+          document_metadata: {},
         },
       ],
       type: 'confirmation',

@@ -164,7 +164,7 @@ class VersionTrackingService {
     documentId: string
   ): Promise<DocumentVersion[]> {
     // Get the document and all its versions
-    const document = await prisma.document.findFirst({
+    const document = await prisma.documents.findFirst({
       where: {
         id: documentId,
         userId
@@ -220,7 +220,7 @@ class VersionTrackingService {
     userId: string,
     documentName: string
   ): Promise<DocumentVersion | null> {
-    const document = await prisma.document.findFirst({
+    const document = await prisma.documents.findFirst({
       where: {
         userId,
         filename: {
@@ -255,7 +255,7 @@ class VersionTrackingService {
     userId: string,
     documentId: string
   ): Promise<DocumentVersion | null> {
-    const document = await prisma.document.findFirst({
+    const document = await prisma.documents.findFirst({
       where: {
         id: documentId,
         userId
@@ -266,7 +266,7 @@ class VersionTrackingService {
       return null;
     }
 
-    const parentDoc = await prisma.document.findFirst({
+    const parentDoc = await prisma.documents.findFirst({
       where: {
         id: document.parentVersionId,
         userId
@@ -297,10 +297,10 @@ class VersionTrackingService {
     newVersionId: string
   ): Promise<VersionComparison | null> {
     const [oldDoc, newDoc] = await Promise.all([
-      prisma.document.findFirst({
+      prisma.documents.findFirst({
         where: { id: oldVersionId, userId }
       }),
-      prisma.document.findFirst({
+      prisma.documents.findFirst({
         where: { id: newVersionId, userId }
       })
     ]);
@@ -366,7 +366,7 @@ class VersionTrackingService {
     userId: string,
     since: Date
   ): Promise<DocumentVersion[]> {
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId,
         status: 'completed',
@@ -397,7 +397,7 @@ class VersionTrackingService {
     userId: string,
     documentName: string
   ): Promise<{ id: string; filename: string } | null> {
-    const document = await prisma.document.findFirst({
+    const document = await prisma.documents.findFirst({
       where: {
         userId,
         filename: {
@@ -421,7 +421,7 @@ class VersionTrackingService {
    * Check if document has versions
    */
   async hasVersions(documentId: string): Promise<boolean> {
-    const count = await prisma.document.count({
+    const count = await prisma.documents.count({
       where: {
         OR: [
           { parentVersionId: documentId },

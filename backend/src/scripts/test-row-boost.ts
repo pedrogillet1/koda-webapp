@@ -18,15 +18,15 @@ async function testRowBoost() {
     console.log(`\nFound ${results.length} results:\n`);
 
     results.forEach((result, idx) => {
-      const row = result.metadata.row;
-      const sheet = result.metadata.sheet;
+      const row = result.document_metadata.row;
+      const sheet = result.document_metadata.sheet;
       console.log(`${idx + 1}. Sheet: ${sheet}, Row: ${row}, Similarity: ${result.similarity.toFixed(4)}`);
       console.log(`   ${result.content.substring(0, 100)}...`);
       console.log('');
     });
 
     // Find row 2 specifically
-    const row2 = results.find(r => r.metadata.row === 2);
+    const row2 = results.find(r => r.document_metadata.row === 2);
     if (row2) {
       console.log('✅ Row 2 FOUND:');
       console.log(row2.content);

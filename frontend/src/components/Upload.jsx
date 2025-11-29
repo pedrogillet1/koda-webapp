@@ -64,6 +64,9 @@ const Upload = () => {
         const failedCount = files.filter(f => f.status === 'failed').length;
         const uploadingCount = files.filter(f => f.status === 'uploading').length;
 
+        let closeTimeout;
+        let notificationTimeout;
+
         if (files.length > 0 && completedCount === files.length && uploadingCount === 0) {
             setNotificationType('success');
             setShowNotification(true);
@@ -84,17 +87,24 @@ const Upload = () => {
             };
             loadDocuments();
 
-            setTimeout(() => {
+            // Close modal immediately after all files complete
+            closeTimeout = setTimeout(() => {
                 setShowNotification(false);
                 setIsModalOpen(false);
-            }, 3000);
+            }, 2000);
         }
 
         if (failedCount > 0 && uploadingCount === 0) {
             setNotificationType('error');
             setShowNotification(true);
-            setTimeout(() => setShowNotification(false), 5000);
+            notificationTimeout = setTimeout(() => setShowNotification(false), 5000);
         }
+
+        // Cleanup timeouts on unmount or when dependencies change
+        return () => {
+            if (closeTimeout) clearTimeout(closeTimeout);
+            if (notificationTimeout) clearTimeout(notificationTimeout);
+        };
     }, [files]);
 
     const getFileIcon = (mimeType) => {

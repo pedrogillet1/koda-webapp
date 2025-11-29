@@ -51,7 +51,7 @@ export class RerankingService {
     // Create a hash from the chunk contents to keep the key manageable
     const chunksHash = crypto
       .createHash('md5')
-      .update(JSON.stringify(chunks.map(c => c.content || c.metadata?.text || '')))
+      .update(JSON.stringify(chunks.map(c => c.content || c.document_metadata?.text || '')))
       .digest('hex');
 
     return `rerank:${crypto.createHash('md5').update(query).digest('hex')}:${chunksHash}`;
@@ -82,7 +82,7 @@ export class RerankingService {
       console.log('⚠️  [RERANK] Too few chunks, skipping reranking');
       return chunks.map((chunk, index) => ({
         content: chunk.content,
-        metadata: chunk.metadata,
+        metadata: chunk.document_metadata,
         originalScore: chunk.score,
         rerankScore: chunk.score || 0,
         finalPosition: index,
@@ -113,7 +113,7 @@ export class RerankingService {
 
       // Extract text content from chunks
       const documents = chunks.map(chunk => {
-        const content = chunk.metadata?.text || chunk.metadata?.content || chunk.content || '';
+        const content = chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '';
         return content.substring(0, 2000); // Limit to 2000 chars per chunk for Cohere
       });
 
@@ -131,7 +131,7 @@ export class RerankingService {
       // Map reranked results back to original chunks
       const rerankedChunks: RankedChunk[] = reranked.results.map((result) => ({
         content: chunks[result.index].content,
-        metadata: chunks[result.index].metadata,
+        metadata: chunks[result.index].document_metadata,
         originalScore: chunks[result.index].score,
         rerankScore: result.relevanceScore,
         finalPosition: 0, // Will be set in Step 2
@@ -167,7 +167,7 @@ export class RerankingService {
       console.log('⚠️  [RERANK] Using fallback: returning original chunks');
       return chunks.slice(0, topK).map((chunk, index) => ({
         content: chunk.content,
-        metadata: chunk.metadata,
+        metadata: chunk.document_metadata,
         originalScore: chunk.score,
         rerankScore: chunk.score || 0,
         finalPosition: index,

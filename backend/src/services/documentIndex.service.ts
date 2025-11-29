@@ -55,14 +55,14 @@ class DocumentIndexService {
     console.log(`📋 [DOC INDEX] Building index for user ${userId.substring(0, 8)}...`);
 
     // Get all documents with folder info
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: { userId },
       select: {
         id: true,
         filename: true,
         mimeType: true,
         status: true,
-        folder: {
+        folders: {
           select: {
             id: true,
             name: true,

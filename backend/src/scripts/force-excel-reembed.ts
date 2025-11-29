@@ -8,7 +8,7 @@ async function forceExcelReembed() {
     console.log('\n🔄 ===== FORCE EXCEL RE-EMBEDDING WITH FILENAME =====\n');
 
     // Get the latest Excel file
-    const latestExcel = await prisma.document.findFirst({
+    const latestExcel = await prisma.documents.findFirst({
       where: {
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       },
@@ -42,16 +42,16 @@ async function forceExcelReembed() {
     console.log('📝 Adding filename to chunk content...');
     const chunks = excelChunks.map(chunk => ({
       content: `📄 File: ${latestExcel.filename} | ${chunk.content}`,
-      metadata: {
+      document_metadata: {
         documentId: latestExcel.id,
         filename: latestExcel.filename,
-        sheet: chunk.metadata.sheetName,
-        sheetNumber: chunk.metadata.sheetNumber,
-        row: chunk.metadata.rowNumber,
-        cells: chunk.metadata.cells,
-        chunkIndex: chunk.metadata.chunkIndex,
-        sourceType: chunk.metadata.sourceType,
-        tableHeaders: chunk.metadata.tableHeaders
+        sheet: chunk.document_metadata.sheetName,
+        sheetNumber: chunk.document_metadata.sheetNumber,
+        row: chunk.document_metadata.rowNumber,
+        cells: chunk.document_metadata.cells,
+        chunkIndex: chunk.document_metadata.chunkIndex,
+        sourceType: chunk.document_metadata.sourceType,
+        tableHeaders: chunk.document_metadata.tableHeaders
       }
     }));
 

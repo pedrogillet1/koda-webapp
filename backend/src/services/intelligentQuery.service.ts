@@ -219,7 +219,7 @@ class IntelligentQueryService {
       return { answer: ragAnswer, used: false, sources: 0 };
     }
 
-    const knowledge = await prisma.domainKnowledge.findFirst({
+    const knowledge = await prisma.domain_knowledge.findFirst({
       where: {
         userId,
         term: {
@@ -290,7 +290,7 @@ class IntelligentQueryService {
     const [conceptA, conceptB] = concepts;
 
     // Look for comparison in database
-    const comparison = await prisma.comparativeData.findFirst({
+    const comparison = await prisma.comparative_data.findFirst({
       where: {
         userId,
         OR: [
@@ -370,7 +370,7 @@ class IntelligentQueryService {
       return { answer: ragAnswer, used: false, sources: 0 };
     }
 
-    const causalRels = await prisma.causalRelationship.findMany({
+    const causalRels = await prisma.causal_relationships.findMany({
       where: {
         userId,
         effect: {
@@ -449,7 +449,7 @@ class IntelligentQueryService {
     }
 
     // Check methodology knowledge for "how it works"
-    const methodology = await prisma.methodologyKnowledge.findFirst({
+    const methodology = await prisma.methodology_knowledge.findFirst({
       where: {
         userId,
         name: { contains: topic.toLowerCase(), mode: 'insensitive' },
@@ -497,7 +497,7 @@ class IntelligentQueryService {
     }
 
     // Get methodologies to analyze trends
-    const methodologies = await prisma.methodologyKnowledge.findMany({
+    const methodologies = await prisma.methodology_knowledge.findMany({
       where: {
         userId,
         OR: [
@@ -556,7 +556,7 @@ class IntelligentQueryService {
     ragAnswer: string,
     userId: string
   ): Promise<{ answer: string; used: boolean; sources: number }> {
-    const methodologies = await prisma.methodologyKnowledge.findMany({
+    const methodologies = await prisma.methodology_knowledge.findMany({
       where: { userId },
       orderBy: { documentCount: 'desc' },
       take: 10,

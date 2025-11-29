@@ -15,7 +15,7 @@ interface MarkdownConversionResult {
   markdownContent: string;
   structure: DocumentStructure;
   images: string[]; // URLs of extracted images
-  metadata: {
+  document_metadata: {
     pageCount?: number;
     sheetCount?: number;
     slideCount?: number;
@@ -149,7 +149,7 @@ class MarkdownConversionService {
         markdownContent,
         structure,
         images,
-        metadata: {
+        document_metadata: {
           pageCount: data.numpages || 1,
           wordCount: data.text ? data.text.split(/\s+/).length : 0,
         },
@@ -189,7 +189,7 @@ class MarkdownConversionService {
         markdownContent,
         structure,
         images,
-        metadata: {
+        document_metadata: {
           wordCount: markdownContent.split(/\s+/).length,
         },
       };
@@ -273,7 +273,7 @@ class MarkdownConversionService {
         markdownContent,
         structure,
         images: [],
-        metadata: {
+        document_metadata: {
           sheetCount: workbook.SheetNames.length,
           wordCount: markdownContent.split(/\s+/).length,
         },
@@ -309,7 +309,7 @@ class MarkdownConversionService {
         markdownContent,
         structure,
         images: [],
-        metadata: {
+        document_metadata: {
           slideCount: 1,
           wordCount: markdownContent.split(/\s+/).length,
         },
@@ -334,7 +334,7 @@ class MarkdownConversionService {
       markdownContent,
       structure,
       images: [],
-      metadata: {
+      document_metadata: {
         wordCount: text.split(/\s+/).length,
       },
     };

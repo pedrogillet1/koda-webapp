@@ -39,7 +39,7 @@ export const getUserTags = async (userId: string) => {
  */
 export const addTagToDocument = async (documentId: string, tagId: string, userId: string) => {
   // Verify document ownership
-  const document = await prisma.document.findUnique({
+  const document = await prisma.documents.findUnique({
     where: { id: documentId },
   });
 
@@ -65,7 +65,7 @@ export const addTagToDocument = async (documentId: string, tagId: string, userId
   }
 
   // Check if already tagged
-  const existing = await prisma.documentTag.findFirst({
+  const existing = await prisma.documentsTags.findFirst({
     where: {
       documentId,
       tagId,
@@ -77,13 +77,13 @@ export const addTagToDocument = async (documentId: string, tagId: string, userId
   }
 
   // Add tag
-  const documentTag = await prisma.documentTag.create({
+  const documentTag = await prisma.documentsTags.create({
     data: {
       documentId,
       tagId,
     },
     include: {
-      tag: true,
+      document_document_tags: true,
     },
   });
 
@@ -95,7 +95,7 @@ export const addTagToDocument = async (documentId: string, tagId: string, userId
  */
 export const removeTagFromDocument = async (documentId: string, tagId: string, userId: string) => {
   // Verify document ownership
-  const document = await prisma.document.findUnique({
+  const document = await prisma.documents.findUnique({
     where: { id: documentId },
   });
 
@@ -103,7 +103,7 @@ export const removeTagFromDocument = async (documentId: string, tagId: string, u
     throw new Error('Unauthorized');
   }
 
-  await prisma.documentTag.deleteMany({
+  await prisma.documentsTags.deleteMany({
     where: {
       documentId,
       tagId,
@@ -153,23 +153,23 @@ export const searchDocumentsByTag = async (tagId: string, userId: string) => {
     throw new Error('Unauthorized');
   }
 
-  const documents = await prisma.document.findMany({
+  const documents = await prisma.documents.findMany({
     where: {
       userId,
-      tags: {
+      document_tags: {
         some: {
           tagId,
         },
       },
     },
     include: {
-      tags: {
+      document_tags: {
         include: {
-          tag: true,
+          document_document_tags: true,
         },
       },
-      folder: true,
-      metadata: true,
+      folders: true,
+      document_metadata: true,
     },
     orderBy: { createdAt: 'desc' },
   });

@@ -8,7 +8,7 @@ router.get('/get-verification-code/:email', async (req, res) => {
   try {
     const { email } = req.params;
 
-    const pendingUser = await prisma.pendingUser.findUnique({
+    const pendingUser = await prisma.pending_users.findUnique({
       where: { email: email.toLowerCase() },
       select: {
         email: true,

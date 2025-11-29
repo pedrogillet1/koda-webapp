@@ -16,7 +16,7 @@ async function processAllDocuments() {
 
   try {
     // Find all documents that need processing (including failed ones for retry)
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         status: {
           in: ['ready', 'pending', 'uploaded', 'failed']
@@ -72,7 +72,7 @@ async function processAllDocuments() {
           content: chunk,
           chunkIndex: i,
           embedding: [], // Will be filled by storeDocumentEmbeddings
-          metadata: {}
+          document_metadata: {}
         }));
 
         // This will generate embeddings AND upload to Pinecone
@@ -80,7 +80,7 @@ async function processAllDocuments() {
         console.log(`   ✅ Stored ${chunks.length} chunks with embeddings in Pinecone`);
 
         // Update document status
-        await prisma.document.update({
+        await prisma.documents.update({
           where: { id: doc.id },
           data: { status: 'ready' }
         });

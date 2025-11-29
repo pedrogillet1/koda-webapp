@@ -67,7 +67,7 @@ class APIKeyService {
       const keyPreview = apiKey.slice(-4);
 
       // Create in database
-      const keyData = await prisma.aPIKey.create({
+      const keyData = await prisma.api_keys.create({
         data: {
           userId: options.userId,
           name: options.name,
@@ -124,7 +124,7 @@ class APIKeyService {
       const keyHash = this.hashAPIKey(apiKey);
 
       // Find key in database
-      const keyData = await prisma.aPIKey.findUnique({
+      const keyData = await prisma.api_keys.findUnique({
         where: { keyHash },
       });
 
@@ -196,7 +196,7 @@ class APIKeyService {
 
     // Reset window if expired
     if (keyData.windowStart < hourAgo) {
-      await prisma.aPIKey.update({
+      await prisma.api_keys.update({
         where: { id: keyData.id },
         data: {
           usageCount: 0,
@@ -214,7 +214,7 @@ class APIKeyService {
    * Record API key usage
    */
   private async recordUsage(keyId: string): Promise<void> {
-    await prisma.aPIKey.update({
+    await prisma.api_keys.update({
       where: { id: keyId },
       data: {
         lastUsedAt: new Date(),
@@ -230,13 +230,13 @@ class APIKeyService {
    */
   async revokeAPIKey(keyId: string, userId: string): Promise<boolean> {
     try {
-      const keyData = await prisma.aPIKey.findUnique({ where: { id: keyId } });
+      const keyData = await prisma.api_keys.findUnique({ where: { id: keyId } });
 
       if (!keyData || keyData.userId !== userId) {
         return false;
       }
 
-      await prisma.aPIKey.update({
+      await prisma.api_keys.update({
         where: { id: keyId },
         data: { isActive: false },
       });
@@ -265,13 +265,13 @@ class APIKeyService {
    */
   async deleteAPIKey(keyId: string, userId: string): Promise<boolean> {
     try {
-      const keyData = await prisma.aPIKey.findUnique({ where: { id: keyId } });
+      const keyData = await prisma.api_keys.findUnique({ where: { id: keyId } });
 
       if (!keyData || keyData.userId !== userId) {
         return false;
       }
 
-      await prisma.aPIKey.delete({ where: { id: keyId } });
+      await prisma.api_keys.delete({ where: { id: keyId } });
 
       // Audit log
       await auditLogService.log({
@@ -296,7 +296,7 @@ class APIKeyService {
    * Get all API keys for a user
    */
   async getUserAPIKeys(userId: string): Promise<any[]> {
-    const keys = await prisma.aPIKey.findMany({
+    const keys = await prisma.api_keys.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -357,13 +357,13 @@ class APIKeyService {
     }
   ): Promise<boolean> {
     try {
-      const keyData = await prisma.aPIKey.findUnique({ where: { id: keyId } });
+      const keyData = await prisma.api_keys.findUnique({ where: { id: keyId } });
 
       if (!keyData || keyData.userId !== userId) {
         return false;
       }
 
-      await prisma.aPIKey.update({
+      await prisma.api_keys.update({
         where: { id: keyId },
         data: {
           ...(updates.name && { name: updates.name }),
@@ -396,7 +396,7 @@ class APIKeyService {
    * Get API key usage statistics
    */
   async getAPIKeyStats(keyId: string, userId: string): Promise<any> {
-    const keyData = await prisma.aPIKey.findUnique({
+    const keyData = await prisma.api_keys.findUnique({
       where: { id: keyId },
     });
 
@@ -429,7 +429,7 @@ class APIKeyService {
    * Clean up expired API keys
    */
   async cleanupExpiredKeys(): Promise<number> {
-    const result = await prisma.aPIKey.updateMany({
+    const result = await prisma.api_keys.updateMany({
       where: {
         expiresAt: { lt: new Date() },
         isActive: true,

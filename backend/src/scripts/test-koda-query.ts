@@ -20,13 +20,13 @@ async function testKodaQuery() {
     results.forEach((result, idx) => {
       console.log(`${idx + 1}. Document: ${result.document.filename}`);
       console.log(`   Similarity: ${result.similarity.toFixed(4)}`);
-      console.log(`   Sheet: ${result.metadata.sheet}, Row: ${result.metadata.row}`);
+      console.log(`   Sheet: ${result.document_metadata.sheet}, Row: ${result.document_metadata.row}`);
       console.log(`   Content: ${result.content}`);
       console.log('');
     });
 
     // Find B2 specifically in row 2
-    const b2Row2 = results.find(r => r.metadata.row === 2 && r.content.includes('B2:'));
+    const b2Row2 = results.find(r => r.document_metadata.row === 2 && r.content.includes('B2:'));
     if (b2Row2) {
       console.log('\n🎯 EXACT B2 match (Row 2):');
       console.log(b2Row2.content);

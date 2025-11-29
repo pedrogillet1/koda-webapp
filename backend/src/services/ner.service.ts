@@ -290,7 +290,7 @@ Return ONLY the JSON object, no additional text.`;
     console.log(`🏷️  Auto-tagging document ${documentId}`);
 
     // Get document info
-    const document = await prisma.document.findUnique({
+    const document = await prisma.documents.findUnique({
       where: { id: documentId },
       select: { filename: true }
     });
@@ -329,7 +329,7 @@ Return ONLY the JSON object, no additional text.`;
         }
 
         // Associate tag with document (if not already associated)
-        await prisma.documentTag.upsert({
+        await prisma.documentsTags.upsert({
           where: {
             documentId_tagId: {
               documentId,
@@ -382,7 +382,7 @@ Return ONLY the JSON object, no additional text.`;
 
     for (const entity of entities) {
       try {
-        await prisma.documentEntity.create({
+        await prisma.documentsEntity.create({
           data: {
             documentId,
             entityType: entity.type,
@@ -415,7 +415,7 @@ Return ONLY the JSON object, no additional text.`;
     entityType: string,
     searchValue: string
   ): Promise<Array<{ documentId: string; documentName: string; entity: Entity }>> {
-    const results = await prisma.documentEntity.findMany({
+    const results = await prisma.documentsEntity.findMany({
       where: {
         entityType,
         normalizedValue: {
@@ -429,7 +429,7 @@ Return ONLY the JSON object, no additional text.`;
     const documentIds = [...new Set(results.map(r => r.documentId))];
 
     // Fetch documents separately to get filenames and filter by userId
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         id: { in: documentIds },
         userId

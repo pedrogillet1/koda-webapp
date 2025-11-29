@@ -4,7 +4,7 @@ import prisma from '../config/database';
  * Create a new folder
  */
 export const createFolder = async (userId: string, name: string, emoji?: string, parentFolderId?: string) => {
-  const folder = await prisma.folder.create({
+  const folder = await prisma.folders.create({
     data: {
       userId,
       name,
@@ -30,7 +30,7 @@ export const createFolder = async (userId: string, name: string, emoji?: string,
  */
 export const getOrCreateFolderByName = async (userId: string, folderName: string) => {
   // First, try to find existing folder
-  const existingFolder = await prisma.folder.findFirst({
+  const existingFolder = await prisma.folders.findFirst({
     where: {
       userId,
       name: folderName,
@@ -43,7 +43,7 @@ export const getOrCreateFolderByName = async (userId: string, folderName: string
   }
 
   // Create new folder if it doesn't exist
-  const newFolder = await prisma.folder.create({
+  const newFolder = await prisma.folders.create({
     data: {
       userId,
       name: folderName,
@@ -59,12 +59,12 @@ export const getOrCreateFolderByName = async (userId: string, folderName: string
  */
 const countDocumentsRecursively = async (folderId: string): Promise<number> => {
   // Count documents in this folder
-  const directDocuments = await prisma.document.count({
+  const directDocuments = await prisma.documents.count({
     where: { folderId },
   });
 
   // Get subfolders
-  const subfolders = await prisma.folder.findMany({
+  const subfolders = await prisma.folders.findMany({
     where: { parentFolderId: folderId },
     select: { id: true },
   });
@@ -91,7 +91,7 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
 
   // When includeAll=true, return a FLAT list (no nested subfolders)
   // When includeAll=false, include nested subfolders structure
-  const folders = await prisma.folder.findMany({
+  const folders = await prisma.folders.findMany({
     where,
     include: {
       subfolders: includeAll ? false : true, // Only nest when NOT returning all
@@ -129,15 +129,15 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
  * Get single folder with contents
  */
 export const getFolder = async (folderId: string, userId: string) => {
-  const folder = await prisma.folder.findUnique({
+  const folder = await prisma.folders.findUnique({
     where: { id: folderId },
     include: {
       subfolders: true,
       documents: {
         include: {
-          tags: {
+          document_tags: {
             include: {
-              tag: true,
+              document_document_tags: true,
             },
           },
         },
@@ -161,7 +161,7 @@ export const getFolder = async (folderId: string, userId: string) => {
  * Update folder
  */
 export const updateFolder = async (folderId: string, userId: string, name?: string, emoji?: string, parentFolderId?: string | null) => {
-  const folder = await prisma.folder.findUnique({
+  const folder = await prisma.folders.findUnique({
     where: { id: folderId },
   });
 
@@ -200,7 +200,7 @@ export const updateFolder = async (folderId: string, userId: string, name?: stri
     updateData.parentFolderId = parentFolderId;
   }
 
-  const updated = await prisma.folder.update({
+  const updated = await prisma.folders.update({
     where: { id: folderId },
     data: updateData,
   });
@@ -212,7 +212,7 @@ export const updateFolder = async (folderId: string, userId: string, name?: stri
  * Check if targetFolder is a descendant of sourceFolder
  */
 const checkIfDescendant = async (sourceFolderId: string, targetFolderId: string): Promise<boolean> => {
-  let currentFolder = await prisma.folder.findUnique({
+  let currentFolder = await prisma.folders.findUnique({
     where: { id: targetFolderId },
   });
 
@@ -223,7 +223,7 @@ const checkIfDescendant = async (sourceFolderId: string, targetFolderId: string)
     if (!currentFolder.parentFolderId) {
       return false;
     }
-    currentFolder = await prisma.folder.findUnique({
+    currentFolder = await prisma.folders.findUnique({
       where: { id: currentFolder.parentFolderId },
     });
   }
@@ -331,7 +331,7 @@ export const bulkCreateFolders = async (
  * Delete folder (cascade delete - deletes all subfolders and documents)
  */
 export const deleteFolder = async (folderId: string, userId: string) => {
-  const folder = await prisma.folder.findUnique({
+  const folder = await prisma.folders.findUnique({
     where: { id: folderId },
     include: {
       subfolders: true,
@@ -356,13 +356,13 @@ export const deleteFolder = async (folderId: string, userId: string) => {
 
   // Delete all documents in this folder
   if (folder.documents.length > 0) {
-    await prisma.document.deleteMany({
+    await prisma.documents.deleteMany({
       where: { folderId: folderId },
     });
   }
 
   // Delete the folder itself
-  await prisma.folder.delete({
+  await prisma.folders.delete({
     where: { id: folderId },
   });
 

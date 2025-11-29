@@ -340,7 +340,7 @@ class CrossDocumentSynthesisService {
         ];
       }
 
-      return await prisma.methodologyKnowledge.findMany({
+      return await prisma.methodology_knowledge.findMany({
         where,
         orderBy: { documentCount: 'desc' },
       });
@@ -382,7 +382,7 @@ class CrossDocumentSynthesisService {
           name: m.name,
           documentId: doc.id,
           documentName: doc.filename,
-          year: result.metadata.year,
+          year: result.document_metadata.year,
           isPrimary: m.isPrimary,
           category: m.category,
         });
@@ -410,10 +410,10 @@ class CrossDocumentSynthesisService {
         where.id = { in: documentIds };
       }
 
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where,
         include: {
-          metadata: {
+          document_metadata: {
             select: {
               extractedText: true,
               topics: true,
@@ -429,8 +429,8 @@ class CrossDocumentSynthesisService {
         const topicLower = topic.toLowerCase();
         return documents.filter(doc => {
           const filename = doc.filename.toLowerCase();
-          const text = doc.metadata?.extractedText?.toLowerCase() || '';
-          const topics = doc.metadata?.topics?.toLowerCase() || '';
+          const text = doc.document_metadata?.extractedText?.toLowerCase() || '';
+          const topics = doc.document_metadata?.topics?.toLowerCase() || '';
 
           return filename.includes(topicLower) ||
                  text.includes(topicLower) ||
@@ -441,7 +441,7 @@ class CrossDocumentSynthesisService {
       return documents.map(doc => ({
         id: doc.id,
         filename: doc.filename,
-        extractedText: doc.metadata?.extractedText,
+        extractedText: doc.document_metadata?.extractedText,
         createdAt: doc.createdAt,
       }));
     } catch (error) {
@@ -468,13 +468,13 @@ class CrossDocumentSynthesisService {
         where.id = { in: documentIds };
       }
 
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where,
         select: {
           id: true,
           filename: true,
           createdAt: true,
-          metadata: {
+          document_metadata: {
             select: {
               topics: true,
               creationDate: true,
@@ -487,7 +487,7 @@ class CrossDocumentSynthesisService {
       return documents.map(doc => ({
         id: doc.id,
         filename: doc.filename,
-        year: doc.metadata?.creationDate?.getFullYear() || doc.createdAt.getFullYear(),
+        year: doc.document_metadata?.creationDate?.getFullYear() || doc.createdAt.getFullYear(),
       }));
     } catch (error) {
       console.error(`❌ [SYNTHESIS] Error fetching document metadata:`, error);
@@ -732,7 +732,7 @@ class CrossDocumentSynthesisService {
 
       try {
         // First try to find existing record
-        const existing = await prisma.methodologyKnowledge.findUnique({
+        const existing = await prisma.methodology_knowledge.findUnique({
           where: {
             userId_name: {
               userId,
@@ -755,7 +755,7 @@ class CrossDocumentSynthesisService {
             existingIds.push(documentId);
           }
 
-          await prisma.methodologyKnowledge.update({
+          await prisma.methodology_knowledge.update({
             where: {
               userId_name: {
                 userId,
@@ -771,7 +771,7 @@ class CrossDocumentSynthesisService {
             },
           });
         } else {
-          await prisma.methodologyKnowledge.create({
+          await prisma.methodology_knowledge.create({
             data: {
               userId,
               name: normalizedName,
@@ -793,7 +793,7 @@ class CrossDocumentSynthesisService {
    * Clear methodology knowledge for a user (for re-indexing)
    */
   async clearMethodologyKnowledge(userId: string): Promise<void> {
-    await prisma.methodologyKnowledge.deleteMany({
+    await prisma.methodology_knowledge.deleteMany({
       where: { userId },
     });
     console.log(`🗑️ [SYNTHESIS] Cleared methodology knowledge for user ${userId}`);

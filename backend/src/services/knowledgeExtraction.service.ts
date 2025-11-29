@@ -341,54 +341,52 @@ class KnowledgeExtractionService {
     for (const def of definitions) {
       try {
         // Check if definition already exists
-        const existing = await prisma.domainKnowledge.findUnique({
+        // Note: Using findFirst since the unique constraint is userId_normalizedTerm_domain
+        const existing = await prisma.domain_knowledge.findFirst({
           where: {
-            userId_term: {
-              userId,
-              term: def.term,
-            },
+            userId,
+            term: def.term,
           },
         });
 
         if (existing) {
-          // Parse existing sourceDocuments
-          let sourceDocuments: string[] = [];
+          // Parse existing sourceDocumentIds
+          let sourceDocumentIds: string[] = [];
           try {
-            sourceDocuments = existing.sourceDocuments
-              ? JSON.parse(existing.sourceDocuments)
+            sourceDocumentIds = existing.sourceDocumentIds
+              ? JSON.parse(existing.sourceDocumentIds)
               : [];
           } catch {
-            sourceDocuments = [];
+            sourceDocumentIds = [];
           }
 
           // Add new documentId if not present
-          if (!sourceDocuments.includes(documentId)) {
-            sourceDocuments.push(documentId);
+          if (!sourceDocumentIds.includes(documentId)) {
+            sourceDocumentIds.push(documentId);
           }
 
-          await prisma.domainKnowledge.update({
+          await prisma.domain_knowledge.update({
             where: {
-              userId_term: {
-                userId,
-                term: def.term,
-              },
+              id: existing.id,
             },
             data: {
               definition: def.definition,
-              sourceDocuments: JSON.stringify(sourceDocuments),
+              sourceDocumentIds: JSON.stringify(sourceDocumentIds),
               confidence: Math.max(existing.confidence || 0, def.confidence),
               updatedAt: new Date(),
             },
           });
         } else {
-          await prisma.domainKnowledge.create({
+          await prisma.domain_knowledge.create({
             data: {
               userId,
               term: def.term,
+              normalizedTerm: def.term.toLowerCase().trim(),
+              domain: 'general',
               definition: def.definition,
-              sourceDocuments: JSON.stringify([documentId]),
+              sourceDocumentIds: JSON.stringify([documentId]),
               confidence: def.confidence,
-            },
+            } as any,
           });
         }
       } catch (error) {
@@ -409,7 +407,7 @@ class KnowledgeExtractionService {
       const normalizedName = m.name.toLowerCase().trim();
 
       try {
-        const existing = await prisma.methodologyKnowledge.findUnique({
+        const existing = await prisma.methodology_knowledge.findUnique({
           where: {
             userId_name: {
               userId,
@@ -433,7 +431,7 @@ class KnowledgeExtractionService {
             sourceDocumentIds.push(documentId);
           }
 
-          await prisma.methodologyKnowledge.update({
+          await prisma.methodology_knowledge.update({
             where: {
               userId_name: {
                 userId,
@@ -448,7 +446,7 @@ class KnowledgeExtractionService {
             },
           });
         } else {
-          await prisma.methodologyKnowledge.create({
+          await prisma.methodology_knowledge.create({
             data: {
               userId,
               name: normalizedName,
@@ -487,7 +485,7 @@ class KnowledgeExtractionService {
     for (const [effectKey, rels] of effectGroups) {
       try {
         // Check if relationship already exists for this effect
-        const existing = await prisma.causalRelationship.findFirst({
+        const existing = await prisma.causal_relationships.findFirst({
           where: {
             userId,
             effect: { contains: effectKey.substring(0, 50), mode: 'insensitive' },
@@ -509,7 +507,7 @@ class KnowledgeExtractionService {
             : [];
 
           if (!existingDocIds.includes(documentId)) {
-            await prisma.causalRelationship.update({
+            await prisma.causal_relationships.update({
               where: { id: existing.id },
               data: {
                 causes: JSON.stringify([...existingCauses, ...causes]),
@@ -522,7 +520,7 @@ class KnowledgeExtractionService {
           }
         } else {
           // Create new causal relationship
-          await prisma.causalRelationship.create({
+          await prisma.causal_relationships.create({
             data: {
               userId,
               effect: rels[0].effect,
@@ -554,7 +552,7 @@ class KnowledgeExtractionService {
     for (const comp of comparisons) {
       try {
         // Check if comparison already exists
-        const existing = await prisma.comparativeData.findFirst({
+        const existing = await prisma.comparative_data.findFirst({
           where: {
             userId,
             OR: [
@@ -580,7 +578,7 @@ class KnowledgeExtractionService {
             : [];
 
           if (!existingDocIds.includes(documentId)) {
-            await prisma.comparativeData.update({
+            await prisma.comparative_data.update({
               where: { id: existing.id },
               data: {
                 attributes: JSON.stringify({ ...existingAttrs, ...attributes }),
@@ -593,7 +591,7 @@ class KnowledgeExtractionService {
           }
         } else {
           // Create new comparison
-          await prisma.comparativeData.create({
+          await prisma.comparative_data.create({
             data: {
               userId,
               conceptA: comp.conceptA,
@@ -746,7 +744,7 @@ class KnowledgeExtractionService {
       where.term = { contains: term, mode: 'insensitive' };
     }
 
-    return prisma.domainKnowledge.findMany({
+    return prisma.domain_knowledge.findMany({
       where,
       orderBy: { confidence: 'desc' },
     });
@@ -756,7 +754,7 @@ class KnowledgeExtractionService {
    * Get all methodologies for a user
    */
   async getMethodologies(userId: string): Promise<any[]> {
-    return prisma.methodologyKnowledge.findMany({
+    return prisma.methodology_knowledge.findMany({
       where: { userId },
       orderBy: { documentCount: 'desc' },
     });
@@ -771,7 +769,7 @@ class KnowledgeExtractionService {
       where.documentId = documentId;
     }
 
-    return prisma.causalRelationship.findMany({
+    return prisma.causal_relationships.findMany({
       where,
       orderBy: { confidence: 'desc' },
     });
@@ -789,7 +787,7 @@ class KnowledgeExtractionService {
       ];
     }
 
-    return prisma.comparativeData.findMany({
+    return prisma.comparative_data.findMany({
       where,
       orderBy: { confidence: 'desc' },
     });
@@ -804,7 +802,7 @@ class KnowledgeExtractionService {
       where.effect = { contains: effect, mode: 'insensitive' };
     }
 
-    return prisma.causalRelationship.findMany({
+    return prisma.causal_relationships.findMany({
       where,
       orderBy: [{ documentCount: 'desc' }, { confidence: 'desc' }],
     });

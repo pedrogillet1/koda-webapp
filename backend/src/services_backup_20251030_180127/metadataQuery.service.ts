@@ -9,7 +9,7 @@ import prisma from '../config/database';
 
 interface MetadataQueryResult {
   answer: string;
-  metadata: {
+  document_metadata: {
     type: 'file_list' | 'category_list' | 'folder_list' | 'count';
     items: any[];
     totalCount: number;
@@ -34,7 +34,7 @@ class MetadataQueryService {
     if (!category) {
       return {
         answer: `❌ **Category Not Found**\n\nI couldn't find a category named "${categoryName}".\n\nWould you like me to:\n- List all your categories?\n- Search for files with similar names?`,
-        metadata: {
+        document_metadata: {
           type: 'file_list',
           items: [],
           totalCount: 0
@@ -43,12 +43,12 @@ class MetadataQueryService {
     }
 
     // Get documents with this category
-    const documentTags = await prisma.documentTag.findMany({
+    const documentTags = await prisma.documentsTags.findMany({
       where: { tagId: category.id },
       include: {
         document: {
           include: {
-            metadata: true
+            document_metadata: true
           }
         }
       }
@@ -57,7 +57,7 @@ class MetadataQueryService {
     if (documentTags.length === 0) {
       return {
         answer: `📂 **Category: ${categoryName}**\n\nThis category exists but has no files yet.\n\nYou can add files to this category from the Documents page.`,
-        metadata: {
+        document_metadata: {
           type: 'file_list',
           items: [],
           totalCount: 0
@@ -76,7 +76,7 @@ class MetadataQueryService {
 
     return {
       answer,
-      metadata: {
+      document_metadata: {
         type: 'file_list',
         items: documentTags.map(dt => ({
           id: dt.document.id,
@@ -109,7 +109,7 @@ class MetadataQueryService {
     if (tags.length === 0) {
       return {
         answer: `📋 **Your Categories**\n\nYou don't have any categories yet.\n\nYou can create categories to organize your documents from the Documents page.`,
-        metadata: {
+        document_metadata: {
           type: 'category_list',
           items: [],
           totalCount: 0
@@ -129,7 +129,7 @@ class MetadataQueryService {
 
     return {
       answer,
-      metadata: {
+      document_metadata: {
         type: 'category_list',
         items: tags.map(tag => ({
           id: tag.id,
@@ -153,13 +153,13 @@ class MetadataQueryService {
       where.mimeType = { in: mimeTypes };
     }
 
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where,
       include: {
-        metadata: true,
-        tags: {
+        document_metadata: true,
+        document_tags: {
           include: {
-            tag: true
+            document_document_tags: true
           }
         }
       },
@@ -171,7 +171,7 @@ class MetadataQueryService {
       const typeFilter = mimeTypes ? ` ${this.getMimeTypeDescription(mimeTypes)}` : '';
       return {
         answer: `You don't have any${typeFilter} files yet.`,
-        metadata: {
+        document_metadata: {
           type: 'file_list',
           items: [],
           totalCount: 0
@@ -190,7 +190,7 @@ class MetadataQueryService {
 
     return {
       answer,
-      metadata: {
+      document_metadata: {
         type: 'file_list',
         items: documents.map(doc => ({
           id: doc.id,
@@ -211,9 +211,9 @@ class MetadataQueryService {
     console.log(`🔢 Counting files for user`);
 
     const [totalFiles, categories, filesByType] = await Promise.all([
-      prisma.document.count({ where: { userId } }),
+      prisma.documents.count({ where: { userId } }),
       prisma.tag.count({ where: { userId } }),
-      prisma.document.groupBy({
+      prisma.documents.groupBy({
         by: ['mimeType'],
         where: { userId },
         _count: { id: true }
@@ -233,7 +233,7 @@ class MetadataQueryService {
 
     return {
       answer,
-      metadata: {
+      document_metadata: {
         type: 'count',
         items: filesByType,
         totalCount: totalFiles
@@ -342,7 +342,7 @@ class MetadataQueryService {
   async listAllFolders(userId: string): Promise<MetadataQueryResult> {
     console.log(`📁 Listing all folders with paths for user`);
 
-    const folders = await prisma.folder.findMany({
+    const folders = await prisma.folders.findMany({
       where: { userId },
       include: {
         _count: {
@@ -364,7 +364,7 @@ class MetadataQueryService {
     if (folders.length === 0) {
       return {
         answer: `📁 **Your Folders**\n\nYou don't have any folders yet.\n\nCreate folders to organize your documents from the Documents page.`,
-        metadata: {
+        document_metadata: {
           type: 'folder_list',
           items: [],
           totalCount: 0
@@ -423,7 +423,7 @@ class MetadataQueryService {
 
     return {
       answer,
-      metadata: {
+      document_metadata: {
         type: 'folder_list',
         items: folderPaths.map(({ folder, path }) => ({
           id: folder.id,
@@ -446,7 +446,7 @@ class MetadataQueryService {
     console.log(`📍 Finding location for document: "${filename}"`);
 
     // Search for documents with similar filenames
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId,
         filename: {
@@ -454,7 +454,7 @@ class MetadataQueryService {
         }
       },
       include: {
-        folder: {
+        folders: {
           include: {
             parentFolder: {
               select: {
@@ -464,7 +464,7 @@ class MetadataQueryService {
             }
           }
         },
-        metadata: true
+        document_metadata: true
       },
       take: 10
     });
@@ -472,7 +472,7 @@ class MetadataQueryService {
     if (documents.length === 0) {
       return {
         answer: `📍 **Document Not Found**\n\nI couldn't find any documents matching "${filename}".\n\nTry:\n- Checking the spelling\n- Using fewer words\n- Listing all files to browse`,
-        metadata: {
+        document_metadata: {
           type: 'file_list',
           items: [],
           totalCount: 0
@@ -500,14 +500,14 @@ class MetadataQueryService {
 
       // Add file details
       const fileSize = doc.fileSize ? `${(doc.fileSize / 1024).toFixed(1)} KB` : 'Unknown size';
-      const pageCount = doc.metadata?.pageCount ? ` • ${doc.metadata.pageCount} pages` : '';
+      const pageCount = doc.document_metadata?.pageCount ? ` • ${doc.document_metadata.pageCount} pages` : '';
       answer += `   📊 ${fileSize}${pageCount}\n`;
       answer += `   📅 Added: ${doc.createdAt.toLocaleDateString()}\n\n`;
     }
 
     return {
       answer,
-      metadata: {
+      document_metadata: {
         type: 'file_list',
         items: documents.map(doc => ({
           id: doc.id,
@@ -544,7 +544,7 @@ class MetadataQueryService {
 
     for (const folderName of pathParts) {
       type FolderResult = { id: string; name: string; emoji: string | null } | null;
-      const folder: FolderResult = await prisma.folder.findFirst({
+      const folder: FolderResult = await prisma.folders.findFirst({
         where: {
           userId,
           name: { equals: folderName },
@@ -560,7 +560,7 @@ class MetadataQueryService {
       if (!folder) {
         return {
           answer: `📂 **Folder Not Found**\n\nCouldn't find folder "${folderName}" in path "${folderPath}".\n\nThe folder structure may have changed or the path may be incorrect.`,
-          metadata: {
+          document_metadata: {
             type: 'file_list',
             items: [],
             totalCount: 0
@@ -576,7 +576,7 @@ class MetadataQueryService {
     if (!currentFolder) {
       return {
         answer: `📂 **Folder Not Found**\n\nCouldn't complete the folder path "${folderPath}".`,
-        metadata: {
+        document_metadata: {
           type: 'file_list',
           items: [],
           totalCount: 0
@@ -585,19 +585,19 @@ class MetadataQueryService {
     }
 
     // Get files in the found folder
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId,
         folderId: currentFolder.id
       },
       include: {
-        metadata: true
+        document_metadata: true
       },
       orderBy: { createdAt: 'desc' }
     });
 
     // Get subfolders
-    const subfolders = await prisma.folder.findMany({
+    const subfolders = await prisma.folders.findMany({
       where: {
         userId,
         parentFolderId: currentFolder.id
@@ -622,7 +622,7 @@ class MetadataQueryService {
       documents.forEach((doc, idx) => {
         answer += `${idx + 1}. **${doc.filename}**\n`;
         const fileSize = doc.fileSize ? `${(doc.fileSize / 1024).toFixed(1)} KB` : 'Unknown';
-        const pageCount = doc.metadata?.pageCount ? ` • ${doc.metadata.pageCount} pages` : '';
+        const pageCount = doc.document_metadata?.pageCount ? ` • ${doc.document_metadata.pageCount} pages` : '';
         answer += `   📊 ${fileSize}${pageCount}\n`;
         answer += `   📅 ${doc.createdAt.toLocaleDateString()}\n\n`;
       });
@@ -636,7 +636,7 @@ class MetadataQueryService {
 
     return {
       answer,
-      metadata: {
+      document_metadata: {
         type: 'file_list',
         items: documents.map(doc => ({
           id: doc.id,
@@ -654,13 +654,13 @@ class MetadataQueryService {
    * List files in root (not in any folder)
    */
   private async listRootFiles(userId: string): Promise<MetadataQueryResult> {
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId,
         folderId: null
       },
       include: {
-        metadata: true
+        document_metadata: true
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -672,7 +672,7 @@ class MetadataQueryService {
       documents.forEach((doc, idx) => {
         answer += `${idx + 1}. **${doc.filename}**\n`;
         const fileSize = doc.fileSize ? `${(doc.fileSize / 1024).toFixed(1)} KB` : 'Unknown';
-        const pageCount = doc.metadata?.pageCount ? ` • ${doc.metadata.pageCount} pages` : '';
+        const pageCount = doc.document_metadata?.pageCount ? ` • ${doc.document_metadata.pageCount} pages` : '';
         answer += `   📊 ${fileSize}${pageCount}\n`;
         answer += `   📅 ${doc.createdAt.toLocaleDateString()}\n\n`;
       });
@@ -682,7 +682,7 @@ class MetadataQueryService {
 
     return {
       answer,
-      metadata: {
+      document_metadata: {
         type: 'file_list',
         items: documents.map(doc => ({
           id: doc.id,
@@ -704,7 +704,7 @@ class MetadataQueryService {
     let currentFolderId: string | null = folderId;
 
     while (currentFolderId) {
-      const folder: { name: string; parentFolderId: string | null } | null = await prisma.folder.findFirst({
+      const folders: { name: string; parentFolderId: string | null } | null = await prisma.folders.findFirst({
         where: { id: currentFolderId, userId },
         select: {
           name: true,

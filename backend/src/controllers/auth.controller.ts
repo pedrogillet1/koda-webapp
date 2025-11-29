@@ -388,7 +388,7 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
     }
 
     // Fetch full user data from database using the ID from the token
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: req.user.id },
       select: {
         id: true,
@@ -399,7 +399,7 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
         isEmailVerified: true,
         phoneNumber: true,
         isPhoneVerified: true,
-        twoFactorAuth: {
+        two_factor_auth: {
           select: {
             isEnabled: true,
           },
@@ -422,7 +422,7 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
         emailVerified: user.isEmailVerified,
         phoneNumber: user.phoneNumber,
         phoneVerified: user.isPhoneVerified,
-        twoFactorEnabled: user.twoFactorAuth?.isEnabled || false,
+        twoFactorEnabled: user.two_factor_auth?.isEnabled || false,
       }
     });
   } catch (error) {

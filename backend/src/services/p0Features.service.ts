@@ -52,7 +52,7 @@ export interface P0ProcessingResult {
   // ✅ NEW: Academic intelligence fields
   academicQueryType: AcademicQueryType;
   academicContext?: string;  // Additional context from academic services
-  metadata: {
+  document_metadata: {
     contextEntities?: Record<string, any>;
     followUpType?: string;
     refinementType?: string;
@@ -96,7 +96,7 @@ class P0FeaturesService {
       scopeDescription: 'all documents',
       requiresCalculation: false,
       academicQueryType: 'none',
-      metadata: {},
+      document_metadata: {},
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -118,7 +118,7 @@ class P0FeaturesService {
         if (rewriteResult.wasRewritten) {
           result.processedQuery = rewriteResult.rewritten;
           result.wasRewritten = true;
-          result.metadata.followUpType = queryRewriterService.detectFollowUpType(query);
+          result.document_metadata.followUpType = queryRewriterService.detectFollowUpType(query);
 
           console.log(`✅ [P0] Query rewritten: "${query}" → "${rewriteResult.rewritten}"`);
         }
@@ -195,7 +195,7 @@ class P0FeaturesService {
     try {
       const contextEntities = contextTrackerService.getAllEntities(userId, conversationId);
       if (Object.keys(contextEntities).length > 0) {
-        result.metadata.contextEntities = contextEntities;
+        result.document_metadata.contextEntities = contextEntities;
       }
     } catch (error) {
       console.error('❌ [P0] Context entities retrieval failed:', error);
@@ -582,7 +582,7 @@ ${calcResult.formula ? `\n*Formula: ${calcResult.formula}*` : ''}
 
           if (methodology) {
             const enhancedAnswer = this.enhanceWithMethodology(answer, methodology);
-            return { enhancedAnswer, metadata: { methodology } };
+            return { enhancedAnswer, document_metadata: { methodology } };
           }
         } catch (e) {
           console.log(`⚠️ [ACADEMIC] Methodology lookup failed:`, e);
@@ -602,7 +602,7 @@ ${calcResult.formula ? `\n*Formula: ${calcResult.formula}*` : ''}
               documentName: c.documentName || 'document'
             }));
             const enhancedAnswer = this.enhanceWithCausalReasoning(answer, formattedCauses);
-            return { enhancedAnswer, metadata: { causalInfo } };
+            return { enhancedAnswer, document_metadata: { causalInfo } };
           }
         } catch (e) {
           console.log(`⚠️ [ACADEMIC] Causal lookup failed:`, e);
@@ -634,7 +634,7 @@ ${calcResult.formula ? `\n*Formula: ${calcResult.formula}*` : ''}
 
           if (synthesisResult && synthesisResult.synthesis) {
             const enhancedAnswer = this.enhanceWithSynthesis(answer, synthesisResult);
-            return { enhancedAnswer, metadata: { synthesisResult } };
+            return { enhancedAnswer, document_metadata: { synthesisResult } };
           }
         } catch (e) {
           console.log(`⚠️ [ACADEMIC] Synthesis lookup failed:`, e);

@@ -21,7 +21,7 @@ interface SemanticChunk {
   startPosition: number;
   endPosition: number;
   tokenCount: number;
-  metadata: {
+  document_metadata: {
     section: string;
     hasHeading: boolean;
     topicSummary: string;
@@ -228,7 +228,7 @@ export class SemanticChunkingService {
             startPosition: section.start,
             endPosition: section.end,
             tokenCount,
-            metadata: {
+            document_metadata: {
               section: section.title,
               hasHeading: true,
               topicSummary: '', // Will be filled later
@@ -285,7 +285,7 @@ export class SemanticChunkingService {
             startPosition: currentStart,
             endPosition: currentStart + currentChunk.length,
             tokenCount: this.estimateTokens(currentChunk),
-            metadata: {
+            document_metadata: {
               section: section.title,
               hasHeading: true,
               topicSummary: '',
@@ -306,7 +306,7 @@ export class SemanticChunkingService {
         startPosition: currentStart,
         endPosition: section.end,
         tokenCount: this.estimateTokens(currentChunk),
-        metadata: {
+        document_metadata: {
           section: section.title,
           hasHeading: true,
           topicSummary: '',
@@ -346,7 +346,7 @@ export class SemanticChunkingService {
             startPosition: currentStart,
             endPosition: paragraph.position,
             tokenCount: this.estimateTokens(currentChunk),
-            metadata: {
+            document_metadata: {
               section: `Section ${chunks.length + 1}`,
               hasHeading: false,
               topicSummary: '',
@@ -366,7 +366,7 @@ export class SemanticChunkingService {
         startPosition: currentStart,
         endPosition: text.length,
         tokenCount: this.estimateTokens(currentChunk),
-        metadata: {
+        document_metadata: {
           section: `Section ${chunks.length + 1}`,
           hasHeading: false,
           topicSummary: '',
@@ -438,8 +438,8 @@ Summary:`;
 
         return {
           ...chunk,
-          metadata: {
-            ...chunk.metadata,
+          document_metadata: {
+            ...chunk.document_metadata,
             topicSummary: summary,
           },
         };
@@ -633,7 +633,7 @@ Summary:`;
           startPosition: chunkStartPos,
           endPosition: chunkStartPos + chunkText.length,
           tokenCount: this.estimateTokens(chunkText),
-          metadata: {
+          document_metadata: {
             section: sheet.name,
             hasHeading: true,
             topicSummary: `Data from ${sheet.name} spreadsheet, rows ${rows[i - currentChunkRows.length + 1]?.num || 1}-${rows[i].num}`,
@@ -653,7 +653,7 @@ Summary:`;
         startPosition: sheet.startPos,
         endPosition: sheet.startPos + sheet.content.length,
         tokenCount: this.estimateTokens(sheet.content),
-        metadata: {
+        document_metadata: {
           section: sheet.name,
           hasHeading: true,
           topicSummary: `Data from ${sheet.name} spreadsheet`,
@@ -676,7 +676,7 @@ Summary:`;
       const numbers = chunk.text.match(/\$?[\d,]+(?:\.\d+)?/g) || [];
       const uniqueNumbers = [...new Set(numbers)].slice(0, 5);
 
-      let summary = chunk.metadata.topicSummary;
+      let summary = chunk.document_metadata.topicSummary;
 
       // Enhance summary with key data points if found
       if (uniqueNumbers.length > 0) {
@@ -685,8 +685,8 @@ Summary:`;
 
       return {
         ...chunk,
-        metadata: {
-          ...chunk.metadata,
+        document_metadata: {
+          ...chunk.document_metadata,
           topicSummary: summary,
         },
       };

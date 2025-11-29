@@ -630,7 +630,7 @@ class FileActionsService {
     userId: string
   ): Promise<Document | null> {
     // STEP 1: Try exact match first (fastest)
-    let document = await prisma.document.findFirst({
+    let document = await prisma.documents.findFirst({
       where: {
         filename: filename,
         userId: userId,
@@ -642,7 +642,7 @@ class FileActionsService {
 
     // STEP 2: Get all documents for fast local matching
     // ⚡ PERFORMANCE: Do all fast local operations before calling external APIs
-    const allDocuments = await prisma.document.findMany({
+    const allDocuments = await prisma.documents.findMany({
       where: {
         userId: userId,
         status: { not: 'deleted' },
@@ -707,7 +707,7 @@ class FileActionsService {
 
       if (semanticResult) {
         console.log(`🧠 Semantic match (last resort): "${filename}" → "${semanticResult.filename}" (confidence: ${semanticResult.confidence})`);
-        document = await prisma.document.findUnique({
+        document = await prisma.documents.findUnique({
           where: { id: semanticResult.documentId },
         });
 
@@ -731,7 +731,7 @@ class FileActionsService {
       console.log(`📁 [CREATE_FOLDER] Creating folder: "${params.folderName}" (Language: ${lang})`);
 
       // Check if folder already exists
-      const existingFolder = await prisma.folder.findFirst({
+      const existingFolder = await prisma.folders.findFirst({
         where: {
           userId: params.userId,
           name: params.folderName,
@@ -748,7 +748,7 @@ class FileActionsService {
       }
 
       // Create folder
-      const folder = await prisma.folder.create({
+      const folder = await prisma.folders.create({
         data: {
           userId: params.userId,
           name: params.folderName,
@@ -791,7 +791,7 @@ class FileActionsService {
       console.log(`📦 [MOVE_FILE] Moving file (Language: ${lang})`);
 
       // Verify document exists and belongs to user
-      const document = await prisma.document.findFirst({
+      const document = await prisma.documents.findFirst({
         where: {
           id: params.documentId,
           userId: params.userId,
@@ -807,7 +807,7 @@ class FileActionsService {
       }
 
       // Verify target folder exists and belongs to user
-      const targetFolder = await prisma.folder.findFirst({
+      const targetFolder = await prisma.folders.findFirst({
         where: {
           id: params.targetFolderId,
           userId: params.userId,
@@ -823,7 +823,7 @@ class FileActionsService {
       }
 
       // Move document
-      const updatedDocument = await prisma.document.update({
+      const updatedDocument = await prisma.documents.update({
         where: { id: params.documentId },
         data: { folderId: params.targetFolderId }
       });
@@ -861,7 +861,7 @@ class FileActionsService {
       console.log(`✏️ [RENAME_FILE] Renaming file (Language: ${lang})`);
 
       // Verify document exists and belongs to user
-      const document = await prisma.document.findFirst({
+      const document = await prisma.documents.findFirst({
         where: {
           id: params.documentId,
           userId: params.userId,
@@ -877,7 +877,7 @@ class FileActionsService {
       }
 
       // Rename document
-      const updatedDocument = await prisma.document.update({
+      const updatedDocument = await prisma.documents.update({
         where: { id: params.documentId },
         data: { filename: params.newFilename }
       });
@@ -915,7 +915,7 @@ class FileActionsService {
       console.log(`🗑️ [DELETE_FILE] Deleting file (Language: ${lang})`);
 
       // Verify document exists and belongs to user
-      const document = await prisma.document.findFirst({
+      const document = await prisma.documents.findFirst({
         where: {
           id: params.documentId,
           userId: params.userId,
@@ -931,7 +931,7 @@ class FileActionsService {
       }
 
       // Delete document (soft delete by updating status)
-      await prisma.document.update({
+      await prisma.documents.update({
         where: { id: params.documentId },
         data: { status: 'deleted' }
       });
@@ -1017,14 +1017,14 @@ class FileActionsService {
           console.log(`🔍 [SHOW_FILE] Topic-based search detected: "${topic}"`);
 
           // Search by topic in filename, summary, or extracted text
-          const topicSearchResults = await prisma.document.findMany({
+          const topicSearchResults = await prisma.documents.findMany({
             where: {
               userId: params.userId,
               status: { not: 'deleted' },
               OR: [
                 { filename: { contains: topic, mode: 'insensitive' } },
-                { metadata: { summary: { contains: topic, mode: 'insensitive' } } },
-                { metadata: { extractedText: { contains: topic, mode: 'insensitive' } } },
+                { document_metadata: { summary: { contains: topic, mode: 'insensitive' } } },
+                { document_metadata: { extractedText: { contains: topic, mode: 'insensitive' } } },
               ]
             },
             take: 5,
@@ -1056,7 +1056,7 @@ class FileActionsService {
             if (clarification.needsClarification && clarification.options && clarification.options.length > 0) {
               clarifyMessage += `\n\n${clarification.question}`;
               clarification.options.forEach((option) => {
-                const docIds = option.metadata?.documentIds || [];
+                const docIds = option.document_metadata?.documentIds || [];
                 clarifyMessage += `\n\n**${option.label}** (${option.count || docIds.length} files)`;
                 docIds.slice(0, 3).forEach((docId, i) => {
                   const doc = topicSearchResults.find(d => d.id === docId);
@@ -1103,14 +1103,14 @@ class FileActionsService {
 
       if (!document) {
         // Try searching by content keywords
-        const searchResults = await prisma.document.findMany({
+        const searchResults = await prisma.documents.findMany({
           where: {
             userId: params.userId,
             status: { not: 'deleted' },
             OR: [
               { filename: { contains: params.filename } },
               {
-                metadata: {
+                document_metadata: {
                   extractedText: { contains: params.filename }
                 }
               }
@@ -1149,7 +1149,7 @@ class FileActionsService {
           if (clarification.needsClarification && clarification.options && clarification.options.length > 0) {
             clarifyMessage += `\n\n${clarification.question}`;
             clarification.options.forEach((option) => {
-              const docIds = option.metadata?.documentIds || [];
+              const docIds = option.document_metadata?.documentIds || [];
               clarifyMessage += `\n\n**${option.label}** (${option.count || docIds.length} files)`;
               docIds.slice(0, 3).forEach((docId, i) => {
                 const doc = searchResults.find(d => d.id === docId);
@@ -1240,7 +1240,7 @@ class FileActionsService {
    */
   async findFolderByName(userId: string, folderName: string): Promise<Folder | null> {
     // Try exact match first
-    let folder = await prisma.folder.findFirst({
+    let folder = await prisma.folders.findFirst({
       where: {
         userId,
         name: folderName
@@ -1250,7 +1250,7 @@ class FileActionsService {
     if (folder) return folder;
 
     // Try case-insensitive match
-    folder = await prisma.folder.findFirst({
+    folder = await prisma.folders.findFirst({
       where: {
         userId,
         name: {
@@ -1263,7 +1263,7 @@ class FileActionsService {
     if (folder) return folder;
 
     // Try fuzzy match
-    const allFolders = await prisma.folder.findMany({
+    const allFolders = await prisma.folders.findMany({
       where: { userId },
     });
 
@@ -1326,7 +1326,7 @@ class FileActionsService {
           console.error(`❌ [MOVE FILE] File not found: "${params.filename}"`);
 
           // List all user documents for debugging
-          const allDocs = await prisma.document.findMany({
+          const allDocs = await prisma.documents.findMany({
             where: { userId, status: { not: 'deleted' } },
             select: { filename: true },
             take: 10
@@ -1353,7 +1353,7 @@ class FileActionsService {
           console.error(`❌ [MOVE FILE] Folder not found: "${params.targetFolder}"`);
 
           // List all user folders for debugging
-          const allFolders = await prisma.folder.findMany({
+          const allFolders = await prisma.folders.findMany({
             where: { userId },
             select: { name: true },
             take: 10
@@ -1408,7 +1408,7 @@ class FileActionsService {
         const lang = detectLanguage(query);
 
         // Try to find similar files for suggestions
-        const allDocuments = await prisma.document.findMany({
+        const allDocuments = await prisma.documents.findMany({
           where: {
             userId: userId,
             status: { not: 'deleted' },
@@ -1465,7 +1465,7 @@ class FileActionsService {
         const lang = detectLanguage(query);
 
         // Try to find similar files for suggestions
-        const allDocuments = await prisma.document.findMany({
+        const allDocuments = await prisma.documents.findMany({
           where: {
             userId: userId,
             status: { not: 'deleted' },
@@ -1537,7 +1537,7 @@ class FileActionsService {
    */
   async renameFolder(userId: string, folderId: string, newName: string): Promise<FileActionResult> {
     try {
-      const folder = await prisma.folder.findFirst({
+      const folder = await prisma.folders.findFirst({
         where: { id: folderId, userId }
       });
 
@@ -1549,7 +1549,7 @@ class FileActionsService {
         };
       }
 
-      await prisma.folder.update({
+      await prisma.folders.update({
         where: { id: folderId },
         data: { name: newName }
       });
@@ -1573,7 +1573,7 @@ class FileActionsService {
    */
   async deleteFolder(userId: string, folderId: string): Promise<FileActionResult> {
     try {
-      const folder = await prisma.folder.findFirst({
+      const folder = await prisma.folders.findFirst({
         where: { id: folderId, userId },
         include: {
           _count: {
@@ -1593,7 +1593,7 @@ class FileActionsService {
       }
 
       // Soft delete all documents in the folder
-      await prisma.document.updateMany({
+      await prisma.documents.updateMany({
         where: {
           folderId: folderId,
           userId: userId
@@ -1602,7 +1602,7 @@ class FileActionsService {
       });
 
       // Delete the folder
-      await prisma.folder.delete({
+      await prisma.folders.delete({
         where: { id: folderId }
       });
 
@@ -1660,7 +1660,7 @@ class FileActionsService {
   async findDuplicates(userId: string, criteria?: string): Promise<FileActionResult> {
     try {
       // Simple implementation: Find files with same filename
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where: { userId },
         select: { id: true, filename: true, fileSize: true }
       });
@@ -1710,7 +1710,7 @@ class FileActionsService {
       if (folderName) {
         const normalizedFolderName = folderName.toLowerCase().replace(/[-_]+/g, ' ').trim();
 
-        const folders = await prisma.folder.findMany({
+        const folders = await prisma.folders.findMany({
           where: { userId },
           select: { id: true, name: true }
         });
@@ -1757,14 +1757,14 @@ class FileActionsService {
       }
 
       // Fetch documents
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where,
         select: {
           id: true,
           filename: true,
           fileSize: true,
           createdAt: true,
-          folder: {
+          folders: {
             select: {
               id: true,
               name: true
@@ -1772,7 +1772,7 @@ class FileActionsService {
           }
         },
         orderBy: [
-          { folder: { name: 'asc' } },
+          { folders: { name: 'asc' } },
           { filename: 'asc' }
         ],
         take: 100
@@ -1859,7 +1859,7 @@ class FileActionsService {
       if (folderName) {
         const normalizedFolderName = folderName.toLowerCase().replace(/[-_]+/g, ' ').trim();
 
-        const folders = await prisma.folder.findMany({
+        const folders = await prisma.folders.findMany({
           where: { userId },
           select: { id: true, name: true }
         });
@@ -1876,7 +1876,7 @@ class FileActionsService {
       }
 
       // Fetch all documents
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where,
         select: {
           id: true,

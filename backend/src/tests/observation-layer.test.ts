@@ -69,7 +69,7 @@ function observeRetrievalResults(
 
   if (countMatch) {
     const expectedCount = parseInt(countMatch[2]);
-    const content = results.matches.map((m: any) => m.metadata?.content || '').join(' ');
+    const content = results.matches.map((m: any) => m.document_metadata?.content || '').join(' ');
     const numberedItems = content.match(/\b\d+\.\s/g)?.length || 0;
     const bulletItems = content.match(/[•\-\*]\s/g)?.length || 0;
     const foundCount = Math.max(numberedItems, bulletItems, results.matches.length);
@@ -171,8 +171,8 @@ describe('Observation Layer', () => {
     test('should detect low relevance scores', () => {
       const results: PineconeResults = {
         matches: [
-          { id: '1', score: 0.65, metadata: { content: 'Some content' } },
-          { id: '2', score: 0.60, metadata: { content: 'More content' } }
+          { id: '1', score: 0.65, document_metadata: { content: 'Some content' } },
+          { id: '2', score: 0.60, document_metadata: { content: 'More content' } }
         ]
       };
       const query = 'What are the principles of design?';
@@ -190,7 +190,7 @@ describe('Observation Layer', () => {
           {
             id: '1',
             score: 0.85,
-            metadata: {
+            document_metadata: {
               content: '1. First principle 2. Second principle'
             }
           }
@@ -212,11 +212,11 @@ describe('Observation Layer', () => {
           {
             id: '1',
             score: 0.92,
-            metadata: {
+            document_metadata: {
               content: '1. First 2. Second 3. Third 4. Fourth 5. Fifth'
             }
           },
-          { id: '2', score: 0.88, metadata: { content: 'Additional context' } }
+          { id: '2', score: 0.88, document_metadata: { content: 'Additional context' } }
         ]
       };
       const query = 'What are all 5 principles of design?';
@@ -229,8 +229,8 @@ describe('Observation Layer', () => {
     test('should detect insufficient coverage for multi-part queries', () => {
       const results: PineconeResults = {
         matches: [
-          { id: '1', score: 0.85, metadata: { content: 'Content about X' } },
-          { id: '2', score: 0.82, metadata: { content: 'More about X' } }
+          { id: '1', score: 0.85, document_metadata: { content: 'Content about X' } },
+          { id: '2', score: 0.82, document_metadata: { content: 'More about X' } }
         ]
       };
       const query = 'Compare X and Y';
@@ -245,9 +245,9 @@ describe('Observation Layer', () => {
     test('should pass with high relevance and sufficient results', () => {
       const results: PineconeResults = {
         matches: [
-          { id: '1', score: 0.95, metadata: { content: 'Highly relevant content' } },
-          { id: '2', score: 0.92, metadata: { content: 'Also relevant' } },
-          { id: '3', score: 0.89, metadata: { content: 'More relevant content' } }
+          { id: '1', score: 0.95, document_metadata: { content: 'Highly relevant content' } },
+          { id: '2', score: 0.92, document_metadata: { content: 'Also relevant' } },
+          { id: '3', score: 0.89, document_metadata: { content: 'More relevant content' } }
         ]
       };
       const query = 'What is machine learning?';
@@ -352,7 +352,7 @@ describe('Observation Layer', () => {
       // Step 1: Initial query returns low relevance
       const initialResults: PineconeResults = {
         matches: [
-          { id: '1', score: 0.60, metadata: { content: 'Vaguely related content' } }
+          { id: '1', score: 0.60, document_metadata: { content: 'Vaguely related content' } }
         ]
       };
       const initialQuery = 'What are the key factors in machine learning?';
@@ -375,7 +375,7 @@ describe('Observation Layer', () => {
           {
             id: '1',
             score: 0.85,
-            metadata: {
+            document_metadata: {
               content: '1. First principle 2. Second principle'
             }
           }
@@ -397,9 +397,9 @@ describe('Observation Layer', () => {
       // High quality results that need no refinement
       const results: PineconeResults = {
         matches: [
-          { id: '1', score: 0.95, metadata: { content: 'Perfect match' } },
-          { id: '2', score: 0.93, metadata: { content: 'Also great' } },
-          { id: '3', score: 0.91, metadata: { content: 'Very relevant' } }
+          { id: '1', score: 0.95, document_metadata: { content: 'Perfect match' } },
+          { id: '2', score: 0.93, document_metadata: { content: 'Also great' } },
+          { id: '3', score: 0.91, document_metadata: { content: 'Very relevant' } }
         ]
       };
       const query = 'What is artificial intelligence?';

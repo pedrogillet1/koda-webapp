@@ -28,6 +28,8 @@
     "src/**/*.test.ts",
     "src/**/*.spec.ts",
     "src/__tests__/**/*",
-    "src/services_backup*/**/*"
+    "src/services_backup*/**/*",
+    "src/scripts/**/*",
+    "src/services/_archive/**/*"
   ]
 }

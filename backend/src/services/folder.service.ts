@@ -22,7 +22,7 @@ export const createFolder = async (
   }
 ) => {
   // ✅ FIX: Check for existing folder
-  const existingFolder = await prisma.folder.findFirst({
+  const existingFolder = await prisma.folders.findFirst({
     where: {
       userId,
       name,
@@ -50,7 +50,7 @@ export const createFolder = async (
       // Auto-rename if requested
       let counter = 1;
       let newName = `${name} (${counter})`;
-      while (await prisma.folder.findFirst({
+      while (await prisma.folders.findFirst({
         where: { userId, name: newName, parentFolderId: parentFolderId || null }
       })) {
         counter++;
@@ -64,7 +64,7 @@ export const createFolder = async (
     }
   }
 
-  const folder = await prisma.folder.create({
+  const folder = await prisma.folders.create({
     data: {
       userId,
       name,
@@ -97,7 +97,7 @@ export const createFolder = async (
  */
 export const getOrCreateFolderByName = async (userId: string, folderName: string) => {
   // First, try to find existing folder
-  const existingFolder = await prisma.folder.findFirst({
+  const existingFolder = await prisma.folders.findFirst({
     where: {
       userId,
       name: folderName,
@@ -110,7 +110,7 @@ export const getOrCreateFolderByName = async (userId: string, folderName: string
   }
 
   // Create new folder if it doesn't exist
-  const newFolder = await prisma.folder.create({
+  const newFolder = await prisma.folders.create({
     data: {
       userId,
       name: folderName,
@@ -131,7 +131,7 @@ const getAllFolderIdsInTree = async (rootFolderId: string): Promise<string[]> =>
 
   // Iteratively find all subfolders (breadth-first search)
   while (currentBatch.length > 0) {
-    const subfolders = await prisma.folder.findMany({
+    const subfolders = await prisma.folders.findMany({
       where: { parentFolderId: { in: currentBatch } },
       select: { id: true },
     });
@@ -155,7 +155,7 @@ const countDocumentsRecursively = async (folderId: string): Promise<number> => {
 
   // Count documents in ALL folders with a single query
   // ✅ FIX: Include processing and uploading documents in count (not just completed)
-  const totalDocuments = await prisma.document.count({
+  const totalDocuments = await prisma.documents.count({
     where: {
       folderId: { in: allFolderIds },
       status: { in: ["completed", "processing", "uploading"] }
@@ -173,7 +173,7 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
   // --- ⚡ START: PERFORMANCE OPTIMIZATION ⚡ ---
 
   // 1. Get ALL folders for the user in a flat list (we need all for recursive count calculation)
-  const allFolders = await prisma.folder.findMany({
+  const allFolders = await prisma.folders.findMany({
     where: { userId },
     include: {
       _count: {
@@ -187,7 +187,7 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
   });
 
   // 2. Get all document counts grouped by folderId in a SINGLE query
-  const docCounts = await prisma.document.groupBy({
+  const docCounts = await prisma.documents.groupBy({
     by: ['folderId'],
     _count: { id: true },
     where: {
@@ -263,7 +263,7 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
  * ✅ FIX: Now includes _count for subfolders and calculates totalDocuments recursively
  */
 export const getFolder = async (folderId: string, userId: string) => {
-  const folder = await prisma.folder.findUnique({
+  const folder = await prisma.folders.findUnique({
     where: { id: folderId },
     include: {
       // ✅ FIX: Include _count in subfolders query
@@ -282,9 +282,9 @@ export const getFolder = async (folderId: string, userId: string) => {
           status: 'completed', // Only return completed documents
         },
         include: {
-          tags: {
+          document_tags: {
             include: {
-              tag: true,
+              document_document_tags: true,
             },
           },
         },
@@ -326,7 +326,7 @@ export const getFolder = async (folderId: string, userId: string) => {
  * Update folder
  */
 export const updateFolder = async (folderId: string, userId: string, name?: string, emoji?: string, parentFolderId?: string | null) => {
-  const folder = await prisma.folder.findUnique({
+  const folder = await prisma.folders.findUnique({
     where: { id: folderId },
   });
 
@@ -365,7 +365,7 @@ export const updateFolder = async (folderId: string, userId: string, name?: stri
     updateData.parentFolderId = parentFolderId;
   }
 
-  const updated = await prisma.folder.update({
+  const updated = await prisma.folders.update({
     where: { id: folderId },
     data: updateData,
   });
@@ -377,7 +377,7 @@ export const updateFolder = async (folderId: string, userId: string, name?: stri
  * Check if targetFolder is a descendant of sourceFolder
  */
 const checkIfDescendant = async (sourceFolderId: string, targetFolderId: string): Promise<boolean> => {
-  let currentFolder = await prisma.folder.findUnique({
+  let currentFolder = await prisma.folders.findUnique({
     where: { id: targetFolderId },
   });
 
@@ -388,7 +388,7 @@ const checkIfDescendant = async (sourceFolderId: string, targetFolderId: string)
     if (!currentFolder.parentFolderId) {
       return false;
     }
-    currentFolder = await prisma.folder.findUnique({
+    currentFolder = await prisma.folders.findUnique({
       where: { id: currentFolder.parentFolderId },
     });
   }
@@ -514,7 +514,7 @@ export const bulkCreateFolders = async (
  * Uses bulk delete instead of recursive deletion for instant performance
  */
 export const deleteFolder = async (folderId: string, userId: string) => {
-  const folder = await prisma.folder.findUnique({
+  const folder = await prisma.folders.findUnique({
     where: { id: folderId },
   });
 

@@ -27,7 +27,7 @@ export const checkUpcomingReminders = async () => {
 
     for (const reminder of reminders) {
       try {
-        await triggerReminderNotification(reminder.id);
+        await triggerReminderNotification(reminder.userId, reminder.title);
         console.log(`✅ Reminder notification sent for: ${reminder.title}`);
       } catch (error) {
         console.error(`❌ Failed to send reminder notification for ${reminder.id}:`, error);

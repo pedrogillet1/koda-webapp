@@ -59,7 +59,7 @@ export interface DocumentStructureResult {
   tables: TableStructure[];
   lists: ListStructure[];
   outline: DocumentOutline;
-  metadata: {
+  document_metadata: {
     totalSections: number;
     totalTables: number;
     totalLists: number;
@@ -140,7 +140,7 @@ function extractHeaders(text: string): DocumentSection[] {
         content: `${numMatch[1]} ${numMatch[2]}`.trim(),
         startOffset: offset,
         endOffset: offset + line.length,
-        metadata: { numbering: numMatch[1] }
+        document_metadata: { numbering: numMatch[1] }
       });
     }
 
@@ -471,7 +471,7 @@ export async function analyzeDocumentStructure(
       content: `Table: ${table.headers.join(', ')}`,
       startOffset: table.startOffset,
       endOffset: table.endOffset,
-      metadata: { headers: table.headers, rowCount: table.rows.length }
+      document_metadata: { headers: table.headers, rowCount: table.rows.length }
     });
   });
 
@@ -482,7 +482,7 @@ export async function analyzeDocumentStructure(
       content: `${list.type} list with ${list.items.length} items`,
       startOffset: list.startOffset,
       endOffset: list.endOffset,
-      metadata: { itemCount: list.items.length, listType: list.type }
+      document_metadata: { itemCount: list.items.length, listType: list.type }
     });
   });
 
@@ -512,7 +512,7 @@ export async function analyzeDocumentStructure(
     tables,
     lists,
     outline,
-    metadata: {
+    document_metadata: {
       totalSections: sections.length,
       totalTables: tables.length,
       totalLists: lists.length,
@@ -630,11 +630,11 @@ export function getStructureSummary(result: DocumentStructureResult): string {
     lines.push(`Title: ${result.outline.title}`);
   }
 
-  lines.push(`Sections: ${result.metadata.totalSections}`);
-  lines.push(`Tables: ${result.metadata.totalTables}`);
-  lines.push(`Lists: ${result.metadata.totalLists}`);
-  lines.push(`Header Depth: ${result.metadata.maxHeaderDepth}`);
-  lines.push(`Word Count: ${result.metadata.wordCount}`);
+  lines.push(`Sections: ${result.document_metadata.totalSections}`);
+  lines.push(`Tables: ${result.document_metadata.totalTables}`);
+  lines.push(`Lists: ${result.document_metadata.totalLists}`);
+  lines.push(`Header Depth: ${result.document_metadata.maxHeaderDepth}`);
+  lines.push(`Word Count: ${result.document_metadata.wordCount}`);
 
   if (result.outline.sections.length > 0) {
     lines.push('\nOutline:');

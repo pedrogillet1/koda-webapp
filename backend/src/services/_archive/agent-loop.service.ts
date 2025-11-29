@@ -234,7 +234,7 @@ class AgentLoopService {
           de.id,
           de."documentId",
           de.content,
-          de.metadata,
+          de.document_metadata,
           de."chunkIndex" as position,
           d.filename,
           d."mimeType",

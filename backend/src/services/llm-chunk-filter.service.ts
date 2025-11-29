@@ -62,7 +62,7 @@ export class LLMChunkFilterService {
       // ──────────────────────────────────────────────────────────────────────
 
       const chunksText = chunks.map((chunk, index) => {
-        const content = chunk.metadata?.text || chunk.metadata?.content || chunk.content || '';
+        const content = chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '';
         const preview = content.substring(0, 400);
         return `[Chunk ${index + 1}]\n${preview}${content.length > 400 ? '...' : ''}`;
       }).join('\n\n');
@@ -204,7 +204,7 @@ Respond ONLY with JSON (no markdown, no explanation):
 
     try {
       const chunksText = chunks.map((chunk, index) => {
-        const content = chunk.metadata?.text || chunk.metadata?.content || chunk.content || '';
+        const content = chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '';
         const preview = content.substring(0, 400);
         return `[Chunk ${index + 1}]\n${preview}${content.length > 400 ? '...' : ''}`;
       }).join('\n\n');

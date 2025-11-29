@@ -167,7 +167,7 @@ class ProactiveSuggestionsService {
    */
   private isPresentationDocument(sources: any[]): boolean {
     return sources.some(s =>
-      s.metadata?.slideNumber !== undefined ||
+      s.document_metadata?.slideNumber !== undefined ||
       s.documentName.match(/\.pptx?$/i)
     );
   }
@@ -177,8 +177,8 @@ class ProactiveSuggestionsService {
    */
   private hasSpreadsheetData(sources: any[]): boolean {
     return sources.some(s =>
-      s.metadata?.sheetName !== undefined ||
-      s.metadata?.cellRef !== undefined ||
+      s.document_metadata?.sheetName !== undefined ||
+      s.document_metadata?.cellRef !== undefined ||
       s.documentName.match(/\.xlsx?$/i)
     );
   }

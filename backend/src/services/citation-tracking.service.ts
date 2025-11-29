@@ -83,7 +83,7 @@ export async function buildSourcesFromCitations(
   console.log(`📚 [SOURCES] Building sources from ${documentIds.length} cited documents`);
 
   // Fetch document metadata from database
-  const documents = await prisma.document.findMany({
+  const documents = await prisma.documents.findMany({
     where: { id: { in: documentIds } },
     select: { id: true, filename: true, mimeType: true }
   });
@@ -99,7 +99,7 @@ export async function buildSourcesFromCitations(
     }
 
     // Find the chunk with the highest score for this document
-    const docChunks = retrievedChunks.filter(c => c.metadata?.documentId === citation.documentId);
+    const docChunks = retrievedChunks.filter(c => c.document_metadata?.documentId === citation.documentId);
     const bestScore = docChunks.length > 0 ? Math.max(...docChunks.map(c => c.score || c.rerankScore || 0)) : 1.0;
 
     sources.push({
@@ -129,7 +129,7 @@ export function fallbackToNameMatching(answer: string, retrievedChunks: any[]): 
 
   // Check each chunk's document name
   for (const chunk of retrievedChunks) {
-    const docName = chunk.metadata?.filename || '';
+    const docName = chunk.document_metadata?.filename || '';
     if (!docName) continue;
 
     // Remove file extension for matching
@@ -137,7 +137,7 @@ export function fallbackToNameMatching(answer: string, retrievedChunks: any[]): 
 
     // Check if document name appears in answer
     if (lowerAnswer.includes(baseName)) {
-      usedDocIds.add(chunk.metadata?.documentId);
+      usedDocIds.add(chunk.document_metadata?.documentId);
     }
   }
 
@@ -148,13 +148,13 @@ export function fallbackToNameMatching(answer: string, retrievedChunks: any[]): 
 
   // Build sources from matched documents
   const sources = retrievedChunks
-    .filter(c => usedDocIds.has(c.metadata?.documentId))
+    .filter(c => usedDocIds.has(c.document_metadata?.documentId))
     .map(c => ({
-      documentId: c.metadata?.documentId,
-      documentName: c.metadata?.filename,
-      pageNumber: c.metadata?.page || c.metadata?.pageNumber || null,
+      documentId: c.document_metadata?.documentId,
+      documentName: c.document_metadata?.filename,
+      pageNumber: c.document_metadata?.page || c.document_metadata?.pageNumber || null,
       score: c.score || c.rerankScore || 0,
-      mimeType: c.metadata?.mimeType
+      mimeType: c.document_metadata?.mimeType
     }));
 
   // Deduplicate by documentId (keep highest score)

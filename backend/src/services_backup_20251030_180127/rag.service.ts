@@ -173,7 +173,7 @@ class RAGService {
 
         // Look up document by filename (case-insensitive, partial match)
         try {
-          const matchedDoc = await prisma.document.findFirst({
+          const matchedDoc = await prisma.documents.findFirst({
             where: {
               userId,
               filename: {
@@ -336,7 +336,7 @@ class RAGService {
       console.log(`   📁 User asking about folder contents without specifying which folder`);
 
       // Get list of available folders
-      const folders = await prisma.folder.findMany({
+      const folders = await prisma.folders.findMany({
         where: { userId },
         select: { name: true },
         take: 10
@@ -364,13 +364,13 @@ class RAGService {
       console.log(`   📑 Document Type Query: "${documentType}"`);
 
       // Get all user documents with metadata
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where: {
           userId,
           status: 'completed'
         },
         include: {
-          metadata: true
+          document_metadata: true
         }
       });
 
@@ -380,7 +380,7 @@ class RAGService {
       for (const doc of documents) {
         const classification = documentTypeClassifier.classifyDocument(
           doc.filename,
-          doc.metadata?.extractedText || ''
+          doc.document_metadata?.extractedText || ''
         );
 
         if (classification.category === documentType) {
@@ -505,7 +505,7 @@ class RAGService {
 
       // Find identification documents (passports, licenses, IDs)
       // Note: SQLite LIKE operator is case-insensitive by default, so no mode needed
-      const idDocuments = await prisma.document.findMany({
+      const idDocuments = await prisma.documents.findMany({
         where: {
           userId,
           status: 'completed',
@@ -520,7 +520,7 @@ class RAGService {
           ]
         },
         include: {
-          metadata: true
+          document_metadata: true
         },
         take: 5
       });
@@ -530,12 +530,12 @@ class RAGService {
       if (idDocuments.length > 0) {
         // Try to extract the requested field from each document
         for (const doc of idDocuments) {
-          if (doc.metadata?.extractedText) {
+          if (doc.document_metadata?.extractedText) {
             console.log(`   🔍 Checking document: ${doc.filename}`);
 
             const extractedAnswer = await privacyAwareExtractor.extractIdentificationField(
               query,
-              doc.metadata.extractedText,
+              doc.document_metadata.extractedText,
               doc.filename
             );
 
@@ -552,7 +552,7 @@ class RAGService {
                   chunkIndex: 0,
                   content: '[Privacy-protected: Only requested field shown]',
                   similarity: 1.0,
-                  metadata: doc.metadata
+                  metadata: doc.document_metadata
                 }],
                 contextId: `privacy_aware_${Date.now()}`,
               };
@@ -578,13 +578,13 @@ class RAGService {
       console.log(`   Query: "${query}"`);
 
       // Get all completed documents with OCR text
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where: {
           userId,
           status: 'completed',
         },
         include: {
-          metadata: true
+          document_metadata: true
         },
         orderBy: {
           createdAt: 'desc'
@@ -601,11 +601,11 @@ class RAGService {
       }> = [];
 
       for (const doc of documents) {
-        if (doc.metadata?.extractedText) {
+        if (doc.document_metadata?.extractedText) {
           console.log(`   🔍 Scanning: ${doc.filename}`);
 
           const scanResult = piiScanner.scanForPII(
-            doc.metadata.extractedText,
+            doc.document_metadata.extractedText,
             doc.filename
           );
 
@@ -641,7 +641,7 @@ class RAGService {
             chunkIndex: 0,
             content: '[PII detected - details in report]',
             similarity: 1.0,
-            metadata: documents[idx].metadata
+            metadata: documents[idx].document_metadata
           })),
           contextId: `pii_scan_${Date.now()}`,
         };
@@ -717,11 +717,11 @@ class RAGService {
       console.log(`   Analyzing last ${conversationHistory.length} messages for document context...`);
 
       for (const message of conversationHistory) {
-        if (message.metadata) {
+        if (message.document_metadata) {
           try {
-            const metadata = typeof message.metadata === 'string'
-              ? JSON.parse(message.metadata)
-              : message.metadata;
+            const metadata = typeof message.document_metadata === 'string'
+              ? JSON.parse(message.document_metadata)
+              : message.document_metadata;
 
             // Extract document IDs from sources
             if (metadata.ragSources && Array.isArray(metadata.ragSources)) {
@@ -844,7 +844,7 @@ class RAGService {
     let scopedFolderName: string | null = null;
 
     // Check for existing folder context from previous messages
-    const existingFolderContext = await prisma.conversation.findUnique({
+    const existingFolderContext = await prisma.conversations.findUnique({
       where: { id: conversationId },
       select: {
         contextType: true,
@@ -870,7 +870,7 @@ class RAGService {
         console.log(`   ✅ Matched folder: "${scopedFolderName}"`);
 
         // Save folder context to conversation for future messages
-        await prisma.conversation.update({
+        await prisma.conversations.update({
           where: { id: conversationId },
           data: {
             contextType: 'folder',
@@ -1015,7 +1015,7 @@ class RAGService {
         // Get document name for better error message
         let documentName = 'this document';
         try {
-          const doc = await prisma.document.findUnique({
+          const doc = await prisma.documents.findUnique({
             where: { id: documentId },
             select: { filename: true }
           });
@@ -1050,14 +1050,14 @@ class RAGService {
     // Convert retrieval results to format expected by relevance scorer
     const chunksWithMetadata = retrievalResults.map(result => ({
       content: result.content,
-      metadata: {
+      document_metadata: {
         documentId: result.documentId,
         filename: result.filename,
-        pageNumber: result.metadata?.pageNumber,
-        slideNumber: result.metadata?.slideNumber,
+        pageNumber: result.document_metadata?.pageNumber,
+        slideNumber: result.document_metadata?.slideNumber,
         chunkIndex: result.chunkIndex || 0,
-        createdAt: result.metadata?.createdAt,
-        ...result.metadata
+        createdAt: result.document_metadata?.createdAt,
+        ...result.document_metadata
       },
       score: result.score // Vector similarity score
     }));
@@ -1075,7 +1075,7 @@ class RAGService {
     // Log top results
     console.log(`\n📊 TOP 5 SCORED CHUNKS:`);
     scoredChunks.slice(0, 5).forEach((scored, idx) => {
-      console.log(`   ${idx + 1}. ${scored.chunk.metadata.filename}`);
+      console.log(`   ${idx + 1}. ${scored.chunk.document_metadata.filename}`);
       console.log(`      Relevance: ${scored.relevanceScore.toFixed(1)}% | ${scored.relevanceExplanation}`);
       console.log(`      Factors: Semantic=${(scored.relevanceFactors.semanticSimilarity * 100).toFixed(0)}% | Keyword=${(scored.relevanceFactors.keywordMatch * 100).toFixed(0)}% | Title=${(scored.relevanceFactors.titleMatch * 100).toFixed(0)}%`);
     });
@@ -1114,15 +1114,15 @@ class RAGService {
 
     // STEP 4: PREPARE SOURCES WITH RELEVANCE SCORES
     const sources: RAGSource[] = relevantChunks
-      .filter(scored => scored.chunk.metadata.documentId && scored.chunk.metadata.filename)
+      .filter(scored => scored.chunk.document_metadata.documentId && scored.chunk.document_metadata.filename)
       .map(scored => ({
-        documentId: scored.chunk.metadata.documentId!,
-        documentName: scored.chunk.metadata.filename!,
-        chunkIndex: scored.chunk.metadata.chunkIndex || 0,
+        documentId: scored.chunk.document_metadata.documentId!,
+        documentName: scored.chunk.document_metadata.filename!,
+        chunkIndex: scored.chunk.document_metadata.chunkIndex || 0,
         content: scored.chunk.content,
         similarity: scored.relevanceScore / 100, // Convert back to 0-1 scale for compatibility
-        metadata: {
-          ...scored.chunk.metadata,
+        document_metadata: {
+          ...scored.chunk.document_metadata,
           relevanceScore: scored.relevanceScore,
           relevanceExplanation: scored.relevanceExplanation,
           relevanceFactors: scored.relevanceFactors
@@ -1405,8 +1405,8 @@ class RAGService {
 
         // Detect sheet context from sources
         const sheetNumbers = enrichedSources
-          .filter(s => s.metadata?.sheetNumber !== undefined)
-          .map(s => s.metadata.sheetNumber);
+          .filter(s => s.document_metadata?.sheetNumber !== undefined)
+          .map(s => s.document_metadata.sheetNumber);
         const uniqueSheets = [...new Set(sheetNumbers)];
         const detectedSheetNumber = uniqueSheets.length === 1 ? uniqueSheets[0] : null;
 
@@ -1468,7 +1468,7 @@ class RAGService {
    */
   private async getWorkspaceMetadata(userId: string) {
     const [documents, categories] = await Promise.all([
-      prisma.document.findMany({
+      prisma.documents.findMany({
         where: { userId },
         select: {
           id: true,
@@ -1928,14 +1928,14 @@ Now, provide your answer by EXTRACTING the specific information from the documen
   private async detectCommonFolder(documentIds: string[], userId: string): Promise<{ id: string; name: string } | null> {
     try {
       // Get documents with their folder information
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where: {
           id: { in: documentIds },
           userId: userId
         },
         select: {
           folderId: true,
-          folder: {
+          folders: {
             select: {
               id: true,
               name: true

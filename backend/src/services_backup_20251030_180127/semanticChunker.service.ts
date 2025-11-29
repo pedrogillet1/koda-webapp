@@ -17,7 +17,7 @@ export interface Chunk {
   heading?: string;
   startToken: number;
   endToken: number;
-  metadata: {
+  document_metadata: {
     isTable?: boolean;
     tableCaption?: string;
     tableRows?: number;
@@ -110,8 +110,8 @@ class SemanticChunkerService {
 
     // Add chunk indices
     chunks.forEach((chunk, idx) => {
-      chunk.metadata.chunkIndex = idx;
-      chunk.metadata.totalChunks = chunks.length;
+      chunk.document_metadata.chunkIndex = idx;
+      chunk.document_metadata.totalChunks = chunks.length;
     });
 
     console.log(`   ✅ Created ${chunks.length} semantic chunks`);
@@ -153,7 +153,7 @@ class SemanticChunkerService {
         heading,
         startToken: Math.floor((table.start - sectionStart) / 4), // Rough token estimate
         endToken: Math.floor((table.end - sectionStart) / 4),
-        metadata: {
+        document_metadata: {
           isTable: true,
           tableCaption: table.caption,
           tableRows: table.rows,
@@ -202,7 +202,7 @@ class SemanticChunkerService {
         heading,
         startToken: start,
         endToken: adjustedEnd,
-        metadata: {
+        document_metadata: {
           chunkIndex: 0
         }
       });
@@ -239,7 +239,7 @@ class SemanticChunkerService {
           text: currentChunk.join('\n\n'),
           startToken: 0,
           endToken: currentTokens,
-          metadata: {
+          document_metadata: {
             chunkIndex: 0
           }
         });
@@ -259,7 +259,7 @@ class SemanticChunkerService {
         text: currentChunk.join('\n\n'),
         startToken: 0,
         endToken: currentTokens,
-        metadata: {
+        document_metadata: {
           chunkIndex: 0
         }
       });
@@ -338,7 +338,7 @@ class SemanticChunkerService {
     }
 
     // Check for incomplete sentences (unless it's a table)
-    if (!chunk.metadata.isTable && !chunk.text.match(/[.!?]$/)) {
+    if (!chunk.document_metadata.isTable && !chunk.text.match(/[.!?]$/)) {
       issues.push('Chunk ends mid-sentence');
     }
 

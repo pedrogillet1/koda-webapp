@@ -13,7 +13,7 @@ import { pptxExtractorService } from './pptxExtractor.service';
 
 export interface PPTXChunk {
   content: string;
-  metadata: {
+  document_metadata: {
     slideNumber: number;
     totalSlides: number;
     slideTitle?: string;
@@ -25,7 +25,7 @@ export interface PPTXChunk {
 export interface PPTXProcessingResult {
   success: boolean;
   chunks: PPTXChunk[];
-  metadata: {
+  document_metadata: {
     title?: string;
     author?: string;
     totalSlides: number;
@@ -76,7 +76,7 @@ class PPTXProcessorService {
         return {
           success: false,
           chunks: [],
-          metadata: {
+          document_metadata: {
             totalSlides: 0,
             slidesWithText: 0
           },
@@ -91,7 +91,7 @@ class PPTXProcessorService {
         return {
           success: true,
           chunks: [],
-          metadata: {
+          document_metadata: {
             title: metadata?.title,
             author: metadata?.author,
             totalSlides: 0,
@@ -109,7 +109,7 @@ class PPTXProcessorService {
 
           return {
             content,
-            metadata: {
+            document_metadata: {
               slideNumber: slide.slide_number,
               totalSlides: totalSlides || slides.length,
               slideTitle: this.extractSlideTitle(slide.content),
@@ -125,7 +125,7 @@ class PPTXProcessorService {
 
       // Log sample of slide titles
       const sampleTitles = chunks.slice(0, 3).map(chunk =>
-        `Slide ${chunk.metadata.slideNumber}: ${chunk.metadata.slideTitle || 'Untitled'}`
+        `Slide ${chunk.document_metadata.slideNumber}: ${chunk.document_metadata.slideTitle || 'Untitled'}`
       );
       if (sampleTitles.length > 0) {
         console.log(`   - Sample titles:`, sampleTitles);
@@ -134,7 +134,7 @@ class PPTXProcessorService {
       return {
         success: true,
         chunks,
-        metadata: {
+        document_metadata: {
           title: metadata?.title,
           author: metadata?.author,
           totalSlides: totalSlides || slides.length,
@@ -147,7 +147,7 @@ class PPTXProcessorService {
       return {
         success: false,
         chunks: [],
-        metadata: {
+        document_metadata: {
           totalSlides: 0,
           slidesWithText: 0
         },
@@ -165,12 +165,12 @@ class PPTXProcessorService {
   }> {
     return chunks.map(chunk => ({
       text: chunk.content,
-      metadata: {
+      document_metadata: {
         filename,
-        slideNumber: chunk.metadata.slideNumber,
-        totalSlides: chunk.metadata.totalSlides,
-        slideTitle: chunk.metadata.slideTitle,
-        hasNotes: chunk.metadata.hasNotes,
+        slideNumber: chunk.document_metadata.slideNumber,
+        totalSlides: chunk.document_metadata.totalSlides,
+        slideTitle: chunk.document_metadata.slideTitle,
+        hasNotes: chunk.document_metadata.hasNotes,
         sourceType: 'powerpoint',
         chunkType: 'slide'
       }

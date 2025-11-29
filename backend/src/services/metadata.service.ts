@@ -48,7 +48,7 @@ export class MetadataService {
 
     try {
       // Search for files with partial match (case insensitive)
-      const files = await prisma.document.findMany({
+      const files = await prisma.documents.findMany({
         where: {
           userId,
           status: { not: 'deleted' },
@@ -57,7 +57,7 @@ export class MetadataService {
           },
         },
         include: {
-          folder: {
+          folders: {
             select: {
               id: true,
               name: true,
@@ -95,7 +95,7 @@ export class MetadataService {
   async getFileCount(userId: string): Promise<number> {
     console.log(`📊 [MetadataService] Counting files for user: ${userId}`);
 
-    const count = await prisma.document.count({
+    const count = await prisma.documents.count({
       where: {
         userId,
         status: { not: 'deleted' },
@@ -114,7 +114,7 @@ export class MetadataService {
 
     if (mimeType) {
       // Count specific type
-      const count = await prisma.document.count({
+      const count = await prisma.documents.count({
         where: {
           userId,
           status: { not: 'deleted' },
@@ -128,7 +128,7 @@ export class MetadataService {
     }
 
     // Count all types
-    const files = await prisma.document.groupBy({
+    const files = await prisma.documents.groupBy({
       by: ['mimeType'],
       where: {
         userId,
@@ -152,7 +152,7 @@ export class MetadataService {
     console.log(`📁 [MetadataService] Getting contents of folder: "${folderName}" for user: ${userId}`);
 
     // Find folder by name (case insensitive)
-    const folder = await prisma.folder.findFirst({
+    const folder = await prisma.folders.findFirst({
       where: {
         userId,
         name: {
@@ -167,7 +167,7 @@ export class MetadataService {
     }
 
     // Get files in folder
-    const files = await prisma.document.findMany({
+    const files = await prisma.documents.findMany({
       where: {
         userId,
         folderId: folder.id,
@@ -179,7 +179,7 @@ export class MetadataService {
     });
 
     // Get subfolders
-    const subfolders = await prisma.folder.findMany({
+    const subfolders = await prisma.folders.findMany({
       where: {
         userId,
         parentFolderId: folder.id,
@@ -222,7 +222,7 @@ export class MetadataService {
   async getAllFolders(userId: string): Promise<{ id: string; name: string; path: string | null; documentCount: number }[]> {
     console.log(`📁 [MetadataService] Getting all folders for user: ${userId}`);
 
-    const folders = await prisma.folder.findMany({
+    const folders = await prisma.folders.findMany({
       where: {
         userId,
       },
@@ -260,13 +260,13 @@ export class MetadataService {
   ): Promise<FileMetadata[]> {
     console.log(`📄 [MetadataService] Getting all files for user: ${userId}`);
 
-    const files = await prisma.document.findMany({
+    const files = await prisma.documents.findMany({
       where: {
         userId,
         status: { not: 'deleted' },
       },
       include: {
-        folder: {
+        folders: {
           select: {
             id: true,
             name: true,

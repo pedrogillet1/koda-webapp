@@ -452,7 +452,7 @@ Rules:
     const normalizedTerm = term.term.toLowerCase().trim();
 
     try {
-      const existing = await prisma.domainKnowledge.findUnique({
+      const existing = await prisma.domain_knowledge.findUnique({
         where: {
           userId_normalizedTerm_domain: {
             userId,
@@ -469,7 +469,7 @@ Rules:
           : [];
         const newDocs = Array.from(new Set([...existingDocs, documentId]));
 
-        await prisma.domainKnowledge.update({
+        await prisma.domain_knowledge.update({
           where: { id: existing.id },
           data: {
             definition: this.preferLonger(existing.definition, term.definition),
@@ -496,7 +496,7 @@ Rules:
           },
         });
       } else {
-        await prisma.domainKnowledge.create({
+        await prisma.domain_knowledge.create({
           data: {
             userId,
             term: term.term,
@@ -531,14 +531,14 @@ Rules:
   ): Promise<void> {
     try {
       // Find the concept IDs
-      const fromConcept = await prisma.domainKnowledge.findFirst({
+      const fromConcept = await prisma.domain_knowledge.findFirst({
         where: {
           userId,
           normalizedTerm: relation.fromTerm.toLowerCase(),
         },
       });
 
-      const toConcept = await prisma.domainKnowledge.findFirst({
+      const toConcept = await prisma.domain_knowledge.findFirst({
         where: {
           userId,
           normalizedTerm: relation.toTerm.toLowerCase(),
@@ -611,7 +611,7 @@ Rules:
 
     try {
       // Try exact match first
-      let knowledge = await prisma.domainKnowledge.findFirst({
+      let knowledge = await prisma.domain_knowledge.findFirst({
         where: {
           userId,
           normalizedTerm,
@@ -620,7 +620,7 @@ Rules:
 
       // If not found, try partial match
       if (!knowledge) {
-        knowledge = await prisma.domainKnowledge.findFirst({
+        knowledge = await prisma.domain_knowledge.findFirst({
           where: {
             userId,
             OR: [
@@ -637,7 +637,7 @@ Rules:
       }
 
       // Update access count
-      await prisma.domainKnowledge.update({
+      await prisma.domain_knowledge.update({
         where: { id: knowledge.id },
         data: {
           lastAccessedAt: new Date(),
@@ -673,7 +673,7 @@ Rules:
     term: string
   ): Promise<Array<{ term: string; relationship: string; direction: 'to' | 'from' }>> {
     try {
-      const concept = await prisma.domainKnowledge.findFirst({
+      const concept = await prisma.domain_knowledge.findFirst({
         where: {
           userId,
           normalizedTerm: term.toLowerCase(),

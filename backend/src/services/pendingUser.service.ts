@@ -8,7 +8,7 @@ import { generateSMSCode } from './sms.service';
  * Verify pending user's email with verification code
  */
 export const verifyPendingEmail = async (email: string, code: string) => {
-  const pendingUser = await prisma.pendingUser.findUnique({
+  const pendingUser = await prisma.pending_users.findUnique({
     where: { email: email.toLowerCase() },
   });
 
@@ -18,7 +18,7 @@ export const verifyPendingEmail = async (email: string, code: string) => {
 
   // Check if code has expired (10 minutes)
   if (pendingUser.expiresAt < new Date()) {
-    await prisma.pendingUser.delete({
+    await prisma.pending_users.delete({
       where: { email: email.toLowerCase() },
     });
     throw new Error('Verification code has expired. Please sign up again.');
@@ -30,7 +30,7 @@ export const verifyPendingEmail = async (email: string, code: string) => {
   }
 
   // Mark email as verified and return the updated object
-  const updatedPendingUser = await prisma.pendingUser.update({
+  const updatedPendingUser = await prisma.pending_users.update({
     where: { email: email.toLowerCase() },
     data: { emailVerified: true },
   });
@@ -42,7 +42,7 @@ export const verifyPendingEmail = async (email: string, code: string) => {
  * Resend email verification code
  */
 export const resendEmailCode = async (email: string) => {
-  const pendingUser = await prisma.pendingUser.findUnique({
+  const pendingUser = await prisma.pending_users.findUnique({
     where: { email: email.toLowerCase() },
   });
 
@@ -57,7 +57,7 @@ export const resendEmailCode = async (email: string) => {
   const expiresAt = new Date();
   expiresAt.setMinutes(expiresAt.getMinutes() + 10); // 10 minutes
 
-  const updatedPendingUser = await prisma.pendingUser.update({
+  const updatedPendingUser = await prisma.pending_users.update({
     where: { email: email.toLowerCase() },
     data: {
       emailCode,
@@ -65,14 +65,14 @@ export const resendEmailCode = async (email: string) => {
     },
   });
 
-  return { pendingUser: updatedPendingUser, emailCode };
+  return { pending_users: updatedPendingUser, emailCode };
 };
 
 /**
  * Add phone number to pending user and send verification code
  */
 export const addPhoneToPending = async (email: string, phoneNumber: string) => {
-  const pendingUser = await prisma.pendingUser.findUnique({
+  const pendingUser = await prisma.pending_users.findUnique({
     where: { email: email.toLowerCase() },
   });
 
@@ -84,7 +84,7 @@ export const addPhoneToPending = async (email: string, phoneNumber: string) => {
   const phoneCode = generateSMSCode();
 
   // Update pending user with phone number and code
-  const updatedPendingUser = await prisma.pendingUser.update({
+  const updatedPendingUser = await prisma.pending_users.update({
     where: { email: email.toLowerCase() },
     data: {
       phoneNumber,
@@ -92,14 +92,14 @@ export const addPhoneToPending = async (email: string, phoneNumber: string) => {
     },
   });
 
-  return { pendingUser: updatedPendingUser, phoneCode };
+  return { pending_users: updatedPendingUser, phoneCode };
 };
 
 /**
  * Verify pending user's phone with verification code
  */
 export const verifyPendingPhone = async (email: string, code: string) => {
-  const pendingUser = await prisma.pendingUser.findUnique({
+  const pendingUser = await prisma.pending_users.findUnique({
     where: { email: email.toLowerCase() },
   });
 
@@ -109,7 +109,7 @@ export const verifyPendingPhone = async (email: string, code: string) => {
 
   // Check if code has expired
   if (pendingUser.expiresAt < new Date()) {
-    await prisma.pendingUser.delete({
+    await prisma.pending_users.delete({
       where: { email: email.toLowerCase() },
     });
     throw new Error('Verification code has expired. Please sign up again.');
@@ -121,7 +121,7 @@ export const verifyPendingPhone = async (email: string, code: string) => {
   }
 
   // Mark phone as verified and return the updated object
-  const updatedPendingUser = await prisma.pendingUser.update({
+  const updatedPendingUser = await prisma.pending_users.update({
     where: { email: email.toLowerCase() },
     data: { phoneVerified: true },
   });
@@ -133,7 +133,7 @@ export const verifyPendingPhone = async (email: string, code: string) => {
  * Delete pending user
  */
 export const deletePendingUser = async (email: string) => {
-  await prisma.pendingUser.delete({
+  await prisma.pending_users.delete({
     where: { email: email.toLowerCase() },
   });
   console.log(`🗑️  Deleted pending user: ${email}`);

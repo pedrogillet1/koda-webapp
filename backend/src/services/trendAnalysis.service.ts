@@ -146,18 +146,18 @@ class TrendAnalysisService {
    */
   private async getDocumentsWithTemporalData(userId: string): Promise<DocumentTemporalData[]> {
     // Get documents with metadata
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId,
         status: 'completed',
       },
       include: {
-        metadata: true,
+        document_metadata: true,
       },
     });
 
     // Get methodology knowledge for this user
-    const methodologyKnowledge = await prisma.methodologyKnowledge.findMany({
+    const methodologyKnowledge = await prisma.methodology_knowledge.findMany({
       where: { userId },
     });
 
@@ -181,8 +181,8 @@ class TrendAnalysisService {
       let year: number | null = null;
 
       // Try metadata first
-      if (doc.metadata?.creationDate) {
-        year = new Date(doc.metadata.creationDate).getFullYear();
+      if (doc.document_metadata?.creationDate) {
+        year = new Date(doc.document_metadata.creationDate).getFullYear();
       }
 
       // Try to extract from filename or content
@@ -191,9 +191,9 @@ class TrendAnalysisService {
       }
 
       // Try to extract from topics/keywords
-      if (!year && doc.metadata?.topics) {
+      if (!year && doc.document_metadata?.topics) {
         try {
-          const topics = JSON.parse(doc.metadata.topics);
+          const topics = JSON.parse(doc.document_metadata.topics);
           // Look for year patterns in topics
           for (const topic of topics) {
             const yearMatch = topic.match(/\b(19\d{2}|20[0-2]\d)\b/);
@@ -207,20 +207,20 @@ class TrendAnalysisService {
 
       // Extract topics from metadata
       let topics: string[] = [];
-      if (doc.metadata?.topics) {
+      if (doc.document_metadata?.topics) {
         try {
-          topics = JSON.parse(doc.metadata.topics);
+          topics = JSON.parse(doc.document_metadata.topics);
         } catch (e) { /* ignore */ }
       }
-      if (doc.metadata?.keyEntities) {
+      if (doc.document_metadata?.keyEntities) {
         try {
-          const entities = JSON.parse(doc.metadata.keyEntities);
+          const entities = JSON.parse(doc.document_metadata.keyEntities);
           topics = [...topics, ...entities];
         } catch (e) { /* ignore */ }
       }
 
       // Detect data types from content
-      const dataTypes = this.detectDataTypes(doc.metadata?.extractedText || '');
+      const dataTypes = this.detectDataTypes(doc.document_metadata?.extractedText || '');
 
       result.push({
         documentId: doc.id,

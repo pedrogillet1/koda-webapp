@@ -94,7 +94,7 @@ export async function findFilesSemantically(
 
   try {
     // Step 1: Get all user's documents
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId,
         status: { not: 'deleted' },

@@ -16,7 +16,7 @@ export interface FullDocument {
   filename: string;
   mimeType: string;
   content: string;
-  metadata: {
+  document_metadata: {
     pageCount?: number;
     wordCount: number;
     uploadDate: Date;
@@ -80,20 +80,21 @@ export async function retrieveFullDocuments(
   let fetchedDocuments: any[] = [];
   if (uncachedDocIds.length > 0) {
     console.log(`📄 [CACHE MISS] Fetching ${uncachedDocIds.length} documents from database`);
-    fetchedDocuments = await prisma.document.findMany({
+    fetchedDocuments = await prisma.documents.findMany({
       where: {
         id: { in: uncachedDocIds },
         userId: userId,
         status: { not: 'deleted' }
       },
-      select: {
-        id: true,
-        filename: true,
-        mimeType: true,
-        plaintext: true,
-        metadata: true,
-        createdAt: true
-      }
+      // Fetch full documents - select not needed
+      // select: {
+      //   id: true,
+      //   filename: true,
+      //   mimeType: true,
+      //   extractedText: true,
+      //   document_metadata: true,
+      //   createdAt: true
+      // }
     });
 
     fetchedDocuments.forEach(doc => {
@@ -106,7 +107,7 @@ export async function retrieveFullDocuments(
   // Step 3: Build FullDocument objects
   const fullDocuments: FullDocument[] = documents.map(doc => {
     const relevanceData = relevantDocIds.find(r => r.id === doc.id);
-    const content = doc.plaintext || '';
+    const content = doc.extractedText || '';
     const wordCount = content.split(/\s+/).length;
 
     return {
@@ -114,8 +115,8 @@ export async function retrieveFullDocuments(
       filename: doc.filename,
       mimeType: doc.mimeType,
       content: content,
-      metadata: {
-        pageCount: (doc.metadata as any)?.pageCount,
+      document_metadata: {
+        pageCount: (doc.document_metadata as any)?.pageCount,
         wordCount: wordCount,
         uploadDate: doc.createdAt
       },
@@ -167,7 +168,7 @@ async function findRelevantDocumentIds(
   const documentScores = new Map<string, number>();
 
   for (const match of searchResults.matches || []) {
-    const docId = match.metadata?.documentId as string;
+    const docId = match.document_metadata?.documentId as string;
     const score = match.score || 0;
 
     if (!docId) continue;
@@ -248,9 +249,9 @@ export function buildDocumentContext(documents: FullDocument[]): string {
     context += `**Document ${index + 1}: ${doc.filename}**\n`;
     context += `- Type: ${doc.mimeType}\n`;
     context += `- Relevance: ${(doc.relevanceScore * 100).toFixed(0)}%\n`;
-    context += `- Words: ${doc.metadata.wordCount.toLocaleString()}\n`;
-    if (doc.metadata.pageCount) {
-      context += `- Pages: ${doc.metadata.pageCount}\n`;
+    context += `- Words: ${doc.document_metadata.wordCount.toLocaleString()}\n`;
+    if (doc.document_metadata.pageCount) {
+      context += `- Pages: ${doc.document_metadata.pageCount}\n`;
     }
     context += `\n**Content**:\n${doc.content}\n\n`;
     context += `${'='.repeat(80)}\n\n`;

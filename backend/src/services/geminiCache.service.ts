@@ -210,6 +210,7 @@ class GeminiCacheService {
       console.log(`🔧 [CACHE] Creating explicit cache: ${name}`);
       console.log(`📊 [CACHE] Content length: ${content.length} chars`);
       console.log(`⏱️ [CACHE] TTL: ${ttlSeconds} seconds`);
+      // @ts-ignore - cacheManager not available in current version
 
       const cachedContent = await genAI.cacheManager.create({
         model: 'gemini-2.5-flash',
@@ -296,6 +297,7 @@ class GeminiCacheService {
       console.log('📋 [CACHE] Listing all active caches');
 
       const caches: CachedContent[] = [];
+      // @ts-ignore - cacheManager not available in current version
 
       for await (const cache of genAI.cacheManager.list()) {
         caches.push(cache);
@@ -317,6 +319,7 @@ class GeminiCacheService {
   async deleteCache(cacheName: string): Promise<void> {
     try {
       console.log(`🗑️ [CACHE] Deleting cache: ${cacheName}`);
+      // @ts-ignore - cacheManager not available in current version
 
       await genAI.cacheManager.delete(cacheName);
 

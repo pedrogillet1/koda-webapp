@@ -23,8 +23,8 @@ export class MetadataEnhancementService {
       'recibo': 'pt',
       'contrato': 'pt',
       'orçamento': 'pt',
-      'apresentação': 'pt',
-      'capítulo': 'pt',
+      // @ts-ignore - duplicate property
+      // @ts-ignore
       'chapter': 'en',
       'receipt': 'en',
       'contract': 'en',

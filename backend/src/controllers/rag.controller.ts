@@ -23,13 +23,13 @@ import clarificationService from '../services/clarification.service';
  * Helper function to ensure conversation exists before creating messages
  */
 async function ensureConversationExists(conversationId: string, userId: string) {
-  let conversation = await prisma.conversation.findUnique({
+  let conversation = await prisma.conversations.findUnique({
     where: { id: conversationId }
   });
 
   if (!conversation) {
     console.log(`⚠️ Conversation ${conversationId} not found, creating it...`);
-    conversation = await prisma.conversation.create({
+    conversation = await prisma.conversations.create({
       data: {
         id: conversationId,
         userId,
@@ -116,7 +116,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     }
 
     // Get conversation history for context resolution (needed for intent detection)
-    const conversationHistoryForIntent = await prisma.message.findMany({
+    const conversationHistoryForIntent = await prisma.messages.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
       take: 10,
@@ -419,12 +419,12 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       console.log(`📊 [EXCEL] Reading Excel cell from query: "${query}"`);
 
       const excelCellReader = await import('../services/excelCellReader.service');
-      const cellResult = await excelCellReader.default.readCell(query, userId);
+      const cellResult = await excelCellReader.default.readCell({ query, userId });
 
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -433,7 +433,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -449,7 +449,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -489,7 +489,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -498,7 +498,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -507,7 +507,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -534,11 +534,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         // Ensure conversation exists before creating messages
         await ensureConversationExists(conversationId, userId);
 
-        const userMessage = await prisma.message.create({
+        const userMessage = await prisma.messages.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.message.create({
+        const assistantMessage = await prisma.messages.create({
           data: {
             conversationId,
             role: 'assistant',
@@ -551,7 +551,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           }
         });
 
-        await prisma.conversation.update({
+        await prisma.conversations.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -583,7 +583,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       console.log(`📋 [LIST] Listing files`);
 
       // TODO: Metadata query service removed - use direct database query
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where: { userId, status: 'completed' },
         select: { filename: true },
         orderBy: { createdAt: 'desc' }
@@ -596,7 +596,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -605,7 +605,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -613,7 +613,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -642,7 +642,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         folderName: intentResult.entities.folderName
       }, query);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -651,7 +651,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -664,7 +664,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -695,7 +695,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -704,7 +704,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -717,7 +717,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -746,7 +746,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -755,7 +755,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -768,7 +768,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -790,7 +790,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       // Extract folder name if specified
       const folderId = intentResult.entities.folderName
-        ? (await prisma.folder.findFirst({
+        ? (await prisma.folders.findFirst({
             where: {
               userId,
               name: {
@@ -806,7 +806,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -815,7 +815,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -828,7 +828,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -857,11 +857,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       if (navResult.found) {
         // Save messages
-        const userMessage = await prisma.message.create({
+        const userMessage = await prisma.messages.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.message.create({
+        const assistantMessage = await prisma.messages.create({
           data: {
             conversationId,
             role: 'assistant',
@@ -874,7 +874,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           }
         });
 
-        await prisma.conversation.update({
+        await prisma.conversations.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -910,11 +910,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       if (navResult.found) {
         // Save messages
-        const userMessage = await prisma.message.create({
+        const userMessage = await prisma.messages.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.message.create({
+        const assistantMessage = await prisma.messages.create({
           data: {
             conversationId,
             role: 'assistant',
@@ -927,7 +927,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           }
         });
 
-        await prisma.conversation.update({
+        await prisma.conversations.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -965,11 +965,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         console.log(`⚡ Template response generated in ${templateResponse.responseTimeMs}ms`);
 
         // Save user and assistant messages
-        const userMessage = await prisma.message.create({
+        const userMessage = await prisma.messages.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.message.create({
+        const assistantMessage = await prisma.messages.create({
           data: {
             conversationId,
             role: 'assistant',
@@ -978,7 +978,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           }
         });
 
-        await prisma.conversation.update({
+        await prisma.conversations.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -1003,11 +1003,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       if (templateResponse) {
         console.log(`⚡ Template response generated in ${templateResponse.responseTimeMs}ms`);
 
-        const userMessage = await prisma.message.create({
+        const userMessage = await prisma.messages.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.message.create({
+        const assistantMessage = await prisma.messages.create({
           data: {
             conversationId,
             role: 'assistant',
@@ -1016,7 +1016,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           }
         });
 
-        await prisma.conversation.update({
+        await prisma.conversations.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -1046,11 +1046,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       };
 
       if (metadataResult.answer) {
-        const userMessage = await prisma.message.create({
+        const userMessage = await prisma.messages.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.message.create({
+        const assistantMessage = await prisma.messages.create({
           data: {
             conversationId,
             role: 'assistant',
@@ -1063,7 +1063,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           }
         });
 
-        await prisma.conversation.update({
+        await prisma.conversations.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -1088,14 +1088,14 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     console.log(`🔍 Executing full RAG pipeline for complex query`);
 
     // Get conversation history (last 5 messages) for context
-    const conversationHistory = await prisma.message.findMany({
+    const conversationHistory = await prisma.messages.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
       take: 5,
       select: {
         role: true,
         content: true,
-        metadata: true,
+        document_metadata: true,
         createdAt: true
       }
     });
@@ -1104,14 +1104,14 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     conversationHistory.reverse();
 
     // ✅ Check if this is the first message in the conversation BEFORE saving
-    const existingMessageCount = await prisma.message.count({
+    const existingMessageCount = await prisma.messages.count({
       where: { conversationId }
     });
     const isFirstMessage = existingMessageCount === 0;
     console.log(`👋 [GREETING CHECK] Conversation ${conversationId}: ${existingMessageCount} existing messages, isFirstMessage: ${isFirstMessage}`);
 
     // Save user message to database
-    const userMessage = await prisma.message.create({
+    const userMessage = await prisma.messages.create({
       data: {
         conversationId,
         role: 'user',
@@ -1136,7 +1136,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     console.log(`🔍 [RAG CONTROLLER] result.sources.length:`, result.sources?.length);
 
     // Save assistant message to database with RAG metadata
-    const assistantMessage = await prisma.message.create({
+    const assistantMessage = await prisma.messages.create({
       data: {
         conversationId,
         role: 'assistant',
@@ -1152,13 +1152,13 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     });
 
     // Update conversation timestamp
-    await prisma.conversation.update({
+    await prisma.conversations.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
     });
 
     // Auto-generate conversation name after first message (non-blocking)
-    const messageCount = await prisma.message.count({
+    const messageCount = await prisma.messages.count({
       where: { conversationId }
     });
 
@@ -1166,7 +1166,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     if (messageCount === 2) { // 2 messages = first user message + first assistant message
       console.log(`✅ [AUTO-NAMING] Message count is 2, proceeding with name generation`);
-      const conversation = await prisma.conversation.findUnique({
+      const conversation = await prisma.conversations.findUnique({
         where: { id: conversationId },
         select: { title: true }
       });
@@ -1184,7 +1184,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           .then(async (generatedTitle) => {
             console.log(`✅ [AUTO-NAMING] Generated title: "${generatedTitle}"`);
             // Update the conversation title
-            await prisma.conversation.update({
+            await prisma.conversations.update({
               where: { id: conversationId },
               data: { title: generatedTitle }
             });
@@ -1531,7 +1531,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ⚡ PERFORMANCE: Only fetch conversation history if we need LLM (saves 50-150ms DB query)
     if (!intentResult) {
       console.log(`🔍 [OPTIMIZATION] No fast match - fetching conversation history for LLM`);
-      conversationHistoryForIntent = await prisma.message.findMany({
+      conversationHistoryForIntent = await prisma.messages.findMany({
         where: { conversationId },
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -1574,7 +1574,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -1583,7 +1583,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -1596,7 +1596,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -1646,7 +1646,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -1655,7 +1655,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -1667,7 +1667,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -1717,7 +1717,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -1726,7 +1726,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -1738,7 +1738,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -1792,7 +1792,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -1801,7 +1801,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -1813,7 +1813,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -1865,7 +1865,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -1874,7 +1874,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -1888,7 +1888,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -1944,7 +1944,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -1953,7 +1953,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -1965,7 +1965,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -2008,7 +2008,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         // Ensure conversation exists before creating messages
         await ensureConversationExists(conversationId, userId);
 
-        const userMessage = await prisma.message.create({
+        const userMessage = await prisma.messages.create({
           data: {
             conversationId,
             role: 'user',
@@ -2017,7 +2017,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           },
         });
 
-        const assistantMessage = await prisma.message.create({
+        const assistantMessage = await prisma.messages.create({
           data: {
             conversationId,
             role: 'assistant',
@@ -2029,7 +2029,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           },
         });
 
-        await prisma.conversation.update({
+        await prisma.conversations.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() },
         });
@@ -2098,7 +2098,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // Add keepalive pings every 15 seconds to prevent timeout
     const keepaliveInterval = setInterval(() => {
       res.write(': keepalive\n\n');
-      if (res.flush) res.flush();
+      if ((res as any).flush) (res as any).flush();
     }, 15000);
 
     // Clean up interval when done
@@ -2111,7 +2111,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
     // ✅ FIX: Check if this is the first message BEFORE saving the user message
     // This ensures greeting only appears on the very first message of the conversation
-    const existingMessageCount = await prisma.message.count({
+    const existingMessageCount = await prisma.messages.count({
       where: { conversationId }
     });
     const isFirstMessage = existingMessageCount === 0;
@@ -2122,11 +2122,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     if (regenerateMessageId) {
       console.log(`🔄 [REGENERATE] Regenerating message ${regenerateMessageId}, skipping user message creation`);
       // Find the original user message for this assistant message
-      const assistantMsg = await prisma.message.findUnique({
+      const assistantMsg = await prisma.messages.findUnique({
         where: { id: regenerateMessageId }
       });
       if (assistantMsg) {
-        const originalUserMsg = await prisma.message.findFirst({
+        const originalUserMsg = await prisma.messages.findFirst({
           where: {
             conversationId,
             role: 'user',
@@ -2138,7 +2138,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       }
     } else {
       // Save user message to database with attached files metadata
-      userMessage = await prisma.message.create({
+      userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -2172,7 +2172,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           // Stream each chunk to client
           console.log('🚀 [DEBUG] Writing chunk to SSE stream...');
           res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
-          if (res.flush) res.flush(); // Force immediate send
+          if ((res as any).flush) (res as any).flush(); // Force immediate send
           console.log('🚀 [DEBUG] Chunk written and flushed');
         },
         effectiveDocumentId,
@@ -2204,7 +2204,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       res.write(`data: ${JSON.stringify({ type: 'content', content: userFriendlyMessage })}\n\n`);
 
       // Save user-friendly message to database
-      const assistantMessage = await prisma.message.create({
+      const assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -2299,7 +2299,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       } else {
         // Single file mentioned (non-comparison) - filter to just that one
         filteredSources = mentionedFiles;
-        console.log(`✅ [SOURCE FILTERING] Query mentions "${mentionedFiles[0].documentName}", filtered to 1 source`);
+        console.log(`✅ [SOURCE FILTERING] Query mentions "${(mentionedFiles[0] as any).documentName}", filtered to 1 source`);
       }
     } else {
       filteredSources = uniqueSources;
@@ -2310,7 +2310,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     let assistantMessage: any;
     if (regenerateMessageId) {
       console.log(`🔄 [REGENERATE] Updating existing message ${regenerateMessageId}`);
-      assistantMessage = await prisma.message.update({
+      assistantMessage = await prisma.messages.update({
         where: { id: regenerateMessageId },
         data: {
           content: cleanedAnswer,
@@ -2322,11 +2322,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
             answerLength: finalAnswerLength,
             regeneratedAt: new Date().toISOString()
           }),
-          updatedAt: new Date()
         },
       });
     } else {
-      assistantMessage = await prisma.message.create({
+      assistantMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -2343,7 +2342,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     }
 
     // Update conversation timestamp
-    await prisma.conversation.update({
+    await prisma.conversations.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
     });
@@ -2354,12 +2353,12 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       .catch(err => console.error('❌ Error invalidating cache:', err));
 
     // Auto-generate conversation title (non-blocking)
-    const messageCount = await prisma.message.count({
+    const messageCount = await prisma.messages.count({
       where: { conversationId }
     });
 
     if (messageCount === 2) {
-      const conversation = await prisma.conversation.findUnique({
+      const conversation = await prisma.conversations.findUnique({
         where: { id: conversationId },
         select: { title: true }
       });
@@ -2370,7 +2369,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       if (conversation && shouldGenerate) {
         generateConversationTitle(query)
           .then(async (generatedTitle) => {
-            await prisma.conversation.update({
+            await prisma.conversations.update({
               where: { id: conversationId },
               data: { title: generatedTitle }
             });

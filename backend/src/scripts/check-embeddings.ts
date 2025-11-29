@@ -3,14 +3,14 @@ import prisma from '../config/database';
 async function checkEmbeddings() {
   const documentId = '034c8e07-c6be-447d-90c9-c2f7cef119bd';
 
-  const count = await prisma.documentEmbedding.count({
+  const count = await prisma.documentsEmbedding.count({
     where: { documentId }
   });
 
   console.log(`Embeddings for Lista_9: ${count}`);
 
   // Check if we have ex2 sheet data
-  const ex2Embeddings = await prisma.documentEmbedding.findMany({
+  const ex2Embeddings = await prisma.documentsEmbedding.findMany({
     where: {
       documentId,
       content: { contains: 'ex2' }

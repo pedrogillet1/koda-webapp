@@ -68,21 +68,21 @@ describe('Multi-User Scenario Integration Test', () => {
 
   beforeAll(async () => {
     // Clean up any existing test data
-    await prisma.documentMetadata.deleteMany({
+    await prisma.documentsMetadatas.deleteMany({
       where: {
         documentId: {
           in: [comprovanteDoc.id, psychiatricDoc.id, businessPlanDoc.id],
         },
       },
     });
-    await prisma.document.deleteMany({
+    await prisma.documents.deleteMany({
       where: {
         id: {
           in: [comprovanteDoc.id, psychiatricDoc.id, businessPlanDoc.id],
         },
       },
     });
-    await prisma.user.deleteMany({
+    await prisma.users.deleteMany({
       where: {
         id: {
           in: [userA.id, userB.id],
@@ -91,15 +91,15 @@ describe('Multi-User Scenario Integration Test', () => {
     });
 
     // Create test users
-    await prisma.user.create({ data: userA });
-    await prisma.user.create({ data: userB });
+    await prisma.users.create({ data: userA });
+    await prisma.users.create({ data: userB });
 
     // Create User A's documents
-    await prisma.document.create({
+    await prisma.documents.create({
       data: {
         ...comprovanteDoc,
         status: 'processed',
-        metadata: {
+        document_metadata: {
           create: {
             extractedText: 'Comprovante de Pagamento\nValor: R$ 1.500,00\nData: 15/01/2025\nBeneficiário: João Silva',
           },
@@ -107,11 +107,11 @@ describe('Multi-User Scenario Integration Test', () => {
       },
     });
 
-    await prisma.document.create({
+    await prisma.documents.create({
       data: {
         ...businessPlanDoc,
         status: 'processed',
-        metadata: {
+        document_metadata: {
           create: {
             extractedText: 'Koda Business Plan Version 12\nExecutive Summary...',
           },
@@ -120,11 +120,11 @@ describe('Multi-User Scenario Integration Test', () => {
     });
 
     // Create User B's sensitive document
-    await prisma.document.create({
+    await prisma.documents.create({
       data: {
         ...psychiatricDoc,
         status: 'processed',
-        metadata: {
+        document_metadata: {
           create: {
             extractedText: 'CONFIDENTIAL - Psychiatric Evaluation Report\nPatient Name: Confidential\nDiagnosis: ...',
           },
@@ -135,21 +135,21 @@ describe('Multi-User Scenario Integration Test', () => {
 
   afterAll(async () => {
     // Clean up test data
-    await prisma.documentMetadata.deleteMany({
+    await prisma.documentsMetadatas.deleteMany({
       where: {
         documentId: {
           in: [comprovanteDoc.id, psychiatricDoc.id, businessPlanDoc.id],
         },
       },
     });
-    await prisma.document.deleteMany({
+    await prisma.documents.deleteMany({
       where: {
         id: {
           in: [comprovanteDoc.id, psychiatricDoc.id, businessPlanDoc.id],
         },
       },
     });
-    await prisma.user.deleteMany({
+    await prisma.users.deleteMany({
       where: {
         id: {
           in: [userA.id, userB.id],
@@ -164,21 +164,21 @@ describe('Multi-User Scenario Integration Test', () => {
     test('Should ONLY return User A documents - NO cross-user leakage', async () => {
       // Simulate AI search_documents function call
       const searchQuery = 'Comprovante';
-      const searchResults = await prisma.document.findMany({
+      const searchResults = await prisma.documents.findMany({
         where: {
           userId: userA.id, // ✅ CRITICAL: Filter by User A's ID
           OR: [
             { filename: { contains: searchQuery } },
             {
-              metadata: {
+              document_metadata: {
                 extractedText: { contains: searchQuery },
               },
             },
           ],
         },
         include: {
-          folder: true,
-          metadata: true,
+          folders: true,
+          document_metadata: true,
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -204,14 +204,14 @@ describe('Multi-User Scenario Integration Test', () => {
 
     test('Deduplication: Same document in multiple folders appears only once', async () => {
       // Create two folders for User A
-      const recentFolder = await prisma.folder.create({
+      const recentFolder = await prisma.folders.create({
         data: {
           name: 'Recently Added',
           userId: userA.id,
         },
       });
 
-      const workFolder = await prisma.folder.create({
+      const workFolder = await prisma.folders.create({
         data: {
           name: 'Work Documents',
           userId: userA.id,
@@ -219,20 +219,20 @@ describe('Multi-User Scenario Integration Test', () => {
       });
 
       // Put Comprovante in Recent folder (simulating folder view)
-      await prisma.document.update({
+      await prisma.documents.update({
         where: { id: comprovanteDoc.id },
         data: { folderId: recentFolder.id },
       });
 
       // Search for Comprovante
-      const searchResults = await prisma.document.findMany({
+      const searchResults = await prisma.documents.findMany({
         where: {
           userId: userA.id,
           OR: [{ filename: { contains: 'Comprovante' } }],
         },
         include: {
-          folder: true,
-          metadata: true,
+          folders: true,
+          document_metadata: true,
         },
       });
 
@@ -252,7 +252,7 @@ describe('Multi-User Scenario Integration Test', () => {
       expect(uniqueResults[0].filename).toBe('Comprovante1.pdf');
 
       // Clean up
-      await prisma.folder.deleteMany({
+      await prisma.folders.deleteMany({
         where: { id: { in: [recentFolder.id, workFolder.id] } },
       });
     });
@@ -261,20 +261,20 @@ describe('Multi-User Scenario Integration Test', () => {
   describe('User B searches for their own documents', () => {
     test('Should ONLY return User B documents - complete isolation', async () => {
       // User B searches for "Psychiatric"
-      const searchResults = await prisma.document.findMany({
+      const searchResults = await prisma.documents.findMany({
         where: {
           userId: userB.id, // ✅ CRITICAL: Filter by User B's ID
           OR: [
             { filename: { contains: 'Psychiatric' } },
             {
-              metadata: {
+              document_metadata: {
                 extractedText: { contains: 'Psychiatric' },
               },
             },
           ],
         },
         include: {
-          metadata: true,
+          document_metadata: true,
         },
       });
 
@@ -292,7 +292,7 @@ describe('Multi-User Scenario Integration Test', () => {
 
     test('User B cannot see User A comprovante by filename search', async () => {
       // User B tries to search for User A's document
-      const searchResults = await prisma.document.findMany({
+      const searchResults = await prisma.documents.findMany({
         where: {
           userId: userB.id, // ✅ CRITICAL: Filter by User B's ID
           filename: { contains: 'Comprovante' },
@@ -305,15 +305,15 @@ describe('Multi-User Scenario Integration Test', () => {
 
     test('User B cannot see User A comprovante by content search', async () => {
       // User B tries to search for content in User A's document
-      const searchResults = await prisma.document.findMany({
+      const searchResults = await prisma.documents.findMany({
         where: {
           userId: userB.id, // ✅ CRITICAL: Filter by User B's ID
-          metadata: {
+          document_metadata: {
             extractedText: { contains: 'R$ 1.500,00' }, // User A's receipt amount
           },
         },
         include: {
-          metadata: true,
+          document_metadata: true,
         },
       });
 
@@ -325,30 +325,30 @@ describe('Multi-User Scenario Integration Test', () => {
   describe('Document Analysis - Ownership Verification', () => {
     test('User A can analyze their own document', async () => {
       // Simulate analyze_document function
-      const document = await prisma.document.findFirst({
+      const document = await prisma.documents.findFirst({
         where: {
           id: comprovanteDoc.id,
           userId: userA.id, // ✅ CRITICAL: Verify ownership
         },
         include: {
-          metadata: true,
+          document_metadata: true,
         },
       });
 
       expect(document).not.toBeNull();
       expect(document?.id).toBe(comprovanteDoc.id);
-      expect(document?.metadata?.extractedText).toContain('R$ 1.500,00');
+      expect(document?.document_metadata?.extractedText).toContain('R$ 1.500,00');
     });
 
     test('User A CANNOT analyze User B document', async () => {
       // User A tries to analyze User B's document by ID
-      const document = await prisma.document.findFirst({
+      const document = await prisma.documents.findFirst({
         where: {
           id: psychiatricDoc.id, // User B's document ID
           userId: userA.id, // ✅ CRITICAL: Verify ownership (should fail)
         },
         include: {
-          metadata: true,
+          document_metadata: true,
         },
       });
 
@@ -357,29 +357,29 @@ describe('Multi-User Scenario Integration Test', () => {
     });
 
     test('User B can analyze their own document', async () => {
-      const document = await prisma.document.findFirst({
+      const document = await prisma.documents.findFirst({
         where: {
           id: psychiatricDoc.id,
           userId: userB.id, // ✅ CRITICAL: Verify ownership
         },
         include: {
-          metadata: true,
+          document_metadata: true,
         },
       });
 
       expect(document).not.toBeNull();
       expect(document?.id).toBe(psychiatricDoc.id);
-      expect(document?.metadata?.extractedText).toContain('CONFIDENTIAL');
+      expect(document?.document_metadata?.extractedText).toContain('CONFIDENTIAL');
     });
 
     test('User B CANNOT analyze User A document', async () => {
-      const document = await prisma.document.findFirst({
+      const document = await prisma.documents.findFirst({
         where: {
           id: comprovanteDoc.id, // User A's document ID
           userId: userB.id, // ✅ CRITICAL: Verify ownership (should fail)
         },
         include: {
-          metadata: true,
+          document_metadata: true,
         },
       });
 
@@ -391,16 +391,16 @@ describe('Multi-User Scenario Integration Test', () => {
   describe('AI Smart Auto-Analysis Logic', () => {
     test('When User A searches "Comprovante" - exactly 1 unique match → auto-analyze', async () => {
       // Step 1: Search for documents
-      const searchResults = await prisma.document.findMany({
+      const searchResults = await prisma.documents.findMany({
         where: {
           userId: userA.id,
           OR: [
             { filename: { contains: 'Comprovante' } },
-            { metadata: { extractedText: { contains: 'Comprovante' } } },
+            { document_metadata: { extractedText: { contains: 'Comprovante' } } },
           ],
         },
         include: {
-          metadata: true,
+          document_metadata: true,
         },
       });
 
@@ -418,7 +418,7 @@ describe('Multi-User Scenario Integration Test', () => {
       // Step 4: AI should auto-analyze (not ask user to choose)
       const documentToAnalyze = uniqueResults[0];
       expect(documentToAnalyze.id).toBe(comprovanteDoc.id);
-      expect(documentToAnalyze.metadata?.extractedText).toContain('R$ 1.500,00');
+      expect(documentToAnalyze.document_metadata?.extractedText).toContain('R$ 1.500,00');
 
       // ✅ AI can now extract the value and answer directly
       // Expected AI behavior: "O valor do comprovante é R$ 1.500,00"
@@ -426,7 +426,7 @@ describe('Multi-User Scenario Integration Test', () => {
     });
 
     test('When search returns 0 results → AI should say document not found', async () => {
-      const searchResults = await prisma.document.findMany({
+      const searchResults = await prisma.documents.findMany({
         where: {
           userId: userA.id,
           OR: [{ filename: { contains: 'NonExistentDocument' } }],
@@ -439,13 +439,13 @@ describe('Multi-User Scenario Integration Test', () => {
 
     test('When search returns multiple DIFFERENT documents → AI should list them', async () => {
       // User A searches for "pdf" (generic - matches multiple docs)
-      const searchResults = await prisma.document.findMany({
+      const searchResults = await prisma.documents.findMany({
         where: {
           userId: userA.id,
           OR: [{ filename: { contains: 'pdf' } }],
         },
         include: {
-          metadata: true,
+          document_metadata: true,
         },
       });
 
@@ -468,7 +468,7 @@ describe('Multi-User Scenario Integration Test', () => {
   describe('Real-world Attack Scenarios', () => {
     test('ATTACK: User A tries to bypass userId filter by searching all documents', async () => {
       // Malicious attempt: Search without userId filter
-      const allDocuments = await prisma.document.findMany({
+      const allDocuments = await prisma.documents.findMany({
         where: {
           filename: { contains: 'Psychiatric' },
           // Attacker omits userId filter
@@ -479,7 +479,7 @@ describe('Multi-User Scenario Integration Test', () => {
       expect(allDocuments.length).toBeGreaterThan(0);
 
       // ✅ DEFENSE: Service layer MUST always include userId filter
-      const secureSearch = await prisma.document.findMany({
+      const secureSearch = await prisma.documents.findMany({
         where: {
           userId: userA.id, // ✅ CRITICAL: Always filter by userId
           filename: { contains: 'Psychiatric' },
@@ -495,7 +495,7 @@ describe('Multi-User Scenario Integration Test', () => {
       const knownDocId = psychiatricDoc.id;
 
       // Attempt to access without ownership verification
-      const documentWithoutCheck = await prisma.document.findUnique({
+      const documentWithoutCheck = await prisma.documents.findUnique({
         where: { id: knownDocId },
       });
 
@@ -503,7 +503,7 @@ describe('Multi-User Scenario Integration Test', () => {
       expect(documentWithoutCheck).not.toBeNull();
 
       // ✅ DEFENSE: Service layer MUST verify ownership
-      const documentWithCheck = await prisma.document.findFirst({
+      const documentWithCheck = await prisma.documents.findFirst({
         where: {
           id: knownDocId,
           userId: userA.id, // ✅ CRITICAL: Verify ownership

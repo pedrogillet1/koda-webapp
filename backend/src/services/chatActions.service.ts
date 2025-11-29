@@ -219,7 +219,7 @@ class ChatActionsService {
       console.log(`   Looking for contents of folder: "${folderName}"`);
 
       // Find all folders for user (we'll filter case-insensitively in JavaScript)
-      const folders = await prisma.folder.findMany({
+      const folders = await prisma.folders.findMany({
         where: { userId },
         include: {
           documents: {
@@ -303,7 +303,7 @@ class ChatActionsService {
 
     // Original: List all folders
     if (message.match(/folder/i)) {
-      const folders = await prisma.folder.findMany({
+      const folders = await prisma.folders.findMany({
         where: { userId, parentFolderId: null },
         include: {
           _count: {
@@ -343,7 +343,7 @@ class ChatActionsService {
     }
 
     if (message.match(/document|file/i)) {
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where: { userId, status: { not: 'deleted' } },
         orderBy: { createdAt: 'desc' },
         take: 15,
@@ -352,7 +352,7 @@ class ChatActionsService {
           filename: true,
           fileSize: true,
           createdAt: true,
-          folder: {
+          folders: {
             select: { name: true },
           },
         },
@@ -375,7 +375,7 @@ class ChatActionsService {
         })
         .join('\n');
 
-      const total = await prisma.document.count({
+      const total = await prisma.documents.count({
         where: { userId, status: { not: 'deleted' } },
       });
 

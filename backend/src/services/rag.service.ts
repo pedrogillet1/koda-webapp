@@ -462,7 +462,7 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 
   // Get unique document IDs
   const extractStart = Date.now();
-  const documentIds = [...new Set(matches.map(m => m.metadata?.documentId).filter(Boolean))];
+  const documentIds = [...new Set(matches.map(m => m.document_metadata?.documentId).filter(Boolean))];
   if (requestTimer) requestTimer.record('filterDeletedDocuments: Extract IDs', Date.now() - extractStart);
 
   if (documentIds.length === 0) {
@@ -474,7 +474,7 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 
   // Query database for valid (non-deleted) documents
   const dbStart = Date.now();
-  const validDocuments = await prisma.document.findMany({
+  const validDocuments = await prisma.documents.findMany({
     where: {
       id: { in: documentIds },
       userId: userId,
@@ -488,7 +488,7 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 
   // Filter matches to only include valid documents
   const filterStart = Date.now();
-  const filtered = matches.filter(m => validDocumentIds.has(m.metadata?.documentId));
+  const filtered = matches.filter(m => validDocumentIds.has(m.document_metadata?.documentId));
   if (requestTimer) requestTimer.record('filterDeletedDocuments: Filter Matches', Date.now() - filterStart);
 
   if (filtered.length < matches.length) {
@@ -516,14 +516,14 @@ async function retrieveFullDocuments(
   // Remove duplicates
   const uniqueDocIds = [...new Set(documentIds)];
 
-  const documents = await prisma.document.findMany({
+  const documents = await prisma.documents.findMany({
     where: {
       id: { in: uniqueDocIds },
       userId: userId,
       status: 'completed'
     },
     include: {
-      metadata: {
+      document_metadata: {
         select: {
           extractedText: true,
           markdownContent: true,
@@ -537,10 +537,10 @@ async function retrieveFullDocuments(
   const fullDocs = documents.map(doc => ({
     id: doc.id,
     title: doc.filename,
-    content: doc.metadata?.markdownContent || doc.metadata?.extractedText || '',
-    metadata: {
-      pageCount: doc.metadata?.pageCount,
-      wordCount: doc.metadata?.wordCount
+    content: doc.document_metadata?.markdownContent || doc.document_metadata?.extractedText || '',
+    document_metadata: {
+      pageCount: doc.document_metadata?.pageCount,
+      wordCount: doc.document_metadata?.wordCount
     }
   }));
 
@@ -573,10 +573,10 @@ function buildDocumentContext(
     context += `### Document: ${doc.title}\n\n`;
 
     // Add metadata if available
-    if (doc.metadata) {
+    if (doc.document_metadata) {
       const meta = [];
-      if (doc.metadata.pageCount) meta.push(`${doc.metadata.pageCount} pages`);
-      if (doc.metadata.wordCount) meta.push(`${doc.metadata.wordCount} words`);
+      if (doc.document_metadata.pageCount) meta.push(`${doc.document_metadata.pageCount} pages`);
+      if (doc.document_metadata.wordCount) meta.push(`${doc.document_metadata.wordCount} words`);
       if (meta.length > 0) {
         context += `*[${meta.join(', ')}]*\n\n`;
       }
@@ -877,7 +877,7 @@ function fastCitationExtraction(response: string, chunks: any[]): any[] {
   citedIndices.forEach(idx => {
     if (idx >= 0 && idx < chunks.length) {
       const chunk = chunks[idx];
-      const docId = chunk.metadata?.documentId;
+      const docId = chunk.document_metadata?.documentId;
       const score = chunk.score || chunk.rerankScore || chunk.hybridScore || 0;
 
       if (docId) {
@@ -886,9 +886,9 @@ function fastCitationExtraction(response: string, chunks: any[]): any[] {
         if (!existing || score > existing.score) {
           sourceMap.set(docId, {
             documentId: docId,
-            documentName: chunk.metadata?.filename || 'Unknown',
-            pageNumber: chunk.metadata?.page || null,
-            relevantText: (chunk.metadata?.text || chunk.metadata?.content || chunk.content || '').substring(0, 200),
+            documentName: chunk.document_metadata?.filename || 'Unknown',
+            pageNumber: chunk.document_metadata?.page || null,
+            relevantText: (chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '').substring(0, 200),
             score
           });
         }
@@ -900,7 +900,7 @@ function fastCitationExtraction(response: string, chunks: any[]): any[] {
   if (sourceMap.size === 0) {
     console.log(`âš¡ [FAST CITATION] No explicit citations found, using top 3 chunks as sources`);
     chunks.slice(0, 3).forEach(chunk => {
-      const docId = chunk.metadata?.documentId;
+      const docId = chunk.document_metadata?.documentId;
       const score = chunk.score || chunk.rerankScore || chunk.hybridScore || 0;
 
       if (docId) {
@@ -909,9 +909,9 @@ function fastCitationExtraction(response: string, chunks: any[]): any[] {
         if (!existing || score > existing.score) {
           sourceMap.set(docId, {
             documentId: docId,
-            documentName: chunk.metadata?.filename || 'Unknown',
-            pageNumber: chunk.metadata?.page || null,
-            relevantText: (chunk.metadata?.text || chunk.metadata?.content || chunk.content || '').substring(0, 200),
+            documentName: chunk.document_metadata?.filename || 'Unknown',
+            pageNumber: chunk.document_metadata?.page || null,
+            relevantText: (chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '').substring(0, 200),
             score
           });
         }
@@ -1005,7 +1005,7 @@ function observeRetrievalResults(
 
     // Try to count how many distinct items we found
     // This is a heuristic - we look for numbered lists or distinct concepts
-    const content = results.matches.map((m: any) => m.metadata?.content || '').join(' ');
+    const content = results.matches.map((m: any) => m.document_metadata?.content || '').join(' ');
 
     // Count numbered items (1., 2., 3., etc.)
     const numberedItems = content.match(/\b\d+\.\s/g)?.length || 0;
@@ -1551,7 +1551,7 @@ async function handleMultiStepQuery(
   for (const results of allResults) {
     for (const match of results) {
       // Deduplicate by chunk ID
-      const chunkId = match.id || `${match.metadata?.documentId}-${match.metadata?.page}`;
+      const chunkId = match.id || `${match.document_metadata?.documentId}-${match.document_metadata?.page}`;
 
       if (!seenChunkIds.has(chunkId)) {
         seenChunkIds.add(chunkId);
@@ -1921,9 +1921,9 @@ async function pureBM25Search(query: string, userId: string, topK: number = 20):
 
     // Convert to Pinecone-like format
     const matches = hybridResults.map((result: any) => ({
-      id: result.metadata?.documentId || '',
+      id: result.document_metadata?.documentId || '',
       score: result.bm25Score || result.hybridScore,
-      metadata: result.metadata,
+      metadata: result.document_metadata,
       content: result.content
     }));
 
@@ -2572,7 +2572,7 @@ async function detectComparison(userId: string, query: string): Promise<{
     console.log(`ðŸ“„ [COMPARISON] Document IDs: ${documentMentions.join(', ')}`);
 
     // âœ… DEBUG: Fetch and log actual document names for debugging
-    const docs = await prisma.document.findMany({
+    const docs = await prisma.documents.findMany({
       where: { id: { in: documentMentions } },
       select: { id: true, filename: true }
     });
@@ -2650,7 +2650,7 @@ async function extractDocumentMentions(userId: string, query: string): Promise<s
     console.log(`âŒ [CACHE MISS] User documents for ${userId}`);
 
     // Get all user's documents
-    const docs = await prisma.document.findMany({
+    const docs = await prisma.documents.findMany({
       where: { userId, status: { not: 'deleted' } },
       select: { id: true, filename: true },
     });
@@ -2811,7 +2811,7 @@ function boostSectionMatches(matches: any[], sectionRefs: string[]): void {
 
   let boostedCount = 0;
   for (const match of matches) {
-    const chunkText = match.metadata?.text || match.metadata?.content || '';
+    const chunkText = match.document_metadata?.text || match.document_metadata?.content || '';
 
     // Check if chunk contains any of the section references
     for (const sectionRef of sectionRefs) {
@@ -2936,7 +2936,7 @@ async function findDocumentsByName(
 
   try {
     // Get all user's documents from database
-    const allDocs = await prisma.document.findMany({
+    const allDocs = await prisma.documents.findMany({
       where: { userId, status: { not: 'deleted' } },
       select: { id: true, filename: true },
     });
@@ -3101,7 +3101,7 @@ async function handleConceptComparison(
 
   for (const match of filteredMatches) {
     if (match.score && match.score > 0.3) {
-      const meta = match.metadata || {};
+      const meta = match.document_metadata || {};
       const docName = meta.filename || meta.documentName || '';
       const concept = matchToConceptMap.get(match) || 'unknown';
 
@@ -3163,7 +3163,7 @@ async function handleConceptComparison(
   // Prepare chunks for comparative analysis
   const chunksForComparison = allChunks.map(chunk => ({
     content: chunk.text || '',
-    metadata: {
+    document_metadata: {
       documentId: chunk.documentId || 'unknown',
       filename: chunk.documentName || 'Unknown',
       page: chunk.pageNumber
@@ -3306,7 +3306,7 @@ async function handleDocumentComparison(
 
   // ðŸ” DEBUG: Log first chunk metadata to find the correct field names
   if (allChunks.length > 0) {
-    const firstMeta = allChunks[0].metadata || {};
+    const firstMeta = allChunks[0].document_metadata || {};
     console.log(`ðŸ” [DEBUG] First chunk metadata keys:`, Object.keys(firstMeta));
     console.log(`ðŸ” [DEBUG] First chunk content field:`, firstMeta.content ? `${firstMeta.content.substring(0, 100)}...` : 'EMPTY');
     console.log(`ðŸ” [DEBUG] First chunk text field:`, firstMeta.text ? `${firstMeta.text.substring(0, 100)}...` : 'EMPTY');
@@ -3315,7 +3315,7 @@ async function handleDocumentComparison(
   // Build context from all chunks
   const context = allChunks
     .map((match: any) => {
-      const meta = match.metadata || {};
+      const meta = match.document_metadata || {};
       // âœ… FIX: Use correct field names from Pinecone - try 'text' first, then 'content'
       const chunkContent = meta.text || meta.content || '';
       return `[Document: ${meta.filename || 'Unknown'}, Page: ${meta.page || 'N/A'}]\n${chunkContent}`;
@@ -3373,7 +3373,7 @@ async function handleDocumentComparison(
   if (sources.length === 0 && documentIds.length > 0) {
     console.log('âš ï¸ [DOCUMENT COMPARISON] No citations found, assuming all compared documents were used');
 
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: { id: { in: documentIds } },
       select: { id: true, filename: true, mimeType: true }
     });
@@ -3471,8 +3471,8 @@ async function handleDocumentCounting(
     whereClause.filename = { endsWith: fileType };
   }
 
-  const count = await prisma.document.count({ where: whereClause });
-  const documents = await prisma.document.findMany({
+  const count = await prisma.documents.count({ where: whereClause });
+  const documents = await prisma.documents.findMany({
     where: whereClause,
     select: { filename: true },
   });
@@ -3555,7 +3555,7 @@ async function handleDocumentTypes(
   // Detect language
   const lang = detectLanguage(query);
 
-  const documents = await prisma.document.findMany({
+  const documents = await prisma.documents.findMany({
     where: {
       userId,
       status: { not: 'deleted' },
@@ -3722,7 +3722,7 @@ async function handleDocumentListing(
   // Detect language
   const lang = detectLanguage(query);
 
-  const documents = await prisma.document.findMany({
+  const documents = await prisma.documents.findMany({
     where: {
       userId,
       status: { not: 'deleted' },
@@ -3934,7 +3934,7 @@ async function handleNavigationQuery(
   console.log(`ðŸ§­ [NAVIGATION] Handling app navigation question`);
 
   // âœ… PERSONALIZATION: Fetch user's folders and document count
-  const folders = await prisma.folder.findMany({
+  const folders = await prisma.folders.findMany({
     where: { userId },
     select: {
       id: true,
@@ -3945,7 +3945,7 @@ async function handleNavigationQuery(
     orderBy: { name: 'asc' }
   });
 
-  const documentCount = await prisma.document.count({
+  const documentCount = await prisma.documents.count({
     where: { userId }
   });
 
@@ -4160,11 +4160,11 @@ async function handleDomainKnowledgeQuery(
 
     // Transform Pinecone results to document chunks format
     const documentChunks = (searchResults.matches || [])
-      .filter((match: any) => match.metadata)
+      .filter((match: any) => match.document_metadata)
       .map((match: any) => ({
-        content: match.metadata.text || match.metadata.content || '',
-        documentId: match.metadata.documentId || 'unknown',
-        documentName: match.metadata.filename || match.metadata.documentName || 'Unknown',
+        content: match.document_metadata.text || match.document_metadata.content || '',
+        documentId: match.document_metadata.documentId || 'unknown',
+        documentName: match.document_metadata.filename || match.document_metadata.documentName || 'Unknown',
       }));
 
     // Generate the terminology response with full intelligence
@@ -4289,11 +4289,11 @@ async function searchDocumentsForTerm(
 
     // Transform Pinecone results to document chunks format
     return (searchResults.matches || [])
-      .filter((match: any) => match.metadata)
+      .filter((match: any) => match.document_metadata)
       .map((match: any) => ({
-        content: match.metadata.text || match.metadata.content || '',
-        documentId: match.metadata.documentId || 'unknown',
-        documentName: match.metadata.filename || match.metadata.documentName || 'Unknown',
+        content: match.document_metadata.text || match.document_metadata.content || '',
+        documentId: match.document_metadata.documentId || 'unknown',
+        documentName: match.document_metadata.filename || match.document_metadata.documentName || 'Unknown',
       }));
   } catch (error) {
     console.error('Error searching for term in documents:', error);
@@ -4493,8 +4493,8 @@ async function handleRegularQuery(
     // âœ… DISABLED BM25: document_chunks table doesn't exist, using pure vector search
     // Convert to hybrid result format for consistency
     const hybridResults = (searchResults.matches || []).map((match: any) => ({
-      content: match.metadata?.content || match.metadata?.text || '',
-      metadata: match.metadata,
+      content: match.document_metadata?.content || match.document_metadata?.text || '',
+      metadata: match.document_metadata,
       vectorScore: match.score || 0,
       bm25Score: 0,
       hybridScore: match.score || 0,
@@ -4508,13 +4508,13 @@ async function handleRegularQuery(
 
     // Build context from all chunks with document type labels for multi-document queries
     const contextChunks = filteredChunks.slice(0, 20).map((chunk: any, index: number) => {
-      const content = chunk.metadata?.content || '';
-      const page = chunk.metadata?.page || 0;
+      const content = chunk.document_metadata?.content || '';
+      const page = chunk.document_metadata?.page || 0;
 
       // Get document type/name for context (helps with cross-document synthesis)
       let docLabel = 'Document';
-      if (chunk.metadata?.filename) {
-        const filename = chunk.metadata.filename.toLowerCase();
+      if (chunk.document_metadata?.filename) {
+        const filename = chunk.document_metadata.filename.toLowerCase();
         if (filename.includes('financial') || filename.includes('report') || filename.includes('statement')) {
           docLabel = 'Financial Report';
         } else if (filename.includes('lease') || filename.includes('agreement') || filename.includes('contract')) {
@@ -4526,7 +4526,7 @@ async function handleRegularQuery(
         } else if (filename.includes('policy') || filename.includes('insurance')) {
           docLabel = 'Insurance Policy';
         } else {
-          docLabel = chunk.metadata.filename;
+          docLabel = chunk.document_metadata.filename;
         }
       }
 
@@ -4617,9 +4617,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     // Build sources from chunks
     const sources = filteredChunks.slice(0, 10).map((chunk: any) => ({
-      documentId: chunk.metadata?.documentId || null,  // âœ… CRITICAL: Frontend needs this to display sources
-      documentName: chunk.metadata?.filename || 'Unknown',
-      pageNumber: chunk.metadata?.page || null,
+      documentId: chunk.document_metadata?.documentId || null,  // âœ… CRITICAL: Frontend needs this to display sources
+      documentName: chunk.document_metadata?.filename || 'Unknown',
+      pageNumber: chunk.document_metadata?.page || null,
       score: chunk.score || 0,
     }));
 
@@ -4628,7 +4628,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const sourceDocumentIds: string[] = sources.map(s => s.documentId).filter((id): id is string => Boolean(id));
     const uniqueDocumentIds = [...new Set(sourceDocumentIds)];
     if (uniqueDocumentIds.length > 0) {
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where: { id: { in: uniqueDocumentIds } },
         select: { id: true, filename: true, mimeType: true }
       });
@@ -4749,7 +4749,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // 1. Folder tree fetch (expected: 300ms)
     (async () => {
       const t0 = Date.now();
-      const result = await prisma.folder.findMany({
+      const result = await prisma.folders.findMany({
         where: { userId },
         select: {
           id: true,
@@ -4879,8 +4879,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       // Convert to hybrid result format
       hybridResults = (bm25Results.matches || []).map((match: any) => ({
-        content: match.metadata?.content || match.metadata?.text || match.content || '',
-        metadata: match.metadata,
+        content: match.document_metadata?.content || match.document_metadata?.text || match.content || '',
+        metadata: match.document_metadata,
         vectorScore: 0,
         bm25Score: match.score || 0,
         hybridScore: match.score || 0,
@@ -4909,8 +4909,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
         if (requestTimer) requestTimer.end('Pinecone Query (keyword fallback)');
 
         hybridResults = (rawResults.matches || []).map((match: any) => ({
-          content: match.metadata?.content || match.metadata?.text || '',
-          metadata: match.metadata,
+          content: match.document_metadata?.content || match.document_metadata?.text || '',
+          metadata: match.document_metadata,
           vectorScore: match.score || 0,
           bm25Score: 0,
           hybridScore: match.score || 0,
@@ -4942,8 +4942,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // âœ… DISABLED BM25: document_chunks table doesn't exist, using pure vector search
       // Convert to hybrid result format for consistency (same as pure vector path)
       hybridResults = (rawResults.matches || []).map((match: any) => ({
-        content: match.metadata?.content || match.metadata?.text || '',
-        metadata: match.metadata,
+        content: match.document_metadata?.content || match.document_metadata?.text || '',
+        metadata: match.document_metadata,
         vectorScore: match.score || 0,
         bm25Score: 0,
         hybridScore: match.score || 0,
@@ -4970,8 +4970,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       // Convert to hybrid result format for consistency
       hybridResults = (rawResults.matches || []).map((match: any) => ({
-        content: match.metadata?.content || match.metadata?.text || '',
-        metadata: match.metadata,
+        content: match.document_metadata?.content || match.document_metadata?.text || '',
+        metadata: match.document_metadata,
         vectorScore: match.score || 0,
         bm25Score: 0,
         hybridScore: match.score || 0,
@@ -4990,10 +4990,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
     console.log(`   Total results: ${hybridResults.length}`);
     if (hybridResults.length > 0) {
       console.log(`   Top 5 results:`, hybridResults.slice(0, 5).map((r: any) => ({
-        filename: r.metadata?.filename,
+        filename: r.document_metadata?.filename,
         score: r.vectorScore || r.hybridScore,
-        contentPreview: (r.metadata?.text || r.metadata?.content || r.content || '').substring(0, 80),
-        sourceType: r.metadata?.sourceType
+        contentPreview: (r.document_metadata?.text || r.document_metadata?.content || r.content || '').substring(0, 80),
+        sourceType: r.document_metadata?.sourceType
       })));
     } else {
       console.error('âŒ [DEBUG] NO RESULTS FROM PINECONE - This is the root cause!');
@@ -5043,8 +5043,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
         // âœ… DISABLED BM25: document_chunks table doesn't exist, using pure vector search
         // Convert to hybrid result format for consistency
         const iterativeHybridResults = (iterativeResults.matches || []).map((match: any) => ({
-          content: match.metadata?.content || match.metadata?.text || '',
-          metadata: match.metadata,
+          content: match.document_metadata?.content || match.document_metadata?.text || '',
+          metadata: match.document_metadata,
           vectorScore: match.score || 0,
           bm25Score: 0,
           hybridScore: match.score || 0,
@@ -5171,7 +5171,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       fullDocuments = await fullDocRetrieval.retrieveFullDocuments(
         userId,
         query,
-        attachedDocumentId,
+        Array.isArray(attachedDocumentId) ? attachedDocumentId[0] : attachedDocumentId,
         {
           maxDocuments: complexity === 'complex' ? 3 : 2,
           minRelevanceScore: 0.7,
@@ -5267,8 +5267,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // Use Pinecone's native ordering (already sorted by similarity)
     perfTimer.mark('reranking');
     const rerankedChunks = finalSearchResults.map((chunk: any, index: number) => ({
-      content: chunk.content || chunk.metadata?.content || '',
-      metadata: chunk.metadata,
+      content: chunk.content || chunk.document_metadata?.content || '',
+      metadata: chunk.document_metadata,
       originalScore: chunk.hybridScore || chunk.vectorScore || chunk.score || 0,
       rerankScore: chunk.hybridScore || chunk.vectorScore || chunk.score || 0, // Same as original
       finalPosition: index,
@@ -5306,9 +5306,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       // Extract document information for claim extraction
       const documentChunks = rerankedChunks.slice(0, 5).map((chunk: any) => ({
-        document_id: chunk.metadata?.documentId || 'unknown',
-        document_title: chunk.metadata?.filename || 'Unknown',
-        content: chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
+        document_id: chunk.document_metadata?.documentId || 'unknown',
+        document_title: chunk.document_metadata?.filename || 'Unknown',
+        content: chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || ''
       }));
 
       // Extract claims from documents
@@ -5329,12 +5329,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // Build evidence for confidence scoring (simplified without contradiction detection)
       perfTimer.mark('evidenceScoring');
       const evidence = rerankedChunks.map((chunk: any) => ({
-        document_id: chunk.metadata?.documentId || 'unknown',
-        document_title: chunk.metadata?.filename || 'Unknown',
-        relevant_passage: chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
+        document_id: chunk.document_metadata?.documentId || 'unknown',
+        document_title: chunk.document_metadata?.filename || 'Unknown',
+        relevant_passage: chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '',
         support_strength: confidenceScoring.scoreEvidence(
           query,
-          chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
+          chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '',
           chunk.rerankScore || chunk.originalScore || 0
         ),
         relevance_score: chunk.rerankScore || chunk.originalScore || 0
@@ -5356,7 +5356,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // âœ… NEW: Include folder location information for file navigation awareness
     const uniqueDocuments = new Map<string, { filename: string; folderPath?: string }>();
     rerankedChunks.forEach((result: any) => {
-      const meta = result.metadata || {};
+      const meta = result.document_metadata || {};
       const filename = meta.filename || 'Unknown';
       const folderPath = meta.folderPath || meta.folderName || 'Library';
       if (!uniqueDocuments.has(filename)) {
@@ -5386,7 +5386,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     perfTimer.mark('contextBuilding');
     const context = rerankedChunks.map((result: any, idx: number) => {
-      const meta = result.metadata || {};
+      const meta = result.document_metadata || {};
       const documentId = meta.documentId || 'unknown';
       const filename = meta.filename || 'Unknown';
       const page = meta.page || meta.pageNumber || 'N/A';
@@ -5409,15 +5409,15 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     // âœ… NEW: Build document context from search results
     const documentContextFromChunks = rerankedChunks.map((chunk: any) =>
-      chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
+      chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || ''
     ).join('\n\n---\n\n');
 
     // DEBUG: Log what's in the chunks
     console.log(`ðŸ” [DEBUG] documentContextFromChunks length: ${documentContextFromChunks.length}`);
     console.log(`ðŸ” [DEBUG] rerankedChunks[0] keys:`, rerankedChunks[0] ? Object.keys(rerankedChunks[0]) : 'no chunks');
-    if (rerankedChunks[0]?.metadata) {
-      console.log(`ðŸ” [DEBUG] rerankedChunks[0].metadata keys:`, Object.keys(rerankedChunks[0].metadata));
-      console.log(`ðŸ” [DEBUG] Sample text (first 200 chars):`, (rerankedChunks[0].metadata.text || rerankedChunks[0].metadata.content || 'EMPTY').substring(0, 200));
+    if (rerankedChunks[0]?.document_metadata) {
+      console.log(`ðŸ” [DEBUG] rerankedChunks[0].document_metadata keys:`, Object.keys(rerankedChunks[0].document_metadata));
+      console.log(`ðŸ” [DEBUG] Sample text (first 200 chars):`, (rerankedChunks[0].document_metadata.text || rerankedChunks[0].document_metadata.content || 'EMPTY').substring(0, 200));
     }
 
     // âœ… NEW: Choose context based on query complexity and document availability
@@ -5445,11 +5445,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     // Prepare chunks for causal extraction
     const chunksForCausalExtraction = rerankedChunks.map((chunk: any) => ({
-      content: chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
-      metadata: {
-        documentId: chunk.metadata?.documentId || 'unknown',
-        filename: chunk.metadata?.filename || 'Unknown',
-        page: chunk.metadata?.page || chunk.metadata?.pageNumber
+      content: chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '',
+      document_metadata: {
+        documentId: chunk.document_metadata?.documentId || 'unknown',
+        filename: chunk.document_metadata?.filename || 'Unknown',
+        page: chunk.document_metadata?.page || chunk.document_metadata?.pageNumber
       }
     }));
 
@@ -5562,7 +5562,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       // Build "chunks" array from full documents for citation matching
       const pseudoChunks = fullDocuments.map(doc => ({
-        metadata: {
+        document_metadata: {
           documentId: doc.id,
           filename: doc.filename,
           mimeType: doc.mimeType,
@@ -6187,13 +6187,13 @@ async function handleFileLocationQuery(
   }
 
   // Query database for file
-  const documents = await prisma.document.findMany({
+  const documents = await prisma.documents.findMany({
     where: {
       userId,
       filename: { contains: filename, mode: 'insensitive' }
     },
     include: {
-      folder: {
+      folders: {
         select: {
           id: true,
           name: true,
@@ -6328,7 +6328,7 @@ async function handleFolderContentQuery(
   }
 
   // Query database for folder
-  const folder = await prisma.folder.findFirst({
+  const folder = await prisma.folders.findFirst({
     where: {
       userId,
       name: { contains: folderName, mode: 'insensitive' }
@@ -6457,7 +6457,7 @@ async function handleFolderListingQuery(
 ): Promise<{ sources: any[] }> {
   try {
     // Fetch all folders for user
-    const folders = await prisma.folder.findMany({
+    const folders = await prisma.folders.findMany({
       where: { userId },
       include: {
         _count: {
@@ -6606,10 +6606,20 @@ function buildFolderTreeContext(folders: any[]): string {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // DEFAULT EXPORT (for backward compatibility with default imports)
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Stub for getContext - returns empty context
+const getContext = async (_contextId: string) => {
+  return {
+    sources: [],
+    query: '',
+    timestamp: new Date().toISOString(),
+  };
+};
+
 export default {
   generateAnswer,
   generateAnswerStream,
   generateAnswerStreaming,
+  getContext,
 };
 
 

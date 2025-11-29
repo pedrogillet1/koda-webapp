@@ -268,7 +268,7 @@ class CacheService {
    */
   async getCacheStats(): Promise<{
     keys: number;
-    memory: string;
+    user_preferences_memory: string;
     hitRate: number;
   }> {
     try {
@@ -287,14 +287,14 @@ class CacheService {
 
       return {
         keys: totalKeys,
-        memory: usedMemory,
+        user_preferences_memory: usedMemory,
         hitRate: Math.round(hitRate * 100) / 100
       };
     } catch (error) {
       console.error('Error getting cache stats:', error);
       return {
         keys: 0,
-        memory: 'Unknown',
+        user_preferences_memory: 'Unknown',
         hitRate: 0
       };
     }

@@ -97,7 +97,7 @@ class AdvancedSearchService {
       chunkIndex: r.chunkIndex,
       content: r.content,
       similarity: r.similarity,
-      metadata: r.metadata,
+      metadata: r.document_metadata,
     }));
   }
 
@@ -115,7 +115,7 @@ class AdvancedSearchService {
     if (filters.fileTypes && filters.fileTypes.length > 0) {
       const allowedTypes = filters.fileTypes.map(t => t.toLowerCase());
       filtered = filtered.filter(r => {
-        const mimeType = r.metadata.mimeType || r.document.mimeType;
+        const mimeType = r.document_metadata.mimeType || r.document.mimeType;
         const fileType = this.getFileTypeFromMimeType(mimeType);
         return allowedTypes.includes(fileType);
       });
@@ -132,7 +132,7 @@ class AdvancedSearchService {
     // Filter by date range (requires metadata from database)
     if (filters.dateRange) {
       const documentIds = [...new Set(filtered.map(r => r.documentId))];
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where: {
           id: { in: documentIds },
           userId,
@@ -153,7 +153,7 @@ class AdvancedSearchService {
     // Filter by authors (requires metadata from database)
     if (filters.authors && filters.authors.length > 0) {
       const documentIds = [...new Set(filtered.map(r => r.documentId))];
-      const documents = await prisma.documentMetadata.findMany({
+      const documents = await prisma.documentsMetadatas.findMany({
         where: {
           documentId: { in: documentIds },
           author: { in: filters.authors },
@@ -170,7 +170,7 @@ class AdvancedSearchService {
     // Filter by topics (requires metadata from database)
     if (filters.topics && filters.topics.length > 0) {
       const documentIds = [...new Set(filtered.map(r => r.documentId))];
-      const documents = await prisma.documentMetadata.findMany({
+      const documents = await prisma.documentsMetadatas.findMany({
         where: {
           documentId: { in: documentIds },
         },
@@ -217,7 +217,7 @@ class AdvancedSearchService {
         whereClause.language = filters.language;
       }
 
-      const documents = await prisma.documentMetadata.findMany({
+      const documents = await prisma.documentsMetadatas.findMany({
         where: whereClause,
         select: { documentId: true },
       });
@@ -241,7 +241,7 @@ class AdvancedSearchService {
     const documentIds = [...new Set(results.map(r => r.documentId))];
 
     // Fetch document metadata from database
-    const metadataRecords = await prisma.documentMetadata.findMany({
+    const metadataRecords = await prisma.documentsMetadatas.findMany({
       where: {
         documentId: { in: documentIds },
       },
@@ -266,7 +266,7 @@ class AdvancedSearchService {
         chunkIndex: r.chunkIndex,
         content: r.content,
         similarity: r.similarity,
-        metadata: r.metadata,
+        metadata: r.document_metadata,
         document: {
           id: r.documentId,
           filename: r.document.filename,
@@ -345,7 +345,7 @@ class AdvancedSearchService {
     }
 
     // Query documents
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId,
         status: { not: 'deleted' },
@@ -355,12 +355,12 @@ class AdvancedSearchService {
             lte: criteria.dateRange.end,
           },
         } : {}),
-        metadata: {
-          ...metadataWhere,
+        document_metadata: {
+          ...document_metadataWhere,
         },
       },
       include: {
-        metadata: true,
+        document_metadata: true,
       },
     });
 
@@ -368,8 +368,8 @@ class AdvancedSearchService {
     let filtered = documents;
     if (criteria.topics && criteria.topics.length > 0) {
       filtered = documents.filter(doc => {
-        if (!doc.metadata?.topics) return false;
-        const topicsArray = JSON.parse(doc.metadata.topics);
+        if (!doc.document_metadata?.topics) return false;
+        const topicsArray = JSON.parse(doc.document_metadata.topics);
         return criteria.topics!.some(filterTopic =>
           topicsArray.some((docTopic: string) =>
             docTopic.toLowerCase().includes(filterTopic.toLowerCase())
@@ -381,7 +381,7 @@ class AdvancedSearchService {
     return filtered.map(doc => ({
       documentId: doc.id,
       filename: doc.filename,
-      metadata: doc.metadata,
+      metadata: doc.document_metadata,
     }));
   }
 }

@@ -48,7 +48,7 @@ export function formatBytes(bytes: number): string {
  * Get storage limit for a user based on their subscription tier
  */
 export async function getStorageLimit(userId: string): Promise<number> {
-  const user = await prisma.user.findUnique({
+  const user = await prisma.users.findUnique({
     where: { id: userId },
     select: { subscriptionTier: true }
   });
@@ -77,7 +77,7 @@ export async function getStorageLimit(userId: string): Promise<number> {
  * Get current storage usage for a user
  */
 export async function getStorageUsage(userId: string): Promise<number> {
-  const user = await prisma.user.findUnique({
+  const user = await prisma.users.findUnique({
     where: { id: userId },
     select: { storageUsedBytes: true }
   });
@@ -145,7 +145,7 @@ export async function hasCapacity(userId: string, fileSizeBytes: number): Promis
 export async function incrementStorage(userId: string, bytes: number): Promise<void> {
   console.log(`📊 [Storage] Incrementing storage for user ${userId.substring(0, 8)}... by ${formatBytes(bytes)}`);
 
-  await prisma.user.update({
+  await prisma.users.update({
     where: { id: userId },
     data: {
       storageUsedBytes: {
@@ -164,7 +164,7 @@ export async function decrementStorage(userId: string, bytes: number): Promise<v
   console.log(`📊 [Storage] Decrementing storage for user ${userId.substring(0, 8)}... by ${formatBytes(bytes)}`);
 
   // Get current usage to prevent going negative
-  const user = await prisma.user.findUnique({
+  const user = await prisma.users.findUnique({
     where: { id: userId },
     select: { storageUsedBytes: true }
   });
@@ -177,7 +177,7 @@ export async function decrementStorage(userId: string, bytes: number): Promise<v
   const currentUsage = Number(user.storageUsedBytes);
   const newUsage = Math.max(0, currentUsage - bytes);
 
-  await prisma.user.update({
+  await prisma.users.update({
     where: { id: userId },
     data: {
       storageUsedBytes: BigInt(newUsage)
@@ -198,7 +198,7 @@ export async function recalculateStorage(userId: string): Promise<{
   console.log(`🔄 [Storage] Recalculating storage for user ${userId.substring(0, 8)}...`);
 
   // Get current stored usage
-  const user = await prisma.user.findUnique({
+  const user = await prisma.users.findUnique({
     where: { id: userId },
     select: { storageUsedBytes: true }
   });
@@ -210,7 +210,7 @@ export async function recalculateStorage(userId: string): Promise<{
   const previousUsage = Number(user.storageUsedBytes);
 
   // Calculate actual usage from documents
-  const result = await prisma.document.aggregate({
+  const result = await prisma.documents.aggregate({
     where: { userId },
     _sum: { fileSize: true }
   });
@@ -219,7 +219,7 @@ export async function recalculateStorage(userId: string): Promise<{
 
   // Update if different
   if (previousUsage !== actualUsage) {
-    await prisma.user.update({
+    await prisma.users.update({
       where: { id: userId },
       data: {
         storageUsedBytes: BigInt(actualUsage)

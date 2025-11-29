@@ -234,7 +234,7 @@ class EmbeddingService {
     const similarities = candidateEmbeddings.map(candidate => ({
       id: candidate.id,
       similarity: this.calculateSimilarity(queryEmbedding, candidate.embedding),
-      metadata: candidate.metadata,
+      metadata: candidate.document_metadata,
     }));
 
     // Sort by similarity (descending) and take top K

@@ -172,7 +172,7 @@ io.on('connection', (socket) => {
 
       // ✅ FIX: Load existing conversation history BEFORE saving new message
       // This determines if this is the first message (for greeting logic)
-      const existingMessages = await prisma.message.findMany({
+      const existingMessages = await prisma.messages.findMany({
         where: { conversationId },
         orderBy: { createdAt: 'asc' },
         select: { role: true, content: true }
@@ -187,7 +187,7 @@ io.on('connection', (socket) => {
       console.log(`📚 [GREETING] Loaded ${conversationHistory.length} existing messages for conversation ${conversationId}`);
 
       // Save user message first
-      const userMessage = await prisma.message.create({
+      const userMessage = await prisma.messages.create({
         data: {
           conversationId,
           role: 'user',
@@ -198,7 +198,7 @@ io.on('connection', (socket) => {
 
       // ✅ FIX: Create assistant message placeholder BEFORE streaming
       // This prevents it from disappearing if user refreshes during streaming
-      const assistantMessagePlaceholder = await prisma.message.create({
+      const assistantMessagePlaceholder = await prisma.messages.create({
         data: {
           conversationId,
           role: 'assistant',
@@ -250,7 +250,7 @@ io.on('connection', (socket) => {
       };
 
       // ✅ FIX: Update placeholder message with final content instead of creating new one
-      const assistantMessage = await prisma.message.update({
+      const assistantMessage = await prisma.messages.update({
         where: { id: assistantMessagePlaceholder.id },
         data: {
           content: result.answer,
@@ -266,7 +266,7 @@ io.on('connection', (socket) => {
       });
 
       // Update conversation timestamp
-      await prisma.conversation.update({
+      await prisma.conversations.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -288,7 +288,7 @@ io.on('connection', (socket) => {
         expandedQuery: result.expandedQuery,
         contextId: result.contextId,
         actions: result.actions || [],
-        uiUpdate: result.uiUpdate // Include UI update instructions from chat actions
+        uiUpdate: (result as any).uiUpdate // Include UI update instructions from chat actions
       };
 
       console.log('✅ RAG service completed, emitting new-message event to room AND sender');
@@ -306,11 +306,11 @@ io.on('connection', (socket) => {
       });
 
       // If there's a UI update, emit a separate event for immediate action
-      if (result.uiUpdate) {
-        console.log(`📢 Emitting UI update event: ${result.uiUpdate.type}`);
+      if ((result as any).uiUpdate) {
+        console.log(`📢 Emitting UI update event: ${(result as any).uiUpdate.type}`);
         emitToConversation('ui-update', {
-          type: result.uiUpdate.type,
-          data: result.uiUpdate.data
+          type: (result as any).uiUpdate.type,
+          data: (result as any).uiUpdate.data
         });
       }
 
@@ -372,7 +372,7 @@ io.on('connection', (socket) => {
             const cleanTitle = fullTitle.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
 
             // Update database
-            await prisma.conversation.update({
+            await prisma.conversations.update({
               where: { id: convId },
               data: { title: cleanTitle, updatedAt: new Date() },
             });
@@ -456,7 +456,7 @@ httpServer.listen(portConfig.httpsPort, () => {
       const STUCK_THRESHOLD = 3 * 60 * 1000; // 3 minutes
       const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD);
 
-      const pendingDocs = await prisma.document.findMany({
+      const pendingDocs = await prisma.documents.findMany({
         where: {
           OR: [
             // Pick up pending documents immediately
@@ -482,7 +482,7 @@ httpServer.listen(portConfig.httpsPort, () => {
             console.log(`🔄 Processing document: ${doc.filename} (${doc.id})`);
 
             // Update status to processing
-            await prisma.document.update({
+            await prisma.documents.update({
               where: { id: doc.id },
               data: { status: 'processing' },
             });
@@ -505,7 +505,7 @@ httpServer.listen(portConfig.httpsPort, () => {
             }
 
             // Get thumbnail URL if exists
-            const metadata = await prisma.documentMetadata.findUnique({
+            const metadata = await prisma.documentsMetadatas.findUnique({
               where: { documentId: doc.id },
             });
 
@@ -525,7 +525,7 @@ httpServer.listen(portConfig.httpsPort, () => {
             console.error(`❌ Failed to process document ${doc.filename}:`, error);
 
             // Mark as failed
-            await prisma.document.update({
+            await prisma.documents.update({
               where: { id: doc.id },
               data: { status: 'failed' },
             });

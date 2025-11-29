@@ -138,4 +138,9 @@ export async function sendPasswordResetSMS(
   }
 }
 
-export default new SmsService();
+const smsService = new SmsService();
+
+// Named export for sendSMS function
+export const sendSMS = smsService.sendSMS.bind(smsService);
+
+export default smsService;

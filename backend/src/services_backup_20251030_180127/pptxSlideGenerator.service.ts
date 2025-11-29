@@ -355,7 +355,7 @@ export class PPTXSlideGeneratorService {
 
             await file.save(fileBuffer, {
               contentType: 'image/webp',
-              metadata: {
+              document_metadata: {
                 cacheControl: 'public, max-age=31536000',
               }
             });

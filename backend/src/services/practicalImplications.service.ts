@@ -770,7 +770,7 @@ export class PracticalImplicationsService {
    */
   processChunks(chunks: Array<{
     content: string;
-    metadata: {
+    document_metadata: {
       documentId: string;
       filename: string;
       page?: number;
@@ -785,9 +785,9 @@ export class PracticalImplicationsService {
 
     for (const chunk of chunks) {
       const text = chunk.content || '';
-      const docId = chunk.metadata?.documentId || 'unknown';
-      const docName = chunk.metadata?.filename || 'Unknown';
-      const page = chunk.metadata?.page;
+      const docId = chunk.document_metadata?.documentId || 'unknown';
+      const docName = chunk.document_metadata?.filename || 'Unknown';
+      const page = chunk.document_metadata?.page;
 
       // Extract recommendations
       const recommendations = extractRecommendations(text, docId, docName, page);
@@ -818,7 +818,7 @@ export class PracticalImplicationsService {
     query: string,
     chunks: Array<{
       content: string;
-      metadata: {
+      document_metadata: {
         documentId: string;
         filename: string;
         page?: number;
@@ -848,7 +848,7 @@ export class PracticalImplicationsService {
     );
 
     // Count unique documents
-    const uniqueDocs = new Set(chunks.map(c => c.metadata?.documentId)).size;
+    const uniqueDocs = new Set(chunks.map(c => c.document_metadata?.documentId)).size;
 
     // Synthesize bottom line
     const bottomLine = synthesizeBottomLine(categorizedImplications, uniqueDocs);

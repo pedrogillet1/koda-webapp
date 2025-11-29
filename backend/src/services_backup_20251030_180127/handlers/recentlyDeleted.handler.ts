@@ -49,10 +49,10 @@ class RecentlyDeletedHandler {
     }
 
     // Get deleted documents
-    const deletedDocs = await prisma.document.findMany({
+    const deletedDocs = await prisma.documents.findMany({
       where,
       include: {
-        folder: {
+        folders: {
           select: {
             name: true
           }
@@ -118,7 +118,7 @@ class RecentlyDeletedHandler {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    return await prisma.document.count({
+    return await prisma.documents.count({
       where: {
         userId,
         status: 'deleted',

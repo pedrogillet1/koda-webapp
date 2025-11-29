@@ -83,14 +83,14 @@ export class PPTXExtractorService {
       console.log(`   - Total slides: ${result.total_slides}`);
       console.log(`   - Slides with text: ${result.slides_with_text}`);
       console.log(`   - Total characters: ${result.total_characters}`);
-      console.log(`   - Title: ${result.metadata?.title || 'N/A'}`);
-      console.log(`   - Author: ${result.metadata?.author || 'N/A'}`);
+      console.log(`   - Title: ${result.document_metadata?.title || 'N/A'}`);
+      console.log(`   - Author: ${result.document_metadata?.author || 'N/A'}`);
 
       return {
         success: true,
         fullText: result.full_text,
         slides: result.slides,
-        metadata: result.metadata,
+        metadata: result.document_metadata,
         totalSlides: result.total_slides,
         slidesWithText: result.slides_with_text,
         totalCharacters: result.total_characters

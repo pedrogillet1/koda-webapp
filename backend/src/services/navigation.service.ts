@@ -62,10 +62,10 @@ class NavigationService {
     const topMatch = semanticResult.matches[0];
 
     // Fetch full document details
-    const bestMatch = await prisma.document.findUnique({
+    const bestMatch = await prisma.documents.findUnique({
       where: { id: topMatch.documentId },
       include: {
-        folder: true,
+        folders: true,
         categories: {
           include: {
             category: true
@@ -129,7 +129,7 @@ class NavigationService {
    * Find a folder by name and show its contents
    */
   async findFolder(userId: string, folderName: string): Promise<NavigationResult> {
-    const folders = await prisma.folder.findMany({
+    const folders = await prisma.folders.findMany({
       where: {
         userId,
       },
@@ -215,7 +215,7 @@ class NavigationService {
 
     while (currentFolderId) {
       type FolderResult = { name: string; parentFolderId: string | null } | null;
-      const folder: FolderResult = await prisma.folder.findUnique({
+      const folder: FolderResult = await prisma.folders.findUnique({
         where: { id: currentFolderId },
         select: { name: true, parentFolderId: true },
       });
@@ -234,7 +234,7 @@ class NavigationService {
    */
   async getWorkspaceStructure(userId: string) {
     const [documents, folders] = await Promise.all([
-      prisma.document.findMany({
+      prisma.documents.findMany({
         where: { userId, status: 'completed' },
         select: {
           id: true,
@@ -244,7 +244,7 @@ class NavigationService {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.folder.findMany({
+      prisma.folders.findMany({
         where: { userId },
         select: {
           id: true,

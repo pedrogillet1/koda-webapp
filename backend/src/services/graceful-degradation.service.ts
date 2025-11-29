@@ -129,7 +129,7 @@ export class GracefulDegradationService {
     try {
       // Build chunks text for LLM
       const chunksText = marginalChunks.map((chunk, index) => {
-        const content = chunk.metadata?.text || chunk.metadata?.content || chunk.content || '';
+        const content = chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '';
         const preview = content.substring(0, 400);
         const score = chunk.score || 0;
         return `[Chunk ${index + 1}] (relevance: ${score.toFixed(2)})\n${preview}${content.length > 400 ? '...' : ''}`;
@@ -183,7 +183,7 @@ Otherwise, provide a brief summary (2-3 sentences) of the related information.`;
 
     try {
       // Get user's existing documents
-      const documents = await prisma.document.findMany({
+      const documents = await prisma.documents.findMany({
         where: { userId, status: { not: 'deleted' } },
         select: { filename: true, mimeType: true },
         take: 50 // Limit to avoid huge prompts
@@ -262,7 +262,7 @@ Respond as a JSON array:
 
     try {
       // Get topics from available chunks
-      const topics = [...new Set(chunks.map(chunk => chunk.metadata?.filename || 'Unknown'))].slice(0, 5);
+      const topics = [...new Set(chunks.map(chunk => chunk.document_metadata?.filename || 'Unknown'))].slice(0, 5);
 
       const prompt = `The user asked: "${query}"
 

@@ -50,7 +50,7 @@ async function createFoldersFromPath(userId: string, relativePath: string, paren
     }
 
     // Check if folder already exists at this level
-    const existingFolder = await prisma.folder.findFirst({
+    const existingFolder = await prisma.folders.findFirst({
       where: {
         userId,
         name: folderName,
@@ -132,7 +132,7 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   }
 
   // Create document record with encryption metadata
-  const document = await prisma.document.create({
+  const document = await prisma.documents.create({
     data: {
       userId,
       folderId: finalFolderId || null,
@@ -147,7 +147,7 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
       encryptionAuthTag,
     },
     include: {
-      folder: true,
+      folders: true,
     },
   });
 
@@ -201,7 +201,7 @@ export async function processDocumentInBackground(
         if (result.success) {
           extractedText = result.fullText || '';
           slidesData = result.slides || [];
-          pptxMetadata = result.metadata || {};
+          pptxMetadata = result.document_metadata || {};
           pageCount = result.totalSlides || null;
           console.log(`✅ PPTX extracted: ${slidesData?.length || 0} slides, ${extractedText.length} characters`);
 
@@ -370,7 +370,7 @@ export async function processDocumentInBackground(
     }
 
     // Create metadata record with enriched data
-    await prisma.documentMetadata.create({
+    await prisma.documentsMetadatas.create({
       data: {
         documentId,
         extractedText,
@@ -407,7 +407,7 @@ export async function processDocumentInBackground(
           }
 
           // Link tag to document (skip if already linked)
-          await prisma.documentTag.upsert({
+          await prisma.documentsTags.upsert({
             where: {
               documentId_tagId: {
                 documentId,
@@ -446,19 +446,19 @@ export async function processDocumentInBackground(
           // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
           chunks = excelChunks.map(chunk => ({
             content: `📄 File: ${filename} | ${chunk.content}`,
-            metadata: {
+            document_metadata: {
               // ⚡ Document identification (CRITICAL for proper retrieval)
               documentId: documentId,
               filename: filename,
 
               // ⚡ Excel-specific metadata
-              sheet: chunk.metadata.sheetName,
-              sheetNumber: chunk.metadata.sheetNumber,
-              row: chunk.metadata.rowNumber,
-              cells: chunk.metadata.cells,
-              chunkIndex: chunk.metadata.chunkIndex,
-              sourceType: chunk.metadata.sourceType,
-              tableHeaders: chunk.metadata.tableHeaders
+              sheet: chunk.document_metadata.sheetName,
+              sheetNumber: chunk.document_metadata.sheetNumber,
+              row: chunk.document_metadata.rowNumber,
+              cells: chunk.document_metadata.cells,
+              chunkIndex: chunk.document_metadata.chunkIndex,
+              sourceType: chunk.document_metadata.sourceType,
+              tableHeaders: chunk.document_metadata.tableHeaders
             }
           }));
           console.log(`📦 Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
@@ -488,13 +488,13 @@ export async function processDocumentInBackground(
 
             chunks = semanticChunks.map((chunk: any) => ({
               content: chunk.content,
-              metadata: {
+              document_metadata: {
                 chunkIndex: chunk.index,
                 startChar: 0,
                 endChar: chunk.content.length,
-                type: chunk.metadata.type || 'text',
-                heading: chunk.metadata.heading,
-                section: chunk.metadata.section,
+                type: chunk.document_metadata.type || 'text',
+                heading: chunk.document_metadata.heading,
+                section: chunk.document_metadata.section,
                 tokenCount: chunk.tokenCount
               }
             }));
@@ -548,7 +548,7 @@ export async function processDocumentInBackground(
     }
 
     // Update document status to completed
-    await prisma.document.update({
+    await prisma.documents.update({
       where: { id: documentId },
       data: { status: 'completed' },
     });
@@ -561,7 +561,7 @@ export async function processDocumentInBackground(
   } catch (error) {
     console.error('❌ Error processing document:', error);
     // Update status to failed
-    await prisma.document.update({
+    await prisma.documents.update({
       where: { id: documentId },
       data: { status: 'failed' },
     });
@@ -600,7 +600,7 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
   }
 
   // Create document record
-  const document = await prisma.document.create({
+  const document = await prisma.documents.create({
     data: {
       userId,
       folderId: folderId || null,
@@ -612,7 +612,7 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
       status: 'processing',
     },
     include: {
-      folder: true,
+      folders: true,
     },
   });
 
@@ -639,7 +639,7 @@ async function processDocumentAsync(
     console.log(`📄 Processing document: ${filename}`);
 
     // Get document to check if it's encrypted
-    const document = await prisma.document.findUnique({
+    const document = await prisma.documents.findUnique({
       where: { id: documentId },
     });
 
@@ -693,7 +693,7 @@ async function processDocumentAsync(
         if (result.success) {
           extractedText = result.fullText || '';
           slidesData = result.slides || [];
-          pptxMetadata = result.metadata || {};
+          pptxMetadata = result.document_metadata || {};
           pageCount = result.totalSlides || null;
           console.log(`✅ PPTX extracted: ${slidesData?.length || 0} slides, ${extractedText.length} characters`);
 
@@ -871,7 +871,7 @@ async function processDocumentAsync(
     }
 
     // Create metadata record
-    await prisma.documentMetadata.create({
+    await prisma.documentsMetadatas.create({
       data: {
         documentId,
         extractedText,
@@ -905,7 +905,7 @@ async function processDocumentAsync(
             });
           }
 
-          await prisma.documentTag.upsert({
+          await prisma.documentsTags.upsert({
             where: {
               documentId_tagId: {
                 documentId,
@@ -944,19 +944,19 @@ async function processDocumentAsync(
           // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
           chunks = excelChunks.map(chunk => ({
             content: `📄 File: ${filename} | ${chunk.content}`,
-            metadata: {
+            document_metadata: {
               // ⚡ Document identification (CRITICAL for proper retrieval)
               documentId: documentId,
               filename: filename,
 
               // ⚡ Excel-specific metadata
-              sheet: chunk.metadata.sheetName,
-              sheetNumber: chunk.metadata.sheetNumber,
-              row: chunk.metadata.rowNumber,
-              cells: chunk.metadata.cells,
-              chunkIndex: chunk.metadata.chunkIndex,
-              sourceType: chunk.metadata.sourceType,
-              tableHeaders: chunk.metadata.tableHeaders
+              sheet: chunk.document_metadata.sheetName,
+              sheetNumber: chunk.document_metadata.sheetNumber,
+              row: chunk.document_metadata.rowNumber,
+              cells: chunk.document_metadata.cells,
+              chunkIndex: chunk.document_metadata.chunkIndex,
+              sourceType: chunk.document_metadata.sourceType,
+              tableHeaders: chunk.document_metadata.tableHeaders
             }
           }));
           console.log(`📦 Created ${chunks.length} Excel chunks with filename "${filename}" in metadata`);
@@ -986,13 +986,13 @@ async function processDocumentAsync(
 
             chunks = semanticChunks.map((chunk: any) => ({
               content: chunk.content,
-              metadata: {
+              document_metadata: {
                 chunkIndex: chunk.index,
                 startChar: 0,
                 endChar: chunk.content.length,
-                type: chunk.metadata.type || 'text',
-                heading: chunk.metadata.heading,
-                section: chunk.metadata.section,
+                type: chunk.document_metadata.type || 'text',
+                heading: chunk.document_metadata.heading,
+                section: chunk.document_metadata.section,
                 tokenCount: chunk.tokenCount
               }
             }));
@@ -1046,7 +1046,7 @@ async function processDocumentAsync(
     }
 
     // Update document status to completed
-    await prisma.document.update({
+    await prisma.documents.update({
       where: { id: documentId },
       data: { status: 'completed' },
     });
@@ -1058,7 +1058,7 @@ async function processDocumentAsync(
     console.log(`✅ Document processing completed: ${filename}`);
   } catch (error) {
     console.error('❌ Error processing document:', error);
-    await prisma.document.update({
+    await prisma.documents.update({
       where: { id: documentId },
       data: { status: 'failed' },
     });
@@ -1083,7 +1083,7 @@ function chunkText(text: string, maxWords: number = 500): Array<{content: string
       // Save current chunk
       chunks.push({
         content: currentChunk.trim(),
-        metadata: {
+        document_metadata: {
           chunkIndex,
           startChar: text.indexOf(currentChunk),
           endChar: text.indexOf(currentChunk) + currentChunk.length
@@ -1102,7 +1102,7 @@ function chunkText(text: string, maxWords: number = 500): Array<{content: string
   if (currentChunk.trim().length > 0) {
     chunks.push({
       content: currentChunk.trim(),
-      metadata: {
+      document_metadata: {
         chunkIndex,
         startChar: text.indexOf(currentChunk),
         endChar: text.indexOf(currentChunk) + currentChunk.length
@@ -1117,7 +1117,7 @@ function chunkText(text: string, maxWords: number = 500): Array<{content: string
  * Get document download URL
  */
 export const getDocumentDownloadUrl = async (documentId: string, userId: string) => {
-  const document = await prisma.document.findUnique({
+  const document = await prisma.documents.findUnique({
     where: { id: documentId },
   });
 
@@ -1148,7 +1148,7 @@ export const getDocumentDownloadUrl = async (documentId: string, userId: string)
  * Stream document file (downloads and decrypts server-side, returns buffer)
  */
 export const streamDocument = async (documentId: string, userId: string) => {
-  const document = await prisma.document.findUnique({
+  const document = await prisma.documents.findUnique({
     where: { id: documentId },
   });
 
@@ -1198,22 +1198,22 @@ export const listDocuments = async (
   }
 
   const [documents, total] = await Promise.all([
-    prisma.document.findMany({
+    prisma.documents.findMany({
       where,
       include: {
-        folder: true,
-        tags: {
+        folders: true,
+        document_tags: {
           include: {
-            tag: true,
+            document_document_tags: true,
           },
         },
-        metadata: true,
+        document_metadata: true,
       },
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
     }),
-    prisma.document.count({ where }),
+    prisma.documents.count({ where }),
   ]);
 
   return {
@@ -1235,7 +1235,7 @@ export const updateDocument = async (
   userId: string,
   updates: { folderId?: string | null; filename?: string }
 ) => {
-  const document = await prisma.document.findUnique({
+  const document = await prisma.documents.findUnique({
     where: { id: documentId },
   });
 
@@ -1259,11 +1259,11 @@ export const updateDocument = async (
   }
 
   // Update document
-  const updatedDocument = await prisma.document.update({
+  const updatedDocument = await prisma.documents.update({
     where: { id: documentId },
     data: updateData,
     include: {
-      folder: true,
+      folders: true,
     },
   });
 
@@ -1274,7 +1274,7 @@ export const updateDocument = async (
  * Delete document
  */
 export const deleteDocument = async (documentId: string, userId: string) => {
-  const document = await prisma.document.findUnique({
+  const document = await prisma.documents.findUnique({
     where: { id: documentId },
   });
 
@@ -1299,7 +1299,7 @@ export const deleteDocument = async (documentId: string, userId: string) => {
   }
 
   // Delete from database (cascade will handle metadata and tags)
-  await prisma.document.delete({
+  await prisma.documents.delete({
     where: { id: documentId },
   });
 
@@ -1322,7 +1322,7 @@ export const deleteAllDocuments = async (userId: string) => {
     console.log(`🗑️ Starting deletion of all documents for user: ${userId}`);
 
     // Get all documents for the user
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: { userId },
       select: {
         id: true,
@@ -1369,7 +1369,7 @@ export const deleteAllDocuments = async (userId: string) => {
         }
 
         // Delete from database (cascade will handle metadata, tags, etc.)
-        await prisma.document.delete({
+        await prisma.documents.delete({
           where: { id: document.id }
         });
 
@@ -1424,7 +1424,7 @@ export const uploadDocumentVersion = async (
   parentDocumentId: string,
   input: Omit<UploadDocumentInput, 'folderId'>
 ) => {
-  const parentDocument = await prisma.document.findUnique({
+  const parentDocument = await prisma.documents.findUnique({
     where: { id: parentDocumentId },
   });
 
@@ -1445,7 +1445,7 @@ export const uploadDocumentVersion = async (
   await uploadFile(encryptedFilename, fileBuffer, mimeType);
 
   // Create new version
-  const newVersion = await prisma.document.create({
+  const newVersion = await prisma.documents.create({
     data: {
       userId,
       folderId: parentDocument.folderId,
@@ -1466,7 +1466,7 @@ export const uploadDocumentVersion = async (
  * Get document versions
  */
 export const getDocumentVersions = async (documentId: string, userId: string) => {
-  const document = await prisma.document.findUnique({
+  const document = await prisma.documents.findUnique({
     where: { id: documentId },
   });
 
@@ -1479,7 +1479,7 @@ export const getDocumentVersions = async (documentId: string, userId: string) =>
   }
 
   // Get all versions (current and previous)
-  const versions = await prisma.document.findMany({
+  const versions = await prisma.documents.findMany({
     where: {
       OR: [
         { id: documentId },
@@ -1496,10 +1496,10 @@ export const getDocumentVersions = async (documentId: string, userId: string) =>
  * Get document processing status
  */
 export const getDocumentStatus = async (documentId: string, userId: string) => {
-  const document = await prisma.document.findUnique({
+  const document = await prisma.documents.findUnique({
     where: { id: documentId },
     include: {
-      metadata: true,
+      document_metadata: true,
     },
   });
 
@@ -1516,15 +1516,15 @@ export const getDocumentStatus = async (documentId: string, userId: string) => {
     filename: document.filename,
     status: document.status,
     uploadedAt: document.createdAt,
-    metadata: document.metadata
+    metadata: document.document_metadata
       ? {
-          hasExtractedText: !!document.metadata.extractedText,
-          textLength: document.metadata.extractedText?.length || 0,
-          ocrConfidence: document.metadata.ocrConfidence,
-          hasThumbnail: !!document.metadata.thumbnailUrl,
-          classification: document.metadata.classification,
-          entities: document.metadata.entities
-            ? JSON.parse(document.metadata.entities)
+          hasExtractedText: !!document.document_metadata.extractedText,
+          textLength: document.document_metadata.extractedText?.length || 0,
+          ocrConfidence: document.document_metadata.ocrConfidence,
+          hasThumbnail: !!document.document_metadata.thumbnailUrl,
+          classification: document.document_metadata.classification,
+          entities: document.document_metadata.entities
+            ? JSON.parse(document.document_metadata.entities)
             : {},
         }
       : null,
@@ -1535,10 +1535,10 @@ export const getDocumentStatus = async (documentId: string, userId: string) => {
  * Get document thumbnail
  */
 export const getDocumentThumbnail = async (documentId: string, userId: string) => {
-  const document = await prisma.document.findUnique({
+  const document = await prisma.documents.findUnique({
     where: { id: documentId },
     include: {
-      metadata: true,
+      document_metadata: true,
     },
   });
 
@@ -1550,12 +1550,12 @@ export const getDocumentThumbnail = async (documentId: string, userId: string) =
     throw new Error('Unauthorized');
   }
 
-  if (!document.metadata?.thumbnailUrl) {
+  if (!document.document_metadata?.thumbnailUrl) {
     return { thumbnailUrl: null };
   }
 
   // Get signed URL for the thumbnail
-  const thumbnailUrl = await thumbnailService.getThumbnailUrl(document.metadata.thumbnailUrl);
+  const thumbnailUrl = await thumbnailService.getThumbnailUrl(document.document_metadata.thumbnailUrl);
 
   return { thumbnailUrl };
 };
@@ -1564,10 +1564,10 @@ export const getDocumentThumbnail = async (documentId: string, userId: string) =
  * Get document preview URL (converts DOCX to PDF if needed)
  */
 export const getDocumentPreview = async (documentId: string, userId: string) => {
-  const document = await prisma.document.findUnique({
+  const document = await prisma.documents.findUnique({
     where: { id: documentId },
     include: {
-      metadata: true,
+      document_metadata: true,
     },
   });
 
@@ -1661,8 +1661,8 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
 
   // For PowerPoint files, return slides data for custom preview
   if (document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
-    const slidesData = document.metadata?.slidesData;
-    const pptxMetadata = document.metadata?.pptxMetadata;
+    const slidesData = document.document_metadata?.slidesData;
+    const pptxMetadata = document.document_metadata?.pptxMetadata;
 
     return {
       previewType: 'pptx',
@@ -1709,13 +1709,13 @@ export const reindexAllDocuments = async (userId: string) => {
     console.log(`🔄 Starting reindexing for all documents for user: ${userId}`);
 
     // Get all completed documents for the user
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId,
         status: 'completed'
       },
       include: {
-        metadata: true
+        document_metadata: true
       }
     });
 
@@ -1788,9 +1788,9 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
     console.log(`🔄 Reprocessing document: ${documentId}`);
 
     // 1. Get document and verify ownership
-    const document = await prisma.document.findUnique({
+    const document = await prisma.documents.findUnique({
       where: { id: documentId },
-      include: { metadata: true }
+      include: { document_metadata: true }
     });
 
     if (!document) {
@@ -1803,7 +1803,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 
     // 2. Check if it's a PowerPoint file and needs slide extraction
     const isPPTX = document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-    const hasSlides = document.metadata?.slidesData && JSON.parse(document.metadata.slidesData as string).length > 0;
+    const hasSlides = document.document_metadata?.slidesData && JSON.parse(document.document_metadata.slidesData as string).length > 0;
 
     // For PPTX files, reprocess slides if they're missing
     if (isPPTX && !hasSlides) {
@@ -1828,15 +1828,15 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
         if (result.success) {
           const extractedText = result.fullText || '';
           const slidesData = result.slides || [];
-          const pptxMetadata = result.metadata || {};
+          const pptxMetadata = result.document_metadata || {};
           const pageCount = result.totalSlides || null;
 
           console.log(`✅ PPTX extracted: ${slidesData.length} slides, ${extractedText.length} characters`);
 
           // Update metadata with slides data
-          if (document.metadata) {
-            await prisma.documentMetadata.update({
-              where: { id: document.metadata.id },
+          if (document.document_metadata) {
+            await prisma.documentsMetadatas.update({
+              where: { id: document.document_metadata.id },
               data: {
                 extractedText,
                 slidesData: JSON.stringify(slidesData),
@@ -1845,7 +1845,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
               }
             });
           } else {
-            await prisma.documentMetadata.create({
+            await prisma.documentsMetadatas.create({
               data: {
                 documentId,
                 extractedText,
@@ -1892,7 +1892,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
     }
 
     // 3. Get or re-extract text for non-PPTX or when slides already exist
-    let extractedText = document.metadata?.extractedText;
+    let extractedText = document.document_metadata?.extractedText;
 
     if (!extractedText || extractedText.length === 0) {
       console.log('📥 No extracted text found, downloading and extracting...');
@@ -1905,9 +1905,9 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
       extractedText = result.text;
 
       // Update metadata with extracted text
-      if (document.metadata) {
-        await prisma.documentMetadata.update({
-          where: { id: document.metadata.id },
+      if (document.document_metadata) {
+        await prisma.documentsMetadatas.update({
+          where: { id: document.document_metadata.id },
           data: {
             extractedText,
             wordCount: result.wordCount || null,
@@ -1915,7 +1915,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
           }
         });
       } else {
-        await prisma.documentMetadata.create({
+        await prisma.documentsMetadatas.create({
           data: {
             documentId,
             extractedText,
@@ -1975,9 +1975,9 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
     console.log(`🔄 Regenerating PPTX slides: ${documentId}`);
 
     // 1. Get document and verify ownership
-    const document = await prisma.document.findUnique({
+    const document = await prisma.documents.findUnique({
       where: { id: documentId },
-      include: { metadata: true }
+      include: { document_metadata: true }
     });
 
     if (!document) {
@@ -2033,7 +2033,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
         height: slide.height || 1080,
       }));
 
-      await prisma.documentMetadata.update({
+      await prisma.documentsMetadatas.update({
         where: { documentId: document.id },
         data: {
           slidesData: JSON.stringify(slidesData),

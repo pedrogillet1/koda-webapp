@@ -25,10 +25,10 @@ async function reprocessExcelFile(documentId?: string) {
       where.id = documentId;
     }
 
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where,
       include: {
-        metadata: true
+        document_metadata: true
       },
       orderBy: {
         createdAt: 'desc'
@@ -67,9 +67,9 @@ async function reprocessExcelFile(documentId?: string) {
         console.log('📋 Sample of extracted data:');
         excelChunks.slice(0, 5).forEach((chunk, idx) => {
           console.log(`\n  Chunk ${idx + 1}:`);
-          console.log(`    Sheet: ${chunk.metadata.sheetName}`);
-          console.log(`    Row: ${chunk.metadata.rowNumber}`);
-          console.log(`    Cells: ${chunk.metadata.cells.join(', ')}`);
+          console.log(`    Sheet: ${chunk.document_metadata.sheetName}`);
+          console.log(`    Row: ${chunk.document_metadata.rowNumber}`);
+          console.log(`    Cells: ${chunk.document_metadata.cells.join(', ')}`);
           console.log(`    Content: ${chunk.content.substring(0, 100)}...`);
         });
         console.log('');
@@ -82,13 +82,13 @@ async function reprocessExcelFile(documentId?: string) {
         // 5. Convert Excel chunks to embedding format
         const chunks = excelChunks.map(chunk => ({
           content: chunk.content,
-          metadata: {
-            sheet: chunk.metadata.sheetName,
-            row: chunk.metadata.rowNumber,
-            cells: chunk.metadata.cells,
-            chunkIndex: chunk.metadata.chunkIndex,
-            sourceType: chunk.metadata.sourceType,
-            tableHeaders: chunk.metadata.tableHeaders
+          document_metadata: {
+            sheet: chunk.document_metadata.sheetName,
+            row: chunk.document_metadata.rowNumber,
+            cells: chunk.document_metadata.cells,
+            chunkIndex: chunk.document_metadata.chunkIndex,
+            sourceType: chunk.document_metadata.sourceType,
+            tableHeaders: chunk.document_metadata.tableHeaders
           }
         }));
 
@@ -98,15 +98,15 @@ async function reprocessExcelFile(documentId?: string) {
         console.log(`✅ Stored ${chunks.length} embeddings\n`);
 
         // 7. Show statistics
-        const sheets = [...new Set(excelChunks.map(c => c.metadata.sheetName))];
+        const sheets = [...new Set(excelChunks.map(c => c.document_metadata.sheetName))];
         console.log('📊 Statistics:');
         console.log(`   Total chunks: ${excelChunks.length}`);
         console.log(`   Sheets found: ${sheets.length}`);
         console.log(`   Sheet names: ${sheets.join(', ')}`);
 
         sheets.forEach(sheetName => {
-          const sheetChunks = excelChunks.filter(c => c.metadata.sheetName === sheetName);
-          const maxRow = Math.max(...sheetChunks.map(c => c.metadata.rowNumber));
+          const sheetChunks = excelChunks.filter(c => c.document_metadata.sheetName === sheetName);
+          const maxRow = Math.max(...sheetChunks.map(c => c.document_metadata.rowNumber));
           console.log(`     - "${sheetName}": ${sheetChunks.length} chunks, ${maxRow} rows`);
         });
 

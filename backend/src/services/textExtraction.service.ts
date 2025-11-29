@@ -22,7 +22,7 @@ export interface ExtractionResult {
 const preprocessImage = async (inputBuffer: Buffer): Promise<Buffer> => {
   try {
     const image = sharp(inputBuffer);
-    const metadata = await image.metadata();
+    const metadata = await image.document_metadata();
     let pipeline = image;
 
     // Step 0: Auto-rotate based on EXIF (fixes orientation issues)
@@ -131,11 +131,30 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
     const data = await parser.getText();
 
     // ════════════════════════════════════════════════════════════════════════════════
+    // FIX: UTF-8 ENCODING ISSUE (Pólya showing as PÃ³lya)
+    // ════════════════════════════════════════════════════════════════════════════════
+    // Some PDFs have incorrect encoding where accented characters are double-encoded
+    // This fixes the common issue where UTF-8 is interpreted as Latin-1
+    let extractedText = data.text || '';
+    try {
+      // Detect if text has encoding issues (e.g., "Ã³" instead of "ó")
+      if (extractedText.includes('Ã') && /Ã[\x80-\xBF]/.test(extractedText)) {
+        // Convert from incorrectly decoded Latin-1 to proper UTF-8
+        const buffer = Buffer.from(extractedText, 'latin1');
+        extractedText = buffer.toString('utf-8');
+        console.log('🔧 [PDF] Fixed UTF-8 encoding issue in PDF text');
+      }
+    } catch (encodingError) {
+      console.warn('⚠️ [PDF] Could not fix encoding, using original text:', encodingError);
+    }
+    data.text = extractedText;
+
+    // ════════════════════════════════════════════════════════════════════════════════
     // IMPROVED SCANNED PDF DETECTION
     // ════════════════════════════════════════════════════════════════════════════════
 
-    const hasText = data.text && data.text.trim().length > 0;
-    const avgCharsPerPage = hasText ? data.text.length / data.numpages : 0;
+    const hasText = extractedText && extractedText.trim().length > 0;
+    const avgCharsPerPage = hasText ? extractedText.length / data.numpages : 0;
 
     // Consider PDF scanned if:
     // 1. No text at all, OR
@@ -890,4 +909,16 @@ export const extractText = async (
     console.error('Error in text extraction:', error);
     throw error;
   }
+};
+
+// Default export for convenience
+export default {
+  extractText,
+  extractTextAdvanced,
+  extractTextFromPDF,
+  extractTextFromWord,
+  extractTextFromExcel,
+  extractTextFromPowerPoint,
+  extractTextFromPlainText,
+  extractTextFromImage,
 };

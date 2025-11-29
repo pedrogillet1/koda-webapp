@@ -20,8 +20,7 @@ class HierarchyQueryHandler {
       include: {
         _count: {
           select: {
-            documents: true,
-            folders: true
+            documents: true
           }
         }
       },
@@ -29,23 +28,15 @@ class HierarchyQueryHandler {
     });
 
     // Get all root folders (no parent)
-    const rootFolders = await prisma.folder.findMany({
+    const rootFolders = await prisma.folders.findMany({
       where: {
         userId: userId,
-        parentId: null
+        parentFolderId: null
       },
       include: {
-        category: {
-          select: {
-            id: true,
-            name: true,
-            emoji: true
-          }
-        },
         _count: {
           select: {
-            documents: true,
-            subfolders: true
+            documents: true
           }
         }
       },
@@ -53,7 +44,7 @@ class HierarchyQueryHandler {
     });
 
     // Get total document count
-    const totalDocuments = await prisma.document.count({
+    const totalDocuments = await prisma.documents.count({
       where: { userId: userId }
     });
 
@@ -68,9 +59,9 @@ class HierarchyQueryHandler {
       answer += `**Categories:**\n\n`;
 
       for (const category of categories) {
-        const emoji = category.emoji || '📁';
+        const emoji = category.icon || '📁';
         answer += `${emoji} **${category.name}**\n`;
-        answer += `   • ${category._count.folders} folders, ${category._count.documents} documents\n`;
+        answer += `   • ${category._count.documents} documents\n`;
       }
 
       answer += `\n`;
@@ -84,7 +75,7 @@ class HierarchyQueryHandler {
       const byCategory = new Map<string, typeof rootFolders>();
 
       for (const folder of rootFolders) {
-        const categoryId = folder.category?.id || 'uncategorized';
+        const categoryId = 'uncategorized'; // category relation not included
         const existing = byCategory.get(categoryId) || [];
         existing.push(folder);
         byCategory.set(categoryId, existing);
@@ -94,13 +85,13 @@ class HierarchyQueryHandler {
         const folders = byCategory.get(category.id) || [];
 
         if (folders.length > 0) {
-          const emoji = category.emoji || '📁';
+          const emoji = category.icon || '📁';
           answer += `**${emoji} ${category.name}:**\n`;
 
           for (const folder of folders) {
             answer += `   └─ ${folder.name}`;
-            if (folder._count.subfolders > 0) {
-              answer += ` (${folder._count.subfolders} subfolders)`;
+            if (folder._count.documents > 0) {
+              answer += ` (${folder._count.documents} subfolders)`;
             }
             if (folder._count.documents > 0) {
               answer += ` [${folder._count.documents} docs]`;
@@ -118,8 +109,8 @@ class HierarchyQueryHandler {
         answer += `**Library:**\n`;
         for (const folder of uncategorized) {
           answer += `   └─ ${folder.name}`;
-          if (folder._count.subfolders > 0) {
-            answer += ` (${folder._count.subfolders} subfolders)`;
+          if (folder._count.documents > 0) {
+            answer += ` (${folder._count.documents} subfolders)`;
           }
           if (folder._count.documents > 0) {
             answer += ` [${folder._count.documents} docs]`;
@@ -137,7 +128,7 @@ class HierarchyQueryHandler {
 
     // Buttons for top 3 categories
     categories.slice(0, 3).forEach(category => {
-      const emoji = category.emoji || '📁';
+      const emoji = category.icon || '📁';
       actions.push({
         label: `Open ${category.name}`,
         action: ActionType.OPEN_CATEGORY,
@@ -169,14 +160,12 @@ class HierarchyQueryHandler {
    * Get detailed folder tree for a specific folder
    */
   async getFolderTree(folderId: string, userId: string, depth: number = 2): Promise<any> {
-    const folder = await prisma.folder.findUnique({
+    const folder = await prisma.folders.findUnique({
       where: { id: folderId },
       include: {
-        category: true,
         _count: {
           select: {
-            documents: true,
-            subfolders: true
+            documents: true
           }
         }
       }
@@ -190,16 +179,16 @@ class HierarchyQueryHandler {
       id: folder.id,
       name: folder.name,
       documentCount: folder._count.documents,
-      subfolderCount: folder._count.subfolders,
-      category: folder.category,
+      subfolderCount: folder._count.documents,
+      // category field not included
       subfolders: []
     };
 
     // Recursively get subfolders if depth > 0
-    if (depth > 0 && folder._count.subfolders > 0) {
-      const subfolders = await prisma.folder.findMany({
+    if (depth > 0 && folder._count.documents > 0) {
+      const subfolders = await prisma.folders.findMany({
         where: {
-          parentId: folderId,
+          parentFolderId: folderId,
           userId: userId
         },
         orderBy: { name: 'asc' }

@@ -797,7 +797,7 @@ export class ComparativeAnalysisService {
     concepts: string[],
     chunks: Array<{
       content: string;
-      metadata: {
+      document_metadata: {
         documentId: string;
         filename: string;
         page?: number;
@@ -817,9 +817,9 @@ export class ComparativeAnalysisService {
 
     for (const chunk of chunks) {
       const text = chunk.content || '';
-      const docId = chunk.metadata?.documentId || 'unknown';
-      const docName = chunk.metadata?.filename || 'Unknown';
-      const page = chunk.metadata?.page;
+      const docId = chunk.document_metadata?.documentId || 'unknown';
+      const docName = chunk.document_metadata?.filename || 'Unknown';
+      const page = chunk.document_metadata?.page;
 
       // Extract comparative statements
       const statements = extractComparativeStatements(text, docId, docName, concepts, page);
@@ -859,7 +859,7 @@ export class ComparativeAnalysisService {
     concepts: string[],
     chunks: Array<{
       content: string;
-      metadata: {
+      document_metadata: {
         documentId: string;
         filename: string;
         page?: number;

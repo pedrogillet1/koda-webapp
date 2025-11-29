@@ -6,7 +6,7 @@ async function regenerateExcelEmbeddings() {
     console.log('\n🔄 ===== REGENERATING EXCEL EMBEDDINGS =====\n');
 
     // Get the latest Excel file
-    const latestExcel = await prisma.document.findFirst({
+    const latestExcel = await prisma.documents.findFirst({
       where: {
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       },
@@ -32,7 +32,7 @@ async function regenerateExcelEmbeddings() {
 
     // CRITICAL: Delete existing metadata to force fresh Excel processing
     console.log('🗑️  Deleting cached metadata to force fresh Excel extraction...');
-    await prisma.documentMetadata.deleteMany({
+    await prisma.documentsMetadatas.deleteMany({
       where: { documentId: latestExcel.id }
     });
     console.log('✅ Metadata deleted\n');

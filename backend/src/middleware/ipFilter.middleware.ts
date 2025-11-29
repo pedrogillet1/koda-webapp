@@ -189,7 +189,7 @@ export const checkAutoBlacklist = async (ip: string): Promise<void> => {
   const since = new Date(Date.now() - config.autoBlacklistWindowMinutes * 60 * 1000);
 
   // Count recent security violations from this IP
-  const violations = await prisma.auditLog.count({
+  const violations = await prisma.audit_logs.count({
     where: {
       ipAddress: ip,
       status: 'failure',
@@ -205,7 +205,7 @@ export const checkAutoBlacklist = async (ip: string): Promise<void> => {
       threatLevel: ThreatLevel.CRITICAL,
       ipAddress: ip,
       description: `IP automatically blacklisted due to excessive security violations`,
-      metadata: {
+      document_metadata: {
         violationCount: violations,
         timeWindowMinutes: config.autoBlacklistWindowMinutes,
         threshold: config.autoBlacklistThreshold,
@@ -238,7 +238,7 @@ export const ipFilter = async (req: Request, res: Response, next: NextFunction):
           ipAddress: ip,
           userAgent: req.headers['user-agent'],
           description: 'Access attempt from non-whitelisted IP',
-          metadata: {
+          document_metadata: {
             path: req.path,
             method: req.method,
           },
@@ -264,7 +264,7 @@ export const ipFilter = async (req: Request, res: Response, next: NextFunction):
           ipAddress: ip,
           userAgent: req.headers['user-agent'],
           description: 'Access attempt from blacklisted IP',
-          metadata: {
+          document_metadata: {
             path: req.path,
             method: req.method,
           },

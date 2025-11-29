@@ -9,6 +9,10 @@ export enum AuditAction {
   SHARE = 'SHARE',
   LOGIN = 'LOGIN',
   LOGOUT = 'LOGOUT',
+  PERMISSION_REVOKE = 'PERMISSION_REVOKE',
+  DOCUMENT_VIEW = 'DOCUMENT_VIEW',
+  DOCUMENT_DOWNLOAD = 'DOCUMENT_DOWNLOAD',
+  DOCUMENT_DELETE = 'DOCUMENT_DELETE',
 }
 
 export enum AuditStatus {
@@ -18,10 +22,10 @@ export enum AuditStatus {
 }
 
 class AuditLogService {
-  async logAction(userId: string, action: string, details: any) { return true; }
-  async getAuditLogs(userId?: string, limit = 100) { return []; }
-  async searchLogs(criteria: any) { return []; }
-  async log(userId: string, action: AuditAction, resource: string, details?: any) { return true; }
-  async logFromRequest(req: any, action: AuditAction, resource: string, status: AuditStatus, details?: any) { return true; }
+  async logAction(_userId: string, _action: string, _details: any) { return true; }
+  async getAuditLogs(_userId?: string, _limit = 100) { return []; }
+  async searchLogs(_criteria: any) { return []; }
+  async log(_params: any) { return true; }
+  async logFromRequest(_req: any, _action: AuditAction, _status: AuditStatus, _resource?: string, _details?: any) { return true; }
 }
 export default new AuditLogService();

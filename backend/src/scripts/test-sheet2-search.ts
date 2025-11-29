@@ -22,7 +22,7 @@ async function testSheet2Search() {
     results.forEach((result, idx) => {
       console.log(`${idx + 1}. Document: ${result.document.filename}`);
       console.log(`   Similarity: ${result.similarity.toFixed(4)}`);
-      console.log(`   Metadata: ${JSON.stringify(result.metadata)}`);
+      console.log(`   Metadata: ${JSON.stringify(result.document_metadata)}`);
       console.log(`   Content: ${result.content.substring(0, 150)}...`);
       console.log('');
     });
@@ -30,7 +30,7 @@ async function testSheet2Search() {
     // Check for sheet 2 results
     const sheet2Results = results.filter(r =>
       r.content.includes('Sheet 2') ||
-      (r.metadata && r.metadata.sheet === 'ex2')
+      (r.document_metadata && r.document_metadata.sheet === 'ex2')
     );
 
     console.log(`\n${sheet2Results.length > 0 ? '✅' : '❌'} Sheet 2 found in results: ${sheet2Results.length} matches`);

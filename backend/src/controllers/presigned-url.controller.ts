@@ -73,7 +73,7 @@ async function createFolderHierarchy(
       : `/${folderName}`;
 
     // Check if folder already exists
-    const existingFolder = await prisma.folder.findFirst({
+    const existingFolder = await prisma.folders.findFirst({
       where: {
         userId,
         name: folderName,
@@ -86,7 +86,7 @@ async function createFolderHierarchy(
       folderMap.set(folderPath, existingFolder.id);
     } else {
       // Create new folder
-      const newFolder = await prisma.folder.create({
+      const newFolder = await prisma.folders.create({
         data: {
           userId,
           name: folderName,
@@ -108,7 +108,7 @@ async function createFolderHierarchy(
  * Helper function to build full path for a folder
  */
 async function buildFullPath(parentFolderId: string, folderName: string): Promise<string> {
-  const parent = await prisma.folder.findUnique({
+  const parent = await prisma.folders.findUnique({
     where: { id: parentFolderId },
     select: { path: true }
   });
@@ -209,7 +209,7 @@ export const generateBulkPresignedUrls = async (
 
           // Create document record with "uploading" status
           // Folder structure is preserved via targetFolderId
-          const document = await prisma.document.create({
+          const document = await prisma.documents.create({
             data: {
               userId,
               folderId: targetFolderId,
@@ -294,7 +294,7 @@ export const completeBatchUpload = async (
     console.log(`✅ Marking ${documentIds.length} documents as uploaded for user ${userId}`);
 
     // Update all documents to "processing" status
-    const updateResult = await prisma.document.updateMany({
+    const updateResult = await prisma.documents.updateMany({
       where: {
         id: { in: documentIds },
         userId,
@@ -310,7 +310,7 @@ export const completeBatchUpload = async (
 
     // ✅ OPTIMIZATION: Queue all documents for parallel background processing (10 concurrent)
     // Fetch document details to get encryptedFilename and mimeType
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         id: { in: documentIds },
         userId
@@ -386,7 +386,7 @@ export const retriggerStuckDocuments = async (
     console.log(`🔄 [retriggerStuckDocuments] Finding stuck documents for user ${userId}...`);
 
     // Find all documents stuck in "uploading" status for this user
-    const stuckDocuments = await prisma.document.findMany({
+    const stuckDocuments = await prisma.documents.findMany({
       where: {
         userId,
         status: 'uploading',
@@ -416,7 +416,7 @@ export const retriggerStuckDocuments = async (
     }
 
     // Update status to "processing"
-    const updateResult = await prisma.document.updateMany({
+    const updateResult = await prisma.documents.updateMany({
       where: {
         id: { in: stuckDocuments.map(d => d.id) },
         userId

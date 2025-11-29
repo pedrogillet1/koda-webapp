@@ -9,7 +9,7 @@ async function deleteDocument() {
     await vectorEmbeddingService.deleteDocumentEmbeddings(docId);
 
     console.log('🗑️  Deleting document from database...');
-    await prisma.document.delete({
+    await prisma.documents.delete({
       where: { id: docId }
     });
 

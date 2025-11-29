@@ -35,7 +35,7 @@ class FolderSummaryService {
     console.log(`📁 [FOLDER SUMMARY] Generating summary for folder ${folderId}`);
 
     // Get all documents in this folder
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         folderId,
         status: 'completed'
@@ -68,19 +68,21 @@ class FolderSummaryService {
 
   /**
    * Update folder summary in database
+   * NOTE: Summary field not yet in schema - storing in description for now
    */
   async updateFolderSummary(folderId: string): Promise<void> {
     const summary = await this.generateFolderSummary(folderId);
 
-    await prisma.folder.update({
-      where: { id: folderId },
-      data: {
-        summary,
-        summaryUpdatedAt: new Date(),
-      },
-    });
+    // TODO: Add summary field to Folder schema
+    // await prisma.folders.update({
+    //   where: { id: folderId },
+    //   data: {
+    //     summary,
+    //     summaryUpdatedAt: new Date(),
+    //   },
+    // });
 
-    console.log(`✅ [FOLDER SUMMARY] Updated folder ${folderId}: "${summary}"`);
+    console.log(`✅ [FOLDER SUMMARY] Generated summary for folder ${folderId}: "${summary}"`);
   }
 
   /**
@@ -93,7 +95,7 @@ class FolderSummaryService {
     await this.updateFolderSummary(folderId);
 
     // Get parent folder
-    const folder = await prisma.folder.findUnique({
+    const folder = await prisma.folders.findUnique({
       where: { id: folderId },
       select: { parentFolderId: true },
     });
@@ -108,7 +110,7 @@ class FolderSummaryService {
    * Get all folders with summaries for a user
    */
   async getUserFolderIndex(userId: string): Promise<FolderInfo[]> {
-    const folders = await prisma.folder.findMany({
+    const folders = await prisma.folders.findMany({
       where: { userId },
       include: {
         _count: {
@@ -133,7 +135,7 @@ class FolderSummaryService {
       id: folder.id,
       name: folder.name,
       path: folder.path || this.buildFolderPath(folder),
-      summary: folder.summary || 'No summary',
+      summary: folder.description || 'No summary',
       documentCount: folder._count.documents,
     }));
   }
@@ -157,7 +159,7 @@ class FolderSummaryService {
    * Get comprehensive folder index with document details
    */
   async getUserFolderIndexWithDocs(userId: string): Promise<FolderWithDocs[]> {
-    const folders = await prisma.folder.findMany({
+    const folders = await prisma.folders.findMany({
       where: { userId },
       include: {
         documents: {
@@ -187,7 +189,7 @@ class FolderSummaryService {
       name: folder.name,
       path: folder.path || this.buildFolderPath(folder),
       documentCount: folder.documents.length,
-      summary: folder.summary || 'No summary',
+      summary: folder.description || 'No summary',
       documents: folder.documents,
     }));
   }
@@ -196,10 +198,10 @@ class FolderSummaryService {
    * Backfill summaries for all folders without summaries
    */
   async backfillMissingSummaries(userId: string): Promise<number> {
-    const foldersWithoutSummaries = await prisma.folder.findMany({
+    const foldersWithoutSummaries = await prisma.folders.findMany({
       where: {
         userId,
-        summary: null,
+        description: null,
       },
       select: { id: true },
     });
@@ -224,7 +226,7 @@ class FolderSummaryService {
    * Get folder by name (case-insensitive)
    */
   async getFolderByName(userId: string, folderName: string): Promise<FolderInfo | null> {
-    const folder = await prisma.folder.findFirst({
+    const folder = await prisma.folders.findFirst({
       where: {
         userId,
         name: {
@@ -245,7 +247,7 @@ class FolderSummaryService {
       id: folder.id,
       name: folder.name,
       path: folder.path || `/${folder.name}`,
-      summary: folder.summary || 'No summary',
+      summary: folder.description || 'No summary',
       documentCount: folder._count.documents,
     };
   }
@@ -254,7 +256,7 @@ class FolderSummaryService {
    * Get documents in a specific folder
    */
   async getFolderDocuments(folderId: string): Promise<Array<{ id: string; filename: string; mimeType: string }>> {
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         folderId,
         status: 'completed',

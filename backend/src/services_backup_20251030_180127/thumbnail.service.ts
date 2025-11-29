@@ -76,7 +76,7 @@ export const generatePDFThumbnail = async (
     const gcsPath = `thumbnails/${thumbnailFilename}`;
     await bucket.upload(thumbnailPath, {
       destination: gcsPath,
-      metadata: {
+      document_metadata: {
         contentType: 'image/jpeg',
       },
     });
@@ -119,7 +119,7 @@ export const generateImageThumbnail = async (
     const gcsPath = `thumbnails/${thumbnailFilename}`;
     await bucket.upload(thumbnailPath, {
       destination: gcsPath,
-      metadata: {
+      document_metadata: {
         contentType: 'image/jpeg',
       },
     });

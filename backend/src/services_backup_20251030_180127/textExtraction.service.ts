@@ -27,7 +27,7 @@ const preprocessImage = async (inputBuffer: Buffer): Promise<Buffer> => {
     console.log('🔧 Preprocessing image for better OCR...');
 
     const image = sharp(inputBuffer);
-    const metadata = await image.metadata();
+    const metadata = await image.document_metadata();
 
     let pipeline = image;
 

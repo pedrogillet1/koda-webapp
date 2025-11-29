@@ -20,7 +20,7 @@ interface CacheOptions {
 }
 
 interface CacheStats {
-  memory: {
+  user_preferences_memory: {
     keys: number;
     hits: number;
     misses: number;
@@ -28,7 +28,7 @@ interface CacheStats {
   };
   redis: {
     keys: number;
-    memory: string;
+    user_preferences_memory: string;
     hitRate: number;
   };
 }
@@ -178,7 +178,7 @@ class MultiLayerCacheService {
     const hitRate = totalRequests > 0 ? memoryStats.hits / totalRequests : 0;
 
     return {
-      memory: {
+      user_preferences_memory: {
         keys: this.memoryCache.keys().length,
         hits: memoryStats.hits,
         misses: memoryStats.misses,
@@ -186,7 +186,7 @@ class MultiLayerCacheService {
       },
       redis: {
         keys: 0,  // Will be populated from Redis stats
-        memory: 'Unknown',
+        user_preferences_memory: 'Unknown',
         hitRate: 0,
       },
     };
@@ -203,7 +203,7 @@ class MultiLayerCacheService {
       const redisStats = await cacheService.getCacheStats();
       stats.redis = {
         keys: redisStats.keys,
-        memory: redisStats.memory,
+        user_preferences_memory: redisStats.memory,
         hitRate: redisStats.hitRate,
       };
     } catch (error) {

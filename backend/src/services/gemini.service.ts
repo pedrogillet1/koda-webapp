@@ -4,7 +4,21 @@ import { createLanguageInstruction } from './languageDetection.service';
 
 // Minimal context manager stub
 const contextManager = {
-  optimizeContext: (context: string, maxTokens: number = 4000) => context.substring(0, maxTokens * 4)
+  optimizeContext: (context: string, maxTokens: number = 4000) => context.substring(0, maxTokens * 4),
+  buildOptimizedContext: (params: any) => {
+    const { systemPrompt, documentContext, conversationHistory } = params;
+    // Build messages array from conversation history
+    const messages = conversationHistory ? conversationHistory.map((msg: any) => ({
+      role: msg.role,
+      content: msg.content
+    })) : [];
+    return {
+      systemPrompt,
+      documentContext,
+      conversationHistory,
+      messages
+    };
+  }
 };
 
 // Initialize OpenAI
@@ -486,7 +500,7 @@ export const kodaFunctions: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       parameters: {
         type: 'object',
         properties: {
-          tag: {
+          document_document_tags: {
             type: 'string',
             description: 'The tag to search for (without #)',
           },
@@ -507,7 +521,7 @@ export const kodaFunctions: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             type: 'string',
             description: 'ID of the document',
           },
-          tag: {
+          document_document_tags: {
             type: 'string',
             description: 'Tag to add (lowercase, without #)',
           },

@@ -42,7 +42,7 @@ class SystemMetadataService {
       .trim();
 
     // Try exact match first (contains is case-insensitive by default)
-    let document = await prisma.document.findFirst({
+    let document = await prisma.documents.findFirst({
       where: {
         userId,
         filename: {
@@ -52,7 +52,7 @@ class SystemMetadataService {
         status: { not: 'deleted' }
       },
       include: {
-        folder: {
+        folders: {
           select: {
             id: true,
             name: true
@@ -63,7 +63,7 @@ class SystemMetadataService {
 
     // If not found, try with cleaned filename
     if (!document) {
-      document = await prisma.document.findFirst({
+      document = await prisma.documents.findFirst({
         where: {
           userId,
           filename: {
@@ -73,7 +73,7 @@ class SystemMetadataService {
           status: { not: 'deleted' }
         },
         include: {
-          folder: {
+          folders: {
             select: {
               id: true,
               name: true
@@ -111,7 +111,7 @@ class SystemMetadataService {
     console.log(`📊 [System Metadata] Getting file types for user`);
 
     // Query documents grouped by MIME type
-    const results = await prisma.document.groupBy({
+    const results = await prisma.documents.groupBy({
       by: ['mimeType'],
       where: {
         userId,
@@ -142,7 +142,7 @@ class SystemMetadataService {
    * Count files in root directory
    */
   async countRootFiles(userId: string): Promise<number> {
-    const count = await prisma.document.count({
+    const count = await prisma.documents.count({
       where: {
         userId,
         folderId: null, // Root directory
@@ -158,7 +158,7 @@ class SystemMetadataService {
    * Count total files for user
    */
   async countTotalFiles(userId: string): Promise<number> {
-    const count = await prisma.document.count({
+    const count = await prisma.documents.count({
       where: {
         userId,
         status: { not: 'deleted' }
@@ -176,7 +176,7 @@ class SystemMetadataService {
     console.log(`📁 [System Metadata] Getting files in folder: "${folderName}"`);
 
     // Find folder by name (case-insensitive partial match)
-    const folder = await prisma.folder.findFirst({
+    const folder = await prisma.folders.findFirst({
       where: {
         userId,
         name: {
@@ -192,7 +192,7 @@ class SystemMetadataService {
     }
 
     // Get all documents in folder
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId,
         folderId: folder.id,
@@ -218,7 +218,7 @@ class SystemMetadataService {
    * Get all folders for user
    */
   async getFolders(userId: string): Promise<any[]> {
-    const folders = await prisma.folder.findMany({
+    const folders = await prisma.folders.findMany({
       where: { userId },
       select: {
         id: true,
@@ -247,7 +247,7 @@ class SystemMetadataService {
     console.log(`🌐 [System Metadata] Finding documents in language: "${language}"`);
 
     // Query documents with language in metadata
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where: {
         userId,
         status: { not: 'deleted' },
@@ -265,7 +265,7 @@ class SystemMetadataService {
     // Filter by language (since Prisma doesn't support JSON field filtering in SQLite)
     // This is a workaround - ideally language should be a separate column
     const filtered = documents.filter(doc => {
-      // You would check doc.metadata.language here if it exists
+      // You would check doc.document_metadata.language here if it exists
       // For now, return all documents
       return true;
     });

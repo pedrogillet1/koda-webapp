@@ -22,7 +22,7 @@ async function testRAGSearch() {
     results.forEach((result, idx) => {
       console.log(`${idx + 1}. Document: ${result.document.filename}`);
       console.log(`   Similarity: ${result.similarity.toFixed(4)}`);
-      console.log(`   Metadata: ${JSON.stringify(result.metadata)}`);
+      console.log(`   Metadata: ${JSON.stringify(result.document_metadata)}`);
       console.log(`   Content: ${result.content.substring(0, 150)}...`);
       console.log('');
     });
@@ -30,7 +30,7 @@ async function testRAGSearch() {
     // Check if ex2 data exists in results
     const ex2Results = results.filter(r =>
       r.content.includes('ex2') ||
-      (r.metadata && r.metadata.sheet === 'ex2')
+      (r.document_metadata && r.document_metadata.sheet === 'ex2')
     );
 
     console.log(`\n${ex2Results.length > 0 ? '✅' : '❌'} ex2 sheet found in results: ${ex2Results.length} matches`);
@@ -44,7 +44,7 @@ async function testRAGSearch() {
 
     // Check what's in the database for this user
     console.log('\n2. Checking database directly...');
-    const allDocs = await prisma.document.findMany({
+    const allDocs = await prisma.documents.findMany({
       where: { userId },
       select: { id: true, filename: true }
     });

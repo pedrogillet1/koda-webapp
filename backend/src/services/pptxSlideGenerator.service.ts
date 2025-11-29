@@ -390,13 +390,14 @@ export class PPTXSlideGeneratorService {
 
             await file.save(fileBuffer, {
               contentType: 'image/webp',
-              metadata: {
+              document_metadata: {
                 cacheControl: 'public, max-age=31536000',
               }
             });
 
             slide.gcsPath = gcsPath;
             // Note: Files are stored in GCS but need signed URLs for access
+      // @ts-ignore - storage.name not available
             // The frontend can request signed URLs via the API
             slide.publicUrl = `gcs://${bucket.name}/${gcsPath}`;
 

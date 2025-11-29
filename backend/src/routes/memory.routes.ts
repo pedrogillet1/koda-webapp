@@ -102,7 +102,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       memory
     });
   } catch (error: any) {
-    console.error('L [MEMORY API] Error creating memory:', error);
+    console.error('L [MEMORY API] Error creating user_preferences_memory:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to create memory',
@@ -159,7 +159,7 @@ router.put('/:memoryId', authenticateToken, async (req: Request, res: Response) 
       memory
     });
   } catch (error: any) {
-    console.error('L [MEMORY API] Error updating memory:', error);
+    console.error('L [MEMORY API] Error updating user_preferences_memory:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to update memory',
@@ -198,7 +198,7 @@ router.delete('/:memoryId', authenticateToken, async (req: Request, res: Respons
       message: 'Memory deleted successfully'
     });
   } catch (error: any) {
-    console.error('L [MEMORY API] Error deleting memory:', error);
+    console.error('L [MEMORY API] Error deleting user_preferences_memory:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to delete memory',

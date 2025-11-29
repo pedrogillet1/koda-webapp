@@ -278,10 +278,10 @@ export class TimeBasedHandler {
     }
 
     // Fetch documents
-    const documents = await prisma.document.findMany({
+    const documents = await prisma.documents.findMany({
       where,
       include: {
-        folder: {
+        folders: {
           select: {
             name: true
           }
