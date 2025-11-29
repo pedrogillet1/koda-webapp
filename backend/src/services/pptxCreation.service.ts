@@ -1,13 +1,11 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import geminiService from './gemini.service';
+import manusService from './manus.service';
 import { uploadFileToS3 } from './s3Storage.service';
 import { PrismaClient } from '@prisma/client';
 
-const execAsync = promisify(exec);
 const prisma = new PrismaClient();
 
 interface SlideContent {
@@ -287,25 +285,53 @@ Return as JSON array:
   }
 
   /**
-   * Export slide project to PPTX using manus-export-slides
+   * Export slide project to PPTX using Manus service
    */
   private async exportToPPTX(projectDir: string): Promise<string> {
     const outputPath = `${projectDir}/presentation.pptx`;
 
     try {
-      // Use manus-export-slides utility
-      const { stdout, stderr } = await execAsync(
-        `manus-export-slides ${projectDir} pptx`,
-        { timeout: 60000 } // 60 second timeout
-      );
+      // First, combine all HTML slides into a single presentation HTML
+      const slideFiles = await fs.readdir(projectDir);
+      const htmlFiles = slideFiles.filter(f => f.endsWith('.html'));
 
-      console.log(`✅ [PPTX] Export stdout:`, stdout);
-      if (stderr) {
-        console.warn(`⚠️  [PPTX] Export stderr:`, stderr);
+      // Create a combined HTML with all slides
+      let combinedHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Presentation</title>
+</head>
+<body>`;
+
+      for (const htmlFile of htmlFiles.sort()) {
+        if (htmlFile === 'presentation.html') continue; // Skip if exists
+        const htmlContent = await fs.readFile(path.join(projectDir, htmlFile), 'utf-8');
+        // Extract the slide content (body content)
+        const bodyMatch = htmlContent.match(/<body>([\s\S]*?)<\/body>/);
+        if (bodyMatch) {
+          combinedHTML += `<div class="slide">${bodyMatch[1]}</div>\n`;
+        }
       }
 
-      // Check if file was created
-      await fs.access(outputPath);
+      combinedHTML += `
+</body>
+</html>`;
+
+      // Write combined HTML
+      const htmlPath = path.join(projectDir, 'presentation.html');
+      await fs.writeFile(htmlPath, combinedHTML);
+
+      console.log(`✅ [PPTX] Combined HTML created: ${htmlPath}`);
+
+      // Use Manus service to convert HTML to PPTX
+      const buffer = await manusService.convertHTMLToPPTX(htmlPath, outputPath);
+
+      // Write buffer to file
+      await fs.writeFile(outputPath, buffer);
+
+      console.log(`✅ [PPTX] PPTX created successfully: ${outputPath}`);
 
       return outputPath;
     } catch (error) {

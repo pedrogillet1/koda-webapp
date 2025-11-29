@@ -386,8 +386,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
     ]);
 
     // Extract results from parallel execution
-    // Initialize metadata with empty object to prevent undefined errors
-    let metadata: any = {};
+    // Note: metadata is already initialized above at line 236
 
     if (textResult.status === 'fulfilled') {
       extractedText = textResult.value.text;

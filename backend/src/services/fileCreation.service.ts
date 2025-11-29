@@ -88,6 +88,27 @@ class FileCreationService {
 
       // 5. Save to database
       const documentId = uuidv4();
+
+      // For markdown files, store the actual content in renderableContent
+      // For other file types, store metadata since they can't be rendered as text
+      let renderableContent: string | null = null;
+      if (params.fileType === 'md') {
+        // Store the full markdown content for rendering in the UI
+        renderableContent = fileBuffer.toString('utf-8');
+      } else {
+        // For PDF/DOCX, store JSON metadata indicating file needs to be downloaded
+        renderableContent = JSON.stringify({
+          source: 'ai_generated',
+          createdBy: 'koda',
+          generatedFrom: 'chat',
+          topic: params.topic,
+          wordCount: content.split(/\s+/).length,
+          conversationId: params.conversationId,
+          createdAt: new Date().toISOString(),
+          note: 'File stored in S3, download to view full content'
+        });
+      }
+
       const document = await prisma.documents.create({
         data: {
           id: documentId,
@@ -99,15 +120,7 @@ class FileCreationService {
           fileHash: crypto.randomUUID(),
           status: 'completed',
           isEncrypted: false,
-          renderableContent: JSON.stringify({
-            source: 'ai_generated',
-            createdBy: 'koda',
-            generatedFrom: 'chat',
-            topic: params.topic,
-            wordCount: content.split(/\s+/).length,
-            conversationId: params.conversationId,
-            createdAt: new Date().toISOString(),
-          }),
+          renderableContent: renderableContent,
         },
       });
 

@@ -93,7 +93,7 @@ class PineconeService {
       const vectors = chunks.map(chunk => ({
         id: `${documentId}-${chunk.chunkIndex}`,
         values: chunk.embedding,
-        document_metadata: {
+        metadata: {
           // ⚡ User identification (for filtering)
           userId,
 
@@ -118,7 +118,7 @@ class PineconeService {
           content: chunk.content.substring(0, 5000), // Store up to 5000 chars
 
           // ⚡ Additional chunk metadata
-          ...chunk.document_metadata,
+          ...chunk.metadata,
         },
       }));
 
@@ -226,18 +226,18 @@ class PineconeService {
         })
         .slice(0, topK)
         .map(match => ({
-          documentId: match.document_metadata?.documentId as string,
-          chunkIndex: match.document_metadata?.chunkIndex as number,
-          content: match.document_metadata?.content as string,
+          documentId: match.metadata?.documentId as string,
+          chunkIndex: match.metadata?.chunkIndex as number,
+          content: match.metadata?.content as string,
           similarity: match.score || 0,
-          metadata: match.document_metadata || {},
+          metadata: match.metadata || {},
           // ⚡ Document metadata from Pinecone (eliminates 15s PostgreSQL query!)
           document: {
-            id: match.document_metadata?.documentId as string,
-            filename: match.document_metadata?.filename as string,
-            mimeType: match.document_metadata?.mimeType as string,
-            createdAt: match.document_metadata?.createdAt as string,
-            status: match.document_metadata?.status as string,
+            id: match.metadata?.documentId as string,
+            filename: match.metadata?.filename as string,
+            mimeType: match.metadata?.mimeType as string,
+            createdAt: match.metadata?.createdAt as string,
+            status: match.metadata?.status as string,
           },
         }));
 
@@ -325,7 +325,7 @@ class PineconeService {
       similarity: result.similarity,
       chunkIndex: result.chunkIndex,
       document_metadata: {
-        ...result.document_metadata,
+        ...result.metadata,
         // ✅ Ensure filename is in metadata
         filename: result.document.filename,
         mimeType: result.document.mimeType,
@@ -447,17 +447,17 @@ class PineconeService {
       });
 
       const results = queryResponse.matches.map(match => ({
-        documentId: match.document_metadata?.documentId as string,
-        chunkIndex: match.document_metadata?.chunkIndex as number,
-        content: match.document_metadata?.content as string,
+        documentId: match.metadata?.documentId as string,
+        chunkIndex: match.metadata?.chunkIndex as number,
+        content: match.metadata?.content as string,
         similarity: match.score || 0,
-        metadata: match.document_metadata || {},
+        metadata: match.metadata || {},
         document: {
-          id: match.document_metadata?.documentId as string,
-          filename: match.document_metadata?.filename as string,
-          mimeType: match.document_metadata?.mimeType as string,
-          createdAt: match.document_metadata?.createdAt as string,
-          status: match.document_metadata?.status as string,
+          id: match.metadata?.documentId as string,
+          filename: match.metadata?.filename as string,
+          mimeType: match.metadata?.mimeType as string,
+          createdAt: match.metadata?.createdAt as string,
+          status: match.metadata?.status as string,
         },
       }));
 
@@ -531,17 +531,17 @@ class PineconeService {
       });
 
       const results = queryResponse.matches.map(match => ({
-        documentId: match.document_metadata?.documentId as string,
-        chunkIndex: match.document_metadata?.chunkIndex as number,
-        content: match.document_metadata?.content as string,
+        documentId: match.metadata?.documentId as string,
+        chunkIndex: match.metadata?.chunkIndex as number,
+        content: match.metadata?.content as string,
         similarity: match.score || 0,
-        metadata: match.document_metadata || {},
+        metadata: match.metadata || {},
         document: {
-          id: match.document_metadata?.documentId as string,
-          filename: match.document_metadata?.filename as string,
-          mimeType: match.document_metadata?.mimeType as string,
-          createdAt: match.document_metadata?.createdAt as string,
-          status: match.document_metadata?.status as string,
+          id: match.metadata?.documentId as string,
+          filename: match.metadata?.filename as string,
+          mimeType: match.metadata?.mimeType as string,
+          createdAt: match.metadata?.createdAt as string,
+          status: match.metadata?.status as string,
         },
       }));
 
