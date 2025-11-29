@@ -1,148 +1,295 @@
-/** Chat Document Generation Service - Creates PDF documents from chat-generated content */
+/**
+ * Chat Document Generation Service
+ * Generates documents (reports, summaries, analyses) from chat queries
+ * Documents are displayed in chat like Manus with download options
+ */
 
-import documentExportService from './documentExport.service';
-import s3StorageService from './s3Storage.service';
 import prisma from '../config/database';
-import crypto from 'crypto';
-import path from 'path';
+import OpenAI from 'openai';
+import { config } from '../config/env';
+
+const openai = new OpenAI({
+  apiKey: config.OPENAI_API_KEY,
+  baseURL: config.OPENAI_BASE_URL,
+});
 
 interface GenerateDocumentParams {
   userId: string;
-  content: string;
-  title?: string;
-  conversationId?: string;
+  conversationId: string;
+  messageId: string;
+  query: string;
+  documentType: 'summary' | 'report' | 'analysis' | 'general';
+  sourceContent?: string; // Content from RAG retrieval
+  sourceDocumentIds?: string[]; // IDs of source documents
 }
 
-class ChatDocumentGenerationService {
-  /**
-   * Generate a PDF document from markdown content
-   * Automatically creates and uploads the document to S3
-   */
-  async generateDocument(params: GenerateDocumentParams) {
-    const { userId, content, title, conversationId } = params;
+interface ChatDocumentResult {
+  chatDocument: {
+    id: string;
+    title: string;
+    markdownContent: string;
+    documentType: string;
+    wordCount: number;
+    createdAt: Date;
+  };
+  message: string; // Confirmation message to show in chat
+}
 
-    try {
-      console.log('📄 [DOC GENERATION] Starting PDF document creation...');
+/**
+ * Generate a document from chat query
+ * Creates ChatDocument record and returns it for display in chat
+ */
+export async function generateDocument(params: GenerateDocumentParams): Promise<ChatDocumentResult> {
+  const {
+    userId,
+    conversationId,
+    messageId,
+    query,
+    documentType,
+    sourceContent,
+    sourceDocumentIds,
+  } = params;
 
-      // Generate filename from title or use default
-      const documentTitle = title || 'Summary Report';
-      const baseFilename = this.sanitizeFilename(documentTitle);
-      const filename = `${baseFilename}.pdf`;
+  console.log(`📝 [DOC GEN] Generating ${documentType} document for user ${userId}`);
 
-      console.log(`📝 [DOC GENERATION] Filename: ${filename}`);
+  // Generate document title
+  const title = await generateDocumentTitle(query, documentType);
 
-      // Format content with professional document header
-      const currentDate = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
+  // Generate document content using LLM
+  const markdownContent = await generateDocumentContent({
+    query,
+    documentType,
+    sourceContent,
+    title,
+  });
 
-      const formattedContent = `# KODA AI
+  // Calculate word count
+  const wordCount = markdownContent.split(/\s+/).length;
 
-## ${documentTitle}
+  // Create ChatDocument record
+  const chatDocument = await prisma.chatDocument.create({
+    data: {
+      messageId,
+      conversationId,
+      userId,
+      title,
+      markdownContent,
+      documentType,
+      wordCount,
+      sourceDocumentId: sourceDocumentIds?.[0] || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
 
-**Generated on ${currentDate}**
+  console.log(`✅ [DOC GEN] Created ChatDocument ${chatDocument.id}: "${title}" (${wordCount} words)`);
 
----
+  // Generate confirmation message
+  const message = generateConfirmationMessage(title, documentType, wordCount);
 
-${content}`;
+  return {
+    chatDocument: {
+      id: chatDocument.id,
+      title: chatDocument.title,
+      markdownContent: chatDocument.markdownContent,
+      documentType: chatDocument.documentType,
+      wordCount: chatDocument.wordCount,
+      createdAt: chatDocument.createdAt,
+    },
+    message,
+  };
+}
 
-      // Convert markdown content to PDF
-      const pdfBuffer = await documentExportService.exportToPdf(formattedContent, filename);
-      console.log(`✅ [DOC GENERATION] PDF generated (${pdfBuffer.length} bytes)`);
+/**
+ * Generate document title from query
+ */
+async function generateDocumentTitle(query: string, documentType: string): Promise<string> {
+  try {
+    const prompt = `Generate a concise, professional title for a ${documentType} document based on this request:
 
-      // Generate file hash for integrity checking
-      const fileHash = crypto
-        .createHash('sha256')
-        .update(pdfBuffer)
-        .digest('hex');
+"${query}"
 
-      // Create document record in database FIRST (to get document ID for S3 path)
-      const document = await prisma.document.create({
-        data: {
-          userId,
-          filename,
-          fileSize: pdfBuffer.length,
-          mimeType: 'application/pdf',
-          fileHash,
-          status: 'pending', // Will be set to 'completed' after S3 upload
-          encryptedFilename: '', // Will be updated after S3 upload
-        },
-      });
+Requirements:
+- Maximum 8 words
+- Professional and descriptive
+- No quotes or special characters
+- Title case
 
-      console.log(`💾 [DOC GENERATION] Document record created: ${document.id}`);
+Return ONLY the title, nothing else.`;
 
-      // Upload to S3
-      const s3Key = `${userId}/${document.id}-${Date.now()}`;
-      await s3StorageService.uploadFile(s3Key, pdfBuffer, 'application/pdf');
-      console.log(`☁️  [DOC GENERATION] Uploaded to S3: ${s3Key}`);
-
-      // Update document with S3 path and mark as completed
-      await prisma.document.update({
-        where: { id: document.id },
-        data: {
-          encryptedFilename: s3Key,
-          status: 'completed',
-        },
-      });
-
-      // Store the markdown content in document metadata
-      await prisma.documentMetadata.create({
-        data: {
-          documentId: document.id,
-          markdownContent: content,
-          hasSignature: false,
-          hasTables: content.includes('|'),
-          hasImages: false,
-        },
-      });
-
-      console.log(`✅ [DOC GENERATION] Document creation complete: ${document.id}`);
-
-      return {
-        documentId: document.id,
-        filename,
-        content,
-        fileSize: pdfBuffer.length,
-      };
-    } catch (error) {
-      console.error('❌ [DOC GENERATION] Error:', error);
-      throw new Error(`Failed to generate document: ${error.message}`);
-    }
-  }
-
-  /**
-   * Sanitize filename to remove invalid characters
-   */
-  private sanitizeFilename(title: string): string {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .substring(0, 100); // Limit length
-  }
-
-  async getChatDocument(chatDocId: string, userId: string) {
-    // Get document from database
-    const document = await prisma.document.findFirst({
-      where: {
-        id: chatDocId,
-        userId,
-      },
-      include: {
-        metadata: true,
-      },
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 50,
     });
 
-    return document;
-  }
-
-  async getChatDocumentsByConversation(conversationId: string, userId: string) {
-    // This would require storing conversationId with documents
-    // For now, return empty array (to be implemented)
-    return [];
+    const title = response.choices[0].message.content?.trim() || 'Generated Document';
+    return title;
+  } catch (error) {
+    console.error('❌ [DOC GEN] Error generating title:', error);
+    return `${documentType.charAt(0).toUpperCase() + documentType.slice(1)} Document`;
   }
 }
 
-export default new ChatDocumentGenerationService();
+/**
+ * Generate document content using LLM
+ */
+async function generateDocumentContent(params: {
+  query: string;
+  documentType: string;
+  sourceContent?: string;
+  title: string;
+}): Promise<string> {
+  const { query, documentType, sourceContent, title } = params;
+
+  // Build system prompt based on document type
+  const systemPrompts = {
+    summary: `You are an expert at creating concise, well-structured summaries. Create a professional summary document in Markdown format.
+
+Requirements:
+- Use clear headings (##, ###)
+- Bullet points for key information
+- Professional tone
+- Well-organized sections
+- Include relevant details from source content`,
+
+    report: `You are an expert at creating comprehensive, detailed reports. Create a professional report document in Markdown format.
+
+Requirements:
+- Executive summary section
+- Clear section headings (##, ###)
+- Data and statistics when available
+- Bullet points and tables
+- Professional business tone
+- Conclusions and recommendations`,
+
+    analysis: `You are an expert at creating in-depth analyses. Create a professional analysis document in Markdown format.
+
+Requirements:
+- Introduction and context
+- Detailed analysis sections
+- Key findings with evidence
+- Use headings, bullet points, and tables
+- Critical thinking and insights
+- Conclusions`,
+
+    general: `You are an expert at creating professional documents. Create a well-structured document in Markdown format.
+
+Requirements:
+- Clear structure with headings
+- Professional tone
+- Well-organized content
+- Use bullet points and formatting
+- Comprehensive coverage`,
+  };
+
+  const systemPrompt = systemPrompts[documentType as keyof typeof systemPrompts] || systemPrompts.general;
+
+  // Build user prompt
+  let userPrompt = `Create a document titled "${title}" based on this request:\n\n"${query}"\n\n`;
+
+  if (sourceContent) {
+    userPrompt += `Use the following source information:\n\n${sourceContent}\n\n`;
+  }
+
+  userPrompt += `Generate a complete, professional ${documentType} document in Markdown format. Include:
+- Title (# ${title})
+- Multiple sections with ## headings
+- Bullet points, tables, and formatting
+- Professional content
+
+Return ONLY the Markdown content, no explanations.`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 4000,
+    });
+
+    const content = response.choices[0].message.content?.trim() || '# Document\n\nContent generation failed.';
+    return content;
+  } catch (error) {
+    console.error('❌ [DOC GEN] Error generating content:', error);
+    throw new Error('Failed to generate document content');
+  }
+}
+
+/**
+ * Generate confirmation message for chat
+ */
+function generateConfirmationMessage(title: string, documentType: string, wordCount: number): string {
+  const typeEmojis = {
+    summary: '📋',
+    report: '📑',
+    analysis: '📊',
+    general: '📄',
+  };
+
+  const emoji = typeEmojis[documentType as keyof typeof typeEmojis] || '📄';
+
+  return `${emoji} **Document Created Successfully**
+
+I've generated your ${documentType}: **${title}**
+
+📊 **${wordCount.toLocaleString()} words**
+
+The document is displayed below with options to copy or download in different formats.`;
+}
+
+/**
+ * Get chat document by ID
+ */
+export async function getChatDocument(chatDocId: string, userId: string) {
+  const chatDocument = await prisma.chatDocument.findFirst({
+    where: {
+      id: chatDocId,
+      userId,
+    },
+  });
+
+  return chatDocument;
+}
+
+/**
+ * Get all chat documents for a conversation
+ */
+export async function getChatDocumentsByConversation(conversationId: string, userId: string) {
+  const chatDocuments = await prisma.chatDocument.findMany({
+    where: {
+      conversationId,
+      userId,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  return chatDocuments;
+}
+
+/**
+ * Delete chat document
+ */
+export async function deleteChatDocument(chatDocId: string, userId: string) {
+  await prisma.chatDocument.deleteMany({
+    where: {
+      id: chatDocId,
+      userId,
+    },
+  });
+
+  console.log(`🗑️  [DOC GEN] Deleted ChatDocument ${chatDocId}`);
+}
+
+export default {
+  generateDocument,
+  getChatDocument,
+  getChatDocumentsByConversation,
+  deleteChatDocument,
+};
