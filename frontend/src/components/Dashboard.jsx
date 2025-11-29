@@ -5,11 +5,16 @@ import CategoryGrid from './CategoryGrid';
 import FileBreakdownDonut from './FileBreakdownDonut';
 import UpcomingActions from './UpcomingActions';
 import QuickAccess from './QuickAccess';
-import { useIsMobile } from '../hooks/useIsMobile';
+import { useIsMobile, useMobileBreakpoints } from '../hooks/useIsMobile';
 import LeftNav from './LeftNav';
 
 const Dashboard = () => {
   const isMobile = useIsMobile();
+  const mobile = useMobileBreakpoints();
+
+  // Adaptive spacing - MOBILE ONLY changes
+  const contentPadding = isMobile ? mobile.padding.base : 20;
+  const contentGap = isMobile ? mobile.gap : 20;
 
   return (
     <div style={{
@@ -19,7 +24,8 @@ const Dashboard = () => {
       overflow: 'hidden',
       justifyContent: 'flex-start',
       alignItems: 'center',
-      display: 'flex'
+      display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row' // MOBILE ONLY: Column layout
     }}>
       {/* Use LeftNav for mobile, Sidebar for desktop */}
       {isMobile ? <LeftNav /> : <Sidebar />}
@@ -27,6 +33,7 @@ const Dashboard = () => {
       <div style={{
         flex: '1 1 0',
         height: '100%',
+        width: isMobile ? '100%' : 'auto', // MOBILE ONLY: Full width
         flexDirection: 'column',
         justifyContent: 'flex-start',
         alignItems: 'flex-start',
@@ -38,13 +45,14 @@ const Dashboard = () => {
         <div style={{
           alignSelf: 'stretch',
           flex: '1 1 0',
-          padding: isMobile ? 12 : 20,
+          padding: contentPadding, // ADAPTIVE padding
           overflow: 'auto',
           flexDirection: 'column',
           justifyContent: 'flex-start',
           alignItems: 'center',
-          gap: isMobile ? 12 : 20,
-          display: 'flex'
+          gap: contentGap, // ADAPTIVE gap
+          display: 'flex',
+          WebkitOverflowScrolling: 'touch' // MOBILE ONLY: Smooth scrolling
         }}>
           {/* Category Grid - full width on mobile */}
           <CategoryGrid />
@@ -55,7 +63,7 @@ const Dashboard = () => {
             flex: '1 1 0',
             justifyContent: 'flex-start',
             alignItems: 'flex-start',
-            gap: isMobile ? 12 : 20,
+            gap: contentGap, // ADAPTIVE gap
             display: isMobile ? 'flex' : 'inline-flex',
             flexDirection: isMobile ? 'column' : 'row'
           }}>
@@ -63,7 +71,7 @@ const Dashboard = () => {
             <div style={{
               flex: isMobile ? 'none' : '1 1 0',
               width: isMobile ? '100%' : 'auto',
-              minHeight: isMobile ? '300px' : 'auto'
+              minHeight: isMobile ? (mobile.isSmallPhone ? '260px' : '300px') : 'auto' // ADAPTIVE height
             }}>
               <FileBreakdownDonut showEncryptionMessage={false} />
             </div>
@@ -76,7 +84,7 @@ const Dashboard = () => {
               flexDirection: 'column',
               justifyContent: 'flex-start',
               alignItems: 'flex-start',
-              gap: isMobile ? 12 : 20,
+              gap: contentGap, // ADAPTIVE gap
               display: 'flex'
             }}>
               <UpcomingActions />

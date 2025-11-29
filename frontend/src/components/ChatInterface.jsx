@@ -3372,6 +3372,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         {/* Message text (only show if there's actual text content) */}
                                         {msg.content && msg.content.trim() && (
                                             <div
+                                                className="selectable user-message-text"
                                                 style={{
                                                     padding: '12px 16px',
                                                     borderRadius: 18,
@@ -3384,6 +3385,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                     // ✅ INSTANT FEEDBACK: Visual status indication
                                                     opacity: 1,
                                                     borderLeft: msg.status === 'failed' ? '3px solid #EF4444' : 'none',
+                                                    // Enable text selection
+                                                    userSelect: 'text',
+                                                    WebkitUserSelect: 'text',
+                                                    MozUserSelect: 'text',
+                                                    msUserSelect: 'text',
+                                                    cursor: 'text',
                                                 }}
                                             >
                                                 {msg.content}

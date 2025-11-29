@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDocuments } from '../context/DocumentsContext';
-import { useIsMobile } from '../hooks/useIsMobile';
+import { useIsMobile, useMobileBreakpoints } from '../hooks/useIsMobile';
 import CategoryIcon from './CategoryIcon';
 
 const CategoryGrid = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const mobile = useMobileBreakpoints();
   const { folders: contextFolders, documents: contextDocuments } = useDocuments();
 
   // Calculate document count for each folder
@@ -39,30 +40,47 @@ const CategoryGrid = () => {
   const hasMoreCategories = categories.length > maxVisibleCategories;
   const visibleCategories = hasMoreCategories ? categories.slice(0, maxVisibleCategories) : categories;
 
+  // ADAPTIVE SIZING - MOBILE ONLY
+  const gridGap = isMobile ? mobile.gap : 12;
+  const cardPadding = isMobile ? mobile.padding.base : 14;
+  const cardBorderRadius = isMobile ? mobile.borderRadius.lg : 14;
+  const cardMinHeight = isMobile ? (mobile.isSmallPhone ? 90 : 100) : 72;
+  const iconSize = isMobile ? (mobile.isSmallPhone ? 32 : 36) : 42;
+  const titleFontSize = isMobile ? mobile.fontSize.sm : 14;
+  const subtitleFontSize = isMobile ? mobile.fontSize.xs : 14;
+
+  // ADAPTIVE GRID COLUMNS - different for phone sizes
+  const getGridColumns = () => {
+    if (!isMobile) return 'repeat(4, 1fr)';
+    if (mobile.isSmallPhone) return 'repeat(2, 1fr)'; // Small phones: 2 columns
+    if (mobile.isSmallTablet) return 'repeat(3, 1fr)'; // Tablets: 3 columns
+    return 'repeat(2, 1fr)'; // Regular/Large phones: 2 columns
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 12, width: '100%', alignSelf: 'stretch' }}>
-      {/* Responsive grid - 2 columns on mobile, 4 columns on desktop */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: gridGap, width: '100%', alignSelf: 'stretch' }}>
+      {/* Responsive grid - adaptive columns based on screen size */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
-        gap: isMobile ? 10 : 12,
+        gridTemplateColumns: getGridColumns(),
+        gap: gridGap,
         width: '100%'
       }}>
         {/* Add New Smart Category Button */}
         <div
           onClick={() => navigate('/documents')}
           style={{
-            padding: isMobile ? 12 : 14,
+            padding: cardPadding,
             background: 'white',
-            borderRadius: isMobile ? 12 : 14,
+            borderRadius: cardBorderRadius,
             border: '1px #E6E6EC solid',
             display: 'flex',
             flexDirection: isMobile ? 'column' : 'row',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: isMobile ? 8 : 8,
+            gap: isMobile ? mobile.gap : 8,
             cursor: 'pointer',
-            minHeight: isMobile ? 100 : 72,
+            minHeight: cardMinHeight,
             width: '100%',
             boxSizing: 'border-box',
             transition: 'transform 0.2s ease, box-shadow 0.2s ease'
@@ -76,13 +94,13 @@ const CategoryGrid = () => {
             justifyContent: 'center',
             flexShrink: 0
           }}>
-            <svg width={isMobile ? 24 : 28} height={isMobile ? 24 : 28} viewBox="0 0 20 20" fill="none">
+            <svg width={mobile.isSmallPhone ? 20 : isMobile ? 24 : 28} height={mobile.isSmallPhone ? 20 : isMobile ? 24 : 28} viewBox="0 0 20 20" fill="none">
               <path d="M10 4V16M4 10H16" stroke="black" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </div>
           <span style={{
             color: '#32302C',
-            fontSize: isMobile ? 12 : 14,
+            fontSize: titleFontSize,
             fontFamily: 'Plus Jakarta Sans',
             fontWeight: '600',
             lineHeight: 1.3,
@@ -99,18 +117,18 @@ const CategoryGrid = () => {
             key={category.id}
             onClick={() => handleCategoryClick(category.id)}
             style={{
-              padding: isMobile ? 12 : '14px 16px',
+              padding: cardPadding,
               background: 'white',
-              borderRadius: isMobile ? 12 : 14,
+              borderRadius: cardBorderRadius,
               border: '1px #E6E6EC solid',
               display: 'flex',
               flexDirection: isMobile ? 'column' : 'row',
               alignItems: 'center',
               justifyContent: 'flex-start',
-              gap: isMobile ? 8 : 12,
+              gap: isMobile ? mobile.gap : 12,
               transition: 'transform 0.2s ease, box-shadow 0.2s ease',
               position: 'relative',
-              minHeight: isMobile ? 100 : 72,
+              minHeight: cardMinHeight,
               width: '100%',
               boxSizing: 'border-box',
               cursor: 'pointer'
@@ -122,15 +140,15 @@ const CategoryGrid = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: isMobile ? 36 : 42,
+              fontSize: iconSize,
               flexShrink: 0
             }}>
-              <CategoryIcon emoji={category.emoji} size={isMobile ? 36 : 42} />
+              <CategoryIcon emoji={category.emoji} size={iconSize} />
             </div>
             <div style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: 4,
+              gap: mobile.isSmallPhone ? 2 : 4,
               flex: isMobile ? 'none' : 1,
               alignItems: isMobile ? 'center' : 'flex-start',
               textAlign: isMobile ? 'center' : 'left',
@@ -139,7 +157,7 @@ const CategoryGrid = () => {
             }}>
               <div style={{
                 color: '#32302C',
-                fontSize: isMobile ? 12 : 14,
+                fontSize: titleFontSize,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '600',
                 lineHeight: '1.3',
@@ -153,7 +171,7 @@ const CategoryGrid = () => {
               </div>
               <div style={{
                 color: '#6C6B6E',
-                fontSize: isMobile ? 11 : 14,
+                fontSize: subtitleFontSize,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '500',
                 lineHeight: '1.3'
@@ -171,13 +189,13 @@ const CategoryGrid = () => {
           onClick={() => navigate('/documents')}
           style={{
             color: '#171717',
-            fontSize: isMobile ? 14 : 16,
+            fontSize: isMobile ? mobile.fontSize.base : 16,
             fontFamily: 'Plus Jakarta Sans',
             fontWeight: '700',
             lineHeight: '22.40px',
             cursor: 'pointer',
             textAlign: 'right',
-            paddingRight: isMobile ? 4 : 8,
+            paddingRight: isMobile ? mobile.padding.xs : 8,
             transition: 'transform 0.2s ease, opacity 0.2s ease'
           }}
           onMouseEnter={(e) => !isMobile && (e.currentTarget.style.opacity = '0.7')}

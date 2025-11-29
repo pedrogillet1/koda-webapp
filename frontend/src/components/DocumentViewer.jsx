@@ -44,6 +44,11 @@ import {
   getImageRenderingCSS,
   logBrowserInfo
 } from '../utils/browserUtils';
+import {
+  getOptimalPDFWidth,
+  getScrollbarWidth,
+  getOptimalPDFScaleNew
+} from '../utils/pdfRenderingUtils';
 
 // ⚡ PERFORMANCE: Code-split MarkdownEditor to reduce initial bundle size
 // react-markdown, remark-gfm, and rehype-raw add ~200KB to the bundle
@@ -193,17 +198,15 @@ const DocumentViewer = () => {
     };
   }, [isMobile]);
 
-  // Calculate responsive PDF page width
+  // Calculate responsive PDF page width - constrained to container
+  // Uses cross-platform utility to handle Mac vs Windows scrollbar differences
   const getPdfPageWidth = useCallback(() => {
-    const desiredWidth = 900 * (zoom / 100);
     if (isMobile) {
       return window.innerWidth - 16;
     }
-    // Use the smaller of desired width or available container width
-    if (containerWidth && desiredWidth > containerWidth) {
-      return containerWidth;
-    }
-    return desiredWidth;
+    // Use cross-platform utility for better Mac/Windows compatibility
+    const effectiveContainerWidth = containerWidth || (window.innerWidth - 250); // 250px for sidebar
+    return getOptimalPDFWidth(effectiveContainerWidth, zoom, isMobile);
   }, [zoom, isMobile, containerWidth]);
 
   // Handler for saving markdown edits
@@ -1169,11 +1172,13 @@ const DocumentViewer = () => {
         </div>
 
         {/* Document Preview */}
-        <div ref={documentContainerRef} style={{
+        <div ref={documentContainerRef} className="document-container" style={{
           width: '100%',
           flex: 1,
           padding: isMobile ? 8 : 24,
           overflow: 'auto',
+          overflowX: 'auto',
+          overflowY: 'auto',
           flexDirection: 'column',
           justifyContent: 'flex-start',
           alignItems: 'center',
@@ -1181,7 +1186,8 @@ const DocumentViewer = () => {
           background: '#E8E8EA',
           WebkitOverflowScrolling: 'touch',
           boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.06)',
-          borderTop: '1px solid #D8D8DA'
+          borderTop: '1px solid #D8D8DA',
+          scrollbarGutter: 'stable'
         }}>
           {document ? (
             (() => {
@@ -1287,7 +1293,7 @@ const DocumentViewer = () => {
                             <Page
                               pageNumber={index + 1}
                               width={getPdfPageWidth()}
-                              scale={getOptimalPDFScale()}
+                              scale={getOptimalPDFScaleNew(isSafari(), isMacOS())}
                               renderTextLayer={true}
                               renderAnnotationLayer={true}
                               loading={
@@ -1432,7 +1438,7 @@ const DocumentViewer = () => {
                             <Page
                               pageNumber={index + 1}
                               width={getPdfPageWidth()}
-                              scale={getOptimalPDFScale()}
+                              scale={getOptimalPDFScaleNew(isSafari(), isMacOS())}
                               renderTextLayer={true}
                               renderAnnotationLayer={true}
                               loading={
