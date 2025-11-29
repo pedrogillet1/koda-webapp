@@ -4328,6 +4328,12 @@ async function handleCrossDocumentSynthesis(
       return { handled: false };
     }
 
+    // ✅ FIX: If no methodologies found but documents exist, fall back to regular RAG
+    if (result.methodologies.length === 0 && result.totalDocuments > 0) {
+      console.log(`   ⚠️ No methodologies extracted from ${result.totalDocuments} documents, falling back to RAG pipeline`);
+      return { handled: false };
+    }
+
     // Stream the synthesis response
     if (onChunk && result.synthesis) {
       onChunk(result.synthesis);
@@ -4867,6 +4873,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
     let hybridResults: any[] = [];
     let rawResults: any; // Declare here so it's available for graceful degradation later
 
+    // ✅ FIX: Detect summary/aggregation queries and increase topK
+    const isSummaryQuery = /(?:create|make|generate|summarize|summary|overview).*(?:report|summary|analysis|all|documents?|files?)/i.test(query);
+    const retrievalTopK = isSummaryQuery ? 20 : 5;
+    if (isSummaryQuery) {
+      console.log(`📊 [SUMMARY QUERY] Detected summary query, increasing topK to ${retrievalTopK}`);
+    }
+
     if (requestTimer) requestTimer.start(`Retrieval Strategy: ${strategy}`);
 
     if (strategy === 'keyword') {
@@ -4895,14 +4908,14 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // This handles cases where document_chunks table doesn't exist or BM25 fails
       console.log(`ðŸ” [KEYWORD CHECK] BM25 results length: ${hybridResults.length}`);
       if (hybridResults.length === 0) {
-        console.log(`âš ï¸  [KEYWORDâ†’VECTOR FALLBACK] BM25 returned 0 results, falling back to Pinecone vector search...`);
+         console.log(`âš ï¸  [KEYWORDâ†'VECTOR FALLBACK] BM25 returned 0 results, falling back to Pinecone vector search...`);
         const queryEmbedding = earlyEmbedding;
 
-        // âš¡ PERFORMANCE: Reduced from 20 to 5 chunks
+        // âœ… FIX: Use retrievalTopK for summary queries
         if (requestTimer) requestTimer.start('Pinecone Query (keyword fallback)');
         rawResults = await pineconeIndex.query({
           vector: queryEmbedding,
-          topK: 5,
+          topK: retrievalTopK,
           filter,
           includeMetadata: true,
         });
@@ -4927,11 +4940,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // FIX #6: Use pre-computed embedding from parallel init
       const queryEmbedding = earlyEmbedding;
 
-      // âš¡ PERFORMANCE: Reduced from 20 to 5 chunks
+      // âœ… FIX: Use retrievalTopK for summary queries
       if (requestTimer) requestTimer.start('Pinecone Query (hybrid)');
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
-        topK: 5,
+        topK: retrievalTopK,
         filter,
         includeMetadata: true,
       });
@@ -4958,11 +4971,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // FIX #6: Use pre-computed embedding from parallel init
       const queryEmbedding = earlyEmbedding;
 
-      // âš¡ PERFORMANCE: Reduced from 20 to 5 chunks
+      // âœ… FIX: Use retrievalTopK for summary queries
       if (requestTimer) requestTimer.start('Pinecone Query (vector)');
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
-        topK: 5,
+        topK: retrievalTopK,
         filter,
         includeMetadata: true,
       });
