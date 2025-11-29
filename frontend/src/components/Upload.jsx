@@ -416,10 +416,10 @@ const Upload = () => {
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: isMobile ? 12 : 16,
-                                                padding: isMobile ? 12 : 16,
+                                                padding: isMobile ? 12 : 12,
                                                 background: 'white',
                                                 border: `1px solid ${isError ? '#EF4444' : '#E5E7EB'}`,
-                                                borderRadius: 100,
+                                                borderRadius: 12,
                                                 transition: 'box-shadow 0.15s',
                                                 position: 'relative',
                                                 overflow: 'hidden'
@@ -432,8 +432,8 @@ const Upload = () => {
                                                         left: 0,
                                                         height: '100%',
                                                         width: `${progressWidth}%`,
-                                                        background: '#E8E8E8',
-                                                        borderRadius: 100,
+                                                        background: 'rgba(169, 169, 169, 0.12)',
+                                                        borderRadius: 12,
                                                         transition: 'width 0.3s ease-out',
                                                         zIndex: 0
                                                     }} />

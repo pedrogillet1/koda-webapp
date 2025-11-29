@@ -1614,7 +1614,7 @@ const DocumentsPage = () => {
           </div>
         </div>
 
-        {/* Drag and Drop Overlay - dark background like notification popup */}
+        {/* Drag and Drop Overlay - light background with black text */}
         {isDraggingOver && (
           <div
             style={{
@@ -1623,7 +1623,7 @@ const DocumentsPage = () => {
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(0, 0, 0, 0.5)',
+              background: 'rgba(255, 255, 255, 0.95)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -1655,7 +1655,7 @@ const DocumentsPage = () => {
             />
             <div
               style={{
-                color: '#FFFFFF',
+                color: '#32302C',
                 fontSize: 32,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700',
@@ -1666,7 +1666,7 @@ const DocumentsPage = () => {
             </div>
             <div
               style={{
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: '#6C6B6E',
                 fontSize: 18,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '500',

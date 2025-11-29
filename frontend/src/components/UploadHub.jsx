@@ -1105,16 +1105,22 @@ const UploadHub = () => {
           // Also update global context for other components to see the document
           await fetchDocuments();
 
-          // ⚡ IMPORTANT: Keep item in upload list with documentId so WebSocket can update progress
-          // The WebSocket listener will remove it when backend processing completes (100%)
+          // ⚡ SUCCESS: Mark as completed immediately after upload finishes
+          // Don't reset to 0% - that causes visual bugs
           setUploadingFiles(prev => prev.map((f, idx) =>
             idx === i ? {
               ...f,
               documentId: document.id, // Link to backend document
-              progress: 0, // Reset to 0% - backend will send real progress via WebSocket
-              processingStage: 'Backend processing started...'
+              status: 'completed',
+              progress: 100, // Keep at 100% - upload is done
+              processingStage: null
             } : f
           ));
+
+          // Remove from upload list after short delay to show success
+          setTimeout(() => {
+            setUploadingFiles(prev => prev.filter((f, idx) => idx !== i));
+          }, 1500);
         } catch (postUploadError) {
           // ⚡ EDGE CASE: Rollback optimistic update if post-processing failed
           if (documentAdded) {
@@ -2533,7 +2539,7 @@ const UploadHub = () => {
                       outline: isError ? '2px solid #EF4444' : 'none',
                       outlineOffset: '-2px',
                       border: `1px solid ${isError ? '#EF4444' : '#E5E7EB'}`,
-                      borderRadius: 100,
+                      borderRadius: 12,
                       transition: 'box-shadow 0.15s, border-color 0.15s',
                       position: 'relative',
                       cursor: f.isFolder && f.status === 'pending' ? 'pointer' : 'default',
@@ -2560,16 +2566,16 @@ const UploadHub = () => {
                         left: 0,
                         height: '100%',
                         width: `${progressWidth}%`,
-                        background: '#E8E8E8',
-                        borderRadius: 100,
+                        background: 'rgba(169, 169, 169, 0.12)',
+                        borderRadius: 12,
                         transition: 'width 0.3s ease-out',
                         zIndex: 0
                       }} />
                     )}
                     {/* Icon (File or Folder) */}
                     <div style={{
-                      width: 64,
-                      height: 64,
+                      width: 48,
+                      height: 48,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -2578,14 +2584,14 @@ const UploadHub = () => {
                       zIndex: 1
                     }}>
                       {f.isFolder ? (
-                        <img src={folderIcon} alt="Folder" style={{width: 48, height: 48, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
+                        <img src={folderIcon} alt="Folder" style={{width: 44, height: 44, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
                       ) : (
                         <img
                           src={getFileIcon(f.file.name)}
                           alt="File icon"
                           style={{
-                            width: 64,
-                            height: 64,
+                            width: 44,
+                            height: 44,
                             imageRendering: '-webkit-optimize-contrast',
                             objectFit: 'contain',
                             shapeRendering: 'geometricPrecision',
@@ -2947,7 +2953,7 @@ const UploadHub = () => {
           </div>
         )}
 
-        {/* Drag and Drop Overlay */}
+        {/* Drag and Drop Overlay - light background with black text */}
         {isDraggingOver && (
           <div
             style={{
@@ -2956,7 +2962,7 @@ const UploadHub = () => {
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(0, 0, 0, 0.5)',
+              background: 'rgba(255, 255, 255, 0.95)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -2988,7 +2994,7 @@ const UploadHub = () => {
             />
             <div
               style={{
-                color: '#FFFFFF',
+                color: '#32302C',
                 fontSize: 32,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700',
@@ -2999,7 +3005,7 @@ const UploadHub = () => {
             </div>
             <div
               style={{
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: '#6C6B6E',
                 fontSize: 18,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '500',

@@ -157,12 +157,54 @@ const DocumentViewer = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(0); // Used to force re-fetch of preview after regeneration
+  const [containerWidth, setContainerWidth] = useState(null); // Track container width for responsive PDF sizing
 
   const zoomPresets = [50, 75, 100, 125, 150, 175, 200];
 
   // Refs to track PDF pages for scroll position
   const pageRefs = useRef({});
   const documentContainerRef = useRef(null);
+
+  // Measure container width for responsive PDF/DOCX sizing
+  useEffect(() => {
+    const measureContainer = () => {
+      if (documentContainerRef.current) {
+        const padding = isMobile ? 16 : 48; // Account for container padding (8*2 or 24*2)
+        const availableWidth = documentContainerRef.current.clientWidth - padding;
+        setContainerWidth(availableWidth);
+      }
+    };
+
+    // Initial measurement
+    measureContainer();
+
+    // Re-measure on window resize
+    window.addEventListener('resize', measureContainer);
+
+    // Use ResizeObserver for more accurate container size tracking
+    const resizeObserver = new ResizeObserver(measureContainer);
+    if (documentContainerRef.current) {
+      resizeObserver.observe(documentContainerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', measureContainer);
+      resizeObserver.disconnect();
+    };
+  }, [isMobile]);
+
+  // Calculate responsive PDF page width
+  const getPdfPageWidth = useCallback(() => {
+    const desiredWidth = 900 * (zoom / 100);
+    if (isMobile) {
+      return window.innerWidth - 16;
+    }
+    // Use the smaller of desired width or available container width
+    if (containerWidth && desiredWidth > containerWidth) {
+      return containerWidth;
+    }
+    return desiredWidth;
+  }, [zoom, isMobile, containerWidth]);
 
   // Handler for saving markdown edits
   const handleSaveMarkdown = async (docId, newMarkdownContent) => {
@@ -1244,7 +1286,7 @@ const DocumentViewer = () => {
                           >
                             <Page
                               pageNumber={index + 1}
-                              width={isMobile ? window.innerWidth - 16 : 900 * (zoom / 100)}
+                              width={getPdfPageWidth()}
                               scale={getOptimalPDFScale()}
                               renderTextLayer={true}
                               renderAnnotationLayer={true}
@@ -1389,7 +1431,7 @@ const DocumentViewer = () => {
                           >
                             <Page
                               pageNumber={index + 1}
-                              width={isMobile ? window.innerWidth - 16 : 900 * (zoom / 100)}
+                              width={getPdfPageWidth()}
                               scale={getOptimalPDFScale()}
                               renderTextLayer={true}
                               renderAnnotationLayer={true}

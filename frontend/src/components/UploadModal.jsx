@@ -633,7 +633,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                         padding: 14,
                         position: 'relative',
                         background: 'white',
-                        borderRadius: 100,
+                        borderRadius: 12,
                         outline: '1px #E6E6EC solid',
                         outlineOffset: '-1px',
                         justifyContent: 'flex-start',
@@ -651,8 +651,8 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                           left: 0,
                           height: '100%',
                           width: `${progress}%`,
-                          background: '#E8E8E8',
-                          borderRadius: 100,
+                          background: 'rgba(169, 169, 169, 0.12)',
+                          borderRadius: 12,
                           transition: 'width 0.3s ease-out',
                           zIndex: 0
                         }} />
@@ -781,10 +781,10 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                     style={{
                       alignSelf: 'stretch',
                       height: 72,
-                      padding: 14,
+                      padding: 12,
                       position: 'relative',
                       background: 'white',
-                      borderRadius: 100,
+                      borderRadius: 12,
                       outline: '1px #E6E6EC solid',
                       outlineOffset: '-1px',
                       justifyContent: 'flex-start',
@@ -812,8 +812,8 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                           src={icon}
                           alt={file.name}
                           style={{
-                            width: 48,
-                            height: 48,
+                            width: 44,
+                            height: 44,
                             objectFit: 'contain'
                           }}
                         />

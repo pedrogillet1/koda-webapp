@@ -4029,7 +4029,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 </div>
             )}
 
-            {/* Drag and Drop Overlay - Covers entire chat area */}
+            {/* Drag and Drop Overlay - light background with black text */}
             {isDraggingOver && (
                 <div
                     style={{
@@ -4038,7 +4038,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
+                        background: 'rgba(255, 255, 255, 0.95)',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
@@ -4070,7 +4070,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     />
                     <div
                         style={{
-                            color: '#FFFFFF',
+                            color: '#32302C',
                             fontSize: 32,
                             fontFamily: 'Plus Jakarta Sans',
                             fontWeight: '700',
@@ -4081,7 +4081,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     </div>
                     <div
                         style={{
-                            color: 'rgba(255, 255, 255, 0.7)',
+                            color: '#6C6B6E',
                             fontSize: 18,
                             fontFamily: 'Plus Jakarta Sans',
                             fontWeight: '500',

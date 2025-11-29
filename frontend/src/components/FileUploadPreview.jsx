@@ -75,8 +75,8 @@ export default function FileUploadPreview({ file, progress = 0, onRemove }) {
           left: 0,
           height: '100%',
           width: `${progress}%`,
-          background: '#E8E8E8',
-          borderRadius: 100,
+          background: 'rgba(169, 169, 169, 0.12)',
+          borderRadius: 12,
           transition: 'width 0.3s ease-out',
           zIndex: 0
         }} />

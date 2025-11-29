@@ -812,9 +812,9 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   style={{
                     alignSelf: 'stretch',
                     height: 72,
-                    padding: 14,
+                    padding: 12,
                     background: 'white',
-                    borderRadius: 100,
+                    borderRadius: 12,
                     outline: '1px #E6E6EC solid',
                     outlineOffset: '-1px',
                     justifyContent: 'center',
@@ -846,10 +846,10 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                 style={{
                   alignSelf: 'stretch',
                   height: 72,
-                  padding: 14,
+                  padding: 12,
                   position: 'relative',
                   background: 'white',
-                  borderRadius: 100,
+                  borderRadius: 12,
                   outline: item.status === 'failed' ? '2px #EF4444 solid' : '1px #E6E6EC solid',
                   outlineOffset: '-1px',
                   justifyContent: 'flex-start',
@@ -867,8 +867,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                     left: 0,
                     height: '100%',
                     width: `${item.progress || 0}%`,
-                    background: '#E8E8E8',
-                    borderRadius: 100,
+                    background: 'rgba(169, 169, 169, 0.12)',
+                    borderRadius: 12,
                     transition: 'width 0.3s ease-out',
                     zIndex: 0
                   }} />
@@ -915,10 +915,10 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                     <div style={{
                       alignSelf: 'stretch',
                       color: '#32302C',
-                      fontSize: 16,
+                      fontSize: 14,
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '600',
-                      lineHeight: '22.40px',
+                      lineHeight: '20px',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap'
@@ -927,11 +927,11 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                     </div>
                     <div style={{
                       alignSelf: 'stretch',
-                      color: item.status === 'failed' ? '#EF4444' : (item.status === 'uploading' ? '#A0A0A0' : '#6C6B6E'),
-                      fontSize: 13,
+                      color: item.status === 'failed' ? '#EF4444' : '#6B7280',
+                      fontSize: 12,
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '500',
-                      lineHeight: '15.40px'
+                      lineHeight: '16px'
                     }}>
                       {item.isFolder ? (
                         // Folder status display

@@ -65,16 +65,17 @@ export const FileProvider = ({ children }) => {
                 }
             );
 
-            // Upload complete, now at 50% - backend processing will take it to 100%
+            // ⚡ SUCCESS: Mark as completed immediately after upload finishes
+            // Don't wait for WebSocket - that causes visual bugs if it never arrives
             const documentId = result.document?.id || result.id;
             setFiles(prev => {
                 const updated = [...prev];
                 updated[index] = {
                     ...updated[index],
-                    status: 'uploading', // Still uploading until backend processing completes
-                    progress: 50,
+                    status: 'completed',
+                    progress: 100,
                     documentId: documentId,
-                    stage: 'Backend processing...'
+                    stage: null
                 };
                 return updated;
             });
