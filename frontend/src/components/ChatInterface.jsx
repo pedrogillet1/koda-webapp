@@ -40,6 +40,18 @@ let globalListenersAttached = false;
 let lastChunkReceived = '';
 let chunkSequence = 0;
 
+// Helper: Convert file type extension to MIME type
+const getMimeTypeFromExtension = (fileType) => {
+    const mimeTypes = {
+        'md': 'text/markdown',
+        'pdf': 'application/pdf',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    };
+    return mimeTypes[fileType] || 'application/octet-stream';
+};
+
 const ChatInterface = ({ currentConversation, onConversationUpdate, onConversationCreated }) => {
     const navigate = useNavigate();
     const location = useLocation();

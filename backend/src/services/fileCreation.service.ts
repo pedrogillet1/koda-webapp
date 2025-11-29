@@ -6,8 +6,8 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import matter from 'gray-matter';
 import prisma from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
-import path from 'path';
-import fs from 'fs/promises';
+import * as crypto from 'crypto';
+import { uploadFile } from './s3Storage.service';
 
 interface FileCreationParams {
   userId: string;
@@ -38,19 +38,6 @@ interface FileCreationResult {
 }
 
 class FileCreationService {
-  private uploadsDir = path.join(process.cwd(), 'uploads', 'created-files');
-
-  constructor() {
-    this.ensureUploadsDirExists();
-  }
-
-  private async ensureUploadsDirExists() {
-    try {
-      await fs.mkdir(this.uploadsDir, { recursive: true });
-    } catch (error) {
-      console.error('Error creating uploads directory:', error);
-    }
-  }
 
   /**
    * Main entry point for file creation
@@ -91,20 +78,25 @@ class FileCreationService {
           throw new Error(`Unsupported file type: ${params.fileType}`);
       }
 
-      // 3. Save to storage
-      const filePath = path.join(this.uploadsDir, fileName);
-      await fs.writeFile(filePath, fileBuffer);
+      // 3. Generate S3 storage path following existing pattern
+      const encryptedFilename = `${params.userId}/${crypto.randomUUID()}-${Date.now()}`;
 
-      // 4. Save to database
+      // 4. Upload to S3 storage
+      console.log(`📤 [FileCreation] Uploading to S3: ${encryptedFilename} (${fileBuffer.length} bytes)`);
+      await uploadFile(encryptedFilename, fileBuffer, this.getMimeType(params.fileType));
+      console.log(`✅ [FileCreation] Uploaded to S3 successfully`);
+
+      // 5. Save to database
+      const documentId = uuidv4();
       const document = await prisma.documents.create({
         data: {
-          id: uuidv4(),
+          id: documentId,
           userId: params.userId,
           filename: fileName,
-          encryptedFilename: fileName,
+          encryptedFilename: encryptedFilename,
           fileSize: fileBuffer.length,
           mimeType: this.getMimeType(params.fileType),
-          fileHash: uuidv4(),
+          fileHash: crypto.randomUUID(),
           status: 'completed',
           isEncrypted: false,
           renderableContent: JSON.stringify({
@@ -114,6 +106,7 @@ class FileCreationService {
             topic: params.topic,
             wordCount: content.split(/\s+/).length,
             conversationId: params.conversationId,
+            createdAt: new Date().toISOString(),
           }),
         },
       });
@@ -122,18 +115,18 @@ class FileCreationService {
 
       return {
         success: true,
-        filePath,
+        filePath: encryptedFilename,
         fileName,
-        fileUrl: `/api/files/${document.id}`,
+        fileUrl: `/api/document/${document.id}`,
         content,
         documentId: document.id,
         file: {
           id: document.id,
           name: fileName,
           type: params.fileType,
-          path: filePath,
-          url: `/api/files/${document.id}`,
-          previewUrl: `/api/files/${document.id}/preview`,
+          path: encryptedFilename,
+          url: `/api/document/${document.id}`,
+          previewUrl: `/api/document/${document.id}/preview`,
           size: fileBuffer.length,
           content: params.fileType === 'md' ? content : undefined,
         },
@@ -151,7 +144,8 @@ class FileCreationService {
   private async generateContent(params: FileCreationParams): Promise<string> {
     const prompt = this.buildContentPrompt(params);
 
-    const response = await geminiService.generateText(prompt, {
+    const response = await geminiService.generateText({
+      prompt,
       maxTokens: 4000,
       temperature: 0.7,
     });
@@ -320,15 +314,18 @@ Generate the document now:`;
     const styledHTML = this.createKodaStyledHTML(htmlContent, topic);
 
     // Generate PDF with Puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
+    let browser;
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        timeout: 30000, // 30 second timeout
+      });
 
-    const page = await browser.newPage();
-    await page.setContent(styledHTML, { waitUntil: 'networkidle0' });
+      const page = await browser.newPage();
+      await page.setContent(styledHTML, { waitUntil: 'networkidle0', timeout: 30000 });
 
-    const pdfBuffer = await page.pdf({
+      const pdfBuffer = await page.pdf({
       format: 'A4',
       margin: {
         top: '20mm',
@@ -347,9 +344,16 @@ Generate the document now:`;
       `,
     });
 
-    await browser.close();
+      await browser.close();
 
-    return Buffer.from(pdfBuffer);
+      return Buffer.from(pdfBuffer);
+    } catch (error: any) {
+      if (browser) {
+        await browser.close();
+      }
+      console.error('❌ [PDF] Puppeteer error:', error);
+      throw new Error(`Failed to generate PDF: ${error.message}`);
+    }
   }
 
   /**

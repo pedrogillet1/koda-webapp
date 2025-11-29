@@ -1790,6 +1790,13 @@ export async function generateText(params: {
   maxTokens?: number;
 }): Promise<string> {
   try {
+    // Validate API key is configured
+    if (!config.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not configured in environment variables');
+    }
+
+    console.log('🤖 [generateText] Generating content with gpt-4o-mini...');
+
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini', // Fast and cost-effective for general text generation
       messages: [{ role: 'user', content: params.prompt }],
@@ -1797,9 +1804,22 @@ export async function generateText(params: {
       max_tokens: params.maxTokens ?? 4000,
     });
 
-    return response.choices[0].message.content || '';
+    const content = response.choices[0].message.content || '';
+
+    console.log(`✅ [generateText] Generated ${content.length} characters`);
+
+    return content;
   } catch (error: any) {
     console.error('❌ Error in generateText:', error);
+
+    // Provide specific error messages
+    if (error.message?.includes('API key')) {
+      throw new Error('OpenAI API key is invalid or not configured. Please check your .env file.');
+    }
+    if (error.message?.includes('model')) {
+      throw new Error('AI model not available. Please contact support.');
+    }
+
     throw new Error('Failed to generate text: ' + error.message);
   }
 }
