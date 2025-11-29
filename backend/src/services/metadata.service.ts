@@ -31,7 +31,7 @@ export interface FolderContents {
   folderName: string;
   folderId: string;
   files: FileMetadata[];
-  subfolders: {
+  other_folders: {
     id: string;
     name: string;
     documentCount: number;

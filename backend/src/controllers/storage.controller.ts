@@ -12,7 +12,7 @@ export const getStorageInfo = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const storageInfo = await storageService.getStorageInfo(req.users.id);
+    const storageInfo = await storageService.getStorageInfo(req.user.id);
 
     res.status(200).json(storageInfo);
   } catch (error) {
@@ -41,7 +41,7 @@ export const checkCapacity = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const capacityInfo = await storageService.hasCapacity(req.users.id, fileSize);
+    const capacityInfo = await storageService.hasCapacity(req.user.id, fileSize);
 
     res.status(200).json({
       ...capacityInfo,
@@ -69,7 +69,7 @@ export const recalculateStorage = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const result = await storageService.recalculateStorage(req.users.id);
+    const result = await storageService.recalculateStorage(req.user.id);
 
     res.status(200).json({
       message: 'Storage recalculated successfully',

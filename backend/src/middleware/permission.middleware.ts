@@ -20,7 +20,7 @@ export const requirePermission = (resource: string, action: string) => {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const hasPermission = await rbacService.hasPermission(req.users.id, {
+      const hasPermission = await rbacService.hasPermission(req.user.id, {
         resource,
         action,
       });
@@ -30,7 +30,7 @@ export const requirePermission = (resource: string, action: string) => {
         await securityMonitoringService.recordSecurityEvent({
           eventType: SecurityEventType.UNAUTHORIZED_ACCESS_ATTEMPT,
           threatLevel: ThreatLevel.MEDIUM,
-          userId: req.users.id,
+          userId: req.user.id,
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
           description: `Attempted to access ${resource}:${action} without permission`,
@@ -70,13 +70,13 @@ export const requireAllPermissions = (permissions: Array<{ resource: string; act
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const hasAll = await rbacService.hasAllPermissions(req.users.id, permissions);
+      const hasAll = await rbacService.hasAllPermissions(req.user.id, permissions);
 
       if (!hasAll) {
         await securityMonitoringService.recordSecurityEvent({
           eventType: SecurityEventType.UNAUTHORIZED_ACCESS_ATTEMPT,
           threatLevel: ThreatLevel.MEDIUM,
-          userId: req.users.id,
+          userId: req.user.id,
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
           description: `Attempted to access endpoint requiring multiple permissions`,
@@ -112,13 +112,13 @@ export const requireAnyPermission = (permissions: Array<{ resource: string; acti
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const hasAny = await rbacService.hasAnyPermission(req.users.id, permissions);
+      const hasAny = await rbacService.hasAnyPermission(req.user.id, permissions);
 
       if (!hasAny) {
         await securityMonitoringService.recordSecurityEvent({
           eventType: SecurityEventType.UNAUTHORIZED_ACCESS_ATTEMPT,
           threatLevel: ThreatLevel.MEDIUM,
-          userId: req.users.id,
+          userId: req.user.id,
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
           description: `Attempted to access endpoint without any required permissions`,
@@ -154,14 +154,14 @@ export const requireRole = (roleName: string) => {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const userRoles = await rbacService.getUserRoles(req.users.id);
+      const userRoles = await rbacService.getUserRoles(req.user.id);
       const hasRole = userRoles.some(ur => ur.role.name === roleName);
 
       if (!hasRole) {
         await securityMonitoringService.recordSecurityEvent({
           eventType: SecurityEventType.UNAUTHORIZED_ACCESS_ATTEMPT,
           threatLevel: ThreatLevel.MEDIUM,
-          userId: req.users.id,
+          userId: req.user.id,
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
           description: `Attempted to access endpoint requiring role: ${roleName}`,
@@ -200,14 +200,14 @@ export const requireAnyRole = (roleNames: string[]) => {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const userRoles = await rbacService.getUserRoles(req.users.id);
+      const userRoles = await rbacService.getUserRoles(req.user.id);
       const hasAnyRole = userRoles.some(ur => roleNames.includes(ur.role.name));
 
       if (!hasAnyRole) {
         await securityMonitoringService.recordSecurityEvent({
           eventType: SecurityEventType.UNAUTHORIZED_ACCESS_ATTEMPT,
           threatLevel: ThreatLevel.MEDIUM,
-          userId: req.users.id,
+          userId: req.user.id,
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
           description: `Attempted to access endpoint without required roles`,
@@ -242,7 +242,7 @@ export const requireAnyRole = (roleNames: string[]) => {
 export const attachUserPermissions = async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (req.user) {
-      const permissions = await rbacService.getUserPermissions(req.users.id);
+      const permissions = await rbacService.getUserPermissions(req.user.id);
       (req.user as any).permissions = Array.from(permissions);
     }
     next();

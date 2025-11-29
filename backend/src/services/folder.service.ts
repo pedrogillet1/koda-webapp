@@ -30,7 +30,7 @@ export const createFolder = async (
     },
     include: {
       folders: true,
-      subfolders: true,
+      other_folders: true,
       _count: {
         select: {
           documents: true,
@@ -80,7 +80,7 @@ export const createFolder = async (
     },
     include: {
       folders: true,
-      subfolders: true,
+      other_folders: true,
       _count: {
         select: {
           documents: true,
@@ -179,7 +179,7 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
       _count: {
         select: {
           documents: true,
-          subfolders: true,
+          other_folders: true,
         },
       },
     },
@@ -267,12 +267,12 @@ export const getFolder = async (folderId: string, userId: string) => {
     where: { id: folderId },
     include: {
       // ✅ FIX: Include _count in subfolders query
-      subfolders: {
+      other_folders: {
         include: {
           _count: {
             select: {
               documents: true,
-              subfolders: true,
+              other_folders: true,
             },
           },
         },

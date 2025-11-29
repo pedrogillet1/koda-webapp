@@ -142,7 +142,7 @@ export const generateBulkPresignedUrls = async (
     }
 
     const { files, folderId } = req.body;
-    const userId = req.users.id;
+    const userId = req.user.id;
 
     if (!files || !Array.isArray(files) || files.length === 0) {
       res.status(400).json({ error: 'Files array is required and must not be empty' });
@@ -270,7 +270,7 @@ export const completeBatchUpload = async (
     }
 
     const { documentIds } = req.body;
-    const userId = req.users.id;
+    const userId = req.user.id;
 
     // ✅ Enhanced logging for debugging
     console.log(`📥 [completeBatchUpload] ========================================`);
@@ -381,7 +381,7 @@ export const retriggerStuckDocuments = async (
       return;
     }
 
-    const userId = req.users.id;
+    const userId = req.user.id;
 
     console.log(`🔄 [retriggerStuckDocuments] Finding stuck documents for user ${userId}...`);
 

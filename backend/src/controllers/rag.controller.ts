@@ -738,8 +738,6 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         query.match(/create (a |an )?(budget|report|presentation|spreadsheet|document|file)/i)) {
       console.log(`🎨 [FILE CREATION] Creating file from query: "${query}"`);
 
-      const fileCreationService = await import('../services/fileCreation.service');
-
       // Detect file type from query
       const fileTypeMap: Record<string, string> = {
         'spreadsheet': 'xlsx',
@@ -762,13 +760,42 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       }
 
-      const result = await fileCreationService.default.createFile({
-        userId,
-        fileType: fileType as any,
-        topic: intentResult.entities?.topic || query,
-        userQuery: query,
-        conversationId
-      });
+      let result;
+
+      // Use dedicated PPTX service for presentations
+      if (fileType === 'pptx') {
+        const pptxCreationService = await import('../services/pptxCreation.service');
+        const pptxResult = await pptxCreationService.default.createPPTX({
+          userId,
+          topic: intentResult.entities?.topic || query,
+          slideCount: 8,
+          conversationId
+        });
+
+        result = {
+          success: true,
+          message: `✅ Created presentation with ${pptxResult.slideCount} slides about "${pptxResult.topic}"`,
+          file: {
+            id: pptxResult.id,
+            name: pptxResult.filename,
+            type: 'pptx',
+            path: pptxResult.s3Url,
+            url: pptxResult.s3Url,
+            previewUrl: pptxResult.s3Url,
+            size: 0
+          }
+        };
+      } else {
+        // Use existing file creation service for other formats
+        const fileCreationService = await import('../services/fileCreation.service');
+        result = await fileCreationService.default.createFile({
+          userId,
+          fileType: fileType as any,
+          topic: intentResult.entities?.topic || query,
+          userQuery: query,
+          conversationId
+        });
+      }
 
       await ensureConversationExists(conversationId, userId);
 

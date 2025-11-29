@@ -138,7 +138,7 @@ class NavigationService {
           where: { status: 'completed' },
           select: { id: true, filename: true },
         },
-        subfolders: {
+        other_folders: {
           select: { id: true, name: true },
         },
       },
@@ -252,7 +252,7 @@ class NavigationService {
           parentFolderId: true,
           emoji: true,
           _count: {
-            select: { documents: true, subfolders: true },
+            select: { documents: true, other_folders: true },
           },
         },
       }),

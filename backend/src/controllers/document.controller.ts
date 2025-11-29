@@ -29,7 +29,7 @@ export const getUploadUrl = async (req: Request, res: Response): Promise<void> =
     const documentId = crypto.randomUUID();
 
     // Generate unique encrypted filename for S3
-    const encryptedFilename = `${req.users.id}/${documentId}-${Date.now()}`;
+    const encryptedFilename = `${req.user.id}/${documentId}-${Date.now()}`;
 
     // Generate signed upload URL (valid for 10 minutes)
     const uploadUrl = await getSignedUploadUrl(encryptedFilename, fileType, 600);
@@ -74,7 +74,7 @@ export const confirmUpload = async (req: Request, res: Response): Promise<void> 
 
     // Create document record and process it
     const document = await documentService.createDocumentAfterUpload({
-      userId: req.users.id,
+      userId: req.user.id,
       encryptedFilename,
       filename,
       mimeType,
@@ -86,17 +86,17 @@ export const confirmUpload = async (req: Request, res: Response): Promise<void> 
 
     // ✅ CACHE FIX: Invalidate cache BEFORE emitting events
     // This ensures frontend gets fresh data when it fetches
-    await cacheService.invalidateUserCache(req.users.id);
+    await cacheService.invalidateUserCache(req.user.id);
     console.log('🗑️ [Cache] Invalidated user cache synchronously');
 
     // ✅ INSTANT UPLOAD FIX: Emit FULL document object via WebSocket
     // Document is created with status: 'processing'
     // Frontend will add it to state immediately and show it in the UI
-    emitToUser(req.users.id, 'document-created', document);
+    emitToUser(req.user.id, 'document-created', document);
     console.log('📡 [WebSocket] Emitted document-created event with full document object');
 
     // Emit folder-tree-updated event to refresh folder tree
-    emitToUser(req.users.id, 'folder-tree-updated', { documentId: document.id });
+    emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
 
     res.status(201).json({
       message: 'Document uploaded successfully',
@@ -200,7 +200,7 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
     }
 
     const document = await documentService.uploadDocument({
-      userId: req.users.id,
+      userId: req.user.id,
       filename: finalFilename,
       fileBuffer: file.buffer,
       mimeType: finalMimeType,
@@ -214,15 +214,15 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
 
     // ✅ INSTANT UPLOAD: Emit FULL document object via WebSocket
     // Document is returned with status='processing', frontend will add it to state immediately
-    emitToUser(req.users.id, 'document-created', document);
+    emitToUser(req.user.id, 'document-created', document);
     console.log('📡 [WebSocket] Emitted document-created event with full document object');
 
     // Invalidate cache immediately
-    await cacheService.invalidateDocumentListCache(req.users.id);
+    await cacheService.invalidateDocumentListCache(req.user.id);
     console.log('🗑️ [Cache] Invalidated document list cache immediately');
 
     // Emit folder-tree-updated event to refresh folder tree
-    emitToUser(req.users.id, 'folder-tree-updated', { documentId: document.id });
+    emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
 
     res.status(201).json({
       message: 'Document uploaded successfully',
@@ -301,11 +301,11 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
     });
 
     // ✅ INSTANT UPLOAD: Invalidate cache immediately (no delay!)
-    await cacheService.invalidateDocumentListCache(req.users.id);
+    await cacheService.invalidateDocumentListCache(req.user.id);
     console.log('🗑️ [Cache] Invalidated document list cache immediately');
 
     // Emit folder-tree-updated event to refresh folder tree
-    emitToUser(req.users.id, 'folder-tree-updated', { documentCount: documents.length });
+    emitToUser(req.user.id, 'folder-tree-updated', { documentCount: documents.length });
 
     res.status(201).json({
       message: `${documents.length} documents uploaded successfully`,
@@ -330,7 +330,7 @@ export const getDownloadUrl = async (req: Request, res: Response): Promise<void>
 
     const { id } = req.params;
 
-    const result = await documentService.getDocumentDownloadUrl(id, req.users.id);
+    const result = await documentService.getDocumentDownloadUrl(id, req.user.id);
 
     res.status(200).json(result);
   } catch (error) {
@@ -352,7 +352,7 @@ export const getViewUrl = async (req: Request, res: Response): Promise<void> => 
     const { id } = req.params;
 
     // Pass request object to construct proper base URL (ngrok, localhost, etc.)
-    const result = await documentService.getDocumentViewUrl(id, req.users.id, req);
+    const result = await documentService.getDocumentViewUrl(id, req.user.id, req);
 
     res.status(200).json(result);
   } catch (error) {
@@ -374,7 +374,7 @@ export const streamDocument = async (req: Request, res: Response): Promise<void>
     const { id } = req.params;
 
     // Get decrypted file buffer from service
-    const { buffer, filename, mimeType } = await documentService.streamDocument(id, req.users.id);
+    const { buffer, filename, mimeType } = await documentService.streamDocument(id, req.user.id);
 
     // Set appropriate headers for viewing (especially for Safari/Mac PDF viewing)
     res.setHeader('Content-Type', mimeType);
@@ -422,7 +422,7 @@ export const streamPreviewPdf = async (req: Request, res: Response): Promise<voi
     console.log(`📄 [streamPreviewPdf] Starting PDF stream for document: ${id}`);
 
     // Get PDF buffer from service
-    const { buffer, filename } = await documentService.streamPreviewPdf(id, req.users.id);
+    const { buffer, filename } = await documentService.streamPreviewPdf(id, req.user.id);
 
     console.log(`✅ [streamPreviewPdf] Got PDF buffer: ${(buffer.length / 1024).toFixed(2)} KB, filename: ${filename}`);
 
@@ -466,7 +466,7 @@ export const listDocuments = async (req: Request, res: Response): Promise<void> 
     const limitNum = parseInt(limit as string) || 1000;
 
     // Try to get from cache first
-    const cacheKey = cacheService.generateKey('documents_list', req.users.id, folderId, pageNum, limitNum);
+    const cacheKey = cacheService.generateKey('documents_list', req.user.id, folderId, pageNum, limitNum);
     const cached = await cacheService.get<any>(cacheKey);
 
     if (cached) {
@@ -476,7 +476,7 @@ export const listDocuments = async (req: Request, res: Response): Promise<void> 
     }
 
     const result = await documentService.listDocuments(
-      req.users.id,
+      req.user.id,
       folderId as string | undefined,
       pageNum,
       limitNum
@@ -505,16 +505,16 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
     const { id } = req.params;
     const { folderId, filename } = req.body;
 
-    const document = await documentService.updateDocument(id, req.users.id, { folderId, filename });
+    const document = await documentService.updateDocument(id, req.user.id, { folderId, filename });
 
     // Invalidate document list cache
-    await cacheService.invalidateDocumentListCache(req.users.id);
+    await cacheService.invalidateDocumentListCache(req.user.id);
 
     // Emit real-time event for document update (moved or renamed)
     if (folderId !== undefined) {
-      emitDocumentEvent(req.users.id, 'moved', id);
+      emitDocumentEvent(req.user.id, 'moved', id);
     } else {
-      emitDocumentEvent(req.users.id, 'updated', id);
+      emitDocumentEvent(req.user.id, 'updated', id);
     }
 
     res.status(200).json({
@@ -562,7 +562,7 @@ export const updateEncryptionMetadata = async (req: Request, res: Response): Pro
       return;
     }
 
-    if (document.userId !== req.users.id) {
+    if (document.userId !== req.user.id) {
       res.status(403).json({ error: 'Unauthorized access to document' });
       return;
     }
@@ -630,7 +630,7 @@ export const updateMarkdown = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    if (document.userId !== req.users.id) {
+    if (document.userId !== req.user.id) {
       res.status(403).json({ error: 'Unauthorized access to document' });
       return;
     }
@@ -668,13 +668,13 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
 
     const { id } = req.params;
 
-    await documentService.deleteDocument(id, req.users.id);
+    await documentService.deleteDocument(id, req.user.id);
 
     // Emit real-time event for document deletion
-    emitDocumentEvent(req.users.id, 'deleted', id);
+    emitDocumentEvent(req.user.id, 'deleted', id);
 
     // Invalidate RAG cache (document removed, search results may change)
-    await cacheService.invalidateUserCache(req.users.id);
+    await cacheService.invalidateUserCache(req.user.id);
 
     res.status(200).json({ message: 'Document deleted successfully' });
   } catch (error) {
@@ -711,7 +711,7 @@ export const uploadVersion = async (req: Request, res: Response): Promise<void> 
     const finalFilename = (filename || req.file.originalname).normalize('NFC');
 
     const document = await documentService.uploadDocumentVersion(id, {
-      userId: req.users.id,
+      userId: req.user.id,
       filename: finalFilename,
       fileBuffer: req.file.buffer,
       mimeType: req.file.mimetype,
@@ -740,7 +740,7 @@ export const getVersions = async (req: Request, res: Response): Promise<void> =>
 
     const { id } = req.params;
 
-    const versions = await documentService.getDocumentVersions(id, req.users.id);
+    const versions = await documentService.getDocumentVersions(id, req.user.id);
 
     res.status(200).json({ versions });
   } catch (error) {
@@ -761,7 +761,7 @@ export const getDocumentStatus = async (req: Request, res: Response): Promise<vo
 
     const { id } = req.params;
 
-    const status = await documentService.getDocumentStatus(id, req.users.id);
+    const status = await documentService.getDocumentStatus(id, req.user.id);
 
     res.status(200).json(status);
   } catch (error) {
@@ -782,7 +782,7 @@ export const getThumbnail = async (req: Request, res: Response): Promise<void> =
 
     const { id } = req.params;
 
-    const { thumbnailUrl } = await documentService.getDocumentThumbnail(id, req.users.id);
+    const { thumbnailUrl } = await documentService.getDocumentThumbnail(id, req.user.id);
 
     res.status(200).json({ thumbnailUrl });
   } catch (error) {
@@ -803,7 +803,7 @@ export const getPreview = async (req: Request, res: Response): Promise<void> => 
 
     const { id } = req.params;
 
-    const preview = await documentService.getDocumentPreview(id, req.users.id);
+    const preview = await documentService.getDocumentPreview(id, req.user.id);
 
     res.status(200).json(preview);
   } catch (error) {
@@ -841,13 +841,13 @@ export const shareDocument = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    if (document.userId !== req.users.id) {
+    if (document.userId !== req.user.id) {
       res.status(403).json({ error: 'Unauthorized access to document' });
       return;
     }
 
     const user = await prisma.users.findUnique({
-      where: { id: req.users.id },
+      where: { id: req.user.id },
       select: { firstName: true, lastName: true, email: true }
     });
 
@@ -878,7 +878,7 @@ export const reprocessDocument = async (req: Request, res: Response): Promise<vo
 
     const { id } = req.params;
 
-    const result = await documentService.reprocessDocument(id, req.users.id);
+    const result = await documentService.reprocessDocument(id, req.user.id);
 
     res.status(200).json({
       message: 'Document reprocessing started successfully',
@@ -904,10 +904,10 @@ export const retryDocument = async (req: Request, res: Response): Promise<void> 
 
     const { id } = req.params;
 
-    const result = await documentService.retryDocument(id, req.users.id);
+    const result = await documentService.retryDocument(id, req.user.id);
 
     // Emit real-time event for document retry
-    emitDocumentEvent(req.users.id, 'processing', id);
+    emitDocumentEvent(req.user.id, 'processing', id);
 
     res.status(200).json({
       message: 'Document processing restarted successfully',
@@ -953,7 +953,7 @@ export const searchInDocument = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    if (document.userId !== req.users.id) {
+    if (document.userId !== req.user.id) {
       res.status(403).json({ error: 'Unauthorized access to document' });
       return;
     }
@@ -1044,7 +1044,7 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    if (document.userId !== req.users.id) {
+    if (document.userId !== req.user.id) {
       res.status(403).json({ error: 'Unauthorized access to document' });
       return;
     }
@@ -1157,7 +1157,7 @@ export const regeneratePPTXSlides = async (req: Request, res: Response): Promise
 
     const { id } = req.params;
 
-    const result = await documentService.regeneratePPTXSlides(id, req.users.id);
+    const result = await documentService.regeneratePPTXSlides(id, req.user.id);
 
     res.status(200).json({
       success: true,
@@ -1224,7 +1224,7 @@ export const exportDocument = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    if (document.userId !== req.users.id) {
+    if (document.userId !== req.user.id) {
       res.status(403).json({ error: 'Unauthorized access to document' });
       return;
     }
@@ -1288,7 +1288,7 @@ export const deleteAllDocuments = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const userId = req.users.id;
+    const userId = req.user.id;
 
     const result = await documentService.deleteAllDocuments(userId);
 
@@ -1315,7 +1315,7 @@ export const reindexAllDocuments = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const userId = req.users.id;
+    const userId = req.user.id;
 
     console.log('\n🔄 ==========================================');
     console.log('🔄 [RE-INDEX] Starting document re-indexing...');
@@ -1432,7 +1432,7 @@ export const getDocumentProgress = async (req: Request, res: Response): Promise<
     }
 
     const { documentId } = req.params;
-    const userId = req.users.id;
+    const userId = req.user.id;
 
     // Verify document belongs to user
     const document = await documentService.getDocumentById(documentId, userId);

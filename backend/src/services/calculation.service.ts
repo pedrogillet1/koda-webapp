@@ -350,20 +350,127 @@ class CalculationService {
   }
 
   /**
+   * Evaluate simple math expression directly
+   * Handles: 2+2, (25 * 4) + 10 / 2, 20% of 500
+   */
+  private evaluateMathExpression(query: string): CalculationResult | null {
+    console.log(`🧮 [EVAL] Attempting to evaluate: "${query}"`);
+
+    const lowerQuery = query.toLowerCase();
+
+    // Handle percentage calculations: "20% of 500", "15 percent of 1000"
+    const percentMatch = query.match(/(\d+(?:\.\d+)?)\s*%?\s*(?:percent\s+)?of\s+(\d+(?:\.\d+)?)/i);
+    if (percentMatch) {
+      const percentage = parseFloat(percentMatch[1]);
+      const total = parseFloat(percentMatch[2]);
+      const result = (percentage / 100) * total;
+
+      console.log(`🧮 [EVAL] Percentage: ${percentage}% of ${total} = ${result}`);
+
+      return {
+        type: 'percentage',
+        result,
+        explanation: `${percentage}% of ${total} = ${result}`,
+        formula: `(${percentage} ÷ 100) × ${total}`,
+        inputValues: [percentage, total],
+      };
+    }
+
+    // Extract math expression (remove non-math characters)
+    const expression = query.replace(/[^0-9+\-*/().%\s]/g, '').trim();
+
+    if (!expression || expression.length === 0) {
+      console.log(`🧮 [EVAL] No valid math expression found`);
+      return null;
+    }
+
+    console.log(`🧮 [EVAL] Extracted expression: "${expression}"`);
+
+    try {
+      // Use Function constructor for safe evaluation
+      // This is safer than eval() but still requires validation
+      const sanitized = expression.replace(/[^0-9+\-*/().]/g, '');
+
+      if (!sanitized || sanitized.length === 0) {
+        console.log(`🧮 [EVAL] Expression is empty after sanitization`);
+        return null;
+      }
+
+      // Validate parentheses are balanced
+      let parenCount = 0;
+      for (const char of sanitized) {
+        if (char === '(') parenCount++;
+        if (char === ')') parenCount--;
+        if (parenCount < 0) {
+          console.log(`🧮 [EVAL] Unbalanced parentheses`);
+          return null;
+        }
+      }
+      if (parenCount !== 0) {
+        console.log(`🧮 [EVAL] Unbalanced parentheses`);
+        return null;
+      }
+
+      // Evaluate
+      const result = Function(`'use strict'; return (${sanitized})`)();
+
+      if (typeof result !== 'number' || isNaN(result) || !isFinite(result)) {
+        console.log(`🧮 [EVAL] Invalid result: ${result}`);
+        return null;
+      }
+
+      console.log(`🧮 [EVAL] Result: ${result}`);
+
+      return {
+        type: 'custom',
+        result,
+        explanation: `${sanitized} = ${result}`,
+        formula: sanitized,
+      };
+    } catch (error) {
+      console.error(`🧮 [EVAL] Evaluation error:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Perform calculation based on query intent and extracted data
+   * Updated to handle both RAG context and direct math expressions
    */
   async performCalculation(
     query: string,
-    retrievedData: string
+    retrievedData?: string  // Make optional
   ): Promise<CalculationResult | null> {
+    console.log(`🧮 [CALCULATION] Query: "${query}"`);
+    console.log(`🧮 [CALCULATION] Has context: ${!!retrievedData}`);
+
+    // FIRST: Try direct math evaluation (for simple expressions)
+    const directResult = this.evaluateMathExpression(query);
+    if (directResult) {
+      console.log(`🧮 [CALCULATION] Direct evaluation successful`);
+      return directResult;
+    }
+
+    // SECOND: Try RAG context-based calculation
+    if (!retrievedData || retrievedData.trim().length === 0) {
+      console.log(`🧮 [CALCULATION] No context data and direct eval failed`);
+      return null;
+    }
 
     const calculationType = this.detectCalculationType(query);
-    const extractedNumbers = this.extractNumbers(retrievedData);
+
+    // Extract numbers from BOTH query and retrievedData
+    const numbersFromQuery = this.extractNumbers(query);
+    const numbersFromData = this.extractNumbers(retrievedData);
+
+    // Combine numbers (prefer query numbers for direct calculations like "2+2")
+    const extractedNumbers = numbersFromQuery.length > 0 ? numbersFromQuery : numbersFromData;
 
     console.log(`🧮 [CALCULATION] Type: ${calculationType}, Found ${extractedNumbers.length} numbers`);
+    console.log(`🧮 [CALCULATION] From query: ${numbersFromQuery.length}, From data: ${numbersFromData.length}`);
 
     if (extractedNumbers.length === 0) {
-      console.log(`🧮 [CALCULATION] No numbers found in data`);
+      console.log(`🧮 [CALCULATION] No numbers found in query or data`);
       return null;
     }
 

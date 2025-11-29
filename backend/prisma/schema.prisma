@@ -60,7 +60,7 @@ model api_keys {
   ipWhitelist String?
   userAgent   String?
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime  @updatedAt
 
   @@index([isActive])
   @@index([keyHash])
@@ -108,7 +108,7 @@ model categories {
   color               String?
   icon                String?
   createdAt           DateTime              @default(now())
-  updatedAt           DateTime @updatedAt
+  updatedAt           DateTime              @updatedAt
   document_categories document_categories[]
 
   @@unique([userId, name])
@@ -187,7 +187,7 @@ model cloud_integrations {
   isActive       Boolean   @default(true)
   lastSyncedAt   DateTime?
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime @updatedAt
+  updatedAt      DateTime  @updatedAt
   users          users     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
@@ -270,7 +270,7 @@ model conversations {
   userId            String
   title             String          @default("New Chat")
   createdAt         DateTime        @default(now())
-  updatedAt         DateTime @updatedAt
+  updatedAt         DateTime        @updatedAt
   titleEncrypted    String?
   encryptionSalt    String?
   encryptionIV      String?
@@ -396,7 +396,7 @@ model document_metadata {
   slideGenerationStatus String?   @default("pending")
   slideGenerationError  String?
   createdAt             DateTime  @default(now())
-  updatedAt             DateTime @updatedAt
+  updatedAt             DateTime  @updatedAt
   documents             documents @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
@@ -411,7 +411,7 @@ model document_shares {
   canDelete                                 Boolean   @default(false)
   expiresAt                                 DateTime?
   createdAt                                 DateTime  @default(now())
-  updatedAt                                 DateTime @updatedAt
+  updatedAt                                 DateTime  @updatedAt
   users_document_shares_ownerIdTousers      users     @relation("document_shares_ownerIdTousers", fields: [ownerId], references: [id], onDelete: Cascade)
   users_document_shares_sharedWithIdTousers users     @relation("document_shares_sharedWithIdTousers", fields: [sharedWithId], references: [id], onDelete: Cascade)
 
@@ -455,7 +455,7 @@ model document_templates {
   isSystem            Boolean               @default(false)
   usageCount          Int                   @default(0)
   createdAt           DateTime              @default(now())
-  updatedAt           DateTime @updatedAt
+  updatedAt           DateTime              @updatedAt
   generated_documents generated_documents[]
 
   @@index([category])
@@ -482,7 +482,7 @@ model documents {
   extractedTextEncrypted String?
   renderableContent      String?
   createdAt              DateTime              @default(now())
-  updatedAt              DateTime @updatedAt
+  updatedAt              DateTime              @updatedAt
   document_categories    document_categories[]
   document_embeddings    document_embeddings[]
   document_metadata      document_metadata?
@@ -531,7 +531,7 @@ model domain_knowledge {
   confidence                                                                  Float                   @default(0.5)
   isVerified                                                                  Boolean                 @default(false)
   createdAt                                                                   DateTime                @default(now())
-  updatedAt                                                                   DateTime @updatedAt
+  updatedAt                                                                   DateTime                @updatedAt
   lastAccessedAt                                                              DateTime                @default(now())
   accessCount                                                                 Int                     @default(0)
   concept_relationships_concept_relationships_fromConceptIdTodomain_knowledge concept_relationships[] @relation("concept_relationships_fromConceptIdTodomain_knowledge")
@@ -588,7 +588,7 @@ model folder_summaries {
   themes              String[]  @default([])
   lastDocumentAddedAt DateTime?
   createdAt           DateTime  @default(now())
-  updatedAt           DateTime @updatedAt
+  updatedAt           DateTime  @updatedAt
 
   @@index([folderId])
   @@index([userId])
@@ -604,7 +604,7 @@ model folders {
   parentFolderId    String?
   path              String?
   createdAt         DateTime    @default(now())
-  updatedAt         DateTime @updatedAt
+  updatedAt         DateTime    @updatedAt
   nameEncrypted     String?
   encryptionSalt    String?
   encryptionIV      String?
@@ -861,7 +861,7 @@ model reminders {
   notified      Boolean         @default(false)
   documentId    String?
   createdAt     DateTime        @default(now())
-  updatedAt     DateTime @updatedAt
+  updatedAt     DateTime        @updatedAt
   notifications notifications[]
   users         users           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -902,7 +902,7 @@ model roles {
   priority                                          Int                @default(0)
   isSystem                                          Boolean            @default(false)
   createdAt                                         DateTime           @default(now())
-  updatedAt                                         DateTime @updatedAt
+  updatedAt                                         DateTime           @updatedAt
   role_hierarchy_role_hierarchy_childRoleIdToroles  role_hierarchy[]   @relation("role_hierarchy_childRoleIdToroles")
   role_hierarchy_role_hierarchy_parentRoleIdToroles role_hierarchy[]   @relation("role_hierarchy_parentRoleIdToroles")
   role_permissions                                  role_permissions[]
@@ -1107,7 +1107,7 @@ model users {
   role                                                String                    @default("user")
   storageUsedBytes                                    BigInt                    @default(0)
   createdAt                                           DateTime                  @default(now())
-  updatedAt                                           DateTime @updatedAt
+  updatedAt                                           DateTime                  @updatedAt
   recoveryKeyHash                                     String?
   masterKeyEncrypted                                  String?
   action_history                                      action_history[]

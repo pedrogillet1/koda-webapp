@@ -17,7 +17,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
 
     // Get current user data
     const currentUser = await prisma.users.findUnique({
-      where: { id: req.users.id },
+      where: { id: req.user.id },
       select: { phoneNumber: true, email: true },
     });
 
@@ -37,7 +37,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         select: { id: true },
       });
 
-      if (existingUserWithPhone && existingUserWithPhone.id !== req.users.id) {
+      if (existingUserWithPhone && existingUserWithPhone.id !== req.user.id) {
         res.status(400).json({
           error: 'Phone number already in use',
           field: 'phoneNumber'
@@ -50,12 +50,12 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       verification_codes = generateSMSCode();
       needsPhoneVerification = true;
 
-      console.log(`📱 Phone verification code for ${req.users.id}: ${verification_codes}`);
+      console.log(`📱 Phone verification code for ${req.user.id}: ${verification_codes}`);
 
       // Create verification code entry
       await prisma.verification_codes.create({
         data: {
-          userId: req.users.id,
+          userId: req.user.id,
           type: 'phone',
           code: verification_codes,
           expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
@@ -74,7 +74,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
 
     // Update user in database
     const updatedUser = await prisma.users.update({
-      where: { id: req.users.id },
+      where: { id: req.user.id },
       data: {
         firstName: firstName || null,
         lastName: lastName || null,
@@ -128,7 +128,7 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
 
     // Get user with password hash and salt
     const user = await prisma.users.findUnique({
-      where: { id: req.users.id },
+      where: { id: req.user.id },
       select: {
         id: true,
         email: true,
@@ -209,7 +209,7 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
 
     // Update password
     await prisma.users.update({
-      where: { id: req.users.id },
+      where: { id: req.user.id },
       data: {
         passwordHash: newPasswordHash,
         salt: newSalt,
@@ -248,7 +248,7 @@ export const verifyProfilePhone = async (req: Request, res: Response): Promise<v
     // Find verification code
     const verificationRecord = await prisma.verification_codes.findFirst({
       where: {
-        userId: req.users.id,
+        userId: req.user.id,
         type: 'phone',
         code,
         isUsed: false,
@@ -277,7 +277,7 @@ export const verifyProfilePhone = async (req: Request, res: Response): Promise<v
 
     // Update user - mark phone as verified
     const updatedUser = await prisma.users.update({
-      where: { id: req.users.id },
+      where: { id: req.user.id },
       data: {
         isPhoneVerified: true,
       },
@@ -293,7 +293,7 @@ export const verifyProfilePhone = async (req: Request, res: Response): Promise<v
       },
     });
 
-    console.log(`✅ Phone verified for user ${req.users.id}`);
+    console.log(`✅ Phone verified for user ${req.user.id}`);
 
     res.status(200).json({
       message: 'Phone number verified successfully',

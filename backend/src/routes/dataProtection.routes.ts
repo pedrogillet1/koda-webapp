@@ -29,7 +29,7 @@ router.post('/gdpr/export', async (req: Request, res: Response) => {
     const { format = 'json', includeDocuments = false } = req.body;
 
     const result = await gdprService.exportUserData({
-      userId: req.users.id,
+      userId: req.user.id,
       format,
       includeDocuments,
     });
@@ -69,9 +69,9 @@ router.post('/gdpr/delete', async (req: Request, res: Response) => {
     }
 
     const result = await gdprService.deleteUserData({
-      userId: req.users.id,
+      userId: req.user.id,
       reason,
-      requestedBy: req.users.id,
+      requestedBy: req.user.id,
     });
 
     if (!result.success) {
@@ -98,7 +98,7 @@ router.get('/gdpr/compliance-report', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const report = await gdprService.getComplianceReport(req.users.id);
+    const report = await gdprService.getComplianceReport(req.user.id);
     return res.json(report);
   } catch (error) {
     console.error('Error generating compliance report:', error);
@@ -122,7 +122,7 @@ router.post('/gdpr/consent', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'consentType and version are required' });
     }
 
-    const success = await gdprService.recordConsent(req.users.id, consentType, version);
+    const success = await gdprService.recordConsent(req.user.id, consentType, version);
 
     if (!success) {
       return res.status(500).json({ error: 'Failed to record consent' });
@@ -310,7 +310,7 @@ router.post(
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const result = await keyRotationService.rotateMasterKey(req.users.id);
+      const result = await keyRotationService.rotateMasterKey(req.user.id);
 
       if (!result.success) {
         return res.status(500).json({ error: result.error });

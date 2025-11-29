@@ -167,7 +167,7 @@ export const checkStorageCapacity = async (req: Request, res: Response, next: Ne
     }
 
     // Check capacity
-    const capacityCheck = await storageService.hasCapacity(req.users.id, contentLength);
+    const capacityCheck = await storageService.hasCapacity(req.user.id, contentLength);
 
     if (!capacityCheck.hasCapacity) {
       console.log(`🚫 [Storage] Upload blocked - insufficient storage`);
@@ -232,7 +232,7 @@ export const checkStorageCapacityAfterUpload = async (req: Request, res: Respons
     }
 
     // Check capacity
-    const capacityCheck = await storageService.hasCapacity(req.users.id, totalSize);
+    const capacityCheck = await storageService.hasCapacity(req.user.id, totalSize);
 
     if (!capacityCheck.hasCapacity) {
       console.log(`🚫 [Storage] Upload blocked after processing - insufficient storage`);

@@ -4759,7 +4759,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
           _count: {
             select: {
               documents: true,
-              subfolders: true
+              other_folders: true
             }
           }
         },
@@ -6343,7 +6343,7 @@ async function handleFolderContentQuery(
         },
         orderBy: { createdAt: 'desc' }
       },
-      subfolders: {
+      other_folders: {
         select: {
           id: true,
           name: true,

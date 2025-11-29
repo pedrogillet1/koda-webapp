@@ -18,7 +18,7 @@ export const createTag = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const tag = await tagService.createTag(req.users.id, name, color);
+    const tag = await tagService.createTag(req.user.id, name, color);
 
     res.status(201).json({ tag });
   } catch (error) {
@@ -37,7 +37,7 @@ export const getUserTags = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const tags = await tagService.getUserTags(req.users.id);
+    const tags = await tagService.getUserTags(req.user.id);
 
     res.status(200).json({ tags });
   } catch (error) {
@@ -63,7 +63,7 @@ export const addTagToDocument = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    const result = await tagService.addTagToDocument(documentId, tagId, req.users.id);
+    const result = await tagService.addTagToDocument(documentId, tagId, req.user.id);
 
     res.status(200).json(result);
   } catch (error) {
@@ -89,7 +89,7 @@ export const removeTagFromDocument = async (req: Request, res: Response): Promis
       return;
     }
 
-    await tagService.removeTagFromDocument(documentId, tagId, req.users.id);
+    await tagService.removeTagFromDocument(documentId, tagId, req.user.id);
 
     res.status(200).json({ message: 'Tag removed successfully' });
   } catch (error) {
@@ -110,7 +110,7 @@ export const deleteTag = async (req: Request, res: Response): Promise<void> => {
 
     const { id } = req.params;
 
-    await tagService.deleteTag(id, req.users.id);
+    await tagService.deleteTag(id, req.user.id);
 
     res.status(200).json({ message: 'Tag deleted successfully' });
   } catch (error) {
@@ -131,7 +131,7 @@ export const searchByTag = async (req: Request, res: Response): Promise<void> =>
 
     const { id } = req.params;
 
-    const documents = await tagService.searchDocumentsByTag(id, req.users.id);
+    const documents = await tagService.searchDocumentsByTag(id, req.user.id);
 
     res.status(200).json({ documents });
   } catch (error) {

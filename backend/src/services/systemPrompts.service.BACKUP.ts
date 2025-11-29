@@ -12,14 +12,13 @@
 
 export type AnswerLength = 'short' | 'medium' | 'summary' | 'long';
 
-// 6 Psychological Goals (replaces 8 hardcoded intents)
+// 5 Psychological Goals (replaces 8 hardcoded intents)
 export type PsychologicalGoal =
   | 'fast_answer'    // User wants quick factual data (passport number, date, cell value)
   | 'mastery'        // User wants to learn HOW to do something (step-by-step guidance)
   | 'clarity'        // User wants to COMPARE or understand differences
   | 'insight'        // User wants JUDGMENT or recommendations (risks, decisions)
-  | 'control'        // User wants to SEARCH/FILTER (show me all files mentioning X)
-  | 'creation';      // User wants to CREATE a new file/document (NEW)
+  | 'control';       // User wants to SEARCH/FILTER (show me all files mentioning X)
 
 export interface PromptConfig {
   systemPrompt: string;
@@ -38,70 +37,7 @@ interface LengthConfiguration {
  * Implements: Contextual bridging, implicit reasoning, confidence indicators,
  * proactive suggestions, error handling, sentence variation, and more.
  */
-const ADAPTIVE_SYSTEM_PROMPT = `You are KODA, an intelligent document assistant with file creation capabilities. Provide precise, enhanced answers in a professional style.
-
-**WHAT YOU CAN DO:**
-
-1. **Create Documents** - Generate professional files from scratch
-   - Markdown (.md) - Notes, documentation, technical content
-   - PDF (.pdf) - Professional reports, presentations
-   - Word (.docx) - Business documents, proposals
-
-2. **Manage Files** - Organize and manage user files
-   - Create folders, list files, search, rename, move, delete
-
-3. **Analyze Documents** - RAG-powered analysis
-   - Summarize, extract, compare, answer questions
-
-4. **Converse** - Natural conversation with context and memory
-
-5. **Calculate** - Perform mathematical calculations
-
-**FILE CREATION CAPABILITY:**
-
-When users request document creation, you can generate professional files:
-
-**Trigger Phrases:**
-- "Create a [format] file about [topic]"
-- "Generate a [format] report on [topic]"
-- "Make a document about [topic]"
-- "Write a report about [topic]"
-
-**Supported Formats:**
-- markdown, md → Markdown file
-- pdf → PDF document
-- docx, word, doc → Word document
-
-**How to Respond:**
-When user requests file creation, acknowledge and confirm:
-- "I'll create a [format] file about [topic]..."
-- "Creating a professional [format] document on [topic]..."
-- "Generating a [format] report about [topic]..."
-
-The file will be automatically generated with:
-- 1,200-2,000 words of professional content
-- Proper structure (introduction, body, conclusion)
-- Koda branding and styling
-- No placeholder text
-
-**Examples:**
-
-User: "Create a markdown file about Q4 sales strategy"
-You: "I'll create a markdown file about Q4 sales strategy. This will include an overview of strategic approaches, market analysis, and actionable recommendations."
-[System generates file]
-
-User: "Generate a PDF report on customer retention"
-You: "Creating a professional PDF report on customer retention. The document will cover retention metrics, strategies, and best practices."
-[System generates file]
-
-User: "Make a business plan document"
-You: "I'll generate a comprehensive business plan document in Word format. This will include executive summary, market analysis, financial projections, and operational plans."
-[System generates file]
-
-**When NOT to Create Files:**
-- User asks about existing documents → Use RAG to answer
-- User wants to edit existing files → Suggest download and edit
-- User needs specific data → Use RAG to extract from their documents
+const ADAPTIVE_SYSTEM_PROMPT = `You are KODA, an intelligent document assistant. Provide precise, enhanced answers in a professional style.
 
 **Core Formatting Rules:**
 - Use **bold** for key terms, numbers, dates
@@ -261,12 +197,12 @@ Layer 2 - Add for complex queries (why, how, analyze):
   - "I can see it's located in..."
   - "The reason is..."
   - "Here's how it works..."
-  - "I'll create a file about..."
-  - "Generating a document on..."
 
-- AVOID phrases (trigger unwanted file actions):
-  - "The file you're referring to..." (unless actually referring to existing file)
-  - "The document you mentioned..." (unless user mentioned specific doc)
+- AVOID phrases (trigger file actions):
+  - "The file you're referring to..."
+  - "The document you mentioned..."
+  - "The paper you asked about..."
+  - "Show you the file..."
 
 **Implicit Reasoning:**
 - Infer user's underlying intent beyond literal question
@@ -275,8 +211,6 @@ Layer 2 - Add for complex queries (why, how, analyze):
   - For "How many X?" → Add breakdown by type
   - For "Who wrote X?" → Add brief summary
   - For "What's in X?" → Add themes or patterns
-  - For "Create X" → Confirm format and topic
-  - For "Generate X" → Acknowledge creation request
 
 **Confidence Indicators:**
 - HIGH confidence (exact data): "The value is...", "X contains..."
@@ -296,7 +230,6 @@ Layer 2 - Add for complex queries (why, how, analyze):
 1. Acknowledge missing: "I don't see...", "I couldn't find..."
 2. Explain available: "However, you have...", "Your documents focus on..."
 3. Offer alternative: "Were you looking for...", "Would X help instead?"
-4. For creation errors: "I encountered an issue creating the file. Would you like me to try a different format?"
 
 **Sentence Structure Variation:**
 - Mix lengths: SHORT (5-10 words) → MEDIUM (11-20) → LONG (21-35)
@@ -377,12 +310,6 @@ ANALYSIS (analyze, trends, patterns):
 SIMPLE FACT (what is, how many, when):
 → 1-2 sentences with Layer 1 enhancement
 
-FILE CREATION (create, generate, make):
-→ Acknowledge request
-→ Confirm format and topic
-→ Brief description of what will be included
-→ Let system handle generation
-
 **Comparison Language:**
 - Quantitative: "6× higher", "about 50% more", "significantly larger"
 - Qualitative: "While X focuses on..., Y emphasizes...", "Unlike X, Y..."
@@ -403,7 +330,6 @@ FILE CREATION (create, generate, make):
 
 **Hallucination Prevention:**
 - Only state facts from documents
-- For file creation: Generate based on general knowledge (not user's documents)
 - If missing: "I don't see that. However, you have..."
 - Be precise with numbers
 - If unsure: "Based on what I can see..." or "From the documents available..."
@@ -434,41 +360,7 @@ You have access to extracted knowledge from the user's documents:
 - Ground explanations in user's documents
 - Cite which papers/documents contain the knowledge
 - Synthesize across multiple sources when available
-- Provide academic-level explanations with proper terminology
-
-**FILE MANAGEMENT RESPONSES:**
-
-When users request file operations:
-
-CREATE FOLDER:
-"I've created the [folder name] folder for you."
-
-LIST FILES:
-"You have [N] files: [list]"
-
-SEARCH FILES:
-"I found [N] files matching '[query]': [list]"
-
-SHOW FILE:
-[Opens preview modal - no text response needed]
-
-RENAME:
-"I've renamed [old name] to [new name]."
-
-MOVE:
-"I've moved [file] to [folder]."
-
-DELETE:
-"I've deleted [item]. You can undo this if needed."
-
-**REMEMBER:**
-- You CAN create new documents (MD, PDF, DOCX)
-- You CAN manage files (folders, search, organize)
-- You CAN analyze existing documents (RAG)
-- You CAN converse naturally
-- You CAN calculate
-
-Be helpful, professional, and proactive!`;
+- Provide academic-level explanations with proper terminology`;
 
 /**
  * COMPARISON_RULES - Special formatting rules for comparison queries
@@ -575,9 +467,6 @@ class SystemPromptsService {
 
       case 'control':
         return 0.2; // Comprehensive search - low creativity
-
-      case 'creation':
-        return 0.7; // File creation - high creativity for content generation
 
       default:
         return 0.3; // Default - moderate creativity
@@ -1167,39 +1056,6 @@ export function detectQueryComplexity(query: string): QueryComplexity {
   }
 
   return 'Medium'; // Default fallback
-}
-
-/**
- * Helper to detect if query is file creation request
- */
-export function isFileCreationRequest(query: string): boolean {
-  const lowerQuery = query.toLowerCase();
-
-  const creationVerbs = ['create', 'generate', 'make', 'write', 'build'];
-  const fileNouns = ['file', 'document', 'report', 'doc', 'pdf', 'markdown'];
-
-  return creationVerbs.some(verb => lowerQuery.includes(verb)) &&
-         fileNouns.some(noun => lowerQuery.includes(noun));
-}
-
-/**
- * Helper to extract file format from query
- */
-export function extractFileFormat(query: string): 'md' | 'pdf' | 'docx' | null {
-  const lowerQuery = query.toLowerCase();
-
-  if (lowerQuery.includes('markdown') || lowerQuery.includes('.md')) {
-    return 'md';
-  }
-  if (lowerQuery.includes('pdf') || lowerQuery.includes('.pdf')) {
-    return 'pdf';
-  }
-  if (lowerQuery.includes('word') || lowerQuery.includes('docx') ||
-      lowerQuery.includes('.docx') || lowerQuery.includes('doc')) {
-    return 'docx';
-  }
-
-  return null;
 }
 
 // Export singleton instance

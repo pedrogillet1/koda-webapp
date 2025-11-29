@@ -232,7 +232,7 @@ class ChatActionsService {
             },
             orderBy: { createdAt: 'desc' },
           },
-          subfolders: {
+          other_folders: {
             select: {
               id: true,
               name: true,
@@ -260,8 +260,8 @@ class ChatActionsService {
       const parts: string[] = [];
 
       // List subfolders
-      if (folder.subfolders.length > 0) {
-        const subfolderList = folder.subfolders
+      if (folder.other_folders.length > 0) {
+        const subfolderList = folder.other_folders
           .map(sf => {
             const count = sf._count.documents;
             const countStr = count > 0 ? ` (${count} file${count !== 1 ? 's' : ''})` : ' (empty)';
@@ -307,7 +307,7 @@ class ChatActionsService {
         where: { userId, parentFolderId: null },
         include: {
           _count: {
-            select: { documents: true, subfolders: true },
+            select: { documents: true, other_folders: true },
           },
         },
         orderBy: { name: 'asc' },
@@ -325,7 +325,7 @@ class ChatActionsService {
       const folderList = folders
         .map(f => {
           const docCount = f._count.documents;
-          const subCount = f._count.subfolders;
+          const subCount = f._count.other_folders;
           const parts = [];
           if (docCount > 0) parts.push(`${docCount} file${docCount !== 1 ? 's' : ''}`);
           if (subCount > 0) parts.push(`${subCount} subfolder${subCount !== 1 ? 's' : ''}`);
