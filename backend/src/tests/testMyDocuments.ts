@@ -230,8 +230,8 @@ class DocumentTester {
 
     // Group by category
     const byCategory = this.results.reduce((acc, r) => {
-      if (!acc[r.category]) acc[r.category] = [];
-      acc[r.category].push(r);
+      if (!acc[r.categories]) acc[r.categories] = [];
+      acc[r.categories].push(r);
       return acc;
     }, {} as { [key: string]: TestResult[] });
 
@@ -250,7 +250,7 @@ class DocumentTester {
       this.results
         .filter(r => !r.passed)
         .forEach(r => {
-          console.log(`   - [${r.category}] ${r.question}`);
+          console.log(`   - [${r.categories}] ${r.question}`);
           console.log(`     ${r.error}`);
         });
     }
@@ -262,7 +262,7 @@ class DocumentTester {
         .filter(r => r.passed && r.answer)
         .slice(0, 3)
         .forEach((r, idx) => {
-          console.log(`${idx + 1}. [${r.category}] ${r.question}`);
+          console.log(`${idx + 1}. [${r.categories}] ${r.question}`);
           console.log(`   ${r.answer}${r.answer && r.answer.length >= 200 ? '...' : ''}`);
           console.log(`   (${r.wordCount} words, ${r.duration}ms, confidence: ${r.confidence?.toFixed(2) || 'N/A'})\n`);
         });

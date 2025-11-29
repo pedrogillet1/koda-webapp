@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../../config/env';
 
 /**
- * CRITICAL SECURITY TESTS: Document Isolation Between Users
+ * CRITICAL SECURITY TESTS: documents Isolation Between Users
  *
  * These tests verify that:
  * 1. Users cannot access documents owned by other users
@@ -55,7 +55,7 @@ const user2Document = {
 describe('Document Isolation Security Tests', () => {
   beforeAll(async () => {
     // Clean up test data
-    await prisma.documentsMetadatas.deleteMany({
+    await prisma.document_metadata.deleteMany({
       where: {
         documentId: {
           in: [user1Document.id, user2Document.id],
@@ -109,7 +109,7 @@ describe('Document Isolation Security Tests', () => {
 
   afterAll(async () => {
     // Clean up test data
-    await prisma.documentsMetadatas.deleteMany({
+    await prisma.document_metadata.deleteMany({
       where: {
         documentId: {
           in: [user1Document.id, user2Document.id],

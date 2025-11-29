@@ -336,7 +336,7 @@ export const saveSessionToLibrary = async (req: Request, res: Response) => {
       });
 
       // Create metadata record
-      await prisma.documentsMetadatas.create({
+      await prisma.document_metadata.create({
         data: {
           documentId: document.id,
           extractedText: doc.extractedText,

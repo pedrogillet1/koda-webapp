@@ -384,7 +384,7 @@ class CrossDocumentSynthesisService {
           documentName: doc.filename,
           year: result.document_metadata.year,
           isPrimary: m.isPrimary,
-          category: m.category,
+          category: m.categories,
         });
       }
     }
@@ -536,7 +536,7 @@ class CrossDocumentSynthesisService {
           documentIds: m.documentId ? [m.documentId] : [],
           documentNames: docName ? [docName] : [],
           primaryCount: m.isPrimary ? 1 : 0,
-          category: m.category || 'other',
+          category: m.categories || 'other',
           description: m.definition || m.description,
         });
       }

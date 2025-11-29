@@ -113,14 +113,14 @@ ${contextSection}
    - **Extract**: filename
 
 8. **show_file**
-   - **Description**: User wants to preview/see/view/open a specific file. This includes ALL natural ways of asking to see a file.
+   - **Description**: User wants to preview/see/view/open a specific FILE (not folder). This includes ALL natural ways of asking to see a file.
    - **Keywords**: "show me", "open", "view", "see", "display", "pull up", "bring up", "present", "reveal", "look at", "check", "review", "examine", "inspect", "read", "abrir", "ouvrir", "ver", "mostrar"
 
-   - **PATTERN 1 - Direct Commands (EN)**: "show me X", "open X", "display X", "view X", "pull up X", "bring up X", "present X", "let me see X", "let me look at X", "let me check X"
-   - **PATTERN 2 - Polite Requests (EN)**: "can I see X?", "could you show me X?", "would you open X?", "can you display X?", "could you pull up X?", "would you mind showing X?", "please show me X"
-   - **PATTERN 3 - Indirect Requests (EN)**: "I need to see X", "I want to look at X", "I'd like to review X", "I should check X", "I have to examine X", "I must review X"
-   - **PATTERN 4 - Question-Based (EN)**: "what's in the X file?", "what does X say?", "where is X?", "how does X look?"
-   - **PATTERN 5 - Implied Actions (EN)**: "X please", "X?", "the X document", "I'm looking for X", "need X", "need the X file"
+   - **PATTERN 1 - Direct Commands (EN)**: "show me X file", "open X document", "display X.pdf", "view X", "pull up X", "bring up X", "present X", "let me see X file", "let me look at X", "let me check X"
+   - **PATTERN 2 - Polite Requests (EN)**: "can I see X file?", "could you show me X?", "would you open X?", "can you display X?", "could you pull up X?", "would you mind showing X?", "please show me X"
+   - **PATTERN 3 - Indirect Requests (EN)**: "I need to see X file", "I want to look at X", "I'd like to review X", "I should check X", "I have to examine X", "I must review X"
+   - **PATTERN 4 - Question-Based (EN)**: "what's in the X file?", "what does X say?", "where is X file?", "how does X look?"
+   - **PATTERN 5 - Implied Actions (EN)**: "X file please", "X document?", "the X document", "I'm looking for X file", "need X file", "need the X file"
 
    - **Examples (PT)**: "me mostra X", "mostre o X", "pode abrir X?", "quero ver X", "preciso ver X", "o que tem no X?", "abre o X", "deixa eu ver X", "pode me mostrar X?"
    - **Examples (ES)**: "muéstrame X", "abre X", "¿puedes mostrarme X?", "quiero ver X", "necesito ver X", "¿qué hay en X?", "déjame ver X"
@@ -131,13 +131,31 @@ ${contextSection}
 
    - **Extract**: filename (the file name, topic reference, or contextual reference resolved to actual filename)
 
-9. **metadata_query**
+9. **show_folder**
+   - **Description**: User wants to preview/see/view/open a specific FOLDER (not file) to see its contents (files and subfolders).
+   - **Keywords**: "show folder", "open folder", "view folder", "display folder", "what's in folder", "folder contents", "abrir pasta", "ouvrir dossier", "mostrar carpeta"
+
+   - **PATTERN 1 - Direct Commands (EN)**: "show me X folder", "open X folder", "display X folder", "view X folder", "show folder X", "open the X folder"
+   - **PATTERN 2 - Polite Requests (EN)**: "can I see X folder?", "could you show me X folder?", "would you open X folder?", "can you display X folder?", "please show me X folder"
+   - **PATTERN 3 - Content Queries (EN)**: "what's in X folder?", "what's inside X folder?", "show me what's in X folder", "what files are in X folder?", "what's in the X folder?"
+   - **PATTERN 4 - Implied Actions (EN)**: "X folder please", "the X folder", "I'm looking for X folder", "need the X folder", "show X folder"
+
+   - **Examples (PT)**: "mostre a pasta X", "abrir pasta X", "o que tem na pasta X?", "mostrar pasta X", "quero ver a pasta X", "pode abrir a pasta X?", "deixa eu ver a pasta X"
+   - **Examples (ES)**: "muéstrame la carpeta X", "abrir carpeta X", "¿qué hay en la carpeta X?", "mostrar carpeta X", "quiero ver la carpeta X", "déjame ver la carpeta X"
+   - **Examples (FR)**: "montre-moi le dossier X", "ouvrir dossier X", "qu'y a-t-il dans le dossier X?", "montrer dossier X", "je veux voir le dossier X"
+
+   - **CRITICAL RULE**: This intent is ONLY for showing/opening EXISTING folders to view their contents. If user is creating a new folder, use create_folder instead.
+   - **NEGATIVE EXAMPLES - DO NOT USE show_folder FOR**: "create folder X", "make folder X", "new folder X" (these are create_folder)
+
+   - **Extract**: folderName (the folder name to show)
+
+10. **metadata_query**
    - **Description**: User wants information about files (size, type, date, count).
    - **Keywords**: "how many", "size of", "when was", "file count", "statistics", "quantos", "combien"
    - **Examples**: "how many files", "what's the size of X", "when was Y uploaded", "file count", "what types of documents", "how many PDFs do I have", "show me file statistics", "how many Word documents in folder X"
    - **Extract**: queryType (optional - "count", "size", "types"), fileTypes (optional array - ["pdf", "word", "excel"]), folderName (optional)
 
-10. **rag_query** (Default Fallback)
+11. **rag_query** (Default Fallback)
     - **Description**: User is asking a question about the **CONTENT** of one or more documents.
     - **CRITICAL RULE**: If the query is not a clear file management action (create, list, move, delete, rename, etc.), it is a rag_query.
     - **Examples**: "what does document X say about Y", "explain concept Z", "summarize X", "what are the main points in the report"
@@ -160,8 +178,9 @@ Follow this hierarchy strictly:
 
 3. **Check for viewing/listing requests**: Look for show, list, find, what files.
    - If asking to see files IN a folder → **list_files** (NOT create_folder!)
-   - If asking to open/view a specific file → show_file
-   - If asking where a file is → file_location
+   - If asking to open/view a specific file → **show_file**
+   - If asking to open/view a specific folder → **show_folder**
+   - If asking where a file is → **file_location**
 
 4. **Check for metadata queries**: Look for how many, count, size, statistics.
    - → metadata_query
@@ -170,14 +189,17 @@ Follow this hierarchy strictly:
 
 **--- CRITICAL DISAMBIGUATION ---**
 
-**"folder" in query does NOT mean create_folder!**
+**"folder" in query does NOT automatically mean create_folder!**
 - "Show me files in the Reports folder" → **list_files** (folderName: "Reports")
-- "What's in the Marketing folder" → **list_files** (folderName: "Marketing")
+- "What's in the Marketing folder" → **list_files** (folderName: "Marketing") OR **show_folder** (folderName: "Marketing")
+- "Show me the Marketing folder" → **show_folder** (folderName: "Marketing")
+- "Open the Marketing folder" → **show_folder** (folderName: "Marketing")
 - "Create a new folder called Reports" → **create_folder** (folderName: "Reports")
 
 The key distinction:
 - create_folder = making something NEW (verbs: create, make, new)
-- list_files = viewing something EXISTING (verbs: show, list, what's in, files in)
+- list_files = viewing FILES INSIDE an existing folder (verbs: show files in, list files in, what files in)
+- show_folder = viewing a FOLDER ITSELF and its contents (verbs: show folder, open folder, view folder)
 
 **User Query:** "${query}"
 
@@ -306,7 +328,7 @@ Respond with JSON only:`;
   async detectFileAction(query: string): Promise<{ action: string | null; parameters: Record<string, any> }> {
     const result = await this.detectIntent(query);
 
-    const fileActions = ['list_files', 'search_files', 'rename_file', 'delete_file', 'file_location', 'show_file'];
+    const fileActions = ['list_files', 'search_files', 'rename_file', 'delete_file', 'file_location', 'show_file', 'show_folder'];
 
     if (fileActions.includes(result.intent) && result.confidence > 0.7) {
       return {

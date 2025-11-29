@@ -78,7 +78,7 @@ class RecentlyDeletedHandler {
       id: doc.id,
       filename: doc.filename,
       deletedAt: doc.updatedAt, // updatedAt represents when it was deleted
-      folderName: doc.folder?.name,
+      folderName: doc.folders?.name,
       fileSize: doc.fileSize,
       mimeType: doc.mimeType
     }));

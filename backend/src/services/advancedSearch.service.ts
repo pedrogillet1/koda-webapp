@@ -153,7 +153,7 @@ class AdvancedSearchService {
     // Filter by authors (requires metadata from database)
     if (filters.authors && filters.authors.length > 0) {
       const documentIds = [...new Set(filtered.map(r => r.documentId))];
-      const documents = await prisma.documentsMetadatas.findMany({
+      const documents = await prisma.document_metadata.findMany({
         where: {
           documentId: { in: documentIds },
           author: { in: filters.authors },
@@ -170,7 +170,7 @@ class AdvancedSearchService {
     // Filter by topics (requires metadata from database)
     if (filters.topics && filters.topics.length > 0) {
       const documentIds = [...new Set(filtered.map(r => r.documentId))];
-      const documents = await prisma.documentsMetadatas.findMany({
+      const documents = await prisma.document_metadata.findMany({
         where: {
           documentId: { in: documentIds },
         },
@@ -217,7 +217,7 @@ class AdvancedSearchService {
         whereClause.language = filters.language;
       }
 
-      const documents = await prisma.documentsMetadatas.findMany({
+      const documents = await prisma.document_metadata.findMany({
         where: whereClause,
         select: { documentId: true },
       });
@@ -241,7 +241,7 @@ class AdvancedSearchService {
     const documentIds = [...new Set(results.map(r => r.documentId))];
 
     // Fetch document metadata from database
-    const metadataRecords = await prisma.documentsMetadatas.findMany({
+    const metadataRecords = await prisma.document_metadata.findMany({
       where: {
         documentId: { in: documentIds },
       },

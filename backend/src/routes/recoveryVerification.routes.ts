@@ -20,7 +20,7 @@ const router = Router();
  */
 router.get('/status', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).users.id;
     console.log('🔍 [Recovery Verification] Getting status for userId:', userId);
     const status = await getUserVerificationStatus(userId);
     res.json(status);
@@ -36,7 +36,7 @@ router.get('/status', authenticateToken, async (req: Request, res: Response) => 
  */
 router.post('/send-email-link', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).users.id;
     await sendEmailVerificationLink(userId);
     res.json({ success: true, message: 'Verification email sent' });
   } catch (error: any) {
@@ -51,7 +51,7 @@ router.post('/send-email-link', authenticateToken, async (req: Request, res: Res
  */
 router.post('/send-phone-link', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).users.id;
     await sendPhoneVerificationLink(userId);
     res.json({ success: true, message: 'Verification SMS sent' });
   } catch (error: any) {
@@ -66,7 +66,7 @@ router.post('/send-phone-link', authenticateToken, async (req: Request, res: Res
  */
 router.post('/add-phone', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).users.id;
     const { phoneNumber } = req.body;
 
     if (!phoneNumber) {

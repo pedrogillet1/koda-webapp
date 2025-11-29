@@ -29,7 +29,7 @@ export class FormatTypeClassifierService {
   classify(query: string): FormatClassification {
     const queryLower = query.toLowerCase().trim();
 
-    // Type 3: Document List Queries
+    // Type 3: documents List Queries
     // "Which documents mention X?", "Show me all documents", "What files contain Y?"
     if (this.isDocumentListQuery(queryLower)) {
       console.log(`   📋 Format Type: DOCUMENT_LIST`);
@@ -90,7 +90,7 @@ export class FormatTypeClassifierService {
   }
 
   /**
-   * Type 3: Document List Queries
+   * Type 3: documents List Queries
    * "Which documents mention X?", "Show me all files", "What PDFs do I have?"
    */
   private isDocumentListQuery(query: string): boolean {

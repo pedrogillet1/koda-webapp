@@ -9,7 +9,7 @@ datasource db {
 }
 
 model action_history {
-  id           String   @id
+  id           String   @id @default(uuid())
   userId       String
   actionType   String
   targetPath   String
@@ -28,7 +28,7 @@ model action_history {
 }
 
 model analysis_sessions {
-  id                String              @id
+  id                String              @id @default(uuid())
   userId            String
   sessionType       String              @default("document_analysis")
   status            String              @default("active")
@@ -45,7 +45,7 @@ model analysis_sessions {
 }
 
 model api_keys {
-  id          String    @id
+  id          String    @id @default(uuid())
   userId      String
   name        String
   keyHash     String    @unique
@@ -60,7 +60,7 @@ model api_keys {
   ipWhitelist String?
   userAgent   String?
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime
+  updatedAt   DateTime @updatedAt
 
   @@index([isActive])
   @@index([keyHash])
@@ -68,7 +68,7 @@ model api_keys {
 }
 
 model api_usage {
-  id                String   @id
+  id                String   @id @default(uuid())
   userId            String
   month             String
   geminiTokensUsed  Int      @default(0)
@@ -76,7 +76,7 @@ model api_usage {
   chatRequests      Int      @default(0)
   costUSD           Float    @default(0.0)
   createdAt         DateTime @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
 
   @@unique([userId, month])
   @@index([month])
@@ -84,7 +84,7 @@ model api_usage {
 }
 
 model audit_logs {
-  id        String   @id
+  id        String   @id @default(uuid())
   userId    String?
   action    String
   resource  String?
@@ -101,14 +101,14 @@ model audit_logs {
 }
 
 model categories {
-  id                  String                @id
+  id                  String                @id @default(uuid())
   userId              String
   name                String
   description         String?
   color               String?
   icon                String?
   createdAt           DateTime              @default(now())
-  updatedAt           DateTime
+  updatedAt           DateTime @updatedAt
   document_categories document_categories[]
 
   @@unique([userId, name])
@@ -116,7 +116,7 @@ model categories {
 }
 
 model causal_relationships {
-  id                String   @id
+  id                String   @id @default(uuid())
   userId            String
   effect            String
   causes            String
@@ -131,7 +131,7 @@ model causal_relationships {
   confidence        Float    @default(0.5)
   isVerified        Boolean  @default(false)
   createdAt         DateTime @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
 
   @@index([confidence])
   @@index([userId, domain])
@@ -139,7 +139,7 @@ model causal_relationships {
 }
 
 model chat_contexts {
-  id              String        @id
+  id              String        @id @default(uuid())
   conversationId  String
   messageId       String?
   sourceDocuments String
@@ -154,7 +154,7 @@ model chat_contexts {
 }
 
 model chat_documents {
-  id               String    @id
+  id               String    @id @default(uuid())
   messageId        String
   conversationId   String
   userId           String
@@ -176,7 +176,7 @@ model chat_documents {
 }
 
 model cloud_integrations {
-  id             String    @id
+  id             String    @id @default(uuid())
   userId         String
   provider       String
   accessToken    String
@@ -187,7 +187,7 @@ model cloud_integrations {
   isActive       Boolean   @default(true)
   lastSyncedAt   DateTime?
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime
+  updatedAt      DateTime @updatedAt
   users          users     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
@@ -195,7 +195,7 @@ model cloud_integrations {
 }
 
 model comparative_data {
-  id                    String   @id
+  id                    String   @id @default(uuid())
   userId                String
   conceptA              String
   conceptB              String
@@ -209,7 +209,7 @@ model comparative_data {
   confidence            Float    @default(0.5)
   isVerified            Boolean  @default(false)
   createdAt             DateTime @default(now())
-  updatedAt             DateTime
+  updatedAt             DateTime @updatedAt
 
   @@unique([userId, conceptA, conceptB])
   @@index([conceptA])
@@ -218,7 +218,7 @@ model comparative_data {
 }
 
 model concept_relationships {
-  id                                                                     String           @id
+  id                                                                     String           @id @default(uuid())
   userId                                                                 String
   fromConceptId                                                          String
   toConceptId                                                            String
@@ -239,7 +239,7 @@ model concept_relationships {
 }
 
 model conversation_summaries {
-  id             String   @id
+  id             String   @id @default(uuid())
   userId         String
   conversationId String
   summary        String
@@ -252,7 +252,7 @@ model conversation_summaries {
 }
 
 model conversation_topics {
-  id           String   @id
+  id           String   @id @default(uuid())
   userId       String
   topicSummary String
   firstSeen    DateTime
@@ -266,11 +266,11 @@ model conversation_topics {
 }
 
 model conversations {
-  id                String          @id
+  id                String          @id @default(uuid())
   userId            String
   title             String          @default("New Chat")
   createdAt         DateTime        @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
   titleEncrypted    String?
   encryptionSalt    String?
   encryptionIV      String?
@@ -291,7 +291,7 @@ model conversations {
 }
 
 model document_categories {
-  id         String     @id
+  id         String     @id @default(uuid())
   documentId String
   categoryId String
   createdAt  DateTime   @default(now())
@@ -304,7 +304,7 @@ model document_categories {
 }
 
 model document_edit_history {
-  id                  String              @id
+  id                  String              @id @default(uuid())
   generatedDocumentId String
   editNumber          Int
   editType            String
@@ -322,7 +322,7 @@ model document_edit_history {
 }
 
 model document_embeddings {
-  id         String    @id
+  id         String    @id @default(uuid())
   documentId String
   chunkIndex Int
   content    String
@@ -336,7 +336,7 @@ model document_embeddings {
 }
 
 model document_entities {
-  id              String   @id
+  id              String   @id @default(uuid())
   documentId      String
   entityType      String
   value           String
@@ -355,7 +355,7 @@ model document_entities {
 }
 
 model document_keywords {
-  id         String   @id
+  id         String   @id @default(uuid())
   documentId String
   word       String
   count      Int
@@ -366,7 +366,7 @@ model document_keywords {
 }
 
 model document_metadata {
-  id                    String    @id
+  id                    String    @id @default(uuid())
   documentId            String    @unique
   extractedText         String?
   ocrConfidence         Float?
@@ -396,12 +396,12 @@ model document_metadata {
   slideGenerationStatus String?   @default("pending")
   slideGenerationError  String?
   createdAt             DateTime  @default(now())
-  updatedAt             DateTime
+  updatedAt             DateTime @updatedAt
   documents             documents @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
 model document_shares {
-  id                                        String    @id
+  id                                        String    @id @default(uuid())
   documentId                                String
   ownerId                                   String
   sharedWithId                              String
@@ -411,7 +411,7 @@ model document_shares {
   canDelete                                 Boolean   @default(false)
   expiresAt                                 DateTime?
   createdAt                                 DateTime  @default(now())
-  updatedAt                                 DateTime
+  updatedAt                                 DateTime @updatedAt
   users_document_shares_ownerIdTousers      users     @relation("document_shares_ownerIdTousers", fields: [ownerId], references: [id], onDelete: Cascade)
   users_document_shares_sharedWithIdTousers users     @relation("document_shares_sharedWithIdTousers", fields: [sharedWithId], references: [id], onDelete: Cascade)
 
@@ -422,7 +422,7 @@ model document_shares {
 }
 
 model document_summaries {
-  id          String    @id
+  id          String    @id @default(uuid())
   documentId  String
   summary     String
   summaryType String    @default("standard")
@@ -433,7 +433,7 @@ model document_summaries {
 }
 
 model document_tags {
-  id         String    @id
+  id         String    @id @default(uuid())
   documentId String
   tagId      String
   createdAt  DateTime  @default(now())
@@ -446,7 +446,7 @@ model document_tags {
 }
 
 model document_templates {
-  id                  String                @id
+  id                  String                @id @default(uuid())
   userId              String?
   name                String
   description         String?
@@ -455,7 +455,7 @@ model document_templates {
   isSystem            Boolean               @default(false)
   usageCount          Int                   @default(0)
   createdAt           DateTime              @default(now())
-  updatedAt           DateTime
+  updatedAt           DateTime @updatedAt
   generated_documents generated_documents[]
 
   @@index([category])
@@ -464,7 +464,7 @@ model document_templates {
 }
 
 model documents {
-  id                     String                @id
+  id                     String                @id @default(uuid())
   userId                 String
   folderId               String?
   filename               String
@@ -482,7 +482,7 @@ model documents {
   extractedTextEncrypted String?
   renderableContent      String?
   createdAt              DateTime              @default(now())
-  updatedAt              DateTime
+  updatedAt              DateTime @updatedAt
   document_categories    document_categories[]
   document_embeddings    document_embeddings[]
   document_metadata      document_metadata?
@@ -511,7 +511,7 @@ model documents {
 }
 
 model domain_knowledge {
-  id                                                                          String                  @id
+  id                                                                          String                  @id @default(uuid())
   userId                                                                      String
   term                                                                        String
   normalizedTerm                                                              String
@@ -531,7 +531,7 @@ model domain_knowledge {
   confidence                                                                  Float                   @default(0.5)
   isVerified                                                                  Boolean                 @default(false)
   createdAt                                                                   DateTime                @default(now())
-  updatedAt                                                                   DateTime
+  updatedAt                                                                   DateTime @updatedAt
   lastAccessedAt                                                              DateTime                @default(now())
   accessCount                                                                 Int                     @default(0)
   concept_relationships_concept_relationships_fromConceptIdTodomain_knowledge concept_relationships[] @relation("concept_relationships_fromConceptIdTodomain_knowledge")
@@ -547,7 +547,7 @@ model domain_knowledge {
 }
 
 model excel_cells {
-  id           String       @id
+  id           String       @id @default(uuid())
   sheetId      String
   rowIndex     Int
   colIndex     Int
@@ -563,7 +563,7 @@ model excel_cells {
 }
 
 model excel_sheets {
-  id          String        @id
+  id          String        @id @default(uuid())
   documentId  String
   sheetIndex  Int
   sheetName   String
@@ -580,7 +580,7 @@ model excel_sheets {
 }
 
 model folder_summaries {
-  id                  String    @id
+  id                  String    @id @default(uuid())
   folderId            String    @unique
   userId              String
   summary             String
@@ -588,14 +588,14 @@ model folder_summaries {
   themes              String[]  @default([])
   lastDocumentAddedAt DateTime?
   createdAt           DateTime  @default(now())
-  updatedAt           DateTime
+  updatedAt           DateTime @updatedAt
 
   @@index([folderId])
   @@index([userId])
 }
 
 model folders {
-  id                String      @id
+  id                String      @id @default(uuid())
   userId            String
   name              String
   description       String?
@@ -604,7 +604,7 @@ model folders {
   parentFolderId    String?
   path              String?
   createdAt         DateTime    @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
   nameEncrypted     String?
   encryptionSalt    String?
   encryptionIV      String?
@@ -622,7 +622,7 @@ model folders {
 }
 
 model generated_documents {
-  id                    String                  @id
+  id                    String                  @id @default(uuid())
   userId                String
   documentId            String                  @unique
   generationType        String
@@ -650,11 +650,11 @@ model generated_documents {
 }
 
 model interaction_metadata {
-  id            String   @id
+  id            String   @id @default(uuid())
   userId        String
   metadataType  String
   metadataValue String
-  updatedAt     DateTime
+  updatedAt     DateTime @updatedAt
   users         users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, metadataType])
@@ -662,13 +662,13 @@ model interaction_metadata {
 }
 
 model knowledge_entries {
-  id         String   @id
+  id         String   @id @default(uuid())
   documentId String
   type       String
   content    String
   metadata   Json?
   createdAt  DateTime @default(now())
-  updatedAt  DateTime
+  updatedAt  DateTime @updatedAt
 
   @@index([documentId])
   @@index([documentId, type])
@@ -676,7 +676,7 @@ model knowledge_entries {
 }
 
 model memories {
-  id           String        @id
+  id           String        @id @default(uuid())
   userId       String
   section      MemorySection
   content      String
@@ -694,7 +694,7 @@ model memories {
 }
 
 model message_attachments {
-  id                String   @id
+  id                String   @id @default(uuid())
   messageId         String
   conversationId    String
   userId            String
@@ -709,7 +709,7 @@ model message_attachments {
   editHistory       String?
   editCount         Int      @default(0)
   createdAt         DateTime @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
   messages          messages @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([attachmentType])
@@ -719,7 +719,7 @@ model message_attachments {
 }
 
 model messages {
-  id                  String                @id
+  id                  String                @id @default(uuid())
   conversationId      String
   role                String
   content             String
@@ -745,7 +745,7 @@ model messages {
 }
 
 model methodology_knowledge {
-  id                String   @id
+  id                String   @id @default(uuid())
   userId            String
   name              String
   aliases           String?
@@ -764,7 +764,7 @@ model methodology_knowledge {
   confidence        Float    @default(0.5)
   isVerified        Boolean  @default(false)
   createdAt         DateTime @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
   lastAccessedAt    DateTime @default(now())
   accessCount       Int      @default(0)
 
@@ -777,7 +777,7 @@ model methodology_knowledge {
 }
 
 model notifications {
-  id                String     @id
+  id                String     @id @default(uuid())
   userId            String
   type              String
   title             String
@@ -794,7 +794,7 @@ model notifications {
 }
 
 model pending_users {
-  id                 String   @id
+  id                 String   @id @default(uuid())
   email              String   @unique
   passwordHash       String
   salt               String
@@ -814,7 +814,7 @@ model pending_users {
 }
 
 model permissions {
-  id               String             @id
+  id               String             @id @default(uuid())
   resource         String
   action           String
   description      String?
@@ -826,7 +826,7 @@ model permissions {
 }
 
 model practical_recommendations {
-  id                String   @id
+  id                String   @id @default(uuid())
   userId            String
   recommendation    String
   category          String
@@ -842,7 +842,7 @@ model practical_recommendations {
   confidence        Float    @default(0.5)
   isVerified        Boolean  @default(false)
   createdAt         DateTime @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
 
   @@index([category])
   @@index([consensusLevel])
@@ -852,7 +852,7 @@ model practical_recommendations {
 }
 
 model reminders {
-  id            String          @id
+  id            String          @id @default(uuid())
   userId        String
   title         String
   description   String?
@@ -861,7 +861,7 @@ model reminders {
   notified      Boolean         @default(false)
   documentId    String?
   createdAt     DateTime        @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime @updatedAt
   notifications notifications[]
   users         users           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -870,7 +870,7 @@ model reminders {
 }
 
 model role_hierarchy {
-  id                                       String   @id
+  id                                       String   @id @default(uuid())
   parentRoleId                             String
   childRoleId                              String
   createdAt                                DateTime @default(now())
@@ -883,7 +883,7 @@ model role_hierarchy {
 }
 
 model role_permissions {
-  id           String      @id
+  id           String      @id @default(uuid())
   roleId       String
   permissionId String
   createdAt    DateTime    @default(now())
@@ -896,13 +896,13 @@ model role_permissions {
 }
 
 model roles {
-  id                                                String             @id
+  id                                                String             @id @default(uuid())
   name                                              String             @unique
   description                                       String?
   priority                                          Int                @default(0)
   isSystem                                          Boolean            @default(false)
   createdAt                                         DateTime           @default(now())
-  updatedAt                                         DateTime
+  updatedAt                                         DateTime @updatedAt
   role_hierarchy_role_hierarchy_childRoleIdToroles  role_hierarchy[]   @relation("role_hierarchy_childRoleIdToroles")
   role_hierarchy_role_hierarchy_parentRoleIdToroles role_hierarchy[]   @relation("role_hierarchy_parentRoleIdToroles")
   role_permissions                                  role_permissions[]
@@ -913,7 +913,7 @@ model roles {
 }
 
 model session_documents {
-  id                String            @id
+  id                String            @id @default(uuid())
   sessionId         String
   userId            String
   filename          String
@@ -934,7 +934,7 @@ model session_documents {
 }
 
 model sessions {
-  id               String   @id
+  id               String   @id @default(uuid())
   userId           String
   refreshTokenHash String
   expiresAt        DateTime
@@ -959,7 +959,7 @@ model sessions {
 }
 
 model tags {
-  id            String          @id
+  id            String          @id @default(uuid())
   userId        String
   name          String
   color         String?
@@ -972,7 +972,7 @@ model tags {
 }
 
 model terminology_maps {
-  id        String   @id
+  id        String   @id @default(uuid())
   userId    String
   term      String
   synonyms  String
@@ -987,7 +987,7 @@ model terminology_maps {
 }
 
 model trend_patterns {
-  id                String   @id
+  id                String   @id @default(uuid())
   userId            String
   subject           String
   trendType         String
@@ -1002,7 +1002,7 @@ model trend_patterns {
   confidence        Float    @default(0.5)
   isVerified        Boolean  @default(false)
   createdAt         DateTime @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
 
   @@index([subject])
   @@index([trendType])
@@ -1011,25 +1011,25 @@ model trend_patterns {
 }
 
 model two_factor_auth {
-  id          String   @id
+  id          String   @id @default(uuid())
   userId      String   @unique
   secret      String
   backupCodes String
   isEnabled   Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime
+  updatedAt   DateTime @updatedAt
   users       users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model user_insights {
-  id          String   @id
+  id          String   @id @default(uuid())
   userId      String
   insightType String
   insightText String
   confidence  Float    @default(0.5)
   evidence    String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime
+  updatedAt   DateTime @updatedAt
   users       users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -1037,25 +1037,25 @@ model user_insights {
 }
 
 model user_preferences {
-  id                        String   @id
+  id                        String   @id @default(uuid())
   userId                    String   @unique
   emailNotificationsEnabled Boolean  @default(true)
   emailNotificationTypes    String?
   notificationFrequency     String   @default("immediate")
   createdAt                 DateTime @default(now())
-  updatedAt                 DateTime
+  updatedAt                 DateTime @updatedAt
   users                     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model user_preferences_memory {
-  id              String   @id
+  id              String   @id @default(uuid())
   userId          String
   preferenceType  String
   preferenceValue String
   confidence      Float    @default(0.5)
   evidence        String?
   createdAt       DateTime @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime @updatedAt
   users           users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -1063,21 +1063,21 @@ model user_preferences_memory {
 }
 
 model user_profiles {
-  id             String   @id
+  id             String   @id @default(uuid())
   userId         String   @unique
   name           String?
   role           String?
   organization   String?
   expertiseLevel String?
   createdAt      DateTime @default(now())
-  updatedAt      DateTime
+  updatedAt      DateTime @updatedAt
   users          users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
 model user_roles {
-  id        String    @id
+  id        String    @id @default(uuid())
   userId    String
   roleId    String
   grantedBy String?
@@ -1091,7 +1091,7 @@ model user_roles {
 }
 
 model users {
-  id                                                  String                    @id
+  id                                                  String                    @id @default(uuid())
   email                                               String                    @unique
   firstName                                           String?
   lastName                                            String?
@@ -1107,7 +1107,7 @@ model users {
   role                                                String                    @default("user")
   storageUsedBytes                                    BigInt                    @default(0)
   createdAt                                           DateTime                  @default(now())
-  updatedAt                                           DateTime
+  updatedAt                                           DateTime @updatedAt
   recoveryKeyHash                                     String?
   masterKeyEncrypted                                  String?
   action_history                                      action_history[]
@@ -1137,7 +1137,7 @@ model users {
 }
 
 model verification_codes {
-  id        String   @id
+  id        String   @id @default(uuid())
   userId    String
   type      String
   code      String

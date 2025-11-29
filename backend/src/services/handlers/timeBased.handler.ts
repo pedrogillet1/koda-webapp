@@ -311,7 +311,7 @@ export class TimeBasedHandler {
       fileSize: doc.fileSize,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
-      folderName: doc.folder?.name,
+      folderName: doc.folders?.name,
       status: doc.status
     }));
 

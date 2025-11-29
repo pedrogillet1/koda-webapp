@@ -17,7 +17,7 @@ class HierarchyQueryHandler {
     console.log(`\n🌲 HIERARCHY QUERY: Building document structure for user ${userId.substring(0, 8)}...`);
 
     // Get all categories
-    const categories = await prisma.category.findMany({
+    const categories = await prisma.categories.findMany({
       where: { userId: userId },
       include: {
         _count: {
@@ -86,7 +86,7 @@ class HierarchyQueryHandler {
       const byCategory = new Map<string, typeof rootFolders>();
 
       for (const folder of rootFolders) {
-        const categoryId = folder.category?.id || 'uncategorized';
+        const categoryId = folder.categories?.id || 'uncategorized';
         const existing = byCategory.get(categoryId) || [];
         existing.push(folder);
         byCategory.set(categoryId, existing);
@@ -193,7 +193,7 @@ class HierarchyQueryHandler {
       name: folder.name,
       documentCount: folder._count.documents,
       subfolderCount: folder._count.subfolders,
-      category: folder.category,
+      category: folder.categories,
       subfolders: []
     };
 

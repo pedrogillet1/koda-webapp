@@ -172,31 +172,31 @@ export async function sendPhoneVerificationLink(userId: string): Promise<void> {
  */
 export async function verifyEmailWithToken(token: string): Promise<{ success: boolean; message: string }> {
   // Find verification code
-  const verificationCode = await prisma.verification_codes.findFirst({
+  const verification_codes = await prisma.verification_codes.findFirst({
     where: {
       code: token,
       type: 'email_recovery',
       expiresAt: { gte: new Date() },
     },
-    include: { user: true },
+    include: { users: true },
   });
 
-  if (!verificationCode) {
+  if (!verification_codes) {
     return { success: false, message: 'Invalid or expired verification link' };
   }
 
   // Mark email as verified
   await prisma.users.update({
-    where: { id: verificationCode.userId },
+    where: { id: verification_codes.userId },
     data: { isEmailVerified: true },
   });
 
   // Delete used verification code
   await prisma.verification_codes.delete({
-    where: { id: verificationCode.id },
+    where: { id: verification_codes.id },
   });
 
-  console.log(`✅ Email verified for user ${verificationCode.userId}`);
+  console.log(`✅ Email verified for user ${verification_codes.userId}`);
   return { success: true, message: 'Email verified successfully' };
 }
 
@@ -205,31 +205,31 @@ export async function verifyEmailWithToken(token: string): Promise<{ success: bo
  */
 export async function verifyPhoneWithToken(token: string): Promise<{ success: boolean; message: string }> {
   // Find verification code
-  const verificationCode = await prisma.verification_codes.findFirst({
+  const verification_codes = await prisma.verification_codes.findFirst({
     where: {
       code: token,
       type: 'phone_recovery',
       expiresAt: { gte: new Date() },
     },
-    include: { user: true },
+    include: { users: true },
   });
 
-  if (!verificationCode) {
+  if (!verification_codes) {
     return { success: false, message: 'Invalid or expired verification link' };
   }
 
   // Mark phone as verified
   await prisma.users.update({
-    where: { id: verificationCode.userId },
+    where: { id: verification_codes.userId },
     data: { isPhoneVerified: true },
   });
 
   // Delete used verification code
   await prisma.verification_codes.delete({
-    where: { id: verificationCode.id },
+    where: { id: verification_codes.id },
   });
 
-  console.log(`✅ Phone verified for user ${verificationCode.userId}`);
+  console.log(`✅ Phone verified for user ${verification_codes.userId}`);
   return { success: true, message: 'Phone verified successfully' };
 }
 

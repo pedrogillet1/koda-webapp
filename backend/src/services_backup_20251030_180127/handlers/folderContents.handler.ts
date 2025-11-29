@@ -65,7 +65,7 @@ class FolderContentsHandler {
     // Try to find category if folder not found
     let category = null;
     if (!folder) {
-      category = await prisma.category.findFirst({
+      category = await prisma.categories.findFirst({
         where: {
           userId: userId,
           name: { equals: folderOrCategoryName, mode: 'insensitive' }
@@ -74,7 +74,7 @@ class FolderContentsHandler {
 
       // Try fuzzy matching for category
       if (!category) {
-        const allCategories = await prisma.category.findMany({
+        const allCategories = await prisma.categories.findMany({
           where: { userId: userId }
         });
 
@@ -87,7 +87,7 @@ class FolderContentsHandler {
           .sort((a, b) => b.similarity - a.similarity);
 
         if (fuzzyMatches.length > 0) {
-          category = fuzzyMatches[0].category;
+          category = fuzzyMatches[0].categories;
           console.log(`   Found fuzzy category match: "${category.name}" (${(fuzzyMatches[0].similarity * 100).toFixed(0)}% similar)`);
         }
       }
@@ -128,8 +128,8 @@ class FolderContentsHandler {
    */
   private async handleFolderContents(folder: any, userId: string): Promise<RAGResponse> {
     const folderPath = await getFolderPath(folder.id);
-    const categoryName = folder.category?.name || 'Uncategorized';
-    const categoryEmoji = folder.category?.emoji || '📁';
+    const categoryName = folder.categories?.name || 'Uncategorized';
+    const categoryEmoji = folder.categories?.emoji || '📁';
 
     // Get documents in this folder
     const documents = await prisma.documents.findMany({
@@ -298,7 +298,7 @@ class FolderContentsHandler {
       if (documentsInFolders.length > 0) {
         answer += `**In Folders:**\n`;
         documentsInFolders.slice(0, 10).forEach((doc, index) => {
-          const folderName = doc.folder?.name || 'Unknown';
+          const folderName = doc.folders?.name || 'Unknown';
           answer += `${index + 1}. ${doc.filename}\n`;
           answer += `   📁 ${folderName} • 📊 ${formatFileSize(doc.fileSize)}\n\n`;
         });

@@ -370,7 +370,7 @@ export async function processDocumentInBackground(
     }
 
     // Create metadata record with enriched data
-    await prisma.documentsMetadatas.create({
+    await prisma.document_metadata.create({
       data: {
         documentId,
         extractedText,
@@ -871,7 +871,7 @@ async function processDocumentAsync(
     }
 
     // Create metadata record
-    await prisma.documentsMetadatas.create({
+    await prisma.document_metadata.create({
       data: {
         documentId,
         extractedText,
@@ -1835,7 +1835,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 
           // Update metadata with slides data
           if (document.document_metadata) {
-            await prisma.documentsMetadatas.update({
+            await prisma.document_metadata.update({
               where: { id: document.document_metadata.id },
               data: {
                 extractedText,
@@ -1845,7 +1845,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
               }
             });
           } else {
-            await prisma.documentsMetadatas.create({
+            await prisma.document_metadata.create({
               data: {
                 documentId,
                 extractedText,
@@ -1906,7 +1906,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 
       // Update metadata with extracted text
       if (document.document_metadata) {
-        await prisma.documentsMetadatas.update({
+        await prisma.document_metadata.update({
           where: { id: document.document_metadata.id },
           data: {
             extractedText,
@@ -1915,7 +1915,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
           }
         });
       } else {
-        await prisma.documentsMetadatas.create({
+        await prisma.document_metadata.create({
           data: {
             documentId,
             extractedText,
@@ -2033,7 +2033,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
         height: slide.height || 1080,
       }));
 
-      await prisma.documentsMetadatas.update({
+      await prisma.document_metadata.update({
         where: { documentId: document.id },
         data: {
           slidesData: JSON.stringify(slidesData),

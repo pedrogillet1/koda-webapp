@@ -400,8 +400,8 @@ class ConversationStateService {
       criteria.folderId = state.filters.folder;
     }
 
-    if (state.filters.category) {
-      criteria.categoryId = state.filters.category;
+    if (state.filters.categories) {
+      criteria.categoryId = state.filters.categories;
     }
 
     if (state.filters.dateRange) {

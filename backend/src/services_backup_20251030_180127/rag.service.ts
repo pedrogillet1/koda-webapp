@@ -383,7 +383,7 @@ class RAGService {
           doc.document_metadata?.extractedText || ''
         );
 
-        if (classification.category === documentType) {
+        if (classification.categories === documentType) {
           matchingDocs.push({
             filename: doc.filename,
             confidence: classification.confidence
@@ -835,7 +835,7 @@ class RAGService {
     // ═══════════════════════════════════════════════════════════════
     // STAGE 0.5: FOLDER SCOPING (Folder-based Retrieval)
     // ═══════════════════════════════════════════════════════════════
-    console.log(`\n┌─ STAGE 0.5: Folder Scoping`);
+    console.log(`\n┌─ STAGE 0.5: folders Scoping`);
     const folderScopingStart = Date.now();
 
     // Parse query to detect folder intent
@@ -865,8 +865,8 @@ class RAGService {
       );
 
       if (folderResolution.folder) {
-        scopedFolderId = folderResolution.folder.id;
-        scopedFolderName = folderResolution.folder.name;
+        scopedFolderId = folderResolution.folders.id;
+        scopedFolderName = folderResolution.folders.name;
         console.log(`   ✅ Matched folder: "${scopedFolderName}"`);
 
         // Save folder context to conversation for future messages
@@ -956,13 +956,13 @@ class RAGService {
       retrievalOptions.documentIds = [documentId];
       retrievalOptions.topK = 50; // Increased for better single-doc retrieval
     }
-    // PRIORITY 1: Folder-scoped retrieval (when user asks about a specific folder)
+    // PRIORITY 1: folders-scoped retrieval (when user asks about a specific folder)
     else if (scopedFolderId) {
       console.log(`   📁 FOLDER-SCOPED RETRIEVAL - Restricting to folder: "${scopedFolderName}"`);
       retrievalOptions.folderId = scopedFolderId;
       retrievalOptions.topK = 35; // Increased for better folder retrieval
     }
-    // PRIORITY 2: Document-scoped retrieval (when user asks about a specific document)
+    // PRIORITY 2: documents-scoped retrieval (when user asks about a specific document)
     else if (scopedDocumentId) {
       console.log(`   🎯 DOCUMENT-SCOPED RETRIEVAL - Restricting to matched document: "${documentMatch?.filename}"`);
       retrievalOptions.documentIds = [scopedDocumentId];
@@ -980,7 +980,7 @@ class RAGService {
       retrievalOptions.documentIds = contextDocumentIds;
       retrievalOptions.topK = Math.min(150, 100 + (contextDocumentIds.length * 10)); // Scale topK with document count
     }
-    // PRIORITY 3.5: Folder context filtering (when folder context is saved)
+    // PRIORITY 3.5: folders context filtering (when folder context is saved)
     else if (contextFolderId && contextFolderName) {
       console.log(`   📁 FOLDER CONTEXT detected - Restricting to folder: "${contextFolderName}"`);
       retrievalOptions.folderId = contextFolderId;

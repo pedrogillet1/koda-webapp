@@ -12,7 +12,7 @@ export const checkUpcomingReminders = async () => {
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     // Get reminders due in next 24 hours that haven't been notified
-    const reminders = await prisma.reminder.findMany({
+    const reminders = await prisma.reminders.findMany({
       where: {
         dueDate: {
           lte: tomorrow,
@@ -59,7 +59,7 @@ export const checkOverdueReminders = async () => {
   try {
     const now = new Date();
 
-    const overdueReminders = await prisma.reminder.findMany({
+    const overdueReminders = await prisma.reminders.findMany({
       where: {
         dueDate: {
           lt: now,
@@ -81,7 +81,7 @@ export const checkOverdueReminders = async () => {
     // You could send notifications or cleanup here
     // For now, just log them
     for (const reminder of overdueReminders) {
-      console.log(`⚠️  Overdue reminder: ${reminder.title} (User: ${reminder.user.email})`);
+      console.log(`⚠️  Overdue reminder: ${reminder.title} (User: ${reminder.users.email})`);
     }
   } catch (error) {
     console.error('Error checking overdue reminders:', error);

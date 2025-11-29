@@ -337,7 +337,7 @@ class MetadataQueryService {
 
   /**
    * List all folders with full hierarchical paths
-   * Task #4: Folder-aware queries with deterministic file system introspection
+   * Task #4: folders-aware queries with deterministic file system introspection
    */
   async listAllFolders(userId: string): Promise<MetadataQueryResult> {
     console.log(`📁 Listing all folders with paths for user`);
@@ -351,7 +351,7 @@ class MetadataQueryService {
             subfolders: true
           }
         },
-        parentFolder: {
+        folders: {
           select: {
             id: true,
             name: true
@@ -440,7 +440,7 @@ class MetadataQueryService {
 
   /**
    * Find document location by filename
-   * Task #5: Document location queries with exact folder paths
+   * Task #5: documents location queries with exact folder paths
    */
   async findDocumentLocation(userId: string, filename: string): Promise<MetadataQueryResult> {
     console.log(`📍 Finding location for document: "${filename}"`);
@@ -456,7 +456,7 @@ class MetadataQueryService {
       include: {
         folders: {
           include: {
-            parentFolder: {
+            folders: {
               select: {
                 id: true,
                 name: true
@@ -491,7 +491,7 @@ class MetadataQueryService {
       answer += `📄 **${doc.filename}**\n`;
 
       // Build full folder path
-      if (doc.folderId && doc.folder) {
+      if (doc.folderId && doc.folders) {
         const folderPath = await this.buildFolderPath(doc.folderId, userId);
         answer += `   📁 Location: ${folderPath}\n`;
       } else {
@@ -513,7 +513,7 @@ class MetadataQueryService {
           id: doc.id,
           filename: doc.filename,
           folderId: doc.folderId,
-          folderName: doc.folder?.name,
+          folderName: doc.folders?.name,
           mimeType: doc.mimeType,
           fileSize: doc.fileSize,
           createdAt: doc.createdAt
@@ -525,7 +525,7 @@ class MetadataQueryService {
 
   /**
    * List files in a specific folder by path
-   * Task #4: Folder-aware queries with exact paths
+   * Task #4: folders-aware queries with exact paths
    */
   async listFilesInFolderPath(userId: string, folderPath: string): Promise<MetadataQueryResult> {
     console.log(`📂 Listing files in folder path: "${folderPath}"`);

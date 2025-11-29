@@ -39,7 +39,7 @@ router.get('/audit-logs', async (req: Request, res: Response) => {
     }
 
     const limit = parseInt(req.query.limit as string) || 50;
-    const logs = await getUserAuditLogs(req.user.id, limit);
+    const logs = await getUserAuditLogs(req.users.id, limit);
 
     return res.json({ logs });
   } catch (error) {
@@ -80,7 +80,7 @@ router.get('/suspicious-activity', async (req: Request, res: Response) => {
     }
 
     const timeWindow = parseInt(req.query.timeWindow as string) || 60;
-    const activity = await detectSuspiciousActivity(req.user.id, timeWindow);
+    const activity = await detectSuspiciousActivity(req.users.id, timeWindow);
 
     return res.json(activity);
   } catch (error) {
@@ -125,7 +125,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     const userStats = await prisma.audit_logs.groupBy({
       by: ['status'],
       where: {
-        userId: req.user.id,
+        userId: req.users.id,
         createdAt: { gte: yesterday },
       },
       _count: true,
@@ -136,10 +136,10 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     const successRate = totalRequests > 0 ? ((totalRequests - failedRequests) / totalRequests) * 100 : 100;
 
     // Recent activity
-    const recentActivity = await getUserAuditLogs(req.user.id, 10);
+    const recentActivity = await getUserAuditLogs(req.users.id, 10);
 
     // Suspicious activity check
-    const suspiciousCheck = await detectSuspiciousActivity(req.user.id, 60);
+    const suspiciousCheck = await detectSuspiciousActivity(req.users.id, 60);
 
     return res.json({
       summary: {
@@ -241,7 +241,7 @@ router.get('/sessions', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const summary = await sessionManagementService.getUserSessionSummary(req.user.id);
+    const summary = await sessionManagementService.getUserSessionSummary(req.users.id);
     return res.json(summary);
   } catch (error) {
     console.error('Error fetching sessions:', error);
@@ -260,7 +260,7 @@ router.delete('/sessions/:sessionId', async (req: Request, res: Response) => {
     }
 
     const { sessionId } = req.params;
-    const revoked = await sessionManagementService.revokeSession(sessionId, req.user.id);
+    const revoked = await sessionManagementService.revokeSession(sessionId, req.users.id);
 
     if (!revoked) {
       return res.status(404).json({ error: 'Session not found or already revoked' });
@@ -284,7 +284,7 @@ router.post('/sessions/revoke-all', async (req: Request, res: Response) => {
     }
 
     const currentSessionId = req.headers['x-session-id'] as string;
-    const count = await sessionManagementService.invalidateAllUserSessions(req.user.id, currentSessionId);
+    const count = await sessionManagementService.invalidateAllUserSessions(req.users.id, currentSessionId);
 
     return res.json({
       message: 'All other sessions revoked successfully',
@@ -312,10 +312,10 @@ router.get('/threats', async (req: Request, res: Response) => {
                    || 'unknown';
 
     const [bruteForce, massDownload, suspiciousIP, unauthorizedAccess] = await Promise.all([
-      securityMonitoringService.detectBruteForce(req.user.id, ipAddress),
-      securityMonitoringService.detectMassDownload(req.user.id, ipAddress),
+      securityMonitoringService.detectBruteForce(req.users.id, ipAddress),
+      securityMonitoringService.detectMassDownload(req.users.id, ipAddress),
       securityMonitoringService.detectSuspiciousIP(ipAddress),
-      securityMonitoringService.detectUnauthorizedAccess(req.user.id),
+      securityMonitoringService.detectUnauthorizedAccess(req.users.id),
     ]);
 
     const threatLevels = [bruteForce, massDownload, suspiciousIP, unauthorizedAccess].map(t => t.threatLevel);

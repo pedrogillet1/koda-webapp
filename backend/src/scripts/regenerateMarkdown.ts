@@ -22,7 +22,7 @@ interface ProcessingStats {
  * Check if a document needs markdown regeneration
  */
 async function needsMarkdownRegeneration(documentId: string): Promise<boolean> {
-  const metadata = await prisma.documentsMetadatas.findUnique({
+  const metadata = await prisma.document_metadata.findUnique({
     where: { documentId },
     select: { markdownContent: true },
   });
@@ -108,7 +108,7 @@ async function processDocument(document: any, stats: ProcessingStats): Promise<v
     console.log(`   💾 Saving to database...`);
     await prisma.$transaction(async (tx) => {
       // Verify document belongs to the user (security check)
-      const doc = await tx.document.findUnique({
+      const doc = await tx.documents.findUnique({
         where: { id },
         select: { userId: true },
       });
@@ -118,11 +118,11 @@ async function processDocument(document: any, stats: ProcessingStats): Promise<v
       }
 
       if (doc.userId !== userId) {
-        throw new Error(`SECURITY: Document ${id} belongs to different user`);
+        throw new Error(`SECURITY: documents ${id} belongs to different user`);
       }
 
       // Upsert metadata
-      await tx.documentMetadata.upsert({
+      await tx.document_metadata.upsert({
         where: { documentId: id },
         create: {
           documentId: id,
@@ -148,7 +148,7 @@ async function processDocument(document: any, stats: ProcessingStats): Promise<v
       });
 
       // Update document status
-      await tx.document.update({
+      await tx.documents.update({
         where: { id },
         data: { status: 'completed' },
       });

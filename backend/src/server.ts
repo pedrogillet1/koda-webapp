@@ -505,7 +505,7 @@ httpServer.listen(portConfig.httpsPort, () => {
             }
 
             // Get thumbnail URL if exists
-            const metadata = await prisma.documentsMetadatas.findUnique({
+            const metadata = await prisma.document_metadata.findUnique({
               where: { documentId: doc.id },
             });
 

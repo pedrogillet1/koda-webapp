@@ -606,7 +606,7 @@ Rules:
         counts.set(key, existing);
 
         // Count categories
-        categories.set(m.category, (categories.get(m.category) || 0) + 1);
+        categories.set(m.categories, (categories.get(m.categories) || 0) + 1);
 
         // Track by year for trends
         if (year) {

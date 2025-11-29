@@ -17,6 +17,8 @@ import { getFileIcon } from '../utils/iconMapper';
 import GeneratedDocumentCard from './GeneratedDocumentCard';
 import DocumentCard from './DocumentCard';
 import DocumentPreviewModal from './DocumentPreviewModal';
+import FilePreviewModal from './FilePreviewModal';
+import FolderPreviewModal from './FolderPreviewModal';
 import { previewCache } from '../services/previewCache';
 import api from '../services/api';
 import MessageActions from './MessageActions';
@@ -79,6 +81,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [isDraggingOver, setIsDraggingOver] = useState(false);
     const [previewDocument, setPreviewDocument] = useState(null); // For document preview popup
     const [previewAttachOnClose, setPreviewAttachOnClose] = useState(false); // Attach file when preview closes
+    const [createdFilePreview, setCreatedFilePreview] = useState(null); // For created file preview modal
+    const [folderPreviewModal, setFolderPreviewModal] = useState({ isOpen: false, folder: null, contents: null }); // For folder preview modal
     const [socketReady, setSocketReady] = useState(false); // Track WebSocket connection state
     const [regeneratingMessageId, setRegeneratingMessageId] = useState(null); // Track which message is being regenerated
     const [error, setError] = useState(null); // Track current error for ErrorBanner
@@ -622,6 +626,23 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         fileSize: data.document.fileSize
                     });
                     setPreviewAttachOnClose(data.attachOnClose || false);
+                }
+
+                // Show folder modal
+                if (data.actionType === 'show_folder_modal' && data.success && data.folder) {
+                    console.log('📁 [SHOW_FOLDER_MODAL] Opening preview for:', data.folder.name);
+                    setFolderPreviewModal({
+                        isOpen: true,
+                        folder: data.folder,
+                        contents: data.contents
+                    });
+                }
+
+                // ✅ NEW: Handle file_created action (AI-generated files)
+                if (data.actionType === 'file_created' && data.success && data.file) {
+                    console.log('🎨 [FILE_CREATED] Opening preview for created file:', data.file.name);
+                    showSuccess(`Created ${data.file.name}`, { duration: 4000 });
+                    setCreatedFilePreview(data.file);
                 }
 
                 // ✅ NEW: Handle file action notifications (rename, move, delete, create folder)
@@ -4091,6 +4112,76 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 }}
                 document={previewDocument}
                 attachOnClose={previewAttachOnClose}
+            />
+
+            {/* File Preview Modal (for AI-created files) */}
+            <FilePreviewModal
+                file={createdFilePreview}
+                isOpen={!!createdFilePreview}
+                onClose={() => setCreatedFilePreview(null)}
+                onSave={async () => {
+                    if (!createdFilePreview) return;
+
+                    try {
+                        showSuccess(`Saved ${createdFilePreview.name} to your files`, { duration: 3000 });
+                        setCreatedFilePreview(null);
+                        // Refresh documents list if needed
+                        if (window.location.pathname === '/files') {
+                            window.location.reload();
+                        }
+                    } catch (error) {
+                        console.error('Error saving file:', error);
+                        showError('Failed to save file', { duration: 4000 });
+                    }
+                }}
+                onDownload={() => {
+                    if (!createdFilePreview) return;
+
+                    // Create download link
+                    const link = document.createElement('a');
+                    link.href = createdFilePreview.url;
+                    link.download = createdFilePreview.name;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    showSuccess(`Downloaded ${createdFilePreview.name}`, { duration: 3000 });
+                }}
+            />
+
+            {/* Folder Preview Modal */}
+            <FolderPreviewModal
+                isOpen={folderPreviewModal.isOpen}
+                folder={folderPreviewModal.folder}
+                contents={folderPreviewModal.contents}
+                onClose={() => setFolderPreviewModal({ isOpen: false, folder: null, contents: null })}
+                onNavigateToFolder={(folderId) => {
+                    // Navigate to folder in Documents page
+                    navigate(`/files?folder=${folderId}`);
+                    setFolderPreviewModal({ isOpen: false, folder: null, contents: null });
+                }}
+                onOpenFile={async (fileId) => {
+                    // Open file preview for a file inside the folder
+                    try {
+                        // Get document details
+                        const response = await api.get(`/api/document/${fileId}`);
+                        const document = response.data;
+
+                        setPreviewDocument({
+                            id: document.id,
+                            filename: document.filename,
+                            mimeType: document.mimeType,
+                            fileSize: document.fileSize
+                        });
+                        setPreviewAttachOnClose(false);
+
+                        // Close folder modal
+                        setFolderPreviewModal({ isOpen: false, folder: null, contents: null });
+                    } catch (error) {
+                        console.error('Error opening file:', error);
+                        showError('Failed to open file', { duration: 4000 });
+                    }
+                }}
             />
 
             {/* Keyboard Shortcuts Modal */}

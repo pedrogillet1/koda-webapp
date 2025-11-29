@@ -95,7 +95,7 @@ export const canAccessDocument = (requiredPermission: DocumentPermission) => {
       }
 
       // Check if document is shared with user
-      const share = await prisma.documentsShare.findUnique({
+      const share = await prisma.document_shares.findUnique({
         where: {
           documentId_sharedWithId: {
             documentId,
@@ -198,7 +198,7 @@ export const canDownloadDocument = async (req: Request, res: Response, next: Nex
     }
 
     // Check share permissions
-    const share = await prisma.documentsShare.findUnique({
+    const share = await prisma.document_shares.findUnique({
       where: {
         documentId_sharedWithId: {
           documentId,
@@ -252,7 +252,7 @@ export const canDeleteDocument = async (req: Request, res: Response, next: NextF
       return next();
     }
 
-    const share = await prisma.documentsShare.findUnique({
+    const share = await prisma.document_shares.findUnique({
       where: {
         documentId_sharedWithId: {
           documentId,

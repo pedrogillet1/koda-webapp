@@ -10,7 +10,7 @@
  */
 
 import prisma from '../config/database';
-import { Document, Folder } from '@prisma/client';
+import type { documents, folders } from '@prisma/client';
 import { llmIntentDetectorService } from './llmIntentDetector.service';
 import { findBestMatch } from 'string-similarity';
 import fuzzyMatchService from './fuzzy-match.service';
@@ -460,6 +460,19 @@ const messages = {
     en: (filename: string) => `File "${filename}" not found.`,
     pt: (filename: string) => `Arquivo "${filename}" não encontrado.`,
     es: (filename: string) => `Archivo "${filename}" no encontrado.`
+  },
+  hereIsFolder: {
+    en: (name: string, fileCount: number, subfolderCount: number) =>
+      `Here's the **${name}** folder with ${fileCount} file${fileCount !== 1 ? 's' : ''} and ${subfolderCount} subfolder${subfolderCount !== 1 ? 's' : ''}.`,
+    pt: (name: string, fileCount: number, subfolderCount: number) =>
+      `Aqui está a pasta **${name}** com ${fileCount} arquivo${fileCount !== 1 ? 's' : ''} e ${subfolderCount} subpasta${subfolderCount !== 1 ? 's' : ''}.`,
+    es: (name: string, fileCount: number, subfolderCount: number) =>
+      `Aquí está la carpeta **${name}** con ${fileCount} archivo${fileCount !== 1 ? 's' : ''} y ${subfolderCount} subcarpeta${subfolderCount !== 1 ? 's' : ''}.`
+  },
+  multipleFoldersFound: {
+    en: (count: number, folderName: string) => `I found **${count} folders** matching "${folderName}". Which one would you like to see?`,
+    pt: (count: number, folderName: string) => `Encontrei **${count} pastas** correspondentes a "${folderName}". Qual delas você quer ver?`,
+    es: (count: number, folderName: string) => `Encontré **${count} carpetas** que coinciden con "${folderName}". ¿Cuál quieres ver?`
   }
 };
 
@@ -497,6 +510,11 @@ export interface DeleteFileParams {
 export interface ShowFileParams {
   userId: string;
   filename: string;
+}
+
+export interface ShowFolderParams {
+  userId: string;
+  folderName: string;
 }
 
 class FileActionsService {
@@ -574,7 +592,8 @@ class FileActionsService {
         'file_location',
         'rename_file',
         'delete_file',
-        'show_file'
+        'show_file',
+        'show_folder'
       ];
 
       // Only process if it's a file action intent with high confidence
@@ -597,7 +616,8 @@ class FileActionsService {
         'file_location': 'fileLocation',
         'rename_file': 'renameFile',
         'delete_file': 'deleteFile',
-        'show_file': 'showFile'
+        'show_file': 'showFile',
+        'show_folder': 'showFolder'
       };
 
       const action = actionMapping[intentResult.intent];
@@ -628,7 +648,7 @@ class FileActionsService {
   private async findDocumentWithFuzzyMatch(
     filename: string,
     userId: string
-  ): Promise<Document | null> {
+  ): Promise<documents | null> {
     // STEP 1: Try exact match first (fastest)
     let document = await prisma.documents.findFirst({
       where: {
@@ -1055,7 +1075,7 @@ class FileActionsService {
             let clarifyMessage = messages.multipleFilesFound[lang](topicSearchResults.length, topic);
             if (clarification.needsClarification && clarification.options && clarification.options.length > 0) {
               clarifyMessage += `\n\n${clarification.question}`;
-              clarification.options.forEach((option) => {
+              clarification.options.forEach((option: any) => {
                 const docIds = option.document_metadata?.documentIds || [];
                 clarifyMessage += `\n\n**${option.label}** (${option.count || docIds.length} files)`;
                 docIds.slice(0, 3).forEach((docId, i) => {
@@ -1148,7 +1168,7 @@ class FileActionsService {
           let clarifyMessage = messages.multipleFilesFound[lang](searchResults.length, params.filename);
           if (clarification.needsClarification && clarification.options && clarification.options.length > 0) {
             clarifyMessage += `\n\n${clarification.question}`;
-            clarification.options.forEach((option) => {
+            clarification.options.forEach((option: any) => {
               const docIds = option.document_metadata?.documentIds || [];
               clarifyMessage += `\n\n**${option.label}** (${option.count || docIds.length} files)`;
               docIds.slice(0, 3).forEach((docId, i) => {
@@ -1228,9 +1248,137 @@ class FileActionsService {
   }
 
   /**
+   * Show/preview a folder with its contents (files and subfolders)
+   */
+  async showFolder(params: ShowFolderParams, query: string = ''): Promise<FileActionResult> {
+    try {
+      const lang = detectLanguage(query);
+
+      console.log(`📁 [SHOW_FOLDER] Looking for folder: "${params.folderName}" (Language: ${lang})`);
+
+      // Find folder by name with fuzzy matching
+      const folder = await this.findFolderByName(params.userId, params.folderName);
+
+      if (!folder) {
+        return {
+          success: false,
+          message: messages.folderNotFound[lang](params.folderName),
+          error: 'FOLDER_NOT_FOUND'
+        };
+      }
+
+      console.log(`✅ [SHOW_FOLDER] Found folder: ${folder.name} (ID: ${folder.id})`);
+
+      // Get folder contents (files + subfolders)
+      const [files, subfolders] = await Promise.all([
+        // Get all files in this folder
+        prisma.documents.findMany({
+          where: {
+            userId: params.userId,
+            folderId: folder.id,
+            status: { not: 'deleted' }
+          },
+          select: {
+            id: true,
+            filename: true,
+            mimeType: true,
+            fileSize: true,
+            createdAt: true,
+            updatedAt: true
+          },
+          orderBy: { filename: 'asc' }
+        }),
+
+        // Get all subfolders
+        prisma.folders.findMany({
+          where: {
+            userId: params.userId,
+            parentFolderId: folder.id
+          },
+          select: {
+            id: true,
+            name: true,
+            emoji: true,
+            createdAt: true,
+            updatedAt: true
+          },
+          orderBy: { name: 'asc' }
+        })
+      ]);
+
+      console.log(`📊 [SHOW_FOLDER] Folder "${folder.name}" has ${files.length} files and ${subfolders.length} subfolders`);
+
+      // Get counts for each subfolder
+      const subfoldersWithCounts = await Promise.all(
+        subfolders.map(async (sf) => {
+          const [fileCount, subfolderCount] = await Promise.all([
+            prisma.documents.count({
+              where: {
+                userId: params.userId,
+                folderId: sf.id,
+                status: { not: 'deleted' }
+              }
+            }),
+            prisma.folders.count({
+              where: {
+                userId: params.userId,
+                parentFolderId: sf.id
+              }
+            })
+          ]);
+
+          return {
+            id: sf.id,
+            name: sf.name,
+            emoji: sf.emoji,
+            fileCount,
+            subfolderCount,
+            createdAt: sf.createdAt,
+            updatedAt: sf.updatedAt
+          };
+        })
+      );
+
+      return {
+        success: true,
+        message: messages.hereIsFolder[lang](folder.name, files.length, subfolders.length),
+        data: {
+          action: 'preview_folder',
+          folder: {
+            id: folder.id,
+            name: folder.name,
+            emoji: folder.emoji,
+            parentFolderId: folder.parentFolderId,
+            createdAt: folder.createdAt,
+            updatedAt: folder.updatedAt
+          },
+          contents: {
+            files: files.map(f => ({
+              id: f.id,
+              filename: f.filename,
+              mimeType: f.mimeType,
+              fileSize: f.fileSize,
+              createdAt: f.createdAt,
+              updatedAt: f.updatedAt
+            })),
+            subfolders: subfoldersWithCounts
+          }
+        }
+      };
+    } catch (error: any) {
+      console.error('❌ Show folder failed:', error);
+      return {
+        success: false,
+        message: 'Failed to show folder',
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * Find document by filename with fuzzy matching
    */
-  async findDocumentByName(userId: string, filename: string): Promise<Document | null> {
+  async findDocumentByName(userId: string, filename: string): Promise<documents | null> {
     // ✅ FIX: Use fuzzy matching to handle typos
     return await this.findDocumentWithFuzzyMatch(filename, userId);
   }
@@ -1238,7 +1386,7 @@ class FileActionsService {
   /**
    * Find folder by name with fuzzy matching (case-insensitive)
    */
-  async findFolderByName(userId: string, folderName: string): Promise<Folder | null> {
+  async findFolderByName(userId: string, folderName: string): Promise<folders | null> {
     // Try exact match first
     let folder = await prisma.folders.findFirst({
       where: {
@@ -1523,6 +1671,12 @@ class FileActionsService {
         return await this.deleteFolder(userId, folder.id);
       }
 
+      case 'showFolder':
+        return await this.showFolder({
+          userId,
+          folderName: params.folderName
+        }, query);
+
       default:
         return {
           success: false,
@@ -1794,7 +1948,7 @@ class FileActionsService {
       // Group by folder
       const byFolder: Record<string, typeof documents> = {};
       documents.forEach(doc => {
-        const folder = doc.folder?.name || 'Library';
+        const folder = doc.folders?.name || 'Library';
         if (!byFolder[folder]) byFolder[folder] = [];
         byFolder[folder].push(doc);
       });

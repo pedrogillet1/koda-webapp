@@ -421,7 +421,7 @@ export function extractBestPractices(
     if (!found) {
       practiceGroups.set(normalized, {
         practice: rec.text,
-        category: rec.category,
+        category: rec.categories,
         rationale: rec.evidence || '',
         sources: [{
           documentId: rec.documentId,
@@ -438,7 +438,7 @@ export function extractBestPractices(
   for (const group of practiceGroups.values()) {
     practices.push({
       practice: group.practice,
-      category: group.category,
+      category: group.categories,
       rationale: group.rationale,
       frequency: group.sources.length,
       sources: group.sources
@@ -479,7 +479,7 @@ export function groupRecommendationsByCategory(
 
   // Group recommendations
   for (const rec of recommendations) {
-    const catData = categories.get(rec.category) || categories.get('Other')!;
+    const catData = categories.get(rec.categories) || categories.get('Other')!;
     catData.recommendations.push(rec);
   }
 
@@ -492,7 +492,7 @@ export function groupRecommendationsByCategory(
 
   // Group best practices
   for (const practice of bestPractices) {
-    const catData = categories.get(practice.category) || categories.get('Other')!;
+    const catData = categories.get(practice.categories) || categories.get('Other')!;
     catData.bestPractices.push(practice);
   }
 
@@ -577,7 +577,7 @@ export function formatImplicationsForPrompt(
   let output = '\n\n**PRACTICAL IMPLICATIONS (Use this to provide actionable guidance):**\n\n';
 
   for (const cat of categorizedImplications.slice(0, 4)) {
-    output += `**For ${cat.category}:**\n`;
+    output += `**For ${cat.categories}:**\n`;
 
     // Add recommendations (top 3)
     for (const rec of cat.recommendations.slice(0, 3)) {

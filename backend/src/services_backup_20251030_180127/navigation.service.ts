@@ -71,7 +71,7 @@ class NavigationService {
     }
 
     // Get categories
-    const categories = bestMatch.categories.map(c => c.category.name);
+    const categories = bestMatch.categories.map(c => c.categories.name);
     const categoryText = categories.length > 0
       ? `\n\nThis file is tagged as: **${categories.join(', ')}**`
       : '';

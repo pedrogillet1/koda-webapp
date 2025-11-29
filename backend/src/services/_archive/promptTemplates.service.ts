@@ -22,7 +22,7 @@ export function getReasoningPrompt(
   conversationHistory: string = '',
   documentLocations: string = '',
   memoryContext: string = '',
-  folderTreeContext: string = ''  // ✅ NEW: Folder structure for navigation awareness
+  folderTreeContext: string = ''  // ✅ NEW: folders structure for navigation awareness
 ): string {
   const template = PROMPT_TEMPLATES[complexity];
 

@@ -15,7 +15,7 @@ class HierarchyQueryHandler {
     console.log(`\n🌲 HIERARCHY QUERY: Building document structure for user ${userId.substring(0, 8)}...`);
 
     // Get all categories
-    const categories = await prisma.category.findMany({
+    const categories = await prisma.categories.findMany({
       where: { userId: userId },
       include: {
         _count: {

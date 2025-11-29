@@ -12,7 +12,7 @@ export const createFolder = async (userId: string, name: string, emoji?: string,
       parentFolderId: parentFolderId || null,
     },
     include: {
-      parentFolder: true,
+      folders: true,
       subfolders: true,
       _count: {
         select: {
@@ -303,7 +303,7 @@ export const bulkCreateFolders = async (
       }
 
       // Create the folder within transaction
-      const folder = await tx.folder.create({
+      const folder = await tx.folders.create({
         data: {
           userId,
           name,

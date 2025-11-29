@@ -1,8 +1,8 @@
 /**
  * Enhanced RAG Types for Issue Fixes
  * Addresses:
- * - Issue #1: Document Reference & Source Extraction
- * - Issue #2: Document Question Comprehension
+ * - Issue #1: documents Reference & Source Extraction
+ * - Issue #2: documents Question Comprehension
  * - Issue #3: Navigation & Button Redirection
  * - Issue #4: Context Retention
  * - Issue #5: Relevance & Document Selection

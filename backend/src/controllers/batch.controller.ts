@@ -323,7 +323,7 @@ export const batchUpdateDocuments = async (req: Request, res: Response) => {
           return res.status(400).json({ error: 'tagId is required for tag operation' });
         }
         // Create document-tag relations for all documents
-        result = await prisma.documentsTags.createMany({
+        result = await prisma.document_tags.createMany({
           data: documentIds.map(docId => ({
             documentId: docId,
             tagId: data.tagId,

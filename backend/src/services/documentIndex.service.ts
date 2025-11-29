@@ -98,8 +98,8 @@ class DocumentIndexService {
       documents: documents.map(doc => ({
         id: doc.id,
         filename: doc.filename,
-        folderName: doc.folder?.name || null,
-        folderPath: doc.folder?.path || null,
+        folderName: doc.folders?.name || null,
+        folderPath: doc.folders?.path || null,
         mimeType: doc.mimeType,
         status: doc.status,
       })),

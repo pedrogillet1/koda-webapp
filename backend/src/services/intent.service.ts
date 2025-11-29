@@ -226,7 +226,7 @@ class QueryIntentService {
       }
     }
 
-    // Pattern 3: Folder contents queries
+    // Pattern 3: folders contents queries
     // "what is inside X folder", "show me X folder", "what files are in X"
     const folderContentPatterns = [
       // Original patterns

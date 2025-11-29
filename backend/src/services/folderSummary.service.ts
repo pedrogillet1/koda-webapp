@@ -116,11 +116,11 @@ class FolderSummaryService {
         _count: {
           select: { documents: true }
         },
-        parentFolder: {
+        folders: {
           select: {
             id: true,
             name: true,
-            parentFolder: {
+            folders: {
               select: {
                 id: true,
                 name: true,
@@ -169,11 +169,11 @@ class FolderSummaryService {
             mimeType: true,
           },
         },
-        parentFolder: {
+        folders: {
           select: {
             id: true,
             name: true,
-            parentFolder: {
+            folders: {
               select: {
                 id: true,
                 name: true,

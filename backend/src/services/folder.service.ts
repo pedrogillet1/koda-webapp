@@ -29,7 +29,7 @@ export const createFolder = async (
       parentFolderId: parentFolderId || null,
     },
     include: {
-      parentFolder: true,
+      folders: true,
       subfolders: true,
       _count: {
         select: {
@@ -79,7 +79,7 @@ export const createFolder = async (
       }),
     },
     include: {
-      parentFolder: true,
+      folders: true,
       subfolders: true,
       _count: {
         select: {
@@ -468,7 +468,7 @@ export const bulkCreateFolders = async (
       }
 
       // ✅ FIX: Check if folder already exists before creating (prevents duplicates on retry)
-      const existingFolder = await tx.folder.findFirst({
+      const existingFolder = await tx.folders.findFirst({
         where: {
           userId,
           name,
@@ -482,7 +482,7 @@ export const bulkCreateFolders = async (
         folder = existingFolder;
       } else {
         // Create the folder within transaction
-        folder = await tx.folder.create({
+        folder = await tx.folders.create({
           data: {
             userId,
             name,
@@ -534,13 +534,13 @@ export const deleteFolder = async (folderId: string, userId: string) => {
   // ⚡ OPTIMIZATION: Use a transaction to delete everything atomically and fast
   await prisma.$transaction(async (tx) => {
     // 1. Delete all documents in all folders (bulk delete)
-    const deletedDocs = await tx.document.deleteMany({
+    const deletedDocs = await tx.documents.deleteMany({
       where: { folderId: { in: allFolderIds } },
     });
     console.log(`  ✅ Deleted ${deletedDocs.count} documents`);
 
     // 2. Delete all folders (bulk delete)
-    const deletedFolders = await tx.folder.deleteMany({
+    const deletedFolders = await tx.folders.deleteMany({
       where: { id: { in: allFolderIds } },
     });
     console.log(`  ✅ Deleted ${deletedFolders.count} folders`);

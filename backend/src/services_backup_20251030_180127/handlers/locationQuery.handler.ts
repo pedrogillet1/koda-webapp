@@ -104,9 +104,9 @@ class LocationQueryHandler {
    * Format response for single document match
    */
   private async formatSingleDocumentResponse(doc: any): Promise<RAGResponse> {
-    const folderPath = doc.folder ? await getFolderPath(doc.folder.id) : 'Root';
-    const categoryName = doc.category?.name || 'Uncategorized';
-    const categoryEmoji = doc.category?.emoji || '📁';
+    const folderPath = doc.folders ? await getFolderPath(doc.folders.id) : 'Root';
+    const categoryName = doc.categories?.name || 'Uncategorized';
+    const categoryEmoji = doc.categories?.emoji || '📁';
 
     const answer = `I found **${doc.filename}**! Here's where it's located:\n\n` +
       `📂 **Folder Path:** ${folderPath}\n` +
@@ -128,9 +128,9 @@ class LocationQueryHandler {
           icon: '📄'
         },
         {
-          label: doc.folder ? `Open ${doc.folder.name} folder` : 'Open Root folder',
+          label: doc.folders ? `Open ${doc.folders.name} folder` : 'Open Root folder',
           action: ActionType.OPEN_FOLDER,
-          folderId: doc.folder?.id || 'root',
+          folderId: doc.folders?.id || 'root',
           variant: 'secondary',
           icon: '📁'
         }
@@ -149,9 +149,9 @@ class LocationQueryHandler {
 
     const docDetails = await Promise.all(
       documents.map(async (doc, index) => {
-        const folderPath = doc.folder ? await getFolderPath(doc.folder.id) : 'Root';
-        const categoryName = doc.category?.name || 'Uncategorized';
-        const categoryEmoji = doc.category?.emoji || '📁';
+        const folderPath = doc.folders ? await getFolderPath(doc.folders.id) : 'Root';
+        const categoryName = doc.categories?.name || 'Uncategorized';
+        const categoryEmoji = doc.categories?.emoji || '📁';
 
         return {
           index: index + 1,

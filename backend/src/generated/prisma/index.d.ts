@@ -208,11 +208,11 @@ export class PrismaClient<
   get user(): Prisma.UserDelegate<ExtArgs, ClientOptions>;
 
   /**
-   * `prisma.session`: Exposes CRUD operations for the **Session** model.
+   * `prisma.sessions`: Exposes CRUD operations for the **Session** model.
     * Example usage:
     * ```ts
     * // Fetch zero or more Sessions
-    * const sessions = await prisma.session.findMany()
+    * const sessions = await prisma.sessions.findMany()
     * ```
     */
   get session(): Prisma.SessionDelegate<ExtArgs, ClientOptions>;
@@ -228,31 +228,31 @@ export class PrismaClient<
   get twoFactorAuth(): Prisma.TwoFactorAuthDelegate<ExtArgs, ClientOptions>;
 
   /**
-   * `prisma.folder`: Exposes CRUD operations for the **Folder** model.
+   * `prisma.folders`: Exposes CRUD operations for the **Folder** model.
     * Example usage:
     * ```ts
     * // Fetch zero or more Folders
-    * const folders = await prisma.folder.findMany()
+    * const folders = await prisma.folders.findMany()
     * ```
     */
   get folder(): Prisma.FolderDelegate<ExtArgs, ClientOptions>;
 
   /**
-   * `prisma.document`: Exposes CRUD operations for the **Document** model.
+   * `prisma.documents`: Exposes CRUD operations for the **Document** model.
     * Example usage:
     * ```ts
     * // Fetch zero or more Documents
-    * const documents = await prisma.document.findMany()
+    * const documents = await prisma.documents.findMany()
     * ```
     */
   get document(): Prisma.DocumentDelegate<ExtArgs, ClientOptions>;
 
   /**
-   * `prisma.documentMetadata`: Exposes CRUD operations for the **DocumentMetadata** model.
+   * `prisma.document_metadata`: Exposes CRUD operations for the **DocumentMetadata** model.
     * Example usage:
     * ```ts
     * // Fetch zero or more DocumentMetadata
-    * const documentMetadata = await prisma.documentMetadata.findMany()
+    * const documentMetadata = await prisma.document_metadata.findMany()
     * ```
     */
   get documentMetadata(): Prisma.DocumentMetadataDelegate<ExtArgs, ClientOptions>;
@@ -278,21 +278,21 @@ export class PrismaClient<
   get documentTag(): Prisma.DocumentTagDelegate<ExtArgs, ClientOptions>;
 
   /**
-   * `prisma.verificationCode`: Exposes CRUD operations for the **VerificationCode** model.
+   * `prisma.verification_codes`: Exposes CRUD operations for the **VerificationCode** model.
     * Example usage:
     * ```ts
     * // Fetch zero or more VerificationCodes
-    * const verificationCodes = await prisma.verificationCode.findMany()
+    * const verificationCodes = await prisma.verification_codes.findMany()
     * ```
     */
-  get verificationCode(): Prisma.VerificationCodeDelegate<ExtArgs, ClientOptions>;
+  get verification_codes(): Prisma.VerificationCodeDelegate<ExtArgs, ClientOptions>;
 
   /**
-   * `prisma.pendingUser`: Exposes CRUD operations for the **PendingUser** model.
+   * `prisma.pending_users`: Exposes CRUD operations for the **PendingUser** model.
     * Example usage:
     * ```ts
     * // Fetch zero or more PendingUsers
-    * const pendingUsers = await prisma.pendingUser.findMany()
+    * const pendingUsers = await prisma.pending_users.findMany()
     * ```
     */
   get pendingUser(): Prisma.PendingUserDelegate<ExtArgs, ClientOptions>;
@@ -318,11 +318,11 @@ export class PrismaClient<
   get message(): Prisma.MessageDelegate<ExtArgs, ClientOptions>;
 
   /**
-   * `prisma.reminder`: Exposes CRUD operations for the **Reminder** model.
+   * `prisma.reminders`: Exposes CRUD operations for the **Reminder** model.
     * Example usage:
     * ```ts
     * // Fetch zero or more Reminders
-    * const reminders = await prisma.reminder.findMany()
+    * const reminders = await prisma.reminders.findMany()
     * ```
     */
   get reminder(): Prisma.ReminderDelegate<ExtArgs, ClientOptions>;
@@ -797,7 +797,7 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "user" | "session" | "twoFactorAuth" | "folder" | "document" | "documentMetadata" | "tag" | "documentTag" | "verificationCode" | "pendingUser" | "conversation" | "message" | "reminder"
+      modelProps: "user" | "session" | "twoFactorAuth" | "folder" | "document" | "documentMetadata" | "tag" | "documentTag" | "verification_codes" | "pendingUser" | "conversation" | "message" | "reminder"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -1867,7 +1867,7 @@ export namespace Prisma {
     documentMetadata?: DocumentMetadataOmit
     tag?: TagOmit
     documentTag?: DocumentTagOmit
-    verificationCode?: VerificationCodeOmit
+    verification_codes?: VerificationCodeOmit
     pendingUser?: PendingUserOmit
     conversation?: ConversationOmit
     message?: MessageOmit
@@ -3787,7 +3787,7 @@ export namespace Prisma {
      * @param {SessionFindUniqueArgs} args - Arguments to find a Session
      * @example
      * // Get one Session
-     * const session = await prisma.session.findUnique({
+     * const session = await prisma.sessions.findUnique({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -3801,7 +3801,7 @@ export namespace Prisma {
      * @param {SessionFindUniqueOrThrowArgs} args - Arguments to find a Session
      * @example
      * // Get one Session
-     * const session = await prisma.session.findUniqueOrThrow({
+     * const session = await prisma.sessions.findUniqueOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -3816,7 +3816,7 @@ export namespace Prisma {
      * @param {SessionFindFirstArgs} args - Arguments to find a Session
      * @example
      * // Get one Session
-     * const session = await prisma.session.findFirst({
+     * const session = await prisma.sessions.findFirst({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -3832,7 +3832,7 @@ export namespace Prisma {
      * @param {SessionFindFirstOrThrowArgs} args - Arguments to find a Session
      * @example
      * // Get one Session
-     * const session = await prisma.session.findFirstOrThrow({
+     * const session = await prisma.sessions.findFirstOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -3847,13 +3847,13 @@ export namespace Prisma {
      * @param {SessionFindManyArgs} args - Arguments to filter and select certain fields only.
      * @example
      * // Get all Sessions
-     * const sessions = await prisma.session.findMany()
+     * const sessions = await prisma.sessions.findMany()
      * 
      * // Get first 10 Sessions
-     * const sessions = await prisma.session.findMany({ take: 10 })
+     * const sessions = await prisma.sessions.findMany({ take: 10 })
      * 
      * // Only select the `id`
-     * const sessionWithIdOnly = await prisma.session.findMany({ select: { id: true } })
+     * const sessionWithIdOnly = await prisma.sessions.findMany({ select: { id: true } })
      * 
      */
     findMany<T extends SessionFindManyArgs>(args?: SelectSubset<T, SessionFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$SessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
@@ -3863,7 +3863,7 @@ export namespace Prisma {
      * @param {SessionCreateArgs} args - Arguments to create a Session.
      * @example
      * // Create one Session
-     * const Session = await prisma.session.create({
+     * const Session = await prisma.sessions.create({
      *   data: {
      *     // ... data to create a Session
      *   }
@@ -3877,7 +3877,7 @@ export namespace Prisma {
      * @param {SessionCreateManyArgs} args - Arguments to create many Sessions.
      * @example
      * // Create many Sessions
-     * const session = await prisma.session.createMany({
+     * const session = await prisma.sessions.createMany({
      *   data: [
      *     // ... provide data here
      *   ]
@@ -3891,14 +3891,14 @@ export namespace Prisma {
      * @param {SessionCreateManyAndReturnArgs} args - Arguments to create many Sessions.
      * @example
      * // Create many Sessions
-     * const session = await prisma.session.createManyAndReturn({
+     * const session = await prisma.sessions.createManyAndReturn({
      *   data: [
      *     // ... provide data here
      *   ]
      * })
      * 
      * // Create many Sessions and only return the `id`
-     * const sessionWithIdOnly = await prisma.session.createManyAndReturn({
+     * const sessionWithIdOnly = await prisma.sessions.createManyAndReturn({
      *   select: { id: true },
      *   data: [
      *     // ... provide data here
@@ -3915,7 +3915,7 @@ export namespace Prisma {
      * @param {SessionDeleteArgs} args - Arguments to delete one Session.
      * @example
      * // Delete one Session
-     * const Session = await prisma.session.delete({
+     * const Session = await prisma.sessions.delete({
      *   where: {
      *     // ... filter to delete one Session
      *   }
@@ -3929,7 +3929,7 @@ export namespace Prisma {
      * @param {SessionUpdateArgs} args - Arguments to update one Session.
      * @example
      * // Update one Session
-     * const session = await prisma.session.update({
+     * const session = await prisma.sessions.update({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -3946,7 +3946,7 @@ export namespace Prisma {
      * @param {SessionDeleteManyArgs} args - Arguments to filter Sessions to delete.
      * @example
      * // Delete a few Sessions
-     * const { count } = await prisma.session.deleteMany({
+     * const { count } = await prisma.sessions.deleteMany({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -3962,7 +3962,7 @@ export namespace Prisma {
      * @param {SessionUpdateManyArgs} args - Arguments to update one or more rows.
      * @example
      * // Update many Sessions
-     * const session = await prisma.session.updateMany({
+     * const session = await prisma.sessions.updateMany({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -3979,7 +3979,7 @@ export namespace Prisma {
      * @param {SessionUpdateManyAndReturnArgs} args - Arguments to update many Sessions.
      * @example
      * // Update many Sessions
-     * const session = await prisma.session.updateManyAndReturn({
+     * const session = await prisma.sessions.updateManyAndReturn({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -3989,7 +3989,7 @@ export namespace Prisma {
      * })
      * 
      * // Update zero or more Sessions and only return the `id`
-     * const sessionWithIdOnly = await prisma.session.updateManyAndReturn({
+     * const sessionWithIdOnly = await prisma.sessions.updateManyAndReturn({
      *   select: { id: true },
      *   where: {
      *     // ... provide filter here
@@ -4009,7 +4009,7 @@ export namespace Prisma {
      * @param {SessionUpsertArgs} args - Arguments to update or create a Session.
      * @example
      * // Update or create a Session
-     * const session = await prisma.session.upsert({
+     * const session = await prisma.sessions.upsert({
      *   create: {
      *     // ... data to create a Session
      *   },
@@ -4031,7 +4031,7 @@ export namespace Prisma {
      * @param {SessionCountArgs} args - Arguments to filter Sessions to count.
      * @example
      * // Count the number of Sessions
-     * const count = await prisma.session.count({
+     * const count = await prisma.sessions.count({
      *   where: {
      *     // ... the filter for the Sessions we want to count
      *   }
@@ -5923,7 +5923,7 @@ export namespace Prisma {
     name: "Folder"
     objects: {
       user: Prisma.$UserPayload<ExtArgs>
-      parentFolder: Prisma.$FolderPayload<ExtArgs> | null
+      folders: Prisma.$FolderPayload<ExtArgs> | null
       subfolders: Prisma.$FolderPayload<ExtArgs>[]
       documents: Prisma.$DocumentPayload<ExtArgs>[]
     }
@@ -5952,7 +5952,7 @@ export namespace Prisma {
      * @param {FolderFindUniqueArgs} args - Arguments to find a Folder
      * @example
      * // Get one Folder
-     * const folder = await prisma.folder.findUnique({
+     * const folder = await prisma.folders.findUnique({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -5966,7 +5966,7 @@ export namespace Prisma {
      * @param {FolderFindUniqueOrThrowArgs} args - Arguments to find a Folder
      * @example
      * // Get one Folder
-     * const folder = await prisma.folder.findUniqueOrThrow({
+     * const folder = await prisma.folders.findUniqueOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -5981,7 +5981,7 @@ export namespace Prisma {
      * @param {FolderFindFirstArgs} args - Arguments to find a Folder
      * @example
      * // Get one Folder
-     * const folder = await prisma.folder.findFirst({
+     * const folder = await prisma.folders.findFirst({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -5997,7 +5997,7 @@ export namespace Prisma {
      * @param {FolderFindFirstOrThrowArgs} args - Arguments to find a Folder
      * @example
      * // Get one Folder
-     * const folder = await prisma.folder.findFirstOrThrow({
+     * const folder = await prisma.folders.findFirstOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -6012,13 +6012,13 @@ export namespace Prisma {
      * @param {FolderFindManyArgs} args - Arguments to filter and select certain fields only.
      * @example
      * // Get all Folders
-     * const folders = await prisma.folder.findMany()
+     * const folders = await prisma.folders.findMany()
      * 
      * // Get first 10 Folders
-     * const folders = await prisma.folder.findMany({ take: 10 })
+     * const folders = await prisma.folders.findMany({ take: 10 })
      * 
      * // Only select the `id`
-     * const folderWithIdOnly = await prisma.folder.findMany({ select: { id: true } })
+     * const folderWithIdOnly = await prisma.folders.findMany({ select: { id: true } })
      * 
      */
     findMany<T extends FolderFindManyArgs>(args?: SelectSubset<T, FolderFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$FolderPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
@@ -6028,7 +6028,7 @@ export namespace Prisma {
      * @param {FolderCreateArgs} args - Arguments to create a Folder.
      * @example
      * // Create one Folder
-     * const Folder = await prisma.folder.create({
+     * const Folder = await prisma.folders.create({
      *   data: {
      *     // ... data to create a Folder
      *   }
@@ -6042,7 +6042,7 @@ export namespace Prisma {
      * @param {FolderCreateManyArgs} args - Arguments to create many Folders.
      * @example
      * // Create many Folders
-     * const folder = await prisma.folder.createMany({
+     * const folder = await prisma.folders.createMany({
      *   data: [
      *     // ... provide data here
      *   ]
@@ -6056,14 +6056,14 @@ export namespace Prisma {
      * @param {FolderCreateManyAndReturnArgs} args - Arguments to create many Folders.
      * @example
      * // Create many Folders
-     * const folder = await prisma.folder.createManyAndReturn({
+     * const folder = await prisma.folders.createManyAndReturn({
      *   data: [
      *     // ... provide data here
      *   ]
      * })
      * 
      * // Create many Folders and only return the `id`
-     * const folderWithIdOnly = await prisma.folder.createManyAndReturn({
+     * const folderWithIdOnly = await prisma.folders.createManyAndReturn({
      *   select: { id: true },
      *   data: [
      *     // ... provide data here
@@ -6080,7 +6080,7 @@ export namespace Prisma {
      * @param {FolderDeleteArgs} args - Arguments to delete one Folder.
      * @example
      * // Delete one Folder
-     * const Folder = await prisma.folder.delete({
+     * const Folder = await prisma.folders.delete({
      *   where: {
      *     // ... filter to delete one Folder
      *   }
@@ -6094,7 +6094,7 @@ export namespace Prisma {
      * @param {FolderUpdateArgs} args - Arguments to update one Folder.
      * @example
      * // Update one Folder
-     * const folder = await prisma.folder.update({
+     * const folder = await prisma.folders.update({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -6111,7 +6111,7 @@ export namespace Prisma {
      * @param {FolderDeleteManyArgs} args - Arguments to filter Folders to delete.
      * @example
      * // Delete a few Folders
-     * const { count } = await prisma.folder.deleteMany({
+     * const { count } = await prisma.folders.deleteMany({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -6127,7 +6127,7 @@ export namespace Prisma {
      * @param {FolderUpdateManyArgs} args - Arguments to update one or more rows.
      * @example
      * // Update many Folders
-     * const folder = await prisma.folder.updateMany({
+     * const folder = await prisma.folders.updateMany({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -6144,7 +6144,7 @@ export namespace Prisma {
      * @param {FolderUpdateManyAndReturnArgs} args - Arguments to update many Folders.
      * @example
      * // Update many Folders
-     * const folder = await prisma.folder.updateManyAndReturn({
+     * const folder = await prisma.folders.updateManyAndReturn({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -6154,7 +6154,7 @@ export namespace Prisma {
      * })
      * 
      * // Update zero or more Folders and only return the `id`
-     * const folderWithIdOnly = await prisma.folder.updateManyAndReturn({
+     * const folderWithIdOnly = await prisma.folders.updateManyAndReturn({
      *   select: { id: true },
      *   where: {
      *     // ... provide filter here
@@ -6174,7 +6174,7 @@ export namespace Prisma {
      * @param {FolderUpsertArgs} args - Arguments to update or create a Folder.
      * @example
      * // Update or create a Folder
-     * const folder = await prisma.folder.upsert({
+     * const folder = await prisma.folders.upsert({
      *   create: {
      *     // ... data to create a Folder
      *   },
@@ -6196,7 +6196,7 @@ export namespace Prisma {
      * @param {FolderCountArgs} args - Arguments to filter Folders to count.
      * @example
      * // Count the number of Folders
-     * const count = await prisma.folder.count({
+     * const count = await prisma.folders.count({
      *   where: {
      *     // ... the filter for the Folders we want to count
      *   }
@@ -7222,7 +7222,7 @@ export namespace Prisma {
      * @param {DocumentFindUniqueArgs} args - Arguments to find a Document
      * @example
      * // Get one Document
-     * const document = await prisma.document.findUnique({
+     * const document = await prisma.documents.findUnique({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -7236,7 +7236,7 @@ export namespace Prisma {
      * @param {DocumentFindUniqueOrThrowArgs} args - Arguments to find a Document
      * @example
      * // Get one Document
-     * const document = await prisma.document.findUniqueOrThrow({
+     * const document = await prisma.documents.findUniqueOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -7251,7 +7251,7 @@ export namespace Prisma {
      * @param {DocumentFindFirstArgs} args - Arguments to find a Document
      * @example
      * // Get one Document
-     * const document = await prisma.document.findFirst({
+     * const document = await prisma.documents.findFirst({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -7267,7 +7267,7 @@ export namespace Prisma {
      * @param {DocumentFindFirstOrThrowArgs} args - Arguments to find a Document
      * @example
      * // Get one Document
-     * const document = await prisma.document.findFirstOrThrow({
+     * const document = await prisma.documents.findFirstOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -7282,13 +7282,13 @@ export namespace Prisma {
      * @param {DocumentFindManyArgs} args - Arguments to filter and select certain fields only.
      * @example
      * // Get all Documents
-     * const documents = await prisma.document.findMany()
+     * const documents = await prisma.documents.findMany()
      * 
      * // Get first 10 Documents
-     * const documents = await prisma.document.findMany({ take: 10 })
+     * const documents = await prisma.documents.findMany({ take: 10 })
      * 
      * // Only select the `id`
-     * const documentWithIdOnly = await prisma.document.findMany({ select: { id: true } })
+     * const documentWithIdOnly = await prisma.documents.findMany({ select: { id: true } })
      * 
      */
     findMany<T extends DocumentFindManyArgs>(args?: SelectSubset<T, DocumentFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DocumentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
@@ -7298,7 +7298,7 @@ export namespace Prisma {
      * @param {DocumentCreateArgs} args - Arguments to create a Document.
      * @example
      * // Create one Document
-     * const Document = await prisma.document.create({
+     * const Document = await prisma.documents.create({
      *   data: {
      *     // ... data to create a Document
      *   }
@@ -7312,7 +7312,7 @@ export namespace Prisma {
      * @param {DocumentCreateManyArgs} args - Arguments to create many Documents.
      * @example
      * // Create many Documents
-     * const document = await prisma.document.createMany({
+     * const document = await prisma.documents.createMany({
      *   data: [
      *     // ... provide data here
      *   ]
@@ -7326,14 +7326,14 @@ export namespace Prisma {
      * @param {DocumentCreateManyAndReturnArgs} args - Arguments to create many Documents.
      * @example
      * // Create many Documents
-     * const document = await prisma.document.createManyAndReturn({
+     * const document = await prisma.documents.createManyAndReturn({
      *   data: [
      *     // ... provide data here
      *   ]
      * })
      * 
      * // Create many Documents and only return the `id`
-     * const documentWithIdOnly = await prisma.document.createManyAndReturn({
+     * const documentWithIdOnly = await prisma.documents.createManyAndReturn({
      *   select: { id: true },
      *   data: [
      *     // ... provide data here
@@ -7350,7 +7350,7 @@ export namespace Prisma {
      * @param {DocumentDeleteArgs} args - Arguments to delete one Document.
      * @example
      * // Delete one Document
-     * const Document = await prisma.document.delete({
+     * const Document = await prisma.documents.delete({
      *   where: {
      *     // ... filter to delete one Document
      *   }
@@ -7364,7 +7364,7 @@ export namespace Prisma {
      * @param {DocumentUpdateArgs} args - Arguments to update one Document.
      * @example
      * // Update one Document
-     * const document = await prisma.document.update({
+     * const document = await prisma.documents.update({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -7381,7 +7381,7 @@ export namespace Prisma {
      * @param {DocumentDeleteManyArgs} args - Arguments to filter Documents to delete.
      * @example
      * // Delete a few Documents
-     * const { count } = await prisma.document.deleteMany({
+     * const { count } = await prisma.documents.deleteMany({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -7397,7 +7397,7 @@ export namespace Prisma {
      * @param {DocumentUpdateManyArgs} args - Arguments to update one or more rows.
      * @example
      * // Update many Documents
-     * const document = await prisma.document.updateMany({
+     * const document = await prisma.documents.updateMany({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -7414,7 +7414,7 @@ export namespace Prisma {
      * @param {DocumentUpdateManyAndReturnArgs} args - Arguments to update many Documents.
      * @example
      * // Update many Documents
-     * const document = await prisma.document.updateManyAndReturn({
+     * const document = await prisma.documents.updateManyAndReturn({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -7424,7 +7424,7 @@ export namespace Prisma {
      * })
      * 
      * // Update zero or more Documents and only return the `id`
-     * const documentWithIdOnly = await prisma.document.updateManyAndReturn({
+     * const documentWithIdOnly = await prisma.documents.updateManyAndReturn({
      *   select: { id: true },
      *   where: {
      *     // ... provide filter here
@@ -7444,7 +7444,7 @@ export namespace Prisma {
      * @param {DocumentUpsertArgs} args - Arguments to update or create a Document.
      * @example
      * // Update or create a Document
-     * const document = await prisma.document.upsert({
+     * const document = await prisma.documents.upsert({
      *   create: {
      *     // ... data to create a Document
      *   },
@@ -7466,7 +7466,7 @@ export namespace Prisma {
      * @param {DocumentCountArgs} args - Arguments to filter Documents to count.
      * @example
      * // Count the number of Documents
-     * const count = await prisma.document.count({
+     * const count = await prisma.documents.count({
      *   where: {
      *     // ... the filter for the Documents we want to count
      *   }
@@ -8477,7 +8477,7 @@ export namespace Prisma {
      * @param {DocumentMetadataFindUniqueArgs} args - Arguments to find a DocumentMetadata
      * @example
      * // Get one DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.findUnique({
+     * const documentMetadata = await prisma.document_metadata.findUnique({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -8491,7 +8491,7 @@ export namespace Prisma {
      * @param {DocumentMetadataFindUniqueOrThrowArgs} args - Arguments to find a DocumentMetadata
      * @example
      * // Get one DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.findUniqueOrThrow({
+     * const documentMetadata = await prisma.document_metadata.findUniqueOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -8506,7 +8506,7 @@ export namespace Prisma {
      * @param {DocumentMetadataFindFirstArgs} args - Arguments to find a DocumentMetadata
      * @example
      * // Get one DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.findFirst({
+     * const documentMetadata = await prisma.document_metadata.findFirst({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -8522,7 +8522,7 @@ export namespace Prisma {
      * @param {DocumentMetadataFindFirstOrThrowArgs} args - Arguments to find a DocumentMetadata
      * @example
      * // Get one DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.findFirstOrThrow({
+     * const documentMetadata = await prisma.document_metadata.findFirstOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -8537,13 +8537,13 @@ export namespace Prisma {
      * @param {DocumentMetadataFindManyArgs} args - Arguments to filter and select certain fields only.
      * @example
      * // Get all DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.findMany()
+     * const documentMetadata = await prisma.document_metadata.findMany()
      * 
      * // Get first 10 DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.findMany({ take: 10 })
+     * const documentMetadata = await prisma.document_metadata.findMany({ take: 10 })
      * 
      * // Only select the `id`
-     * const documentMetadataWithIdOnly = await prisma.documentMetadata.findMany({ select: { id: true } })
+     * const documentMetadataWithIdOnly = await prisma.document_metadata.findMany({ select: { id: true } })
      * 
      */
     findMany<T extends DocumentMetadataFindManyArgs>(args?: SelectSubset<T, DocumentMetadataFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$DocumentMetadataPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
@@ -8553,7 +8553,7 @@ export namespace Prisma {
      * @param {DocumentMetadataCreateArgs} args - Arguments to create a DocumentMetadata.
      * @example
      * // Create one DocumentMetadata
-     * const DocumentMetadata = await prisma.documentMetadata.create({
+     * const DocumentMetadata = await prisma.document_metadata.create({
      *   data: {
      *     // ... data to create a DocumentMetadata
      *   }
@@ -8567,7 +8567,7 @@ export namespace Prisma {
      * @param {DocumentMetadataCreateManyArgs} args - Arguments to create many DocumentMetadata.
      * @example
      * // Create many DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.createMany({
+     * const documentMetadata = await prisma.document_metadata.createMany({
      *   data: [
      *     // ... provide data here
      *   ]
@@ -8581,14 +8581,14 @@ export namespace Prisma {
      * @param {DocumentMetadataCreateManyAndReturnArgs} args - Arguments to create many DocumentMetadata.
      * @example
      * // Create many DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.createManyAndReturn({
+     * const documentMetadata = await prisma.document_metadata.createManyAndReturn({
      *   data: [
      *     // ... provide data here
      *   ]
      * })
      * 
      * // Create many DocumentMetadata and only return the `id`
-     * const documentMetadataWithIdOnly = await prisma.documentMetadata.createManyAndReturn({
+     * const documentMetadataWithIdOnly = await prisma.document_metadata.createManyAndReturn({
      *   select: { id: true },
      *   data: [
      *     // ... provide data here
@@ -8605,7 +8605,7 @@ export namespace Prisma {
      * @param {DocumentMetadataDeleteArgs} args - Arguments to delete one DocumentMetadata.
      * @example
      * // Delete one DocumentMetadata
-     * const DocumentMetadata = await prisma.documentMetadata.delete({
+     * const DocumentMetadata = await prisma.document_metadata.delete({
      *   where: {
      *     // ... filter to delete one DocumentMetadata
      *   }
@@ -8619,7 +8619,7 @@ export namespace Prisma {
      * @param {DocumentMetadataUpdateArgs} args - Arguments to update one DocumentMetadata.
      * @example
      * // Update one DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.update({
+     * const documentMetadata = await prisma.document_metadata.update({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -8636,7 +8636,7 @@ export namespace Prisma {
      * @param {DocumentMetadataDeleteManyArgs} args - Arguments to filter DocumentMetadata to delete.
      * @example
      * // Delete a few DocumentMetadata
-     * const { count } = await prisma.documentMetadata.deleteMany({
+     * const { count } = await prisma.document_metadata.deleteMany({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -8652,7 +8652,7 @@ export namespace Prisma {
      * @param {DocumentMetadataUpdateManyArgs} args - Arguments to update one or more rows.
      * @example
      * // Update many DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.updateMany({
+     * const documentMetadata = await prisma.document_metadata.updateMany({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -8669,7 +8669,7 @@ export namespace Prisma {
      * @param {DocumentMetadataUpdateManyAndReturnArgs} args - Arguments to update many DocumentMetadata.
      * @example
      * // Update many DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.updateManyAndReturn({
+     * const documentMetadata = await prisma.document_metadata.updateManyAndReturn({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -8679,7 +8679,7 @@ export namespace Prisma {
      * })
      * 
      * // Update zero or more DocumentMetadata and only return the `id`
-     * const documentMetadataWithIdOnly = await prisma.documentMetadata.updateManyAndReturn({
+     * const documentMetadataWithIdOnly = await prisma.document_metadata.updateManyAndReturn({
      *   select: { id: true },
      *   where: {
      *     // ... provide filter here
@@ -8699,7 +8699,7 @@ export namespace Prisma {
      * @param {DocumentMetadataUpsertArgs} args - Arguments to update or create a DocumentMetadata.
      * @example
      * // Update or create a DocumentMetadata
-     * const documentMetadata = await prisma.documentMetadata.upsert({
+     * const documentMetadata = await prisma.document_metadata.upsert({
      *   create: {
      *     // ... data to create a DocumentMetadata
      *   },
@@ -8721,7 +8721,7 @@ export namespace Prisma {
      * @param {DocumentMetadataCountArgs} args - Arguments to filter DocumentMetadata to count.
      * @example
      * // Count the number of DocumentMetadata
-     * const count = await prisma.documentMetadata.count({
+     * const count = await prisma.document_metadata.count({
      *   where: {
      *     // ... the filter for the DocumentMetadata we want to count
      *   }
@@ -11622,7 +11622,7 @@ export namespace Prisma {
     isUsed?: boolean
     createdAt?: boolean
     user?: boolean | UserDefaultArgs<ExtArgs>
-  }, ExtArgs["result"]["verificationCode"]>
+  }, ExtArgs["result"]["verification_codes"]>
 
   export type VerificationCodeSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
@@ -11633,7 +11633,7 @@ export namespace Prisma {
     isUsed?: boolean
     createdAt?: boolean
     user?: boolean | UserDefaultArgs<ExtArgs>
-  }, ExtArgs["result"]["verificationCode"]>
+  }, ExtArgs["result"]["verification_codes"]>
 
   export type VerificationCodeSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
@@ -11644,7 +11644,7 @@ export namespace Prisma {
     isUsed?: boolean
     createdAt?: boolean
     user?: boolean | UserDefaultArgs<ExtArgs>
-  }, ExtArgs["result"]["verificationCode"]>
+  }, ExtArgs["result"]["verification_codes"]>
 
   export type VerificationCodeSelectScalar = {
     id?: boolean
@@ -11656,7 +11656,7 @@ export namespace Prisma {
     createdAt?: boolean
   }
 
-  export type VerificationCodeOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "userId" | "type" | "code" | "expiresAt" | "isUsed" | "createdAt", ExtArgs["result"]["verificationCode"]>
+  export type VerificationCodeOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "userId" | "type" | "code" | "expiresAt" | "isUsed" | "createdAt", ExtArgs["result"]["verification_codes"]>
   export type VerificationCodeInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     user?: boolean | UserDefaultArgs<ExtArgs>
   }
@@ -11680,7 +11680,7 @@ export namespace Prisma {
       expiresAt: Date
       isUsed: boolean
       createdAt: Date
-    }, ExtArgs["result"]["verificationCode"]>
+    }, ExtArgs["result"]["verification_codes"]>
     composites: {}
   }
 
@@ -11698,7 +11698,7 @@ export namespace Prisma {
      * @param {VerificationCodeFindUniqueArgs} args - Arguments to find a VerificationCode
      * @example
      * // Get one VerificationCode
-     * const verificationCode = await prisma.verificationCode.findUnique({
+     * const verification_codes = await prisma.verification_codes.findUnique({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -11712,7 +11712,7 @@ export namespace Prisma {
      * @param {VerificationCodeFindUniqueOrThrowArgs} args - Arguments to find a VerificationCode
      * @example
      * // Get one VerificationCode
-     * const verificationCode = await prisma.verificationCode.findUniqueOrThrow({
+     * const verification_codes = await prisma.verification_codes.findUniqueOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -11727,7 +11727,7 @@ export namespace Prisma {
      * @param {VerificationCodeFindFirstArgs} args - Arguments to find a VerificationCode
      * @example
      * // Get one VerificationCode
-     * const verificationCode = await prisma.verificationCode.findFirst({
+     * const verification_codes = await prisma.verification_codes.findFirst({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -11743,7 +11743,7 @@ export namespace Prisma {
      * @param {VerificationCodeFindFirstOrThrowArgs} args - Arguments to find a VerificationCode
      * @example
      * // Get one VerificationCode
-     * const verificationCode = await prisma.verificationCode.findFirstOrThrow({
+     * const verification_codes = await prisma.verification_codes.findFirstOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -11758,13 +11758,13 @@ export namespace Prisma {
      * @param {VerificationCodeFindManyArgs} args - Arguments to filter and select certain fields only.
      * @example
      * // Get all VerificationCodes
-     * const verificationCodes = await prisma.verificationCode.findMany()
+     * const verificationCodes = await prisma.verification_codes.findMany()
      * 
      * // Get first 10 VerificationCodes
-     * const verificationCodes = await prisma.verificationCode.findMany({ take: 10 })
+     * const verificationCodes = await prisma.verification_codes.findMany({ take: 10 })
      * 
      * // Only select the `id`
-     * const verificationCodeWithIdOnly = await prisma.verificationCode.findMany({ select: { id: true } })
+     * const verificationCodeWithIdOnly = await prisma.verification_codes.findMany({ select: { id: true } })
      * 
      */
     findMany<T extends VerificationCodeFindManyArgs>(args?: SelectSubset<T, VerificationCodeFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$VerificationCodePayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
@@ -11774,7 +11774,7 @@ export namespace Prisma {
      * @param {VerificationCodeCreateArgs} args - Arguments to create a VerificationCode.
      * @example
      * // Create one VerificationCode
-     * const VerificationCode = await prisma.verificationCode.create({
+     * const VerificationCode = await prisma.verification_codes.create({
      *   data: {
      *     // ... data to create a VerificationCode
      *   }
@@ -11788,7 +11788,7 @@ export namespace Prisma {
      * @param {VerificationCodeCreateManyArgs} args - Arguments to create many VerificationCodes.
      * @example
      * // Create many VerificationCodes
-     * const verificationCode = await prisma.verificationCode.createMany({
+     * const verification_codes = await prisma.verification_codes.createMany({
      *   data: [
      *     // ... provide data here
      *   ]
@@ -11802,14 +11802,14 @@ export namespace Prisma {
      * @param {VerificationCodeCreateManyAndReturnArgs} args - Arguments to create many VerificationCodes.
      * @example
      * // Create many VerificationCodes
-     * const verificationCode = await prisma.verificationCode.createManyAndReturn({
+     * const verification_codes = await prisma.verification_codes.createManyAndReturn({
      *   data: [
      *     // ... provide data here
      *   ]
      * })
      * 
      * // Create many VerificationCodes and only return the `id`
-     * const verificationCodeWithIdOnly = await prisma.verificationCode.createManyAndReturn({
+     * const verificationCodeWithIdOnly = await prisma.verification_codes.createManyAndReturn({
      *   select: { id: true },
      *   data: [
      *     // ... provide data here
@@ -11826,7 +11826,7 @@ export namespace Prisma {
      * @param {VerificationCodeDeleteArgs} args - Arguments to delete one VerificationCode.
      * @example
      * // Delete one VerificationCode
-     * const VerificationCode = await prisma.verificationCode.delete({
+     * const VerificationCode = await prisma.verification_codes.delete({
      *   where: {
      *     // ... filter to delete one VerificationCode
      *   }
@@ -11840,7 +11840,7 @@ export namespace Prisma {
      * @param {VerificationCodeUpdateArgs} args - Arguments to update one VerificationCode.
      * @example
      * // Update one VerificationCode
-     * const verificationCode = await prisma.verificationCode.update({
+     * const verification_codes = await prisma.verification_codes.update({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -11857,7 +11857,7 @@ export namespace Prisma {
      * @param {VerificationCodeDeleteManyArgs} args - Arguments to filter VerificationCodes to delete.
      * @example
      * // Delete a few VerificationCodes
-     * const { count } = await prisma.verificationCode.deleteMany({
+     * const { count } = await prisma.verification_codes.deleteMany({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -11873,7 +11873,7 @@ export namespace Prisma {
      * @param {VerificationCodeUpdateManyArgs} args - Arguments to update one or more rows.
      * @example
      * // Update many VerificationCodes
-     * const verificationCode = await prisma.verificationCode.updateMany({
+     * const verification_codes = await prisma.verification_codes.updateMany({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -11890,7 +11890,7 @@ export namespace Prisma {
      * @param {VerificationCodeUpdateManyAndReturnArgs} args - Arguments to update many VerificationCodes.
      * @example
      * // Update many VerificationCodes
-     * const verificationCode = await prisma.verificationCode.updateManyAndReturn({
+     * const verification_codes = await prisma.verification_codes.updateManyAndReturn({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -11900,7 +11900,7 @@ export namespace Prisma {
      * })
      * 
      * // Update zero or more VerificationCodes and only return the `id`
-     * const verificationCodeWithIdOnly = await prisma.verificationCode.updateManyAndReturn({
+     * const verificationCodeWithIdOnly = await prisma.verification_codes.updateManyAndReturn({
      *   select: { id: true },
      *   where: {
      *     // ... provide filter here
@@ -11920,7 +11920,7 @@ export namespace Prisma {
      * @param {VerificationCodeUpsertArgs} args - Arguments to update or create a VerificationCode.
      * @example
      * // Update or create a VerificationCode
-     * const verificationCode = await prisma.verificationCode.upsert({
+     * const verification_codes = await prisma.verification_codes.upsert({
      *   create: {
      *     // ... data to create a VerificationCode
      *   },
@@ -11942,7 +11942,7 @@ export namespace Prisma {
      * @param {VerificationCodeCountArgs} args - Arguments to filter VerificationCodes to count.
      * @example
      * // Count the number of VerificationCodes
-     * const count = await prisma.verificationCode.count({
+     * const count = await prisma.verification_codes.count({
      *   where: {
      *     // ... the filter for the VerificationCodes we want to count
      *   }
@@ -12814,7 +12814,7 @@ export namespace Prisma {
      * @param {PendingUserFindUniqueArgs} args - Arguments to find a PendingUser
      * @example
      * // Get one PendingUser
-     * const pendingUser = await prisma.pendingUser.findUnique({
+     * const pendingUser = await prisma.pending_users.findUnique({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -12828,7 +12828,7 @@ export namespace Prisma {
      * @param {PendingUserFindUniqueOrThrowArgs} args - Arguments to find a PendingUser
      * @example
      * // Get one PendingUser
-     * const pendingUser = await prisma.pendingUser.findUniqueOrThrow({
+     * const pendingUser = await prisma.pending_users.findUniqueOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -12843,7 +12843,7 @@ export namespace Prisma {
      * @param {PendingUserFindFirstArgs} args - Arguments to find a PendingUser
      * @example
      * // Get one PendingUser
-     * const pendingUser = await prisma.pendingUser.findFirst({
+     * const pendingUser = await prisma.pending_users.findFirst({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -12859,7 +12859,7 @@ export namespace Prisma {
      * @param {PendingUserFindFirstOrThrowArgs} args - Arguments to find a PendingUser
      * @example
      * // Get one PendingUser
-     * const pendingUser = await prisma.pendingUser.findFirstOrThrow({
+     * const pendingUser = await prisma.pending_users.findFirstOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -12874,13 +12874,13 @@ export namespace Prisma {
      * @param {PendingUserFindManyArgs} args - Arguments to filter and select certain fields only.
      * @example
      * // Get all PendingUsers
-     * const pendingUsers = await prisma.pendingUser.findMany()
+     * const pendingUsers = await prisma.pending_users.findMany()
      * 
      * // Get first 10 PendingUsers
-     * const pendingUsers = await prisma.pendingUser.findMany({ take: 10 })
+     * const pendingUsers = await prisma.pending_users.findMany({ take: 10 })
      * 
      * // Only select the `id`
-     * const pendingUserWithIdOnly = await prisma.pendingUser.findMany({ select: { id: true } })
+     * const pendingUserWithIdOnly = await prisma.pending_users.findMany({ select: { id: true } })
      * 
      */
     findMany<T extends PendingUserFindManyArgs>(args?: SelectSubset<T, PendingUserFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$PendingUserPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
@@ -12890,7 +12890,7 @@ export namespace Prisma {
      * @param {PendingUserCreateArgs} args - Arguments to create a PendingUser.
      * @example
      * // Create one PendingUser
-     * const PendingUser = await prisma.pendingUser.create({
+     * const PendingUser = await prisma.pending_users.create({
      *   data: {
      *     // ... data to create a PendingUser
      *   }
@@ -12904,7 +12904,7 @@ export namespace Prisma {
      * @param {PendingUserCreateManyArgs} args - Arguments to create many PendingUsers.
      * @example
      * // Create many PendingUsers
-     * const pendingUser = await prisma.pendingUser.createMany({
+     * const pendingUser = await prisma.pending_users.createMany({
      *   data: [
      *     // ... provide data here
      *   ]
@@ -12918,14 +12918,14 @@ export namespace Prisma {
      * @param {PendingUserCreateManyAndReturnArgs} args - Arguments to create many PendingUsers.
      * @example
      * // Create many PendingUsers
-     * const pendingUser = await prisma.pendingUser.createManyAndReturn({
+     * const pendingUser = await prisma.pending_users.createManyAndReturn({
      *   data: [
      *     // ... provide data here
      *   ]
      * })
      * 
      * // Create many PendingUsers and only return the `id`
-     * const pendingUserWithIdOnly = await prisma.pendingUser.createManyAndReturn({
+     * const pendingUserWithIdOnly = await prisma.pending_users.createManyAndReturn({
      *   select: { id: true },
      *   data: [
      *     // ... provide data here
@@ -12942,7 +12942,7 @@ export namespace Prisma {
      * @param {PendingUserDeleteArgs} args - Arguments to delete one PendingUser.
      * @example
      * // Delete one PendingUser
-     * const PendingUser = await prisma.pendingUser.delete({
+     * const PendingUser = await prisma.pending_users.delete({
      *   where: {
      *     // ... filter to delete one PendingUser
      *   }
@@ -12956,7 +12956,7 @@ export namespace Prisma {
      * @param {PendingUserUpdateArgs} args - Arguments to update one PendingUser.
      * @example
      * // Update one PendingUser
-     * const pendingUser = await prisma.pendingUser.update({
+     * const pendingUser = await prisma.pending_users.update({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -12973,7 +12973,7 @@ export namespace Prisma {
      * @param {PendingUserDeleteManyArgs} args - Arguments to filter PendingUsers to delete.
      * @example
      * // Delete a few PendingUsers
-     * const { count } = await prisma.pendingUser.deleteMany({
+     * const { count } = await prisma.pending_users.deleteMany({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -12989,7 +12989,7 @@ export namespace Prisma {
      * @param {PendingUserUpdateManyArgs} args - Arguments to update one or more rows.
      * @example
      * // Update many PendingUsers
-     * const pendingUser = await prisma.pendingUser.updateMany({
+     * const pendingUser = await prisma.pending_users.updateMany({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -13006,7 +13006,7 @@ export namespace Prisma {
      * @param {PendingUserUpdateManyAndReturnArgs} args - Arguments to update many PendingUsers.
      * @example
      * // Update many PendingUsers
-     * const pendingUser = await prisma.pendingUser.updateManyAndReturn({
+     * const pendingUser = await prisma.pending_users.updateManyAndReturn({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -13016,7 +13016,7 @@ export namespace Prisma {
      * })
      * 
      * // Update zero or more PendingUsers and only return the `id`
-     * const pendingUserWithIdOnly = await prisma.pendingUser.updateManyAndReturn({
+     * const pendingUserWithIdOnly = await prisma.pending_users.updateManyAndReturn({
      *   select: { id: true },
      *   where: {
      *     // ... provide filter here
@@ -13036,7 +13036,7 @@ export namespace Prisma {
      * @param {PendingUserUpsertArgs} args - Arguments to update or create a PendingUser.
      * @example
      * // Update or create a PendingUser
-     * const pendingUser = await prisma.pendingUser.upsert({
+     * const pendingUser = await prisma.pending_users.upsert({
      *   create: {
      *     // ... data to create a PendingUser
      *   },
@@ -13058,7 +13058,7 @@ export namespace Prisma {
      * @param {PendingUserCountArgs} args - Arguments to filter PendingUsers to count.
      * @example
      * // Count the number of PendingUsers
-     * const count = await prisma.pendingUser.count({
+     * const count = await prisma.pending_users.count({
      *   where: {
      *     // ... the filter for the PendingUsers we want to count
      *   }
@@ -16018,7 +16018,7 @@ export namespace Prisma {
      * @param {ReminderFindUniqueArgs} args - Arguments to find a Reminder
      * @example
      * // Get one Reminder
-     * const reminder = await prisma.reminder.findUnique({
+     * const reminder = await prisma.reminders.findUnique({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -16032,7 +16032,7 @@ export namespace Prisma {
      * @param {ReminderFindUniqueOrThrowArgs} args - Arguments to find a Reminder
      * @example
      * // Get one Reminder
-     * const reminder = await prisma.reminder.findUniqueOrThrow({
+     * const reminder = await prisma.reminders.findUniqueOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -16047,7 +16047,7 @@ export namespace Prisma {
      * @param {ReminderFindFirstArgs} args - Arguments to find a Reminder
      * @example
      * // Get one Reminder
-     * const reminder = await prisma.reminder.findFirst({
+     * const reminder = await prisma.reminders.findFirst({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -16063,7 +16063,7 @@ export namespace Prisma {
      * @param {ReminderFindFirstOrThrowArgs} args - Arguments to find a Reminder
      * @example
      * // Get one Reminder
-     * const reminder = await prisma.reminder.findFirstOrThrow({
+     * const reminder = await prisma.reminders.findFirstOrThrow({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -16078,13 +16078,13 @@ export namespace Prisma {
      * @param {ReminderFindManyArgs} args - Arguments to filter and select certain fields only.
      * @example
      * // Get all Reminders
-     * const reminders = await prisma.reminder.findMany()
+     * const reminders = await prisma.reminders.findMany()
      * 
      * // Get first 10 Reminders
-     * const reminders = await prisma.reminder.findMany({ take: 10 })
+     * const reminders = await prisma.reminders.findMany({ take: 10 })
      * 
      * // Only select the `id`
-     * const reminderWithIdOnly = await prisma.reminder.findMany({ select: { id: true } })
+     * const reminderWithIdOnly = await prisma.reminders.findMany({ select: { id: true } })
      * 
      */
     findMany<T extends ReminderFindManyArgs>(args?: SelectSubset<T, ReminderFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ReminderPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
@@ -16094,7 +16094,7 @@ export namespace Prisma {
      * @param {ReminderCreateArgs} args - Arguments to create a Reminder.
      * @example
      * // Create one Reminder
-     * const Reminder = await prisma.reminder.create({
+     * const Reminder = await prisma.reminders.create({
      *   data: {
      *     // ... data to create a Reminder
      *   }
@@ -16108,7 +16108,7 @@ export namespace Prisma {
      * @param {ReminderCreateManyArgs} args - Arguments to create many Reminders.
      * @example
      * // Create many Reminders
-     * const reminder = await prisma.reminder.createMany({
+     * const reminder = await prisma.reminders.createMany({
      *   data: [
      *     // ... provide data here
      *   ]
@@ -16122,14 +16122,14 @@ export namespace Prisma {
      * @param {ReminderCreateManyAndReturnArgs} args - Arguments to create many Reminders.
      * @example
      * // Create many Reminders
-     * const reminder = await prisma.reminder.createManyAndReturn({
+     * const reminder = await prisma.reminders.createManyAndReturn({
      *   data: [
      *     // ... provide data here
      *   ]
      * })
      * 
      * // Create many Reminders and only return the `id`
-     * const reminderWithIdOnly = await prisma.reminder.createManyAndReturn({
+     * const reminderWithIdOnly = await prisma.reminders.createManyAndReturn({
      *   select: { id: true },
      *   data: [
      *     // ... provide data here
@@ -16146,7 +16146,7 @@ export namespace Prisma {
      * @param {ReminderDeleteArgs} args - Arguments to delete one Reminder.
      * @example
      * // Delete one Reminder
-     * const Reminder = await prisma.reminder.delete({
+     * const Reminder = await prisma.reminders.delete({
      *   where: {
      *     // ... filter to delete one Reminder
      *   }
@@ -16160,7 +16160,7 @@ export namespace Prisma {
      * @param {ReminderUpdateArgs} args - Arguments to update one Reminder.
      * @example
      * // Update one Reminder
-     * const reminder = await prisma.reminder.update({
+     * const reminder = await prisma.reminders.update({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -16177,7 +16177,7 @@ export namespace Prisma {
      * @param {ReminderDeleteManyArgs} args - Arguments to filter Reminders to delete.
      * @example
      * // Delete a few Reminders
-     * const { count } = await prisma.reminder.deleteMany({
+     * const { count } = await prisma.reminders.deleteMany({
      *   where: {
      *     // ... provide filter here
      *   }
@@ -16193,7 +16193,7 @@ export namespace Prisma {
      * @param {ReminderUpdateManyArgs} args - Arguments to update one or more rows.
      * @example
      * // Update many Reminders
-     * const reminder = await prisma.reminder.updateMany({
+     * const reminder = await prisma.reminders.updateMany({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -16210,7 +16210,7 @@ export namespace Prisma {
      * @param {ReminderUpdateManyAndReturnArgs} args - Arguments to update many Reminders.
      * @example
      * // Update many Reminders
-     * const reminder = await prisma.reminder.updateManyAndReturn({
+     * const reminder = await prisma.reminders.updateManyAndReturn({
      *   where: {
      *     // ... provide filter here
      *   },
@@ -16220,7 +16220,7 @@ export namespace Prisma {
      * })
      * 
      * // Update zero or more Reminders and only return the `id`
-     * const reminderWithIdOnly = await prisma.reminder.updateManyAndReturn({
+     * const reminderWithIdOnly = await prisma.reminders.updateManyAndReturn({
      *   select: { id: true },
      *   where: {
      *     // ... provide filter here
@@ -16240,7 +16240,7 @@ export namespace Prisma {
      * @param {ReminderUpsertArgs} args - Arguments to update or create a Reminder.
      * @example
      * // Update or create a Reminder
-     * const reminder = await prisma.reminder.upsert({
+     * const reminder = await prisma.reminders.upsert({
      *   create: {
      *     // ... data to create a Reminder
      *   },
@@ -16262,7 +16262,7 @@ export namespace Prisma {
      * @param {ReminderCountArgs} args - Arguments to filter Reminders to count.
      * @example
      * // Count the number of Reminders
-     * const count = await prisma.reminder.count({
+     * const count = await prisma.reminders.count({
      *   where: {
      *     // ... the filter for the Reminders we want to count
      *   }

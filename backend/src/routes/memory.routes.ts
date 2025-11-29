@@ -19,7 +19,7 @@ const router = Router();
  */
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).users.id;
     const section = req.query.section as MemorySection | undefined;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
 
@@ -58,7 +58,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
  */
 router.post('/', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).users.id;
     const { section, content, importance, source, metadata } = req.body;
 
     // Validation
@@ -121,7 +121,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
  */
 router.put('/:memoryId', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).users.id;
     const { memoryId } = req.params;
     const { content, importance, metadata } = req.body;
 
@@ -174,7 +174,7 @@ router.put('/:memoryId', authenticateToken, async (req: Request, res: Response) 
  */
 router.delete('/:memoryId', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).users.id;
     const { memoryId } = req.params;
 
     console.log(`=Ñ [MEMORY API] DELETE /api/memories/${memoryId} - User: ${userId.substring(0, 8)}...`);
@@ -215,7 +215,7 @@ router.delete('/:memoryId', authenticateToken, async (req: Request, res: Respons
  */
 router.delete('/', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).users.id;
     const section = req.query.section as MemorySection | undefined;
 
     console.log(`=Ñ [MEMORY API] DELETE /api/memories - User: ${userId.substring(0, 8)}...${section ? ` (${section})` : ''}`);

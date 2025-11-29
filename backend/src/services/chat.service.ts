@@ -895,7 +895,7 @@ export const handleFileActionsIfNeeded = async (
       };
     }
 
-    const folderId = folderResult.data.folder.id;
+    const folderId = folderResult.data.folders.id;
     console.log(`✅ Folder created: ${folderId}`);
 
     // If files attached, upload them to the new folder

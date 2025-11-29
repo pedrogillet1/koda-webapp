@@ -37,6 +37,7 @@ export enum Intent {
   DELETE_FILES = 'DELETE_FILES',                 // "Delete all documents tagged as drafts"
   RENAME_FILES = 'RENAME_FILES',                 // "Rename all documents using pattern"
   AUTO_CATEGORIZE = 'AUTO_CATEGORIZE',           // "Automatically categorize all documents"
+  CREATE_FILE = 'CREATE_FILE',                   // "Create a budget spreadsheet for 2024"
 
   // ==========================================
   // PROACTIVE FEATURES
@@ -73,6 +74,9 @@ export interface IntentResult {
     sheetName?: string;
     compareTargets?: string[];
     renamePattern?: string;
+    fileType?: string; // For CREATE_FILE: 'md', 'docx', 'pdf', 'pptx', 'xlsx'
+    topic?: string; // For CREATE_FILE: topic/subject of file
+    format?: string; // For CREATE_FILE: additional format info
   };
 }
 

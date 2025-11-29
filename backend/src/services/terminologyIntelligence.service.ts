@@ -984,7 +984,7 @@ If no interpretations found, return: {"interpretations": [], "confidence": 0}`;
     // Group by category
     const byCategory = new Map<string, { count: number; avg: number; values: number[] }>();
     for (const value of values) {
-      const cat = value.category || 'uncategorized';
+      const cat = value.categories || 'uncategorized';
       const existing = byCategory.get(cat) || { count: 0, avg: 0, values: [] };
       existing.count++;
       existing.values.push(value.value);

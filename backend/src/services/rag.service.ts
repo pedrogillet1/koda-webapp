@@ -2118,7 +2118,7 @@ export async function generateAnswerStream(
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
-  // STEP 2: Document Counting - Fast (No LLM call)
+  // STEP 2: documents Counting - Fast (No LLM call)
   // ──────────────────────────────────────────────────────────────────────────────
   const countingCheck = isDocumentCountingQuery(query);
   if (countingCheck.isCounting) {
@@ -2127,7 +2127,7 @@ export async function generateAnswerStream(
   }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // STEP 3: Document Types - Fast (No LLM call)
+  // STEP 3: documents Types - Fast (No LLM call)
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (isDocumentTypesQuery(query)) {
     console.log('ðŸ“Š [DOCUMENT TYPES] Detected');
@@ -2135,7 +2135,7 @@ export async function generateAnswerStream(
   }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // STEP 4: Document Listing - Fast (No LLM call)
+  // STEP 4: documents Listing - Fast (No LLM call)
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (isDocumentListingQuery(query)) {
     console.log('âœ… [QUERY ROUTING] Routed to: DOCUMENT LISTING');
@@ -2146,7 +2146,7 @@ export async function generateAnswerStream(
   await pineconePromise;
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // STEP 5.5: Folder Listing Queries - Direct DB Lookup
+  // STEP 5.5: folders Listing Queries - Direct DB Lookup
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // âœ… NEW: Handle "which folders do I have?" queries
   const isFolderListingQuery = detectFolderListingQuery(query);
@@ -2156,7 +2156,7 @@ export async function generateAnswerStream(
   }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // STEP 5.6: Folder Content Queries - Direct DB Lookup
+  // STEP 5.6: folders Content Queries - Direct DB Lookup
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // âœ… MOVED UP: Handle "what's in Finance folder?" queries BEFORE file actions
   const isFolderContentQuery = detectFolderContentQuery(query);
@@ -3514,7 +3514,7 @@ async function handleDocumentCounting(
 
   onChunk(response);
 
-  // âŒ NO SOURCES: Document counting queries don't use document CONTENT
+  // âŒ NO SOURCES: documents counting queries don't use document CONTENT
   // We're just counting rows in the database, not reading/analyzing documents
   return { sources: [] };
 }
@@ -3621,7 +3621,7 @@ async function handleDocumentTypes(
 
   onChunk(response);
 
-  // âŒ NO SOURCES: Document types queries don't use document CONTENT
+  // âŒ NO SOURCES: documents types queries don't use document CONTENT
   // We're just grouping files by extension, not reading/analyzing documents
   return { sources: [] };
 }
@@ -3796,7 +3796,7 @@ async function handleDocumentListing(
 
   onChunk(response);
 
-  // âŒ NO SOURCES: Document listing queries don't use document CONTENT
+  // âŒ NO SOURCES: documents listing queries don't use document CONTENT
   // We're just listing filenames from the database, not reading/analyzing documents
   return { sources: [] };
 }
@@ -4705,7 +4705,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // âš¡ MAJOR PARALLELIZATION FIX: Run ALL independent operations in parallel
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  // REASON: Folder fetch, query enhancement, terminology expansion, Pinecone init,
+  // REASON: folders fetch, query enhancement, terminology expansion, Pinecone init,
   //         and embedding generation are ALL independent operations
   // IMPACT: 5-7s â†’ 2-3s (saves 3-4s by running in parallel instead of sequential)
   //
@@ -6211,14 +6211,14 @@ async function handleFileLocationQuery(
 
   if (documents.length === 1) {
     const doc = documents[0];
-    const folderName = doc.folder ? `${doc.folder.emoji || 'ðŸ“'} **${doc.folder.name}**` : '**Library**';
+    const folderName = doc.folders ? `${doc.folders.emoji || 'ðŸ“'} **${doc.folders.name}**` : '**Library**';
     onChunk(`**${doc.filename}** is located in: ${folderName}`);
     return { sources: [{ documentId: doc.id, documentName: doc.filename, score: 1.0 }] };
   }
 
   // Multiple files with same name
   const locations = documents.map(doc => {
-    const folderName = doc.folder ? `${doc.folder.emoji || 'ðŸ“'} **${doc.folder.name}**` : '**Library**';
+    const folderName = doc.folders ? `${doc.folders.emoji || 'ðŸ“'} **${doc.folders.name}**` : '**Library**';
     return `- **${doc.filename}** in ${folderName}`;
   }).join('\n');
 

@@ -65,7 +65,7 @@ export const addTagToDocument = async (documentId: string, tagId: string, userId
   }
 
   // Check if already tagged
-  const existing = await prisma.documentsTags.findFirst({
+  const existing = await prisma.document_tags.findFirst({
     where: {
       documentId,
       tagId,
@@ -77,7 +77,7 @@ export const addTagToDocument = async (documentId: string, tagId: string, userId
   }
 
   // Add tag
-  const documentTag = await prisma.documentsTags.create({
+  const documentTag = await prisma.document_tags.create({
     data: {
       documentId,
       tagId,
@@ -103,7 +103,7 @@ export const removeTagFromDocument = async (documentId: string, tagId: string, u
     throw new Error('Unauthorized');
   }
 
-  await prisma.documentsTags.deleteMany({
+  await prisma.document_tags.deleteMany({
     where: {
       documentId,
       tagId,

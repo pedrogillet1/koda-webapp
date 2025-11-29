@@ -306,13 +306,13 @@ export class MetadataEnhancementService {
 
     // Category filters
     if (queryLower.includes('financial') || queryLower.includes('financeiro')) {
-      filters.category = 'financial';
+      filters.categories = 'financial';
     } else if (queryLower.includes('legal')) {
-      filters.category = 'legal';
+      filters.categories = 'legal';
     } else if (queryLower.includes('medical') || queryLower.includes('médico')) {
-      filters.category = 'medical';
+      filters.categories = 'medical';
     } else if (queryLower.includes('business') || queryLower.includes('negócio')) {
-      filters.category = 'business';
+      filters.categories = 'business';
     }
 
     // File type filters

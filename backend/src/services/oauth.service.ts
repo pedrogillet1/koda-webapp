@@ -93,7 +93,7 @@ export const googleOAuth = async ({
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-  await prisma.session.create({
+  await prisma.sessions.create({
     data: {
       userId: user.id,
       refreshTokenHash,
@@ -192,7 +192,7 @@ export const appleOAuth = async ({
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-  await prisma.session.create({
+  await prisma.sessions.create({
     data: {
       userId: user.id,
       refreshTokenHash,

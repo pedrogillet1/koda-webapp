@@ -370,7 +370,7 @@ class ChatActionsService {
       const docList = documents
         .map((d, i) => {
           const size = (d.fileSize / 1024).toFixed(1);
-          const folder = d.folder ? ` [${d.folder.name}]` : '';
+          const folder = d.folder ? ` [${d.folders.name}]` : '';
           return `  ${i + 1}. ${d.filename} (${size} KB)${folder}`;
         })
         .join('\n');

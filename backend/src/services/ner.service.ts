@@ -329,7 +329,7 @@ Return ONLY the JSON object, no additional text.`;
         }
 
         // Associate tag with document (if not already associated)
-        await prisma.documentsTags.upsert({
+        await prisma.document_tags.upsert({
           where: {
             documentId_tagId: {
               documentId,

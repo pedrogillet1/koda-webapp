@@ -440,7 +440,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
     let documentFilename = 'document'; // Default filename for chunking
     await prisma.$transaction(async (tx) => {
       // Verify document belongs to this user (security check)
-      const doc = await tx.document.findUnique({
+      const doc = await tx.documents.findUnique({
         where: { id: documentId },
         select: { userId: true, filename: true }
       });
@@ -455,14 +455,14 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       }
 
       if (doc.userId !== userId) {
-        throw new Error(`SECURITY BREACH PREVENTED: Document ${documentId} belongs to user ${doc.userId}, not ${userId}`);
+        throw new Error(`SECURITY BREACH PREVENTED: documents ${documentId} belongs to user ${doc.userId}, not ${userId}`);
       }
 
       console.log(`✅ [DOC:${documentId}] Verified document belongs to user ${userId} (filename: ${doc.filename})`);
 
       // If DOCX was pre-converted to PDF, store the PDF path in renderableContent
       if (pdfConversionPath) {
-        await tx.document.update({
+        await tx.documents.update({
           where: { id: documentId },
           data: {
             renderableContent: JSON.stringify({
@@ -476,7 +476,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       }
 
       // Save metadata (including markdown)
-      await tx.documentMetadata.upsert({
+      await tx.document_metadata.upsert({
         where: { documentId },
         create: {
           documentId,
@@ -578,7 +578,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 
     // ✅ CRITICAL FIX: Update status to 'completed' AFTER embeddings are stored
     // This prevents race condition where frontend queries before Pinecone has the data
-    await prisma.document.update({
+    await prisma.documents.update({
       where: { id: documentId },
       data: { status: 'completed' },
     });
@@ -630,7 +630,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
             console.log(`✅ [DOC:${documentId}] Extracted ${imageResult.totalImages} images from ${imageResult.slides.length} slides`);
 
             // Fetch existing slidesData
-            const existingMetadata = await prisma.documentMetadata.findUnique({
+            const existingMetadata = await prisma.document_metadata.findUnique({
               where: { documentId }
             });
 
@@ -665,7 +665,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
             });
 
             // Update metadata with image URLs
-            await prisma.documentMetadata.update({
+            await prisma.document_metadata.update({
               where: { documentId },
               data: {
                 slidesData: JSON.stringify(mergedSlidesData)
@@ -730,7 +730,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 
     // Update document status to failed
     try {
-      await prisma.document.update({
+      await prisma.documents.update({
         where: { id: documentId },
         data: { status: 'failed' },
       });

@@ -88,9 +88,9 @@ async function createFolderHierarchy(
       // Create new folder
       const newFolder = await prisma.folders.create({
         data: {
-          userId,
+          users: { connect: { id: userId } },
           name: folderName,
-          parentFolderId,
+          folders: parentFolderId ? { connect: { id: parentFolderId } } : undefined,
           path: fullPath
         }
       });
@@ -142,7 +142,7 @@ export const generateBulkPresignedUrls = async (
     }
 
     const { files, folderId } = req.body;
-    const userId = req.user.id;
+    const userId = req.users.id;
 
     if (!files || !Array.isArray(files) || files.length === 0) {
       res.status(400).json({ error: 'Files array is required and must not be empty' });
@@ -211,8 +211,8 @@ export const generateBulkPresignedUrls = async (
           // Folder structure is preserved via targetFolderId
           const document = await prisma.documents.create({
             data: {
-              userId,
-              folderId: targetFolderId,
+              users: { connect: { id: userId } },
+              folders: targetFolderId ? { connect: { id: targetFolderId } } : undefined,
               filename: fileName,
               encryptedFilename,
               fileSize,
@@ -270,7 +270,7 @@ export const completeBatchUpload = async (
     }
 
     const { documentIds } = req.body;
-    const userId = req.user.id;
+    const userId = req.users.id;
 
     // ✅ Enhanced logging for debugging
     console.log(`📥 [completeBatchUpload] ========================================`);
@@ -381,7 +381,7 @@ export const retriggerStuckDocuments = async (
       return;
     }
 
-    const userId = req.user.id;
+    const userId = req.users.id;
 
     console.log(`🔄 [retriggerStuckDocuments] Finding stuck documents for user ${userId}...`);
 

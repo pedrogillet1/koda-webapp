@@ -549,7 +549,7 @@ These features enable efficient document management and knowledge retrieval.`;
   }
 
   /**
-   * Type 3: Document List Format
+   * Type 3: documents List Format
    * For "Which documents mention X?" queries
    * NOTE: This is typically bypassed in favor of direct formatting in rag.service.ts
    */

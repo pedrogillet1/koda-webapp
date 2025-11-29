@@ -32,7 +32,7 @@ async function regenerateExcelEmbeddings() {
 
     // CRITICAL: Delete existing metadata to force fresh Excel processing
     console.log('🗑️  Deleting cached metadata to force fresh Excel extraction...');
-    await prisma.documentsMetadatas.deleteMany({
+    await prisma.document_metadata.deleteMany({
       where: { documentId: latestExcel.id }
     });
     console.log('✅ Metadata deleted\n');

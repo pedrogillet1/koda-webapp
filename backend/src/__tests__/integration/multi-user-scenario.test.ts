@@ -68,7 +68,7 @@ describe('Multi-User Scenario Integration Test', () => {
 
   beforeAll(async () => {
     // Clean up any existing test data
-    await prisma.documentsMetadatas.deleteMany({
+    await prisma.document_metadata.deleteMany({
       where: {
         documentId: {
           in: [comprovanteDoc.id, psychiatricDoc.id, businessPlanDoc.id],
@@ -135,7 +135,7 @@ describe('Multi-User Scenario Integration Test', () => {
 
   afterAll(async () => {
     // Clean up test data
-    await prisma.documentsMetadatas.deleteMany({
+    await prisma.document_metadata.deleteMany({
       where: {
         documentId: {
           in: [comprovanteDoc.id, psychiatricDoc.id, businessPlanDoc.id],

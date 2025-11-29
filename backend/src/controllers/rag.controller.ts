@@ -426,7 +426,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -435,7 +435,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: cellResult.message,
           metadata: JSON.stringify({
@@ -491,7 +491,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -500,7 +500,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: folderResult.answer,
           metadata: JSON.stringify({ actions: folderResult.actions })
@@ -540,7 +540,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
         const assistantMessage = await prisma.messages.create({
           data: {
-            conversationId,
+            conversations: { connect: { id: conversationId } },
             role: 'assistant',
             content: navResult.message,
             metadata: JSON.stringify({
@@ -598,7 +598,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -607,7 +607,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: filesListAnswer
         }
@@ -644,7 +644,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -653,7 +653,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -697,7 +697,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -706,7 +706,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -733,6 +733,86 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       });
     }
 
+    // CREATE_FILE - Generate and create new files (MD, DOCX, PDF, PPTX, XLSX)
+    if (intentResult.intent === Intent.CREATE_FILE ||
+        query.match(/create (a |an )?(budget|report|presentation|spreadsheet|document|file)/i)) {
+      console.log(`🎨 [FILE CREATION] Creating file from query: "${query}"`);
+
+      const fileCreationService = await import('../services/fileCreation.service');
+
+      // Detect file type from query
+      const fileTypeMap: Record<string, string> = {
+        'spreadsheet': 'xlsx',
+        'excel': 'xlsx',
+        'presentation': 'pptx',
+        'powerpoint': 'pptx',
+        'slides': 'pptx',
+        'document': 'docx',
+        'word': 'docx',
+        'report': 'pdf',
+        'pdf': 'pdf',
+        'markdown': 'md'
+      };
+
+      let fileType = 'docx'; // default
+      for (const [key, value] of Object.entries(fileTypeMap)) {
+        if (query.toLowerCase().includes(key)) {
+          fileType = value;
+          break;
+        }
+      }
+
+      const result = await fileCreationService.default.createFile({
+        userId,
+        fileType: fileType as any,
+        topic: intentResult.entities?.topic || query,
+        userQuery: query,
+        conversationId
+      });
+
+      await ensureConversationExists(conversationId, userId);
+
+      const userMessage = await prisma.messages.create({
+        data: {
+          conversations: { connect: { id: conversationId } },
+          role: 'user',
+          content: query,
+          metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
+        }
+      });
+
+      const assistantMessage = await prisma.messages.create({
+        data: {
+          conversations: { connect: { id: conversationId } },
+          role: 'assistant',
+          content: result.message,
+          metadata: JSON.stringify({
+            actionType: 'file_created',
+            success: result.success,
+            file: result.file
+          })
+        }
+      });
+
+      await prisma.conversations.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() }
+      });
+
+      res.json({
+        success: result.success,
+        answer: result.message,
+        sources: [],
+        expandedQuery: [],
+        contextId: 'action-create-file',
+        actionType: 'file_created',
+        file: result.file,
+        userMessage,
+        assistantMessage
+      });
+      return;
+    }
+
     // MOVE_FILES - Move documents to a folder (ACTUAL EXECUTION)
     if (intentResult.intent === Intent.MOVE_FILES && intentResult.entities.targetName) {
       console.log(`📦 [ACTION] Moving files to: "${intentResult.entities.targetName}"`);
@@ -748,7 +828,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -757,7 +837,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -808,7 +888,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -817,7 +897,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -863,7 +943,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
         const assistantMessage = await prisma.messages.create({
           data: {
-            conversationId,
+            conversations: { connect: { id: conversationId } },
             role: 'assistant',
             content: navResult.message,
             metadata: JSON.stringify({
@@ -916,7 +996,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
         const assistantMessage = await prisma.messages.create({
           data: {
-            conversationId,
+            conversations: { connect: { id: conversationId } },
             role: 'assistant',
             content: navResult.message,
             metadata: JSON.stringify({
@@ -971,7 +1051,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
         const assistantMessage = await prisma.messages.create({
           data: {
-            conversationId,
+            conversations: { connect: { id: conversationId } },
             role: 'assistant',
             content: templateResponse.content,
             metadata: JSON.stringify({ templateResponse: true, responseTimeMs: templateResponse.responseTimeMs })
@@ -1009,7 +1089,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
         const assistantMessage = await prisma.messages.create({
           data: {
-            conversationId,
+            conversations: { connect: { id: conversationId } },
             role: 'assistant',
             content: templateResponse.content,
             metadata: JSON.stringify({ templateResponse: true, responseTimeMs: templateResponse.responseTimeMs })
@@ -1052,7 +1132,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
         const assistantMessage = await prisma.messages.create({
           data: {
-            conversationId,
+            conversations: { connect: { id: conversationId } },
             role: 'assistant',
             content: metadataResult.answer,
             metadata: JSON.stringify({
@@ -1095,7 +1175,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       select: {
         role: true,
         content: true,
-        document_metadata: true,
+        metadata: true,
         createdAt: true
       }
     });
@@ -1193,7 +1273,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
             try {
               const io = getIO();
               io.to(`user:${userId}`).emit('conversation:updated', {
-                conversationId,
+                conversations: { connect: { id: conversationId } },
                 title: generatedTitle,
                 updatedAt: new Date()
               });
@@ -1576,7 +1656,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -1585,7 +1665,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -1648,7 +1728,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -1657,7 +1737,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -1719,7 +1799,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -1728,7 +1808,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -1794,7 +1874,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -1803,7 +1883,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -1867,7 +1947,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -1876,7 +1956,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -1905,6 +1985,81 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       }
 
       // Send the response content
+      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        type: 'done',
+        userMessage,
+        assistantMessage,
+        sources: []
+      })}\n\n`);
+      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
+      return;
+    }
+
+    // SHOW_FOLDER
+    if (intentResult.intent === 'show_folder' && intentResult.parameters.folderName) {
+      console.log(`📁 [STREAMING ACTION] Showing folder: "${intentResult.parameters.folderName}"`);
+
+      // Set up SSE headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      // Send "connected" event
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+
+      // Execute the action
+      const result = await fileActionsService.showFolder({
+        userId,
+        folderName: intentResult.parameters.folderName
+      }, query);
+
+      // Ensure conversation exists
+      await ensureConversationExists(conversationId, userId);
+
+      const userMessage = await prisma.messages.create({
+        data: {
+          conversations: { connect: { id: conversationId } },
+          role: 'user',
+          content: query,
+          metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
+        },
+      });
+
+      const assistantMessage = await prisma.messages.create({
+        data: {
+          conversations: { connect: { id: conversationId } },
+          role: 'assistant',
+          content: result.message,
+          metadata: JSON.stringify({
+            actionType: 'show_folder',
+            success: result.success,
+            folder: result.data?.folder,
+            action: result.data?.action
+          })
+        },
+      });
+
+      await prisma.conversations.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      });
+
+      // Send show_folder_modal action
+      if (result.success && result.data?.folder) {
+        res.write(`data: ${JSON.stringify({
+          type: 'action',
+          actionType: 'show_folder_modal',
+          success: true,
+          folder: result.data.folder,
+          contents: result.data.contents,
+          attachOnClose: false  // Folders don't attach, they navigate
+        })}\n\n`);
+      }
+
+      // Send response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'done',
@@ -1946,7 +2101,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -1955,7 +2110,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: responseMessage,
           metadata: JSON.stringify({
@@ -2010,7 +2165,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
         const userMessage = await prisma.messages.create({
           data: {
-            conversationId,
+            conversations: { connect: { id: conversationId } },
             role: 'user',
             content: query,
             metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
@@ -2019,7 +2174,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
         const assistantMessage = await prisma.messages.create({
           data: {
-            conversationId,
+            conversations: { connect: { id: conversationId } },
             role: 'assistant',
             content: result.message,
             metadata: JSON.stringify({
@@ -2128,7 +2283,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       if (assistantMsg) {
         const originalUserMsg = await prisma.messages.findFirst({
           where: {
-            conversationId,
+            conversations: { connect: { id: conversationId } },
             role: 'user',
             createdAt: { lt: assistantMsg.createdAt }
           },
@@ -2140,7 +2295,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Save user message to database with attached files metadata
       userMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null,
@@ -2206,7 +2361,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Save user-friendly message to database
       const assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: userFriendlyMessage
         }
@@ -2327,7 +2482,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     } else {
       assistantMessage = await prisma.messages.create({
         data: {
-          conversationId,
+          conversations: { connect: { id: conversationId } },
           role: 'assistant',
           content: cleanedAnswer,
           metadata: JSON.stringify({
@@ -2377,7 +2532,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
             try {
               const io = getIO();
               io.to(`user:${userId}`).emit('conversation:updated', {
-                conversationId,
+                conversations: { connect: { id: conversationId } },
                 title: generatedTitle,
                 updatedAt: new Date()
               });

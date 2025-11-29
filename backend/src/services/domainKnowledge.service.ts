@@ -550,7 +550,7 @@ Rules:
       }
 
       // Check if relationship exists
-      const existing = await prisma.conceptRelationship.findUnique({
+      const existing = await prisma.concept_relationships.findUnique({
         where: {
           fromConceptId_toConceptId_relationshipType: {
             fromConceptId: fromConcept.id,
@@ -567,7 +567,7 @@ Rules:
           : [];
         const newDocs = Array.from(new Set([...existingDocs, documentId]));
 
-        await prisma.conceptRelationship.update({
+        await prisma.concept_relationships.update({
           where: { id: existing.id },
           data: {
             sourceDocumentIds: JSON.stringify(newDocs),
@@ -576,7 +576,7 @@ Rules:
           },
         });
       } else {
-        await prisma.conceptRelationship.create({
+        await prisma.concept_relationships.create({
           data: {
             userId,
             fromConceptId: fromConcept.id,
@@ -679,10 +679,10 @@ Rules:
           normalizedTerm: term.toLowerCase(),
         },
         include: {
-          outgoingRelations: {
+          concept_relationships_concept_relationships_fromConceptIdTodomain_knowledge: {
             include: { toConcept: true },
           },
-          incomingRelations: {
+          concept_relationships_concept_relationships_toConceptIdTodomain_knowledge: {
             include: { fromConcept: true },
           },
         },

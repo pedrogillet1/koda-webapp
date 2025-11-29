@@ -17,7 +17,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
 
     // Get current user data
     const currentUser = await prisma.users.findUnique({
-      where: { id: req.user.id },
+      where: { id: req.users.id },
       select: { phoneNumber: true, email: true },
     });
 
@@ -37,7 +37,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         select: { id: true },
       });
 
-      if (existingUserWithPhone && existingUserWithPhone.id !== req.user.id) {
+      if (existingUserWithPhone && existingUserWithPhone.id !== req.users.id) {
         res.status(400).json({
           error: 'Phone number already in use',
           field: 'phoneNumber'
@@ -47,17 +47,17 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
 
       // Generate verification code
       const { generateSMSCode } = await import('../services/sms.service');
-      verificationCode = generateSMSCode();
+      verification_codes = generateSMSCode();
       needsPhoneVerification = true;
 
-      console.log(`📱 Phone verification code for ${req.user.id}: ${verificationCode}`);
+      console.log(`📱 Phone verification code for ${req.users.id}: ${verification_codes}`);
 
       // Create verification code entry
       await prisma.verification_codes.create({
         data: {
-          userId: req.user.id,
+          userId: req.users.id,
           type: 'phone',
-          code: verificationCode,
+          code: verification_codes,
           expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
         },
       });
@@ -65,16 +65,16 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       // Send SMS verification code
       try {
         const { sendSMS } = await import('../services/sms.service');
-        await sendSMS(phoneNumber, `Your Koda verification code is: ${verificationCode}`);
+        await sendSMS(phoneNumber, `Your Koda verification code is: ${verification_codes}`);
       } catch (error) {
         console.error('Failed to send SMS:', error);
-        console.log(`📧 [DEV MODE] Verification code for ${phoneNumber}: ${verificationCode}`);
+        console.log(`📧 [DEV MODE] Verification code for ${phoneNumber}: ${verification_codes}`);
       }
     }
 
     // Update user in database
     const updatedUser = await prisma.users.update({
-      where: { id: req.user.id },
+      where: { id: req.users.id },
       data: {
         firstName: firstName || null,
         lastName: lastName || null,
@@ -128,7 +128,7 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
 
     // Get user with password hash and salt
     const user = await prisma.users.findUnique({
-      where: { id: req.user.id },
+      where: { id: req.users.id },
       select: {
         id: true,
         email: true,
@@ -209,7 +209,7 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
 
     // Update password
     await prisma.users.update({
-      where: { id: req.user.id },
+      where: { id: req.users.id },
       data: {
         passwordHash: newPasswordHash,
         salt: newSalt,
@@ -248,7 +248,7 @@ export const verifyProfilePhone = async (req: Request, res: Response): Promise<v
     // Find verification code
     const verificationRecord = await prisma.verification_codes.findFirst({
       where: {
-        userId: req.user.id,
+        userId: req.users.id,
         type: 'phone',
         code,
         isUsed: false,
@@ -277,7 +277,7 @@ export const verifyProfilePhone = async (req: Request, res: Response): Promise<v
 
     // Update user - mark phone as verified
     const updatedUser = await prisma.users.update({
-      where: { id: req.user.id },
+      where: { id: req.users.id },
       data: {
         isPhoneVerified: true,
       },
@@ -293,7 +293,7 @@ export const verifyProfilePhone = async (req: Request, res: Response): Promise<v
       },
     });
 
-    console.log(`✅ Phone verified for user ${req.user.id}`);
+    console.log(`✅ Phone verified for user ${req.users.id}`);
 
     res.status(200).json({
       message: 'Phone number verified successfully',

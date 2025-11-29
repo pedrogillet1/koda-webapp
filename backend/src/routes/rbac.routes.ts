@@ -46,7 +46,7 @@ router.get('/my-roles', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const roles = await rbacService.getUserRoles(req.user.id);
+    const roles = await rbacService.getUserRoles(req.users.id);
     return res.json({ roles });
   } catch (error) {
     console.error('Error fetching user roles:', error);
@@ -64,7 +64,7 @@ router.get('/my-permissions', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const permissions = await rbacService.getUserPermissions(req.user.id);
+    const permissions = await rbacService.getUserPermissions(req.users.id);
     return res.json({ permissions: Array.from(permissions) });
   } catch (error) {
     console.error('Error fetching user permissions:', error);
@@ -112,7 +112,7 @@ router.post(
       }
 
       const expiration = expiresAt ? new Date(expiresAt) : undefined;
-      const success = await rbacService.assignRole(userId, roleName, req.user.id, expiration);
+      const success = await rbacService.assignRole(userId, roleName, req.users.id, expiration);
 
       if (!success) {
         return res.status(400).json({ error: 'Failed to assign role' });
@@ -145,7 +145,7 @@ router.delete(
       }
 
       const { userId, roleName } = req.params;
-      const success = await rbacService.revokeRole(userId, roleName, req.user.id);
+      const success = await rbacService.revokeRole(userId, roleName, req.users.id);
 
       if (!success) {
         return res.status(400).json({ error: 'Failed to revoke role' });
@@ -181,7 +181,7 @@ router.post('/roles', requireRole('admin'), async (req: Request, res: Response) 
       });
     }
 
-    const role = await rbacService.createRole(name, description || '', permissions, req.user.id);
+    const role = await rbacService.createRole(name, description || '', permissions, req.users.id);
 
     return res.status(201).json({
       message: 'Role created successfully',
@@ -207,7 +207,7 @@ router.delete('/roles/:roleId', requireRole('admin'), async (req: Request, res: 
     }
 
     const { roleId } = req.params;
-    const success = await rbacService.deleteRole(roleId, req.user.id);
+    const success = await rbacService.deleteRole(roleId, req.users.id);
 
     if (!success) {
       return res.status(400).json({ error: 'Failed to delete role (may be a system role)' });
@@ -239,7 +239,7 @@ router.post('/check-permission', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'resource and action are required' });
     }
 
-    const hasPermission = await rbacService.hasPermission(req.user.id, { resource, action });
+    const hasPermission = await rbacService.hasPermission(req.users.id, { resource, action });
 
     return res.json({
       hasPermission,

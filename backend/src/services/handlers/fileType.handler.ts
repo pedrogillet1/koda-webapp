@@ -377,7 +377,7 @@ export class FileTypeHandler {
       mimeType: doc.mimeType,
       fileSize: doc.fileSize,
       createdAt: doc.createdAt,
-      folderName: doc.folder?.name,
+      folderName: doc.folders?.name,
       status: doc.status
     }));
 

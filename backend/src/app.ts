@@ -187,7 +187,7 @@ app.use('/api', healthRoutes); // Also available at /api/health/*
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
 // TODO: Temporarily disabled routes with deleted service dependencies
-// app.use('/api/documents', documentGenerationRoutes); // Advanced: Document generation and comparison
+// app.use('/api/documents', documentGenerationRoutes); // Advanced: documents generation and comparison
 // app.use('/api/documents', documentEditingRoutes); // Advanced: AI-powered document editing
 // app.use('/api/documents', documentSearchRoutes); // Entity search routes
 app.use('/api/folders', folderRoutes);

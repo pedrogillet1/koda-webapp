@@ -933,7 +933,7 @@ async function processDocumentWithTimeout(
           );
 
           // Update document metadata with enriched data
-          await prisma.documentsMetadatas.update({
+          await prisma.document_metadata.update({
             where: { documentId },
             data: {
               classification: enriched.topics.length > 0 ? enriched.topics[0] : classification,
@@ -953,7 +953,7 @@ async function processDocumentWithTimeout(
 
     // Create or update metadata record with enriched data
     const metadataUpsertStartTime = Date.now();
-    await prisma.documentsMetadatas.upsert({
+    await prisma.document_metadata.upsert({
       where: { documentId },
       create: {
         documentId,
@@ -1001,18 +1001,18 @@ async function processDocumentWithTimeout(
           // Create or find tags and link them to the document
           for (const tagName of tags) {
             // Get or create tag
-            let tag = await prisma.tag.findUnique({
+            let tag = await prisma.tags.findUnique({
               where: { userId_name: { userId, name: tagName } },
             });
 
             if (!tag) {
-              tag = await prisma.tag.create({
+              tag = await prisma.tags.create({
                 data: { userId, name: tagName },
               });
             }
 
             // Link tag to document (skip if already linked)
-            await prisma.documentsTags.upsert({
+            await prisma.document_tags.upsert({
               where: {
                 documentId_tagId: {
                   documentId,
@@ -1961,7 +1961,7 @@ async function processDocumentAsync(
     }
 
     // Create or update metadata record (upsert handles retry cases)
-    await prisma.documentsMetadatas.upsert({
+    await prisma.document_metadata.upsert({
       where: { documentId },
       create: {
         documentId,
@@ -2134,7 +2134,7 @@ async function processDocumentAsync(
           console.log(`✅ [Background] Embedding generation complete for ${filename}`);
 
         } catch (error: any) {
-          // ⚠️ NON-CRITICAL ERROR: Document is still usable without embeddings
+          // ⚠️ NON-CRITICAL ERROR: documents is still usable without embeddings
           console.error('❌ [Background] Vector embedding generation failed:', error);
 
           // Update document with error status but don't throw
@@ -3469,7 +3469,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 
           // Update metadata with slides data
           if (document.document_metadata) {
-            await prisma.documentsMetadatas.update({
+            await prisma.document_metadata.update({
               where: { id: document.document_metadata.id },
               data: {
                 extractedText,
@@ -3479,7 +3479,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
               }
             });
           } else {
-            await prisma.documentsMetadatas.create({
+            await prisma.document_metadata.create({
               data: {
                 documentId,
                 extractedText,
@@ -3541,7 +3541,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 
       // Update metadata with extracted text
       if (document.document_metadata) {
-        await prisma.documentsMetadatas.update({
+        await prisma.document_metadata.update({
           where: { id: document.document_metadata.id },
           data: {
             extractedText,
@@ -3550,7 +3550,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
           }
         });
       } else {
-        await prisma.documentsMetadatas.create({
+        await prisma.document_metadata.create({
           data: {
             documentId,
             extractedText,
@@ -3586,14 +3586,14 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 
         // Update metadata with markdown content
         if (document.document_metadata) {
-          await prisma.documentsMetadatas.update({
+          await prisma.document_metadata.update({
             where: { id: document.document_metadata.id },
             data: {
               markdownContent: markdownResult.markdownContent
             }
           });
         } else {
-          await prisma.documentsMetadatas.create({
+          await prisma.document_metadata.create({
             data: {
               documentId,
               markdownContent: markdownResult.markdownContent
@@ -3731,7 +3731,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
     console.log('📊 PowerPoint file confirmed, regenerating slides with ImageMagick...');
 
     // Set status to processing
-    await prisma.documentsMetadatas.update({
+    await prisma.document_metadata.update({
       where: { documentId: document.id },
       data: {
         slideGenerationStatus: 'processing',
@@ -3776,7 +3776,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
           console.log(`✅ [Fallback] Extracted ${imageResult.totalImages} images from ${imageResult.slides.length} slides`);
 
           // Fetch existing slidesData
-          const existingMetadata = await prisma.documentsMetadatas.findUnique({
+          const existingMetadata = await prisma.document_metadata.findUnique({
             where: { documentId: document.id }
           });
 
@@ -3810,7 +3810,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
           });
 
           // Update metadata
-          await prisma.documentsMetadatas.update({
+          await prisma.document_metadata.update({
             where: { documentId: document.id },
             data: {
               slidesData: JSON.stringify(slidesData),
@@ -3840,7 +3840,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
       console.log(`✅ Successfully regenerated ${slides.length} slides`);
 
       // 6. Fetch existing slidesData to preserve text content
-      const existingMetadata = await prisma.documentsMetadatas.findUnique({
+      const existingMetadata = await prisma.document_metadata.findUnique({
         where: { documentId: document.id }
       });
 
@@ -3873,7 +3873,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
         };
       });
 
-      await prisma.documentsMetadatas.update({
+      await prisma.document_metadata.update({
         where: { documentId: document.id },
         data: {
           slidesData: JSON.stringify(slidesData),
@@ -3904,7 +3904,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
 
     // Set status to failed
     try {
-      await prisma.documentsMetadatas.update({
+      await prisma.document_metadata.update({
         where: { documentId },
         data: {
           slideGenerationStatus: 'failed',
@@ -3939,18 +3939,18 @@ async function generateTagsInBackground(
 
       for (const tagName of tags) {
         // Get or create tag
-        let tag = await prisma.tag.findUnique({
+        let tag = await prisma.tags.findUnique({
           where: { userId_name: { userId, name: tagName } },
         });
 
         if (!tag) {
-          tag = await prisma.tag.create({
+          tag = await prisma.tags.create({
             data: { userId, name: tagName },
           });
         }
 
         // Link tag to document
-        await prisma.documentsTags.upsert({
+        await prisma.document_tags.upsert({
           where: {
             documentId_tagId: {
               documentId,

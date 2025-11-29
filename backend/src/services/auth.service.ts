@@ -177,7 +177,7 @@ export const loginUser = async ({ email, password, rememberMe }: LoginInput) => 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + (rememberMe ? 30 : 7)); // 30 days if rememberMe, else 7 days
 
-  await prisma.session.create({
+  await prisma.sessions.create({
     data: {
       userId: user.id,
       refreshTokenHash,
@@ -207,12 +207,12 @@ export const refreshAccessToken = async (refreshToken: string) => {
   const refreshTokenHash = hashToken(refreshToken);
 
   // Find session
-  const session = await prisma.session.findFirst({
+  const session = await prisma.sessions.findFirst({
     where: {
       refreshTokenHash,
       expiresAt: { gte: new Date() },
     },
-    include: { user: true },
+    include: { users: true },
   });
 
   if (!session) {
@@ -221,8 +221,8 @@ export const refreshAccessToken = async (refreshToken: string) => {
 
   // Generate new access token
   const accessToken = generateAccessToken({
-    userId: session.user.id,
-    email: session.user.email,
+    userId: session.users.id,
+    email: session.users.email,
   });
 
   return { accessToken };
@@ -235,7 +235,7 @@ export const logoutUser = async (refreshToken: string) => {
   const refreshTokenHash = hashToken(refreshToken);
 
   // Delete session
-  await prisma.session.deleteMany({
+  await prisma.sessions.deleteMany({
     where: { refreshTokenHash },
   });
 
@@ -279,7 +279,7 @@ export const verifyPendingUserEmail = async (email: string, code: string) => {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
 
-  await prisma.session.create({
+  await prisma.sessions.create({
     data: {
       userId: user.id,
       refreshTokenHash,
@@ -414,7 +414,7 @@ export const verifyPendingUserPhone = async (email: string, code: string) => {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
 
-  await prisma.session.create({
+  await prisma.sessions.create({
     data: {
       userId: user.id,
       refreshTokenHash,
@@ -493,7 +493,7 @@ export const sendEmailVerificationCode = async (userId: string) => {
  * Verify email code
  */
 export const verifyEmailCode = async (userId: string, code: string) => {
-  const verificationCode = await prisma.verification_codes.findFirst({
+  const verification_codes = await prisma.verification_codes.findFirst({
     where: {
       userId,
       type: 'email',
@@ -503,13 +503,13 @@ export const verifyEmailCode = async (userId: string, code: string) => {
     },
   });
 
-  if (!verificationCode) {
+  if (!verification_codes) {
     throw new Error('Invalid or expired verification code');
   }
 
   // Mark code as used
   await prisma.verification_codes.update({
-    where: { id: verificationCode.id },
+    where: { id: verification_codes.id },
     data: { isUsed: true },
   });
 
@@ -607,7 +607,7 @@ export const verifyPhoneCode = async (userId: string, code: string) => {
   // Use transaction to ensure atomicity
   const result = await prisma.$transaction(async (tx) => {
     // 1. Find and validate the verification code
-    const verificationCode = await tx.verification_codes.findFirst({
+    const verification_codes = await tx.verification_codes.findFirst({
       where: {
         userId,
         type: 'phone',
@@ -617,18 +617,18 @@ export const verifyPhoneCode = async (userId: string, code: string) => {
       },
     });
 
-    if (!verificationCode) {
+    if (!verification_codes) {
       throw new Error('Invalid or expired verification code');
     }
 
     // 2. Mark code as used
     await tx.verification_codes.update({
-      where: { id: verificationCode.id },
+      where: { id: verification_codes.id },
       data: { isUsed: true },
     });
 
     // 3. Update user verification status
-    const updatedUser = await tx.user.update({
+    const updatedUser = await tx.users.update({
       where: { id: userId },
       data: { isPhoneVerified: true },
       select: {
@@ -752,7 +752,7 @@ export const verifyPasswordResetCode = async ({
   }
 
   // Find valid verification code
-  const verificationCode = await prisma.verification_codes.findFirst({
+  const verification_codes = await prisma.verification_codes.findFirst({
     where: {
       userId: user.id,
       type: 'password_reset',
@@ -762,7 +762,7 @@ export const verifyPasswordResetCode = async ({
     },
   });
 
-  if (!verificationCode) {
+  if (!verification_codes) {
     throw new Error('Invalid or expired verification code');
   }
 
@@ -804,7 +804,7 @@ export const resetPassword = async ({
   }
 
   // Find valid verification code
-  const verificationCode = await prisma.verification_codes.findFirst({
+  const verification_codes = await prisma.verification_codes.findFirst({
     where: {
       userId: user.id,
       type: 'password_reset',
@@ -814,7 +814,7 @@ export const resetPassword = async ({
     },
   });
 
-  if (!verificationCode) {
+  if (!verification_codes) {
     throw new Error('Invalid or expired verification code');
   }
 
@@ -832,12 +832,12 @@ export const resetPassword = async ({
 
   // Mark verification code as used
   await prisma.verification_codes.update({
-    where: { id: verificationCode.id },
+    where: { id: verification_codes.id },
     data: { isUsed: true },
   });
 
   // Invalidate all existing sessions for security
-  await prisma.session.deleteMany({
+  await prisma.sessions.deleteMany({
     where: { userId: user.id },
   });
 
