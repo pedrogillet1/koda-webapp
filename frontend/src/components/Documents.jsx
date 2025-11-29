@@ -1575,13 +1575,13 @@ const Documents = () => {
             <FileBreakdownDonut showEncryptionMessage={false} />
           </div>
 
-          {/* Your Files - Full width card below */}
-          <div style={{width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 20, border: '2px solid #E6E6EC', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)', display: 'flex', flexDirection: 'column'}}>
+          {/* Recently Added - Full width card below */}
+          <div style={{width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 20, border: '2px solid #E6E6EC', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)', display: 'flex', flexDirection: 'column', overflow: 'visible'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24}}>
-                <div style={{color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Your Files</div>
-                {contextDocuments.filter(doc => !doc.folderId && !doc.folder).length > 6 && (
+                <div style={{color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Recently Added</div>
+                {contextDocuments.length > 8 && (
                   <div
-                    onClick={() => navigate('/category/recently-added')}
+                    onClick={() => navigate('/documents')}
                     style={{color: '#171717', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '22.40px', cursor: 'pointer'}}
                   >
                     See All
@@ -1589,8 +1589,8 @@ const Documents = () => {
                 )}
               </div>
 
-              {contextDocuments.filter(doc => !doc.folderId && !doc.folder).length > 0 ? (
-                <div style={{display: 'flex', flexDirection: 'column', gap: 0, flex: 1, overflowY: 'auto', minHeight: 0}}>
+              {contextDocuments.length > 0 ? (
+                <div style={{display: 'flex', flexDirection: 'column', gap: 0, flex: 1, overflowY: 'visible', overflow: 'visible', minHeight: 0}}>
                   {/* Table Header */}
                   {!isMobile && (
                     <div style={{
@@ -1649,11 +1649,11 @@ const Documents = () => {
                       return ext || 'File';
                     };
 
-                    // Show 6 most recently added documents (sorted by createdAt descending)
-                    const allDocsSorted = [...contextDocuments].sort((a, b) => 
+                    // Show 8 most recently added documents (sorted by createdAt descending)
+                    const allDocsSorted = [...contextDocuments].sort((a, b) =>
                       new Date(b.createdAt) - new Date(a.createdAt)
                     );
-                    const docsToShow = allDocsSorted.slice(0, 6);
+                    const docsToShow = allDocsSorted.slice(0, 8);
                     return docsToShow.map((doc, index) => {
                     // ✅ Check document status for visual indicators
                     const isUploading = doc.status === 'uploading';
@@ -1782,6 +1782,7 @@ const Documents = () => {
                     return (
                       <div
                         key={doc.id}
+                        className="document-row"
                         draggable
                         onDragStart={(e) => {
                           e.dataTransfer.setData('application/json', JSON.stringify({
@@ -1800,12 +1801,12 @@ const Documents = () => {
                           gap: 14,
                           padding: 14,
                           borderRadius: 14,
-                          background: isUploading ? '#FFF9E6' : '#F5F5F5',
-                          opacity: isUploading ? 0.8 : 1,
+                          background: '#F5F5F5',
                           border: '1px solid #E6E6EC',
                           cursor: 'grab',
-                          transition: 'background 0.15s ease',
-                          marginBottom: 12
+                          marginBottom: 12,
+                          position: 'relative',
+                          overflow: 'hidden'
                         } : {
                           display: 'grid',
                           gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
@@ -1813,12 +1814,13 @@ const Documents = () => {
                           alignItems: 'center',
                           padding: '10px 14px',
                           borderRadius: 14,
-                          background: isUploading ? '#FFF9E6' : 'white',
+                          background: 'white',
                           border: '1px solid #E6E6EC',
-                          opacity: isUploading ? 0.8 : 1,
                           cursor: 'pointer',
                           transition: 'background 0.15s ease',
-                          marginBottom: 8
+                          marginBottom: 8,
+                          position: 'relative',
+                          overflow: 'hidden'
                         }}
                         onMouseEnter={(e) => {
                           if (!isUploading && !isMobile) {
@@ -1831,6 +1833,20 @@ const Documents = () => {
                           }
                         }}
                       >
+                        {/* Grey progress fill background */}
+                        {isUploading && (
+                          <div style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            height: '100%',
+                            width: `${doc.uploadProgress || 0}%`,
+                            background: '#E8E8E8',
+                            borderRadius: 14,
+                            transition: 'width 0.3s ease-out',
+                            zIndex: 0
+                          }} />
+                        )}
                         {isMobile ? (
                           <>
                             <img
@@ -1843,21 +1859,21 @@ const Documents = () => {
                                 imageRendering: '-webkit-optimize-contrast',
                                 objectFit: 'contain',
                                 shapeRendering: 'geometricPrecision',
-                                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
+                                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))',
+                                position: 'relative',
+                                zIndex: 1
                               }}
                             />
-                            <div style={{flex: 1, overflow: 'hidden'}}>
+                            <div style={{flex: 1, overflow: 'hidden', position: 'relative', zIndex: 1}}>
                               <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                                 {doc.filename}
                               </div>
                               <div style={{color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 5}}>
-                                {formatBytes(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
+                                {isUploading
+                                  ? `${formatBytes(doc.fileSize)} – ${Math.round(doc.uploadProgress || 0)}% uploaded`
+                                  : `${formatBytes(doc.fileSize)} • ${new Date(doc.createdAt).toLocaleDateString()}`
+                                }
                               </div>
-                              {isUploading && (
-                                <div style={{fontSize: 12, color: '#F59E0B', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4}}>
-                                  <span>⏳</span><span>Uploading...</span>
-                                </div>
-                              )}
                               {isFailed && (
                                 <div style={{fontSize: 12, color: '#EF4444', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4}}>
                                   <span>❌</span><span>Failed</span>
@@ -1868,25 +1884,32 @@ const Documents = () => {
                         ) : (
                           <>
                             {/* Name Column */}
-                            <div style={{display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden', position: 'relative', zIndex: 1}}>
                               <img
                                 src={getFileIcon(doc)}
                                 alt="File icon"
                                 style={{width: 40, height: 40, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}}
                               />
-                              <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
-                                {doc.filename}
+                              <div style={{display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
+                                <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                                  {doc.filename}
+                                </div>
+                                {isUploading && (
+                                  <div style={{fontSize: 13, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 2}}>
+                                    {formatBytes(doc.fileSize)} – {Math.round(doc.uploadProgress || 0)}% uploaded
+                                  </div>
+                                )}
                               </div>
                             </div>
                             {/* Type Column */}
-                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{getFileType(doc)}</div>
+                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans', position: 'relative', zIndex: 1}}>{isUploading ? '' : getFileType(doc)}</div>
                             {/* Size Column */}
-                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{formatBytes(doc.fileSize)}</div>
+                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans', position: 'relative', zIndex: 1}}>{isUploading ? '' : formatBytes(doc.fileSize)}</div>
                             {/* Date Column */}
-                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{new Date(doc.createdAt).toLocaleDateString()}</div>
+                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans', position: 'relative', zIndex: 1}}>{isUploading ? '' : new Date(doc.createdAt).toLocaleDateString()}</div>
                           </>
                         )}
-                        <div style={{position: 'relative'}} data-dropdown>
+                        <div style={{position: 'relative', zIndex: 1}} data-dropdown>
                           <button
                             ref={(el) => {
                               if (el) dropdownRefs.current[doc.id] = el;
@@ -2086,22 +2109,22 @@ const Documents = () => {
             </div>
           </div>
 
-        {/* Drag and Drop Overlay */}
+        {/* Drag and Drop Overlay - dark background like notification popup */}
         {isDraggingOver && (
           <div
             style={{
-              position: 'absolute',
+              position: 'fixed',
               top: 0,
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(250, 250, 250, 0.85)',
+              background: 'rgba(0, 0, 0, 0.5)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 24,
-              zIndex: 999,
+              zIndex: 9999,
               pointerEvents: 'none',
               animation: 'fadeIn 0.2s ease-in'
             }}
@@ -2120,19 +2143,19 @@ const Documents = () => {
               style={{
                 width: 400,
                 height: 'auto',
-                opacity: isDraggingOver ? 1.0 : 0.75,
-                transform: isDraggingOver ? 'scale(1.05)' : 'scale(1.0)',
+                opacity: 1.0,
+                transform: 'scale(1.05)',
                 transition: 'opacity 250ms ease-out, transform 250ms ease-out'
               }}
             />
             <div
               style={{
-                color: '#181818',
+                color: '#FFFFFF',
                 fontSize: 32,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700',
                 textAlign: 'center',
-                opacity: isDraggingOver ? 1.0 : 0.6,
+                opacity: 1.0,
                 transition: 'opacity 250ms ease-out'
               }}
             >
@@ -2140,12 +2163,12 @@ const Documents = () => {
             </div>
             <div
               style={{
-                color: 'rgba(24, 24, 24, 0.6)',
+                color: 'rgba(255, 255, 255, 0.7)',
                 fontSize: 18,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '500',
                 textAlign: 'center',
-                opacity: isDraggingOver ? 0.8 : 0.4,
+                opacity: 0.8,
                 transition: 'opacity 250ms ease-out'
               }}
             >

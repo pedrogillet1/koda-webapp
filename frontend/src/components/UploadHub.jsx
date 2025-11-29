@@ -10,7 +10,6 @@ import RenameModal from './RenameModal';
 import CreateFolderModal from './CreateFolderModal';
 import { useToast } from '../context/ToastContext';
 import { useDocuments } from '../context/DocumentsContext';
-import UploadProgressBar from './UploadProgressBar';
 import { ReactComponent as SearchIcon} from '../assets/Search.svg';
 import { ReactComponent as CheckIcon} from '../assets/check.svg';
 import { ReactComponent as LogoutBlackIcon } from '../assets/Logout-black.svg';
@@ -2534,10 +2533,11 @@ const UploadHub = () => {
                       outline: isError ? '2px solid #EF4444' : 'none',
                       outlineOffset: '-2px',
                       border: `1px solid ${isError ? '#EF4444' : '#E5E7EB'}`,
-                      borderRadius: 20,
+                      borderRadius: 100,
                       transition: 'box-shadow 0.15s, border-color 0.15s',
                       position: 'relative',
-                      cursor: f.isFolder && f.status === 'pending' ? 'pointer' : 'default'
+                      cursor: f.isFolder && f.status === 'pending' ? 'pointer' : 'default',
+                      overflow: 'hidden'
                     }}
                     onMouseEnter={(e) => {
                       if (f.isFolder && f.status === 'pending') {
@@ -2552,6 +2552,20 @@ const UploadHub = () => {
                       }
                     }}
                   >
+                    {/* Grey progress fill background */}
+                    {(f.status === 'uploading' || f.status === 'processing') && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        height: '100%',
+                        width: `${progressWidth}%`,
+                        background: '#E8E8E8',
+                        borderRadius: 100,
+                        transition: 'width 0.3s ease-out',
+                        zIndex: 0
+                      }} />
+                    )}
                     {/* Icon (File or Folder) */}
                     <div style={{
                       width: 64,
@@ -2560,7 +2574,8 @@ const UploadHub = () => {
                       alignItems: 'center',
                       justifyContent: 'center',
                       flexShrink: 0,
-                      position: 'relative'
+                      position: 'relative',
+                      zIndex: 1
                     }}>
                       {f.isFolder ? (
                         <img src={folderIcon} alt="Folder" style={{width: 48, height: 48, filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'}} />
@@ -2841,7 +2856,7 @@ const UploadHub = () => {
                       <p style={{
                         fontSize: 13,
                         color: isError ? '#EF4444' : (f.status === 'uploading' ? '#A0A0A0' : '#6B7280'),
-                        margin: f.status === 'uploading' ? '0 0 8px 0' : 0,
+                        margin: 0,
                         fontFamily: 'Plus Jakarta Sans'
                       }}>
                         {isError ? (
@@ -2850,7 +2865,7 @@ const UploadHub = () => {
                           f.status === 'pending' ? (
                             `${f.fileCount} file${f.fileCount !== 1 ? 's' : ''} • ${formatFileSize(f.totalSize)} • ${f.category || 'Uncategorized'}`
                           ) : f.status === 'uploading' ? (
-                            'Uploading to cloud...'
+                            `${formatFileSize(f.totalSize)} – ${Math.round(progressWidth)}% uploaded`
                           ) : (
                             `${f.fileCount} file${f.fileCount !== 1 ? 's' : ''} • ${formatFileSize(f.totalSize)} • ${f.category || 'Uncategorized'}`
                           )
@@ -2861,27 +2876,10 @@ const UploadHub = () => {
                         ) : f.status === 'processing' ? (
                           f.statusMessage || 'Processing document...'
                         ) : (
-                          f.processingStage || 'Uploading to cloud...'
+                          `${formatFileSize(f.file.size)} – ${Math.round(progressWidth)}% uploaded`
                         )}
                       </p>
 
-                      {/* Progress Bar - Show during upload AND processing */}
-                      {(f.status === 'uploading' || f.status === 'processing' || f.status === 'completed') && (
-                        <div style={{
-                          position: 'absolute',
-                          bottom: 8,
-                          left: 12,
-                          right: 12,
-                          zIndex: 2
-                        }}>
-                          <UploadProgressBar
-                            progress={progressWidth}
-                            status={f.status === 'processing' ? 'uploading' : f.status}
-                            showStatus={true}
-                            variant="default"
-                          />
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -2953,12 +2951,12 @@ const UploadHub = () => {
         {isDraggingOver && (
           <div
             style={{
-              position: 'absolute',
+              position: 'fixed',
               top: 0,
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(250, 250, 250, 0.85)',
+              background: 'rgba(0, 0, 0, 0.5)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -2983,33 +2981,29 @@ const UploadHub = () => {
               style={{
                 width: 400,
                 height: 'auto',
-                opacity: isDraggingOver ? 1.0 : 0.75,
-                transform: isDraggingOver ? 'scale(1.05)' : 'scale(1.0)',
+                opacity: 1.0,
+                transform: 'scale(1.05)',
                 transition: 'opacity 250ms ease-out, transform 250ms ease-out'
               }}
             />
             <div
               style={{
-                color: '#181818',
+                color: '#FFFFFF',
                 fontSize: 32,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700',
-                textAlign: 'center',
-                opacity: isDraggingOver ? 1.0 : 0.6,
-                transition: 'opacity 250ms ease-out'
+                textAlign: 'center'
               }}
             >
               Drop files here to upload
             </div>
             <div
               style={{
-                color: 'rgba(24, 24, 24, 0.6)',
+                color: 'rgba(255, 255, 255, 0.7)',
                 fontSize: 18,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '500',
-                textAlign: 'center',
-                opacity: isDraggingOver ? 0.8 : 0.4,
-                transition: 'opacity 250ms ease-out'
+                textAlign: 'center'
               }}
             >
               Release to open upload modal

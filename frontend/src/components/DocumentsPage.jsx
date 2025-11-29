@@ -1291,6 +1291,7 @@ const DocumentsPage = () => {
                   return (
                     <div
                       key={doc.id}
+                      className="document-row"
                       draggable={!isMobile}
                       onDragStart={(e) => {
                         // If in select mode and this doc is selected, drag all selected docs
@@ -1613,22 +1614,22 @@ const DocumentsPage = () => {
           </div>
         </div>
 
-        {/* Drag and Drop Overlay */}
+        {/* Drag and Drop Overlay - dark background like notification popup */}
         {isDraggingOver && (
           <div
             style={{
-              position: 'absolute',
+              position: 'fixed',
               top: 0,
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(250, 250, 250, 0.85)',
+              background: 'rgba(0, 0, 0, 0.5)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 24,
-              zIndex: 999,
+              zIndex: 9999,
               pointerEvents: 'none',
               animation: 'fadeIn 0.2s ease-in'
             }}
@@ -1648,13 +1649,13 @@ const DocumentsPage = () => {
                 width: 400,
                 height: 'auto',
                 opacity: 1.0,
-                transform: 'scale(1.0)',
+                transform: 'scale(1.05)',
                 transition: 'opacity 250ms ease-out, transform 250ms ease-out'
               }}
             />
             <div
               style={{
-                color: '#181818',
+                color: '#FFFFFF',
                 fontSize: 32,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700',
@@ -1665,7 +1666,7 @@ const DocumentsPage = () => {
             </div>
             <div
               style={{
-                color: 'rgba(24, 24, 24, 0.6)',
+                color: 'rgba(255, 255, 255, 0.7)',
                 fontSize: 18,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '500',

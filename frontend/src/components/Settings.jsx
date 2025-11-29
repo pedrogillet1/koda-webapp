@@ -7,6 +7,7 @@ import FeedbackModal from './FeedbackModal';
 import RecoveryVerificationBanner from './RecoveryVerificationBanner';
 import FileBreakdownDonut from './FileBreakdownDonut';
 import { useToast } from '../context/ToastContext';
+import { useDocuments } from '../context/DocumentsContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { ReactComponent as DonutIcon } from '../assets/Donut.svg';
 import { ReactComponent as UserIcon } from '../assets/User.svg';
@@ -43,6 +44,7 @@ const Settings = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { showSuccess, showError } = useToast();
+  const { documents: contextDocuments } = useDocuments();
   const [activeSection, setActiveSection] = useState('general');
   const [isExpanded, setIsExpanded] = useState(false);
   const [documents, setDocuments] = useState(() => {
@@ -539,11 +541,8 @@ const Settings = () => {
     return ext || 'File';
   };
 
-  // Get 5 most recent documents (only root-level documents, not in folders)
-  // Check both folderId (scalar) and folder (relation object) for robustness
-  const recentDocuments = documents
-    .filter(doc => !doc.folderId && !doc.folder)
-    .slice()
+  // Get 5 most recent documents (all documents, regardless of folder) from context
+  const recentDocuments = [...contextDocuments]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 5);
 
@@ -1099,6 +1098,7 @@ const Settings = () => {
                   {recentDocuments.map((doc) => (
                     <div
                       key={doc.id}
+                      className="document-row"
                       onClick={() => navigate(`/document/${doc.id}`)}
                       style={isMobile ? {
                         display: 'flex',

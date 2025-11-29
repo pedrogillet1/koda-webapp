@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
  * - Subtle shimmer effect (10-15% opacity, 2.5s cycle)
  * - Proper completion state (200ms hold, fade to 70%)
  * - Thin pill bar shape
- * - Status text transition: "Uploading..." → "✓ Uploaded"
+ * - Status text transition: "Uploading to cloud..." → "✓ Uploaded"
  */
 
 const UploadProgressBar = ({
@@ -89,14 +89,14 @@ const UploadProgressBar = ({
   const getStatusText = () => {
     if (status === 'error') return 'Error';
     if (isCompleted || status === 'completed') return '✓ Uploaded';
-    return 'Uploading...';
+    return 'Uploading to cloud...';
   };
 
-  // Progress bar color
+  // Progress bar color - grey for uploading, green for completed
   const getBarColor = () => {
     if (status === 'error') return '#EF4444';
     if (isCompleted || status === 'completed') return '#10B981';
-    return 'linear-gradient(90deg, #3B82F6 0%, #2563EB 100%)';
+    return '#A0A0A0'; // Grey for uploading state
   };
 
   return (

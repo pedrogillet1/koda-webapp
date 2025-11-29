@@ -6,7 +6,7 @@
   padding: 12px;
   background: white;
   border: 1px solid #E6E6EC;
-  border-radius: 12px;
+  border-radius: 100px;
   transition: all 0.2s ease;
   overflow: hidden;
 }
@@ -30,8 +30,7 @@
 .progress-fill-bg {
   height: 100%;
   background: rgba(169, 169, 169, 0.12);
-  border-top-left-radius: 12px;
-  border-bottom-left-radius: 12px;
+  border-radius: 100px;
   transition: width 0.3s ease-in-out;
 }
 

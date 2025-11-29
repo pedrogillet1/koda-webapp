@@ -36,6 +36,7 @@ import pptxIcon from '../assets/pptx.png';
 import movIcon from '../assets/mov.png';
 import mp4Icon from '../assets/mp4.png';
 import mp3Icon from '../assets/mp3.svg';
+import filesIcon from '../assets/files-icon.svg';
 
 // Document Thumbnail Component - simplified to just show file icons (thumbnails not in use)
 const DocumentThumbnail = ({ documentId, filename, width = 80, height = 80 }) => {
@@ -91,7 +92,7 @@ const FolderThumbnail = () => {
         width: '100%',
         height: '136px',
         borderRadius: '10px',
-        background: 'linear-gradient(180deg, #E8E8E8 0%, #C8C8C8 100%)',
+        background: 'transparent',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -153,6 +154,8 @@ const CategoryDetail = () => {
   const [draggedItem, setDraggedItem] = useState(null);
   const [dropTargetId, setDropTargetId] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [initialUploadFiles, setInitialUploadFiles] = useState(null);
+  const [isFileDragOver, setIsFileDragOver] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
@@ -931,8 +934,113 @@ const CategoryDetail = () => {
     }
   };
 
+  // File drag-and-drop handlers for uploading files to current folder
+  const handleFileDragOver = (e) => {
+    // Only handle file drops, not internal document/folder drags
+    if (e.dataTransfer.types.includes('Files')) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsFileDragOver(true);
+    }
+  };
+
+  const handleFileDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only reset if leaving the main container
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setIsFileDragOver(false);
+    }
+  };
+
+  const handleFileDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsFileDragOver(false);
+
+    // Only process if files are being dropped
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      setInitialUploadFiles(files);
+      setShowUploadModal(true);
+    }
+  };
+
   return (
-    <div style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex' }}>
+    <div
+      style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex' }}
+      onDragOver={handleFileDragOver}
+      onDragLeave={handleFileDragLeave}
+      onDrop={handleFileDrop}
+    >
+      {/* File drag-and-drop overlay - dark background like notification popup */}
+      {isFileDragOver && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 24,
+            zIndex: 9999,
+            pointerEvents: 'none',
+            animation: 'fadeIn 0.2s ease-in'
+          }}
+        >
+          <style>
+            {`
+              @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+              }
+            `}
+          </style>
+          <img
+            src={filesIcon}
+            alt="Files"
+            style={{
+              width: 400,
+              height: 'auto',
+              opacity: 1.0,
+              transform: 'scale(1.05)',
+              transition: 'opacity 250ms ease-out, transform 250ms ease-out'
+            }}
+          />
+          <div
+            style={{
+              color: '#FFFFFF',
+              fontSize: 32,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '700',
+              textAlign: 'center',
+              opacity: 1.0,
+              transition: 'opacity 250ms ease-out'
+            }}
+          >
+            Drop files here to upload
+          </div>
+          <div
+            style={{
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontSize: 18,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '500',
+              textAlign: 'center',
+              opacity: 0.8,
+              transition: 'opacity 250ms ease-out'
+            }}
+          >
+            Release to open upload modal
+          </div>
+        </div>
+      )}
+
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -1570,7 +1678,7 @@ const CategoryDetail = () => {
             <>
               {/* Folders Section (Grid) */}
               {subFolders.length > 0 && (
-                <div style={{ marginBottom: 24, background: "white", borderRadius: 20, border: "2px solid #E6E6EC", padding: 24 }}>
+                <div style={{ marginBottom: 24 }}>
                   <h2 style={{
                     fontSize: 18,
                     fontWeight: '600',
@@ -1597,29 +1705,26 @@ const CategoryDetail = () => {
                         onDragLeave={(e) => handleFolderDragLeave(e, folder)}
                         onDrop={(e) => handleFolderDrop(e, folder)}
                         style={{
-                          background: dropTargetId === folder.id ? '#EFF6FF' : '#F9FAFB',
-                          border: dropTargetId === folder.id ? '2px dashed #3B82F6' : '1px solid #E5E7EB',
-                          borderRadius: 12,
+                          background: dropTargetId === folder.id ? '#EFF6FF' : 'white',
+                          border: dropTargetId === folder.id ? '2px dashed #3B82F6' : '1px solid #E6E6EC',
+                          borderRadius: 16,
                           padding: 16,
                           cursor: 'pointer',
                           transition: 'all 0.2s',
                           position: 'relative',
-                          opacity: draggedItem?.type === 'folder' && draggedItem?.id === folder.id ? 0.5 : 1
+                          opacity: draggedItem?.type === 'folder' && draggedItem?.id === folder.id ? 0.5 : 1,
+                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
                         }}
                         onMouseEnter={(e) => {
                           if (dropTargetId !== folder.id) {
-                            e.currentTarget.style.background = '#F3F4F6';
-                            e.currentTarget.style.borderColor = '#D1D5DB';
                             e.currentTarget.style.transform = 'translateY(-2px)';
                             e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                           }
                         }}
                         onMouseLeave={(e) => {
                           if (dropTargetId !== folder.id) {
-                            e.currentTarget.style.background = '#F9FAFB';
-                            e.currentTarget.style.borderColor = '#E5E7EB';
                             e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = 'none';
+                            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
                           }
                         }}
                       >
@@ -1754,17 +1859,10 @@ const CategoryDetail = () => {
                                 Move
                               </button>
                               <button
-                                onClick={async (e) => {
+                                onClick={(e) => {
                                   e.stopPropagation();
-                                  if (window.confirm(`Delete folder "${folder.name}"?`)) {
-                                    try {
-                                      await api.delete(`/api/folders/${folder.id}`);
-                                      // ✅ Context will auto-update after folder deletion
-                                      await refreshAll();
-                                    } catch (error) {
-                                      alert(error.response?.data?.error || 'Failed to delete folder');
-                                    }
-                                  }
+                                  setItemToDelete({ id: folder.id, name: folder.name, type: 'folder' });
+                                  setShowDeleteModal(true);
                                   setOpenFolderMenuId(null);
                                 }}
                                 style={{
@@ -2245,6 +2343,7 @@ const CategoryDetail = () => {
                     {sortedDocuments.map((doc) => (
                       <div
                         key={doc.id}
+                        className="document-row"
                         draggable={!isMobile}
                         onDragStart={(e) => handleDocumentDragStart(e, doc)}
                         onDragEnd={handleDocumentDragEnd}
@@ -2263,7 +2362,6 @@ const CategoryDetail = () => {
                           borderRadius: 14,
                           background: isSelected(doc.id) ? '#E8E8EC' : '#F5F5F5',
                           cursor: 'pointer',
-                          transition: 'all 0.2s ease',
                           marginBottom: 8
                         } : {
                           display: 'grid',
@@ -2938,11 +3036,16 @@ const CategoryDetail = () => {
       {/* Universal Upload Modal */}
       <UniversalUploadModal
         isOpen={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
+        onClose={() => {
+          setShowUploadModal(false);
+          setInitialUploadFiles(null);
+        }}
         categoryId={currentFolderId}
+        initialFiles={initialUploadFiles}
         onUploadComplete={() => {
           // ✅ Context will auto-update after upload
           refreshAll();
+          setInitialUploadFiles(null);
         }}
       />
 

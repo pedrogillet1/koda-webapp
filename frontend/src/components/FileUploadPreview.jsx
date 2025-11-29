@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import './FileUploadPreview.css';
-import UploadProgressBar from './UploadProgressBar';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -67,31 +66,33 @@ export default function FileUploadPreview({ file, progress = 0, onRemove }) {
   const isImage = file?.type?.startsWith('image/');
 
   return (
-    <div className="file-upload-preview">
-      {/* Progress bar background */}
+    <div className="file-upload-preview" style={{ position: 'relative', overflow: 'hidden' }}>
+      {/* Grey progress fill background */}
       {!isComplete && (
-        <div className="progress-background">
-          <UploadProgressBar
-            progress={progress}
-            status={isComplete ? 'completed' : 'uploading'}
-            showStatus={false}
-            variant="compact"
-          />
-        </div>
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          height: '100%',
+          width: `${progress}%`,
+          background: '#E8E8E8',
+          borderRadius: 100,
+          transition: 'width 0.3s ease-out',
+          zIndex: 0
+        }} />
       )}
 
       {/* Always show file type icon on the left */}
-      <div className="file-thumbnail">
+      <div className="file-thumbnail" style={{ position: 'relative', zIndex: 1 }}>
         <img src={getFileIcon()} alt={file?.name || 'File'} className="file-icon" />
       </div>
 
-      <div className="file-info">
+      <div className="file-info" style={{ position: 'relative', zIndex: 1 }}>
         <div className="file-name">{file?.name || 'Unknown file'}</div>
         <div className="file-meta">
           {!isComplete ? (
             <>
-              <span className="file-size">{formatFileSize(file?.size)}</span>
-              <span className="upload-progress">{Math.round(progress)}%</span>
+              <span className="file-size">{formatFileSize(file?.size)} – {Math.round(progress)}% uploaded</span>
             </>
           ) : (
             <div className="upload-complete">
@@ -110,7 +111,7 @@ export default function FileUploadPreview({ file, progress = 0, onRemove }) {
 
       {/* Image thumbnail preview on the right */}
       {thumbnail && (
-        <div className="image-preview-thumbnail">
+        <div className="image-preview-thumbnail" style={{ position: 'relative', zIndex: 1 }}>
           <img src={thumbnail} alt={file?.name || 'Preview'} />
         </div>
       )}
@@ -118,6 +119,7 @@ export default function FileUploadPreview({ file, progress = 0, onRemove }) {
       {onRemove && (
         <button
           className="remove-file-btn"
+          style={{ position: 'relative', zIndex: 1 }}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();

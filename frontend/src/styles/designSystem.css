@@ -228,3 +228,14 @@ html, body {
 .gap-md { gap: var(--spacing-md); }
 .gap-lg { gap: var(--spacing-lg); }
 .gap-xl { gap: var(--spacing-xl); }
+
+/* Document Row Hover Animation */
+.document-row {
+  transition: transform 0.2s ease, background-color 0.15s ease, box-shadow 0.2s ease;
+}
+
+.document-row:hover {
+  transform: scale(1.015);
+  background-color: #F7F7F9 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}

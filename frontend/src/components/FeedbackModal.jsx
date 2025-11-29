@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import crownIcon from '../assets/crown.png';
 
 /**
  * Feedback Modal
  * Shows a form for users to send feedback
+ * Redesigned to match the phone verification modal style
  */
 const FeedbackModal = ({ isOpen, onClose }) => {
   const [feedback, setFeedback] = useState('');
@@ -17,211 +19,168 @@ const FeedbackModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      background: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 10000
-    }}>
+    <>
+      {/* Dark Overlay */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 9998
+        }}
+        onClick={onClose}
+      />
+
+      {/* Modal */}
       <div style={{
-        display: 'flex',
-        width: 986,
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        background: '#FFF',
-        borderRadius: 20,
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: '420px',
+        maxWidth: '90vw',
+        background: 'white',
+        borderRadius: 16,
         padding: 32,
-        gap: 24,
-        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)'
+        zIndex: 9999,
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
       }}>
-        {/* Header */}
+        {/* Header with Crown and Title - Centered */}
         <div style={{
-          alignSelf: 'stretch',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start'
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 8
         }}>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12
-          }}>
-            {/* Beta Access with Crown Icon */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12
-            }}>
-              <div style={{
-                width: 56,
-                height: 56,
-                background: '#FFF',
-                border: '2px solid #E6E6EC',
-                borderRadius: 12,
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                fontSize: 32
-              }}>
-                👑
-              </div>
-              <div style={{
-                color: '#32302C',
-                fontSize: 28,
-                fontFamily: 'Plus Jakarta Sans',
-                fontWeight: '700',
-                lineHeight: '36px'
-              }}>
-                Beta Access
-              </div>
-            </div>
-
-            {/* Subtitle */}
-            <div style={{
-              color: '#6C6B6E',
-              fontSize: 16,
-              fontFamily: 'Plus Jakarta Sans',
-              fontWeight: '500',
-              lineHeight: '24px'
-            }}>
-              Early access · All features unlocked
-            </div>
-
-            {/* Description */}
-            <div style={{
-              color: '#6C6B6E',
-              fontSize: 16,
-              fontFamily: 'Plus Jakarta Sans',
-              fontWeight: '400',
-              lineHeight: '24px',
-              maxWidth: 600
-            }}>
-              You're part of Koda's early access program. Every search, upload, and note helps refine how Koda thinks — and how secure document intelligence should feel.
-            </div>
-          </div>
-
-          {/* Close button */}
-          <div
-            onClick={onClose}
+          <img
+            src={crownIcon}
+            alt="Crown"
             style={{
-              width: 32,
-              height: 32,
-              background: '#F5F5F5',
-              borderRadius: 8,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              cursor: 'pointer',
-              transition: 'background 0.2s'
+              width: 80,
+              height: 80,
+              objectFit: 'contain'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-            onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
-          >
-            <div style={{
-              fontSize: 18,
-              color: '#323232',
-              lineHeight: 1
-            }}>
-              ✕
-            </div>
-          </div>
+          />
+          <h2 style={{
+            fontSize: 22,
+            fontWeight: '700',
+            fontFamily: 'Plus Jakarta Sans',
+            color: '#32302C',
+            margin: 0,
+            textAlign: 'center'
+          }}>
+            Beta Access
+          </h2>
         </div>
+
+        {/* Subtitle */}
+        <p style={{
+          fontSize: 14,
+          color: '#6C6B6E',
+          fontFamily: 'Plus Jakarta Sans',
+          fontWeight: '500',
+          marginBottom: 8,
+          marginTop: 0,
+          textAlign: 'center'
+        }}>
+          Early access · All features unlocked
+        </p>
+
+        {/* Description */}
+        <p style={{
+          fontSize: 14,
+          color: '#6C6B6E',
+          fontFamily: 'Plus Jakarta Sans',
+          fontWeight: '400',
+          lineHeight: '20px',
+          marginBottom: 20,
+          marginTop: 0,
+          textAlign: 'center'
+        }}>
+          You're part of Koda's early access program. Every search, upload, and note helps refine how Koda thinks.
+        </p>
 
         {/* Divider */}
         <div style={{
-          alignSelf: 'stretch',
           height: 1,
-          background: '#E6E6EC'
+          background: '#E6E6EC',
+          marginBottom: 20
         }} />
 
-        {/* Feedback Input */}
-        <div style={{
-          alignSelf: 'stretch',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12
+        {/* Feedback Label */}
+        <label style={{
+          display: 'block',
+          color: '#32302C',
+          fontSize: 14,
+          fontFamily: 'Plus Jakarta Sans',
+          fontWeight: '600',
+          marginBottom: 10
         }}>
-          <label style={{
-            color: '#32302C',
-            fontSize: 16,
-            fontFamily: 'Plus Jakarta Sans',
-            fontWeight: '600',
-            lineHeight: '24px'
-          }}>
-            Share your feedback
-          </label>
-          <textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder="Tell us what you think, what works well, and what could be improved..."
-            style={{
-              width: '100%',
-              minHeight: 160,
-              padding: 16,
-              background: '#F5F5F5',
-              border: '1px solid #E6E6EC',
-              borderRadius: 12,
-              color: '#32302C',
-              fontSize: 16,
-              fontFamily: 'Plus Jakarta Sans',
-              fontWeight: '400',
-              lineHeight: '24px',
-              resize: 'vertical',
-              outline: 'none'
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = '#181818';
-              e.target.style.background = '#FFF';
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = '#E6E6EC';
-              e.target.style.background = '#F5F5F5';
-            }}
-          />
-        </div>
+          Share your feedback
+        </label>
 
-        {/* Action Buttons */}
+        {/* Textarea */}
+        <textarea
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          placeholder="Tell us what you think..."
+          style={{
+            width: '100%',
+            minHeight: 100,
+            padding: 14,
+            background: '#F5F5F5',
+            border: '1px solid #E6E6EC',
+            borderRadius: 10,
+            color: '#32302C',
+            fontSize: 14,
+            fontFamily: 'Plus Jakarta Sans',
+            fontWeight: '400',
+            lineHeight: '20px',
+            resize: 'vertical',
+            outline: 'none',
+            boxSizing: 'border-box',
+            marginBottom: 20
+          }}
+          onFocus={(e) => {
+            e.target.style.borderColor = '#181818';
+            e.target.style.background = '#FFF';
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = '#E6E6EC';
+            e.target.style.background = '#F5F5F5';
+          }}
+        />
+
+        {/* Action Buttons - Pill shaped, centered */}
         <div style={{
-          alignSelf: 'stretch',
           display: 'flex',
-          justifyContent: 'flex-end',
-          gap: 12
+          gap: 12,
+          justifyContent: 'center'
         }}>
           {/* Cancel Button */}
           <button
             onClick={onClose}
             style={{
-              paddingLeft: 24,
-              paddingRight: 24,
-              paddingTop: 12,
-              paddingBottom: 12,
+              height: 44,
+              width: 140,
               background: '#F5F5F5',
-              borderRadius: 12,
               border: '1px solid #E6E6EC',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
+              borderRadius: 100,
+              fontSize: 14,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '600',
+              color: '#32302C',
               cursor: 'pointer',
               transition: 'background 0.2s ease'
             }}
             onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
             onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
           >
-            <div style={{
-              color: '#323232',
-              fontSize: 16,
-              fontFamily: 'Plus Jakarta Sans',
-              fontWeight: '600',
-              lineHeight: '24px'
-            }}>
-              Cancel
-            </div>
+            Cancel
           </button>
 
           {/* Submit Button */}
@@ -229,16 +188,15 @@ const FeedbackModal = ({ isOpen, onClose }) => {
             onClick={handleSubmit}
             disabled={!feedback.trim()}
             style={{
-              paddingLeft: 24,
-              paddingRight: 24,
-              paddingTop: 12,
-              paddingBottom: 12,
+              height: 44,
+              width: 140,
               background: feedback.trim() ? '#181818' : '#E6E6EC',
-              borderRadius: 12,
               border: 'none',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
+              borderRadius: 100,
+              fontSize: 14,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '600',
+              color: feedback.trim() ? '#FFF' : '#B9B9B9',
               cursor: feedback.trim() ? 'pointer' : 'not-allowed',
               transition: 'background 0.2s ease'
             }}
@@ -249,23 +207,15 @@ const FeedbackModal = ({ isOpen, onClose }) => {
             }}
             onMouseLeave={(e) => {
               if (feedback.trim()) {
-                e.currentTarget.style.background = 'rgba(24, 24, 24, 0.90)';
+                e.currentTarget.style.background = '#181818';
               }
             }}
           >
-            <div style={{
-              color: feedback.trim() ? '#FFF' : '#B9B9B9',
-              fontSize: 16,
-              fontFamily: 'Plus Jakarta Sans',
-              fontWeight: '600',
-              lineHeight: '24px'
-            }}>
-              Send Feedback
-            </div>
+            Send Feedback
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

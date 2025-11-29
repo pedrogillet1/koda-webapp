@@ -6,7 +6,6 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import LeftNav from './LeftNav';
 import { formatFileSize } from '../utils/crypto';
 import api from '../services/api';
-import UploadProgressBar from './UploadProgressBar';
 
 const Upload = () => {
     const navigate = useNavigate();
@@ -420,10 +419,25 @@ const Upload = () => {
                                                 padding: isMobile ? 12 : 16,
                                                 background: 'white',
                                                 border: `1px solid ${isError ? '#EF4444' : '#E5E7EB'}`,
-                                                borderRadius: 8,
+                                                borderRadius: 100,
                                                 transition: 'box-shadow 0.15s',
-                                                position: 'relative'
+                                                position: 'relative',
+                                                overflow: 'hidden'
                                             }}>
+                                                {/* Grey progress fill background */}
+                                                {f.status === 'uploading' && (
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        top: 0,
+                                                        left: 0,
+                                                        height: '100%',
+                                                        width: `${progressWidth}%`,
+                                                        background: '#E8E8E8',
+                                                        borderRadius: 100,
+                                                        transition: 'width 0.3s ease-out',
+                                                        zIndex: 0
+                                                    }} />
+                                                )}
                                                 {/* File Icon Badge */}
                                                 <div style={{
                                                     width: isMobile ? 40 : 48,
@@ -438,7 +452,9 @@ const Upload = () => {
                                                     color: 'white',
                                                     textTransform: 'uppercase',
                                                     flexShrink: 0,
-                                                    fontFamily: 'Plus Jakarta Sans'
+                                                    fontFamily: 'Plus Jakarta Sans',
+                                                    position: 'relative',
+                                                    zIndex: 1
                                                 }}>
                                                     {f.status === 'uploading' ? (
                                                         <div style={{
@@ -516,15 +532,6 @@ const Upload = () => {
                                                         </p>
                                                     )}
 
-                                                    {/* Progress Bar - Only show if NOT error */}
-                                                    {!isError && (
-                                                        <UploadProgressBar
-                                                            progress={progressWidth}
-                                                            status={f.status}
-                                                            showStatus={false}
-                                                            variant="compact"
-                                                        />
-                                                    )}
 
                                                     {/* Error State - Show retry button */}
                                                     {isError && (

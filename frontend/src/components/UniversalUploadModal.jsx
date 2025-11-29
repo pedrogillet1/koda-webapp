@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import fileTypesStackIcon from '../assets/file-types-stack.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
-import UploadProgressBar from './UploadProgressBar';
 // ✅ REFACTORED: Use unified upload service (replaces folderUploadService + presignedUploadService)
 import unifiedUploadService from '../services/unifiedUploadService';
 import { useDocuments } from '../context/DocumentsContext';
@@ -856,25 +855,23 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   justifyContent: 'flex-start',
                   alignItems: 'center',
                   gap: 12,
-                  display: 'flex'
+                  display: 'flex',
+                  overflow: 'hidden'
                 }}
               >
-                {/* Progress bar - Only show during upload */}
-                {(item.status === 'uploading' || item.status === 'completed') && (
+                {/* Grey progress fill background */}
+                {item.status === 'uploading' && (
                   <div style={{
                     position: 'absolute',
-                    bottom: 8,
-                    left: 12,
-                    right: 12,
-                    zIndex: 2
-                  }}>
-                    <UploadProgressBar
-                      progress={item.progress}
-                      status={item.status}
-                      showStatus={true}
-                      variant="default"
-                    />
-                  </div>
+                    top: 0,
+                    left: 0,
+                    height: '100%',
+                    width: `${item.progress || 0}%`,
+                    background: '#E8E8E8',
+                    borderRadius: 100,
+                    transition: 'width 0.3s ease-out',
+                    zIndex: 0
+                  }} />
                 )}
 
                 <div style={{
@@ -885,7 +882,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   gap: 12,
                   display: 'flex',
                   position: 'relative',
-                  zIndex: 1
+                  zIndex: 1,
+                  background: 'transparent'
                 }}>
                   {/* File/Folder icon */}
                   <div style={{
@@ -940,19 +938,19 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                         item.status === 'failed'
                           ? 'Upload failed. Try again.'
                           : item.status === 'completed'
-                          ? `${formatFileSize(item.totalSize)} • ${item.fileCount} file${item.fileCount > 1 ? 's' : ''} • 100% uploaded`
+                          ? `${formatFileSize(item.totalSize)} • ${item.fileCount} file${item.fileCount > 1 ? 's' : ''}`
                           : item.status === 'uploading'
-                          ? 'Uploading to cloud...'
-                          : `${formatFileSize(item.totalSize)} • ${item.fileCount} file${item.fileCount > 1 ? 's' : ''} • ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                          ? `${formatFileSize(item.totalSize)} – ${Math.round(item.progress || 0)}% uploaded`
+                          : `${formatFileSize(item.totalSize)} • ${item.fileCount} file${item.fileCount > 1 ? 's' : ''}`
                       ) : (
                         // File status display
                         item.status === 'failed'
                           ? 'Upload failed. Try again.'
                           : item.status === 'completed'
-                          ? `${formatFileSize(item.file.size)} • 100% uploaded`
+                          ? `${formatFileSize(item.file.size)}`
                           : item.status === 'uploading'
-                          ? 'Uploading to cloud...'
-                          : `${formatFileSize(item.file.size)} • ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                          ? `${formatFileSize(item.file.size)} – ${Math.round(item.progress || 0)}% uploaded`
+                          : `${formatFileSize(item.file.size)}`
                       )}
                     </div>
                   </div>

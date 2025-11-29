@@ -3151,7 +3151,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                         <div style={{
                                                                             padding: 12,
                                                                             background: '#F5F5F5',
-                                                                            borderRadius: 12,
+                                                                            borderRadius: 100,
                                                                             border: '1px solid #E6E6EC',
                                                                             display: 'flex',
                                                                             alignItems: 'center',
@@ -3311,7 +3311,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 padding: 12,
                                                                 background: '#FFFFFF',
                                                                 border: '1px solid #E6E6EC',
-                                                                borderRadius: 12,
+                                                                borderRadius: 100,
                                                                 display: 'flex',
                                                                 alignItems: 'center',
                                                                 gap: 12,
@@ -3933,13 +3933,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 <div style={{
                     marginTop: 16,
                     paddingTop: 16,
-                    borderTop: '1px solid #A2A2A7',
+                    borderTop: '2px solid #E6E6EC',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
                     fontSize: 12,
-                    color: '#6B6B6F',
+                    color: '#B9B9BD',
                     fontFamily: 'Plus Jakarta Sans'
                 }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -4033,18 +4033,18 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             {isDraggingOver && (
                 <div
                     style={{
-                        position: 'absolute',
+                        position: 'fixed',
                         top: 0,
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        background: 'rgba(250, 250, 250, 0.95)',
+                        background: 'rgba(0, 0, 0, 0.5)',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 24,
-                        zIndex: 999,
+                        zIndex: 9999,
                         pointerEvents: 'none',
                         animation: 'fadeIn 0.2s ease-in'
                     }}
@@ -4070,7 +4070,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     />
                     <div
                         style={{
-                            color: '#181818',
+                            color: '#FFFFFF',
                             fontSize: 32,
                             fontFamily: 'Plus Jakarta Sans',
                             fontWeight: '700',
@@ -4081,7 +4081,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     </div>
                     <div
                         style={{
-                            color: 'rgba(24, 24, 24, 0.6)',
+                            color: 'rgba(255, 255, 255, 0.7)',
                             fontSize: 18,
                             fontFamily: 'Plus Jakarta Sans',
                             fontWeight: '500',

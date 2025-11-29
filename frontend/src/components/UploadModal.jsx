@@ -3,7 +3,6 @@ import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { useDocuments } from '../context/DocumentsContext';
 import UniversalAddToCategoryModal from './UniversalAddToCategoryModal';
 import CreateCategoryModal from './CreateCategoryModal';
-import UploadProgressBar from './UploadProgressBar';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -644,21 +643,20 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
                         overflow: 'hidden'
                       }}
                     >
-                      {/* Progress bar */}
-                      <div style={{
-                        position: 'absolute',
-                        bottom: 8,
-                        left: 12,
-                        right: 12,
-                        zIndex: 2
-                      }}>
-                        <UploadProgressBar
-                          progress={progress}
-                          status={progress >= 100 ? 'completed' : 'uploading'}
-                          showStatus={true}
-                          variant="default"
-                        />
-                      </div>
+                      {/* Grey progress fill background */}
+                      {progress < 100 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          height: '100%',
+                          width: `${progress}%`,
+                          background: '#E8E8E8',
+                          borderRadius: 100,
+                          transition: 'width 0.3s ease-out',
+                          zIndex: 0
+                        }} />
+                      )}
 
                     <div style={{
                       flex: 1,

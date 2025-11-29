@@ -329,33 +329,78 @@ const FileTypeDetail = () => {
               <h2 style={{ fontSize: 18, fontWeight: '600', color: '#374151', fontFamily: 'Plus Jakarta Sans', margin: '0 0 16px 0' }}>Documents</h2>
               
               {viewMode === 'list' ? (
-                <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E6E6EC', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflow: 'visible' }}>
+                  {/* Table Header */}
                   {!isMobile && (
-                    <div style={{ display: 'grid', gridTemplateColumns: isSelectMode ? '50px 1fr 100px 100px 150px 50px' : '1fr 100px 100px 150px 50px', gap: 16, padding: '14px 20px', borderBottom: '1px solid #E6E6EC', background: '#FAFAFA', alignItems: 'center' }}>
-                      {isSelectMode && (
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <input type="checkbox" checked={selectedDocuments.size === searchedDocuments.length && searchedDocuments.length > 0} onChange={() => { if (selectedDocuments.size === searchedDocuments.length) { clearSelection(); } else { searchedDocuments.forEach(doc => { if (!isSelected(doc.id)) toggleDocument(doc.id); }); } }} style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#111827' }} />
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
+                      gap: 12,
+                      padding: '10px 14px',
+                      borderBottom: '1px solid #E6E6EC',
+                      marginBottom: 8
+                    }}>
+                      {[
+                        { key: 'name', label: 'NAME' },
+                        { key: 'type', label: 'TYPE' },
+                        { key: 'size', label: 'SIZE' },
+                        { key: 'timeAdded', label: 'DATE' }
+                      ].map(col => (
+                        <div
+                          key={col.key}
+                          onClick={() => handleSort(col.key)}
+                          style={{
+                            color: sortBy === col.key ? '#171717' : '#6C6B6E',
+                            fontSize: 11,
+                            fontFamily: 'Plus Jakarta Sans',
+                            fontWeight: '600',
+                            textTransform: 'uppercase',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            userSelect: 'none'
+                          }}
+                        >
+                          {col.label}
+                          {sortBy === col.key && (
+                            <span style={{ fontSize: 10 }}>
+                              {sortOrder === 'asc' ? '▲' : '▼'}
+                            </span>
+                          )}
                         </div>
-                      )}
-                      <div onClick={() => handleSort('name')} style={{ color: '#6B7280', fontSize: 13, fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>Name {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}</div>
-                      <div onClick={() => handleSort('type')} style={{ color: '#6B7280', fontSize: 13, fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>Type {sortBy === 'type' && (sortOrder === 'asc' ? '↑' : '↓')}</div>
-                      <div onClick={() => handleSort('size')} style={{ color: '#6B7280', fontSize: 13, fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>Size {sortBy === 'size' && (sortOrder === 'asc' ? '↑' : '↓')}</div>
-                      <div onClick={() => handleSort('timeAdded')} style={{ color: '#6B7280', fontSize: 13, fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>Time Added {sortBy === 'timeAdded' && (sortOrder === 'asc' ? '↑' : '↓')}</div>
+                      ))}
                       <div></div>
                     </div>
                   )}
                   {searchedDocuments.map((doc) => (
-                    <div key={doc.id} onClick={() => { if (isSelectMode) toggleDocument(doc.id); else navigate('/document/' + doc.id); }} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 50px' : (isSelectMode ? '50px 1fr 100px 100px 150px 50px' : '1fr 100px 100px 150px 50px'), gap: 16, padding: isMobile ? '12px 16px' : '14px 20px', borderBottom: '1px solid #E6E6EC', alignItems: 'center', cursor: 'pointer', transition: 'background 0.15s ease', background: isSelected(doc.id) ? '#F0F0F5' : 'transparent', border: isSelected(doc.id) ? '2px solid #32302C' : '2px solid transparent', borderRadius: isSelected(doc.id) ? '8px' : '0', margin: isSelected(doc.id) ? '2px' : '0' }} onMouseEnter={(e) => { if (!isSelected(doc.id)) e.currentTarget.style.background = '#F9FAFB'; }} onMouseLeave={(e) => { if (!isSelected(doc.id)) e.currentTarget.style.background = 'transparent'; }}>
-                      {isSelectMode && !isMobile && <div style={{ display: 'flex', alignItems: 'center' }}><input type="checkbox" checked={isSelected(doc.id)} onChange={() => toggleDocument(doc.id)} onClick={(e) => e.stopPropagation()} style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#111827' }} /></div>}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                        <img src={getFileIcon(doc)} alt={doc.filename} style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }} />
-                        <span style={{ color: '#111827', fontWeight: '500', fontFamily: 'Plus Jakarta Sans', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.filename}</span>
+                    <div
+                      key={doc.id}
+                      className="document-row"
+                      onClick={() => { if (isSelectMode) toggleDocument(doc.id); else navigate('/document/' + doc.id); }}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: isMobile ? '1fr 50px' : '2fr 1fr 1fr 1fr 50px',
+                        gap: 12,
+                        alignItems: 'center',
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        background: isSelected(doc.id) ? '#F3F3F5' : 'white',
+                        border: '2px solid #E6E6EC',
+                        cursor: 'pointer',
+                        marginBottom: 8
+                      }}
+                    >
+                      {/* Name Column */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
+                        <img src={getFileIcon(doc)} alt={doc.filename} style={{ width: 40, height: 40, objectFit: 'contain', flexShrink: 0 }} />
+                        <span style={{ color: '#32302C', fontWeight: '600', fontFamily: 'Plus Jakarta Sans', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.filename}</span>
                       </div>
                       {!isMobile && (
                         <>
-                          <div style={{ color: '#6B7280', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{getFileTypeDisplay(doc)}</div>
-                          <div style={{ color: '#6B7280', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{formatFileSize(doc.fileSize)}</div>
-                          <div style={{ color: '#6B7280', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{formatTime(doc.createdAt)}</div>
+                          <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500' }}>{getFileTypeDisplay(doc)}</div>
+                          <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500' }}>{formatFileSize(doc.fileSize)}</div>
+                          <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500' }}>{formatTime(doc.createdAt)}</div>
                         </>
                       )}
                       <div data-dropdown style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>

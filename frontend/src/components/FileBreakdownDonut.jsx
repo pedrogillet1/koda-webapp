@@ -12,6 +12,7 @@ import pngIcon from '../assets/png-icon.png';
 import pptxIcon from '../assets/pptx.png';
 import movIcon from '../assets/mov.png';
 import mp4Icon from '../assets/mp4.png';
+import txtIcon from '../assets/txt-icon.png';
 
 const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, semicircle = false, style = {} }) => {
   const { documents } = useDocuments();
@@ -41,6 +42,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
       'jpeg': 'jpg',
       'mov': 'mov',
       'mp4': 'mp4',
+      'txt': 'txt',
     };
     return mainTypes[ext] || 'other';
   };
@@ -73,12 +75,14 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
     'pptx': '#DC2626',  // Red
     'mov': '#3B82F6',   // Light Blue
     'mp4': '#A855F7',   // Purple
+    'txt': '#6B7280',   // Gray
     'other': '#6B7280'  // Gray
   };
 
-  // V2: 2×4 grid (8 items) - TXT/Other omitted for cleaner layout
-  // Row 1: PNG, JPG, PDF, DOC
-  // Row 2: MOV, XLS, MP4, PPTX
+  // 9 file types including TXT
+  // Row 1: PNG, JPG, PDF
+  // Row 2: DOC, MOV, XLS
+  // Row 3: MP4, PPTX, TXT
   const gridData = [
     { type: 'png', label: 'PNG', icon: pngIcon, color: colorMap['png'] },
     { type: 'jpg', label: 'JPG', icon: jpgIcon, color: colorMap['jpg'] },
@@ -87,7 +91,8 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
     { type: 'mov', label: 'MOV', icon: movIcon, color: colorMap['mov'] },
     { type: 'xlsx', label: 'XLS', icon: xlsIcon, color: colorMap['xlsx'] },
     { type: 'mp4', label: 'MP4', icon: mp4Icon, color: colorMap['mp4'] },
-    { type: 'pptx', label: 'PPTX', icon: pptxIcon, color: colorMap['pptx'] }
+    { type: 'pptx', label: 'PPTX', icon: pptxIcon, color: colorMap['pptx'] },
+    { type: 'txt', label: 'TXT', icon: txtIcon, color: colorMap['txt'] }
   ];
 
   // Filter to only show file types that exist in documents
@@ -142,17 +147,17 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
       }}>
         {/* Icon Layout - Semicircle or Grid */}
         {semicircle ? (
-          /* Single Row Layout - All icons in one row */
+          /* 3-Column Layout for Settings page with centered last row */
           <div style={{
             display: 'flex',
-            flexDirection: 'row',
+            flexWrap: 'wrap',
             width: '100%',
+            maxWidth: '320px',
             marginTop: 16,
             marginBottom: 16,
             justifyContent: 'center',
             alignItems: 'flex-start',
-            gap: '32px',
-            flexWrap: 'wrap'
+            gap: '24px 0'
           }}>
             {displayData.map((item) => {
               const fileCount = extensionBreakdown[item.type]?.count || 0;
@@ -168,6 +173,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: '4px',
+                    width: '33.33%',
                     opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.5 : 1),
                     transition: 'opacity 0.2s ease-out, transform 0.15s ease',
                     transform: isHovered ? 'scale(1.08)' : 'scale(1)',
