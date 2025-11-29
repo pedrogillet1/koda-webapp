@@ -158,7 +158,7 @@ export const getInitialData = async (req: Request, res: Response) => {
           _count: {
             select: {
               documents: true,
-              subfolders: true,
+              other_folders: true,
             }
           }
         },
