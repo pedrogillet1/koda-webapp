@@ -47,7 +47,6 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
       setDocuments(docs);
       setSelectedDocuments(docs.map(d => d.id));
     } catch (error) {
-      console.error('Error fetching category documents:', error);
     }
   };
 
@@ -56,7 +55,6 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
       const response = await api.get('/api/documents');
       setAllDocuments(response.data.documents || []);
     } catch (error) {
-      console.error('Error fetching all documents:', error);
     }
   };
 
@@ -80,9 +78,6 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
       const currentDocIds = documents.map(d => d.id);
       const toAdd = selectedDocuments.filter(id => !currentDocIds.includes(id));
       const toRemove = currentDocIds.filter(id => !selectedDocuments.includes(id));
-
-      console.log('Document changes:', { toAdd, toRemove });
-
       // Add documents to category
       for (const docId of toAdd) {
         await api.patch(`/api/documents/${docId}`, {
@@ -106,8 +101,6 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
       onClose();
 
     } catch (error) {
-      console.error('Error updating category:', error);
-      console.error('Error details:', error.response?.data);
       alert(`Failed to update category: ${error.response?.data?.message || error.message}`);
     }
   };

@@ -35,7 +35,6 @@ const UniversalAddToCategoryModal = ({
       setCategories(rootFolders);
       setLoading(false);
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
       setLoading(false);
     }
   };

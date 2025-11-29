@@ -20,9 +20,9 @@ export function useFolders(filters = {}) {
   return useQuery({
     queryKey: foldersKeys.list(filters),
     queryFn: async () => {
-      console.log('🔍 [React Query] Fetching folders list...');
+
       const response = await api.get('/api/folders', { params: filters });
-      console.log(`✅ [React Query] Fetched ${response.data.folders?.length || 0} folders`);
+
       return response.data;
     },
     // Cache for 5 minutes (folders don't change often)
@@ -31,7 +31,7 @@ export function useFolders(filters = {}) {
     refetchOnWindowFocus: true,
     keepPreviousData: true,
     onError: (error) => {
-      console.error('❌ [React Query] Error fetching folders:', error);
+
     },
   });
 }
@@ -46,15 +46,15 @@ export function useFolder(folderId) {
       if (!folderId) {
         throw new Error('Folder ID is required');
       }
-      console.log('🔍 [React Query] Fetching folder:', folderId);
+
       const response = await api.get(`/api/folders/${folderId}`);
-      console.log(`✅ [React Query] Fetched folder:`, response.data.name);
+
       return response.data;
     },
     enabled: !!folderId,
     staleTime: 5 * 60 * 1000,
     onError: (error) => {
-      console.error('❌ [React Query] Error fetching folder:', error);
+
     },
   });
 }
@@ -66,15 +66,15 @@ export function useFolderTree() {
   return useQuery({
     queryKey: foldersKeys.tree(),
     queryFn: async () => {
-      console.log('🔍 [React Query] Fetching folder tree...');
+
       const response = await api.get('/api/folders/tree');
-      console.log(`✅ [React Query] Fetched folder tree`);
+
       return response.data;
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
     onError: (error) => {
-      console.error('❌ [React Query] Error fetching folder tree:', error);
+
     },
   });
 }
@@ -87,7 +87,7 @@ export function useCreateFolder() {
 
   return useMutation({
     mutationFn: async (folderData) => {
-      console.log('🆕 [React Query] Creating folder:', folderData.name);
+
       const response = await api.post('/api/folders', folderData);
       return response.data;
     },
@@ -118,14 +118,13 @@ export function useCreateFolder() {
     },
 
     onError: (err, folderData, context) => {
-      console.error('❌ [React Query] Create folder failed:', err);
+
       if (context?.previousFolders) {
         queryClient.setQueryData(foldersKeys.lists(), context.previousFolders);
       }
     },
 
     onSuccess: (data) => {
-      console.log('✅ [React Query] Folder created:', data.id);
 
       // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: foldersKeys.lists() });
@@ -145,7 +144,7 @@ export function useUpdateFolder() {
 
   return useMutation({
     mutationFn: async ({ folderId, updates }) => {
-      console.log('📝 [React Query] Updating folder:', folderId);
+
       const response = await api.patch(`/api/folders/${folderId}`, updates);
       return response.data;
     },
@@ -176,7 +175,7 @@ export function useUpdateFolder() {
     },
 
     onError: (err, { folderId }, context) => {
-      console.error('❌ [React Query] Update folder failed:', err);
+
       if (context?.previousFolder) {
         queryClient.setQueryData(foldersKeys.detail(folderId), context.previousFolder);
       }
@@ -186,7 +185,7 @@ export function useUpdateFolder() {
     },
 
     onSuccess: (data, { folderId }) => {
-      console.log('✅ [React Query] Folder updated:', folderId);
+
       queryClient.invalidateQueries({ queryKey: foldersKeys.detail(folderId) });
       queryClient.invalidateQueries({ queryKey: foldersKeys.lists() });
       queryClient.invalidateQueries({ queryKey: foldersKeys.tree() });
@@ -202,7 +201,7 @@ export function useDeleteFolder() {
 
   return useMutation({
     mutationFn: async (folderId) => {
-      console.log('🗑️  [React Query] Deleting folder:', folderId);
+
       const response = await api.delete(`/api/folders/${folderId}`);
       return response.data;
     },
@@ -223,14 +222,13 @@ export function useDeleteFolder() {
     },
 
     onError: (err, folderId, context) => {
-      console.error('❌ [React Query] Delete folder failed:', err);
+
       if (context?.previousFolders) {
         queryClient.setQueryData(foldersKeys.lists(), context.previousFolders);
       }
     },
 
     onSuccess: (data, folderId) => {
-      console.log('✅ [React Query] Folder deleted:', folderId);
 
       // Remove from cache
       queryClient.removeQueries({ queryKey: foldersKeys.detail(folderId) });

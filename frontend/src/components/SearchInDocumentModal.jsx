@@ -69,8 +69,6 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
       const lowerQuery = searchQuery.toLowerCase();
       let matchCount = 0;
 
-      console.log('🔍 Searching for:', lowerQuery);
-      console.log('📝 Text nodes found:', textNodes.length);
 
       textNodes.forEach((node) => {
         const text = node.textContent;
@@ -83,8 +81,6 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
         }
       });
 
-      console.log('✅ Total matches found:', matchCount);
-
       if (matchCount > 0) {
         setTotalMatches(matchCount);
         setCurrentMatch(1);
@@ -95,7 +91,7 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
         setCurrentMatch(0);
       }
     } catch (error) {
-      console.error('Search error:', error);
+
       setTotalMatches(0);
       setCurrentMatch(0);
     } finally {
@@ -155,7 +151,7 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
       setHighlightedElements(newHighlightedElements);
       setTotalMatches(newHighlightedElements.length);
     } catch (error) {
-      console.error('Highlight error:', error);
+
     }
   };
 
@@ -165,8 +161,6 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
 
     // Specifically target PDF text layer elements
     const pdfTextLayers = document.querySelectorAll('.react-pdf__Page__textContent');
-
-    console.log('🔍 Found PDF text layers:', pdfTextLayers.length);
 
     if (pdfTextLayers.length > 0) {
       // Search within PDF text layers
@@ -220,9 +214,8 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
       }
     }
 
-    console.log('📝 Found text nodes:', textNodes.length);
     if (textNodes.length > 0) {
-      console.log('Sample text:', textNodes[0].textContent.substring(0, 50));
+
     }
 
     return textNodes;
@@ -250,7 +243,7 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
         });
       }
     } catch (error) {
-      console.error('Scroll error:', error);
+
     }
   };
 

@@ -38,8 +38,6 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   const folderInputRef = React.useRef(null);
 
   const onDrop = useCallback(async (acceptedFiles) => {
-    console.log('🔵 onDrop called with files count:', acceptedFiles.length);
-
     // Show a loading indicator immediately for instant UI feedback
     const loadingId = 'loading-indicator-' + Date.now();
     setUploadingFiles(prev => [...prev, { id: loadingId, status: 'loading', isLoading: true }]);
@@ -127,12 +125,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   const handleDragDrop = useCallback(async (e) => {
     e.preventDefault();
     e.stopPropagation();
-
-    console.log('🎯 Custom drag drop handler triggered');
-
     const items = Array.from(e.dataTransfer.items);
-    console.log(`📦 Dropped ${items.length} items`);
-
     // Check if any item is a folder
     const hasFolder = items.some(item => {
       const entry = item.webkitGetAsEntry?.();
@@ -141,12 +134,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
 
     if (!hasFolder) {
       // No folders - let react-dropzone handle it
-      console.log('📄 No folders detected, using react-dropzone');
       return;
     }
-
-    console.log('📁 Folder detected, using custom handler');
-
     // Process all items (files and folders)
     const allFiles = [];
 
@@ -158,9 +147,6 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
         }
       }
     }
-
-    console.log(`✅ Collected ${allFiles.length} files from drag and drop`);
-
     // Pass to existing onDrop function
     if (allFiles.length > 0) {
       onDrop(allFiles);
@@ -347,7 +333,6 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
         totalSuccessCount += results.successCount;
         totalFailureCount += results.failureCount;
       } catch (error) {
-        console.error('❌ Error uploading folder:', error);
         setUploadingFiles(prev => prev.map(f =>
           f.id === folderEntry.id ? { ...f, status: 'failed', error: error.message } : f
         ));
@@ -361,9 +346,6 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
         setUploadingFiles(prev => prev.map(f =>
           f.id === fileEntry.id ? { ...f, status: 'uploading', progress: 10, processingStage: 'Uploading...' } : f
         ));
-
-        console.log('📤 Starting upload for:', fileEntry.file.name);
-
         // Use unified upload service with presigned URLs for single files
         await unifiedUploadService.uploadSingleFile(
           fileEntry.file,
@@ -385,7 +367,6 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
 
         totalSuccessCount++;
       } catch (error) {
-        console.error('❌ Error uploading file:', error);
         const message = error.response?.data?.message || error.message || 'Upload failed';
         setUploadingFiles(prev => prev.map(f =>
           f.id === fileEntry.id ? { ...f, status: 'failed', error: message } : f
@@ -395,7 +376,6 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
     };
 
     // ✅ Execute ALL uploads in parallel (no sequential waiting)
-    console.log(`🚀 Starting parallel upload: ${folderEntries.length} folders, ${fileEntries.length} files`);
     const allPromises = [
       ...folderEntries.map(processFolder),
       ...fileEntries.map(processFile)
@@ -418,14 +398,9 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
 
     // ✅ FIX: Immediately refresh folders after upload to show the new category
     // This is important for folder uploads that create new categories
-    console.log(`✅ Upload complete: ${totalSuccessCount} succeeded, ${totalFailureCount} failed`);
-    console.log('🔄 Refreshing folders to show new category...');
-
     // Invalidate cache and fetch folders immediately
     invalidateCache();
     await fetchFolders();
-    console.log('✅ Folders refreshed - new category should now be visible');
-
     setIsUploading(false);
 
     if (onUploadComplete) {
@@ -455,26 +430,17 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
   };
 
   const handleFolderSelect = async (e) => {
-    console.log('📁 handleFolderSelect triggered');
-
     const files = Array.from(e.target.files);
-    console.log('📁 Files selected:', files.length);
-
     if (files.length === 0) {
-      console.log('📁 No files to upload');
       return;
     }
 
     // Validate that files have webkitRelativePath
     const firstFile = files[0];
     if (!firstFile.webkitRelativePath) {
-      console.error('❌ Files do not have webkitRelativePath! Folder selection failed.');
       alert('Error: Folder selection failed. Please try again or contact support.');
       return;
     }
-
-    console.log('✅ Folder detected:', firstFile.webkitRelativePath.split('/')[0]);
-    console.log('✅ Calling onDrop with', files.length, 'files');
     await onDrop(files);
 
     // Reset the input so the same folder can be selected again

@@ -4094,6 +4094,41 @@ async function handleTrendAnalysisQuery(
   onChunk: (chunk: string) => void
 ): Promise<{ handled: boolean; sources?: any[] }> {
   // Detect if this is a trend query
+  if (!trendAnalysisService.isTrendQuery(query)) {
+    return { handled: false };
+  }
+
+  console.log(`📈 [TRENDS] Detected trend analysis query`);
+
+  try {
+    // Perform trend analysis on user's document collection
+    const trendResult = await trendAnalysisService.analyzeUserTrends(userId);
+
+    if (!trendResult || !trendResult.summary) {
+      console.log(`   ⚠️ No trends found, falling back to RAG`);
+      return { handled: false };
+    }
+
+    console.log(`   ✅ Found ${trendResult.trends.length} trends across ${trendResult.totalDocuments} documents`);
+
+    // Format the response
+    const formattedResponse = trendAnalysisService.formatTrendAnalysisForResponse(trendResult);
+
+    // Stream the response
+    if (onChunk) {
+      onChunk(formattedResponse);
+    }
+
+    return {
+      handled: true,
+      sources: [],
+    };
+  } catch (error) {
+    console.error(`❌ [TRENDS] Error analyzing trends:`, error);
+    return { handled: false };
+  }
+}
+
 async function handleDomainKnowledgeQuery(
   userId: string,
   query: string,
@@ -4109,33 +4144,28 @@ async function handleDomainKnowledgeQuery(
   console.log(`🎓 [DOMAIN] Detected terminology query for: "${term}"`);
 
   try {
-    // Search for relevant document chunks containing this term
-    const chunks = await prisma.documentChunk.findMany({
-      where: {
-        document: {
-          userId: userId,
-        },
-        content: {
-          contains: term,
-          mode: 'insensitive',
-        },
-      },
-      include: {
-        document: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-      take: 20,
+    // Ensure Pinecone is initialized
+    await initializePinecone();
+
+    // Generate embedding for the term
+    const termEmbedding = await embeddingService.generateEmbedding(term);
+
+    // Search Pinecone for relevant chunks
+    const searchResults = await pineconeIndex.query({
+      vector: termEmbedding,
+      topK: 20,
+      includeMetadata: true,
+      filter: { userId: userId },
     });
 
-    const documentChunks = chunks.map(chunk => ({
-      content: chunk.content,
-      documentId: chunk.document.id,
-      documentName: chunk.document.name,
-    }));
+    // Transform Pinecone results to document chunks format
+    const documentChunks = (searchResults.matches || [])
+      .filter((match: any) => match.metadata)
+      .map((match: any) => ({
+        content: match.metadata.text || match.metadata.content || '',
+        documentId: match.metadata.documentId || 'unknown',
+        documentName: match.metadata.filename || match.metadata.documentName || 'Unknown',
+      }));
 
     // Generate the terminology response with full intelligence
     const response = await terminologyIntelligenceService.answerTerminologyQuestion(
@@ -4162,49 +4192,6 @@ async function handleDomainKnowledgeQuery(
     return {
       handled: true,
       sources: [],
-    };
-  } catch (error: any) {
-    console.error(`❌ [DOMAIN] Error:`, error.message);
-    return { handled: false };
-  }
-}
-  const term = domainKnowledgeService.detectDomainQuery(query);
-
-  if (!term) {
-    return { handled: false };
-  }
-
-  console.log(`🎓 [DOMAIN] Detected domain knowledge query for: "${term}"`);
-
-  try {
-    // Look up domain knowledge
-    const knowledge = await domainKnowledgeService.getDomainKnowledge(userId, term);
-
-    if (!knowledge || !knowledge.definition) {
-      // No knowledge found, fall back to regular RAG
-      console.log(`   ⚠️ No domain knowledge found for "${term}", falling back to RAG`);
-      return { handled: false };
-    }
-
-    // Get related concepts for richer response
-    const relatedConcepts = await domainKnowledgeService.getRelatedConcepts(userId, term);
-
-    // Format the response
-    const formattedResponse = domainKnowledgeService.formatKnowledgeForResponse(
-      knowledge,
-      relatedConcepts.slice(0, 5)
-    );
-
-    // Stream the response
-    if (onChunk) {
-      onChunk(formattedResponse);
-    }
-
-    console.log(`   ✅ Domain knowledge found for "${term}"`);
-
-    return {
-      handled: true,
-      sources: [],  // Domain knowledge is aggregated from all documents
     };
   } catch (error: any) {
     console.error(`❌ [DOMAIN] Error:`, error.message);
@@ -4286,33 +4273,28 @@ async function searchDocumentsForTerm(
   term: string
 ): Promise<Array<{ content: string; documentId: string; documentName?: string }>> {
   try {
-    // Search in document chunks for the term
-    const chunks = await prisma.documentChunk.findMany({
-      where: {
-        document: {
-          userId: userId,
-        },
-        content: {
-          contains: term,
-          mode: 'insensitive',
-        },
-      },
-      include: {
-        document: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-      take: 20, // Limit to 20 most relevant chunks
+    // Ensure Pinecone is initialized
+    await initializePinecone();
+
+    // Generate embedding for the term
+    const termEmbedding = await embeddingService.generateEmbedding(term);
+
+    // Search Pinecone for relevant chunks
+    const searchResults = await pineconeIndex.query({
+      vector: termEmbedding,
+      topK: 20,
+      includeMetadata: true,
+      filter: { userId: userId },
     });
 
-    return chunks.map(chunk => ({
-      content: chunk.content,
-      documentId: chunk.document.id,
-      documentName: chunk.document.name,
-    }));
+    // Transform Pinecone results to document chunks format
+    return (searchResults.matches || [])
+      .filter((match: any) => match.metadata)
+      .map((match: any) => ({
+        content: match.metadata.text || match.metadata.content || '',
+        documentId: match.metadata.documentId || 'unknown',
+        documentName: match.metadata.filename || match.metadata.documentName || 'Unknown',
+      }));
   } catch (error) {
     console.error('Error searching for term in documents:', error);
     return [];

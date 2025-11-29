@@ -28,6 +28,7 @@ import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import './MarkdownStyles.css';
 import StreamingWelcomeMessage from './StreamingWelcomeMessage';
+import { useToast } from '../context/ToastContext';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
 let globalSocketInitialized = false;
@@ -41,6 +42,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const navigate = useNavigate();
     const location = useLocation();
     const isMobile = useIsMobile();
+    const { showSuccess, showError, showInfo } = useToast();
     // Message state - draft is loaded via useEffect when conversation changes
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
@@ -191,6 +193,24 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             // Fail silently - user can still click to load
         }
     };
+
+    // Helper function to detect and show toast for file actions
+    const showFileActionToast = useCallback((content, metadata) => {
+        if (!content) return;
+
+        const lowerContent = content.toLowerCase();
+
+        // Detect file action type and show appropriate toast
+        if (lowerContent.includes('renamed') || lowerContent.includes('renomeado') || lowerContent.includes('renombrado')) {
+            showSuccess(content, { duration: 4000 });
+        } else if (lowerContent.includes('moved') || lowerContent.includes('movido')) {
+            showSuccess(content, { duration: 4000 });
+        } else if (lowerContent.includes('deleted') || lowerContent.includes('excluído') || lowerContent.includes('eliminado')) {
+            showSuccess(content, { duration: 4000 });
+        } else if (lowerContent.includes('folder') && (lowerContent.includes('created') || lowerContent.includes('criada') || lowerContent.includes('creada'))) {
+            showSuccess(content, { duration: 4000 });
+        }
+    }, [showSuccess]);
 
     // Helper function to check if file is an image
     const isImageFile = (file) => {
@@ -2072,6 +2092,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 }
                             }
                         }
+
+                        // Show toast notification for file actions (move, rename, delete, create folder)
+                        showFileActionToast(streamedContent, metadata.assistantMessage?.metadata);
                     }
 
                     // ✅ CRITICAL FIX: Explicitly set isLoading to false when SSE stream completes

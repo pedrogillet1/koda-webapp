@@ -20,9 +20,9 @@ export function useDocuments(filters = {}) {
   return useQuery({
     queryKey: documentsKeys.list(filters),
     queryFn: async () => {
-      console.log('🔍 [React Query] Fetching documents list...');
+
       const response = await api.get('/api/documents', { params: filters });
-      console.log(`✅ [React Query] Fetched ${response.data.documents?.length || 0} documents`);
+
       return response.data;
     },
     // Cache for 5 minutes (documents don't change often)
@@ -31,7 +31,7 @@ export function useDocuments(filters = {}) {
     refetchOnWindowFocus: true,
     keepPreviousData: true,
     onError: (error) => {
-      console.error('❌ [React Query] Error fetching documents:', error);
+
     },
   });
 }
@@ -46,16 +46,16 @@ export function useDocument(documentId) {
       if (!documentId) {
         throw new Error('Document ID is required');
       }
-      console.log('🔍 [React Query] Fetching document:', documentId);
+
       const response = await api.get(`/api/documents/${documentId}`);
-      console.log(`✅ [React Query] Fetched document:`, response.data.filename);
+
       return response.data;
     },
     enabled: !!documentId,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false, // Don't refetch on focus (document content is stable)
     onError: (error) => {
-      console.error('❌ [React Query] Error fetching document:', error);
+
     },
   });
 }
@@ -67,18 +67,18 @@ export function useDocumentsByFolder(folderId) {
   return useQuery({
     queryKey: documentsKeys.byFolder(folderId),
     queryFn: async () => {
-      console.log('🔍 [React Query] Fetching documents for folder:', folderId);
+
       const response = await api.get('/api/documents', {
         params: { folderId }
       });
-      console.log(`✅ [React Query] Fetched ${response.data.documents?.length || 0} documents for folder`);
+
       return response.data;
     },
     enabled: !!folderId,
     staleTime: 5 * 60 * 1000,
     keepPreviousData: true,
     onError: (error) => {
-      console.error('❌ [React Query] Error fetching folder documents:', error);
+
     },
   });
 }
@@ -91,7 +91,7 @@ export function useDeleteDocument() {
 
   return useMutation({
     mutationFn: async (documentId) => {
-      console.log('🗑️  [React Query] Deleting document:', documentId);
+
       const response = await api.delete(`/api/documents/${documentId}`);
       return response.data;
     },
@@ -114,14 +114,13 @@ export function useDeleteDocument() {
     },
 
     onError: (err, documentId, context) => {
-      console.error('❌ [React Query] Delete document failed:', err);
+
       if (context?.previousDocuments) {
         queryClient.setQueryData(documentsKeys.lists(), context.previousDocuments);
       }
     },
 
     onSuccess: (data, documentId) => {
-      console.log('✅ [React Query] Document deleted:', documentId);
 
       // Remove from detail cache
       queryClient.removeQueries({ queryKey: documentsKeys.detail(documentId) });
@@ -141,7 +140,7 @@ export function useUpdateDocument() {
 
   return useMutation({
     mutationFn: async ({ documentId, updates }) => {
-      console.log('📝 [React Query] Updating document:', documentId);
+
       const response = await api.patch(`/api/documents/${documentId}`, updates);
       return response.data;
     },
@@ -172,7 +171,7 @@ export function useUpdateDocument() {
     },
 
     onError: (err, { documentId }, context) => {
-      console.error('❌ [React Query] Update document failed:', err);
+
       if (context?.previousDocument) {
         queryClient.setQueryData(documentsKeys.detail(documentId), context.previousDocument);
       }
@@ -182,7 +181,7 @@ export function useUpdateDocument() {
     },
 
     onSuccess: (data, { documentId }) => {
-      console.log('✅ [React Query] Document updated:', documentId);
+
       queryClient.invalidateQueries({ queryKey: documentsKeys.detail(documentId) });
       queryClient.invalidateQueries({ queryKey: documentsKeys.lists() });
     },

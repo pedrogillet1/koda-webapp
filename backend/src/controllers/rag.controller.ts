@@ -1601,6 +1601,20 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         data: { updatedAt: new Date() },
       });
 
+      // ✅ NEW: Send action event with notification data
+      res.write(`data: ${JSON.stringify({
+        type: 'action',
+        actionType: 'rename_file',
+        success: result.success,
+        document: result.data?.document,
+        notification: {
+          type: result.success ? 'success' : 'error',
+          message: result.message,
+          oldName: intentResult.parameters.oldFilename,
+          newName: intentResult.parameters.newFilename
+        }
+      })}\n\n`);
+
       // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
       res.write(`data: ${JSON.stringify({

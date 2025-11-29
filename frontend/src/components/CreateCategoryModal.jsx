@@ -30,7 +30,6 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
 
   // Debug: Log when preSelectedDocumentId changes
   useEffect(() => {
-    console.log('📋 CreateCategoryModal received preSelectedDocumentId:', preSelectedDocumentId);
   }, [preSelectedDocumentId]);
 
   const emojis = [
@@ -64,28 +63,18 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
       const fetchAllDocuments = async () => {
         try {
           setLoading(true);
-          console.log('📂 CreateCategoryModal opening - fetching ALL documents from API...');
-          console.log('📂 Pre-selected document ID:', preSelectedDocumentId);
-
           // Fetch ALL documents with a high limit to ensure we get everything
           const response = await api.get('/api/documents?limit=1000');
           const allDocuments = response.data.documents || [];
-
-          console.log('📂 API returned documents:', allDocuments.length);
-          console.log('📂 Full response:', response.data);
-
           setDocuments(allDocuments);
           // Pre-select document if provided
           if (preSelectedDocumentId) {
-            console.log('📂 Pre-selecting document:', preSelectedDocumentId);
             setSelectedDocuments([preSelectedDocumentId]);
           } else {
-            console.log('📂 No pre-selected document');
             setSelectedDocuments([]);
           }
           setLoading(false);
         } catch (error) {
-          console.error('❌ Error fetching documents:', error);
           setDocuments([]);
           setLoading(false);
         }

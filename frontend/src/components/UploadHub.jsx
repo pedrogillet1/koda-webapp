@@ -67,7 +67,6 @@ const filterMacHiddenFiles = (files) => {
     );
 
     if (isHidden) {
-      console.log('🚫 [Mac Filter] Skipping hidden file:', fileName);
       return false;
     }
 
@@ -76,7 +75,6 @@ const filterMacHiddenFiles = (files) => {
 
   const filteredCount = files.length - filtered.length;
   if (filteredCount > 0) {
-    console.log(`📁 [Mac Filter] Filtered ${filteredCount} hidden file(s)`);
   }
 
   return filtered;
@@ -166,11 +164,9 @@ const processDroppedEntries = async (entries) => {
       }
     } else if (entry.isDirectory) {
       // Folder
-      console.log('📁 Processing folder:', entry.name);
       const folderFiles = await readFolderRecursively(entry);
 
       if (folderFiles.length === 0) {
-        console.warn(`⚠️ Folder "${entry.name}" is empty, skipping`);
         continue;
       }
 
@@ -239,14 +235,12 @@ const UploadHub = () => {
   // ⚡ PERFORMANCE: Initialize local state from context (no API call)
   useEffect(() => {
     if (contextDocuments.length > 0 && documents.length === 0) {
-      console.log(`✅ [UploadHub] Initialized with ${contextDocuments.length} documents from context (no API call)`);
       setDocuments(contextDocuments);
     }
   }, [contextDocuments, documents.length]);
 
   useEffect(() => {
     if (contextFolders.length > 0 && folders.length === 0) {
-      console.log(`✅ [UploadHub] Initialized with ${contextFolders.length} folders from context (no API call)`);
       setFolders(contextFolders);
     }
   }, [contextFolders, folders.length]);
@@ -283,15 +277,9 @@ const UploadHub = () => {
   // ✅ Listen for document processing updates via WebSocket
   useEffect(() => {
     if (!socket) {
-      console.log('⏭️ [UploadHub] Socket not ready yet');
       return;
     }
-
-    console.log('✅ [UploadHub] Attaching WebSocket listener to shared socket');
-
     const handleProcessingUpdate = (data) => {
-      console.log('📊 [UploadHub] Processing update:', data);
-
       // Update uploadingFiles with processing progress
       setUploadingFiles(prev => prev.map(file => {
         // Handle individual file uploads
@@ -299,8 +287,6 @@ const UploadHub = () => {
           // Map backend processing progress (0-100%) to UI progress (50-100%)
           // Upload phase uses 0-50%, processing phase uses 50-100%
           const uiProgress = 50 + (data.progress * 0.5);
-
-          console.log(`📊 Updating upload item ${file.file?.name}: backend ${data.progress}% → UI ${uiProgress}% - ${data.message}`);
           return {
             ...file,
             processingProgress: data.progress,
@@ -318,9 +304,6 @@ const UploadHub = () => {
           if (data.progress === 100 || data.stage === 'completed' || data.stage === 'complete') {
             const newProcessedCount = processedCount + 1;
             const folderProgress = 50 + ((newProcessedCount / file.totalFiles) * 50);
-
-            console.log(`📊 Folder ${file.folderName}: ${newProcessedCount}/${file.totalFiles} files processed (${folderProgress}%)`);
-
             return {
               ...file,
               processedFiles: newProcessedCount,
@@ -335,15 +318,10 @@ const UploadHub = () => {
 
       // When processing completes (100%), remove the item from upload list
       if (data.progress === 100 || data.stage === 'complete' || data.stage === 'completed') {
-        console.log('✅ [UploadHub] Document processing complete (100%), removing from upload list...');
-
         // Increment completed count
         completedFilesCountRef.current += 1;
         const newCompletedCount = completedFilesCountRef.current;
         const totalFiles = totalFilesToUploadRef.current;
-
-        console.log(`✅ Completed ${newCompletedCount} of ${totalFiles} files`);
-
         // Check if any folder has completed all its files
         setUploadingFiles(prev => {
           const updatedFiles = prev.filter(f => {
@@ -351,7 +329,6 @@ const UploadHub = () => {
             if (f.documentId !== data.documentId) {
               // Check if this is a folder that has completed all files
               if (f.isFolder && f.documentIds && f.processedFiles === f.totalFiles) {
-                console.log(`✅ Folder ${f.folderName} processing complete (${f.processedFiles}/${f.totalFiles})`);
                 return false; // Remove completed folder
               }
               return true; // Keep this file
@@ -361,7 +338,6 @@ const UploadHub = () => {
 
           // If all files are done, show notification using unified toast
           if (newCompletedCount === totalFiles && totalFiles > 0) {
-            console.log('🎉 All files processed! Showing notification...');
             showUploadSuccess(newCompletedCount);
           }
 
@@ -374,8 +350,6 @@ const UploadHub = () => {
 
     // ⚡ NEW: Listen for embedding completion
     const handleEmbeddingsReady = (data) => {
-      console.log('✅ [UploadHub] Embeddings ready for document:', data.documentId);
-
       // Clear timeout if it exists
       if (embeddingTimeoutsRef.current[data.documentId]) {
         clearTimeout(embeddingTimeoutsRef.current[data.documentId]);
@@ -392,16 +366,12 @@ const UploadHub = () => {
             }
           : doc
       ));
-
-      console.log(`📢 AI chat ready for ${data.filename || 'document'}!`);
     };
 
     socket.on('document-embeddings-ready', handleEmbeddingsReady);
 
     // ⚡ NEW: Listen for embedding failure
     const handleEmbeddingsFailed = (data) => {
-      console.error('❌ [UploadHub] Embeddings failed for document:', data.documentId);
-
       // Update document in state
       setDocuments(prev => prev.map(doc =>
         doc.id === data.documentId
@@ -413,8 +383,6 @@ const UploadHub = () => {
             }
           : doc
       ));
-
-      console.error(`❌ AI chat unavailable for ${data.filename || 'document'}: ${data.error}`);
     };
 
     socket.on('document-embeddings-failed', handleEmbeddingsFailed);
@@ -493,7 +461,6 @@ const UploadHub = () => {
 
   // Debug: Log state changes
   React.useEffect(() => {
-    console.log('🔔 Notification state:', { showNotification, uploadedCount, notificationType });
   }, [showNotification, uploadedCount, notificationType]);
 
   // Note: Error notifications are now handled individually in the upload catch blocks
@@ -538,19 +505,10 @@ const UploadHub = () => {
   ];
 
   const calculateFileHash = async (file) => {
-    console.log(`🔐 [calculateFileHash] Hashing file: ${file.name}`);
-    console.log(`   File size: ${file.size} bytes`);
-    console.log(`   File type: ${file.type}`);
-    console.log(`   Last modified: ${file.lastModified}`);
-
     const buffer = await file.arrayBuffer();
-    console.log(`   Buffer size: ${buffer.byteLength} bytes`);
-
     const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    console.log(`   ✅ Calculated hash: ${hashHex}`);
     return hashHex;
   };
 
@@ -563,12 +521,8 @@ const UploadHub = () => {
       const filteredFiles = filterMacHiddenFiles(acceptedFiles);
 
       if (filteredFiles.length === 0) {
-        console.warn('⚠️ No valid files after filtering hidden files');
         return;
       }
-
-      console.log(`📤 Drag & Drop: ${acceptedFiles.length} → ${filteredFiles.length} files after filtering`);
-
       // Just add files to the list without uploading
       const pendingFiles = filteredFiles.map(file => ({
         file,
@@ -581,15 +535,8 @@ const UploadHub = () => {
       }));
 
       // ⚡ PERFORMANCE: Use startTransition for non-urgent UI update
-      console.time('📊 File drop → UI render');
       startTransition(() => {
         setUploadingFiles(prev => [...pendingFiles, ...prev]);
-
-        // ⚡ PERFORMANCE: Log timing
-        const endTime = performance.now();
-        const totalTime = (endTime - startTime).toFixed(2);
-        console.timeEnd('📊 File drop → UI render');
-        console.log(`⚡ Performance: ${filteredFiles.length} files processed in ${totalTime}ms`);
       });
     },
     accept: {
@@ -669,9 +616,6 @@ const UploadHub = () => {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingOver(false);
-
-    console.log('📎 Drag-and-drop detected');
-
     // ✅ NEW: Check if items are folders using DataTransferItemList
     const items = e.dataTransfer.items;
 
@@ -693,23 +637,17 @@ const UploadHub = () => {
       const processedItems = await processDroppedEntries(entries);
 
       if (processedItems.length === 0) {
-        console.warn('⚠️ No valid items after processing');
         return;
       }
-
-      console.log(`✅ Processed ${processedItems.length} item(s) from drag-and-drop`);
       setUploadingFiles(prev => [...processedItems, ...prev]);
     } else {
       // Fallback to old behavior for browsers that don't support DataTransferItemList
       const files = Array.from(e.dataTransfer.files);
-      console.log(`📎 Drag-and-drop (fallback): ${files.length} file(s) dropped`);
-
       if (files.length === 0) return;
 
       const filteredFiles = filterMacHiddenFiles(files);
 
       if (filteredFiles.length === 0) {
-        console.warn('⚠️ No valid files after filtering hidden files');
         return;
       }
 
@@ -787,9 +725,6 @@ const UploadHub = () => {
   const handleConfirmUpload = async () => {
     const pendingItems = uploadingFiles.filter(f => f.status === 'pending');
     if (pendingItems.length === 0) return;
-
-    console.log('📤 Starting upload for', pendingItems.length, 'item(s)');
-
     // ✅ FIX: Filter hidden files before counting and update items
     const filteredItems = pendingItems.map(item => {
       if (item.isFolder) {
@@ -842,27 +777,17 @@ const UploadHub = () => {
 
       if (item.isFolder) {
         // Handle folder upload using the dedicated folder upload service
-        console.log('📁 Uploading folder:', item.folderName);
-        console.log('📁 DEBUG: item.files length:', item.files?.length);
-        console.log('📁 DEBUG: item.files sample:', item.files?.[0]);
-
         // ✅ FIX: Handle both File objects (drag-and-drop) and wrapped objects (legacy)
         const files = item.files.map((fileOrWrapper, idx) => {
           // Check if it's already a File object with webkitRelativePath (drag-and-drop)
           if (fileOrWrapper instanceof File) {
             // File object from drag-and-drop - already has webkitRelativePath
-            console.log(`📄 File ${idx + 1}: "${fileOrWrapper.name}" - webkitRelativePath: ${fileOrWrapper.webkitRelativePath || 'MISSING'}`);
             return fileOrWrapper;
           }
 
           // Legacy wrapped structure: {file: File, relativePath: "..."}
           if (fileOrWrapper.file) {
             const file = fileOrWrapper.file;
-            console.log(`📄 File ${idx + 1}: "${file.name}" - wrapped structure`);
-            console.log(`   - Has webkitRelativePath: ${!!file.webkitRelativePath}`);
-            console.log(`   - Has relativePath: ${!!fileOrWrapper.relativePath}`);
-            console.log(`   - relativePath value: ${fileOrWrapper.relativePath}`);
-
             // Attach webkitRelativePath if not already present
             if (!file.webkitRelativePath && fileOrWrapper.relativePath) {
               Object.defineProperty(file, 'webkitRelativePath', {
@@ -870,27 +795,18 @@ const UploadHub = () => {
                 writable: false,
                 enumerable: true  // ✅ CRITICAL FIX: Make it enumerable so it's sent in API requests
               });
-              console.log(`   ✅ Added webkitRelativePath: ${file.webkitRelativePath}`);
             }
             return file;
           }
 
           // Fallback: return as-is
-          console.warn('⚠️ Unknown file structure:', fileOrWrapper);
           return fileOrWrapper;
         });
-
-        console.log('📁 DEBUG: Processed files length:', files?.length);
-        console.log('📁 DEBUG: First processed file:', files?.[0]);
-        console.log('📁 DEBUG: First file webkitRelativePath:', files?.[0]?.webkitRelativePath);
-
         // ✅ VERIFICATION: Check that all files have webkitRelativePath
         const filesWithPath = files.filter(f => f.webkitRelativePath);
         const filesWithoutPath = files.filter(f => !f.webkitRelativePath);
-        console.log(`📊 Files with webkitRelativePath: ${filesWithPath.length}/${files.length}`);
         if (filesWithoutPath.length > 0) {
-          console.error(`❌ ${filesWithoutPath.length} files MISSING webkitRelativePath:`);
-          filesWithoutPath.forEach(f => console.error(`   - ${f.name}`));
+          filesWithoutPath.forEach(f =>
         }
 
         // ✅ REFACTORED: Use unified upload service (same as UniversalUploadModal)
@@ -913,11 +829,7 @@ const UploadHub = () => {
             },
             null // categoryId - will be auto-categorized
           );
-
-          console.log(`✅ Upload complete: ${results.successCount}/${results.totalFiles} files succeeded`);
-
           if (results.failureCount > 0) {
-            console.warn(`⚠️ ${results.failureCount} files failed`);
           }
 
           // SUCCESS: Mark as completed
@@ -931,8 +843,6 @@ const UploadHub = () => {
           ));
 
           // ✅ Documents and folders will appear INSTANTLY via WebSocket events
-          console.log('✅ Upload complete - documents will appear instantly via WebSocket');
-
           // ✅ FIX: Remove completed folder from list after short delay to show success
           setTimeout(() => {
             setUploadingFiles(prev => prev.filter((f) => !(f.isFolder && f.folderName === item.folderName)));
@@ -940,8 +850,6 @@ const UploadHub = () => {
 
         } catch (error) {
           // ERROR: Mark folder as failed with detailed error message
-          console.error('❌ Error uploading folder:', error);
-
           // Extract detailed error message
           let errorMessage = 'Upload failed';
           let errorDetails = null;
@@ -974,7 +882,6 @@ const UploadHub = () => {
           // Show error notification with retry option
           showUploadError(errorMessage, errorDetails, () => {
             // Retry handler - reset the folder status and re-queue
-            console.log('🔄 Retrying folder upload:', item.folderName);
             setUploadingFiles(prev => prev.map((f) =>
               (f.isFolder && f.folderName === item.folderName) ? {
                 ...f,
@@ -1005,8 +912,6 @@ const UploadHub = () => {
       } else {
         // Handle individual file upload - DIRECT TO GCS!
         const file = item.file;
-        console.log('📄 Uploading:', file.name);
-
       try {
         // Create folder structure if file has a folder path
         let targetFolderId = item.folderId;
@@ -1033,7 +938,6 @@ const UploadHub = () => {
                 });
                 currentParentId = response.data.folder.id;
               } catch (error) {
-                console.warn(`Folder ${folderName} may already exist, continuing...`);
               }
             }
 
@@ -1059,11 +963,8 @@ const UploadHub = () => {
           ));
 
           try {
-            console.log('📄 [Text Extraction] Extracting text from:', file.name);
             extractedText = await extractText(file);
-            console.log(`✅ [Text Extraction] Extracted ${extractedText.length} characters`);
           } catch (extractionError) {
-            console.warn('⚠️ [Text Extraction] Failed:', extractionError);
             // Continue anyway - text extraction failure shouldn't block upload
           }
         }
@@ -1075,8 +976,6 @@ const UploadHub = () => {
         let encryptedText = null;
 
         if (encryptionPassword) {
-          console.log('🔐 [Encryption] Encrypting file with Web Worker:', file.name);
-
           setUploadingFiles(prev => prev.map((f, idx) =>
             idx === i ? { ...f, progress: 10, processingStage: 'Encrypting file...' } : f
           ));
@@ -1100,9 +999,6 @@ const UploadHub = () => {
                 ));
               }
             );
-
-            console.log('✅ [Web Worker] File encryption complete');
-
             // ⚡ WEB WORKER: Encrypt filename
             const filenameEncrypted = await encryptionWorkerManager.encryptData(
               file.name,
@@ -1111,7 +1007,6 @@ const UploadHub = () => {
 
             // ⚡ WEB WORKER: Encrypt extracted text
             if (extractedText) {
-              console.log('🔐 [Web Worker] Encrypting extracted text...');
               encryptedText = await encryptionWorkerManager.encryptData(
                 extractedText,
                 encryptionPassword
@@ -1131,10 +1026,7 @@ const UploadHub = () => {
               encryptedText: encryptedText, // Encrypted extracted text
               originalMimeType: file.type
             };
-
-            console.log('✅ [Encryption] File encrypted successfully (Web Worker)');
           } catch (encryptionError) {
-            console.error('❌ [Encryption] Failed to encrypt file:', encryptionError);
             setUploadingFiles(prev => prev.map((f, idx) =>
               idx === i ? {
                 ...f,
@@ -1198,8 +1090,6 @@ const UploadHub = () => {
         let documentAdded = false;
 
         try {
-          console.log('✅ Upload completed, adding to UI immediately:', file.name);
-
           // ⚡ OPTIMISTIC UPDATE: Add document to UI immediately (instant feedback!)
           setDocuments(prev => [{
             ...document,
@@ -1211,7 +1101,6 @@ const UploadHub = () => {
 
           // ⚡ EDGE CASE: Set timeout warning for slow embeddings (30 seconds)
           const timeoutId = setTimeout(() => {
-            console.warn('⚠️ Embeddings taking longer than expected for:', document.id);
             showSuccess('Document processing is taking longer than expected. Your file will be ready for AI chat soon.', 'warning');
           }, 60000); // 60 seconds
 
@@ -1230,15 +1119,9 @@ const UploadHub = () => {
               processingStage: 'Backend processing started...'
             } : f
           ));
-
-          console.log(`✅ Upload HTTP complete, backend processing started for ${file.name}`);
-
         } catch (postUploadError) {
-          console.error('❌ Error in post-upload processing:', postUploadError);
-
           // ⚡ EDGE CASE: Rollback optimistic update if post-processing failed
           if (documentAdded) {
-            console.log('🔄 Rolling back optimistic update for document:', document.id);
             setDocuments(prev => prev.filter(doc => doc.id !== document.id));
 
             // Clear timeout if it exists
@@ -1264,8 +1147,6 @@ const UploadHub = () => {
         // 3. We remove the item from uploadingFiles
         // 4. We show the success notification
         } catch (error) {
-          console.error('❌ Error uploading file:', error);
-
           setUploadingFiles(prev => prev.map((f, idx) =>
             idx === i ? {
               ...f,
@@ -1280,17 +1161,12 @@ const UploadHub = () => {
     }); // Close the .map((item, i) => {})
 
     // ⚡ PARALLEL UPLOAD OPTIMIZATION: Wait for all uploads to complete
-    console.log(`🚀 Starting ${uploadPromises.length} uploads with max 3 concurrent...`);
     await Promise.all(uploadPromises);
-    console.log('✅ All uploads completed!');
-
     // After all uploads complete, show notification
     const newCompletedCount = completedFilesCountRef.current;
     const totalFilesCount = totalFilesToUploadRef.current;
 
     if (newCompletedCount === totalFilesCount && totalFilesCount > 0) {
-      console.log('🎉 All files uploaded! Showing notification...');
-
       // Show success notification using unified toast
       showUploadSuccess(newCompletedCount);
 
@@ -1320,12 +1196,8 @@ const UploadHub = () => {
     const files = filterMacHiddenFiles(rawFiles);
 
     if (files.length === 0) {
-      console.warn('⚠️ No valid files after filtering hidden files');
       return;
     }
-
-    console.log(`📁 Folder upload: ${rawFiles.length} → ${files.length} files after filtering`);
-
     // Extract folder structure from file paths
     const folderStructure = new Map(); // Map<rootFolderName, {name, files}>
 
@@ -1386,8 +1258,6 @@ const UploadHub = () => {
     const documentToDelete = documents.find(doc => doc.id === documentId);
 
     try {
-      console.log('🗑️ Deleting document:', documentId);
-
       // Remove from UI IMMEDIATELY (optimistic update)
       setDocuments(prev => prev.filter(doc => doc.id !== documentId));
       setOpenDropdownId(null);
@@ -1397,11 +1267,7 @@ const UploadHub = () => {
 
       // Delete on server in background
       await api.delete(`/api/documents/${documentId}`);
-
-      console.log('✅ Document deleted successfully');
     } catch (error) {
-      console.error('❌ Error deleting document:', error);
-
       // Restore document on error (rollback)
       if (documentToDelete) {
         setDocuments(prev => [documentToDelete, ...prev]);
@@ -1426,16 +1292,11 @@ const UploadHub = () => {
 
     // Get all folder IDs that will be deleted (parent + all descendants)
     const allFolderIdsToDelete = getAllSubfolderIds(folderId);
-
-    console.log('🗑️ Deleting folder and subfolders:', allFolderIdsToDelete);
-
     // Save folder, subfolders, and ALL related documents for potential rollback
     const foldersToDelete = folders.filter(f => allFolderIdsToDelete.includes(f.id));
     const docsInFolders = documents.filter(doc => allFolderIdsToDelete.includes(doc.folderId));
 
     try {
-      console.log(`🗑️ Deleting ${foldersToDelete.length} folder(s) and ${docsInFolders.length} document(s)`);
-
       // Remove from UI IMMEDIATELY (optimistic update)
       setFolders(prev => prev.filter(f => !allFolderIdsToDelete.includes(f.id)));
       setDocuments(prev => prev.filter(doc => !allFolderIdsToDelete.includes(doc.folderId)));
@@ -1446,11 +1307,7 @@ const UploadHub = () => {
 
       // Delete on server in background
       await api.delete(`/api/folders/${folderId}`);
-
-      console.log('✅ Folder deleted successfully');
     } catch (error) {
-      console.error('❌ Error deleting folder:', error);
-
       // Restore folders and documents on error (rollback)
       if (foldersToDelete.length > 0) {
         setFolders(prev => [...foldersToDelete, ...prev]);
@@ -1467,20 +1324,17 @@ const UploadHub = () => {
     const { name, emoji, selectedDocuments } = categoryData;
 
     try {
-      console.log('Creating category:', name, emoji, 'with documents:', selectedDocuments);
       const response = await api.post('/api/folders', { name, emoji });
       const folderId = response.data.folder.id;
 
       // Add selected documents to the created category
       if (selectedDocuments && selectedDocuments.length > 0) {
-        console.log(`📎 Adding ${selectedDocuments.length} documents to category...`);
         for (const docId of selectedDocuments) {
           try {
             await api.patch(`/api/documents/${docId}`, {
               folderId: folderId
             });
           } catch (docError) {
-            console.warn(`⚠️ Failed to add document ${docId} to category:`, docError);
           }
         }
       }
@@ -1498,9 +1352,7 @@ const UploadHub = () => {
       setDocuments(docsResponse.data.documents || []);
 
       setShowNewCategoryModal(false);
-      console.log('✅ Category created successfully with documents');
     } catch (error) {
-      console.error('❌ Error creating category:', error);
       alert('Failed to create category. Please try again.');
     }
   };
@@ -1515,15 +1367,12 @@ const UploadHub = () => {
 
     // Find the target category folder ID
     const targetCategory = categories.find(cat => cat.name === categoryName);
-    console.log('🏷️ Adding to category:', categoryName, 'Folder:', targetCategory);
-
     // Check if identifier is a folder ID
     const isFolder = folders.some(f => f.id === identifier);
 
     if (isFolder) {
       // Moving an entire folder to a category (make it a subfolder)
       try {
-        console.log('📁 Moving folder to category:', identifier, '→', categoryName);
         await api.patch(`/api/folders/${identifier}`, {
           name: folders.find(f => f.id === identifier)?.name || 'Folder',
           parentFolderId: targetCategory?.id || null
@@ -1540,10 +1389,7 @@ const UploadHub = () => {
         setFolders(allFolders.filter(f =>
           !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
         ));
-
-        console.log('✅ Folder moved to category:', categoryName);
       } catch (error) {
-        console.error('❌ Error moving folder:', error);
         alert('Failed to move folder. Please try again.');
       }
     } else {
@@ -1567,7 +1413,6 @@ const UploadHub = () => {
             folderId: targetCategory?.id || null
           } : f;
         }));
-        console.log('✅ Category set for pending item:', categoryName);
       } else if (completedFile) {
         // Update completed uploaded file via API
         try {
@@ -1587,10 +1432,7 @@ const UploadHub = () => {
           // Reload documents to reflect the change in library
           const response = await api.get('/api/documents');
           setDocuments(response.data.documents || []);
-
-          console.log('✅ Completed document moved to folder:', categoryName);
         } catch (error) {
-          console.error('❌ Error updating document folder:', error);
         }
       } else {
         // This is an existing document from the library (identifier is doc ID)
@@ -1602,10 +1444,7 @@ const UploadHub = () => {
           // Reload documents to reflect the change
           const response = await api.get('/api/documents');
           setDocuments(response.data.documents || []);
-
-          console.log('✅ Document moved to folder:', categoryName);
         } catch (error) {
-          console.error('❌ Error updating document folder:', error);
         }
       }
     }
@@ -2392,7 +2231,6 @@ const UploadHub = () => {
                                 link.remove();
                                 setOpenDropdownId(null);
                               } catch (error) {
-                                console.error('Download error:', error);
                                 alert('Failed to download file');
                               }
                             }}
@@ -2859,7 +2697,6 @@ const UploadHub = () => {
                                           link.remove();
                                           setOpenDropdownId(null);
                                         } catch (error) {
-                                          console.error('Download error:', error);
                                           alert('Failed to download file');
                                         }
                                       }}
@@ -3296,16 +3133,10 @@ const UploadHub = () => {
       <CreateCategoryModal
         isOpen={showNewCategoryModal}
         onClose={async () => {
-          console.log('📋 UploadHub documents state:', documents);
-          console.log('📋 UploadHub documents count:', documents.length);
-
           // Fetch ALL documents to check backend response
           try {
             const response = await api.get('/api/documents');
-            console.log('📋 Direct API call returned:', response.data.documents?.length, 'documents');
-            console.log('📋 Full response:', response.data);
           } catch (error) {
-            console.error('📋 Error fetching documents:', error);
           }
 
           setShowNewCategoryModal(false);
@@ -3346,7 +3177,6 @@ const UploadHub = () => {
                 showSuccess('1 file has been deleted');
               }
             } catch (error) {
-              console.error('Delete error:', error);
               alert('Failed to delete: ' + (error.response?.data?.error || error.message));
             }
           })();
@@ -3392,7 +3222,6 @@ const UploadHub = () => {
             setShowRenameModal(false);
             setItemToRename(null);
           } catch (error) {
-            console.error('Rename error:', error);
             alert(`Failed to rename ${itemToRename.type === 'folder' ? 'folder' : 'file'}`);
           }
         }}
@@ -3414,7 +3243,6 @@ const UploadHub = () => {
             setFolders(prev => [...prev, newFolder]);
             setShowCreateFolderModal(false);
           } catch (error) {
-            console.error('Create folder error:', error);
             alert('Failed to create folder: ' + (error.response?.data?.error || error.message));
           }
         }}

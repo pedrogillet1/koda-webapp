@@ -43,7 +43,6 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
       setCopyStatus({ copied: true, format: 'markdown' });
       setTimeout(() => setCopyStatus({ copied: false, format: null }), 2000);
     } catch (error) {
-      console.error('Failed to copy:', error);
     }
   };
 
@@ -79,7 +78,6 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
 
       setIsDownloading(false);
     } catch (error) {
-      console.error('Download failed:', error);
       alert('Failed to download document');
       setIsDownloading(false);
     }

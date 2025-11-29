@@ -49,9 +49,8 @@ export function saveUploadProgress(uploadData) {
 
   try {
     localStorage.setItem(key, JSON.stringify(data));
-    console.log(`💾 [PROGRESS] Saved upload progress: ${uploadData.filename} (${(uploadData.progress * 100).toFixed(1)}%)`);
   } catch (error) {
-    console.error('❌ [PROGRESS] Failed to save upload progress:', error);
+
     // localStorage full - clear old uploads
     clearExpiredUploads();
   }
@@ -73,16 +72,14 @@ export function loadUploadProgress(uploadId) {
 
     // Check if expired
     if (Date.now() > uploadData.expiresAt) {
-      console.log(`⏰ [PROGRESS] Upload expired: ${uploadData.filename}`);
+
       clearUploadProgress(uploadId);
       return null;
     }
-
-    console.log(`📂 [PROGRESS] Loaded upload progress: ${uploadData.filename} (${(uploadData.progress * 100).toFixed(1)}%)`);
     return uploadData;
 
   } catch (error) {
-    console.error('❌ [PROGRESS] Failed to load upload progress:', error);
+
     return null;
   }
 }
@@ -94,7 +91,7 @@ export function loadUploadProgress(uploadId) {
 export function clearUploadProgress(uploadId) {
   const key = `${STORAGE_KEY_PREFIX}${uploadId}`;
   localStorage.removeItem(key);
-  console.log(`🗑️ [PROGRESS] Cleared upload progress: ${uploadId}`);
+
 }
 
 /**
@@ -124,7 +121,7 @@ export function getAllPendingUploads() {
 
         uploads.push(data);
       } catch (error) {
-        console.error(`❌ [PROGRESS] Failed to parse upload data for key ${key}:`, error);
+
       }
     }
   }
@@ -156,7 +153,7 @@ export function clearExpiredUploads() {
   }
 
   if (cleared > 0) {
-    console.log(`🗑️ [PROGRESS] Cleared ${cleared} expired uploads`);
+
   }
 }
 

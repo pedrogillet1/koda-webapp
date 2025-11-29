@@ -233,10 +233,10 @@ class IntelligentQueryService {
       // Parse source documents
       let sourceCount = 0;
       try {
-        const sources = knowledge.sourceDocuments ? JSON.parse(knowledge.sourceDocuments) : [];
+        const sources = knowledge.sourceDocumentIds ? JSON.parse(knowledge.sourceDocumentIds) : [];
         sourceCount = sources.length;
       } catch {
-        sourceCount = 1;
+        sourceCount = knowledge.documentCount || 1;
       }
 
       // Build enhanced answer
@@ -255,9 +255,9 @@ class IntelligentQueryService {
         parts.push(`\n**Interpretation**: ${knowledge.interpretation}`);
       }
 
-      // Add example if available
-      if (knowledge.example) {
-        parts.push(`\n**Example**: ${knowledge.example}`);
+      // Add examples if available
+      if (knowledge.examples) {
+        parts.push(`\n**Examples**: ${knowledge.examples}`);
       }
 
       // Add the original RAG answer as supporting context

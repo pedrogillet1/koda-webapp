@@ -36,9 +36,6 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
     resumeAutoRefresh();
 
     if (files.length === 0) return;
-
-    console.log('Files selected:', files);
-
     // Extract folder paths for files with webkitRelativePath
     const filesWithPaths = files.map(file => ({
       file,
@@ -71,8 +68,6 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
   };
 
   const uploadFiles = async (filesToUpload) => {
-    console.log(`🚀 Starting parallel upload for ${filesToUpload.length} files`);
-
     let allCompleted = true;
     const BATCH_SIZE = 5; // Upload 5 files at a time for optimal performance
 
@@ -81,8 +76,6 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
       const { file, relativePath } = item;
 
       try {
-        console.log(`📤 Uploading: ${file.name} (${formatFileSize(file.size)})`);
-
         // Update progress to show starting
         setUploadProgress(prev => ({
           ...prev,
@@ -91,8 +84,6 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
 
         // Use context's addDocument for optimistic upload (file appears in UI instantly!)
         const newDocument = await addDocument(file, categoryId);
-
-        console.log(`✅ Completed: ${file.name}`);
         setUploadProgress(prev => ({
           ...prev,
           [relativePath]: 100
@@ -105,7 +96,6 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
 
         return { success: true, file: file.name };
       } catch (error) {
-        console.error(`❌ Failed: ${file.name}`, error);
         allCompleted = false;
         setUploadProgress(prev => ({
           ...prev,
@@ -119,20 +109,16 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
     // Upload files in batches (5 at a time) for optimal performance
     for (let i = 0; i < filesToUpload.length; i += BATCH_SIZE) {
       const batch = filesToUpload.slice(i, i + BATCH_SIZE);
-      console.log(`📦 Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(filesToUpload.length / BATCH_SIZE)} (${batch.length} files)`);
-
       // Upload all files in this batch simultaneously
       await Promise.all(batch.map(item => uploadSingleFile(item)));
     }
 
     // Check if all files are uploaded
     if (allCompleted) {
-      console.log(`✅ All ${filesToUpload.length} files uploaded successfully!`);
       setTimeout(() => {
         setUploadState('complete');
       }, 500);
     } else {
-      console.warn('⚠️ Some uploads failed. Please check the errors above.');
     }
   };
 
@@ -1118,7 +1104,6 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
             }
             handleClose();
           } catch (error) {
-            console.error('Failed to move documents:', error);
             alert('Failed to add documents to category');
           }
         }}
@@ -1153,7 +1138,6 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
             }
             handleClose();
           } catch (error) {
-            console.error('Failed to create category:', error);
             alert('Failed to create category: ' + (error.message || 'Unknown error'));
           }
         }}

@@ -194,7 +194,6 @@ const Settings = () => {
         setPhoneNumber(userData.phoneNumber || '');
         setProfileImage(userData.profileImage || null);
       } catch (error) {
-        console.error('Error fetching user:', error);
       }
     };
 
@@ -213,7 +212,6 @@ const Settings = () => {
           sessionStorage.setItem('koda_settings_storageLimit', (response.data.limit || 5 * 1024 * 1024 * 1024).toString());
         }
       } catch (error) {
-        console.error('Error fetching storage info:', error);
       }
     };
 
@@ -277,7 +275,6 @@ const Settings = () => {
         sessionStorage.setItem('koda_settings_documents', JSON.stringify(docs));
         sessionStorage.setItem('koda_settings_fileData', JSON.stringify(chartData));
       } catch (error) {
-        console.error('Error fetching documents:', error);
       }
     };
 
@@ -403,8 +400,6 @@ const Settings = () => {
         setProfileImage(userData.profileImage || null);
       }
     } catch (error) {
-      console.error('Error saving profile:', error);
-
       // Check if it's a phone number already in use error
       if (error.response?.data?.field === 'phoneNumber' && error.response?.data?.error) {
         setProfileError(error.response.data.error);
@@ -427,7 +422,6 @@ const Settings = () => {
       // Update user with verified phone
       setUser(response.data.user);
     } catch (error) {
-      console.error('Error verifying phone:', error);
       showError(error.response?.data?.error || 'Invalid verification code');
     }
   };
@@ -482,7 +476,6 @@ const Settings = () => {
       setNewPassword('');
       setConfirmPassword('');
     } catch (error) {
-      console.error('Error changing password:', error);
       const errorMessage = error.response?.data?.error || 'Failed to change password. Please try again.';
       showError(errorMessage);
     }
@@ -504,7 +497,6 @@ const Settings = () => {
 
       showSuccess('Notification preferences saved successfully!');
     } catch (error) {
-      console.error('Error saving notification preferences:', error);
       showError('Failed to save notification preferences. Please try again.');
     }
   };
@@ -577,7 +569,6 @@ const Settings = () => {
 
       showSuccess('Cache cleared successfully');
     } catch (error) {
-      console.error('Error clearing cache:', error);
       showError('Failed to clear cache');
     } finally {
       setShowDeleteModal(false);
@@ -630,7 +621,6 @@ const Settings = () => {
         { name: 'Other', value: breakdown.other.count, color: '#D9D9D9', size: formatBytes(breakdown.other.size) }
       ]);
     } catch (error) {
-      console.error('Error deleting document:', error);
     }
   };
 

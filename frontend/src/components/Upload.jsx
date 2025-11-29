@@ -30,7 +30,6 @@ const Upload = () => {
                     type: doc.mimeType
                 })));
             } catch (error) {
-                console.error('Error loading documents:', error);
             }
         };
         loadDocuments();
@@ -81,7 +80,6 @@ const Upload = () => {
                         type: doc.mimeType
                     })));
                 } catch (error) {
-                    console.error('Error loading documents:', error);
                 }
             };
             loadDocuments();

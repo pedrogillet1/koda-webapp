@@ -19,7 +19,7 @@ export function useStorage() {
       const response = await api.get('/storage');
       setStorageInfo(response.data);
     } catch (err) {
-      console.error('Failed to fetch storage info:', err);
+
       setError(err.response?.data?.message || err.message || 'Failed to fetch storage info');
     } finally {
       setLoading(false);
@@ -32,7 +32,7 @@ export function useStorage() {
       const response = await api.post('/storage/check-capacity', { fileSize });
       return response.data;
     } catch (err) {
-      console.error('Failed to check capacity:', err);
+
       throw err;
     }
   }, []);

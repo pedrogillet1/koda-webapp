@@ -124,9 +124,7 @@ class FolderUploadService {
     });
 
     if (skippedFiles.length > 0) {
-      console.log(`\n🚫 ===== FILTERED OUT ${skippedFiles.length} FILES =====`);
       skippedFiles.forEach(({ file, reason }) => {
-        console.log(`  - "${file.name || file.webkitRelativePath}" (${reason})`);
       });
     }
 
@@ -141,10 +139,6 @@ class FolderUploadService {
     if (files.length === 0) {
       throw new Error('No files provided');
     }
-
-    console.log(`\n📊 ===== ANALYZING FOLDER STRUCTURE =====`);
-    console.log(`Total files: ${files.length}`);
-
     // Extract root folder name from first file
     const firstPath = files[0].webkitRelativePath;
     if (!firstPath) {
@@ -160,13 +154,7 @@ class FolderUploadService {
     if (rootFolderName === '.' || rootFolderName === '..') {
       throw new Error(`Invalid folder name: "${rootFolderName}" is not allowed`);
     }
-
-    console.log(`Root folder name: "${rootFolderName}"`);
-    console.log(`\nSample file paths:`);
     files.slice(0, 5).forEach(f => {
-      console.log(`  - ${f.webkitRelativePath}`);
-      console.log(`    File object:`, f);
-      console.log(`    Has webkitRelativePath: ${!!f.webkitRelativePath}`);
     });
 
     // Build subfolder structure
@@ -213,37 +201,19 @@ class FolderUploadService {
 
     // Sort subfolders by depth (parents before children)
     subfolders.sort((a, b) => a.depth - b.depth);
-
-    console.log(`\n📁 Subfolders found: ${subfolders.length}`);
     subfolders.forEach(sf => {
-      console.log(`  - "${sf.name}" (path: ${sf.path}, parent: ${sf.parentPath || 'CATEGORY'}, depth: ${sf.depth})`);
     });
-
-    console.log(`\n📄 Files categorized:`);
-    console.log(`Total files in fileList: ${fileList.length}`);
     const rootFiles = fileList.filter(f => f.depth === 0);
     const nestedFiles = fileList.filter(f => f.depth > 0);
-    console.log(`  - Root level (direct in category): ${rootFiles.length} files`);
-    console.log(`  - Nested (in subfolders): ${nestedFiles.length} files`);
-
     // ✅ DEBUG: Show detailed breakdown of nested files
     if (nestedFiles.length > 0) {
-      console.log(`\n🔍 DEBUG - Nested Files Details:`);
       nestedFiles.forEach((f, idx) => {
-        console.log(`  ${idx + 1}. "${f.fileName}"`);
-        console.log(`     - Full Path: ${f.fullPath}`);
-        console.log(`     - Relative Path: ${f.relativePath}`);
-        console.log(`     - Folder Path: ${f.folderPath}`);
-        console.log(`     - Depth: ${f.depth}`);
       });
     } else {
-      console.log(`\n⚠️ DEBUG: NO nested files detected! All files are at root level.`);
     }
 
     if (fileList.length > 0) {
-      console.log(`\nFirst file in fileList:`, fileList[0]);
     } else {
-      console.warn(`⚠️ WARNING: fileList is EMPTY! This will cause no files to be uploaded.`);
     }
 
     return {
@@ -257,8 +227,6 @@ class FolderUploadService {
    * Create or get category (root folder)
    */
   async ensureCategory(categoryName) {
-    console.log(`\n🏷️  ===== ENSURING CATEGORY "${categoryName}" =====`);
-
     // Validate category name before making API call
     if (!categoryName || typeof categoryName !== 'string') {
       throw new Error(`Invalid category name: ${JSON.stringify(categoryName)}`);
@@ -271,7 +239,6 @@ class FolderUploadService {
 
     try {
       // ✅ FIX: Use backend's reuseExisting option to prevent duplicates
-      console.log(`📝 Creating/reusing category with name: "${trimmedName}"`);
       const createResponse = await api.post('/api/folders', {
         name: trimmedName,
         emoji: null, // Use null to allow default SVG icon
@@ -279,10 +246,8 @@ class FolderUploadService {
       });
 
       const folderId = createResponse.data.folder.id;
-      console.log(`✅ Category ensured with ID: ${folderId}`);
       return folderId;
     } catch (error) {
-      console.error('❌ Error ensuring category:', error);
       throw error;
     }
   }
@@ -292,11 +257,7 @@ class FolderUploadService {
    * Returns mapping of folderPath → folderId
    */
   async createSubfolders(subfolders, categoryId) {
-    console.log(`\n📂 ===== CREATING ${subfolders.length} SUBFOLDERS =====`);
-    console.log(`Category ID: ${categoryId}`);
-
     if (subfolders.length === 0) {
-      console.log(`No subfolders to create`);
       return {};
     }
 
@@ -306,26 +267,16 @@ class FolderUploadService {
         defaultEmoji: null, // Use null to allow default SVG icon
         parentFolderId: categoryId
       });
-
-      console.log(`✅ Created ${response.data.count} subfolders`);
-      console.log(`Folder mapping:`, response.data.folderMap);
-
       // ✅ DEBUG: Verify all subfolders were mapped correctly
       const folderMap = response.data.folderMap;
-      console.log(`\n🔍 DEBUG - Folder Map Verification:`);
-      console.log(`Expected ${subfolders.length} mappings, received ${Object.keys(folderMap).length}`);
-
       subfolders.forEach(sf => {
         if (folderMap[sf.path]) {
-          console.log(`  ✅ "${sf.path}" → Folder ID: ${folderMap[sf.path]}`);
         } else {
-          console.error(`  ❌ MISSING: "${sf.path}" has NO folder ID in folderMap!`);
         }
       });
 
       return response.data.folderMap;
     } catch (error) {
-      console.error('❌ Error creating subfolders:', error);
       throw error;
     }
   }
@@ -334,10 +285,6 @@ class FolderUploadService {
    * Map files to their folder IDs
    */
   mapFilesToFolders(files, categoryId, folderMap) {
-    console.log(`\n🗺️  ===== MAPPING FILES TO FOLDERS =====`);
-    console.log(`Category ID: ${categoryId}`);
-    console.log(`Folder map:`, folderMap);
-
     const fileMapping = files.map(fileInfo => {
       const { file, fileName, folderPath, depth } = fileInfo;
 
@@ -345,15 +292,12 @@ class FolderUploadService {
       if (depth === 0) {
         // File is directly in category (root level)
         folderId = categoryId;
-        console.log(`  📄 "${fileName}" → Category (${categoryId})`);
       } else {
         // File is in a subfolder
         folderId = folderMap[folderPath];
-        console.log(`  📄 "${fileName}" → Subfolder "${folderPath}" (${folderId})`);
       }
 
       if (!folderId) {
-        console.warn(`  ⚠️  WARNING: No folder ID found for "${fileName}" (path: ${folderPath})`);
       }
 
       return {
@@ -365,24 +309,11 @@ class FolderUploadService {
         folderPath: fileInfo.folderPath
       };
     });
-
-    console.log(`✅ Mapped ${fileMapping.length} files`);
-
     // ✅ DEBUG: Verify all files have folder IDs
     const filesWithFolderId = fileMapping.filter(f => f.folderId);
     const filesWithoutFolderId = fileMapping.filter(f => !f.folderId);
-
-    console.log(`\n🔍 DEBUG - File Mapping Verification:`);
-    console.log(`  ✅ ${filesWithFolderId.length} files have folder IDs`);
-    console.log(`  ❌ ${filesWithoutFolderId.length} files MISSING folder IDs`);
-
     if (filesWithoutFolderId.length > 0) {
-      console.error(`\n⚠️ FILES WITHOUT FOLDER IDs (WILL FAIL TO UPLOAD):`);
       filesWithoutFolderId.forEach(f => {
-        console.error(`  - "${f.fileName}"`);
-        console.error(`    Folder Path: ${f.folderPath}`);
-        console.error(`    Depth: ${f.depth}`);
-        console.error(`    Expected folderMap key: "${f.folderPath}"`);
       });
     }
 
@@ -428,10 +359,7 @@ class FolderUploadService {
     const { file, fileName, folderId, relativePath } = fileObj;
 
     try {
-      console.log(`📤 Uploading "${fileName}" (${(file.size / 1024).toFixed(2)}KB) to folder ${folderId}...`);
-
       // ✅ FIX: Calculate file hash with timeout to prevent hanging
-      console.log(`🔐 Calculating hash for "${fileName}"...`);
       const hashStart = Date.now();
 
       const fileHash = await Promise.race([
@@ -442,8 +370,6 @@ class FolderUploadService {
       ]);
 
       const hashDuration = Date.now() - hashStart;
-      console.log(`✅ Hash calculated for "${fileName}" in ${hashDuration}ms`);
-
       const formData = new FormData();
       formData.append('file', file);
       formData.append('fileHash', fileHash);
@@ -457,8 +383,6 @@ class FolderUploadService {
       if (relativePath) {
         formData.append('relativePath', relativePath);
       }
-
-      console.log(`📡 Sending "${fileName}" to API...`);
       const uploadStart = Date.now();
 
       const response = await api.post('/api/documents/upload', formData, {
@@ -473,16 +397,8 @@ class FolderUploadService {
       });
 
       const uploadDuration = Date.now() - uploadStart;
-      console.log(`✅ Uploaded "${fileName}" in ${uploadDuration}ms (total: ${hashDuration + uploadDuration}ms)`);
       return { success: true, fileId: response.data.document?.id, fileName };
     } catch (error) {
-      console.error(`❌ Failed to upload "${fileName}":`, error);
-      console.error(`   Error details:`, {
-        message: error.message,
-        code: error.code,
-        status: error.response?.status,
-        data: error.response?.data
-      });
       return { success: false, fileName, error: error.message };
     }
   }
@@ -492,8 +408,6 @@ class FolderUploadService {
    * All batches start simultaneously, not sequentially
    */
   async uploadFilesInParallel(fileMapping, onOverallProgress) {
-    console.log(`\n📤 ===== UPLOADING ${fileMapping.length} FILES (TRUE PARALLEL) =====`);
-
     const totalFiles = fileMapping.length;
     let uploadedFiles = 0;
 
@@ -502,9 +416,6 @@ class FolderUploadService {
     for (let i = 0; i < fileMapping.length; i += this.maxConcurrentUploads) {
       batches.push(fileMapping.slice(i, i + this.maxConcurrentUploads));
     }
-
-    console.log(`📦 Processing ${batches.length} batches of ${this.maxConcurrentUploads} files each - ALL IN PARALLEL`);
-
     this.uploadProgress = { totalFiles, uploadedFiles: 0, errors: [] };
 
     // ✅ TRUE PARALLEL: Process ALL batches simultaneously
@@ -540,9 +451,6 @@ class FolderUploadService {
 
     const successCount = results.filter(r => r.success).length;
     const failureCount = totalFiles - successCount;
-
-    console.log(`\n✅ Upload complete: ${successCount}/${totalFiles} succeeded, ${failureCount} failed`);
-
     return {
       results,
       totalFiles,
@@ -560,17 +468,10 @@ class FolderUploadService {
    * @param existingCategoryId - If provided, create the folder AS A SUBFOLDER of this category/folder
    */
   async uploadFolder(files, onProgress, existingCategoryId = null) {
-    console.log(`\n\n🚀 ===== STARTING FOLDER UPLOAD =====`);
-    console.log(`Files received: ${files.length}`);
-    console.log(`Parent folder ID: ${existingCategoryId || 'NONE (will create new root category)'}`);
-
     try {
       // Step 0: Filter out hidden files and unsupported types BEFORE analysis
       onProgress({ stage: 'filtering', message: 'Filtering files...' });
       const filteredFiles = this.filterFiles(Array.from(files));
-
-      console.log(`✅ After filtering: ${filteredFiles.length} valid files (removed ${files.length - filteredFiles.length} invalid files)`);
-
       if (filteredFiles.length === 0) {
         throw new Error('No valid files to upload. All files were filtered out (hidden files or unsupported types).');
       }
@@ -586,18 +487,14 @@ class FolderUploadService {
 
       // SCENARIO 1: Uploading a folder to create a NEW ROOT CATEGORY.
       if (!existingCategoryId) {
-        console.log(`📂 Creating NEW root category from folder: "${structure.rootFolderName}"`);
         onProgress({ stage: 'category', message: `Creating category "${structure.rootFolderName}"...` });
 
         // Use ensureCategory to get the ID of the new or existing root category.
         // This becomes the direct parent for all files and subfolders.
         categoryId = await this.ensureCategory(structure.rootFolderName);
         categoryName = structure.rootFolderName;
-        console.log(`✅ Root category ID set to: ${categoryId}`);
-
       // SCENARIO 2: Uploading a folder INTO an EXISTING CATEGORY.
       } else {
-        console.log(`📂 Creating subfolder "${structure.rootFolderName}" inside existing category: ${existingCategoryId}`);
         onProgress({ stage: 'category', message: `Creating folder "${structure.rootFolderName}"...` });
 
         // ✅ FIX: Check if subfolder already exists before creating
@@ -612,7 +509,6 @@ class FolderUploadService {
             // Use existing subfolder instead of creating a duplicate
             categoryId = existingSubfolder.id;
             categoryName = structure.rootFolderName;
-            console.log(`✅ Using existing subfolder with ID: ${categoryId}`);
           } else {
             // Create the uploaded folder as a SUBFOLDER of the existing location.
             // The files will go into this new subfolder.
@@ -623,10 +519,8 @@ class FolderUploadService {
             });
             categoryId = createResponse.data.folder.id; // Files go into the new subfolder
             categoryName = structure.rootFolderName;
-            console.log(`✅ Created new subfolder with ID: ${categoryId}`);
           }
         } catch (error) {
-          console.error('❌ Error handling subfolder:', error);
           throw error;
         }
       }
@@ -639,7 +533,6 @@ class FolderUploadService {
         onProgress({ stage: 'subfolders', message: `Creating ${structure.subfolders.length} subfolders...` });
         folderMap = await this.createSubfolders(structure.subfolders, categoryId);
       } else {
-        console.log(`No subfolders to create`);
       }
 
       // Step 4: Map files to folders
@@ -673,17 +566,12 @@ class FolderUploadService {
         successCount: uploadResults.successCount,
         failureCount: uploadResults.failureCount
       });
-
-      console.log(`\n✅ ===== FOLDER UPLOAD COMPLETE =====\n`);
-
       return {
         ...uploadResults,
         categoryId,
         categoryName
       };
     } catch (error) {
-      console.error('\n❌ ===== FOLDER UPLOAD FAILED =====');
-      console.error(error);
       onProgress({ stage: 'error', message: error.message });
       throw error;
     }

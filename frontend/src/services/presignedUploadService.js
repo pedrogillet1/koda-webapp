@@ -156,7 +156,6 @@ function getOrCreateEncryptionSalt() {
     salt = window.crypto.getRandomValues(new Uint8Array(32));
     saltBase64 = btoa(String.fromCharCode(...salt));
     localStorage.setItem('encryptionSalt', saltBase64);
-    console.log('🔐 [ENCRYPTION] Generated new salt for user');
   } else {
     // Use existing salt
     salt = new Uint8Array(atob(saltBase64).split('').map(c => c.charCodeAt(0)));
@@ -190,24 +189,14 @@ async function notifyCompletionWithRetry(documentIds, maxRetries = MAX_CONFIRM_R
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`📡 [CONFIRM] Attempt ${attempt}/${maxRetries}: Notifying backend of upload completion...`);
-
       const response = await api.post('/api/presigned-urls/complete', {
         documentIds
       }, {
         timeout: 10000 // 10 second timeout
       });
-
-      console.log(`✅ [CONFIRM] Success on attempt ${attempt}:`, response.data);
       return response.data;
     } catch (error) {
       lastError = error;
-      console.error(`❌ [CONFIRM] Attempt ${attempt}/${maxRetries} failed:`, {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        message: error.response?.data?.error || error.message,
-      });
-
       // Check if error is retryable
       const isRetryable =
         !error.response ||                    // Network error (no response)
@@ -217,22 +206,18 @@ async function notifyCompletionWithRetry(documentIds, maxRetries = MAX_CONFIRM_R
         error.code === 'ETIMEDOUT';           // Timeout
 
       if (!isRetryable) {
-        console.error(`❌ [CONFIRM] Non-retryable error (${error.response?.status}), stopping retries`);
         throw error;
       }
 
       if (attempt < maxRetries) {
         // Calculate exponential backoff delay: 1s, 2s, 4s, 8s, 16s
         const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt - 1);
-        console.log(`⏳ [CONFIRM] Waiting ${delay}ms before retry ${attempt + 1}...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
 
   // All retries failed
-  console.error(`❌ [CONFIRM] CRITICAL: All ${maxRetries} retry attempts failed!`);
-  console.error(`❌ [CONFIRM] Files uploaded to S3 but not registered in database`);
   throw lastError;
 }
 
@@ -260,12 +245,9 @@ class PresignedUploadService {
   async uploadFolder(files, folderId, onProgress) {
     const startTime = Date.now();
     const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-    console.log(`📁 Starting presigned upload for ${files.length} files (${(totalSize / 1024 / 1024).toFixed(2)}MB total)`);
-
     try {
       // Step 1: Request presigned URLs from backend
       const urlStartTime = Date.now();
-      console.log('📝 Requesting presigned URLs from backend...');
       const urlRequests = files.map(file => ({
         fileName: file.name,
         fileType: file.type,
@@ -280,12 +262,8 @@ class PresignedUploadService {
 
       const { presignedUrls, documentIds, encryptedFilenames } = data;
       const urlDuration = Date.now() - urlStartTime;
-      console.log(`✅ Received ${presignedUrls.length} presigned URLs in ${urlDuration}ms`);
-      console.log(`📊 [METRICS] URL generation speed: ${(presignedUrls.length / (urlDuration / 1000)).toFixed(2)} URLs/second`);
-
       // Step 2: Upload files directly to AWS S3 in batches
       const uploadStartTime = Date.now();
-      console.log(`🚀 Starting upload of ${files.length} files (${this.maxConcurrentUploads} concurrent)...`);
       const results = await this.uploadInBatches(
         files,
         presignedUrls,
@@ -296,32 +274,15 @@ class PresignedUploadService {
 
       const uploadDuration = Date.now() - uploadStartTime;
       const successfulUploads = results.filter(r => r.success);
-      console.log(`📊 [METRICS] Upload duration: ${uploadDuration}ms (${(uploadDuration / 1000 / 60).toFixed(2)} minutes)`);
-      console.log(`📊 [METRICS] Upload throughput: ${(successfulUploads.length / (uploadDuration / 1000 / 60)).toFixed(2)} files/minute`);
-      console.log(`📊 [METRICS] Data throughput: ${(totalSize / 1024 / 1024 / (uploadDuration / 1000)).toFixed(2)} MB/second`);
+
 
       // Step 3: Notify backend that uploads are complete
-      console.log(`📢 Notifying backend of ${successfulUploads.length} successful uploads...`);
-
       if (successfulUploads.length > 0) {
         try {
-          console.log(`📢 Calling /api/presigned-urls/complete with ${successfulUploads.length} document IDs...`);
           const completeResponse = await notifyCompletionWithRetry(
             successfulUploads.map(r => r.documentId)
           );
-          console.log(`✅ Backend acknowledged completion:`, completeResponse);
-          console.log(`✅ ${completeResponse.queued} documents queued for processing`);
         } catch (completeError) {
-          console.error('❌ [CONFIRM] CRITICAL: Failed to notify backend after all retry attempts!');
-          console.error('❌ [CONFIRM] Documents will remain in "uploading" status and won\'t be processed!');
-          console.error('❌ [CONFIRM] Error details:', {
-            status: completeError.response?.status,
-            statusText: completeError.response?.statusText,
-            message: completeError.response?.data?.error || completeError.message,
-            documentIds: successfulUploads.map(r => r.documentId),
-            retryAttempts: MAX_CONFIRM_RETRIES
-          });
-
           // Show user-friendly error with recovery instructions
           const errorMsg = completeError.response?.data?.error || completeError.message;
           alert(
@@ -338,17 +299,13 @@ class PresignedUploadService {
       // Log summary
       const failed = results.filter(r => !r.success);
       const totalDuration = Date.now() - startTime;
-      console.log(`✅ Upload complete! ${successfulUploads.length}/${results.length} files uploaded successfully`);
-      console.log(`📊 [METRICS] Total time: ${totalDuration}ms (${(totalDuration / 1000 / 60).toFixed(2)} minutes)`);
-      console.log(`📊 [METRICS] Success rate: ${(successfulUploads.length / results.length * 100).toFixed(2)}%`);
+
       if (failed.length > 0) {
-        console.warn(`⚠️ ${failed.length} files failed:`, failed.map(f => f.fileName));
       }
 
       return results;
 
     } catch (error) {
-      console.error('❌ Error in presigned upload:', error);
       throw error;
     }
   }
@@ -368,16 +325,11 @@ class PresignedUploadService {
         filenames: encryptedFilenames.slice(i, i + this.maxConcurrentUploads)
       });
     }
-
-    console.log(`📦 Created ${batches.length} batches (${this.maxConcurrentUploads} files per batch)`);
-
     const results = [];
     let completedCount = 0;
 
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
-      console.log(`\n🚀 Batch ${batchIndex + 1}/${batches.length} (${batch.files.length} files)`);
-
       // Upload all files in batch concurrently
       const batchPromises = batch.files.map((file, batchIdx) =>
         this.uploadSingleFile(
@@ -426,8 +378,6 @@ class PresignedUploadService {
 
     while (retries < maxRetries) {
       try {
-        console.log(`📤 Uploading "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)}MB)...`);
-
         // ═══════════════════════════════════════════════════════════════════════
         // Step 1: Client-Side Encryption (if enabled)
         // ═══════════════════════════════════════════════════════════════════════
@@ -444,27 +394,19 @@ class PresignedUploadService {
           const startEncrypt = Date.now();
 
           try {
-            console.log(`🔐 [ENCRYPTION] Encrypting "${file.name}" client-side...`);
-
             // Get or create user's salt
             const salt = getOrCreateEncryptionSalt();
             const saltBase64 = localStorage.getItem('encryptionSalt');
 
             // Derive encryption key from password
             const encryptionKey = await deriveKeyFromPassword(userPassword, salt);
-            console.log('🔐 [ENCRYPTION] Derived encryption key from password');
-
             // Read file as ArrayBuffer
             const fileBuffer = await file.arrayBuffer();
 
             // Encrypt file content
             const { fullEncrypted, iv, authTag } = await encryptFileBuffer(fileBuffer, encryptionKey);
-            console.log(`🔐 [ENCRYPTION] File encrypted (${fullEncrypted.byteLength} bytes)`);
-
             // Encrypt filename
             const { encrypted: encryptedOriginalFilename, iv: filenameIV } = await encryptFilename(file.name, encryptionKey);
-            console.log(`🔐 [ENCRYPTION] Filename encrypted`);
-
             // Use encrypted data for upload
             uploadData = new Blob([fullEncrypted], { type: 'application/octet-stream' });
             uploadContentType = 'application/octet-stream';
@@ -481,14 +423,10 @@ class PresignedUploadService {
             };
 
             const encryptTime = Date.now() - startEncrypt;
-            console.log(`✅ [ENCRYPTION] Client-side encryption complete in ${encryptTime}ms`);
           } catch (encryptError) {
-            console.error('❌ [ENCRYPTION] Failed to encrypt file:', encryptError);
             // Fall back to unencrypted upload
-            console.warn('⚠️ [ENCRYPTION] Falling back to unencrypted upload');
           }
         } else {
-          console.log('⏩ [ENCRYPTION] Encryption disabled, uploading plaintext');
         }
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -515,19 +453,13 @@ class PresignedUploadService {
         if (response.status !== 200) {
           throw new Error(`Upload failed with status ${response.status}: ${response.statusText}`);
         }
-
-        console.log(`✅ Uploaded "${file.name}" in ${uploadTime}ms ${encryptionMetadata ? '(encrypted)' : '(plaintext)'}`);
-
         // ═══════════════════════════════════════════════════════════════════════
         // Step 3: Update backend with encryption metadata (if encrypted)
         // ═══════════════════════════════════════════════════════════════════════
         if (encryptionMetadata) {
           try {
-            console.log(`📡 [ENCRYPTION] Sending encryption metadata to backend for document ${documentId}...`);
             await api.patch(`/api/documents/${documentId}/encryption`, encryptionMetadata);
-            console.log(`✅ [ENCRYPTION] Encryption metadata saved to database`);
           } catch (metadataError) {
-            console.error('❌ [ENCRYPTION] Failed to save encryption metadata:', metadataError);
             // Continue - file is uploaded, metadata can be recovered
           }
         }
@@ -547,16 +479,10 @@ class PresignedUploadService {
         retries++;
 
         if (retries >= maxRetries) {
-          console.error(`❌ Failed to upload "${file.name}" after ${maxRetries} retries:`, error);
-
           // ✅ ROLLBACK: Delete orphaned database record since S3 upload failed
           try {
-            console.log(`🗑️  Rolling back: Deleting database record for "${file.name}" (ID: ${documentId})...`);
             await api.delete(`/api/documents/${documentId}`);
-            console.log(`✅ Rollback successful: Database record deleted for "${file.name}"`);
           } catch (rollbackError) {
-            console.error(`❌ Rollback failed for "${file.name}":`, rollbackError.message);
-            console.error('⚠️  Orphaned database record may exist - run cleanup script');
           }
 
           return {
@@ -569,7 +495,6 @@ class PresignedUploadService {
 
         // Exponential backoff: 1s, 2s, 4s
         const delay = Math.pow(2, retries) * 1000;
-        console.log(`⏳ Retrying "${file.name}" in ${delay}ms (attempt ${retries + 1}/${maxRetries})...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -603,8 +528,6 @@ export async function uploadFileWithResume(file, folderId = null, onProgress = n
   const existingUpload = findExistingUpload(file.name, file.size, folderId);
 
   if (existingUpload) {
-    console.log(`🔄 [RESUME] Found pending upload for "${file.name}" (${(existingUpload.progress * 100).toFixed(1)}%)`);
-
     // Ask user if they want to resume
     const shouldResume = window.confirm(
       `Resume upload of "${file.name}"?\n\n` +
@@ -626,7 +549,6 @@ export async function uploadFileWithResume(file, folderId = null, onProgress = n
     return await uploadFileMultipart(file, folderId, uploadId, onProgress);
   } else {
     // For smaller files, use the standard presigned upload
-    console.log(`📤 [UPLOAD] File "${file.name}" (${(file.size / 1024 / 1024).toFixed(1)} MB) - using standard upload`);
     return null; // Let caller use standard upload method
   }
 }
@@ -640,14 +562,11 @@ export async function uploadFileWithResume(file, folderId = null, onProgress = n
  * @returns {Promise<Object>} - Upload result
  */
 async function uploadFileMultipart(file, folderId, uploadId, onProgress) {
-  console.log(`📤 [MULTIPART] Starting multipart upload for "${file.name}" (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
-
   const token = localStorage.getItem('token');
   const partCount = calculatePartCount(file.size);
 
   try {
     // Step 1: Initialize multipart upload
-    console.log(`📡 [MULTIPART] Initializing multipart upload with ${partCount} parts...`);
     const initResponse = await api.post('/api/documents/multipart/init', {
       filename: file.name,
       mimeType: file.type,
@@ -657,10 +576,6 @@ async function uploadFileMultipart(file, folderId, uploadId, onProgress) {
     });
 
     const { uploadKey, multipartUploadId, uploadUrls, documentId } = initResponse.data;
-
-    console.log(`✅ [MULTIPART] Initialized: ${multipartUploadId}`);
-    console.log(`📦 [MULTIPART] File split into ${partCount} parts`);
-
     // Initialize progress tracking
     const uploadData = createUploadData({
       uploadId,
@@ -681,9 +596,6 @@ async function uploadFileMultipart(file, folderId, uploadId, onProgress) {
       const partNumber = i + 1;
       const { start, end, size } = getPartRange(partNumber, file.size);
       const partBlob = file.slice(start, end);
-
-      console.log(`📤 [MULTIPART] Uploading part ${partNumber}/${partCount} (${(size / 1024 / 1024).toFixed(1)} MB)`);
-
       // Upload part to S3
       const response = await axios.put(uploadUrls[i], partBlob, {
         headers: {
@@ -704,13 +616,9 @@ async function uploadFileMultipart(file, folderId, uploadId, onProgress) {
       if (onProgress) {
         onProgress(uploadData.progress * 100);
       }
-
-      console.log(`✅ [MULTIPART] Part ${partNumber}/${partCount} uploaded (${(uploadData.progress * 100).toFixed(1)}%)`);
     }
 
     // Step 3: Complete multipart upload
-    console.log(`🔄 [MULTIPART] Completing multipart upload...`);
-
     const completeResponse = await api.post('/api/documents/multipart/complete', {
       uploadKey,
       multipartUploadId,
@@ -720,9 +628,6 @@ async function uploadFileMultipart(file, folderId, uploadId, onProgress) {
         etag: p.etag,
       })),
     });
-
-    console.log(`✅ [MULTIPART] Multipart upload complete`);
-
     // Clear progress
     clearUploadProgress(uploadId);
 
@@ -733,7 +638,6 @@ async function uploadFileMultipart(file, folderId, uploadId, onProgress) {
     };
 
   } catch (error) {
-    console.error(`❌ [MULTIPART] Upload failed:`, error);
     // Don't clear progress on failure - allow resume
     throw error;
   }
@@ -747,21 +651,13 @@ async function uploadFileMultipart(file, folderId, uploadId, onProgress) {
  * @returns {Promise<Object>} - Upload result
  */
 async function resumeMultipartUpload(uploadData, file, onProgress) {
-  console.log(`🔄 [RESUME] Resuming upload for "${file.name}" from ${(uploadData.progress * 100).toFixed(1)}%`);
-
   const partCount = uploadData.parts.length;
   const uploadedParts = uploadData.parts.filter(p => p.uploaded).length;
-
-  console.log(`📊 [RESUME] ${uploadedParts}/${partCount} parts already uploaded`);
-
   try {
     // Get new upload URLs for remaining parts
     const remainingPartNumbers = uploadData.parts
       .filter(p => !p.uploaded)
       .map(p => p.partNumber);
-
-    console.log(`📡 [RESUME] Requesting URLs for ${remainingPartNumbers.length} remaining parts...`);
-
     const resumeResponse = await api.post('/api/documents/multipart/resume', {
       uploadKey: uploadData.uploadKey,
       multipartUploadId: uploadData.multipartUploadId,
@@ -774,16 +670,12 @@ async function resumeMultipartUpload(uploadData, file, onProgress) {
     // Upload remaining parts
     for (let i = 0; i < partCount; i++) {
       if (uploadData.parts[i].uploaded) {
-        console.log(`⏩ [RESUME] Skipping part ${i + 1}/${partCount} (already uploaded)`);
         continue;
       }
 
       const partNumber = i + 1;
       const { start, end, size } = getPartRange(partNumber, file.size);
       const partBlob = file.slice(start, end);
-
-      console.log(`📤 [RESUME] Uploading part ${partNumber}/${partCount} (${(size / 1024 / 1024).toFixed(1)} MB)`);
-
       const response = await axios.put(uploadUrls[urlIndex], partBlob, {
         headers: {
           'Content-Type': file.type,
@@ -802,14 +694,10 @@ async function resumeMultipartUpload(uploadData, file, onProgress) {
       if (onProgress) {
         onProgress(uploadData.progress * 100);
       }
-
-      console.log(`✅ [RESUME] Part ${partNumber}/${partCount} uploaded (${(uploadData.progress * 100).toFixed(1)}%)`);
       urlIndex++;
     }
 
     // Complete multipart upload
-    console.log(`🔄 [RESUME] Completing multipart upload...`);
-
     const completeResponse = await api.post('/api/documents/multipart/complete', {
       uploadKey: uploadData.uploadKey,
       multipartUploadId: uploadData.multipartUploadId,
@@ -819,9 +707,6 @@ async function resumeMultipartUpload(uploadData, file, onProgress) {
         etag: p.etag,
       })),
     });
-
-    console.log(`✅ [RESUME] Upload resumed and completed successfully`);
-
     clearUploadProgress(uploadData.uploadId);
 
     return {
@@ -831,7 +716,6 @@ async function resumeMultipartUpload(uploadData, file, onProgress) {
     };
 
   } catch (error) {
-    console.error(`❌ [RESUME] Resume failed:`, error);
     // Don't clear progress - allow retry
     throw error;
   }
@@ -860,9 +744,7 @@ export async function cancelPendingUpload(uploadId) {
         uploadKey: uploadData.uploadKey,
         multipartUploadId: uploadData.multipartUploadId,
       });
-      console.log(`🗑️ [CANCEL] Aborted multipart upload: ${uploadData.multipartUploadId}`);
     } catch (error) {
-      console.error(`❌ [CANCEL] Failed to abort multipart upload:`, error);
     }
   }
 

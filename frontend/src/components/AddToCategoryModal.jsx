@@ -18,7 +18,6 @@ const AddToCategoryModal = ({
   useEffect(() => {
     if (isOpen) {
       // VERSION 2.0 - FULL WIDTH LAYOUT WITH EMOJIS
-      console.log('🚀 AddToCategoryModal VERSION 2.0 LOADED');
       // Clear state first to force fresh data
       setCategories([]);
       setSelectedCategory(null);
@@ -36,13 +35,9 @@ const AddToCategoryModal = ({
       // Filter to show only root-level folders (categories with no parent)
       const folders = response.data.folders || [];
       const rootFolders = folders.filter(folder => folder.parentFolderId === null);
-      console.log('✨ CACHE-BUSTED AddToCategoryModal - Root folders:', rootFolders);
-      console.log('✨ Found categories:', rootFolders.map(f => `${f.emoji || '📁'} ${f.name}`));
-      console.log('✨ Emoji values:', rootFolders.map(f => ({ name: f.name, emoji: f.emoji, emojiType: typeof f.emoji })));
       setCategories(rootFolders);
       setLoading(false);
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
       setLoading(false);
     }
   };

@@ -25,7 +25,6 @@ export default function MoveToFolderModal({ isOpen, onClose, onMove, selectedCou
       const response = await axios.get('/api/folders');
       setFolders(response.data.folders || []);
     } catch (error) {
-      console.error('Error fetching folders:', error);
     } finally {
       setLoading(false);
     }

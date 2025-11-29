@@ -122,9 +122,7 @@ function filterFiles(files) {
   });
 
   if (skippedFiles.length > 0) {
-    console.log(`\n🚫 ===== FILTERED OUT ${skippedFiles.length} FILES =====`);
     skippedFiles.forEach(({ file, reason }) => {
-      console.log(`  - "${file.name || file.webkitRelativePath}" (${reason})`);
     });
   }
 
@@ -143,10 +141,6 @@ function analyzeFolderStructure(files) {
   if (files.length === 0) {
     throw new Error('No files provided');
   }
-
-  console.log(`\n📊 ===== ANALYZING FOLDER STRUCTURE =====`);
-  console.log(`Total files: ${files.length}`);
-
   // Extract root folder name from first file
   const firstPath = files[0].webkitRelativePath;
   if (!firstPath) {
@@ -162,9 +156,6 @@ function analyzeFolderStructure(files) {
   if (rootFolderName === '.' || rootFolderName === '..') {
     throw new Error(`Invalid folder name: "${rootFolderName}" is not allowed`);
   }
-
-  console.log(`Root folder name: "${rootFolderName}"`);
-
   // Build subfolder structure
   const subfolderSet = new Set();
   const subfolders = [];
@@ -207,10 +198,6 @@ function analyzeFolderStructure(files) {
 
   // Sort subfolders by depth (parents before children)
   subfolders.sort((a, b) => a.depth - b.depth);
-
-  console.log(`📁 Subfolders found: ${subfolders.length}`);
-  console.log(`📄 Files: ${fileList.length} total (${fileList.filter(f => f.depth === 0).length} at root, ${fileList.filter(f => f.depth > 0).length} nested)`);
-
   return {
     rootFolderName,
     subfolders,
@@ -226,8 +213,6 @@ function analyzeFolderStructure(files) {
  * Ensure category exists (create or reuse)
  */
 async function ensureCategory(categoryName) {
-  console.log(`\n🏷️  ===== ENSURING CATEGORY "${categoryName}" =====`);
-
   if (!categoryName || typeof categoryName !== 'string') {
     throw new Error(`Invalid category name: ${JSON.stringify(categoryName)}`);
   }
@@ -245,10 +230,8 @@ async function ensureCategory(categoryName) {
     });
 
     const folderId = createResponse.data.folder.id;
-    console.log(`✅ Category ensured with ID: ${folderId}`);
     return folderId;
   } catch (error) {
-    console.error('❌ Error ensuring category:', error);
     throw error;
   }
 }
@@ -258,8 +241,6 @@ async function ensureCategory(categoryName) {
  * Returns mapping of folderPath → folderId
  */
 async function createSubfolders(subfolders, categoryId) {
-  console.log(`\n📂 ===== CREATING ${subfolders.length} SUBFOLDERS =====`);
-
   if (subfolders.length === 0) {
     return {};
   }
@@ -270,11 +251,8 @@ async function createSubfolders(subfolders, categoryId) {
       defaultEmoji: null,
       parentFolderId: categoryId
     });
-
-    console.log(`✅ Created ${response.data.count} subfolders`);
     return response.data.folderMap;
   } catch (error) {
-    console.error('❌ Error creating subfolders:', error);
     throw error;
   }
 }
@@ -291,7 +269,6 @@ async function ensureSubfolder(folderName, parentFolderId) {
     );
 
     if (existingSubfolder) {
-      console.log(`✅ Using existing subfolder: ${folderName} (${existingSubfolder.id})`);
       return existingSubfolder.id;
     }
 
@@ -301,11 +278,8 @@ async function ensureSubfolder(folderName, parentFolderId) {
       emoji: null,
       parentFolderId: parentFolderId
     });
-
-    console.log(`✅ Created new subfolder: ${folderName} (${createResponse.data.folder.id})`);
     return createResponse.data.folder.id;
   } catch (error) {
-    console.error('❌ Error ensuring subfolder:', error);
     throw error;
   }
 }
@@ -354,8 +328,6 @@ function calculateFileHash(file) {
  * Request presigned URLs for multiple files
  */
 async function requestPresignedUrls(files, folderId) {
-  console.log(`📝 Requesting presigned URLs for ${files.length} files...`);
-
   const urlRequests = files.map(fileInfo => ({
     fileName: fileInfo.fileName || fileInfo.file.name,
     fileType: fileInfo.file.type || 'application/octet-stream',
@@ -368,9 +340,6 @@ async function requestPresignedUrls(files, folderId) {
     files: urlRequests,
     folderId
   });
-
-  console.log(`✅ Received ${data.presignedUrls.length} presigned URLs`);
-
   return data;
 }
 
@@ -404,14 +373,10 @@ async function uploadFileToS3(file, presignedUrl, documentId, onProgress) {
       retries++;
 
       if (retries >= CONFIG.MAX_RETRIES) {
-        console.error(`❌ Failed to upload after ${CONFIG.MAX_RETRIES} retries:`, error);
-
         // Rollback: Delete orphaned database record
         try {
           await api.delete(`/api/documents/${documentId}`);
-          console.log(`🗑️ Rolled back database record for failed upload`);
         } catch (rollbackError) {
-          console.error(`❌ Rollback failed:`, rollbackError.message);
         }
 
         return { success: false, documentId, error: error.message };
@@ -419,7 +384,6 @@ async function uploadFileToS3(file, presignedUrl, documentId, onProgress) {
 
       // Exponential backoff
       const delay = CONFIG.INITIAL_RETRY_DELAY * Math.pow(2, retries);
-      console.log(`⏳ Retry ${retries}/${CONFIG.MAX_RETRIES} in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -433,20 +397,14 @@ async function notifyCompletionWithRetry(documentIds) {
 
   for (let attempt = 1; attempt <= CONFIG.MAX_CONFIRM_RETRIES; attempt++) {
     try {
-      console.log(`📡 [CONFIRM] Attempt ${attempt}/${CONFIG.MAX_CONFIRM_RETRIES}...`);
-
       const response = await api.post('/api/presigned-urls/complete', {
         documentIds
       }, {
         timeout: 60000 // ✅ FIX: Increased timeout to 60s for large uploads (was 10s)
       });
-
-      console.log(`✅ [CONFIRM] Success: ${response.data.queued} documents queued`);
       return response.data;
     } catch (error) {
       lastError = error;
-      console.error(`❌ [CONFIRM] Attempt ${attempt} failed:`, error.message);
-
       // Check if error is retryable
       const isRetryable =
         !error.response ||
@@ -465,8 +423,6 @@ async function notifyCompletionWithRetry(documentIds) {
       }
     }
   }
-
-  console.error(`❌ [CONFIRM] All retry attempts failed!`);
   throw lastError;
 }
 
@@ -484,8 +440,6 @@ async function notifyCompletionWithRetry(documentIds) {
  */
 async function uploadFiles(files, folderId, onProgress) {
   const startTime = Date.now();
-  console.log(`\n🚀 ===== UPLOADING ${files.length} FILES =====`);
-
   // Filter files
   const { validFiles, skippedFiles } = filterFiles(files);
 
@@ -559,8 +513,6 @@ async function uploadFiles(files, folderId, onProgress) {
     }
 
     const duration = Date.now() - startTime;
-    console.log(`✅ Upload complete: ${successfulUploads.length}/${validFiles.length} in ${(duration / 1000).toFixed(2)}s`);
-
     onProgress?.({ stage: 'complete', message: 'Upload complete!', percentage: 100 });
 
     return {
@@ -572,7 +524,6 @@ async function uploadFiles(files, folderId, onProgress) {
       duration
     };
   } catch (error) {
-    console.error('❌ Upload failed:', error);
     throw error;
   }
 }
@@ -587,10 +538,6 @@ async function uploadFiles(files, folderId, onProgress) {
  */
 async function uploadFolder(files, onProgress, existingCategoryId = null) {
   const startTime = Date.now();
-  console.log(`\n🚀 ===== STARTING FOLDER UPLOAD =====`);
-  console.log(`Files received: ${files.length}`);
-  console.log(`Parent folder ID: ${existingCategoryId || 'NONE (will create root category)'}`);
-
   try {
     // Step 0: Filter files
     onProgress?.({ stage: 'filtering', message: 'Filtering files...', percentage: 2 });
@@ -605,9 +552,6 @@ async function uploadFolder(files, onProgress, existingCategoryId = null) {
       const extraCount = skippedFiles.length > 5 ? ` and ${skippedFiles.length - 5} more` : '';
       throw new Error(`No valid files to upload. Skipped: ${skippedReasons}${extraCount}`);
     }
-
-    console.log(`✅ After filtering: ${validFiles.length} valid files (removed ${skippedFiles.length})`);
-
     // Step 1: Analyze folder structure
     onProgress?.({ stage: 'analyzing', message: 'Analyzing folder structure...', percentage: 5 });
     const structure = analyzeFolderStructure(validFiles);
@@ -673,9 +617,6 @@ async function uploadFolder(files, onProgress, existingCategoryId = null) {
         ids: documentIds.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS)
       });
     }
-
-    console.log(`📦 Processing ${batches.length} batches of up to ${CONFIG.MAX_CONCURRENT_UPLOADS} files each (ALL IN PARALLEL)`);
-
     // Process ALL batches in parallel
     const batchPromises = batches.map(async (batch) => {
       const batchResults = await Promise.all(
@@ -714,18 +655,12 @@ async function uploadFolder(files, onProgress, existingCategoryId = null) {
       try {
         await notifyCompletionWithRetry(successfulUploads.map(r => r.documentId));
       } catch (confirmError) {
-        console.error('❌ Failed to notify backend, files may need reprocessing');
       }
     }
 
     const duration = Date.now() - startTime;
     const successCount = successfulUploads.length;
     const failureCount = fileInfos.length - successCount;
-
-    console.log(`\n✅ ===== FOLDER UPLOAD COMPLETE =====`);
-    console.log(`Success: ${successCount}, Failed: ${failureCount}, Skipped: ${skippedFiles.length}`);
-    console.log(`Duration: ${(duration / 1000).toFixed(2)}s`);
-
     onProgress?.({
       stage: 'complete',
       message: 'Upload complete!',
@@ -746,8 +681,6 @@ async function uploadFolder(files, onProgress, existingCategoryId = null) {
       errors: results.filter(r => !r.success).map(r => ({ fileName: r.fileName, error: r.error }))
     };
   } catch (error) {
-    console.error('\n❌ ===== FOLDER UPLOAD FAILED =====');
-    console.error(error);
     onProgress?.({ stage: 'error', message: error.message, percentage: 0 });
     throw error;
   }
@@ -762,8 +695,6 @@ async function uploadFolder(files, onProgress, existingCategoryId = null) {
  * @returns {Promise<Object>} Upload result with document info
  */
 async function uploadSingleFile(file, folderId, onProgress) {
-  console.log(`📤 Uploading single file: "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
-
   // Filter check
   if (isHiddenFile(file.name)) {
     throw new Error(`Cannot upload hidden/system file: ${file.name}`);
@@ -821,7 +752,6 @@ async function uploadSingleFile(file, folderId, onProgress) {
       fileName: file.name
     };
   } catch (error) {
-    console.error('❌ Single file upload failed:', error);
     throw error;
   }
 }

@@ -52,8 +52,7 @@ export const DocumentsProvider = ({ children }) => {
       const response = await api.get(`/api/documents?_t=${timestamp}`);
       const fetchedDocs = response.data.documents || [];
 
-      console.log('\n📄 FETCHED DOCUMENTS:', fetchedDocs.length, 'total');
-      console.log('Documents by folder:');
+
       const docsByFolder = {};
       fetchedDocs.forEach(d => {
         const folderId = d.folderId || 'NO_FOLDER';
@@ -63,7 +62,7 @@ export const DocumentsProvider = ({ children }) => {
         docsByFolder[folderId].push(d.filename);
       });
       Object.keys(docsByFolder).forEach(fId => {
-        console.log(`  Folder ${fId}: ${docsByFolder[fId].length} docs -`, docsByFolder[fId].join(', '));
+
       });
 
       // ✅ FIX #1: Use Upload Registry to protect recently uploaded documents (30s window)
@@ -85,7 +84,6 @@ export const DocumentsProvider = ({ children }) => {
           const notInFetched = !fetchedDocs.find(fd => fd.id === doc.id);
 
           if (isProtected && notInFetched) {
-            console.log(`🛡️ [Registry] Protecting upload: ${doc.filename} (age: ${Math.round(age/1000)}s, status: ${registryEntry.status})`);
             return true;
           }
 
@@ -109,7 +107,6 @@ export const DocumentsProvider = ({ children }) => {
           const notInFetched = !fetchedDocs.find(fd => fd.id === doc.id);
 
           if (isRecent && isProcessing && notInFetched) {
-            console.log(`✅ Protecting recent doc (fallback): ${doc.filename} (age: ${Math.round(docAge/1000)}s, status: ${doc.status})`);
           }
 
           return isRecent && isProcessing && notInFetched;
@@ -122,12 +119,12 @@ export const DocumentsProvider = ({ children }) => {
 
         const protectedCount = tempDocs.length + registryProtectedDocs.length + recentDocs.length;
         if (protectedCount > 0) {
-          console.log(`📄 Merged: ${tempDocs.length} temp + ${registryProtectedDocs.length} registry + ${recentDocs.length} recent + ${fetchedDocs.length} fetched = ${mergedDocs.length} total`);
+
         }
         return mergedDocs;
       });
     } catch (error) {
-      console.error('Error fetching documents:', error);
+
       // If auth error or rate limit, stop making more requests
       if (error.response?.status === 401 ||
           error.response?.status === 429 ||
@@ -163,7 +160,7 @@ export const DocumentsProvider = ({ children }) => {
                 const decryptedName = await decryptData(encryptedData, encryptionPassword);
                 return { ...folder, name: decryptedName };
               } catch (error) {
-                console.error('❌ [Decryption] Failed to decrypt folder name:', error);
+
                 return folder; // Return original if decryption fails
               }
             }
@@ -172,9 +169,8 @@ export const DocumentsProvider = ({ children }) => {
         );
       }
 
-      console.log('\n🗂️ FETCHED FOLDERS:', fetchedFolders.length, 'total');
       fetchedFolders.forEach(f => {
-        console.log(`  ${f.emoji || '📁'} ${f.name} (id: ${f.id}, count: ${f._count?.totalDocuments || 0})`);
+
       });
 
       // ✅ FIX: Preserve optimistic counts if they're higher than backend counts
@@ -189,7 +185,7 @@ export const DocumentsProvider = ({ children }) => {
             // If previous optimistic count is higher, preserve it temporarily
             // This happens when documents are being uploaded but haven't all committed to DB yet
             if (prevTotal > fetchedTotal) {
-              console.log(`🛡️ Preserving optimistic count for ${fetchedFolder.name}: ${prevTotal} > ${fetchedTotal}`);
+
               return {
                 ...fetchedFolder,
                 _count: {
@@ -204,7 +200,7 @@ export const DocumentsProvider = ({ children }) => {
         });
       });
     } catch (error) {
-      console.error('Error fetching folders:', error);
+
       // If auth error or rate limit, stop making more requests
       if (error.response?.status === 401 ||
           error.response?.status === 429 ||
@@ -220,7 +216,7 @@ export const DocumentsProvider = ({ children }) => {
       const response = await api.get('/api/documents?limit=5');
       setRecentDocuments(response.data.documents || []);
     } catch (error) {
-      console.error('Error fetching recent documents:', error);
+
       // If auth error or rate limit, stop making more requests
       if (error.response?.status === 401 ||
           error.response?.status === 429 ||
@@ -237,7 +233,6 @@ export const DocumentsProvider = ({ children }) => {
     // ✅ Check cache first (unless force refresh)
     if (!forceRefresh && cacheRef.current.data && (now - cacheRef.current.timestamp) < CACHE_TTL) {
       const cacheAge = Math.round((now - cacheRef.current.timestamp) / 1000);
-      console.log(`✅ [CACHE] Using cached data (age: ${cacheAge}s, TTL: ${CACHE_TTL / 1000}s)`);
 
       const { documents: cachedDocs, folders: cachedFolders, recentDocuments: cachedRecent } = cacheRef.current.data;
 
@@ -252,15 +247,14 @@ export const DocumentsProvider = ({ children }) => {
 
     setLoading(true);
     try {
-      console.log('📦 [BATCH] Loading all data in single request...');
+
       const startTime = Date.now();
 
       const response = await api.get('/api/batch/initial-data');
       const { documents: fetchedDocs, folders: fetchedFolders, recentDocuments: fetchedRecent, meta } = response.data;
 
       const duration = Date.now() - startTime;
-      console.log(`✅ [BATCH] Loaded in ${duration}ms (server: ${meta.loadTime}ms)`);
-      console.log(`   ${fetchedDocs.length} documents, ${fetchedFolders.length} folders, ${fetchedRecent.length} recent`);
+
 
       // Decrypt folder names if encryption is enabled
       let decryptedFolders = fetchedFolders;
@@ -279,7 +273,7 @@ export const DocumentsProvider = ({ children }) => {
                 const decryptedName = await decryptData(encryptedData, encryptionPassword);
                 return { ...folder, name: decryptedName };
               } catch (error) {
-                console.error('❌ [Decryption] Failed to decrypt folder name:', error);
+
                 return folder;
               }
             }
@@ -287,7 +281,7 @@ export const DocumentsProvider = ({ children }) => {
           })
         );
         const decryptTime = Date.now() - decryptStart;
-        console.log(`🔓 [Decryption] Decrypted ${fetchedFolders.length} folder names in ${decryptTime}ms`);
+
       }
 
       // ✅ Cache the result
@@ -299,7 +293,6 @@ export const DocumentsProvider = ({ children }) => {
         },
         timestamp: now
       };
-      console.log(`💾 [CACHE] Cached data (TTL: ${CACHE_TTL / 1000}s)`);
 
       // ✅ OPTIMIZATION: Use startTransition for non-urgent state updates (save 500ms-1s)
       // This allows React to prioritize urgent updates like user input
@@ -310,9 +303,9 @@ export const DocumentsProvider = ({ children }) => {
       });
 
     } catch (error) {
-      console.error('❌ [BATCH] Error loading data:', error);
+
       // Fallback to individual requests if batch fails
-      console.log('🔄 Falling back to individual requests...');
+
       await Promise.all([
         fetchDocuments(),
         fetchFolders(),
@@ -326,7 +319,7 @@ export const DocumentsProvider = ({ children }) => {
   // ✅ Cache invalidation function
   const invalidateCache = useCallback(() => {
     cacheRef.current = { data: null, timestamp: 0 };
-    console.log('🗑️ [CACHE] Cache invalidated');
+
   }, []);
 
   // ✅ FIX #2: Smart Refetch Coordinator - Batches multiple refetch requests
@@ -339,13 +332,12 @@ export const DocumentsProvider = ({ children }) => {
 
     // Check cooldown
     if (now - coordinator.lastRefetch < REFETCH_COOLDOWN) {
-      console.log(`⏸️ [Refetch] Skipping - cooldown active (${Math.round((REFETCH_COOLDOWN - (now - coordinator.lastRefetch))/1000)}s remaining)`);
       return;
     }
 
     // If already pending, just let it batch
     if (coordinator.pending) {
-      console.log(`📦 [Refetch] Batching request: ${types.join(', ')}`);
+
       return;
     }
 
@@ -359,7 +351,6 @@ export const DocumentsProvider = ({ children }) => {
     // Wait for batch delay, then execute
     coordinator.timeout = setTimeout(async () => {
       const typesToFetch = Array.from(coordinator.types);
-      console.log(`🔄 [Refetch] Executing batched refetch: ${typesToFetch.join(', ')}`);
 
       // Reset coordinator state
       coordinator.types.clear();
@@ -398,12 +389,12 @@ export const DocumentsProvider = ({ children }) => {
 
   // Function to pause auto-refresh (call this when opening file picker)
   const pauseAutoRefresh = useCallback(() => {
-    console.log('⏸️ [Auto-Refresh] Pausing auto-refresh for file selection');
+
     pauseAutoRefreshRef.current = true;
     // Auto-resume after 10 seconds in case something goes wrong
     setTimeout(() => {
       if (pauseAutoRefreshRef.current) {
-        console.log('⏸️ [Auto-Refresh] Auto-resuming after 10s timeout');
+
         pauseAutoRefreshRef.current = false;
       }
     }, 10000);
@@ -411,7 +402,7 @@ export const DocumentsProvider = ({ children }) => {
 
   // Function to resume auto-refresh (call this after file selection completes)
   const resumeAutoRefresh = useCallback(() => {
-    console.log('▶️ [Auto-Refresh] Resuming auto-refresh');
+
     pauseAutoRefreshRef.current = false;
   }, []);
 
@@ -425,13 +416,13 @@ export const DocumentsProvider = ({ children }) => {
     const debouncedRefresh = () => {
       // ✅ FIX: Skip refresh if paused (during file selection)
       if (pauseAutoRefreshRef.current) {
-        console.log('⏸️  Skipping refresh (paused for file selection)');
+
         return;
       }
 
       const now = Date.now();
       if (now - lastRefresh < REFRESH_COOLDOWN) {
-        console.log('⏸️  Skipping refresh (too soon since last refresh)');
+
         return;
       }
 
@@ -440,11 +431,11 @@ export const DocumentsProvider = ({ children }) => {
       refreshTimeout = setTimeout(() => {
         // Double-check pause state after delay
         if (pauseAutoRefreshRef.current) {
-          console.log('⏸️  Skipping delayed refresh (paused for file selection)');
+
           return;
         }
         lastRefresh = Date.now();
-        console.log('🔄 Refreshing data (after 1s delay)...');
+
         // ✅ OPTIMIZATION: Use batched endpoint for refresh
         fetchAllData();
       }, REFRESH_DELAY);
@@ -453,7 +444,7 @@ export const DocumentsProvider = ({ children }) => {
     const handleVisibilityChange = () => {
       // ✅ FIX: Only refresh if authenticated and initialized
       if (!document.hidden && initialized && isAuthenticated) {
-        console.log('📱 Page became visible');
+
         debouncedRefresh();
       }
     };
@@ -461,7 +452,7 @@ export const DocumentsProvider = ({ children }) => {
     const handleFocus = () => {
       // ✅ FIX: Only refresh if authenticated and initialized
       if (initialized && isAuthenticated) {
-        console.log('🔄 Window focused');
+
         debouncedRefresh();
       }
     };
@@ -494,20 +485,16 @@ export const DocumentsProvider = ({ children }) => {
       try {
         userId = JSON.parse(userStr).id;
       } catch (e) {
-        console.warn('⚠️ Failed to parse user from localStorage:', e);
+
       }
     }
     if (!userId) {
-      console.warn('⚠️ No userId found in localStorage, cannot join user room');
+
       return;
     }
 
-    console.log('🔌 Setting up WebSocket connection for real-time updates...');
-
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
     const isNgrok = apiUrl.includes('ngrok');
-
-    console.log('🔗 Connecting to:', apiUrl, '(ngrok:', isNgrok, ')');
 
     // Initialize socket connection
     // For ngrok, start with polling first due to WebSocket limitations
@@ -524,15 +511,14 @@ export const DocumentsProvider = ({ children }) => {
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('✅ WebSocket connected for real-time document updates');
 
       // Join user-specific room for targeted events
       socket.emit('join-user-room', userId);
-      console.log(`📡 Joined user room: user:${userId?.substring(0, 8)}...`);
+
     });
 
     socket.on('disconnect', () => {
-      console.log('❌ WebSocket disconnected');
+
     });
 
     // Debounced refresh to prevent multiple rapid refreshes
@@ -542,7 +528,7 @@ export const DocumentsProvider = ({ children }) => {
     const debouncedDocumentRefresh = () => {
       if (documentRefreshTimeout) clearTimeout(documentRefreshTimeout);
       documentRefreshTimeout = setTimeout(() => {
-        console.log('🔄 Debounced: Refreshing documents...');
+
         fetchDocuments();
         fetchRecentDocuments();
       }, 100); // Wait 100ms before refreshing (reduced from 500ms for instant feel)
@@ -551,20 +537,19 @@ export const DocumentsProvider = ({ children }) => {
     const debouncedFolderRefresh = () => {
       if (folderRefreshTimeout) clearTimeout(folderRefreshTimeout);
       folderRefreshTimeout = setTimeout(() => {
-        console.log('🔄 Debounced: Refreshing folders...');
+
         fetchFolders();
       }, 100); // Wait 100ms before refreshing (reduced from 500ms for instant feel)
     };
 
     // Listen for document processing updates
     socket.on('document-processing-update', (data) => {
-      console.log('📄 Document processing update received:', data);
 
       // ✅ Update document with progress information
       setDocuments((prevDocs) => {
         return prevDocs.map((doc) => {
           if (doc.id === data.documentId) {
-            console.log(`📊 Updating document ${doc.name || doc.filename}: ${data.stage} (${data.progress}%)`);
+
             return {
               ...doc,
               status: data.status || doc.status,
@@ -597,7 +582,7 @@ export const DocumentsProvider = ({ children }) => {
 
       // ✅ FIX #2: Use Smart Refetch Coordinator for batched, rate-limited refetching
       if (data.progress === 100 || data.stage === 'complete' || data.stage === 'completed') {
-        console.log('🔄 Document processing reached 100%, scheduling batched refresh...');
+
         // Use smartRefetch to batch and rate-limit
         setTimeout(() => smartRefetch(['documents']), 500);
       }
@@ -605,7 +590,6 @@ export const DocumentsProvider = ({ children }) => {
 
     // ✅ NEW: Handle document processing complete
     socket.on('document-processing-complete', (data) => {
-      console.log('✅ Document processing complete:', data);
 
       // ✅ FIX #2: Use Smart Refetch Coordinator
       smartRefetch(['documents']);
@@ -613,7 +597,6 @@ export const DocumentsProvider = ({ children }) => {
 
     // ✅ NEW: Handle document processing failed
     socket.on('document-processing-failed', (data) => {
-      console.error('❌ Document processing failed:', data);
 
       // Update document status to failed
       setDocuments((prevDocs) =>
@@ -636,17 +619,16 @@ export const DocumentsProvider = ({ children }) => {
     // ⚡ OPTIMIZED: Removed debounced refreshes - we use optimistic updates instead
     // These WebSocket events are kept for logging but don't trigger refetches
     socket.on('documents-changed', () => {
-      console.log('📚 Documents changed (optimistic update already applied)');
+
       // No refresh - optimistic update already happened
     });
 
     socket.on('folders-changed', () => {
-      console.log('📁 Folders changed (optimistic update already applied)');
+
       // No refresh - optimistic update already happened
     });
 
     socket.on('document-created', (newDocument) => {
-      console.log('➕ Document created event received:', newDocument);
 
       // ✅ FIX: Add the new document to the state immediately
       // This ensures that the document appears in the UI without a full refresh
@@ -682,19 +664,19 @@ export const DocumentsProvider = ({ children }) => {
     });
 
     socket.on('document-deleted', () => {
-      console.log('🗑️ Document deleted (optimistic update already applied)');
+
       // No refresh - optimistic update already happened
       invalidateCache();
     });
 
     socket.on('document-moved', () => {
-      console.log('📦 Document moved (optimistic update already applied)');
+
       // No refresh - optimistic update already happened in moveToFolder()
       invalidateCache();
     });
 
     socket.on('folder-created', () => {
-      console.log('➕ Folder created event received');
+
       // ✅ FIX: Invalidate cache AND use smartRefetch to batch folder updates
       // This prevents race conditions when multiple folders/documents are created
       invalidateCache();
@@ -702,20 +684,20 @@ export const DocumentsProvider = ({ children }) => {
     });
 
     socket.on('folder-deleted', () => {
-      console.log('🗑️ Folder deleted event received');
+
       // ✅ BUG FIX #2: Invalidate cache AND schedule immediate refetch
       // This ensures no stale data reappears even if the delete was from another tab/window
       invalidateCache();
       // Schedule a refetch after a short delay to allow backend cache invalidation to complete
       setTimeout(() => {
-        console.log('🔄 [WebSocket] Refreshing data after folder-deleted event...');
+
         fetchAllData(true); // Force refresh
       }, 500);
     });
 
     // ⚡ NEW: Listen for folder tree updates (emitted after cache invalidation completes)
     socket.on('folder-tree-updated', (data) => {
-      console.log('🌳 Folder tree updated event received:', data);
+
       invalidateCache();
       // ✅ FIX: Use smartRefetch to batch folder updates and prevent race conditions
       smartRefetch(['folders']);
@@ -723,7 +705,6 @@ export const DocumentsProvider = ({ children }) => {
 
     // ⚡ NEW: Listen for processing complete events (emitted after database commit completes)
     socket.on('processing-complete', (updatedDocument) => {
-      console.log('✅ Processing complete event received:', updatedDocument);
 
       // ✅ FIX: Update the document in the state to 'completed'
       if (updatedDocument && updatedDocument.id) {
@@ -739,17 +720,17 @@ export const DocumentsProvider = ({ children }) => {
 
     // Listen for document uploads from FileContext
     const handleDocumentUploaded = () => {
-      console.log('📤 Document uploaded event received');
+
       // ✅ INSTANT UPLOAD FIX: Don't fetch - optimistic update already added the document!
       // The addDocument() function already handles optimistic updates
       // Fetching here would overwrite the optimistic update and make the document disappear
-      console.log('✅ Document already in UI via optimistic update - no fetch needed');
+
     };
 
     window.addEventListener('document-uploaded', handleDocumentUploaded);
 
     return () => {
-      console.log('🔌 Cleaning up WebSocket connection');
+
       socket.off('document-processing-update');
       socket.off('document-processing-complete');
       socket.off('document-processing-failed');
@@ -777,7 +758,6 @@ export const DocumentsProvider = ({ children }) => {
       try {
         const response = await api.get(`/api/documents/${documentId}`);
         if (response.data && response.data.id) {
-          console.log(`✅ [Verification] Document ${filename} verified in database`);
 
           // Update registry status
           const entry = uploadRegistryRef.current.get(documentId);
@@ -790,7 +770,7 @@ export const DocumentsProvider = ({ children }) => {
           setDocuments(prev => {
             const exists = prev.some(d => d.id === documentId);
             if (!exists) {
-              console.log(`🔄 [Verification] Re-adding verified document to state: ${filename}`);
+
               return [response.data, ...prev];
             }
             // Update with latest data from server
@@ -805,13 +785,13 @@ export const DocumentsProvider = ({ children }) => {
           retries++;
           if (retries < maxRetries) {
             const delay = Math.min(baseDelay * Math.pow(1.5, retries), 10000); // Exponential backoff, max 10s
-            console.log(`⏳ [Verification] Retry ${retries}/${maxRetries} for ${filename} in ${Math.round(delay/1000)}s`);
+
             setTimeout(verify, delay);
             return;
           }
-          console.error(`❌ [Verification] Failed after ${maxRetries} retries: ${filename}`);
+
         } else {
-          console.error(`❌ [Verification] Error verifying ${filename}:`, error.message);
+
         }
       }
     };
@@ -822,7 +802,6 @@ export const DocumentsProvider = ({ children }) => {
 
   // Add document (optimistic)
   const addDocument = useCallback(async (file, folderId = null) => {
-    console.log('🔵 addDocument called for:', file.name, 'folderId:', folderId);
 
     // Create temporary document object (matches backend Document schema)
     const tempId = `temp-${Date.now()}-${Math.random()}`;
@@ -841,28 +820,21 @@ export const DocumentsProvider = ({ children }) => {
       type: file.type || 'application/octet-stream'
     };
 
-    console.log('🔵 Created temp document:', tempDocument);
-
     // Add to UI IMMEDIATELY (optimistic update)
     setDocuments(prev => {
-      console.log('🔵 Adding temp doc to documents, current count:', prev.length);
+
       return [tempDocument, ...prev];
     });
     setRecentDocuments(prev => [tempDocument, ...prev.slice(0, 4)]);
 
     try {
       // Get upload URL from backend
-      console.log('🔵 Requesting upload URL for:', {
-        fileName: file.name,
-        fileType: file.type,
-        size: file.size
-      });
+
       const uploadUrlResponse = await api.post('/api/documents/upload-url', {
         fileName: file.name,
         fileType: file.type,
         folderId: folderId
       });
-      console.log('🔵 Upload URL response:', uploadUrlResponse.data);
 
       const { uploadUrl, documentId, encryptedFilename } = uploadUrlResponse.data;
 
@@ -875,10 +847,9 @@ export const DocumentsProvider = ({ children }) => {
       };
 
       const fileHash = await calculateFileHash(file);
-      console.log('🔵 File hash calculated:', fileHash);
 
       // Upload directly to S3
-      console.log('🔵 Uploading to S3 with Content-Type:', file.type);
+
       const s3Response = await fetch(uploadUrl, {
         method: 'PUT',
         headers: {
@@ -887,22 +858,13 @@ export const DocumentsProvider = ({ children }) => {
         },
         body: file
       });
-      console.log('🔵 S3 upload response status:', s3Response.status, s3Response.statusText);
 
       if (!s3Response.ok) {
         throw new Error(`S3 upload failed: ${s3Response.status} ${s3Response.statusText}`);
       }
 
       // Confirm upload with backend - send required metadata
-      console.log('🔵 Confirming upload with backend:', {
-        documentId,
-        encryptedFilename,
-        filename: file.name,
-        mimeType: file.type,
-        fileSize: file.size,
-        fileHash,
-        folderId
-      });
+
       const confirmResponse = await api.post(`/api/documents/${documentId}/confirm-upload`, {
         encryptedFilename,
         filename: file.name,
@@ -911,9 +873,8 @@ export const DocumentsProvider = ({ children }) => {
         fileHash,
         folderId
       });
-      console.log('🔵 Confirm response:', confirmResponse.data);
+
       const newDocument = confirmResponse.data.document;
-      console.log('🔵 Received new document from server:', newDocument);
 
       // ✅ FIX #1: Add to Upload Registry for 30s protection
       uploadRegistryRef.current.set(newDocument.id, {
@@ -922,12 +883,11 @@ export const DocumentsProvider = ({ children }) => {
         status: 'processing',
         verified: false
       });
-      console.log(`🛡️ [Registry] Added upload protection for: ${newDocument.filename}`);
 
       // Replace temp document with real one
       setDocuments(prev => {
         const updated = prev.map(doc => doc.id === tempId ? newDocument : doc);
-        console.log('🔵 Replaced temp doc with real doc, count:', updated.length);
+
         return updated;
       });
       setRecentDocuments(prev =>
@@ -949,13 +909,11 @@ export const DocumentsProvider = ({ children }) => {
           }
           return folder;
         }));
-        console.log(`✅ Incremented count for folder ${newDocument.folderId}`);
+
       }
 
       // ✅ FIX #3: Start background verification
       startUploadVerification(newDocument.id, newDocument.filename);
-
-      console.log('🔵 Document upload fully complete, returning:', newDocument);
 
       // Invalidate settings cache (storage stats need to be recalculated)
       sessionStorage.removeItem('koda_settings_documents');
@@ -964,17 +922,12 @@ export const DocumentsProvider = ({ children }) => {
 
       return newDocument;
     } catch (error) {
-      console.error('🔴 Error in addDocument:', error);
-      console.error('🔴 Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
+
 
       // Remove temp document on error
       setDocuments(prev => {
         const updated = prev.filter(doc => doc.id !== tempId);
-        console.log('🔴 Removed temp doc on error, remaining count:', updated.length);
+
         return updated;
       });
       setRecentDocuments(prev => prev.filter(doc => doc.id !== tempId));
@@ -985,27 +938,20 @@ export const DocumentsProvider = ({ children }) => {
 
   // Delete document (optimistic with proper error handling)
   const deleteDocument = useCallback(async (documentId) => {
-    console.log('🗑️ [DELETE] Starting delete for document:', documentId);
 
     // Store document for potential rollback
     const documentToDelete = documents.find(d => d.id === documentId);
 
     if (!documentToDelete) {
-      console.error('❌ [DELETE] Document not found in state:', documentId);
+
       throw new Error('Document not found');
     }
 
     // ⚡ PREVENT DUPLICATE DELETES: Check if document is already being deleted
     if (documentToDelete.isDeleting) {
-      console.warn('⚠️ [DELETE] Document is already being deleted, skipping:', documentId);
+
       return { success: false, message: 'Delete already in progress' };
     }
-
-    console.log('🗑️ [DELETE] Document to delete:', {
-      id: documentToDelete.id,
-      filename: documentToDelete.filename,
-      folderId: documentToDelete.folderId
-    });
 
     // Mark as deleting to prevent duplicate attempts
     setDocuments(prev => prev.map(doc =>
@@ -1015,12 +961,12 @@ export const DocumentsProvider = ({ children }) => {
     // Remove from UI IMMEDIATELY (optimistic update)
     setDocuments(prev => {
       const updated = prev.filter(doc => doc.id !== documentId);
-      console.log('🗑️ [DELETE] Optimistic update - removed from documents, count:', updated.length);
+
       return updated;
     });
     setRecentDocuments(prev => {
       const updated = prev.filter(doc => doc.id !== documentId);
-      console.log('🗑️ [DELETE] Optimistic update - removed from recent, count:', updated.length);
+
       return updated;
     });
 
@@ -1039,14 +985,13 @@ export const DocumentsProvider = ({ children }) => {
         }
         return folder;
       }));
-      console.log(`✅ Decremented count for folder ${documentToDelete.folderId}`);
+
     }
 
     try {
       // Delete on server
-      console.log('🗑️ [DELETE] Sending DELETE request to server...');
+
       const response = await api.delete(`/api/documents/${documentId}`);
-      console.log('✅ [DELETE] Server delete successful:', response.data);
 
       // Invalidate settings cache (storage stats need to be recalculated)
       sessionStorage.removeItem('koda_settings_documents');
@@ -1056,32 +1001,23 @@ export const DocumentsProvider = ({ children }) => {
       // ✅ FIX: Invalidate data cache to prevent stale data from reappearing on window focus
       invalidateCache();
 
-      console.log('✅ [DELETE] Document deleted successfully:', documentToDelete.filename);
-
       // Return success
       return { success: true, document: documentToDelete };
     } catch (error) {
-      console.error('❌ [DELETE] Server delete failed:', {
-        documentId,
-        filename: documentToDelete.filename,
-        error: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
 
       // Rollback: Restore document to UI (clear isDeleting flag)
-      console.log('🔄 [DELETE] Rolling back optimistic update...');
+
       setDocuments(prev => {
         // Insert document back in its original position (at the beginning for simplicity)
         // Clear isDeleting flag so user can retry
         const restoredDoc = { ...documentToDelete, isDeleting: false };
         const restored = [restoredDoc, ...prev];
-        console.log('🔄 [DELETE] Restored document to state, count:', restored.length);
+
         return restored;
       });
       setRecentDocuments(prev => {
         const restored = [documentToDelete, ...prev].slice(0, 5);
-        console.log('🔄 [DELETE] Restored document to recent, count:', restored.length);
+
         return restored;
       });
 
@@ -1100,7 +1036,7 @@ export const DocumentsProvider = ({ children }) => {
           }
           return folder;
         }));
-        console.log(`🔄 Restored count for folder ${documentToDelete.folderId}`);
+
       }
 
       // Throw error with user-friendly message
@@ -1119,8 +1055,6 @@ export const DocumentsProvider = ({ children }) => {
     // Store old document for rollback
     const oldDocument = documents.find(d => d.id === documentId);
     const oldFolderId = oldDocument?.folderId;
-
-    console.log(`📦 [MOVE] Moving document ${documentId} from folder ${oldFolderId || 'NONE'} to ${newFolderId || 'NONE'}`);
 
     // Update UI IMMEDIATELY
     setDocuments(prev =>
@@ -1145,7 +1079,7 @@ export const DocumentsProvider = ({ children }) => {
         if (folder.id === oldFolderId) {
           const newCount = Math.max(0, (folder._count?.documents || 0) - 1);
           const newTotalCount = Math.max(0, (folder._count?.totalDocuments || 0) - 1);
-          console.log(`  📉 Decrementing source folder ${oldFolderId}: ${folder._count?.documents} → ${newCount}`);
+
           return {
             ...folder,
             _count: {
@@ -1160,7 +1094,7 @@ export const DocumentsProvider = ({ children }) => {
         if (folder.id === newFolderId) {
           const newCount = (folder._count?.documents || 0) + 1;
           const newTotalCount = (folder._count?.totalDocuments || 0) + 1;
-          console.log(`  📈 Incrementing destination folder ${newFolderId}: ${folder._count?.documents} → ${newCount}`);
+
           return {
             ...folder,
             _count: {
@@ -1184,9 +1118,7 @@ export const DocumentsProvider = ({ children }) => {
       // ✅ FIX: Invalidate cache after successful move
       invalidateCache();
 
-      console.log(`✅ [MOVE] Successfully moved document ${documentId} to folder ${newFolderId}`);
     } catch (error) {
-      console.error('❌ [MOVE] Error moving document:', error);
 
       // Revert on error
       if (oldDocument) {
@@ -1230,7 +1162,7 @@ export const DocumentsProvider = ({ children }) => {
 
             return folder;
           }));
-          console.log(`🔄 Rolled back folder counts for move operation`);
+
         }
       }
 
@@ -1265,7 +1197,6 @@ export const DocumentsProvider = ({ children }) => {
         filename: newName
       });
     } catch (error) {
-      console.error('Error renaming document:', error);
 
       // Revert on error
       if (oldDocument) {
@@ -1304,7 +1235,7 @@ export const DocumentsProvider = ({ children }) => {
     };
 
     // Add to UI IMMEDIATELY
-    console.log(`📁 [CREATE] Adding temp folder "${name}" to UI`);
+
     setFolders(prev => [tempFolder, ...prev]);
 
     try {
@@ -1316,7 +1247,7 @@ export const DocumentsProvider = ({ children }) => {
       };
 
       if (encryptionPassword) {
-        console.log('🔐 [Encryption] Encrypting folder name:', name);
+
         const encryptedName = await encryptData(name, encryptionPassword);
 
         requestData = {
@@ -1330,7 +1261,6 @@ export const DocumentsProvider = ({ children }) => {
           parentFolderId
         };
 
-        console.log('✅ [Encryption] Folder name encrypted successfully');
       }
 
       const response = await api.post('/api/folders', requestData);
@@ -1338,14 +1268,13 @@ export const DocumentsProvider = ({ children }) => {
       const newFolder = response.data.folder;
 
       // Replace temp folder with real one
-      console.log(`✅ [CREATE] Folder "${name}" created successfully, replacing temp ID with real ID: ${newFolder.id}`);
+
       setFolders(prev =>
         prev.map(folder => folder.id === tempId ? newFolder : folder)
       );
 
       return newFolder;
     } catch (error) {
-      console.error('Error creating folder:', error);
 
       // Remove temp folder on error
       setFolders(prev => prev.filter(folder => folder.id !== tempId));
@@ -1361,7 +1290,7 @@ export const DocumentsProvider = ({ children }) => {
   const deleteFolder = useCallback(async (folderId) => {
     // ✅ BUG FIX #3: Prevent duplicate deletions and race conditions
     if (deletionInProgressRef.current.has(folderId)) {
-      console.log(`⚠️ [DELETE] Folder ${folderId} deletion already in progress, skipping`);
+
       return;
     }
     deletionInProgressRef.current.add(folderId);
@@ -1387,8 +1316,6 @@ export const DocumentsProvider = ({ children }) => {
     const foldersToDelete = folders.filter(f => allFolderIdsToDelete.includes(f.id));
     const documentsToDelete = documents.filter(d => allFolderIdsToDelete.includes(d.folderId));
 
-    console.log(`🗑️ [DELETE] Starting folder deletion: ${folderToDelete?.name} (${allFolderIdsToDelete.length} folders, ${documentsToDelete.length} documents)`);
-
     // Remove folder and all subfolders from UI IMMEDIATELY
     setFolders(prev => prev.filter(folder => !allFolderIdsToDelete.includes(folder.id)));
 
@@ -1405,15 +1332,13 @@ export const DocumentsProvider = ({ children }) => {
 
       // ✅ BUG FIX #2: Immediate refetch to ensure UI shows fresh data from database
       // Wait a small delay for Redis cache invalidation to complete on backend
-      console.log('🔄 [DELETE] Scheduling immediate data refresh after deletion...');
+
       setTimeout(async () => {
-        console.log('🔄 [DELETE] Fetching fresh data after folder deletion...');
+
         await fetchAllData(true); // Force refresh, bypassing cache
       }, 500);
 
-      console.log('✅ [DELETE] Folder deleted successfully:', folderToDelete?.name);
     } catch (error) {
-      console.error('Error deleting folder:', error);
 
       // Restore folders and documents on error
       if (foldersToDelete.length > 0) {
@@ -1438,25 +1363,25 @@ export const DocumentsProvider = ({ children }) => {
     const folder = folders.find(f => f.id === folderId);
 
     if (!folder) {
-      console.warn(`⚠️ Folder ${folderId} not found`);
+
       return 0;
     }
 
     // Use backend-provided totalDocuments count if available
     if (folder._count?.totalDocuments !== undefined) {
-      console.log(`✅ Using backend count for ${folder.name}: ${folder._count.totalDocuments} documents`);
+
       return folder._count.totalDocuments;
     }
 
     // Fallback: Use direct document count
     if (folder._count?.documents !== undefined) {
-      console.log(`⚡ Using direct count for ${folder.name}: ${folder._count.documents} documents`);
+
       return folder._count.documents;
     }
 
     // Last resort fallback: Count manually (should rarely happen)
     const count = documents.filter(doc => doc.folderId === folderId).length;
-    console.log(`⚠️ Manual count fallback for ${folder.name}: ${count} documents`);
+
     return count;
   }, [folders, documents]);
 
@@ -1493,7 +1418,6 @@ export const DocumentsProvider = ({ children }) => {
 
   // Refresh all data
   const refreshAll = useCallback(async () => {
-    console.log('🔄 [DocumentsContext] Refreshing all data...');
 
     // ✅ FIX: Wait for all promises to complete before returning
     // This ensures that when refreshAll() is called, it waits for all data to be loaded
@@ -1501,9 +1425,7 @@ export const DocumentsProvider = ({ children }) => {
       fetchFolders(),
       fetchDocuments(),
       fetchRecentDocuments(),
-    ]).catch(err => console.error('❌ [DocumentsContext] Fetch error:', err));
-
-    console.log('✅ [DocumentsContext] All fetches completed');
+    ]).catch(err =>
   }, [fetchDocuments, fetchFolders, fetchRecentDocuments]);
 
   const value = {

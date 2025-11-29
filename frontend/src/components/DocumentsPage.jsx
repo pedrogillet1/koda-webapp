@@ -138,23 +138,11 @@ const DocumentsPage = () => {
 
   // Computed categories (auto-updates when folders or documents change!)
   const categories = useMemo(() => {
-    console.log('🔍 [CATEGORIES] Calculating categories...');
-    console.log('🔍 [CATEGORIES] Total folders:', contextFolders.length);
-    console.log('🔍 [CATEGORIES] All folders:', contextFolders.map(f => ({ id: f.id, name: f.name, parentId: f.parentFolderId })));
-    console.log('🔍 [CATEGORIES] Total documents:', contextDocuments.length);
-
     const result = getRootFolders()
       .filter(folder => folder.name.toLowerCase() !== 'recently added')
       .map(folder => {
         // ⚡ OPTIMIZED: Use backend-provided counts directly from folder object
         const fileCount = folder._count?.totalDocuments ?? folder._count?.documents ?? 0;
-        console.log(`📁 Category "${folder.name}" (${folder.id}):`, {
-          fileCount,
-          backendCount: folder._count,
-          directDocs: contextDocuments.filter(d => d.folderId === folder.id).length,
-          subfolders: contextFolders.filter(f => f.parentFolderId === folder.id).length
-        });
-
         return {
           id: folder.id,
           name: folder.name,
@@ -164,8 +152,6 @@ const DocumentsPage = () => {
           count: fileCount
         };
       });
-
-    console.log('Final categories:', result);
     return result;
   }, [contextFolders, contextDocuments, getRootFolders]); // Removed getDocumentCountByFolder dependency
 
@@ -176,26 +162,19 @@ const DocumentsPage = () => {
 
   const handleCreateCategory = async (category) => {
     try {
-      console.log('Creating category with:', category);
-
       // Use context to create folder (instant UI update!)
       const newFolder = await createFolder(category.name, category.emoji);
-      console.log('New folder created:', newFolder);
-
       // If documents were selected, move them to the folder (instant UI updates!)
       if (category.selectedDocuments && category.selectedDocuments.length > 0) {
-        console.log('Moving documents to folder:', category.selectedDocuments);
         await Promise.all(
           category.selectedDocuments.map(docId =>
             moveToFolder(docId, newFolder.id)
           )
         );
-        console.log('Documents moved successfully');
       }
 
       // No manual refresh needed - context auto-updates!
     } catch (error) {
-      console.error('Error creating folder:', error);
       alert('Failed to create category');
     }
   };
@@ -206,7 +185,6 @@ const DocumentsPage = () => {
       await deleteFolder(categoryId);
       showSuccess('1 folder has been deleted');
     } catch (error) {
-      console.error('Error deleting folder:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to delete folder';
       alert(errorMessage);
     }
@@ -231,7 +209,6 @@ const DocumentsPage = () => {
 
       setOpenDropdownId(null);
     } catch (error) {
-      console.error('Error downloading document:', error);
       alert('Failed to download document');
     }
   };
@@ -256,7 +233,6 @@ const DocumentsPage = () => {
       setShowRenameModal(false);
       setItemToRename(null);
     } catch (error) {
-      console.error('Error renaming:', error);
       alert(`Failed to rename ${itemToRename.type}`);
     }
   };
@@ -274,8 +250,6 @@ const DocumentsPage = () => {
 
       setOpenDropdownId(null);
     } catch (error) {
-      console.error('❌ Error deleting document:', error);
-
       // Show user-friendly error message
       const errorMessage = error.filename
         ? `Failed to delete "${error.filename}": ${error.message}`
@@ -303,7 +277,6 @@ const DocumentsPage = () => {
       setSelectedDocumentForCategory(null);
       setSelectedCategoryId(null);
     } catch (error) {
-      console.error('Error adding document to category:', error);
       alert('Failed to add document to category');
     }
   };
@@ -393,15 +366,12 @@ const DocumentsPage = () => {
     setIsDraggingOver(false);
 
     const files = Array.from(e.dataTransfer.files);
-    console.log('📁 DocumentsPage - Files dropped:', files);
-    console.log('📁 File count:', files.length);
     if (files.length > 0) {
       // Set both states together using functional updates to ensure they batch correctly
       setDroppedFiles(files);
       // Use setTimeout to ensure the files state is set before opening modal
       setTimeout(() => {
         setShowUniversalUploadModal(true);
-        console.log('📁 Modal opened with files');
       }, 0);
     }
   }, []);
@@ -828,14 +798,11 @@ const DocumentsPage = () => {
                       if (data.type === 'document') {
                         // Move single document
                         await moveToFolder(data.id, category.id);
-                        console.log(`✅ Moved document ${data.id} to folder ${category.id}`);
                       } else if (data.type === 'documents') {
                         // Move multiple documents
                         await Promise.all(
                           data.documentIds.map(docId => moveToFolder(docId, category.id))
                         );
-                        console.log(`✅ Moved ${data.documentIds.length} documents to folder ${category.id}`);
-
                         // Clear selection and exit select mode
                         if (isSelectMode) {
                           clearSelection();
@@ -845,7 +812,6 @@ const DocumentsPage = () => {
 
                       // ⚡ REMOVED: No need to refreshAll() - moveToFolder already updates state optimistically with instant folder count updates
                     } catch (error) {
-                      console.error('❌ Error moving document:', error);
                       // On error, the moveToFolder function will rollback automatically
                     }
                   }}
@@ -866,8 +832,6 @@ const DocumentsPage = () => {
                   }}
                 >
                   <div onClick={() => {
-                    console.log('📁 DocumentsPage - Clicking folder:', category.name, 'ID:', category.id);
-                    console.log('🔗 DocumentsPage - Navigating to:', `/folder/${category.id}`);
                     navigate(`/folder/${category.id}`);
                   }} style={{display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
@@ -1780,7 +1744,6 @@ const DocumentsPage = () => {
       <UniversalUploadModal
         isOpen={showUniversalUploadModal}
         onClose={() => {
-          console.log('📁 DocumentsPage - Closing modal, clearing droppedFiles');
           setShowUniversalUploadModal(false);
           setDroppedFiles(null);
         }}
@@ -1791,17 +1754,7 @@ const DocumentsPage = () => {
         initialFiles={droppedFiles}
       />
       {/* Debug: Log when props change */}
-      {console.log('📁 DocumentsPage - Rendering modal with:', {
-        isOpen: showUniversalUploadModal,
-        droppedFiles: droppedFiles,
-        fileCount: droppedFiles?.length
-      })}
-
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmationModal
-        isOpen={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
+      {
           setItemToDelete(null);
         }}
         onConfirm={() => {
@@ -1851,7 +1804,6 @@ const DocumentsPage = () => {
                 await handleDelete(itemToDeleteCopy.id);
               }
             } catch (error) {
-              console.error('❌ Delete error:', error);
               alert('Failed to delete: ' + (error.message || 'Unknown error'));
             }
           })();

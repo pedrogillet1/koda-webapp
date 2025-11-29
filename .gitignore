@@ -58,3 +58,6 @@ temp/
 # Redis dump
 dump.rdb
 nul
+
+# Test files
+koda_test_files/

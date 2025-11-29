@@ -97,7 +97,7 @@ const DocumentThumbnail = ({ document, width = 120, height = 160, showIcon = fal
             URL.revokeObjectURL(url);
             setLoading(false);
         } catch (err) {
-            console.error('Error generating PDF thumbnail:', err);
+
             setError(true);
             setLoading(false);
         }
@@ -158,7 +158,7 @@ const DocumentThumbnail = ({ document, width = 120, height = 160, showIcon = fal
 
             img.src = url;
         } catch (err) {
-            console.error('Error generating image thumbnail:', err);
+
             setError(true);
             setLoading(false);
         }
@@ -199,7 +199,7 @@ const DocumentThumbnail = ({ document, width = 120, height = 160, showIcon = fal
                     await generateImageThumbnail(decryptedBlob);
                 }
             } catch (err) {
-                console.error('Error fetching document for thumbnail:', err);
+
                 setError(true);
             }
         };

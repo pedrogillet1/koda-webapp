@@ -75,7 +75,6 @@ const TextCodePreview = ({ url, document, zoom }) => {
         setLoading(false);
       })
       .catch(err => {
-        console.error('Error loading text:', err);
         setLoading(false);
       });
   }, [url]);
@@ -180,10 +179,7 @@ const DocumentViewer = () => {
           markdownContent: newMarkdownContent
         }
       }));
-
-      console.log('Markdown saved successfully');
     } catch (error) {
-      console.error('Error saving markdown:', error);
       throw error; // Re-throw to let the editor handle the error
     }
   };
@@ -191,8 +187,6 @@ const DocumentViewer = () => {
   // Handler for exporting document
   const handleExport = async (format) => {
     try {
-      console.log(`Exporting document as ${format}...`);
-
       // Call export API endpoint
       const response = await api.post(`/api/documents/${documentId}/export`, {
         format: format
@@ -219,10 +213,7 @@ const DocumentViewer = () => {
       link.click();
       window.document.body.removeChild(link);
       URL.revokeObjectURL(url);
-
-      console.log(`Document exported as ${format} successfully`);
     } catch (error) {
-      console.error(`Error exporting document as ${format}:`, error);
       alert(`Failed to export document: ${error.response?.data?.error || error.message}`);
     }
   };
@@ -233,12 +224,8 @@ const DocumentViewer = () => {
 
     try {
       setIsRegenerating(true);
-      console.log('Regenerating preview for document:', documentId);
-
       // Call reprocess endpoint to regenerate markdown/slides
       const response = await api.post(`/api/documents/${documentId}/reprocess`);
-      console.log('Reprocess response:', response.data);
-
       // Reload the document to get fresh metadata
       const updatedDoc = await api.get(`/api/documents/${documentId}/status`);
 
@@ -255,7 +242,6 @@ const DocumentViewer = () => {
       // Show success message (no reload needed)
       alert('Preview regenerated successfully!');
     } catch (error) {
-      console.error('Error regenerating preview:', error);
       alert('Failed to regenerate preview. Please try again.');
     } finally {
       setIsRegenerating(false);
@@ -296,7 +282,6 @@ const DocumentViewer = () => {
 
     // For encrypted images (stream endpoint), fetch with auth and create blob URL
     if (isStreamEndpoint && document?.mimeType?.startsWith('image/')) {
-      console.log(`🔐 Encrypted image detected, fetching with auth: ${documentUrl}`);
       setIsFetchingImage(true);
 
       const token = localStorage.getItem('accessToken');
@@ -313,12 +298,10 @@ const DocumentViewer = () => {
         })
         .then(blob => {
           const blobUrl = URL.createObjectURL(blob);
-          console.log(`✅ Created blob URL for encrypted image: ${blobUrl}`);
           setActualDocumentUrl(blobUrl);
           setIsFetchingImage(false);
         })
         .catch(error => {
-          console.error('❌ Failed to fetch encrypted image:', error);
           setIsFetchingImage(false);
           setImageError(true);
         });
@@ -333,15 +316,12 @@ const DocumentViewer = () => {
       // Relative API path - prepend backend URL
       const API_URL = process.env.REACT_APP_API_URL || 'https://getkoda.ai';
       const fullUrl = `${API_URL}${documentUrl}`;
-      console.log(`🔗 Relative API path detected, using backend URL: ${fullUrl}`);
       setActualDocumentUrl(fullUrl);
     } else if (isBackendUrl || isS3Url) {
       // Already a full URL (backend or S3) - use directly
-      console.log(`🔗 Full URL detected, using directly: ${documentUrl}`);
       setActualDocumentUrl(documentUrl);
     } else {
       // Unknown URL format - use as is
-      console.log(`⚠️ Unknown URL format, using as is: ${documentUrl}`);
       setActualDocumentUrl(documentUrl);
     }
   }, [documentUrl, document?.mimeType]);
@@ -501,7 +481,6 @@ const DocumentViewer = () => {
     const fetchDocument = async () => {
       try {
         // Fetch only the specific document instead of all documents
-        console.log('📄 Fetching document:', documentId);
         const response = await api.get(`/api/documents/${documentId}/status`);
         const foundDocument = response.data;
 
@@ -518,20 +497,16 @@ const DocumentViewer = () => {
           const hasMarkdown = foundDocument.metadata && foundDocument.metadata.markdownContent;
 
           if (isExcel && !hasMarkdown) {
-            console.log('⚠️ Markdown content missing, auto-regenerating...');
             // Trigger reprocess in background (don't await, let it run async)
             api.post(`/api/documents/${documentId}/reprocess`)
               .then(response => {
-                console.log('✅ Auto-regeneration completed:', response.data);
                 // Reload document to get updated metadata
                 return api.get(`/api/documents/${documentId}/status`);
               })
               .then(response => {
                 setDocument(response.data);
-                console.log('✅ Document reloaded with markdown content');
               })
               .catch(error => {
-                console.error('❌ Auto-regeneration failed:', error);
               });
           }
 
@@ -540,12 +515,8 @@ const DocumentViewer = () => {
           const isDocx = foundDocument.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
           if (isDocx) {
-            console.log('📄 DOCX detected - fetching preview information from backend...');
             const previewResponse = await api.get(`/api/documents/${documentId}/preview`);
             const { previewType, previewUrl } = previewResponse.data;
-
-            console.log(`📋 Preview type: ${previewType}, URL: ${previewUrl}`);
-
             // For DOCX converted to PDF, set the preview-pdf URL
             if (previewType === 'pdf' && previewUrl) {
               setDocumentUrl(previewUrl);
@@ -557,7 +528,6 @@ const DocumentViewer = () => {
             // This eliminates the backend proxy bottleneck for 50-70% faster loading (non-encrypted files)
 
             // Fetch the view URL from backend
-            console.log('📡 Fetching view URL for document...');
             const viewUrlResponse = await api.get(`/api/documents/${documentId}/view-url`);
             const { url: documentUrl, encrypted } = viewUrlResponse.data;
 
@@ -566,7 +536,6 @@ const DocumentViewer = () => {
 
             if (isStreamEndpoint) {
               // Encrypted file - use stream endpoint directly (no caching needed)
-              console.log('🔐 Document is encrypted, using stream endpoint for server-side decryption');
               setDocumentUrl(documentUrl);
             } else {
               // Non-encrypted file - use signed URL with caching
@@ -579,14 +548,12 @@ const DocumentViewer = () => {
                   const age = Date.now() - timestamp;
                   // Signed URLs are valid for 1 hour (3600000ms), refresh if older than 50 minutes
                   if (age < 3000000) {
-                    console.log('⚡ Using cached signed URL for non-encrypted document');
                     setDocumentUrl(url);
                   } else {
                     throw new Error('Cached URL expired');
                   }
                 } catch (err) {
                   // Cache invalid or expired, use new signed URL
-                  console.log('🔄 Cached URL expired, using new signed URL');
                   sessionStorage.removeItem(cacheKey);
                   sessionStorage.setItem(cacheKey, JSON.stringify({
                     url: documentUrl,
@@ -596,7 +563,6 @@ const DocumentViewer = () => {
                 }
               } else {
                 // No cache, use signed URL and cache it
-                console.log('🚀 Direct signed URL obtained for non-encrypted document');
                 sessionStorage.setItem(cacheKey, JSON.stringify({
                   url: documentUrl,
                   timestamp: Date.now()
@@ -608,7 +574,6 @@ const DocumentViewer = () => {
         }
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching document:', error);
         setLoading(false);
       }
     };
@@ -867,7 +832,6 @@ const DocumentViewer = () => {
                           // Fallback cleanup after 60 seconds
                           setTimeout(cleanup, 60000);
                         } catch (e) {
-                          console.error('Print error:', e);
                           if (iframe.parentNode) {
                             window.document.body.removeChild(iframe);
                           }
@@ -877,7 +841,6 @@ const DocumentViewer = () => {
                       };
 
                       iframe.onerror = () => {
-                        console.error('Failed to load document in iframe');
                         if (iframe.parentNode) {
                           window.document.body.removeChild(iframe);
                         }
@@ -887,7 +850,6 @@ const DocumentViewer = () => {
 
                       iframe.src = blobUrl;
                     } catch (error) {
-                      console.error('Error preparing document for print:', error);
                       alert('Failed to load document for printing. Please try again.');
                     }
                   }
@@ -1209,9 +1171,6 @@ const DocumentViewer = () => {
                         file={fileConfig}
                         onLoadSuccess={onDocumentLoadSuccess}
                         onLoadError={(error) => {
-                          console.error('❌ PDF Load Error:', error);
-                          console.error('PDF URL:', documentUrl);
-                          console.error('Document:', document);
                         }}
                         options={pdfOptions}
                         loading={
@@ -1249,7 +1208,6 @@ const DocumentViewer = () => {
                                   const downloadUrl = response.data.url;
                                   safariDownloadFile(downloadUrl, document.filename);
                                 } catch (error) {
-                                  console.error('Download error:', error);
                                   alert('Failed to download document');
                                 }
                               }}
@@ -1358,9 +1316,6 @@ const DocumentViewer = () => {
                         file={fileConfig}
                         onLoadSuccess={onDocumentLoadSuccess}
                         onLoadError={(error) => {
-                          console.error('❌ PDF Load Error:', error);
-                          console.error('PDF URL:', documentUrl);
-                          console.error('Document:', document);
                         }}
                         options={pdfOptions}
                         loading={
@@ -1398,7 +1353,6 @@ const DocumentViewer = () => {
                                   const downloadUrl = response.data.url;
                                   safariDownloadFile(downloadUrl, document.filename);
                                 } catch (error) {
-                                  console.error('Download error:', error);
                                   alert('Failed to download document');
                                 }
                               }}
@@ -1500,7 +1454,6 @@ const DocumentViewer = () => {
                                 const downloadUrl = response.data.url;
                                 safariDownloadFile(downloadUrl, document.filename);
                               } catch (error) {
-                                console.error('Download error:', error);
                                 alert('Failed to download document');
                               }
                             }}
@@ -1525,13 +1478,9 @@ const DocumentViewer = () => {
                           src={actualDocumentUrl}
                           alt={document.filename}
                           onLoad={(e) => {
-                            console.log(`✅ Image loaded successfully: ${actualDocumentUrl}`);
-                            console.log(`📐 Original dimensions: ${e.target.naturalWidth}x${e.target.naturalHeight}`);
                             setImageLoading(false);
                           }}
                           onError={(e) => {
-                            console.error(`❌ Image failed to load: ${actualDocumentUrl}`);
-                            console.error('Image error event:', e);
                             setImageLoading(false);
                             setImageError(true);
                           }}
@@ -1567,13 +1516,8 @@ const DocumentViewer = () => {
                         preload="metadata"
                         playsInline
                         onLoadedMetadata={(e) => {
-                          console.log('📐 Video dimensions:', e.target.videoWidth, 'x', e.target.videoHeight);
-                          console.log('Video duration:', e.target.duration);
                         }}
                         onError={(e) => {
-                          console.error('Video loading error:', e);
-                          console.error('Video source:', documentUrl);
-                          console.error('Document MIME type:', document.mimeType);
                         }}
                         style={{
                           width: 'auto',
@@ -1856,7 +1800,6 @@ const DocumentViewer = () => {
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
-                  console.log('Download button clicked');
                   const currentDoc = document;
                   if (currentDoc) {
                     try {
@@ -1880,7 +1823,6 @@ const DocumentViewer = () => {
                         URL.revokeObjectURL(blobUrl);
                       }, 100);
                     } catch (error) {
-                      console.error('Download error:', error);
                       alert('Failed to download document');
                     }
                   }
@@ -1928,7 +1870,6 @@ const DocumentViewer = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('Export PDF clicked');
                     handleExport('pdf');
                   }}
                   style={{
@@ -1964,7 +1905,6 @@ const DocumentViewer = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('Export DOCX clicked');
                     handleExport('docx');
                   }}
                   style={{
@@ -2012,7 +1952,6 @@ const DocumentViewer = () => {
             alert('Document deleted successfully');
             navigate('/documents');
           } catch (error) {
-            console.error('Error deleting document:', error);
             alert('Failed to delete document: ' + (error.response?.data?.error || error.message));
           }
         }}
@@ -2371,7 +2310,6 @@ const DocumentViewer = () => {
                     setSelectedDocumentForCategory(null);
                     setSelectedCategoryId(null);
                   } catch (error) {
-                    console.error('Error moving document:', error);
                     alert('Failed to move document: ' + (error.response?.data?.error || error.message));
                   }
                 }}

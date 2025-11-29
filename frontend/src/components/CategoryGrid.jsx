@@ -19,7 +19,6 @@ const CategoryGrid = () => {
     const cats = contextFolders
       .filter(folder => !folder.parentFolderId)
       .map(folder => {
-        console.log(`CategoryGrid - Folder: ${folder.name}, emoji:`, folder.emoji);
         return {
           id: folder.id,
           name: folder.name,
@@ -27,8 +26,6 @@ const CategoryGrid = () => {
           fileCount: getDocumentCountByFolder(folder.id)
         };
       });
-
-    console.log('CategoryGrid - Final categories:', cats);
     return cats;
   }, [contextFolders, contextDocuments]);
 

@@ -442,7 +442,6 @@ const CategoryDetail = () => {
 
       setOpenDropdownId(null);
     } catch (error) {
-      console.error('Error downloading document:', error);
       alert('Failed to download document');
     }
   };
@@ -466,7 +465,6 @@ const CategoryDetail = () => {
 
       // ✅ NO refreshAll() - context handles updates automatically
     } catch (error) {
-      console.error('Error renaming document:', error);
       alert('Failed to rename document');
     }
   };
@@ -491,28 +489,21 @@ const CategoryDetail = () => {
 
       // ✅ NO refreshAll() for documents - context handles updates automatically
     } catch (error) {
-      console.error('Error renaming:', error);
       alert(`Failed to rename ${itemToRename.type}`);
     }
   };
 
   // Handle add to category
   const handleAddToCategory = (doc) => {
-    console.log('handleAddToCategory called for doc:', doc);
-
     // ✅ Use folders from context instead of API call (eliminates 500-1000ms delay)
     const availableFolders = contextFolders.filter(f =>
       f.name?.toLowerCase() !== 'recently added'
     );
-    console.log('All folders loaded from context:', availableFolders);
-
     // ✅ Batch state updates together
     setSelectedDocumentForCategory(doc);
     setAvailableCategories(availableFolders);
     setShowCategoryModal(true);
     setOpenDropdownId(null);
-
-    console.log('Modal should be showing now');
   };
 
   const handleCategorySelection = async () => {
@@ -557,7 +548,6 @@ const CategoryDetail = () => {
       setSelectedDocumentForCategory(null);
       setSelectedCategoryId(null);
     } catch (error) {
-      console.error('Error moving item to category:', error);
       alert(`Failed to move ${selectedDocumentForCategory?.type || 'item'} to category`);
 
       // ✅ On error, refresh context to restore correct state
@@ -601,7 +591,6 @@ const CategoryDetail = () => {
         // ✅ FAST: Delete each document using context (optimistic updates)
         const deletePromises = itemToDeleteCopy.ids.map(docId =>
           deleteDocument(docId).catch(error => {
-            console.error(`Error deleting document ${docId}:`, error);
             return { success: false, error };
           })
         );
@@ -647,8 +636,6 @@ const CategoryDetail = () => {
         // ✅ NO refreshAll() - context handles updates automatically
       }
     } catch (error) {
-      console.error('Error deleting:', error);
-
       // ✅ NO refreshAll() - context already rolled back on error
 
       // Show user-friendly error message
@@ -704,7 +691,6 @@ const CategoryDetail = () => {
 
       setShowNewDropdown(false);
     } catch (error) {
-      console.error('Error uploading files:', error);
       alert('Failed to upload files. Please try again.');
     }
   };
@@ -753,7 +739,6 @@ const CategoryDetail = () => {
 
       setShowNewDropdown(false);
     } catch (error) {
-      console.error('Error uploading folder:', error);
       alert('Failed to upload folder. Please try again.');
     }
   };
@@ -767,17 +752,11 @@ const CategoryDetail = () => {
   // Handle confirm create folder from modal
   const handleConfirmCreateFolder = async (folderName) => {
     try {
-      console.log('Creating folder:', folderName, 'with parentFolderId:', currentFolderId);
-
       // Use context's createFolder method for instant UI updates
       await createFolder(folderName.trim(), null, currentFolderId);
-
-      console.log('Folder created via context');
-
       // Context automatically updates all components with the new folder!
       setShowCreateFolderModal(false);
     } catch (error) {
-      console.error('Error creating folder:', error);
       alert('Failed to create folder. Please try again.');
     }
   };
@@ -948,7 +927,6 @@ const CategoryDetail = () => {
         alert(`Moved folder "${data.name}" into "${targetFolder.name}"`);
       }
     } catch (error) {
-      console.error('Error handling drop:', error);
       alert('Failed to move item. Please try again.');
     }
   };
@@ -1340,11 +1318,7 @@ const CategoryDetail = () => {
                     <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('New button clicked!');
-                    console.log('currentFolderId:', currentFolderId);
-                    console.log('showNewDropdown before:', showNewDropdown);
                     setShowNewDropdown(!showNewDropdown);
-                    console.log('showNewDropdown toggled');
                   }}
                   style={{
                     paddingLeft: 18,
@@ -1788,7 +1762,6 @@ const CategoryDetail = () => {
                                       // ✅ Context will auto-update after folder deletion
                                       await refreshAll();
                                     } catch (error) {
-                                      console.error('Error deleting folder:', error);
                                       alert(error.response?.data?.error || 'Failed to delete folder');
                                     }
                                   }
