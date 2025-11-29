@@ -1649,34 +1649,11 @@ const Documents = () => {
                       return ext || 'File';
                     };
 
-                    // Filter out documents that are in folders (only show root-level documents)
-                    // Check both folderId (scalar) and folder (relation object) for robustness
-                    const rootDocuments = contextDocuments.filter(doc => !doc.folderId && !doc.folder);
-
-                    // Sort documents based on current sort column and direction
-                    const sortedDocs = rootDocuments.slice().sort((a, b) => {
-                      let comparison = 0;
-
-                      switch (sortColumn) {
-                        case 'name':
-                          comparison = (a.filename || '').localeCompare(b.filename || '');
-                          break;
-                        case 'type':
-                          comparison = getFileTypeForSort(a).localeCompare(getFileTypeForSort(b));
-                          break;
-                        case 'size':
-                          comparison = (a.fileSize || 0) - (b.fileSize || 0);
-                          break;
-                        case 'date':
-                        default:
-                          comparison = new Date(a.createdAt) - new Date(b.createdAt);
-                          break;
-                      }
-
-                      return sortDirection === 'asc' ? comparison : -comparison;
-                    });
-
-                    const docsToShow = sortedDocs.slice(0, 12);
+                    // Show 6 most recently added documents (sorted by createdAt descending)
+                    const allDocsSorted = [...contextDocuments].sort((a, b) => 
+                      new Date(b.createdAt) - new Date(a.createdAt)
+                    );
+                    const docsToShow = allDocsSorted.slice(0, 6);
                     return docsToShow.map((doc, index) => {
                     // ✅ Check document status for visual indicators
                     const isUploading = doc.status === 'uploading';

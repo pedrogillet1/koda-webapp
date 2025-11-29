@@ -1570,7 +1570,7 @@ const CategoryDetail = () => {
             <>
               {/* Folders Section (Grid) */}
               {subFolders.length > 0 && (
-                <div style={{ marginBottom: 40 }}>
+                <div style={{ marginBottom: 24, background: "white", borderRadius: 20, border: "2px solid #E6E6EC", padding: 24 }}>
                   <h2 style={{
                     fontSize: 18,
                     fontWeight: '600',
@@ -1840,7 +1840,7 @@ const CategoryDetail = () => {
               )}
 
               {/* Documents Section (Table or Grid) */}
-              <div>
+              <div style={{ background: "white", borderRadius: 20, border: "2px solid #E6E6EC", padding: 24 }}>
                 <h2 style={{
                   fontSize: 18,
                   fontWeight: '600',

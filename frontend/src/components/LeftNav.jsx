@@ -15,7 +15,6 @@ import { ReactComponent as SettingsIcon } from '../assets/Settings.svg';
 import { ReactComponent as SettingsFilledIcon } from '../assets/Settings-filled.svg';
 import { ReactComponent as SignoutIcon } from '../assets/signout.svg';
 import LogoutModal from './LogoutModal';
-import StorageIndicator from './StorageIndicator';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useDocuments } from '../context/DocumentsContext';
 import { useAuth } from '../context/AuthContext';
@@ -249,13 +248,6 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                     </div>
                 </div>
             </div>
-
-            {/* Storage Indicator */}
-            {user && (
-                <div style={{width: '100%', paddingLeft: isExpanded ? spacing.md : 0, paddingRight: isExpanded ? spacing.md : 0}}>
-                    <StorageIndicator isExpanded={isExpanded} />
-                </div>
-            )}
 
             {/* Bottom Icons */}
             <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: spacing.md, borderTop: '1px solid rgba(255, 255, 255, 0.20)', paddingTop: spacing.xl, width: '100%', paddingLeft: isExpanded ? 20 : spacing.md, paddingRight: isExpanded ? 20 : spacing.md}}>
