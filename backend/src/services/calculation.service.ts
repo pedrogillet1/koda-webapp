@@ -52,6 +52,20 @@ class CalculationService {
   requiresCalculation(query: string): boolean {
     const lowerQuery = query.toLowerCase();
 
+    // ✅ FIX: Exclude document summary/report queries from calculation detection
+    const documentQueryPatterns = [
+      /(?:create|make|generate|write).*(?:summary|report|document|analysis)/i,
+      /(?:summarize|summary).*(?:documents?|files?|papers?)/i,
+      /(?:report|summary).*(?:of|from|based on).*(?:documents?|files?)/i,
+    ];
+
+    for (const pattern of documentQueryPatterns) {
+      if (pattern.test(query)) {
+        console.log('🚫 [CALC] Skipping calculation for document summary query');
+        return false;
+      }
+    }
+
     for (const keywords of Object.values(CALCULATION_KEYWORDS)) {
       for (const keyword of keywords) {
         if (lowerQuery.includes(keyword)) {
