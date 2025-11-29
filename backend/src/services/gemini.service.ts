@@ -717,6 +717,55 @@ export const kodaFunctions: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  // Presentation Generation
+  {
+    type: 'function',
+    function: {
+      name: 'create_presentation',
+      description: 'Create a professional presentation with multiple slides using Manus-style design system. Use when user asks to create, make, or generate a presentation, slide deck, or PowerPoint.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: 'Title of the presentation',
+          },
+          description: {
+            type: 'string',
+            description: 'Brief description of the presentation topic',
+          },
+          outline: {
+            type: 'array',
+            description: 'Array of slides to create',
+            items: {
+              type: 'object',
+              properties: {
+                id: {
+                  type: 'string',
+                  description: 'Unique identifier for the slide (e.g., "slide-1", "slide-2")',
+                },
+                title: {
+                  type: 'string',
+                  description: 'Title of the slide',
+                },
+                summary: {
+                  type: 'string',
+                  description: 'Brief summary of slide content (1-2 sentences)',
+                },
+                layout: {
+                  type: 'string',
+                  enum: ['title', 'content', 'two-column', 'chart', 'image'],
+                  description: 'Layout type for the slide',
+                },
+              },
+              required: ['id', 'title', 'summary'],
+            },
+          },
+        },
+        required: ['title', 'outline'],
+      },
+    },
+  },
 ];
 
 export interface ChatMessage {
