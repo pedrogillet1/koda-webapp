@@ -1292,8 +1292,8 @@ const DocumentViewer = () => {
                               renderAnnotationLayer={true}
                               loading={
                                 <div style={{
-                                  width: 900 * (zoom / 100),
-                                  height: 1200 * (zoom / 100),
+                                  width: getPdfPageWidth(),
+                                  height: getPdfPageWidth() * (1200 / 900),
                                   background: 'white',
                                   borderRadius: 8,
                                   boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
@@ -1437,8 +1437,8 @@ const DocumentViewer = () => {
                               renderAnnotationLayer={true}
                               loading={
                                 <div style={{
-                                  width: 900 * (zoom / 100),
-                                  height: 1200 * (zoom / 100),
+                                  width: getPdfPageWidth(),
+                                  height: getPdfPageWidth() * (1200 / 900),
                                   background: 'white',
                                   borderRadius: 8,
                                   boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
