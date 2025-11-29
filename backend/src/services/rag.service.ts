@@ -4152,7 +4152,10 @@ async function handleCrossDocumentSynthesis(
         where: {
           id: { in: userDocuments.map(d => d.id) },
         },
-        include: {
+        select: {
+          id: true,
+          filename: true,
+          renderableContent: true, // For Koda-created documents
           document_metadata: {
             select: {
               extractedText: true,
@@ -4166,7 +4169,14 @@ async function handleCrossDocumentSynthesis(
       const allChunks: Array<{ content: string; documentId: string; documentName: string }> = [];
 
       for (const doc of documentsWithMetadata) {
-        const content = doc.document_metadata?.markdownContent || doc.document_metadata?.extractedText;
+        // Check multiple sources for content:
+        // 1. document_metadata (for uploaded files)
+        // 2. renderableContent (for Koda-created markdown files)
+        const content =
+          doc.document_metadata?.markdownContent ||
+          doc.document_metadata?.extractedText ||
+          doc.renderableContent;
+
         if (content) {
           // Split into chunks (first 3000 chars to keep context manageable)
           const chunk = content.substring(0, 3000);
@@ -4870,7 +4880,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
             userId,
             status: 'completed'
           },
-          include: {
+          select: {
+            id: true,
+            filename: true,
+            renderableContent: true, // For Koda-created documents
             document_metadata: {
               select: {
                 extractedText: true,
@@ -4887,7 +4900,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
         if (userDocuments.length > 0) {
           // Convert database documents to hybridResults format
           for (const doc of userDocuments) {
-            const content = doc.document_metadata?.markdownContent || doc.document_metadata?.extractedText;
+            // Check multiple sources: document_metadata OR renderableContent (for Koda-created docs)
+            const content =
+              doc.document_metadata?.markdownContent ||
+              doc.document_metadata?.extractedText ||
+              doc.renderableContent;
+
             if (content) {
               // Split content into chunks (2000 chars each)
               const chunkSize = 2000;
