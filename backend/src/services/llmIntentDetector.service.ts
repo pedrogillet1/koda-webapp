@@ -160,9 +160,23 @@ ${contextSection}
     - **CRITICAL RULE**: If the query is not a clear file management action (create, list, move, delete, rename, etc.), it is a rag_query.
     - **Examples**: "what does document X say about Y", "explain concept Z", "summarize X", "what are the main points in the report"
 
-11. **greeting**
+12. **greeting**
     - **Description**: User is greeting or making small talk.
     - **Examples**: "hello", "hi", "how are you", "good morning", "olá", "hola", "bonjour"
+
+13. **create_file**
+   - **Description**: User wants to CREATE a NEW document/file (markdown, PDF, DOCX, PPTX, etc.) with AI-generated content.
+   - **Keywords**: "create file", "create document", "generate report", "make document", "write document", "create report", "generate file", "build presentation", "criar arquivo", "créer fichier", "crear documento"
+   - **Examples (EN)**: "create a markdown file about Q4 sales", "generate a PDF report on customer retention", "make a document about our product roadmap", "write a report on market analysis", "create a presentation about our strategy", "generate a DOCX file about employee benefits"
+   - **Examples (PT)**: "criar um arquivo sobre vendas", "gerar relatório PDF sobre retenção", "fazer documento sobre roadmap"
+   - **Examples (ES)**: "crear un documento sobre ventas", "generar informe PDF sobre retención", "hacer documento sobre hoja de ruta"
+   - **Examples (FR)**: "créer un fichier sur les ventes", "générer rapport PDF sur la rétention", "faire document sur la feuille de route"
+   - **CRITICAL RULE**: This intent is ONLY for creating NEW files with AI-generated content. If the user is asking to see, list, or open existing files, use show_file/list_files/show_folder instead.
+   - **NEGATIVE EXAMPLES - DO NOT USE create_file FOR**: "show me file X", "open document Y", "list all files", "what files do I have" (these are show_file/list_files)
+   - **Extract**:
+     * topic (required - what the document should be about)
+     * fileType (optional - "md", "pdf", "docx", "pptx" - defaults to "md")
+     * additionalContext (optional - any extra requirements or details)
 
 **--- DECISION-MAKING PROCESS ---**
 
@@ -172,6 +186,8 @@ Follow this hierarchy strictly:
 
 2. **Check for explicit file management actions**: Look for action verbs like create, move, rename, delete.
    - "create folder X" → create_folder
+   - "create file/document/report about X" → create_file
+   - "generate report/presentation about X" → create_file
    - "move X to Y" → move_files
    - "rename X to Y" → rename_file
    - "delete X" → delete_file
