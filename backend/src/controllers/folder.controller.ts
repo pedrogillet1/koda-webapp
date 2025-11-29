@@ -42,7 +42,7 @@ export const createFolder = async (req: Request, res: Response): Promise<void> =
     }
 
     const folder = await folderService.createFolder(
-      req.users.id,
+      req.user.id,
       trimmedName,
       emoji,
       parentFolderId,
@@ -62,10 +62,10 @@ export const createFolder = async (req: Request, res: Response): Promise<void> =
     );
 
     // Emit real-time event for folder creation
-    emitFolderEvent(req.users.id, 'created', folder.id);
+    emitFolderEvent(req.user.id, 'created', folder.id);
 
     // Emit folder-tree-updated event to refresh folder tree
-    emitToUser(req.users.id, 'folder-tree-updated', { folderId: folder.id });
+    emitToUser(req.user.id, 'folder-tree-updated', { folderId: folder.id });
 
     res.status(201).json({ folder });
   } catch (error) {
@@ -86,10 +86,10 @@ export const getFolderTree = async (req: Request, res: Response): Promise<void> 
 
     // Check if we should include all folders (including subfolders)
     const includeAll = req.query.includeAll === 'true';
-    console.log(`📊 getFolderTree API called, includeAll=${includeAll}, user=${req.users.id}`);
+    console.log(`📊 getFolderTree API called, includeAll=${includeAll}, user=${req.user.id}`);
 
     // No caching - always fetch fresh data from database
-    const folders = await folderService.getFolderTree(req.users.id, includeAll);
+    const folders = await folderService.getFolderTree(req.user.id, includeAll);
 
     // Log the actual folders being returned with count data
     console.log(`🔍 getFolderTree returning: ${folders.length} folders (includeAll: ${includeAll})`);
@@ -117,7 +117,7 @@ export const getFolder = async (req: Request, res: Response): Promise<void> => {
 
     const { id } = req.params;
 
-    const folder = await folderService.getFolder(id, req.users.id);
+    const folder = await folderService.getFolder(id, req.user.id);
 
     res.status(200).json({ folder });
   } catch (error) {
@@ -139,13 +139,13 @@ export const updateFolder = async (req: Request, res: Response): Promise<void> =
     const { id } = req.params;
     const { name, emoji, parentFolderId } = req.body;
 
-    const folder = await folderService.updateFolder(id, req.users.id, name, emoji, parentFolderId);
+    const folder = await folderService.updateFolder(id, req.user.id, name, emoji, parentFolderId);
 
     // Emit real-time event for folder update
-    emitFolderEvent(req.users.id, 'updated', id);
+    emitFolderEvent(req.user.id, 'updated', id);
 
     // Emit folder-tree-updated event to refresh folder tree
-    emitToUser(req.users.id, 'folder-tree-updated', { folderId: id });
+    emitToUser(req.user.id, 'folder-tree-updated', { folderId: id });
 
     res.status(200).json({ folder });
   } catch (error) {
@@ -173,22 +173,22 @@ export const bulkCreateFolders = async (req: Request, res: Response): Promise<vo
     }
 
     console.log(`\n🆔 [${requestId}] ===== NEW BULK CREATE REQUEST =====`);
-    console.log(`📁 [${requestId}] Bulk creating ${folderTree.length} folders for user ${req.users.id}${parentFolderId ? ` under parent ${parentFolderId}` : ''}`);
+    console.log(`📁 [${requestId}] Bulk creating ${folderTree.length} folders for user ${req.user.id}${parentFolderId ? ` under parent ${parentFolderId}` : ''}`);
     console.log(`📁 [${requestId}] Received folderTree array:`);
     folderTree.forEach((folder: any, index: number) => {
       console.log(`  [${requestId}][${index}] name="${folder.name}", path="${folder.path}", parentPath="${folder.parentPath || 'null'}"`);
     });
 
-    const folderMap = await folderService.bulkCreateFolders(req.users.id, folderTree, defaultEmoji, parentFolderId);
+    const folderMap = await folderService.bulkCreateFolders(req.user.id, folderTree, defaultEmoji, parentFolderId);
 
     console.log(`✅ [${requestId}] Successfully created ${Object.keys(folderMap).length} folders`);
     console.log(`🆔 [${requestId}] ===== REQUEST COMPLETE =====\n`);
 
     // Emit real-time event for bulk folder creation (emit generic folders-changed)
-    emitFolderEvent(req.users.id, 'created');
+    emitFolderEvent(req.user.id, 'created');
 
     // Emit folder-tree-updated event to refresh folder tree
-    emitToUser(req.users.id, 'folder-tree-updated', { count: Object.keys(folderMap).length });
+    emitToUser(req.user.id, 'folder-tree-updated', { count: Object.keys(folderMap).length });
 
     res.status(201).json({
       success: true,
@@ -214,24 +214,24 @@ export const deleteFolder = async (req: Request, res: Response): Promise<void> =
 
     const { id } = req.params;
 
-    await folderService.deleteFolder(id, req.users.id);
+    await folderService.deleteFolder(id, req.user.id);
 
     // ✅ BUG FIX #1: Invalidate ALL caches BEFORE emitting events
     // This ensures that any subsequent data fetches get fresh data from database
     // instead of stale cached data that still contains the deleted folder
-    console.log(`🗑️ [DELETE] Invalidating all caches for user ${req.users.id} after folder deletion`);
+    console.log(`🗑️ [DELETE] Invalidating all caches for user ${req.user.id} after folder deletion`);
 
     // 1. Invalidate Redis cache (used by /api/batch/initial-data endpoint)
-    await invalidateUserCache(req.users.id);
+    await invalidateUserCache(req.user.id);
 
     // 2. Invalidate in-memory cache (used by other endpoints like /api/documents, /api/folders)
-    await cacheService.invalidateUserCache(req.users.id);
+    await cacheService.invalidateUserCache(req.user.id);
 
     // Emit real-time event for folder deletion
-    emitFolderEvent(req.users.id, 'deleted', id);
+    emitFolderEvent(req.user.id, 'deleted', id);
 
     // Emit folder-tree-updated event to refresh folder tree
-    emitToUser(req.users.id, 'folder-tree-updated', { folderId: id, deleted: true });
+    emitToUser(req.user.id, 'folder-tree-updated', { folderId: id, deleted: true });
 
     res.status(200).json({ message: 'Folder deleted successfully' });
   } catch (error) {
