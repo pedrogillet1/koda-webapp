@@ -129,7 +129,7 @@ const StreamingWelcomeMessage = ({ userName, isFirstChat = false }) => {
         fontFamily: 'Plus Jakarta Sans, sans-serif',
         lineHeight: '1.4',
         minHeight: '42px',
-        textShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)',
+        textShadow: '0 1px 2px rgba(0, 0, 0, 0.06)',
         display: 'inline-block'
       }}
     >

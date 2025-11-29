@@ -10,8 +10,8 @@ const LanguageDropdown = ({ type = 'interface', variant = 'default' }) => {
 
   const languages = [
     { code: 'en', name: 'English (US)', flag: '' },
-    { code: 'pt-BR', name: 'Português (Brasil)', flag: '' },
-    { code: 'es-ES', name: 'Español (Latinoamérica)', flag: '' }
+    { code: 'pt-BR', name: 'Português (BR)', flag: '' },
+    { code: 'es-ES', name: 'Español (ES)', flag: '' }
   ];
 
   const currentLanguage = type === 'interface'
