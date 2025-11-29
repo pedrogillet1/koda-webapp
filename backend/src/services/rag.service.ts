@@ -4118,7 +4118,129 @@ async function handleCrossDocumentSynthesis(
 ): Promise<{ handled: boolean; sources?: any[] }> {
 
   try {
-    // Call the cross-document synthesis service
+    // Handle different synthesis types
+    if (synthesisQuery.type === 'aggregation') {
+      // For general aggregation queries like "create a summary report"
+      // Retrieve chunks from all user documents and generate a comprehensive summary
+      console.log('🔍 [SYNTHESIS] Aggregation query detected - retrieving all documents');
+
+      // Get all user documents
+      const userDocuments = await prisma.documents.findMany({
+        where: {
+          userId,
+          status: 'completed',
+        },
+        select: {
+          id: true,
+          filename: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (userDocuments.length === 0) {
+        onChunk(`I don't see any documents in your library yet. Upload some documents and I'll help you analyze them!`);
+        return { handled: true, sources: [] };
+      }
+
+      // Retrieve document content from database
+      console.log(`📄 [SYNTHESIS] Retrieving content for ${userDocuments.length} documents`);
+
+      const documentsWithMetadata = await prisma.documents.findMany({
+        where: {
+          id: { in: userDocuments.map(d => d.id) },
+        },
+        select: {
+          id: true,
+          filename: true,
+          renderableContent: true, // For Koda-created documents
+          document_metadata: {
+            select: {
+              extractedText: true,
+              markdownContent: true,
+            },
+          },
+        },
+      });
+
+      // Extract text content from each document
+      const allChunks: Array<{ content: string; documentId: string; documentName: string }> = [];
+
+      for (const doc of documentsWithMetadata) {
+        // Check multiple sources for content:
+        // 1. document_metadata (for uploaded files)
+        // 2. renderableContent (for Koda-created markdown files)
+        const content =
+          doc.document_metadata?.markdownContent ||
+          doc.document_metadata?.extractedText ||
+          doc.renderableContent;
+
+        if (content) {
+          // Split into chunks (first 3000 chars to keep context manageable)
+          const chunk = content.substring(0, 3000);
+          allChunks.push({
+            content: chunk,
+            documentId: doc.id,
+            documentName: doc.filename || 'Unknown',
+          });
+          console.log(`✅ Retrieved content from ${doc.filename} (${chunk.length} chars)`);
+        } else {
+          console.log(`⚠️  No content found for ${doc.filename}`);
+        }
+      }
+
+      if (allChunks.length === 0) {
+        onChunk(`I found **${userDocuments.length}** documents in your library, but couldn't retrieve their content. This might be a temporary issue. Please try again.`);
+        return { handled: true, sources: [] };
+      }
+
+      // Generate comprehensive summary using LLM
+      console.log(`📝 [SYNTHESIS] Generating summary from ${allChunks.length} chunks across ${userDocuments.length} documents`);
+
+      const summaryPrompt = `You are creating a comprehensive summary report of the user's document library.
+
+User's request: "${query}"
+
+Documents in library (${userDocuments.length} total):
+${userDocuments.map((d, i) => `${i + 1}. ${d.filename}`).join('\n')}
+
+Document content excerpts:
+${allChunks.map((chunk, i) => `
+--- Excerpt ${i + 1} from "${chunk.documentName}" ---
+${chunk.content}
+`).join('\n\n')}
+
+Create a comprehensive summary report that:
+1. Provides an overview of the document collection
+2. Identifies key themes and topics across documents
+3. Highlights important findings or insights
+4. Organizes information in a clear, structured format
+
+Use markdown formatting with headers, bullet points, and bold text for emphasis.`;
+
+      const aiResponse = await callAI(summaryPrompt);
+
+      // Stream the response
+      onChunk(aiResponse);
+
+      // Build sources
+      const sources = allChunks
+        .map(chunk => chunk.documentId)
+        .filter((id, index, self) => self.indexOf(id) === index)
+        .map(documentId => ({
+          documentId,
+          type: 'synthesis',
+        }));
+
+      return {
+        handled: true,
+        sources,
+      };
+    }
+
+    // For methodology-specific queries, use the existing service
     const result = await crossDocumentSynthesisService.synthesizeMethodologies(
       userId,
       synthesisQuery.topic
@@ -4749,7 +4871,88 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     if (hybridResults.length > 0) {
     } else {
-      console.error('âŒ [DEBUG] NO RESULTS FROM PINECONE - This is the root cause!');
+      console.error('❌ [DEBUG] NO RESULTS FROM PINECONE - Falling back to database retrieval');
+
+      // 🔄 DATABASE FALLBACK: Retrieve documents directly from database
+      try {
+        const userDocuments = await prisma.documents.findMany({
+          where: {
+            userId,
+            status: 'completed'
+          },
+          select: {
+            id: true,
+            filename: true,
+            renderableContent: true, // For Koda-created documents
+            document_metadata: {
+              select: {
+                extractedText: true,
+                markdownContent: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 5, // Limit to recent 5 documents
+        });
+
+        console.log(`📄 [DATABASE FALLBACK] Found ${userDocuments.length} documents`);
+
+        if (userDocuments.length > 0) {
+          // Convert database documents to hybridResults format
+          for (const doc of userDocuments) {
+            // Check multiple sources: document_metadata OR renderableContent (for Koda-created docs)
+            const content =
+              doc.document_metadata?.markdownContent ||
+              doc.document_metadata?.extractedText ||
+              doc.renderableContent;
+
+            if (content) {
+              // Split content into chunks (2000 chars each)
+              const chunkSize = 2000;
+              const chunks = [];
+              for (let i = 0; i < content.length && chunks.length < 3; i += chunkSize) {
+                chunks.push(content.substring(i, i + chunkSize));
+              }
+
+              // Add each chunk as a hybrid result
+              chunks.forEach((chunk, index) => {
+                hybridResults.push({
+                  chunkId: `${doc.id}-db-chunk-${index}`,
+                  documentId: doc.id,
+                  content: chunk,
+                  vectorScore: 0.5, // Default score for database fallback
+                  bm25Score: 0,
+                  hybridScore: 0.5,
+                  metadata: {
+                    filename: doc.filename || 'Unknown',
+                    documentId: doc.id,
+                    source: 'database-fallback',
+                  },
+                });
+              });
+
+              console.log(`✅ [DATABASE FALLBACK] Retrieved ${chunks.length} chunks from ${doc.filename}`);
+            }
+          }
+
+          // Also update rawResults for consistency
+          rawResults = hybridResults.map(hr => ({
+            id: hr.chunkId,
+            score: hr.hybridScore,
+            metadata: {
+              documentId: hr.documentId,
+              content: hr.content,
+              filename: hr.metadata?.filename || 'Unknown',
+            },
+          }));
+
+          console.log(`✅ [DATABASE FALLBACK] Created ${hybridResults.length} hybrid results from database`);
+        } else {
+          console.log('⚠️ [DATABASE FALLBACK] No documents found in database');
+        }
+      } catch (dbError) {
+        console.error('❌ [DATABASE FALLBACK] Error retrieving from database:', dbError);
+      }
     }
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 

@@ -66,6 +66,9 @@ const SYNTHESIS_PATTERNS = {
     /(?:across|all|every) (?:my )?(?:papers?|documents?|files?|studies?)/i,
     /(?:summarize|overview|summary) (?:of )?(?:all|my) (?:papers?|documents?)/i,
     /(?:overall|combined|total) (?:findings?|results?|conclusions?)/i,
+    // "Create a summary report" patterns
+    /(?:create|make|generate|write|produce) (?:a |an )?(?:summary|comprehensive|detailed)? ?(?:report|document|analysis|overview) (?:of|from|based on|using) (?:my |the |all )?(?:documents?|files?|papers?)/i,
+    /(?:create|make|generate|write|produce) (?:a |an )?(?:summary|comprehensive|detailed)? ?(?:report|document|analysis|overview)/i,
   ],
 };
 
