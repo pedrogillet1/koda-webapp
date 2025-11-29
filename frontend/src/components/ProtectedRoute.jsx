@@ -1,15 +1,12 @@
 import React from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import WelcomePopup from './WelcomePopup';
 
 /**
  * Protected Route Component
  *
- * Instead of redirecting unauthenticated users to login,
- * it shows the page content with a welcome popup.
- * Users can dismiss the popup and continue exploring,
- * or click the popup to sign up.
- * Popup reappears on page refresh.
+ * Redirects unauthenticated users to login page.
+ * Only authenticated users can access protected routes.
  */
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated, loading } = useAuth();
@@ -36,14 +33,9 @@ const ProtectedRoute = ({ children }) => {
         );
     }
 
-    // If not authenticated, show content + welcome popup
+    // If not authenticated, redirect to login
     if (!isAuthenticated) {
-        return (
-            <>
-                {children}
-                <WelcomePopup isOpen={true} />
-            </>
-        );
+        return <Navigate to="/login" replace />;
     }
 
     // If authenticated, show content normally

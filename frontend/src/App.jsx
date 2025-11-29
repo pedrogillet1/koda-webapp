@@ -58,9 +58,9 @@ function App() {
             <Router>
               <div style={{ width: '100vw', height: '100vh' }}>
                 <Routes>
-            {/* ✅ DEFAULT ROUTE: Chat screen is the first page users see */}
-            <Route path="/" element={<ChatScreen />} />
-            <Route path="/chat" element={<ChatScreen />} />
+            {/* ✅ DEFAULT ROUTE: Chat screen is the first page users see (protected) */}
+            <Route path="/" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />
+            <Route path="/chat" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />
 
             {/* AUTH ROUTES */}
             <Route path="/login" element={<Login />} />

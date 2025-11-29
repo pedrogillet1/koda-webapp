@@ -447,12 +447,10 @@ const DocumentsPage = () => {
           <div style={{display: 'flex', alignItems: 'center', gap: spacing.md}}>
             {isSelectMode ? (
               <>
-                {/* Delete Button in Select Mode */}
+                {/* Delete Button - Red style matching FileTypeDetail */}
                 <button
                   onClick={() => {
                     if (selectedDocuments.size === 0) return;
-
-                    // Set up bulk delete info and show modal
                     setItemToDelete({
                       type: 'bulk-documents',
                       ids: Array.from(selectedDocuments),
@@ -463,131 +461,75 @@ const DocumentsPage = () => {
                   }}
                   disabled={selectedDocuments.size === 0}
                   style={{
+                    height: 42,
                     paddingLeft: 18,
                     paddingRight: 18,
-                    paddingTop: 10,
-                    paddingBottom: 10,
-                    background: selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8',
-                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
-                    overflow: 'hidden',
+                    background: selectedDocuments.size > 0 ? '#FEE2E2' : '#F5F5F5',
                     borderRadius: 100,
-                    outline: '1px #E6E6EC solid',
-                    outlineOffset: '-1px',
-                    justifyContent: 'center',
+                    border: '1px solid #E6E6EC',
+                    display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
-                    display: 'inline-flex',
-                    border: 'none',
-                    cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
-                    opacity: selectedDocuments.size === 0 ? 0.6 : 1,
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (selectedDocuments.size > 0) {
-                      e.currentTarget.style.background = '#D8D8DE';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8';
+                    gap: 8,
+                    cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
+                    opacity: selectedDocuments.size > 0 ? 1 : 0.5
                   }}
                 >
                   <TrashCanLightIcon style={{ width: 18, height: 18 }} />
-                  <div style={{
-                    color: selectedDocuments.size === 0 ? '#A0A0A5' : '#181818',
-                    fontSize: 16,
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: '500',
-                    lineHeight: '24px',
-                    wordWrap: 'break-word'
-                  }}>
-                    Delete
-                  </div>
+                  <span style={{ color: '#D92D20', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>
+                    Delete{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
+                  </span>
                 </button>
 
-                {/* Move Button in Select Mode */}
+                {/* Move Button - White style matching FileTypeDetail */}
                 <button
                   onClick={() => {
                     if (selectedDocuments.size === 0) return;
-                    alert('Move functionality - implement folder selection modal');
+                    alert('Move functionality coming soon');
                   }}
                   disabled={selectedDocuments.size === 0}
                   style={{
+                    height: 42,
                     paddingLeft: 18,
                     paddingRight: 18,
-                    paddingTop: 10,
-                    paddingBottom: 10,
-                    background: selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8',
-                    boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
-                    overflow: 'hidden',
+                    background: 'white',
                     borderRadius: 100,
-                    outline: '1px #E6E6EC solid',
-                    outlineOffset: '-1px',
-                    justifyContent: 'center',
+                    border: '1px solid #E6E6EC',
+                    display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
-                    display: 'inline-flex',
-                    border: 'none',
-                    cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
-                    opacity: selectedDocuments.size === 0 ? 0.6 : 1,
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (selectedDocuments.size > 0) {
-                      e.currentTarget.style.background = '#D8D8DE';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8';
+                    gap: 8,
+                    cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
+                    opacity: selectedDocuments.size > 0 ? 1 : 0.5
                   }}
                 >
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M9 3.75V14.25M3.75 9H14.25" stroke={selectedDocuments.size === 0 ? '#A0A0A5' : '#181818'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                  <div style={{
-                    color: selectedDocuments.size === 0 ? '#A0A0A5' : '#181818',
-                    fontSize: 16,
-                    fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: '500',
-                    lineHeight: '24px',
-                    wordWrap: 'break-word'
-                  }}>
-                    Move
-                  </div>
+                  <span style={{ color: '#32302C', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>
+                    Move{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
+                  </span>
                 </button>
 
-                {/* Selected Count */}
-                <div style={{
-                  color: '#32302C',
-                  fontSize: 16,
-                  fontFamily: 'Plus Jakarta Sans',
-                  fontWeight: '500',
-                  lineHeight: '24px'
-                }}>
-                  {selectedDocuments.size} selected
-                </div>
-
-                {/* Close Button */}
+                {/* Cancel Button - Text style matching FileTypeDetail */}
                 <button
                   onClick={() => {
                     clearSelection();
                     toggleSelectMode();
                   }}
                   style={{
-                    width: 32,
-                    height: 32,
-                    background: 'transparent',
-                    border: 'none',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    height: 42,
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                    background: 'white',
+                    borderRadius: 100,
+                    border: '1px solid #E6E6EC',
                     cursor: 'pointer',
-                    transition: 'transform 0.2s ease'
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600',
+                    fontSize: 15,
+                    color: '#111827'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
-                  <CloseIcon style={{ width: 16, height: 16 }} />
+                  Cancel
                 </button>
               </>
             ) : (
