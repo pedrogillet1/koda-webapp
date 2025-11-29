@@ -100,13 +100,26 @@ export const isPrivateMode = async () => {
 
 /**
  * Get optimal PDF scale for current device
+ * Mac-specific optimization to prevent text squishing
  */
 export const getOptimalPDFScale = () => {
   const pixelRatio = window.devicePixelRatio || 1;
+  const macOS = isMacOS();
+  const safari = isSafari();
 
-  if (isSafari()) {
-    // Safari performs better with lower scale
+  // Mac Safari: Use higher scale for better text rendering
+  if (macOS && safari) {
+    return Math.min(pixelRatio * 1.2, 2);
+  }
+
+  // Safari on other platforms
+  if (safari) {
     return Math.min(pixelRatio, 1.5);
+  }
+
+  // Mac Chrome/Firefox: Slight boost for text clarity
+  if (macOS) {
+    return Math.min(pixelRatio * 1.1, 2.5);
   }
 
   if (isMobile()) {
@@ -114,7 +127,7 @@ export const getOptimalPDFScale = () => {
     return Math.min(pixelRatio, 2);
   }
 
-  // Desktop Chrome/Firefox can handle higher scales
+  // Desktop Chrome/Firefox on Windows/Linux
   return Math.min(pixelRatio, 3);
 };
 

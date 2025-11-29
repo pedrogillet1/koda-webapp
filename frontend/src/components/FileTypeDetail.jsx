@@ -295,9 +295,11 @@ const FileTypeDetail = () => {
                     <TrashCanIcon style={{ width: 18, height: 18 }} />
                     <span style={{ color: '#D92D20', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>Delete{selectedDocuments.size > 0 ? ' (' + selectedDocuments.size + ')' : ''}</span>
                   </button>
-                  <button onClick={handleBulkMove} disabled={selectedDocuments.size === 0} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: selectedDocuments.size > 0 ? '#111827' : '#F5F5F5', borderRadius: 100, border: 'none', display: 'flex', alignItems: 'center', gap: 8, cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed', opacity: selectedDocuments.size > 0 ? 1 : 0.5 }}>
-                    <FolderSvgIcon style={{ width: 18, height: 18, color: 'white' }} />
-                    <span style={{ color: 'white', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>Move{selectedDocuments.size > 0 ? ' (' + selectedDocuments.size + ')' : ''}</span>
+                  <button onClick={handleBulkMove} disabled={selectedDocuments.size === 0} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 8, cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed', opacity: selectedDocuments.size > 0 ? 1 : 0.5 }}>
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <span style={{ color: '#32302C', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>Move{selectedDocuments.size > 0 ? ' (' + selectedDocuments.size + ')' : ''}</span>
                   </button>
                   <button onClick={() => { clearSelection(); toggleSelectMode(); }} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', fontSize: 15, color: '#111827' }}>Cancel</button>
                 </>

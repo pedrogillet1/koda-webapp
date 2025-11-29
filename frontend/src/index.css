@@ -303,7 +303,9 @@ code {
   bottom: 0 !important;
   overflow: hidden !important;
   opacity: 0.2 !important;
-  line-height: 1 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0 !important;
+  word-spacing: 0 !important;
 }
 
 .react-pdf__Page__textContent span {
@@ -312,6 +314,10 @@ code {
   white-space: pre !important;
   cursor: text !important;
   transform-origin: 0% 0% !important;
+  line-height: 1.2 !important;
+  vertical-align: baseline !important;
+  display: inline-block !important;
+  height: auto !important;
 }
 
 /* Search highlighting in PDF text layer */
@@ -325,6 +331,40 @@ code {
 .react-pdf__Page__textContent span.search-highlight-current {
   background-color: #fbbf24 !important;
   font-weight: 600 !important;
+}
+
+/* ========================================
+   MAC-SPECIFIC PDF TEXT RENDERING FIX
+   ======================================== */
+
+/* Detect Mac/Safari and apply fixes */
+@supports (-webkit-appearance: none) {
+  /* Safari/Mac: Improve text layer rendering */
+  .react-pdf__Page {
+    -webkit-font-smoothing: subpixel-antialiased;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .react-pdf__Page__canvas {
+    image-rendering: crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
+  }
+
+  .react-pdf__Page__textContent {
+    line-height: 1.3 !important;
+  }
+
+  .react-pdf__Page__textContent span {
+    line-height: 1.3 !important;
+    -webkit-font-smoothing: subpixel-antialiased;
+    min-height: 1em !important;
+  }
+}
+
+/* Cross-platform PDF canvas rendering */
+.react-pdf__Page__canvas {
+  image-rendering: high-quality;
+  backface-visibility: hidden;
 }
 
 /* Spinning animation for processing indicators */
@@ -531,22 +571,121 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   display: block;
 }
 
-/* Text layer (for selection and search) */
-.react-pdf__Page__textContent {
-  position: absolute !important;
-  left: 0 !important;
-  top: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  overflow: hidden !important;
-  opacity: 0.2 !important;
-  line-height: 1 !important;
+/* Text layer (for selection and search) - uses line-height 1.2 defined above */
+
+/* ========================================
+   MOBILE-ONLY RESPONSIVE STYLES
+   All changes use media queries - web unchanged
+   ======================================== */
+
+/* Safe Area Support for iOS Notch */
+@supports (padding: max(0px)) {
+  @media (max-width: 768px) {
+    /* Fixed elements should respect safe areas */
+    .mobile-safe-top {
+      padding-top: max(12px, env(safe-area-inset-top));
+    }
+
+    .mobile-safe-bottom {
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+
+    .mobile-safe-left {
+      padding-left: max(12px, env(safe-area-inset-left));
+    }
+
+    .mobile-safe-right {
+      padding-right: max(12px, env(safe-area-inset-right));
+    }
+
+    .mobile-safe-all {
+      padding-top: max(8px, env(safe-area-inset-top));
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      padding-left: max(8px, env(safe-area-inset-left));
+      padding-right: max(8px, env(safe-area-inset-right));
+    }
+  }
+
+  /* Small phones (320px - 374px) */
+  @media (max-width: 374px) {
+    .mobile-safe-all {
+      padding-top: max(6px, env(safe-area-inset-top));
+      padding-bottom: max(6px, env(safe-area-inset-bottom));
+      padding-left: max(6px, env(safe-area-inset-left));
+      padding-right: max(6px, env(safe-area-inset-right));
+    }
+  }
 }
 
-.react-pdf__Page__textContent span {
-  color: transparent !important;
-  position: absolute !important;
-  white-space: pre !important;
-  cursor: text !important;
-  transform-origin: 0% 0% !important;
+/* Mobile-only touch improvements */
+@media (max-width: 768px) {
+  /* Improve touch targets */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Prevent text selection on UI elements but allow on content */
+  .no-select-mobile {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Enable momentum scrolling */
+  .scrollable-mobile {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+
+  /* Prevent pull-to-refresh on specific elements */
+  .no-pull-refresh {
+    overscroll-behavior-y: contain;
+  }
+
+  /* Mobile-optimized font sizes */
+  .mobile-text-xs { font-size: 10px !important; }
+  .mobile-text-sm { font-size: 12px !important; }
+  .mobile-text-base { font-size: 14px !important; }
+  .mobile-text-lg { font-size: 16px !important; }
+  .mobile-text-xl { font-size: 18px !important; }
+
+  /* Mobile-optimized spacing */
+  .mobile-p-xs { padding: 4px !important; }
+  .mobile-p-sm { padding: 8px !important; }
+  .mobile-p-base { padding: 12px !important; }
+  .mobile-p-lg { padding: 16px !important; }
+
+  .mobile-gap-xs { gap: 4px !important; }
+  .mobile-gap-sm { gap: 8px !important; }
+  .mobile-gap-base { gap: 12px !important; }
+  .mobile-gap-lg { gap: 16px !important; }
+}
+
+/* Small phones specific */
+@media (max-width: 374px) {
+  .mobile-text-xs { font-size: 9px !important; }
+  .mobile-text-sm { font-size: 11px !important; }
+  .mobile-text-base { font-size: 13px !important; }
+  .mobile-text-lg { font-size: 14px !important; }
+
+  .mobile-p-sm { padding: 6px !important; }
+  .mobile-p-base { padding: 10px !important; }
+  .mobile-p-lg { padding: 12px !important; }
+
+  .mobile-gap-sm { gap: 6px !important; }
+  .mobile-gap-base { gap: 8px !important; }
+  .mobile-gap-lg { gap: 12px !important; }
+}
+
+/* Large phones specific */
+@media (min-width: 425px) and (max-width: 768px) {
+  .mobile-text-base { font-size: 15px !important; }
+  .mobile-text-lg { font-size: 18px !important; }
+
+  .mobile-p-base { padding: 14px !important; }
+  .mobile-p-lg { padding: 20px !important; }
+
+  .mobile-gap-base { gap: 14px !important; }
+  .mobile-gap-lg { gap: 20px !important; }
 }

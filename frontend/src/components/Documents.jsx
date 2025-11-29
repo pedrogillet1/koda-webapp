@@ -37,6 +37,7 @@ import { ReactComponent as UploadIconMenu } from '../assets/upload.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import logoSvg from '../assets/logo.svg';
 import sphereIcon from '../assets/sphere.svg';
+import kodaLogoWhite from '../assets/logo-white.svg';
 import kodaLogo from '../assets/koda-logo_1.svg';
 import logoCopyWhite from '../assets/Logo copy.svg';
 import filesIcon from '../assets/files-icon.svg';
@@ -676,6 +677,9 @@ const Documents = () => {
                     transition: 'all 0.2s'
                   }}
                 >
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                   <div style={{
                     color: '#32302C',
                     fontSize: 16,
@@ -2695,9 +2699,9 @@ const Documents = () => {
         itemType={itemToRename?.type}
       />
 
-      {/* Ask Koda Floating Button */}
+      {/* Ask Koda Floating Button - Thinking Bubble Style */}
       {showAskKoda && (
-        <div style={{ width: 280, height: 56, right: 20, bottom: 20, position: 'absolute' }}>
+        <div style={{ width: 277, height: 82, right: 20, bottom: 20, position: 'absolute' }}>
           {/* Close button */}
           <button
             onClick={(e) => {
@@ -2706,10 +2710,10 @@ const Documents = () => {
               setShowAskKoda(false);
             }}
             style={{
-              width: 20,
-              height: 20,
+              width: 24,
+              height: 24,
               right: 0,
-              top: -2,
+              top: 0,
               position: 'absolute',
               background: 'white',
               borderRadius: 100,
@@ -2723,10 +2727,12 @@ const Documents = () => {
               zIndex: 10
             }}
           >
-            <div style={{ width: 10, height: 10, position: 'relative', overflow: 'hidden' }}>
-              <XCloseIcon style={{ width: 10, height: 10, position: 'absolute', left: 0, top: 0 }} />
+            <div style={{ width: 12, height: 12, position: 'relative', overflow: 'hidden' }}>
+              <XCloseIcon style={{ width: 12, height: 12, position: 'absolute', left: 0, top: 0 }} />
             </div>
           </button>
+          {/* Thinking bubble - Large circle */}
+          <div style={{ width: 14, height: 14, right: 44, top: 9, position: 'absolute', background: '#171717', borderRadius: 9999 }} />
           <button
             onClick={async () => {
               try {
@@ -2738,13 +2744,13 @@ const Documents = () => {
               }
             }}
             style={{
-              height: 56,
-              paddingLeft: 10,
-              paddingRight: 20,
-              paddingTop: 10,
-              paddingBottom: 10,
-              left: 0,
-              top: 0,
+              height: 60,
+              paddingLeft: 4,
+              paddingRight: 18,
+              paddingTop: 8,
+              paddingBottom: 8,
+              bottom: 0,
+              right: 0,
               position: 'absolute',
               background: '#171717',
               borderRadius: 100,
@@ -2764,13 +2770,13 @@ const Documents = () => {
               e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 4, display: 'flex' }}>
+            <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 0, display: 'flex' }}>
               <img
-                src={sphereIcon}
+                src={kodaLogoWhite}
                 alt="Koda"
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 50,
+                  height: 50,
                   flexShrink: 0
                 }}
               />
@@ -2788,6 +2794,7 @@ const Documents = () => {
               </div>
             </div>
           </button>
+          {/* Thinking bubble - Small circle */}
           <div style={{ width: 7, height: 7, right: 33, top: 0, position: 'absolute', background: '#171717', borderRadius: 9999 }} />
         </div>
       )}

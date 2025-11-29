@@ -15,7 +15,7 @@ import { ReactComponent as SettingsIcon } from '../assets/Settings.svg';
 import { ReactComponent as SettingsFilledIcon } from '../assets/Settings-filled.svg';
 import { ReactComponent as SignoutIcon } from '../assets/signout.svg';
 import LogoutModal from './LogoutModal';
-import { useIsMobile } from '../hooks/useIsMobile';
+import { useIsMobile, useMobileBreakpoints } from '../hooks/useIsMobile';
 import { useDocuments } from '../context/DocumentsContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -26,12 +26,22 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const isMobile = useIsMobile();
+    const mobile = useMobileBreakpoints();
     const { refreshAll } = useDocuments();
     const { user } = useAuth(); // ✅ Check if user is authenticated
     const [isExpanded, setIsExpanded] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+
+    // ADAPTIVE SIZING - MOBILE ONLY
+    const hamburgerSize = isMobile ? mobile.buttonSize : 44;
+    const hamburgerLeft = isMobile ? mobile.padding.base : 16;
+    const sidebarWidth = isMobile ? (mobile.isSmallPhone ? 260 : 280) : 280;
+    const sidebarPadding = isMobile ? `${mobile.padding.lg}px 0` : '20px 0';
+    const menuItemPadding = isMobile ? `${mobile.padding.base}px ${mobile.padding.lg}px` : '12px 20px';
+    const menuFontSize = isMobile ? mobile.fontSize.base : 14;
+    const menuIconSize = isMobile ? mobile.iconSize.base : 24;
 
     // ✅ Handle auth button click - Sign In or Sign Out based on authentication
     const handleAuthButtonClick = () => {
@@ -69,19 +79,19 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
     if (isMobile) {
         return (
             <>
-                {/* Hamburger Button */}
+                {/* Hamburger Button - ADAPTIVE SIZING */}
                 <button
                     onClick={() => setIsMobileMenuOpen(true)}
                     style={{
                         position: 'fixed',
                         top: hamburgerTop,
-                        left: 16,
+                        left: hamburgerLeft,
                         zIndex: 1000,
-                        width: 44,
-                        height: 44,
+                        width: hamburgerSize,
+                        height: hamburgerSize,
                         background: 'rgba(24, 24, 24, 0.90)',
                         border: 'none',
-                        borderRadius: 12,
+                        borderRadius: mobile.borderRadius.base,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -89,7 +99,7 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
                     }}
                 >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg width={menuIconSize} height={menuIconSize} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M3 12H21M3 6H21M3 18H21" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                 </button>
@@ -111,22 +121,24 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                     />
                 )}
 
-                {/* Sidebar Drawer */}
+                {/* Sidebar Drawer - ADAPTIVE WIDTH */}
                 <div style={{
                     position: 'fixed',
                     top: 0,
                     left: 0,
                     bottom: 0,
-                    width: 280,
+                    width: sidebarWidth,
+                    maxWidth: '85vw', // Never exceed 85% of viewport
                     background: 'rgba(24, 24, 24, 0.90)',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    padding: '20px 0',
+                    padding: sidebarPadding,
                     transform: isMobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
                     transition: 'transform 0.3s ease',
                     zIndex: 1002,
-                    overflowY: 'auto'
+                    overflowY: 'auto',
+                    WebkitOverflowScrolling: 'touch'
                 }}>
                     {/* Close button */}
                     <div style={{position: 'absolute', top: 16, right: 16}}>

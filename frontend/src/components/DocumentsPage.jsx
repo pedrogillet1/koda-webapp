@@ -508,7 +508,6 @@ const DocumentsPage = () => {
                 <button
                   onClick={() => {
                     if (selectedDocuments.size === 0) return;
-                    // Open category selection modal for moving
                     alert('Move functionality - implement folder selection modal');
                   }}
                   disabled={selectedDocuments.size === 0}
@@ -517,7 +516,7 @@ const DocumentsPage = () => {
                     paddingRight: 18,
                     paddingTop: 10,
                     paddingBottom: 10,
-                    background: '#F5F5F5',
+                    background: selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8',
                     boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
                     overflow: 'hidden',
                     borderRadius: 100,
@@ -529,16 +528,28 @@ const DocumentsPage = () => {
                     display: 'inline-flex',
                     border: 'none',
                     cursor: selectedDocuments.size === 0 ? 'not-allowed' : 'pointer',
-                    opacity: selectedDocuments.size === 0 ? 0.5 : 1,
+                    opacity: selectedDocuments.size === 0 ? 0.6 : 1,
                     transition: 'all 0.2s'
                   }}
+                  onMouseEnter={(e) => {
+                    if (selectedDocuments.size > 0) {
+                      e.currentTarget.style.background = '#D8D8DE';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = selectedDocuments.size === 0 ? '#F3F3F5' : '#E4E4E8';
+                  }}
                 >
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 3.75V14.25M3.75 9H14.25" stroke={selectedDocuments.size === 0 ? '#A0A0A5' : '#181818'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                   <div style={{
-                    color: '#32302C',
+                    color: selectedDocuments.size === 0 ? '#A0A0A5' : '#181818',
                     fontSize: 16,
                     fontFamily: 'Plus Jakarta Sans',
-                    fontWeight: '600',
-                    lineHeight: '24px'
+                    fontWeight: '500',
+                    lineHeight: '24px',
+                    wordWrap: 'break-word'
                   }}>
                     Move
                   </div>

@@ -389,12 +389,31 @@ const DocumentViewer = () => {
     return { url: actualDocumentUrl };
   }, [actualDocumentUrl]);
 
-  const pdfOptions = useMemo(() => ({
-    cMapUrl: 'https://unpkg.com/pdfjs-dist@' + pdfjs.version + '/cmaps/',
-    cMapPacked: true,
-    // Add better error handling for PDF loading
-    isEvalSupported: false,
-  }), []);
+  const pdfOptions = useMemo(() => {
+    const isMacOS = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const isSafari = navigator.userAgent.toLowerCase().indexOf('safari') !== -1 &&
+                     navigator.userAgent.toLowerCase().indexOf('chrome') === -1;
+
+    const baseOptions = {
+      cMapUrl: 'https://unpkg.com/pdfjs-dist@' + pdfjs.version + '/cmaps/',
+      cMapPacked: true,
+      isEvalSupported: false,
+    };
+
+    // Mac Safari: Use additional options for better text rendering
+    if (isMacOS && isSafari) {
+      return {
+        ...baseOptions,
+        disableAutoFetch: false,
+        disableStream: false,
+        rangeChunkSize: 65536,
+        useSystemFonts: true,
+        standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@' + pdfjs.version + '/standard_fonts/',
+      };
+    }
+
+    return baseOptions;
+  }, []);
 
   const formatFileSize = (bytes) => {
     if (!bytes) return '0 B';
