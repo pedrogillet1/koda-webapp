@@ -35,6 +35,7 @@ import CategoryDetail from './components/CategoryDetail';
 import DocumentViewer from './components/DocumentViewer';
 import UploadHub from './components/UploadHub';
 import Settings from './components/Settings';
+import FileTypeDetail from './components/FileTypeDetail';
 import Upgrade from './components/Upgrade';
 
 function App() {
@@ -91,6 +92,7 @@ function App() {
             <Route path="/document/:documentId" element={<ProtectedRoute><DocumentViewer /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/filetype/:fileType" element={<ProtectedRoute><FileTypeDetail /></ProtectedRoute>} />
             <Route path="/upgrade" element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
               </Routes>
               </div>

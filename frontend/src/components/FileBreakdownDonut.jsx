@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDocuments } from '../context/DocumentsContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -14,6 +15,7 @@ import mp4Icon from '../assets/mp4.png';
 
 const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, semicircle = false, style = {} }) => {
   const { documents } = useDocuments();
+  const navigate = useNavigate();
   const [hoveredType, setHoveredType] = useState(null);
   const isMobile = useIsMobile();
 
@@ -171,6 +173,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                     transform: isHovered ? 'scale(1.08)' : 'scale(1)',
                     cursor: hasFiles ? 'pointer' : 'default'
                   }}
+                  onClick={() => hasFiles && navigate(`/filetype/${item.type}`)}
                   onMouseEnter={() => hasFiles && setHoveredType(item.type)}
                   onMouseLeave={() => setHoveredType(null)}
                 >
@@ -251,6 +254,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                     transition: 'opacity 0.2s ease-out, transform 0.2s ease-out',
                     cursor: hasFiles ? 'pointer' : 'default'
                   }}
+                  onClick={() => hasFiles && navigate(`/filetype/${item.type}`)}
                   onMouseEnter={() => hasFiles && setHoveredType(item.type)}
                   onMouseLeave={() => setHoveredType(null)}
                 >
