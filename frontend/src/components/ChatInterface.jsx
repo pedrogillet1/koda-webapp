@@ -25,6 +25,7 @@ import FailedMessage from './FailedMessage';
 import TypingIndicator from './TypingIndicator';
 import FileUploadPreview from './FileUploadPreview';
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts';
+import useStreamingAnimation from '../hooks/useStreamingAnimation';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import './MarkdownStyles.css';
 import StreamingWelcomeMessage from './StreamingWelcomeMessage';
@@ -99,7 +100,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const searchInputRef = useRef(null); // For focusing search via keyboard shortcut
 
     // Display streaming chunks immediately without animation for smoother UX (like ChatGPT)
-    const displayedText = streamingMessage;
+    // ✅ ChatGPT-style streaming animation
+    const animatedStreamingMessage = useStreamingAnimation(streamingMessage, 2, 30);
+    const displayedText = animatedStreamingMessage;
     const isStreaming = isLoading && streamingMessage.length > 0;
 
     // ✅ KEYBOARD SHORTCUTS: Power user shortcuts for faster navigation
