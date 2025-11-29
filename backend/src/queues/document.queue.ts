@@ -386,6 +386,9 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
     ]);
 
     // Extract results from parallel execution
+    // Initialize metadata with empty object to prevent undefined errors
+    let metadata: any = {};
+
     if (textResult.status === 'fulfilled') {
       extractedText = textResult.value.text;
       ocrConfidence = textResult.value.confidence;
@@ -396,7 +399,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       markdownContent = markdownResult.value.markdownContent;
       markdownStructure = JSON.stringify(markdownResult.value.structure);
       images = markdownResult.value.images;
-      metadata = markdownResult.value.metadata;
+      metadata = markdownResult.value.metadata || {};
     }
 
     if (docxConversionResult.status === 'fulfilled' && docxConversionResult.value) {
