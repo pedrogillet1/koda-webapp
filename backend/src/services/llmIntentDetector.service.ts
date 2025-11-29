@@ -113,14 +113,23 @@ ${contextSection}
    - **Extract**: filename
 
 8. **show_file**
-   - **Description**: User wants to preview/see/view/open a specific file.
-   - **Keywords**: "show me", "open", "view", "see", "take me to", "abrir", "ouvrir"
-   - **Examples (EN)**: "show me this file", "show me document X", "show me the file with Y", "take me to file X", "open document X", "I want to see this file", "show me image 1", "let me see the file"
-   - **Examples (PT)**: "me mostra este arquivo", "me mostra o arquivo X", "mostre o documento X", "abrir arquivo X", "quero ver este arquivo", "mostre-me o arquivo X"
-   - **Examples (ES)**: "muéstrame este archivo", "muéstrame el archivo X", "mostrar documento X", "abrir archivo X", "quiero ver este archivo"
-   - **Examples (FR)**: "montre-moi ce fichier", "montre-moi le fichier X", "montrer document X", "ouvrir fichier X", "je veux voir ce fichier"
-   - **CONTEXT RESOLUTION**: If user says "this file", "that document", "the file", "it", or similar contextual reference, look at the conversation context above and extract the actual filename from the previous messages. Return the real filename, NOT "this file".
-   - **Extract**: filename (the file name or reference)
+   - **Description**: User wants to preview/see/view/open a specific file. This includes ALL natural ways of asking to see a file.
+   - **Keywords**: "show me", "open", "view", "see", "display", "pull up", "bring up", "present", "reveal", "look at", "check", "review", "examine", "inspect", "read", "abrir", "ouvrir", "ver", "mostrar"
+
+   - **PATTERN 1 - Direct Commands (EN)**: "show me X", "open X", "display X", "view X", "pull up X", "bring up X", "present X", "let me see X", "let me look at X", "let me check X"
+   - **PATTERN 2 - Polite Requests (EN)**: "can I see X?", "could you show me X?", "would you open X?", "can you display X?", "could you pull up X?", "would you mind showing X?", "please show me X"
+   - **PATTERN 3 - Indirect Requests (EN)**: "I need to see X", "I want to look at X", "I'd like to review X", "I should check X", "I have to examine X", "I must review X"
+   - **PATTERN 4 - Question-Based (EN)**: "what's in the X file?", "what does X say?", "where is X?", "how does X look?"
+   - **PATTERN 5 - Implied Actions (EN)**: "X please", "X?", "the X document", "I'm looking for X", "need X", "need the X file"
+
+   - **Examples (PT)**: "me mostra X", "mostre o X", "pode abrir X?", "quero ver X", "preciso ver X", "o que tem no X?", "abre o X", "deixa eu ver X", "pode me mostrar X?"
+   - **Examples (ES)**: "muéstrame X", "abre X", "¿puedes mostrarme X?", "quiero ver X", "necesito ver X", "¿qué hay en X?", "déjame ver X"
+   - **Examples (FR)**: "montre-moi X", "ouvre X", "peux-tu me montrer X?", "je veux voir X", "j'ai besoin de voir X", "qu'y a-t-il dans X?", "laisse-moi voir X"
+
+   - **CONTEXT RESOLUTION**: If user says "this file", "that document", "the file", "it", "the one about X", "the paper on Y", or similar contextual reference, look at the conversation context above and extract the actual filename from the previous messages. Return the real filename, NOT the contextual reference.
+   - **TOPIC RESOLUTION**: If user says "the document about trading" or "the paper on machine learning", extract the topic and return it as the filename search term.
+
+   - **Extract**: filename (the file name, topic reference, or contextual reference resolved to actual filename)
 
 9. **metadata_query**
    - **Description**: User wants information about files (size, type, date, count).

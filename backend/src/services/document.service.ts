@@ -1263,6 +1263,38 @@ async function processDocumentWithTimeout(
       });
 
       console.log('✅ NER extraction running in background (non-blocking)');
+
+      // ⚡ METHODOLOGY KNOWLEDGE EXTRACTION - Run in background (non-blocking)
+      // This builds the methodology knowledge base for "What is X?" queries
+      Promise.resolve().then(async () => {
+        try {
+          const { methodologyExtractionService } = await import('./methodologyExtraction.service');
+          console.log('📚 [Background] Extracting methodology knowledge...');
+          await methodologyExtractionService.processDocumentForKnowledge(userId, documentId, extractedText);
+          console.log('✅ [Background] Methodology knowledge extraction complete');
+        } catch (methodologyError: any) {
+          // Methodology extraction is not critical - log error but continue
+          console.warn(`⚠️ [Background] Methodology extraction failed (non-critical):`, methodologyError.message);
+        }
+      });
+
+      console.log('✅ Methodology knowledge extraction running in background (non-blocking)');
+
+      // ⚡ DOMAIN KNOWLEDGE EXTRACTION - Run in background (non-blocking)
+      // This builds the domain knowledge base for term definitions, formulas, etc.
+      Promise.resolve().then(async () => {
+        try {
+          const { domainKnowledgeService } = await import('./domainKnowledge.service');
+          console.log('🎓 [Background] Extracting domain knowledge...');
+          await domainKnowledgeService.extractFromDocument(extractedText, documentId, userId);
+          console.log('✅ [Background] Domain knowledge extraction complete');
+        } catch (domainError: any) {
+          // Domain extraction is not critical - log error but continue
+          console.warn(`⚠️ [Background] Domain knowledge extraction failed (non-critical):`, domainError.message);
+        }
+      });
+
+      console.log('✅ Domain knowledge extraction running in background (non-blocking)');
     } else {
       console.log(`⚠️ Skipping NER: No extracted text available`);
     }

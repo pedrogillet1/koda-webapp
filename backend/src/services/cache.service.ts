@@ -377,6 +377,18 @@ class CacheService {
   /**
    * Clear all cache (use with caution!)
    */
+  /**
+   * Delete a specific cache key
+   */
+  async del(key: string): Promise<void> {
+    try {
+      this.cache.del(key);
+      console.log(`🗑️  [Cache] Deleted key: ${key.substring(0, 50)}...`);
+    } catch (error) {
+      console.error('❌ [Cache] Error deleting key:', error);
+    }
+  }
+
   async clearAll(): Promise<void> {
     try {
       this.cache.flushAll();

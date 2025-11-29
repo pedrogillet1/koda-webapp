@@ -548,6 +548,34 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       console.error(`❌ [DOC:${documentId}] Embedding generation failed (non-critical):`, embeddingError);
     }
 
+
+    // Step 8: Extract all knowledge for cross-document synthesis
+    // REASON: Enable ChatGPT-level intelligence by building a knowledge graph
+    // WHY: Store definitions, methodologies, causal relationships, and comparisons
+    // IMPACT: Transform "47 papers found" to intelligent synthesis with insights
+    try {
+      if (extractedText && extractedText.length > 200) {
+        console.log(`📚 [DOC:${documentId}] Extracting knowledge for synthesis...`);
+        const { knowledgeExtractionService } = await import('../services/knowledgeExtraction.service');
+
+        // Extract all types of knowledge from document
+        const knowledgeResult = await knowledgeExtractionService.extractKnowledge(
+          documentId,
+          extractedText,
+          userId
+        );
+
+        console.log(`✅ [DOC:${documentId}] Knowledge extraction complete:`);
+        console.log(`   - ${knowledgeResult.definitions.length} definitions`);
+        console.log(`   - ${knowledgeResult.methodologies.length} methodologies`);
+        console.log(`   - ${knowledgeResult.causalRelationships.length} causal relationships`);
+        console.log(`   - ${knowledgeResult.comparisons.length} comparisons`);
+      }
+    } catch (knowledgeError) {
+      // Do not fail the entire job if knowledge extraction fails
+      console.warn(`⚠️ [DOC:${documentId}] Knowledge extraction failed (non-critical):`, knowledgeError);
+    }
+
     // ✅ CRITICAL FIX: Update status to 'completed' AFTER embeddings are stored
     // This prevents race condition where frontend queries before Pinecone has the data
     await prisma.document.update({
