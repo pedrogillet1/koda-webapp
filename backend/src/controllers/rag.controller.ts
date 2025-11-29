@@ -1601,17 +1601,15 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         data: { updatedAt: new Date() },
       });
 
-      // ✅ NEW: Send action event with notification data
+      // ✅ NEW: Send action event with notification data for create_folder
       res.write(`data: ${JSON.stringify({
         type: 'action',
-        actionType: 'rename_file',
+        actionType: 'create_folder',
         success: result.success,
-        document: result.data?.document,
         notification: {
           type: result.success ? 'success' : 'error',
           message: result.message,
-          oldName: intentResult.parameters.oldFilename,
-          newName: intentResult.parameters.newFilename
+          folderName: intentResult.parameters.folderName
         }
       })}\n\n`);
 
@@ -1674,6 +1672,19 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         data: { updatedAt: new Date() },
       });
 
+      // ✅ NEW: Send action event with notification data for move_files
+      res.write(`data: ${JSON.stringify({
+        type: 'action',
+        actionType: 'move_file',
+        success: result.success,
+        notification: {
+          type: result.success ? 'success' : 'error',
+          message: result.message,
+          filename: intentResult.parameters.filename,
+          targetFolder: intentResult.parameters.targetFolder
+        }
+      })}\n\n`);
+
       // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
       res.write(`data: ${JSON.stringify({
@@ -1731,6 +1742,20 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
+
+      // ✅ NEW: Send action event with notification data for rename_file
+      res.write(`data: ${JSON.stringify({
+        type: 'action',
+        actionType: 'rename_file',
+        success: result.success,
+        document: result.data?.document,
+        notification: {
+          type: result.success ? 'success' : 'error',
+          message: result.message,
+          oldName: intentResult.parameters.oldFilename,
+          newName: intentResult.parameters.newFilename
+        }
+      })}\n\n`);
 
       // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
@@ -1792,6 +1817,18 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
+
+      // ✅ NEW: Send action event with notification data for delete_file
+      res.write(`data: ${JSON.stringify({
+        type: 'action',
+        actionType: 'delete_file',
+        success: result.success,
+        notification: {
+          type: result.success ? 'success' : 'error',
+          message: result.message,
+          filename: intentResult.parameters.filename
+        }
+      })}\n\n`);
 
       // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);

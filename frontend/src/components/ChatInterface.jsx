@@ -608,9 +608,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 console.log('✅ setIsLoading(false) called successfully');
             });
 
-            // ✅ NEW: Listen for action events (show_file_modal, etc.)
+            // ✅ NEW: Listen for action events (show_file_modal, file action notifications)
             chatService.onAction((data) => {
                 console.log('🎬 [ACTION] Received WebSocket action:', data.actionType, data);
+
+                // Show file modal
                 if (data.actionType === 'show_file_modal' && data.success && data.document) {
                     console.log('👁️ [SHOW_FILE_MODAL] Opening preview for:', data.document.filename);
                     setPreviewDocument({
@@ -620,6 +622,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         fileSize: data.document.fileSize
                     });
                     setPreviewAttachOnClose(data.attachOnClose || false);
+                }
+
+                // ✅ NEW: Handle file action notifications (rename, move, delete, create folder)
+                if (data.notification) {
+                    const { notification, success } = data;
+                    if (success) {
+                        showSuccess(notification.message, { duration: 4000 });
+                    } else {
+                        showError(notification.message, { duration: 5000 });
+                    }
                 }
             });
         }
@@ -2225,8 +2237,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         setStreamingMessage(streamedContent);
                                         console.log('🚀 [DEBUG] Called setStreamingMessage');
                                     } else if (data.type === 'action') {
-                                        // ✅ NEW: Handle show_file_modal action
+                                        // ✅ Handle action events (show_file_modal, file actions with notifications)
                                         console.log('🎬 [ACTION] Received action:', data.actionType, data);
+
+                                        // Show file modal
                                         if (data.actionType === 'show_file_modal' && data.success && data.document) {
                                             console.log('👁️ [SHOW_FILE_MODAL] Opening preview for:', data.document.filename);
                                             setPreviewDocument({
@@ -2236,6 +2250,18 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 fileSize: data.document.fileSize
                                             });
                                             setPreviewAttachOnClose(data.attachOnClose || false);
+                                        }
+
+                                        // ✅ NEW: Handle file action notifications (rename, move, delete, create folder)
+                                        if (data.notification) {
+                                            const { notification, success } = data;
+                                            if (success) {
+                                                // Show success toast with the message
+                                                showSuccess(notification.message, { duration: 4000 });
+                                            } else {
+                                                // Show error toast
+                                                showError(notification.message, { duration: 5000 });
+                                            }
                                         }
                                     } else if (data.type === 'done') {
                                         metadata = data;
