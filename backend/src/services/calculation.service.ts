@@ -358,8 +358,8 @@ class CalculationService {
 
     const lowerQuery = query.toLowerCase();
 
-    // Handle percentage calculations: "20% of 500", "15 percent of 1000"
-    const percentMatch = query.match(/(\d+(?:\.\d+)?)\s*%?\s*(?:percent\s+)?of\s+(\d+(?:\.\d+)?)/i);
+    // Handle percentage calculations: "20% of 500", "15 percent of 1000", "20 % of 500"
+    const percentMatch = query.match(/(\d+(?:\.\d+)?)\s*%?\s*(?:percent)?\s+of\s+(\d+(?:\.\d+)?)/i);
     if (percentMatch) {
       const percentage = parseFloat(percentMatch[1]);
       const total = parseFloat(percentMatch[2]);

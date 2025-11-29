@@ -39,15 +39,42 @@ async function generateReport() {
       select: {
         id: true,
         filename: true,
-        renderableContent: true
+        renderableContent: true,
+        extractedTextEncrypted: true,
+        isEncrypted: true
       }
     });
 
     if (markdownDocs.length > 0) {
       const mdDoc = markdownDocs[0];
       report += `**Filename:** ${mdDoc.filename}\n\n`;
-      report += `**Content Length:** ${mdDoc.renderableContent?.length || 0} characters\n\n`;
-      report += `**Content Preview (first 500 chars):**\n\`\`\`\n${mdDoc.renderableContent?.substring(0, 500) || 'No content'}\n\`\`\`\n\n`;
+
+      // Try to get actual content
+      let contentToShow = 'No content available';
+      let contentLength = 0;
+
+      if (mdDoc.isEncrypted && mdDoc.extractedTextEncrypted) {
+        contentToShow = '[Content is encrypted - cannot display in plaintext]\n\nNote: Use the document decryption API endpoint to access encrypted content.';
+        contentLength = mdDoc.extractedTextEncrypted.length;
+      } else if (mdDoc.renderableContent) {
+        // Check if renderableContent is JSON metadata or actual content
+        try {
+          const parsed = JSON.parse(mdDoc.renderableContent);
+          if (parsed && typeof parsed === 'object' && parsed.topic) {
+            contentToShow = `[Metadata Only]\n\nTopic: ${parsed.topic}\nSource: ${parsed.source || 'N/A'}\nCreated By: ${parsed.createdBy || 'N/A'}\nWord Count: ${parsed.wordCount || 'N/A'}`;
+            contentLength = 0;
+          } else {
+            contentToShow = mdDoc.renderableContent;
+            contentLength = mdDoc.renderableContent.length;
+          }
+        } catch {
+          contentToShow = mdDoc.renderableContent;
+          contentLength = mdDoc.renderableContent.length;
+        }
+      }
+
+      report += `**Content Length:** ${contentLength} characters\n\n`;
+      report += `**Content Preview (first 500 chars):**\n\`\`\`\n${contentToShow.substring(0, 500)}\n\`\`\`\n\n`;
     }
     report += '---\n\n';
 
@@ -136,17 +163,38 @@ async function generateReport() {
 
     // Test 7: User Memory
     report += '## Test 7: User Memory\n\n';
-    const [profile, preferences, topics] = await Promise.all([
+    const [profile, allPreferences, allTopics] = await Promise.all([
       prisma.user_profiles.findUnique({
         where: { userId: TEST_USER_ID }
       }),
       prisma.user_preferences_memory.findMany({
-        where: { userId: TEST_USER_ID }
+        where: { userId: TEST_USER_ID },
+        orderBy: { confidence: 'desc' }
       }),
       prisma.conversation_topics.findMany({
-        where: { userId: TEST_USER_ID }
+        where: { userId: TEST_USER_ID },
+        orderBy: { lastSeen: 'desc' }
       })
     ]);
+
+    // Deduplicate preferences by (preferenceType, preferenceValue)
+    const preferencesMap = new Map();
+    allPreferences.forEach(p => {
+      const key = `${p.preferenceType}:${p.preferenceValue}`;
+      if (!preferencesMap.has(key)) {
+        preferencesMap.set(key, p);
+      }
+    });
+    const preferences = Array.from(preferencesMap.values());
+
+    // Deduplicate topics by topicSummary
+    const topicsMap = new Map();
+    allTopics.forEach(t => {
+      if (!topicsMap.has(t.topicSummary)) {
+        topicsMap.set(t.topicSummary, t);
+      }
+    });
+    const topics = Array.from(topicsMap.values());
 
     report += '### User Profile\n\n';
     if (profile) {
@@ -196,6 +244,8 @@ async function generateReport() {
         fileSize: true,
         mimeType: true,
         renderableContent: true,
+        extractedTextEncrypted: true,
+        isEncrypted: true,
         createdAt: true,
         updatedAt: true
       }
@@ -204,8 +254,35 @@ async function generateReport() {
     if (fullTextDoc) {
       report += `**Filename:** ${fullTextDoc.filename}\n\n`;
       report += `**Size:** ${fullTextDoc.fileSize} bytes\n\n`;
-      report += `**Content Length:** ${fullTextDoc.renderableContent?.length || 0} characters\n\n`;
-      report += `**Full Content:**\n\n\`\`\`markdown\n${fullTextDoc.renderableContent || 'No content'}\n\`\`\`\n\n`;
+      report += `**Encryption Status:** ${fullTextDoc.isEncrypted ? '🔒 Encrypted' : '🔓 Not Encrypted'}\n\n`;
+
+      // Try to get actual content
+      let fullContent = 'No content available';
+      let fullContentLength = 0;
+
+      if (fullTextDoc.isEncrypted && fullTextDoc.extractedTextEncrypted) {
+        fullContent = '[Content is encrypted - cannot display in plaintext]\n\n📋 To view encrypted content:\n1. Use the document decryption API endpoint\n2. Provide proper user authentication\n3. Content will be decrypted server-side with user\'s master key';
+        fullContentLength = fullTextDoc.extractedTextEncrypted.length;
+        report += `**Encrypted Content Length:** ${fullContentLength} bytes\n\n`;
+      } else if (fullTextDoc.renderableContent) {
+        // Check if renderableContent is JSON metadata or actual content
+        try {
+          const parsed = JSON.parse(fullTextDoc.renderableContent);
+          if (parsed && typeof parsed === 'object' && parsed.topic) {
+            fullContent = `[Metadata Only]\n\nTopic: ${parsed.topic}\nSource: ${parsed.source || 'N/A'}\nCreated By: ${parsed.createdBy || 'N/A'}\nWord Count: ${parsed.wordCount || 'N/A'}\nGenerated From: ${parsed.generatedFrom || 'N/A'}\nConversation ID: ${parsed.conversationId || 'N/A'}`;
+            fullContentLength = 0;
+          } else {
+            fullContent = fullTextDoc.renderableContent;
+            fullContentLength = fullTextDoc.renderableContent.length;
+          }
+        } catch {
+          fullContent = fullTextDoc.renderableContent;
+          fullContentLength = fullTextDoc.renderableContent.length;
+        }
+        report += `**Content Length:** ${fullContentLength} characters\n\n`;
+      }
+
+      report += `**Full Content:**\n\n\`\`\`markdown\n${fullContent}\n\`\`\`\n\n`;
     } else {
       report += 'No markdown document found\n\n';
     }
@@ -213,16 +290,34 @@ async function generateReport() {
     // Write report to file
     const reportPath = 'DOCUMENT_QUERY_RESULTS.md';
     fs.writeFileSync(reportPath, report);
-    console.log(`\n✅ Report generated: ${reportPath}\n`);
-    console.log(`📊 Summary:`);
-    console.log(`   - Total Documents: ${documents.length}`);
-    console.log(`   - Total Size: ${(metadata._sum.fileSize / 1024).toFixed(2)} KB`);
-    console.log(`   - User Profile: ${profile ? 'Found' : 'Not found'}`);
-    console.log(`   - Preferences: ${preferences.length}`);
-    console.log(`   - Topics: ${topics.length}`);
+
+    console.log('\n' + '='.repeat(60));
+    console.log('✅ Document Query Report Generated Successfully');
+    console.log('='.repeat(60));
+    console.log(`\n📄 Report saved to: ${reportPath}\n`);
+    console.log('📊 Summary Statistics:\n');
+    console.log(`   📁 Total Documents: ${documents.length}`);
+    console.log(`   💾 Total Size: ${(metadata._sum.fileSize / 1024).toFixed(2)} KB (${(metadata._sum.fileSize / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`   📈 Average Size: ${(metadata._avg.fileSize / 1024).toFixed(2)} KB`);
+    console.log(`   🔼 Largest File: ${(metadata._max.fileSize / 1024).toFixed(2)} KB`);
+    console.log(`   🔽 Smallest File: ${(metadata._min.fileSize / 1024).toFixed(2)} KB`);
+    console.log(`\n👤 User Profile: ${profile ? '✅ Found' : '❌ Not found'}`);
+    console.log(`   ⚙️  Preferences: ${preferences.length} unique`);
+    console.log(`   💬 Topics: ${topics.length} unique`);
+    console.log(`\n📝 File Type Breakdown:`);
+    console.log(`   📄 Markdown: ${mdCount}`);
+    console.log(`   📕 PDF: ${pdfCount}`);
+    console.log(`   📘 DOCX: ${docxCount}`);
+    console.log('\n' + '='.repeat(60) + '\n');
 
   } catch (error) {
-    console.error('Error generating report:', error);
+    console.error('\n' + '='.repeat(60));
+    console.error('❌ Error Generating Report');
+    console.error('='.repeat(60));
+    console.error('\n🔴 Error details:');
+    console.error(error);
+    console.error('\n' + '='.repeat(60) + '\n');
+    process.exit(1);
   } finally {
     await prisma.$disconnect();
   }
