@@ -121,7 +121,7 @@ const CategoryDetail = () => {
   const { categoryName, folderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { showSuccess } = useToast();
+  const { showSuccess, showDeleteSuccess } = useToast();
   const isMobile = useIsMobile();
   const {
     documents: contextDocuments,
@@ -601,7 +601,7 @@ const CategoryDetail = () => {
         const successCount = results.filter(r => r && r.success).length;
 
         if (successCount > 0) {
-          showSuccess(`${successCount} file${successCount > 1 ? 's have' : ' has'} been deleted`);
+          showDeleteSuccess('file');
         }
 
         if (successCount < deleteCount) {
@@ -619,7 +619,7 @@ const CategoryDetail = () => {
 
         // Show success message after optimistic update
         if (result && result.success) {
-          showSuccess('1 file has been deleted');
+          showDeleteSuccess('file');
         }
 
         // ✅ NO refreshAll() - context handles updates automatically
@@ -628,7 +628,7 @@ const CategoryDetail = () => {
         // ✅ FAST: Use context for folder deletion (optimistic update)
         await deleteFolder(itemToDeleteCopy.id);
 
-        showSuccess('1 folder has been deleted');
+        showDeleteSuccess('folder');
 
         // Navigate to home with replace to avoid stale browser history cache
         navigate('/', { replace: true });

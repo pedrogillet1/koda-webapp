@@ -46,7 +46,7 @@ import filesIcon from '../assets/files-icon.svg';
 const DocumentsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { showSuccess } = useToast();
+  const { showSuccess, showDeleteSuccess } = useToast();
   const isMobile = useIsMobile();
 
   // Get global state from context
@@ -183,7 +183,7 @@ const DocumentsPage = () => {
     try {
       // Use context to delete folder (instant UI update!)
       await deleteFolder(categoryId);
-      showSuccess('1 folder has been deleted');
+      showDeleteSuccess('folder');
     } catch (error) {
       const errorMessage = error.response?.data?.error || error.message || 'Failed to delete folder';
       alert(errorMessage);
@@ -245,7 +245,7 @@ const DocumentsPage = () => {
 
       // Show success message only after successful delete
       if (result && result.success) {
-        showSuccess('1 file has been deleted');
+        showDeleteSuccess('file');
       }
 
       setOpenDropdownId(null);
@@ -1753,8 +1753,11 @@ const DocumentsPage = () => {
         }}
         initialFiles={droppedFiles}
       />
-      {/* Debug: Log when props change */}
-      {
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
           setItemToDelete(null);
         }}
         onConfirm={() => {
@@ -1791,11 +1794,11 @@ const DocumentsPage = () => {
 
                 // Show appropriate message
                 if (failed === 0) {
-                  showSuccess(`${deleteCount} file${deleteCount > 1 ? 's have' : ' has'} been deleted`);
+                  showDeleteSuccess('file');
                 } else if (succeeded === 0) {
                   alert(`Failed to delete ${failed} file${failed > 1 ? 's' : ''}`);
                 } else {
-                  showSuccess(`${succeeded} file${succeeded > 1 ? 's' : ''} deleted`);
+                  showDeleteSuccess('file');
                   alert(`Failed to delete ${failed} file${failed > 1 ? 's' : ''}`);
                 }
               } else if (itemToDeleteCopy.type === 'category') {

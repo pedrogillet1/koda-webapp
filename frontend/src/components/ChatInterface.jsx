@@ -2022,6 +2022,31 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         console.log('🚀 [DEBUG] About to call setStreamingMessage with length:', streamedContent.length);
                                         setStreamingMessage(streamedContent);
                                         console.log('🚀 [DEBUG] Called setStreamingMessage');
+                                    } else if (data.type === 'action') {
+                                        // ✅ Handle action events (show_file_modal, file actions with notifications)
+                                        console.log('🎬 [ACTION] Received action:', data.actionType, data);
+
+                                        // Show file modal
+                                        if (data.actionType === 'show_file_modal' && data.success && data.document) {
+                                            console.log('👁️ [SHOW_FILE_MODAL] Opening preview for:', data.document.filename);
+                                            setPreviewDocument({
+                                                id: data.document.id,
+                                                filename: data.document.filename,
+                                                mimeType: data.document.mimeType,
+                                                fileSize: data.document.fileSize
+                                            });
+                                            setPreviewAttachOnClose(data.attachOnClose || false);
+                                        }
+
+                                        // Handle file action notifications (rename, move, delete, create folder)
+                                        if (data.notification) {
+                                            const { notification, success } = data;
+                                            if (success) {
+                                                showSuccess(notification.message, { duration: 4000 });
+                                            } else {
+                                                showError(notification.message, { duration: 5000 });
+                                            }
+                                        }
                                     } else if (data.type === 'done') {
                                         console.log('✅ Stream complete, metadata received');
                                         metadata = data;

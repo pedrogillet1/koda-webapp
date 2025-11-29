@@ -1425,7 +1425,7 @@ export const DocumentsProvider = ({ children }) => {
       fetchFolders(),
       fetchDocuments(),
       fetchRecentDocuments(),
-    ]).catch(err =>
+    ]).catch(() => {});
   }, [fetchDocuments, fetchFolders, fetchRecentDocuments]);
 
   const value = {

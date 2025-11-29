@@ -14,6 +14,7 @@ export const useToast = () => {
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
   const rateLimitShownRef = useRef(false);
+  const deleteCounterRef = useRef(0);
 
   const addToast = useCallback((type, message, options = {}) => {
     const id = Date.now() + Math.random();
@@ -30,7 +31,14 @@ export const ToastProvider = ({ children }) => {
   }, []);
 
   const removeToast = useCallback((id) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+    setToasts((prev) => {
+      const newToasts = prev.filter((t) => t.id !== id);
+      // Reset delete counter when all toasts are dismissed
+      if (newToasts.length === 0) {
+        deleteCounterRef.current = 0;
+      }
+      return newToasts;
+    });
   }, []);
 
   const showToast = useCallback((message, type = 'success', options = {}) => {
@@ -80,10 +88,22 @@ export const ToastProvider = ({ children }) => {
     });
   }, [showWarning]);
 
+  const showDeleteSuccess = useCallback((itemType = 'file') => {
+    deleteCounterRef.current += 1;
+    const count = deleteCounterRef.current;
+    const message = `${count} ${itemType}${count > 1 ? 's have' : ' has'} been deleted`;
+    return showSuccess(message);
+  }, [showSuccess]);
+
+  // Reset delete counter (call when all delete toasts are dismissed or after a delay)
+  const resetDeleteCounter = useCallback(() => {
+    deleteCounterRef.current = 0;
+  }, []);
+
   return (
     <ToastContext.Provider value={{
       showToast, showSuccess, showError, showWarning, showInfo,
-      showUploadSuccess, showUploadError, showRateLimitWarning, removeToast,
+      showUploadSuccess, showUploadError, showRateLimitWarning, showDeleteSuccess, resetDeleteCounter, removeToast,
     }}>
       {children}
       <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', pointerEvents: 'none', zIndex: 99999 }}>

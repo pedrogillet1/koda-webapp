@@ -223,7 +223,7 @@ const formatFileSize = (bytes) => {
 const UploadHub = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { showSuccess, showError, showUploadSuccess, showUploadError } = useToast();
+  const { showSuccess, showError, showUploadSuccess, showUploadError, showDeleteSuccess } = useToast();
   // ⚡ PERFORMANCE FIX: Use documents/folders from context (no duplicate API calls)
   const { documents: contextDocuments, folders: contextFolders, socket, fetchDocuments, fetchFolders } = useDocuments();
   const { encryptionPassword, user } = useAuth(); // ⚡ ZERO-KNOWLEDGE ENCRYPTION
@@ -805,9 +805,6 @@ const UploadHub = () => {
         // ✅ VERIFICATION: Check that all files have webkitRelativePath
         const filesWithPath = files.filter(f => f.webkitRelativePath);
         const filesWithoutPath = files.filter(f => !f.webkitRelativePath);
-        if (filesWithoutPath.length > 0) {
-          filesWithoutPath.forEach(f =>
-        }
 
         // ✅ REFACTORED: Use unified upload service (same as UniversalUploadModal)
         try {
@@ -1263,7 +1260,7 @@ const UploadHub = () => {
       setOpenDropdownId(null);
 
       // Show notification immediately for instant feedback
-      showSuccess('1 file has been deleted');
+      showDeleteSuccess('file');
 
       // Delete on server in background
       await api.delete(`/api/documents/${documentId}`);
@@ -1303,7 +1300,7 @@ const UploadHub = () => {
       setOpenDropdownId(null);
 
       // Show notification immediately for instant feedback
-      showSuccess('1 folder has been deleted');
+      showDeleteSuccess('folder');
 
       // Delete on server in background
       await api.delete(`/api/folders/${folderId}`);
@@ -3174,7 +3171,7 @@ const UploadHub = () => {
                 setOpenDropdownId(null);
                 removeUploadingFile(itemToDeleteCopy.isFolder ? itemToDeleteCopy.folderName : itemToDeleteCopy.name);
                 setDocuments(prev => prev.filter(doc => doc.id !== itemToDeleteCopy.documentId));
-                showSuccess('1 file has been deleted');
+                showDeleteSuccess('file');
               }
             } catch (error) {
               alert('Failed to delete: ' + (error.response?.data?.error || error.message));

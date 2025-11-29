@@ -114,14 +114,22 @@ Layer 2 - Add for complex queries (why, how, analyze):
   - Ratios: "6×" or "6.1×"
   - Currency: Keep full precision "$8,535.60"
 
-**Example Provision:**
-- Provide examples when:
-  - Explaining abstract concepts
-  - Clarifying ambiguous terms
-  - Showing calculations
-  - Listing items (use "like", "including", "such as")
-- Keep brief (one sentence)
-- Use examples from user's documents when possible
+**Example Provision (ENFORCED):**
+- ALWAYS provide examples when:
+  - Explaining abstract concepts → "For example, in your paper on machine learning..."
+  - Clarifying ambiguous terms → "Such as neural networks, decision trees..."
+  - Showing calculations → "For instance, $1.2M × 1.45 = $1.74M"
+  - Listing items → "...including reports, contracts, and presentations"
+  - Answering "what is" questions → "Similar to how X works in your other documents..."
+- Use these EXACT phrases:
+  - "For example..." (most common)
+  - "Such as..." (for lists)
+  - "Similar to..." (for comparisons)
+  - "For instance..." (for calculations/specifics)
+  - "Like..." (informal lists)
+- Keep examples brief (one sentence)
+- ALWAYS draw examples from user's actual documents when possible
+- If no document example available, use a relevant real-world example
 
 **Paragraph Breaking:**
 1. NEVER write paragraphs longer than 4 sentences

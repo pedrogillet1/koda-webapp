@@ -2059,18 +2059,26 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ✅ P0 FEATURES: Pre-process query for multi-turn conversations
     // ========================================
     // This handles: Follow-up understanding, query rewriting, scope management, calculation detection
-    const p0PreProcess = await p0FeaturesService.preProcessQuery(query, userId, conversationId);
-    const processedQuery = p0PreProcess.processedQuery;
+    let processedQuery = query;
+    let p0PreProcess: any = null;
 
-    // Log P0 processing results
-    if (p0PreProcess.wasRewritten) {
-      console.log(`🔄 [P0] Query rewritten: "${query}" → "${processedQuery}"`);
-    }
-    if (p0PreProcess.isRefinement) {
-      console.log(`🔍 [P0] Refinement query - searching within ${p0PreProcess.scopeDocumentIds.length} documents`);
-    }
-    if (p0PreProcess.requiresCalculation) {
-      console.log(`🧮 [P0] Calculation required: ${p0PreProcess.calculationType}`);
+    try {
+      p0PreProcess = await p0FeaturesService.preProcessQuery(query, userId, conversationId);
+      processedQuery = p0PreProcess.processedQuery;
+
+      // Log P0 processing results
+      if (p0PreProcess.wasRewritten) {
+        console.log(`✅ [P0] Query rewritten: "${query}" → "${processedQuery}"`);
+      }
+      if (p0PreProcess.isRefinement) {
+        console.log(`🔍 [P0] Refinement query - searching within ${p0PreProcess.scopeDocumentIds.length} documents`);
+      }
+      if (p0PreProcess.requiresCalculation) {
+        console.log(`🧮 [P0] Calculation required: ${p0PreProcess.calculationType}`);
+      }
+    } catch (error) {
+      console.error('❌ [P0] Pre-processing failed, using original query:', error);
+      // Continue with original query - graceful degradation
     }
 
     // Validate answerLength parameter
@@ -2229,23 +2237,30 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     // ✅ P0 FEATURES: Post-process response for calculations and context updates
     // ========================================
-    const p0PostProcess = await p0FeaturesService.postProcessResponse(
-      query,
-      cleanedAnswer,
-      result.sources || [],
-      userId,
-      conversationId,
-      p0PreProcess
-    );
+    try {
+      if (p0PreProcess) {
+        const p0PostProcess = await p0FeaturesService.postProcessResponse(
+          query,
+          cleanedAnswer,
+          result.sources || [],
+          userId,
+          conversationId,
+          p0PreProcess
+        );
 
-    // Apply P0 post-processing results
-    cleanedAnswer = p0PostProcess.answer;
+        // Apply P0 post-processing results
+        cleanedAnswer = p0PostProcess.answer;
 
-    if (p0PostProcess.calculationResult) {
-      console.log(`🧮 [P0] Calculation added: ${p0PostProcess.calculationResult.explanation}`);
-    }
-    if (p0PostProcess.scopeUpdated) {
-      console.log(`📊 [P0] Scope updated: ${p0PostProcess.newScopeDescription}`);
+        if (p0PostProcess.calculationResult) {
+          console.log(`🧮 [P0] Calculation added: ${p0PostProcess.calculationResult.explanation}`);
+        }
+        if (p0PostProcess.scopeUpdated) {
+          console.log(`📊 [P0] Scope updated: ${p0PostProcess.newScopeDescription}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ [P0] Post-processing failed, using original answer:', error);
+      // Continue with original cleanedAnswer - graceful degradation
     }
 
     // ✅ FIX #2: Deduplicate sources by documentId (or filename if documentId is null)

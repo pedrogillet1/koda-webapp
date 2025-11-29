@@ -391,6 +391,10 @@ model Conversation {
   contextName   String?  // Display name for user reference
   contextMeta   Json?    // Additional metadata
 
+  // ✅ NEW: P0 Features - Multi-turn conversation scope
+  scopeDocumentIds String[] @default([])  // Current conversation scope (document IDs)
+  scopeDescription String?                // Description of current scope
+
   // Relations
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages    Message[]
@@ -422,6 +426,10 @@ model Message {
   documentTitle   String? // Title of the generated document
   documentFormat  String? // Format type: 'summary', 'analysis', 'deep_dive', 'report', 'general'
   markdownContent String? // Full markdown content of the document
+
+  // ✅ NEW: P0 Features - Calculation and Context Tracking
+  calculationResult Json?   // Stores calculation results (average, sum, growth, etc.)
+  contextEntities   Json?   // Stores tracked entities (countries, years, metrics, topics)
 
   // Relations
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -1587,4 +1595,43 @@ model TrendPattern {
   @@index([trendType])
   @@index([userId, trendType])
   @@map("trend_patterns")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// P0 FEATURES: Knowledge Base for Academic Intelligence
+// ════════════════════════════════════════════════════════════════════════════════
+
+// Knowledge Entry model - General knowledge extraction storage
+model KnowledgeEntry {
+  id           String   @id @default(uuid())
+  documentId   String
+  type         String   // "definition", "methodology", "trend", "causal", "comparison", "implication"
+  content      String   @db.Text
+  metadata     Json?    // Additional structured data
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([type])
+  @@index([documentId, type])
+  @@map("knowledge_entries")
+}
+
+// Folder Summary model - Cached folder analysis
+model FolderSummary {
+  id           String   @id @default(uuid())
+  folderId     String   @unique
+  userId       String
+  summary      String   @db.Text       // Generated summary of folder contents
+  documentCount Int                    // Number of documents in folder
+  themes       String[] @default([])   // Key themes extracted from folder
+  lastDocumentAddedAt DateTime?        // When last document was added
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([folderId])
+  @@map("folder_summaries")
 }
