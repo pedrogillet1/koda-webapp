@@ -307,19 +307,26 @@ export async function processDocumentInBackground(
   } catch (error: any) {
     console.error('❌ Error processing document:', error);
 
-    // ⚡ NEW BEHAVIOR: Delete document instead of marking as failed
-    // Failed documents should never appear in UI - instant processing only shows completed docs
+    // ✅ FIXED BEHAVIOR: Mark as failed instead of deleting
+    // Keep failed documents so users can:
+    // 1. See what failed
+    // 2. Retry processing
+    // 3. Download original file
+    // 4. Get error details
     try {
-      await prisma.documents.delete({
-        where: { id: documentId },
-      });
-    } catch (deleteError) {
-      console.error('❌ CRITICAL: Failed to delete document:', deleteError);
-      // Fallback: mark as failed if deletion fails
       await prisma.documents.update({
         where: { id: documentId },
-        data: { status: 'failed', updatedAt: new Date() }
-      }).catch(err => console.error('Failed to mark as failed:', err));
+        data: {
+          status: 'failed',
+          updatedAt: new Date(),
+        }
+      });
+
+      console.log(`⚠️  Marked document as failed: ${filename}`);
+      console.log(`   └── Reason: ${error.message || 'Unknown error'}`);
+
+    } catch (updateError) {
+      console.error('❌ CRITICAL: Failed to mark document as failed:', updateError);
     }
 
     throw error;
