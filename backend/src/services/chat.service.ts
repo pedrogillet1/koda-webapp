@@ -207,8 +207,6 @@ export const getConversation = async (conversationId: string, userId: string) =>
               pdfUrl: true,
             },
           },
-          // Load metadata (sources) for assistant messages
-          document_metadata: true,
         },
       },
     },

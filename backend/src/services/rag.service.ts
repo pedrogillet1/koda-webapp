@@ -4118,7 +4118,119 @@ async function handleCrossDocumentSynthesis(
 ): Promise<{ handled: boolean; sources?: any[] }> {
 
   try {
-    // Call the cross-document synthesis service
+    // Handle different synthesis types
+    if (synthesisQuery.type === 'aggregation') {
+      // For general aggregation queries like "create a summary report"
+      // Retrieve chunks from all user documents and generate a comprehensive summary
+      console.log('🔍 [SYNTHESIS] Aggregation query detected - retrieving all documents');
+
+      // Get all user documents
+      const userDocuments = await prisma.documents.findMany({
+        where: {
+          userId,
+          status: 'completed',
+        },
+        select: {
+          id: true,
+          filename: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (userDocuments.length === 0) {
+        onChunk(`I don't see any documents in your library yet. Upload some documents and I'll help you analyze them!`);
+        return { handled: true, sources: [] };
+      }
+
+      // Retrieve document content from database
+      console.log(`📄 [SYNTHESIS] Retrieving content for ${userDocuments.length} documents`);
+
+      const documentsWithMetadata = await prisma.documents.findMany({
+        where: {
+          id: { in: userDocuments.map(d => d.id) },
+        },
+        include: {
+          document_metadata: {
+            select: {
+              extractedText: true,
+              markdownContent: true,
+            },
+          },
+        },
+      });
+
+      // Extract text content from each document
+      const allChunks: Array<{ content: string; documentId: string; documentName: string }> = [];
+
+      for (const doc of documentsWithMetadata) {
+        const content = doc.document_metadata?.markdownContent || doc.document_metadata?.extractedText;
+        if (content) {
+          // Split into chunks (first 3000 chars to keep context manageable)
+          const chunk = content.substring(0, 3000);
+          allChunks.push({
+            content: chunk,
+            documentId: doc.id,
+            documentName: doc.filename || 'Unknown',
+          });
+          console.log(`✅ Retrieved content from ${doc.filename} (${chunk.length} chars)`);
+        } else {
+          console.log(`⚠️  No content found for ${doc.filename}`);
+        }
+      }
+
+      if (allChunks.length === 0) {
+        onChunk(`I found **${userDocuments.length}** documents in your library, but couldn't retrieve their content. This might be a temporary issue. Please try again.`);
+        return { handled: true, sources: [] };
+      }
+
+      // Generate comprehensive summary using LLM
+      console.log(`📝 [SYNTHESIS] Generating summary from ${allChunks.length} chunks across ${userDocuments.length} documents`);
+
+      const summaryPrompt = `You are creating a comprehensive summary report of the user's document library.
+
+User's request: "${query}"
+
+Documents in library (${userDocuments.length} total):
+${userDocuments.map((d, i) => `${i + 1}. ${d.filename}`).join('\n')}
+
+Document content excerpts:
+${allChunks.map((chunk, i) => `
+--- Excerpt ${i + 1} from "${chunk.documentName}" ---
+${chunk.content}
+`).join('\n\n')}
+
+Create a comprehensive summary report that:
+1. Provides an overview of the document collection
+2. Identifies key themes and topics across documents
+3. Highlights important findings or insights
+4. Organizes information in a clear, structured format
+
+Use markdown formatting with headers, bullet points, and bold text for emphasis.`;
+
+      const aiResponse = await callAI(summaryPrompt);
+
+      // Stream the response
+      onChunk(aiResponse);
+
+      // Build sources
+      const sources = allChunks
+        .map(chunk => chunk.documentId)
+        .filter((id, index, self) => self.indexOf(id) === index)
+        .map(documentId => ({
+          documentId,
+          type: 'synthesis',
+        }));
+
+      return {
+        handled: true,
+        sources,
+      };
+    }
+
+    // For methodology-specific queries, use the existing service
     const result = await crossDocumentSynthesisService.synthesizeMethodologies(
       userId,
       synthesisQuery.topic
