@@ -13,6 +13,13 @@ import cacheService from '../services/cache.service'; // ✅ FIX: Cache invalida
 // ✅ P0 FEATURES: Import P0 services for multi-turn conversations
 import p0FeaturesService from '../services/p0Features.service';
 import clarificationService from '../services/clarification.service';
+import chatDocumentGenerationService from '../services/chatDocumentGeneration.service';
+import Anthropic from '@anthropic-ai/sdk';
+
+// Initialize Anthropic client for document generation
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
+const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 /**
  * RAG Controller
@@ -216,7 +223,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     // ═══════════════════════════════════════════════════════════════════════════
     const fileKeywords = /file|document|paper|report|spreadsheet|presentation|pdf|docx?|xlsx?|pptx?|arquivo|documento|relatório|archivo|informe/i;
 
-    const isShowFileQuery = (
+    // ⚠️ FIX: Exclude creation/generation queries from show file detection
+    // Queries like "create a summary report" should NOT be treated as "show file"
+    const isCreationQuery = /(?:create|make|generate|build|write|draft|prepare|compose|criar|gerar|hacer|generar|créer)/i.test(queryLower);
+
+    const isShowFileQuery = !isCreationQuery && (
       // ═══════════════════════════════════════════════════════════════════════
       // CATEGORY 1: Direct Commands (EN, PT, ES)
       // ═══════════════════════════════════════════════════════════════════════
@@ -2392,6 +2403,69 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       }
     }
 
+    // ✅ DOCUMENT CREATION: Auto-generate PDF for creation queries
+    // Check if this was a document creation request (e.g., "create a summary report")
+    const queryLower = query.toLowerCase();
+    const isCreationQuery = /(?:create|make|generate|build|write|draft|prepare|compose|criar|gerar|hacer|generar|créer)/i.test(queryLower);
+    const isDocumentRequest = /(?:document|report|summary|file|pdf|docx)/i.test(queryLower);
+
+    let generatedDocument: any = null;
+    if (isCreationQuery && isDocumentRequest) {
+      console.log('📄 [AUTO-DOCUMENT] Detected document creation request, generating comprehensive document...');
+      try {
+        // Extract title from query or use default
+        const titleMatch = query.match(/(?:summary|report)\s+(?:of|about|for|on)\s+(.+?)(?:\?|$)/i);
+        const title = titleMatch ? titleMatch[1].trim() : 'Summary Report';
+
+        console.log('📝 [AUTO-DOCUMENT] Generating long-form document content with Claude...');
+
+        // Generate comprehensive document content using Claude
+        const documentPrompt = `You are generating a professional business document. Based on the following information, create a comprehensive, well-structured document with multiple sections.
+
+Title: ${title}
+
+Information to include:
+${cleanedAnswer}
+
+Please generate a professional document with:
+1. An "Executive Summary" section (2-3 paragraphs) that provides a high-level overview
+2. Multiple detailed sections with clear headings (H2 level with ##)
+3. Each section should have 2-4 paragraphs of detailed content
+4. Use proper markdown formatting (headers, bold, lists, etc.)
+5. Make it comprehensive and professional - similar to a business report
+6. Include relevant details, insights, and context
+7. Total length should be at least 800-1200 words
+
+Format the document using markdown with proper structure. Do NOT include the title or date headers - just start with the Executive Summary section.`;
+
+        const documentContentResponse = await anthropic.messages.create({
+          model: ANTHROPIC_MODEL,
+          max_tokens: 4096,
+          system: 'You are a professional business document writer. Generate comprehensive, well-structured documents with executive summaries and detailed sections.',
+          messages: [{ role: 'user', content: documentPrompt }]
+        });
+
+        const documentContent = documentContentResponse.content
+          .filter((block: any) => block.type === 'text')
+          .map((block: any) => block.text)
+          .join('\n\n');
+
+        console.log(`✅ [AUTO-DOCUMENT] Generated ${documentContent.length} characters of document content`);
+
+        generatedDocument = await chatDocumentGenerationService.generateDocument({
+          userId,
+          content: documentContent,
+          title,
+          conversationId,
+        });
+
+        console.log(`✅ [AUTO-DOCUMENT] PDF created: ${generatedDocument.documentId}`);
+      } catch (docError) {
+        console.error('❌ [AUTO-DOCUMENT] Failed to create PDF:', docError);
+        // Don't fail the whole request if document creation fails
+      }
+    }
+
     // Send completion signal with metadata AND formatted answer
     console.log('🚀 [DEBUG] About to send done event');
     res.write(`data: ${JSON.stringify({
@@ -2405,7 +2479,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       confidence: (result as any).confidence || 0.8,
       actions: (result as any).actions || [] || [],
       uiUpdate: result.uiUpdate,
-      conversationId
+      conversationId,
+      generatedDocument: generatedDocument || undefined, // ✅ Include generated document info
     })}\n\n`);
     console.log('🚀 [DEBUG] Done event sent');
 

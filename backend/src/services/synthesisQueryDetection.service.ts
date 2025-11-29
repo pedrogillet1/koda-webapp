@@ -91,6 +91,18 @@ class SynthesisQueryDetectionService {
   detect(query: string): SynthesisQueryResult {
     const queryLower = query.toLowerCase().trim();
 
+    // ⚠️ PRIORITY FIX: Exclude document creation queries from synthesis detection
+    // Queries like "create a summary report" should be handled by document generation, not synthesis
+    const isCreationQuery = /(?:create|make|generate|build|write|draft|prepare|compose|criar|gerar|hacer|generar|créer)\s+(?:a |an )?(?:summary|report|document|file|pdf|docx)/i.test(queryLower);
+    if (isCreationQuery) {
+      return {
+        isSynthesisQuery: false,
+        type: 'none',
+        confidence: 0,
+        reasoning: 'Document creation query - not a synthesis query',
+      };
+    }
+
     // Check each pattern type
     for (const [type, patterns] of Object.entries(SYNTHESIS_PATTERNS)) {
       for (const pattern of patterns) {
