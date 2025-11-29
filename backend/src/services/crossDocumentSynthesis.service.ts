@@ -657,7 +657,14 @@ class CrossDocumentSynthesisService {
     topic?: string
   ): Promise<string> {
     if (methodologies.length === 0) {
-      return `I couldn't identify specific methodologies across your documents${topic ? ` on "${topic}"` : ''}. This might be because the documents don't contain explicit methodology descriptions, or they cover diverse topics without common approaches.`;
+      // Fallback: Provide helpful response instead of generic error
+      if (totalDocuments === 0) {
+        return `I don't see any documents in your library yet. Upload some documents and I'll help you analyze them!`;
+      } else if (totalDocuments === 1) {
+        return `You have 1 document in your library. I can help you search within it, or upload more documents for cross-document analysis.`;
+      } else {
+        return `You have **${totalDocuments}** documents in your library. While I couldn't identify specific methodologies, I can help you:\n\n• Search for specific information across all documents\n• Compare specific documents\n• Summarize individual documents\n\nTry asking me a specific question about your documents!`;
+      }
     }
 
     const parts: string[] = [];
