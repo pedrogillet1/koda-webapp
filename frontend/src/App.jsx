@@ -5,6 +5,7 @@ import { DocumentsProvider } from './context/DocumentsContext';
 import { FileProvider } from './context/FileContext';
 import { ToastProvider } from './context/ToastContext';
 import { logPerformanceMetrics } from './utils/performance';
+import './i18n/config';
 import './styles/designSystem.css';
 import './styles/safari-fixes.css';
 import Login from './components/Login';

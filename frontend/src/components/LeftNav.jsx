@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as DocumentIcon } from '../assets/Document 2.svg';
 import { ReactComponent as FolderIcon } from '../assets/Folder.svg';
 import { ReactComponent as Folder1Icon } from '../assets/Folder1.svg';
@@ -25,6 +26,7 @@ import { spacing, radius, typography } from '../design/tokens';
 const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { t } = useTranslation();
     const isMobile = useIsMobile();
     const mobile = useMobileBreakpoints();
     const { refreshAll } = useDocuments();
@@ -171,7 +173,7 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                         <div style={{display: 'flex', flexDirection: 'column', gap: 16, width: '100%'}}>
                             <div onClick={() => handleMobileNavigate('/home')} style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/home' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/home') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/home') e.currentTarget.style.background = 'transparent'; }}>
                                 {location.pathname === '/home' ? <HouseFilledIcon style={{width: 20, height: 20}} /> : <HouseIcon style={{width: 20, height: 20}} />}
-                                <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Home</span>
+                                <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>{t('nav.home')}</span>
                             </div>
                             <div
                                 onClick={() => handleMobileNavigate('/documents')}
@@ -180,15 +182,15 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                                 style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/documents' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.2s ease, transform 0.15s ease'}}
                             >
                                 {location.pathname === '/documents' ? <Folder1FilledIcon style={{width: 20, height: 20}} /> : <Folder1Icon style={{width: 20, height: 20}} />}
-                                <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Documents</span>
+                                <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>{t('nav.documents')}</span>
                             </div>
                             <div onClick={() => handleMobileNavigate('/chat')} style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/chat' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/chat') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/chat') e.currentTarget.style.background = 'transparent'; }}>
                                 {location.pathname === '/chat' ? <MessageFilledIcon style={{width: 20, height: 20, fill: 'white'}} /> : <MessageIcon style={{width: 20, height: 20, fill: 'white'}} />}
-                                <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Chat</span>
+                                <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>{t('nav.chat')}</span>
                             </div>
                             <div onClick={() => handleMobileNavigate('/upload-hub')} style={{padding: 8, borderRadius: 8, cursor: 'pointer', background: location.pathname === '/upload-hub' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/upload-hub') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/upload-hub') e.currentTarget.style.background = 'transparent'; }}>
                                 {location.pathname === '/upload-hub' ? <UploadIcon style={{width: 20, height: 20, color: 'white'}} /> : <LogoutIcon style={{width: 20, height: 20, stroke: 'white', fill: 'none'}} />}
-                                <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Upload</span>
+                                <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>{t('nav.upload')}</span>
                             </div>
                         </div>
                     </div>
@@ -200,16 +202,16 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                                 <NotificationIcon style={{width: 20, height: 20}} />
                                 {hasUnreadNotifications && <div style={{width: 8, height: 8, position: 'absolute', right: -2, top: -2, background: '#D92D20', borderRadius: 9999}} />}
                             </div>
-                            <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Notifications</span>
+                            <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>{t('nav.notifications')}</span>
                         </div>
                         <div onClick={() => handleMobileNavigate('/settings')} style={{padding: 8, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'background 0.2s ease, transform 0.15s ease', background: location.pathname === '/settings' ? 'rgba(255, 255, 255, 0.10)' : 'transparent'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/settings') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/settings') e.currentTarget.style.background = 'transparent'; }}>
                             {location.pathname === '/settings' ? <SettingsFilledIcon style={{width: 20, height: 20, fill: 'white'}} /> : <SettingsIcon style={{width: 20, height: 20, fill: 'white'}} />}
-                            <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>Settings</span>
+                            <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>{t('nav.settings')}</span>
                         </div>
                         <div onClick={handleAuthButtonClick} style={{padding: 8, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'transparent'; }}>
                             <SignoutIcon style={{width: 20, height: 20, fill: 'white'}} />
                             <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>
-                                {user ? 'Sign Out' : 'Sign In'}
+                                {user ? t('nav.signOut') : t('nav.signIn')}
                             </span>
                         </div>
                     </div>
@@ -239,7 +241,7 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                 <div style={{display: 'flex', flexDirection: 'column', gap: spacing.lg, width: '100%', alignItems: isExpanded ? 'flex-start' : 'center'}}>
                     <div onClick={() => navigate('/home')} style={{padding: spacing.sm, borderRadius: 100, cursor: 'pointer', background: location.pathname === '/home' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: 'flex-start', width: isExpanded ? '100%' : 'auto', transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/home') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/home') e.currentTarget.style.background = 'transparent'; }}>
                         <HouseIcon style={{width: 20, height: 20, flexShrink: 0}} />
-                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Home</span>}
+                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.home')}</span>}
                     </div>
                     <div
                         onClick={() => navigate('/documents')}
@@ -248,15 +250,15 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                         style={{padding: spacing.sm, borderRadius: 100, cursor: 'pointer', background: location.pathname === '/documents' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: 'flex-start', width: isExpanded ? '100%' : 'auto', transition: 'background 0.2s ease, transform 0.15s ease'}}
                     >
                         <Folder1Icon style={{width: 20, height: 20, flexShrink: 0}} />
-                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Documents</span>}
+                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.documents')}</span>}
                     </div>
                     <div onClick={() => navigate('/chat')} style={{padding: spacing.sm, borderRadius: 100, cursor: 'pointer', background: location.pathname === '/chat' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: 'flex-start', width: isExpanded ? '100%' : 'auto', transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/chat') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/chat') e.currentTarget.style.background = 'transparent'; }}>
                         <MessageIcon style={{width: 20, height: 20, fill: 'white', flexShrink: 0}} />
-                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Chat</span>}
+                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.chat')}</span>}
                     </div>
                     <div onClick={() => navigate('/upload-hub')} style={{padding: spacing.sm, borderRadius: 100, cursor: 'pointer', background: location.pathname === '/upload-hub' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: 'flex-start', width: isExpanded ? '100%' : 'auto', transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/upload-hub') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/upload-hub') e.currentTarget.style.background = 'transparent'; }}>
                         <UploadIcon style={{width: 20, height: 20, flexShrink: 0, color: 'white'}} />
-                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Upload</span>}
+                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.upload')}</span>}
                     </div>
                 </div>
             </div>
@@ -270,7 +272,7 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                             <div style={{ width: 8, height: 8, position: 'absolute', right: -2, top: -2, background: '#D92D20', borderRadius: 9999 }} />
                         )}
                     </div>
-                    {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Notifications</span>}
+                    {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.notifications')}</span>}
                 </div>
                 <div onClick={() => navigate('/settings')} style={{padding: spacing.sm, borderRadius: 100, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36, transition: 'background 0.2s ease, transform 0.15s ease', background: location.pathname === '/settings' ? 'rgba(255, 255, 255, 0.10)' : 'transparent'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/settings') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/settings') e.currentTarget.style.background = 'transparent'; }}>
                     <div style={{width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
@@ -280,7 +282,7 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                             <SettingsIcon style={{width: 20, height: 20, fill: 'white'}} />
                         )}
                     </div>
-                    {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>Settings</span>}
+                    {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.settings')}</span>}
                 </div>
                 <div
                     onClick={handleAuthButtonClick}
@@ -292,7 +294,7 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                         <SignoutIcon style={{width: 20, height: 20, fill: 'white'}} />
                     </div>
                     {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>
-                        {user ? 'Sign Out' : 'Sign In'}
+                        {user ? t('nav.signOut') : t('nav.signIn')}
                     </span>}
                 </div>
             </div>

@@ -6,6 +6,7 @@ import DeleteConfirmationModal from './DeleteConfirmationModal';
 import FeedbackModal from './FeedbackModal';
 import RecoveryVerificationBanner from './RecoveryVerificationBanner';
 import FileBreakdownDonut from './FileBreakdownDonut';
+import LanguageCard from './LanguageCard';
 import { useToast } from '../context/ToastContext';
 import { useDocuments } from '../context/DocumentsContext';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -881,6 +882,9 @@ const Settings = () => {
           {/* Recovery Verification Banner */}
           <RecoveryVerificationBanner />
 
+          {/* Language & Region Card */}
+          <LanguageCard />
+
           {/* Profile Card - Row 1 */}
           <div
             onClick={() => setActiveSection('profile')}
@@ -896,7 +900,8 @@ const Settings = () => {
                   width: 56,
                   height: 56,
                   borderRadius: '50%',
-                  objectFit: 'cover'
+                  objectFit: 'cover',
+                  filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))'
                 }}
               />
             ) : (
@@ -909,7 +914,8 @@ const Settings = () => {
                 fontSize: 42,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '700',
-                color: '#181818'
+                color: '#181818',
+                filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))'
               }}>
                 {user ? getInitials(user) : 'U'}
               </div>
