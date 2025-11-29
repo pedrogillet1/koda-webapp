@@ -4,7 +4,6 @@ import './index.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import App from './App';
-import { FileProvider } from './context/FileContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
@@ -45,9 +44,7 @@ const queryClient = new QueryClient({
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <QueryClientProvider client={queryClient}>
-    <FileProvider>
-      <App />
-    </FileProvider>
+    <App />
     {/* React Query DevTools - only in development */}
     {process.env.NODE_ENV === 'development' && (
       <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />

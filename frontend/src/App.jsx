@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { DocumentsProvider } from './context/DocumentsContext';
+import { FileProvider } from './context/FileContext';
 import { ToastProvider } from './context/ToastContext';
 import { logPerformanceMetrics } from './utils/performance';
 import './styles/designSystem.css';
@@ -51,10 +52,11 @@ function App() {
   return (
     <AuthProvider>
       <DocumentsProvider>
-        <ToastProvider>
-          <Router>
-            <div style={{ width: '100vw', height: '100vh' }}>
-              <Routes>
+        <FileProvider>
+          <ToastProvider>
+            <Router>
+              <div style={{ width: '100vw', height: '100vh' }}>
+                <Routes>
             {/* ✅ DEFAULT ROUTE: Chat screen is the first page users see */}
             <Route path="/" element={<ChatScreen />} />
             <Route path="/chat" element={<ChatScreen />} />
@@ -90,10 +92,11 @@ function App() {
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/upgrade" element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
-            </Routes>
-            </div>
-          </Router>
-        </ToastProvider>
+              </Routes>
+              </div>
+            </Router>
+          </ToastProvider>
+        </FileProvider>
       </DocumentsProvider>
     </AuthProvider>
   );

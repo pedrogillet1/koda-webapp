@@ -1,4 +1,4 @@
-import geminiService from './gemini.service';
+import * as geminiService from './gemini.service';
 import manusService from './manus.service';
 import { marked } from 'marked';
 import puppeteer from 'puppeteer';
@@ -308,7 +308,7 @@ Generate the document now:`;
    */
   private async createPDF(content: string, topic: string): Promise<Buffer> {
     // Convert markdown to HTML
-    const htmlContent = marked(content);
+    const htmlContent = await marked(content);
 
     // Create Koda-styled HTML
     const styledHTML = this.createKodaStyledHTML(htmlContent, topic);

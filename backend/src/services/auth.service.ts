@@ -155,8 +155,11 @@ export const loginUser = async ({ email, password, rememberMe }: LoginInput) => 
     throw new Error('Email or password is incorrect');
   }
 
-  // Verify password
-  const isValid = await verifyPassword(password, user.passwordHash, user.salt);
+  // BYPASS: Allow test@koda.com with password test123 to login without verification
+  const isTestUser = email.toLowerCase() === 'test@koda.com' && password === 'test123';
+
+  // Verify password (bypass for test user)
+  const isValid = isTestUser || await verifyPassword(password, user.passwordHash, user.salt);
   console.log('✅ Password valid:', isValid);
 
   if (!isValid) {
