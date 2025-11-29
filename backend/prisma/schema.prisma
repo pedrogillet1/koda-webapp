@@ -62,6 +62,9 @@ model User {
   interactionMetadata  InteractionMetadata[]
   memories             Memory[]
 
+  // Domain knowledge relations
+  domainKnowledge      DomainKnowledge[]
+
   @@map("users")
 }
 
@@ -1265,4 +1268,323 @@ model Memory {
   @@index([userId, importance])
   @@index([lastAccessed])
   @@map("memories")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// METHODOLOGY KNOWLEDGE BASE - Conceptual Understanding of Methods/Techniques
+// ════════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Store extracted knowledge about methodologies, techniques, and concepts
+// WHY: Enable Koda to explain "what is X" with actual understanding, not just citations
+// EXAMPLE: "What is ensemble learning?" → Full explanation + how user's papers use it
+
+model MethodologyKnowledge {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Core identification
+  name            String        // Normalized methodology name (e.g., "ensemble learning")
+  aliases         String?       // JSON array of alternative names (e.g., ["ensemble methods", "model ensemble"])
+
+  // Knowledge content
+  definition      String?  @db.Text  // What it is (1-2 sentences)
+  howItWorks      String?  @db.Text  // How the method works (step-by-step or explanation)
+  whyUsed         String?  @db.Text  // Why this method is used / advantages
+  limitations     String?  @db.Text  // Known limitations or disadvantages
+  useCases        String?  @db.Text  // Common applications / when to use it
+  examples        String?  @db.Text  // Concrete examples from user's documents
+
+  // Relationships to other methodologies
+  relatedMethods  String?       // JSON array of related methodology names
+  parentMethod    String?       // "is a type of" relationship (e.g., "machine learning")
+  childMethods    String?       // JSON array of sub-methods (e.g., ["bagging", "boosting", "stacking"])
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs where this was found
+  documentCount     Int      @default(1)  // Number of documents mentioning this methodology
+  extractedFrom     String?  @db.Text  // Original text snippets used for extraction
+
+  // Quality metrics
+  confidence      Float    @default(0.5)  // 0-1 confidence score for extracted knowledge
+  isVerified      Boolean  @default(false)  // Manually verified by user
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastAccessedAt  DateTime @default(now())
+  accessCount     Int      @default(0)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([name])
+  @@index([userId, name])
+  @@index([confidence])
+  @@index([documentCount])
+  @@map("methodology_knowledge")
+}
+
+// ==================== Domain Knowledge: Build Expertise from Documents ====================
+
+// Domain Knowledge model - Store domain-specific terms, definitions, formulas
+model DomainKnowledge {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Core identification
+  term            String        // The term/concept (e.g., "Sharpe ratio", "overfitting")
+  normalizedTerm  String        // Lowercase, normalized version for matching
+  domain          String        // Domain category: finance, ml, statistics, economics, etc.
+
+  // Knowledge content
+  definition      String?  @db.Text  // What it is (concise definition)
+  formula         String?  @db.Text  // Mathematical formula if applicable (LaTeX or text)
+  interpretation  String?  @db.Text  // How to interpret/use this (e.g., "higher is better, >1 is good")
+  usageContext    String?  @db.Text  // When/where this is used
+  examples        String?  @db.Text  // Examples from user's documents
+
+  // Relationships
+  relatedTerms    String?       // JSON array of related term names
+  parentTerm      String?       // Broader concept (e.g., "risk-adjusted return" for "Sharpe ratio")
+  childTerms      String?       // JSON array of more specific terms
+  synonyms        String?       // JSON array of synonyms/alternative names
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs where this was found
+  documentCount     Int      @default(1)  // Number of documents mentioning this term
+  extractedContext  String?  @db.Text  // Original context snippets
+
+  // Quality metrics
+  confidence      Float    @default(0.5)  // 0-1 confidence score
+  isVerified      Boolean  @default(false)  // Manually verified by user
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastAccessedAt  DateTime @default(now())
+  accessCount     Int      @default(0)
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outgoingRelations ConceptRelationship[] @relation("FromConcept")
+  incomingRelations ConceptRelationship[] @relation("ToConcept")
+
+  @@unique([userId, normalizedTerm, domain])
+  @@index([userId])
+  @@index([term])
+  @@index([normalizedTerm])
+  @@index([domain])
+  @@index([userId, domain])
+  @@map("domain_knowledge")
+}
+
+// Concept Relationship model - Track relationships between concepts
+model ConceptRelationship {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Relationship endpoints
+  fromConceptId   String
+  toConceptId     String
+
+  // Relationship type
+  relationshipType String  // uses, measures, reduces, causes, requires, etc.
+  strength         Float   @default(0.5)  // 0-1 relationship strength
+  description      String? // Optional description of the relationship
+
+  // Source tracking
+  sourceDocumentIds String?  // JSON array of document IDs where this relationship was found
+  documentCount     Int      @default(1)
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+
+  // Relations
+  fromConcept     DomainKnowledge @relation("FromConcept", fields: [fromConceptId], references: [id], onDelete: Cascade)
+  toConcept       DomainKnowledge @relation("ToConcept", fields: [toConceptId], references: [id], onDelete: Cascade)
+
+  @@unique([fromConceptId, toConceptId, relationshipType])
+  @@index([userId])
+  @@index([fromConceptId])
+  @@index([toConceptId])
+  @@index([relationshipType])
+  @@map("concept_relationships")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// CAUSAL RELATIONSHIPS - Store extracted cause-effect relationships
+// ════════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Store causal relationships for answering "why" questions
+// WHY: "Why did GDP drop?" needs explanation like "due to pandemic lockdowns"
+// EXAMPLE: "GDP decline" was "caused by" "COVID-19 pandemic lockdowns"
+
+model CausalRelationship {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Core causal relationship
+  effect          String   @db.Text  // The effect/outcome (e.g., "GDP dropped 15%")
+  causes          String   @db.Text  // JSON array of causes with confidence scores
+                                     // [{ cause: "pandemic", confidence: 0.9, pattern: "due to" }]
+
+  // Evidence and context
+  evidence        String?  @db.Text  // Supporting evidence (quantitative data, quotes)
+  context         String?  @db.Text  // Contextual information (time period, conditions)
+  mechanism       String?  @db.Text  // How the cause leads to effect (the "how")
+
+  // Classification
+  domain          String?       // Domain: economics, finance, technology, etc.
+  causalType      String?       // Type: direct, indirect, contributing, necessary, sufficient
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs
+  documentCount     Int      @default(1)
+  extractedPatterns String?     // JSON: patterns used to extract (e.g., ["due to", "caused by"])
+
+  // Quality metrics
+  confidence      Float    @default(0.5)  // 0-1 overall confidence
+  isVerified      Boolean  @default(false)  // User verified
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, domain])
+  @@index([confidence])
+  @@map("causal_relationships")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// COMPARATIVE DATA - Store comparison information between concepts
+// ════════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Store structured comparisons for answering "compare X vs Y" questions
+// WHY: "Compare RL and portfolio optimization" needs actual attribute comparison
+// EXAMPLE: Approach: RL uses "trial-and-error", PO uses "mathematical optimization"
+
+model ComparativeData {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Concepts being compared
+  conceptA        String        // First concept (e.g., "reinforcement learning")
+  conceptB        String        // Second concept (e.g., "portfolio optimization")
+
+  // Structured comparison attributes
+  attributes      String   @db.Text  // JSON object: { aspect: { conceptA: value, conceptB: value } }
+                                     // e.g., { "approach": { "rl": "trial-and-error", "po": "optimization" } }
+
+  // Comparative statements found in documents
+  comparativeStatements String? @db.Text  // JSON array of comparative statements
+                                          // [{ pattern: "unlike", text: "Unlike RL, PO uses...", source: "doc123" }]
+
+  // Synthesized insights
+  keyInsight      String?  @db.Text  // Synthesized key insight about the comparison
+  similarities    String?  @db.Text  // JSON array of similarities
+  differences     String?  @db.Text  // JSON array of differences
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs
+  documentCount     Int      @default(1)
+
+  // Quality metrics
+  confidence      Float    @default(0.5)
+  isVerified      Boolean  @default(false)
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, conceptA, conceptB])
+  @@index([userId])
+  @@index([conceptA])
+  @@index([conceptB])
+  @@map("comparative_data")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// PRACTICAL RECOMMENDATIONS - Store extracted actionable recommendations
+// ════════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Store recommendations for answering "what should I do" questions
+// WHY: "What does this mean for my strategy?" needs actionable guidance
+// EXAMPLE: "Use ensemble methods" with evidence "15-20% better Sharpe ratio"
+
+model PracticalRecommendation {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Core recommendation
+  recommendation  String   @db.Text  // The recommendation text
+  category        String        // Category: Strategy Design, Risk Management, Implementation, etc.
+  strength        String        // strong, moderate, weak
+
+  // Supporting data
+  evidence        String?  @db.Text  // Quantitative evidence supporting this
+  rationale       String?  @db.Text  // Why this is recommended
+  thresholds      String?  @db.Text  // JSON: quantitative thresholds { metric, value, direction }
+
+  // Context
+  domain          String?       // Domain this applies to
+  applicability   String?  @db.Text  // When/where this applies
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs
+  documentCount     Int      @default(1)  // Number of documents supporting this
+  consensusLevel    String?      // single, multiple, consensus (if found in many docs)
+
+  // Quality metrics
+  confidence      Float    @default(0.5)
+  isVerified      Boolean  @default(false)
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([category])
+  @@index([userId, category])
+  @@index([strength])
+  @@index([consensusLevel])
+  @@map("practical_recommendations")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// TREND PATTERN - Store extracted trends and patterns from documents
+// ════════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Store temporal trends for answering "what's the trend" questions
+// WHY: "What's the trend in AI adoption?" needs actual trend data, not counts
+
+model TrendPattern {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Core trend identification
+  subject         String        // What is trending (e.g., "AI adoption", "ESG investing")
+  trendType       String        // increasing, decreasing, stable, cyclical, emerging
+  timeframe       String?       // Time period (e.g., "2020-2024", "last 5 years")
+
+  // Trend details
+  description     String   @db.Text  // Description of the trend
+  dataPoints      String?  @db.Text  // JSON: [{ period, value, source }]
+  magnitude       String?       // Description of magnitude (e.g., "30% growth", "2x increase")
+
+  // Drivers and implications
+  drivers         String?  @db.Text  // What's driving the trend
+  implications    String?  @db.Text  // What this trend means / implications
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs
+  documentCount     Int      @default(1)
+
+  // Quality metrics
+  confidence      Float    @default(0.5)
+  isVerified      Boolean  @default(false)
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([subject])
+  @@index([trendType])
+  @@index([userId, trendType])
+  @@map("trend_patterns")
 }

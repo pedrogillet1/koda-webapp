@@ -101,6 +101,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     if (isComparisonQuery) {
       console.log(`🔀 [COMPARISON] Detected comparison query across ${attachedDocumentIds.length} documents`);
     }
+    // Prepare metadata for user message with attached files info
+    const userMessageMetadata = attachedDocumentIds.length > 0 ? {
+      attachedFiles: attachedDocumentIds.map((id: string) => ({ id }))
+    } : null;
+
 
     if (!query || !conversationId) {
       res.status(400).json({ error: 'Query and conversationId are required' });
@@ -195,6 +200,44 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       /\.(pdf|docx?|xlsx?|pptx?|txt|csv)\b/i.test(query)
     );
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FLEXIBLE SHOW FILE DETECTION
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PURPOSE: Detect when user wants to see/open a file (not just search content)
+    // WHY: Old pattern was too strict - only matched "show file" without "?"
+    // NEW: Handles direct commands, polite requests, indirect requests, questions
+
+    const isShowFileQuery = (
+      // Direct commands: "show me the file", "open the document", "display report.pdf"
+      /(?:show|open|display|view|pull up|bring up)\s+(?:me\s+)?(?:the\s+)?/i.test(queryLower) &&
+      /file|document|paper|report|spreadsheet|presentation|pdf|docx?|xlsx?|pptx?/i.test(queryLower) ||
+
+      // Polite requests: "can I see the file?", "could you show me..."
+      /(?:can|could|would)\s+(?:I|you)\s+(?:see|show|open)/i.test(queryLower) &&
+      /file|document|paper|report/i.test(queryLower) ||
+
+      // Indirect requests: "I need to see the file", "I want to look at..."
+      /(?:need|want|would like)\s+to\s+(?:see|look at|review)/i.test(queryLower) &&
+      /file|document|paper|report/i.test(queryLower) ||
+
+      // "Let me see": "let me see the document"
+      /(?:let|allow)\s+me\s+(?:see|look at)/i.test(queryLower) &&
+      /file|document|paper|report/i.test(queryLower) ||
+
+      // Question-based (only if mentions file/document): "what's in the report?"
+      /what'?s?\s+in/i.test(queryLower) &&
+      /file|document|paper|report|spreadsheet|presentation/i.test(queryLower) ||
+
+      // "What does X say": "what does the contract say about..."
+      /what\s+does.*say/i.test(queryLower) &&
+      /file|document|paper|report|contract/i.test(queryLower) ||
+
+      // "Looking for": "I'm looking for the quarterly report"
+      /looking\s+for/i.test(queryLower) &&
+      /file|document|paper|report/i.test(queryLower) &&
+      !queryLower.includes('?') // Questions go to RAG
+    );
+
     // Patterns that REQUIRE LLM intent detection (file management actions)
     const needsLlmIntent = (
       // File management keywords
@@ -210,7 +253,8 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       queryLower.includes('eliminar ') ||
       // File listing without question context
       (queryLower.includes('list ') && queryLower.includes('file')) ||
-      (queryLower.includes('show ') && queryLower.includes('file') && !queryLower.includes('?'))
+      // Show file queries (using flexible detection)
+      isShowFileQuery
     );
 
     let intentResult;
@@ -357,7 +401,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         data: { updatedAt: new Date() }
       });
 
-      return res.json({
+      res.json({
         success: true,
         answer: folderResult.answer,
         sources: [],
@@ -410,7 +454,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
             relevanceScore: 1.0
           }));
 
-        return res.json({
+        res.json({
           success: true,
           answer: navResult.message,
           sources,
@@ -463,7 +507,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         data: { updatedAt: new Date() }
       });
 
-      return res.json({
+      res.json({
         success: true,
         answer: filesListAnswer,
         sources: [], // ✅ FIX #1: Always return sources
@@ -514,7 +558,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         data: { updatedAt: new Date() }
       });
 
-      return res.json({
+      res.json({
         success: result.success,
         answer: result.message,
         sources: [],
@@ -567,7 +611,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         data: { updatedAt: new Date() }
       });
 
-      return res.json({
+      res.json({
         success: result.success,
         answer: result.message,
         sources: [],
@@ -618,7 +662,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         data: { updatedAt: new Date() }
       });
 
-      return res.json({
+      res.json({
         success: result.success,
         answer: result.message,
         sources: [],
@@ -678,7 +722,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         data: { updatedAt: new Date() }
       });
 
-      return res.json({
+      res.json({
         success: result.success,
         answer: result.message,
         sources: [],
@@ -734,7 +778,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
             relevanceScore: 1.0
           }));
 
-        return res.json({
+        res.json({
           success: true,
           answer: navResult.message,
           sources,
@@ -777,7 +821,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           data: { updatedAt: new Date() }
         });
 
-        return res.json({
+        res.json({
           success: true,
           answer: navResult.message,
           sources: [],
@@ -828,7 +872,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           data: { updatedAt: new Date() }
         });
 
-        return res.json({
+        res.json({
           success: true,
           answer: templateResponse.content,
           sources: [],
@@ -866,7 +910,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           data: { updatedAt: new Date() }
         });
 
-        return res.json({
+        res.json({
           success: true,
           answer: templateResponse.content,
           sources: [],
@@ -913,7 +957,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           data: { updatedAt: new Date() }
         });
 
-        return res.json({
+        res.json({
           success: true,
           answer: metadataResult.answer,
           sources: metadataResult.sources || [],
@@ -988,9 +1032,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         content: result.answer,
         metadata: JSON.stringify({
           ragSources: result.sources,
-          contextId: result.contextId,
-          intent: result.intent,
-          confidence: result.confidence,
+          contextId: (result as any).contextId || 'rag-query',
+          intent: (result as any).intent || 'content_query',
+          confidence: (result as any).confidence || 0.8,
           answerLength: finalAnswerLength
         }),
       },
@@ -1063,9 +1107,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       success: true,
       answer: result.answer,
       sources: result.sources || [],  // ✅ FIX #1: Always return sources (empty array if none)
-      expandedQuery: result.expandedQuery,
-      contextId: result.contextId,
-      actions: result.actions || [],
+      expandedQuery: (result as any).expandedQuery || [],
+      contextId: (result as any).contextId || 'rag-query',
+      actions: (result as any).actions || [] || [],
       userMessage,
       assistantMessage
     });
@@ -1149,9 +1193,9 @@ export const answerFollowUp = async (req: Request, res: Response): Promise<void>
       success: true,
       answer: result.answer,
       sources: result.sources,
-      contextId: result.contextId,
-      intent: result.intent,
-      confidence: result.confidence
+      contextId: (result as any).contextId || 'rag-query',
+      intent: (result as any).intent || 'content_query',
+      confidence: (result as any).confidence || 0.8
     });
   } catch (error: any) {
     console.error('Error in RAG follow-up:', error);
@@ -2043,9 +2087,9 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           content: cleanedAnswer,
           metadata: JSON.stringify({
             ragSources: filteredSources,
-            contextId: result.contextId,
-            intent: result.intent,
-            confidence: result.confidence,
+            contextId: (result as any).contextId || 'rag-query',
+            intent: (result as any).intent || 'content_query',
+            confidence: (result as any).confidence || 0.8,
             answerLength: finalAnswerLength,
             regeneratedAt: new Date().toISOString()
           }),
@@ -2060,9 +2104,9 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           content: cleanedAnswer,
           metadata: JSON.stringify({
             ragSources: filteredSources,
-            contextId: result.contextId,
-            intent: result.intent,
-            confidence: result.confidence,
+            contextId: (result as any).contextId || 'rag-query',
+            intent: (result as any).intent || 'content_query',
+            confidence: (result as any).confidence || 0.8,
             answerLength: finalAnswerLength
           }),
         },
@@ -2127,10 +2171,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       userMessageId: userMessage.id,
       assistantMessageId: assistantMessage.id,
       sources: filteredSources || [], // ✅ FIX #1: Always send sources (empty array if none)
-      contextId: result.contextId,
-      intent: result.intent,
-      confidence: result.confidence,
-      actions: result.actions || [],
+      contextId: (result as any).contextId || 'rag-query',
+      intent: (result as any).intent || 'content_query',
+      confidence: (result as any).confidence || 0.8,
+      actions: (result as any).actions || [] || [],
       uiUpdate: result.uiUpdate,
       conversationId
     })}\n\n`);
