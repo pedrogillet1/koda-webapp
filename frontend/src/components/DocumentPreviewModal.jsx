@@ -10,7 +10,7 @@ import { downloadFile } from '../utils/browserUtils';
 // Set up the worker for pdf.js
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
+const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false }) => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [zoom, setZoom] = useState(100);
@@ -58,7 +58,6 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
   const onDocumentLoadSuccess = ({ numPages }) => {
     setTotalPages(numPages);
     setCurrentPage(1);
-    console.log('📄 PDF loaded successfully with', numPages, 'pages');
   };
 
   // Load document preview
@@ -72,7 +71,6 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
     const loadPreview = async () => {
       // ✅ PHASE 1 OPTIMIZATION: Check cache first (instant - <50ms)
       if (previewCache.has(document.id)) {
-        console.log('⚡ Using cached preview for:', document.filename);
         setPreviewUrl(previewCache.get(document.id));
         setIsLoading(false);
         return;
@@ -87,18 +85,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                        extension === 'docx' || extension === 'doc';
         const isImage = mimeType?.startsWith('image/') ||
                         ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(extension);
-
-        console.log('🔍 Document type detection:', {
-          filename: document.filename,
-          extension,
-          mimeType,
-          isDocx,
-          isImage
-        });
-
         if (isDocx) {
-          console.log('🔍 Requesting DOCX preview for document:', document.id);
-
           try {
             // Get PDF preview for DOCX with timeout
             const timeoutPromise = new Promise((_, reject) =>
@@ -111,13 +98,10 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
             ]);
 
             const { previewUrl: pdfUrl } = previewResponse.data;
-            console.log('✅ DOCX preview received:', pdfUrl?.substring(0, 100));
-
             // ✅ Cache the preview URL
             previewCache.set(document.id, pdfUrl);
             setPreviewUrl(pdfUrl);
           } catch (docxError) {
-            console.error('❌ DOCX preview failed:', docxError);
             // Set previewUrl to null so it shows error state
             setPreviewUrl(null);
             throw docxError; // Re-throw to be caught by outer catch
@@ -135,11 +119,8 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
           // ✅ Cache the blob URL
           previewCache.set(document.id, url);
           setPreviewUrl(url);
-
-          console.log(`📄 ${isImage ? 'Image' : 'Document'} preview loaded and cached:`, url);
         }
       } catch (error) {
-        console.error('❌ Error loading document preview:', error);
         setPreviewUrl(null);
       } finally {
         setIsLoading(false);
@@ -155,11 +136,21 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
     };
   }, [isOpen, document]);
 
+  // Handle close - passes document if attachOnClose is true
+  const handleClose = () => {
+    if (attachOnClose && document) {
+      console.log('📎 [PREVIEW] Closing with attach:', document.filename);
+      onClose(document); // Pass document to attach
+    } else {
+      onClose(null); // Close without attaching
+    }
+  };
+
   // Handle Esc key to close
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose();
+        handleClose();
       }
     };
 
@@ -173,7 +164,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
       window.document.removeEventListener('keydown', handleEsc);
       window.document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, attachOnClose, document]);
 
   // Track which page is currently visible using Intersection Observer
   useEffect(() => {
@@ -229,7 +220,6 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
       // Use browser-aware download function with the original file URL
       downloadFile(downloadUrl, document.filename);
     } catch (error) {
-      console.error('Error downloading document:', error);
       alert('Failed to download document');
     }
   };
@@ -246,7 +236,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
     <>
       {/* Overlay */}
       <div
-        onClick={onClose}
+        onClick={handleClose}
         style={{
           position: 'fixed',
           top: 0,
@@ -263,7 +253,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
       {/* Close button - positioned outside modal at top-right corner */}
       {!isMobile && (
         <button
-          onClick={onClose}
+          onClick={handleClose}
           style={{
             position: 'fixed',
             top: 'calc(10vh - 12px)',
@@ -362,6 +352,23 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
             >
               {document.filename || 'Document'}
             </span>
+
+            {/* Attach on Close Indicator */}
+            {attachOnClose && (
+              <span style={{
+                padding: '4px 10px',
+                backgroundColor: '#EEF2FF',
+                color: '#4F46E5',
+                fontSize: 11,
+                fontWeight: '600',
+                borderRadius: 12,
+                fontFamily: 'Plus Jakarta Sans',
+                whiteSpace: 'nowrap',
+                marginLeft: 8
+              }}>
+                Will attach on close
+              </span>
+            )}
           </div>
 
           {/* Center Section - Page Indicator (hidden on mobile and for images) */}
@@ -513,7 +520,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
             {/* Close button - only shown on mobile (desktop has corner button) */}
             {isMobile && (
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 style={{
                   width: 36,
                   height: 36,
@@ -609,11 +616,9 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                       src={previewUrl}
                       alt={document.filename}
                       onLoad={() => {
-                        console.log(`✅ Image loaded successfully`);
                         setImageLoading(false);
                       }}
                       onError={(e) => {
-                        console.error(`❌ Image failed to load:`, e);
                         setImageLoading(false);
                         setImageError(true);
                       }}
@@ -635,9 +640,6 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
                   file={fileConfig}
                   onLoadSuccess={onDocumentLoadSuccess}
                   onLoadError={(error) => {
-                    console.error('❌ PDF Load Error:', error);
-                    console.error('PDF URL:', previewUrl);
-                    console.error('Document:', document);
                   }}
                   options={pdfOptions}
                   loading={
@@ -866,7 +868,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
               height: 56,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'flex-end',
+              justifyContent: attachOnClose ? 'space-between' : 'flex-end',
               padding: '0 28px',
               borderTop: '1px solid #E0E0E0',
               background: '#F5F5F5'
@@ -898,6 +900,41 @@ const DocumentPreviewModal = ({ isOpen, onClose, document }) => {
             >
               Open Full Preview
             </button>
+
+            {/* Close & Attach Button - only shown when attachOnClose is true */}
+            {attachOnClose && (
+              <button
+                onClick={handleClose}
+                style={{
+                  background: '#4F46E5',
+                  border: 'none',
+                  color: '#FFFFFF',
+                  fontSize: 14,
+                  fontWeight: '600',
+                  fontFamily: 'Plus Jakarta Sans',
+                  cursor: 'pointer',
+                  padding: '10px 20px',
+                  borderRadius: 8,
+                  transition: 'background 200ms ease-out',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#4338CA';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#4F46E5';
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M14 10V12.6667C14 13.4 13.4 14 12.6667 14H3.33333C2.6 14 2 13.4 2 12.6667V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M11.3333 5.33333L8 2L4.66667 5.33333" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M8 2V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Close & Attach
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -441,7 +441,8 @@ export const sendAdaptiveMessageStreaming = async (
   content,
   onChunk,
   onComplete,
-  attachedDocumentId = null
+  attachedDocumentId = null,
+  onAction = null  // ✅ NEW: Callback for action events (show_file_modal, etc.)
 ) => {
   const token = localStorage.getItem('accessToken');
   const response = await fetch(
@@ -523,6 +524,12 @@ export const sendAdaptiveMessageStreaming = async (
             } else if (data.type === 'content') {
               console.log('🌊 CONTENT CHUNK:', data.content);
               onChunk(data.content);
+            } else if (data.type === 'action') {
+              // ✅ NEW: Handle action events (show_file_modal, etc.)
+              console.log('🎬 ACTION event:', data.actionType, data);
+              if (onAction) {
+                onAction(data);
+              }
             } else if (data.type === 'done') {
               console.log('✅ DONE signal received');
               onComplete(data);
@@ -679,6 +686,15 @@ export const onMessageComplete = (callback) => {
 };
 
 /**
+ * Listen for action events (show_file_modal, etc.)
+ */
+export const onAction = (callback) => {
+  if (socket) {
+    socket.on('action', callback);
+  }
+};
+
+/**
  * Remove message listeners
  */
 export const removeMessageListeners = () => {
@@ -690,6 +706,7 @@ export const removeMessageListeners = () => {
     socket.removeAllListeners('chat:message:aborted');
     socket.removeAllListeners('research:progress');
     socket.removeAllListeners('message-complete');
+    socket.removeAllListeners('action');  // ✅ NEW: Clean up action listener
   }
 };
 
@@ -870,6 +887,7 @@ export default {
   onMessageStage,
   onMessageAborted,
   onMessageComplete,
+  onAction,
   onResearchProgress,
   removeMessageListeners,
   // Title streaming exports
