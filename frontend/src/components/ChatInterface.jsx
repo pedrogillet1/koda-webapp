@@ -76,6 +76,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [researchProgress, setResearchProgress] = useState(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
     const [previewDocument, setPreviewDocument] = useState(null); // For document preview popup
+    const [previewAttachOnClose, setPreviewAttachOnClose] = useState(false); // Attach file when preview closes
     const [socketReady, setSocketReady] = useState(false); // Track WebSocket connection state
     const [regeneratingMessageId, setRegeneratingMessageId] = useState(null); // Track which message is being regenerated
     const [error, setError] = useState(null); // Track current error for ErrorBanner
@@ -585,6 +586,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 lastChunkReceived = '';
                 chunkSequence = 0;
                 console.log('✅ setIsLoading(false) called successfully');
+            });
+
+            // ✅ NEW: Listen for action events (show_file_modal, etc.)
+            chatService.onAction((data) => {
+                console.log('🎬 [ACTION] Received WebSocket action:', data.actionType, data);
+                if (data.actionType === 'show_file_modal' && data.success && data.document) {
+                    console.log('👁️ [SHOW_FILE_MODAL] Opening preview for:', data.document.filename);
+                    setPreviewDocument({
+                        id: data.document.id,
+                        filename: data.document.filename,
+                        mimeType: data.document.mimeType,
+                        fileSize: data.document.fileSize
+                    });
+                    setPreviewAttachOnClose(data.attachOnClose || false);
+                }
             });
         }
 
@@ -2185,6 +2201,19 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         console.log('🚀 [DEBUG] About to call setStreamingMessage with length:', streamedContent.length);
                                         setStreamingMessage(streamedContent);
                                         console.log('🚀 [DEBUG] Called setStreamingMessage');
+                                    } else if (data.type === 'action') {
+                                        // ✅ NEW: Handle show_file_modal action
+                                        console.log('🎬 [ACTION] Received action:', data.actionType, data);
+                                        if (data.actionType === 'show_file_modal' && data.success && data.document) {
+                                            console.log('👁️ [SHOW_FILE_MODAL] Opening preview for:', data.document.filename);
+                                            setPreviewDocument({
+                                                id: data.document.id,
+                                                filename: data.document.filename,
+                                                mimeType: data.document.mimeType,
+                                                fileSize: data.document.fileSize
+                                            });
+                                            setPreviewAttachOnClose(data.attachOnClose || false);
+                                        }
                                     } else if (data.type === 'done') {
                                         metadata = data;
                                     } else if (data.type === 'error') {
@@ -2481,6 +2510,148 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                 'File'}
                                                                         </div>
                                                                     </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Clarification Options - P0 Feature: Smart grouped options for file disambiguation */}
+                                                            {msg.metadata && msg.metadata.action === 'clarify' && msg.metadata.options && msg.metadata.options.length > 0 && (
+                                                                <div style={{
+                                                                    display: 'flex',
+                                                                    flexDirection: 'column',
+                                                                    gap: '8px',
+                                                                    marginTop: '12px',
+                                                                    padding: '12px',
+                                                                    backgroundColor: '#F9FAFB',
+                                                                    borderRadius: '12px',
+                                                                    border: '1px solid #E5E7EB'
+                                                                }}>
+                                                                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', marginBottom: '4px' }}>
+                                                                        {msg.metadata.groupingStrategy === 'folder' ? '📁 Grouped by folder:' :
+                                                                         msg.metadata.groupingStrategy === 'date' ? '📅 Grouped by date:' :
+                                                                         msg.metadata.groupingStrategy === 'fileType' ? '📄 Grouped by type:' :
+                                                                         '📋 Options:'}
+                                                                    </div>
+                                                                    {msg.metadata.options.map((option, idx) => (
+                                                                        <button
+                                                                            key={option.id || idx}
+                                                                            onClick={() => {
+                                                                                // When user clicks an option, send a follow-up message
+                                                                                const docIds = option.metadata?.documentIds || [];
+                                                                                if (docIds.length === 1) {
+                                                                                    // Single doc - show it directly
+                                                                                    setMessage(`Show me the file ${option.label}`);
+                                                                                } else {
+                                                                                    // Multiple docs in group - let user choose
+                                                                                    setMessage(`Show me files from ${option.label}`);
+                                                                                }
+                                                                                // Focus on input
+                                                                                inputRef.current?.focus();
+                                                                            }}
+                                                                            style={{
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'space-between',
+                                                                                padding: '10px 14px',
+                                                                                backgroundColor: 'white',
+                                                                                border: '1px solid #E5E7EB',
+                                                                                borderRadius: '8px',
+                                                                                cursor: 'pointer',
+                                                                                transition: 'all 0.2s ease',
+                                                                                textAlign: 'left',
+                                                                                width: '100%'
+                                                                            }}
+                                                                            onMouseEnter={(e) => {
+                                                                                e.currentTarget.style.backgroundColor = '#F3F4F6';
+                                                                                e.currentTarget.style.borderColor = '#3B82F6';
+                                                                            }}
+                                                                            onMouseLeave={(e) => {
+                                                                                e.currentTarget.style.backgroundColor = 'white';
+                                                                                e.currentTarget.style.borderColor = '#E5E7EB';
+                                                                            }}
+                                                                        >
+                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                                                <span style={{ fontSize: '14px', fontWeight: '500', color: '#1F2937' }}>
+                                                                                    {option.label}
+                                                                                </span>
+                                                                                {option.description && (
+                                                                                    <span style={{ fontSize: '12px', color: '#6B7280' }}>
+                                                                                        {option.description}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                                <polyline points="9 18 15 12 9 6"></polyline>
+                                                                            </svg>
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+
+                                                            {/* Clarification Matches - Simple file list when no grouped options */}
+                                                            {msg.metadata && msg.metadata.action === 'clarify' && msg.metadata.matches && (!msg.metadata.options || msg.metadata.options.length === 0) && (
+                                                                <div style={{
+                                                                    display: 'flex',
+                                                                    flexDirection: 'column',
+                                                                    gap: '6px',
+                                                                    marginTop: '12px'
+                                                                }}>
+                                                                    {msg.metadata.matches.slice(0, 5).map((match, idx) => (
+                                                                        <button
+                                                                            key={match.id || idx}
+                                                                            onClick={() => {
+                                                                                // Open the file preview directly
+                                                                                setPreviewDocument({
+                                                                                    id: match.id,
+                                                                                    filename: match.filename,
+                                                                                    mimeType: match.mimeType
+                                                                                });
+                                                                            }}
+                                                                            style={{
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                gap: '10px',
+                                                                                padding: '10px 14px',
+                                                                                backgroundColor: 'white',
+                                                                                border: '1px solid #E5E7EB',
+                                                                                borderRadius: '8px',
+                                                                                cursor: 'pointer',
+                                                                                transition: 'all 0.2s ease',
+                                                                                textAlign: 'left',
+                                                                                width: '100%'
+                                                                            }}
+                                                                            onMouseEnter={(e) => {
+                                                                                e.currentTarget.style.backgroundColor = '#F3F4F6';
+                                                                                e.currentTarget.style.borderColor = '#3B82F6';
+                                                                            }}
+                                                                            onMouseLeave={(e) => {
+                                                                                e.currentTarget.style.backgroundColor = 'white';
+                                                                                e.currentTarget.style.borderColor = '#E5E7EB';
+                                                                            }}
+                                                                        >
+                                                                            <img
+                                                                                src={getFileIcon(match.filename, match.mimeType)}
+                                                                                alt="file icon"
+                                                                                style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                                                                            />
+                                                                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                                                                                <div style={{
+                                                                                    fontSize: '14px',
+                                                                                    fontWeight: '500',
+                                                                                    color: '#1F2937',
+                                                                                    overflow: 'hidden',
+                                                                                    textOverflow: 'ellipsis',
+                                                                                    whiteSpace: 'nowrap'
+                                                                                }}>
+                                                                                    {match.filename}
+                                                                                </div>
+                                                                                {match.fileSize && (
+                                                                                    <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                                                                                        {(match.fileSize / 1024).toFixed(2)} KB
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </button>
+                                                                    ))}
                                                                 </div>
                                                             )}
 
@@ -3818,8 +3989,34 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             {/* Document Preview Modal */}
             <DocumentPreviewModal
                 isOpen={!!previewDocument}
-                onClose={() => setPreviewDocument(null)}
+                onClose={(documentToAttach) => {
+                    // Close the modal
+                    setPreviewDocument(null);
+                    setPreviewAttachOnClose(false);
+
+                    // If document should be attached, add it to attachedDocuments
+                    if (documentToAttach) {
+                        console.log('📎 [PREVIEW] Attaching document:', documentToAttach.filename);
+                        setAttachedDocuments(prev => {
+                            // Avoid duplicates
+                            if (prev.some(d => d.id === documentToAttach.id)) {
+                                console.log('📎 [PREVIEW] Document already attached, skipping');
+                                return prev;
+                            }
+                            return [...prev, {
+                                id: documentToAttach.id,
+                                name: documentToAttach.filename,
+                                filename: documentToAttach.filename,
+                                mimeType: documentToAttach.mimeType,
+                                type: documentToAttach.mimeType,
+                                fileSize: documentToAttach.fileSize,
+                                status: 'ready'
+                            }];
+                        });
+                    }
+                }}
                 document={previewDocument}
+                attachOnClose={previewAttachOnClose}
             />
 
             {/* Keyboard Shortcuts Modal */}

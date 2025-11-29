@@ -10,6 +10,9 @@ import { Intent } from '../types/intent.types';
 import fileActionsService from '../services/fileActions.service';
 import { generateConversationTitle } from '../services/gemini.service';
 import cacheService from '../services/cache.service'; // ✅ FIX: Cache invalidation after saving messages
+// ✅ P0 FEATURES: Import P0 services for multi-turn conversations
+import p0FeaturesService from '../services/p0Features.service';
+import clarificationService from '../services/clarification.service';
 
 /**
  * RAG Controller
@@ -207,35 +210,143 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     // WHY: Old pattern was too strict - only matched "show file" without "?"
     // NEW: Handles direct commands, polite requests, indirect requests, questions
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COMPLETE SHOW FILE DETECTION - 100% Implementation (EN, PT, ES)
+    // All 8 categories from Koda Natural File Actions Guide
+    // ═══════════════════════════════════════════════════════════════════════════
+    const fileKeywords = /file|document|paper|report|spreadsheet|presentation|pdf|docx?|xlsx?|pptx?|arquivo|documento|relatório|archivo|informe/i;
+
     const isShowFileQuery = (
-      // Direct commands: "show me the file", "open the document", "display report.pdf"
-      /(?:show|open|display|view|pull up|bring up)\s+(?:me\s+)?(?:the\s+)?/i.test(queryLower) &&
-      /file|document|paper|report|spreadsheet|presentation|pdf|docx?|xlsx?|pptx?/i.test(queryLower) ||
+      // ═══════════════════════════════════════════════════════════════════════
+      // CATEGORY 1: Direct Commands (EN, PT, ES)
+      // ═══════════════════════════════════════════════════════════════════════
+      /(?:show|open|display|view|pull up|bring up|present|reveal)\s+(?:me\s+)?(?:the\s+)?/i.test(queryLower) &&
+      fileKeywords.test(queryLower) ||
 
-      // Polite requests: "can I see the file?", "could you show me..."
-      /(?:can|could|would)\s+(?:I|you)\s+(?:see|show|open)/i.test(queryLower) &&
-      /file|document|paper|report/i.test(queryLower) ||
+      // Portuguese direct
+      /(?:me mostra|mostra|abre|exibe|mostre|abra|apresenta)\s+/i.test(queryLower) &&
+      /arquivo|documento|relatório/i.test(queryLower) ||
 
-      // Indirect requests: "I need to see the file", "I want to look at..."
-      /(?:need|want|would like)\s+to\s+(?:see|look at|review)/i.test(queryLower) &&
-      /file|document|paper|report/i.test(queryLower) ||
+      // Spanish direct
+      /(?:muéstrame|muestra|abre|enseña|enséñame|presenta)\s+/i.test(queryLower) &&
+      /archivo|documento|informe/i.test(queryLower) ||
 
-      // "Let me see": "let me see the document"
-      /(?:let|allow)\s+me\s+(?:see|look at)/i.test(queryLower) &&
-      /file|document|paper|report/i.test(queryLower) ||
+      // ═══════════════════════════════════════════════════════════════════════
+      // CATEGORY 2: Polite Requests (EN, PT, ES)
+      // ═══════════════════════════════════════════════════════════════════════
+      /(?:can|could|would|may)\s+(?:I|you)\s+(?:see|show|open|display|view)/i.test(queryLower) &&
+      fileKeywords.test(queryLower) ||
 
-      // Question-based (only if mentions file/document): "what's in the report?"
-      /what'?s?\s+in/i.test(queryLower) &&
-      /file|document|paper|report|spreadsheet|presentation/i.test(queryLower) ||
+      /(?:please|would you mind|could you please)\s+(?:show|open|display)/i.test(queryLower) &&
+      fileKeywords.test(queryLower) ||
 
-      // "What does X say": "what does the contract say about..."
-      /what\s+does.*say/i.test(queryLower) &&
-      /file|document|paper|report|contract/i.test(queryLower) ||
+      // Portuguese polite
+      /(?:pode|poderia|consegue|dá pra)\s+(?:me mostrar|abrir|mostrar)/i.test(queryLower) &&
+      /arquivo|documento/i.test(queryLower) ||
 
-      // "Looking for": "I'm looking for the quarterly report"
-      /looking\s+for/i.test(queryLower) &&
-      /file|document|paper|report/i.test(queryLower) &&
-      !queryLower.includes('?') // Questions go to RAG
+      // Spanish polite
+      /(?:puedes|podrías|pudieras)\s+(?:mostrarme|abrir|mostrar)/i.test(queryLower) &&
+      /archivo|documento/i.test(queryLower) ||
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // CATEGORY 3: Indirect Requests (EN, PT, ES)
+      // ═══════════════════════════════════════════════════════════════════════
+      /(?:need|want|would like|'d like)\s+to\s+(?:see|look at|review|check|examine)/i.test(queryLower) &&
+      fileKeywords.test(queryLower) ||
+
+      /(?:let|allow)\s+me\s+(?:see|look at|check|review)/i.test(queryLower) &&
+      fileKeywords.test(queryLower) ||
+
+      /(?:should|have to|must|gotta)\s+(?:see|look at|review|check)/i.test(queryLower) &&
+      fileKeywords.test(queryLower) ||
+
+      // Portuguese indirect
+      /(?:preciso|quero|gostaria de|tenho que)\s+(?:ver|olhar|revisar)/i.test(queryLower) &&
+      /arquivo|documento/i.test(queryLower) ||
+
+      // Spanish indirect
+      /(?:necesito|quiero|me gustaría|tengo que)\s+(?:ver|mirar|revisar)/i.test(queryLower) &&
+      /archivo|documento/i.test(queryLower) ||
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // CATEGORY 4: Question-Based (EN, PT, ES)
+      // ═══════════════════════════════════════════════════════════════════════
+      /what'?s?\s+in/i.test(queryLower) && fileKeywords.test(queryLower) ||
+      /what\s+does.*(?:say|contain)/i.test(queryLower) && fileKeywords.test(queryLower) ||
+      /where\s+is\s+(?:the\s+)?/i.test(queryLower) && fileKeywords.test(queryLower) ||
+
+      // Portuguese question
+      /(?:o que tem|o que há|o que diz|onde está|cadê)/i.test(queryLower) &&
+      /arquivo|documento/i.test(queryLower) ||
+
+      // Spanish question
+      /(?:qué hay en|qué dice|dónde está)/i.test(queryLower) &&
+      /archivo|documento/i.test(queryLower) ||
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // CATEGORY 5: Implied Actions (EN, PT, ES)
+      // ═══════════════════════════════════════════════════════════════════════
+      // "X please" suffix: "contract please", "the budget please"
+      /\s+please$/i.test(queryLower) && fileKeywords.test(queryLower) ||
+      // "X?" standalone: "contract?", "budget.pdf?"
+      /^[\w\s\.\-]+\?$/i.test(query) && /\.(pdf|docx?|xlsx?|pptx?)/i.test(query) ||
+      /looking\s+for/i.test(queryLower) && fileKeywords.test(queryLower) && !queryLower.includes('?') ||
+      /^need\s+(?:the\s+)?/i.test(queryLower) && fileKeywords.test(queryLower) ||
+      /^find\s+(?:me\s+)?(?:the\s+)?/i.test(queryLower) && fileKeywords.test(queryLower) ||
+      /^get\s+(?:me\s+)?(?:the\s+)?/i.test(queryLower) && fileKeywords.test(queryLower) ||
+
+      // Portuguese implied - "X por favor", "preciso do X"
+      /\s+(?:por favor|pfv|pf)$/i.test(queryLower) && /arquivo|documento/i.test(queryLower) ||
+      /(?:procurando|buscando)/i.test(queryLower) && /arquivo|documento/i.test(queryLower) ||
+      /^(?:preciso d[oa]|precisa d[oa])\s+/i.test(queryLower) ||
+
+      // Spanish implied - "X por favor", "necesito el X"
+      /\s+(?:por favor|porfa|porfavor)$/i.test(queryLower) && /archivo|documento/i.test(queryLower) ||
+      /(?:buscando)/i.test(queryLower) && /archivo|documento/i.test(queryLower) ||
+      /^(?:necesito|ocupo)\s+(?:el\s+|la\s+)?/i.test(queryLower) && /archivo|documento/i.test(queryLower) ||
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // CATEGORY 6: Casual/Abbreviated (EN, PT, ES)
+      // ═══════════════════════════════════════════════════════════════════════
+      /(?:gimme|lemme\s+see|check out|wanna\s+see|gotta\s+see)/i.test(queryLower) && fileKeywords.test(queryLower) ||
+      /(?:show|open|pull up).*(?:real quick|quickly|rq|asap)/i.test(queryLower) ||
+      /(?:yo|hey)\s+(?:show|open)/i.test(queryLower) && fileKeywords.test(queryLower) ||
+
+      // Portuguese casual
+      /(?:aí|ae|bora|vamo)\s+(?:mostra|abre|ver)/i.test(queryLower) ||
+      /(?:manda|mande)\s+(?:o\s+)?/i.test(queryLower) && /arquivo|documento/i.test(queryLower) ||
+
+      // Spanish casual
+      /(?:oye|ey|hey|dale|ándale)\s+(?:muestra|abre)/i.test(queryLower) ||
+      /(?:pásame|pasame|dame)\s+(?:el\s+)?/i.test(queryLower) && /archivo|documento/i.test(queryLower) ||
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // CATEGORY 7: Contextual References (EN, PT, ES)
+      // ═══════════════════════════════════════════════════════════════════════
+      /(?:show|open)\s+(?:me\s+)?(?:that|this|the)\s+(?:file|document|paper|report|one)/i.test(queryLower) ||
+      /(?:the\s+)?(?:one|file|document)\s+(?:about|on|regarding)\s+/i.test(queryLower) ||
+
+      // Portuguese contextual
+      /mostra\s+(?:aquele|esse|este|o)\s+(?:arquivo|documento)/i.test(queryLower) ||
+      /(?:arquivo|documento)\s+(?:sobre|de|a respeito)/i.test(queryLower) ||
+
+      // Spanish contextual
+      /muestra\s+(?:ese|este|aquel|el)\s+(?:archivo|documento)/i.test(queryLower) ||
+      /(?:archivo|documento)\s+(?:sobre|de|acerca)/i.test(queryLower) ||
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // CATEGORY 8: Temporal References (EN, PT, ES)
+      // ═══════════════════════════════════════════════════════════════════════
+      /(?:the\s+)?(?:file|document)\s+from\s+(?:yesterday|today|last week)/i.test(queryLower) ||
+      /(?:the\s+)?(?:recent|latest|newest|last)\s+(?:file|document|upload)/i.test(queryLower) ||
+
+      // Portuguese temporal
+      /(?:arquivo|documento)\s+(?:de ontem|de hoje|da semana passada)/i.test(queryLower) ||
+      /(?:último|recente)\s+(?:arquivo|documento)/i.test(queryLower) ||
+
+      // Spanish temporal
+      /(?:archivo|documento)\s+(?:de ayer|de hoy|de la semana pasada)/i.test(queryLower) ||
+      /(?:último|reciente)\s+(?:archivo|documento)/i.test(queryLower)
     );
 
     // Patterns that REQUIRE LLM intent detection (file management actions)
@@ -1731,6 +1842,17 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         data: { updatedAt: new Date() },
       });
 
+      // ✅ NEW: Send show_file_modal action to trigger modal with attachOnClose
+      if (result.success && result.data?.document) {
+        res.write(`data: ${JSON.stringify({
+          type: 'action',
+          actionType: 'show_file_modal',
+          success: true,
+          document: result.data.document,
+          attachOnClose: true  // Flag to attach file when modal closes
+        })}\n\n`);
+      }
+
       // Send the response content
       res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
       res.write(`data: ${JSON.stringify({
@@ -1882,6 +2004,24 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // This handles: rag_query, greeting, and unknown intents
     console.log(`📚 [FALLBACK] Falling through to RAG query for intent: ${intentResult.intent}`);
 
+    // ========================================
+    // ✅ P0 FEATURES: Pre-process query for multi-turn conversations
+    // ========================================
+    // This handles: Follow-up understanding, query rewriting, scope management, calculation detection
+    const p0PreProcess = await p0FeaturesService.preProcessQuery(query, userId, conversationId);
+    const processedQuery = p0PreProcess.processedQuery;
+
+    // Log P0 processing results
+    if (p0PreProcess.wasRewritten) {
+      console.log(`🔄 [P0] Query rewritten: "${query}" → "${processedQuery}"`);
+    }
+    if (p0PreProcess.isRefinement) {
+      console.log(`🔍 [P0] Refinement query - searching within ${p0PreProcess.scopeDocumentIds.length} documents`);
+    }
+    if (p0PreProcess.requiresCalculation) {
+      console.log(`🧮 [P0] Calculation required: ${p0PreProcess.calculationType}`);
+    }
+
     // Validate answerLength parameter
     const validLengths = ['short', 'medium', 'summary', 'long'];
     const finalAnswerLength = validLengths.includes(answerLength) ? answerLength : 'medium';
@@ -1955,15 +2095,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     try {
       console.log('🚀 [DEBUG] About to call generateAnswerStream');
       console.log('🚀 [DEBUG] userId:', userId);
-      console.log('🚀 [DEBUG] query:', query);
+      console.log('🚀 [DEBUG] processedQuery:', processedQuery);
       console.log('🚀 [DEBUG] conversationId:', conversationId);
 
+      // ✅ P0 FEATURES: Use processedQuery (may be rewritten) instead of original query
       // ✅ FIX: Use NEW generateAnswerStream (hybrid RAG with document detection + post-processing)
       // ✅ FIX #1: Pass conversation history for context-aware responses
       // ✅ FIX: Pass isFirstMessage to control greeting logic (only greet on first message ever)
       const streamResult = await ragService.generateAnswerStream(
         userId,
-        query,
+        processedQuery, // ✅ P0: Use processed/rewritten query
         conversationId,
         (chunk: string) => {
           console.log('🚀 [DEBUG] onChunk called with chunk length:', chunk.length);
@@ -2033,6 +2174,28 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // Use responsePostProcessor service for consistent formatting
     let cleanedAnswer = responsePostProcessor.process(result.answer, result.sources || []);
     console.log('✅ [POST-PROCESSING] Applied responsePostProcessor formatting (warnings, spacing, next steps limiting)');
+
+    // ========================================
+    // ✅ P0 FEATURES: Post-process response for calculations and context updates
+    // ========================================
+    const p0PostProcess = await p0FeaturesService.postProcessResponse(
+      query,
+      cleanedAnswer,
+      result.sources || [],
+      userId,
+      conversationId,
+      p0PreProcess
+    );
+
+    // Apply P0 post-processing results
+    cleanedAnswer = p0PostProcess.answer;
+
+    if (p0PostProcess.calculationResult) {
+      console.log(`🧮 [P0] Calculation added: ${p0PostProcess.calculationResult.explanation}`);
+    }
+    if (p0PostProcess.scopeUpdated) {
+      console.log(`📊 [P0] Scope updated: ${p0PostProcess.newScopeDescription}`);
+    }
 
     // ✅ FIX #2: Deduplicate sources by documentId (or filename if documentId is null)
     console.log(`🔍 [DEBUG - DEDUP] result.sources:`, result.sources);
