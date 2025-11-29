@@ -1,23 +1,29 @@
-import prisma from '../config/database';
 import geminiService from './gemini.service';
 import manusService from './manus.service';
+import { marked } from 'marked';
+import puppeteer from 'puppeteer';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
+import matter from 'gray-matter';
+import prisma from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
-import PDFDocument from 'pdfkit';
-import ExcelJS from 'exceljs';
 
 interface FileCreationParams {
   userId: string;
-  fileType: 'md' | 'docx' | 'pdf' | 'pptx' | 'xlsx';
   topic: string;
-  userQuery: string;
+  fileType: 'md' | 'pdf' | 'pptx' | 'docx' | 'xlsx';
+  additionalContext?: string;
   conversationId?: string;
 }
 
 interface FileCreationResult {
   success: boolean;
+  filePath: string;
+  fileName: string;
+  fileUrl: string;
+  content: string;
+  documentId: string;
   file: {
     id: string;
     name: string;
@@ -50,36 +56,77 @@ class FileCreationService {
    * Main entry point for file creation
    */
   async createFile(params: FileCreationParams): Promise<FileCreationResult> {
-    try {
-      console.log(`🎨 [FILE CREATION] Starting ${params.fileType} creation for: ${params.topic}`);
+    console.log(`📄 [FileCreation] Creating ${params.fileType.toUpperCase()} about: "${params.topic}"`);
 
-      // 1. Generate content using LLM
+    try {
+      // 1. Generate high-quality content
       const content = await this.generateContent(params);
 
       // 2. Create file based on type
-      const fileBuffer = await this.createFileByType(params.fileType, content, params.topic);
+      let fileBuffer: Buffer;
+      let fileName: string;
 
-      // 3. Generate filename
-      const fileName = this.generateFileName(params.fileType, params.topic);
+      switch (params.fileType) {
+        case 'md':
+          fileBuffer = await this.createMarkdown(content, params.topic);
+          fileName = `${this.sanitizeFileName(params.topic)}.md`;
+          break;
 
-      // 4. Save to storage
+        case 'pdf':
+          fileBuffer = await this.createPDF(content, params.topic);
+          fileName = `${this.sanitizeFileName(params.topic)}.pdf`;
+          break;
+
+        case 'pptx':
+          fileBuffer = await this.createPPTX(content, params.topic);
+          fileName = `${this.sanitizeFileName(params.topic)}.pptx`;
+          break;
+
+        case 'docx':
+          fileBuffer = await this.createDOCX(content, params.topic);
+          fileName = `${this.sanitizeFileName(params.topic)}.docx`;
+          break;
+
+        default:
+          throw new Error(`Unsupported file type: ${params.fileType}`);
+      }
+
+      // 3. Save to storage
       const filePath = path.join(this.uploadsDir, fileName);
       await fs.writeFile(filePath, fileBuffer);
 
-      // 5. Create document record in database
-      const document = await this.saveToDatabase({
-        userId: params.userId,
-        fileName,
-        filePath,
-        fileType: params.fileType,
-        size: fileBuffer.length,
-        topic: params.topic,
-        conversationId: params.conversationId,
+      // 4. Save to database
+      const document = await prisma.documents.create({
+        data: {
+          id: uuidv4(),
+          userId: params.userId,
+          filename: fileName,
+          encryptedFilename: fileName,
+          fileSize: fileBuffer.length,
+          mimeType: this.getMimeType(params.fileType),
+          fileHash: uuidv4(),
+          status: 'completed',
+          isEncrypted: false,
+          renderableContent: JSON.stringify({
+            source: 'ai_generated',
+            createdBy: 'koda',
+            generatedFrom: 'chat',
+            topic: params.topic,
+            wordCount: content.split(/\s+/).length,
+            conversationId: params.conversationId,
+          }),
+        },
       });
 
-      // 6. Return result
+      console.log(`✅ [FileCreation] Created ${fileName} (${fileBuffer.length} bytes)`);
+
       return {
         success: true,
+        filePath,
+        fileName,
+        fileUrl: `/api/files/${document.id}`,
+        content,
+        documentId: document.id,
         file: {
           id: document.id,
           name: fileName,
@@ -92,77 +139,17 @@ class FileCreationService {
         },
         message: `Created ${fileName} successfully`,
       };
-    } catch (error) {
-      console.error('❌ [FILE CREATION] Error:', error);
+    } catch (error: any) {
+      console.error('❌ [FileCreation] Error:', error);
       throw error;
     }
   }
 
   /**
-   * Generate content using LLM
+   * Generate high-quality content using Gemini
    */
   private async generateContent(params: FileCreationParams): Promise<string> {
-    const prompts = {
-      md: `Create a comprehensive Markdown document about: ${params.topic}
-
-Requirements:
-- Use proper Markdown formatting (headings, lists, tables, code blocks)
-- Well-structured with clear sections
-- Include relevant examples and explanations
-- Professional and informative tone
-
-Generate the complete Markdown content now:`,
-
-      docx: `Create professional document content about: ${params.topic}
-
-Requirements:
-- Clear hierarchical structure with headings
-- Well-organized paragraphs
-- Include bullet points and numbered lists where appropriate
-- Professional business writing style
-
-Generate the complete content now:`,
-
-      pdf: `Create a professional report about: ${params.topic}
-
-Requirements:
-- Executive summary
-- Clear sections with headings
-- Data-driven insights
-- Professional formatting
-- Conclusion and recommendations
-
-Generate the complete report content now:`,
-
-      pptx: `Create a presentation outline about: ${params.topic}
-
-Requirements:
-- Title slide
-- 5-7 content slides
-- Each slide should have:
-  * Clear heading
-  * 3-5 bullet points
-  * Key takeaway
-- Conclusion slide
-
-Generate the presentation outline in this format:
-SLIDE 1: [Title]
-- Point 1
-- Point 2
-...`,
-
-      xlsx: `Create a spreadsheet data structure about: ${params.topic}
-
-Requirements:
-- Clear column headers
-- Well-organized data rows
-- Include formulas where appropriate
-- Professional business spreadsheet format
-
-Generate the spreadsheet structure with headers and sample data in CSV format:`,
-    };
-
-    const prompt = prompts[params.fileType];
+    const prompt = this.buildContentPrompt(params);
 
     const response = await geminiService.generateText(prompt, {
       maxTokens: 4000,
@@ -173,118 +160,104 @@ Generate the spreadsheet structure with headers and sample data in CSV format:`,
   }
 
   /**
-   * Create file buffer based on type
+   * Build comprehensive prompt for content generation
    */
-  private async createFileByType(
-    fileType: string,
-    content: string,
-    topic: string
-  ): Promise<Buffer> {
-    switch (fileType) {
-      case 'md':
-        return await this.createMarkdown(content, topic);
+  private buildContentPrompt(params: FileCreationParams): string {
+    return `You are Koda AI, an intelligent document creation assistant.
+Create a professional, high-quality document about: "${params.topic}"
+${params.additionalContext ? `Additional Context: ${params.additionalContext}\n` : ''}
+DOCUMENT REQUIREMENTS:
+1. STRUCTURE (Manus Quality Standards):
+  - Start with a compelling title
+  - Include an executive summary (2-3 paragraphs)
+  - Organize into clear sections with proper hierarchy
+  - Use headings: # Main Title, ## Major Sections, ### Subsections
+  - Include at least one data table
+  - End with recommendations or conclusions
 
-      case 'docx':
-        return await this.createDocx(content, topic);
+2. CONTENT QUALITY:
+  - Professional, data-driven tone
+  - Specific numbers and metrics (use realistic examples)
+  - Clear, concise language
+  - Actionable insights
+  - Well-researched information
+  - No filler or fluff
 
-      case 'pdf':
-        return await this.createPdf(content, topic);
+3. FORMATTING (Markdown):
+  - Use **bold** for key metrics and emphasis
+  - Use bullet points for lists
+  - Use tables for structured data
+  - Use > blockquotes for important callouts
+  - Use \`code\` for technical terms
+  - Add horizontal rules (---) between major sections
 
-      case 'pptx':
-        return await this.createPptx(content, topic);
+4. LENGTH:
+  - Minimum 800 words
+  - Maximum 2000 words
+  - Comprehensive but concise
 
-      case 'xlsx':
-        return await this.createXlsx(content, topic);
+5. STYLE (Koda Branding):
+  - Professional but approachable
+  - Data-driven and factual
+  - Helpful and supportive
+  - Clear and direct
 
-      default:
-        throw new Error(`Unsupported file type: ${fileType}`);
-    }
+IMPORTANT:
+- Generate ONLY the document content in markdown format
+- Do NOT include meta-commentary or explanations
+- Do NOT use placeholder text like "[Insert data here]"
+- Use realistic data and examples
+- Ensure all tables are properly formatted
+
+Generate the document now:`;
   }
 
   /**
-   * Create Markdown file using Manus Method with Koda Style
+   * Create high-quality Markdown file
    */
   private async createMarkdown(content: string, topic: string): Promise<Buffer> {
-    console.log('📝 [MANUS] Starting Markdown creation with Koda branding');
+    // Add YAML front matter
+    const frontMatter = {
+      title: topic,
+      author: 'Koda AI',
+      date: new Date().toISOString().split('T')[0],
+      generated_by: 'Koda AI Assistant',
+      version: '1.0',
+    };
 
-    // 1. Generate structured markdown using LLM with Koda style prompt
-    const prompt = `Create a professional markdown document about: ${topic}
+    // Post-process content
+    const processedContent = this.postProcessMarkdown(content);
 
-STRUCTURE REQUIREMENTS (Manus Rules):
-- Start with YAML front matter (title, author, date)
-- Use proper heading hierarchy (# → ## → ###)
-- Include executive summary at the top
-- Use tables for structured data
-- Add code blocks with language identifiers where relevant
-- Include bullet points for lists
-- Use bold for key metrics and emphasis
-- Add horizontal rules between major sections
+    // Combine front matter + content + footer
+    const fullContent = matter.stringify(processedContent, frontMatter);
 
-STYLE REQUIREMENTS (Koda Branding):
-- Author: "Koda AI"
-- Tone: Professional, data-driven, helpful
-- Include "Generated by Koda AI" footer
-- Use clear, concise language
-- Focus on actionable insights
+    // Add Koda footer
+    const finalContent =
+      fullContent + `\n\n---\n\n*Document created by **Koda AI** on ${new Date().toLocaleDateString()}*\n`;
 
-CONTENT REQUIREMENTS:
-- Minimum 3 main sections
-- Include at least 1 data table
-- Provide specific numbers and metrics
-- End with recommendations or next steps
-
-Generate the markdown document now:`;
-
-    const markdownContent = await geminiService.generateText(prompt, {
-      maxTokens: 4000,
-      temperature: 0.7,
-    });
-
-    // 2. Post-process to ensure quality
-    const processedMarkdown = this.postProcessMarkdown(markdownContent, topic);
-
-    console.log('✅ [MANUS] Markdown created successfully with Koda branding');
-    return Buffer.from(processedMarkdown, 'utf-8');
+    return Buffer.from(finalContent, 'utf-8');
   }
 
   /**
-   * Post-process markdown to ensure Manus quality standards
+   * Post-process markdown to ensure quality
    */
-  private postProcessMarkdown(content: string, topic: string): string {
+  private postProcessMarkdown(content: string): string {
     let processed = content;
 
-    // Ensure YAML front matter exists
-    if (!processed.startsWith('---')) {
-      const frontMatter = `---
-title: ${topic}
-author: Koda AI
-date: ${new Date().toISOString().split('T')[0]}
-generated_by: Koda AI Assistant
----
-
-`;
-      processed = frontMatter + processed;
-    }
-
-    // Ensure proper heading hierarchy (no skipped levels)
+    // Fix heading hierarchy (no skipped levels)
     processed = this.fixHeadingHierarchy(processed);
 
-    // Add Koda footer if not present
-    if (!processed.includes('Generated by Koda')) {
-      processed += `\n\n---\n\n*Document generated by Koda AI on ${new Date().toLocaleDateString()}*\n`;
-    }
-
-    // Ensure tables have proper formatting
+    // Ensure proper table formatting
     processed = this.formatTables(processed);
 
-    // Ensure code blocks have language identifiers
-    processed = this.addCodeLanguages(processed);
+    // Add spacing around sections
+    processed = this.addProperSpacing(processed);
 
     return processed;
   }
 
   /**
-   * Fix heading hierarchy to follow Manus rules
+   * Fix heading hierarchy (Manus rule: don't skip levels)
    */
   private fixHeadingHierarchy(markdown: string): string {
     const lines = markdown.split('\n');
@@ -298,7 +271,7 @@ generated_by: Koda AI Assistant
         const level = headingMatch[1].length;
         const text = headingMatch[2];
 
-        // Don't skip levels (e.g., # → ### is bad, should be # → ## → ###)
+        // Don't skip levels
         if (level > currentLevel + 1) {
           const correctedLevel = currentLevel + 1;
           fixed.push('#'.repeat(correctedLevel) + ' ' + text);
@@ -316,207 +289,288 @@ generated_by: Koda AI Assistant
   }
 
   /**
-   * Ensure tables have proper markdown formatting
+   * Format tables properly
    */
   private formatTables(markdown: string): string {
-    const lines = markdown.split('\n');
-    const formatted: string[] = [];
+    // Ensure tables have proper spacing
+    return markdown.replace(/(\n\|.+\|)\n([^|\n])/g, '$1\n\n$2');
+  }
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+  /**
+   * Add proper spacing around sections
+   */
+  private addProperSpacing(markdown: string): string {
+    // Add blank line before headings
+    let processed = markdown.replace(/([^\n])\n(#{1,6}\s)/g, '$1\n\n$2');
 
-      // Check if this looks like a table row
-      if (line.includes('|') && line.trim().startsWith('|')) {
-        // Ensure spacing around pipes
-        const formattedLine = line
-          .split('|')
-          .map((cell) => cell.trim())
-          .join(' | ');
+    // Add blank line after headings
+    processed = processed.replace(/(#{1,6}\s.+)\n([^#\n])/g, '$1\n\n$2');
 
-        formatted.push(formattedLine);
+    return processed;
+  }
 
-        // Check if next line should be a separator
-        const nextLine = lines[i + 1];
-        if (
-          nextLine &&
-          !nextLine.includes('---') &&
-          !nextLine.includes('===') &&
-          formatted.length > 0
-        ) {
-          // This is likely a header row, add separator if missing
-          const columnCount = formattedLine.split('|').length - 2;
-          if (columnCount > 0 && i === formatted.length - 1) {
-            const separator = '| ' + Array(columnCount).fill('---').join(' | ') + ' |';
-            formatted.push(separator);
-          }
-        }
-      } else {
-        formatted.push(line);
+  /**
+   * Create high-quality PDF file
+   */
+  private async createPDF(content: string, topic: string): Promise<Buffer> {
+    // Convert markdown to HTML
+    const htmlContent = marked(content);
+
+    // Create Koda-styled HTML
+    const styledHTML = this.createKodaStyledHTML(htmlContent, topic);
+
+    // Generate PDF with Puppeteer
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const page = await browser.newPage();
+    await page.setContent(styledHTML, { waitUntil: 'networkidle0' });
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      margin: {
+        top: '20mm',
+        right: '20mm',
+        bottom: '25mm',
+        left: '20mm',
+      },
+      printBackground: true,
+      preferCSSPageSize: true,
+      displayHeaderFooter: true,
+      headerTemplate: '<div></div>',
+      footerTemplate: `
+        <div style="font-size: 10px; text-align: center; width: 100%; color: #6b7280; padding: 10px;">
+          <span>Created by Koda AI | Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
+        </div>
+      `,
+    });
+
+    await browser.close();
+
+    return Buffer.from(pdfBuffer);
+  }
+
+  /**
+   * Create Koda-styled HTML for PDF
+   */
+  private createKodaStyledHTML(htmlContent: string, topic: string): string {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm;
+    }
+
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
     }
 
-    return formatted.join('\n');
-  }
-
-  /**
-   * Add language identifiers to code blocks
-   */
-  private addCodeLanguages(markdown: string): string {
-    // Replace ``` with ```typescript, ```javascript, etc. based on context
-    return markdown.replace(/```\n/g, (match, offset) => {
-      // Look at surrounding context to guess language
-      const context = markdown.slice(Math.max(0, offset - 100), offset).toLowerCase();
-
-      if (context.includes('typescript') || context.includes('interface')) {
-        return '```typescript\n';
-      } else if (context.includes('javascript') || context.includes('function')) {
-        return '```javascript\n';
-      } else if (context.includes('python') || context.includes('def ')) {
-        return '```python\n';
-      } else if (context.includes('bash') || context.includes('command')) {
-        return '```bash\n';
-      } else if (context.includes('json')) {
-        return '```json\n';
-      } else if (context.includes('sql')) {
-        return '```sql\n';
-      }
-
-      return '```text\n';
-    });
-  }
-
-  /**
-   * Create DOCX file
-   */
-  private async createDocx(content: string, title: string): Promise<Buffer> {
-    const paragraphs: Paragraph[] = [];
-
-    // Add title
-    paragraphs.push(
-      new Paragraph({
-        text: title,
-        heading: HeadingLevel.TITLE,
-        spacing: { after: 400 },
-      })
-    );
-
-    // Parse content into paragraphs
-    const lines = content.split('\n');
-    for (const line of lines) {
-      if (line.trim() === '') continue;
-
-      // Check if it's a heading
-      if (line.startsWith('# ')) {
-        paragraphs.push(
-          new Paragraph({
-            text: line.replace('# ', ''),
-            heading: HeadingLevel.HEADING_1,
-            spacing: { before: 200, after: 200 },
-          })
-        );
-      } else if (line.startsWith('## ')) {
-        paragraphs.push(
-          new Paragraph({
-            text: line.replace('## ', ''),
-            heading: HeadingLevel.HEADING_2,
-            spacing: { before: 200, after: 100 },
-          })
-        );
-      } else if (line.startsWith('### ')) {
-        paragraphs.push(
-          new Paragraph({
-            text: line.replace('### ', ''),
-            heading: HeadingLevel.HEADING_3,
-            spacing: { before: 100, after: 100 },
-          })
-        );
-      } else {
-        paragraphs.push(
-          new Paragraph({
-            text: line,
-            spacing: { after: 120 },
-          })
-        );
-      }
+    * {
+      box-sizing: border-box;
     }
 
-    const doc = new Document({
-      sections: [
-        {
-          properties: {},
-          children: paragraphs,
-        },
-      ],
-    });
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      color: #111827;
+      line-height: 1.7;
+      font-size: 11pt;
+    }
 
-    return await Packer.toBuffer(doc);
+    h1 {
+      color: #6366f1;
+      font-size: 28pt;
+      font-weight: 700;
+      margin: 0 0 12px 0;
+      padding-bottom: 12px;
+      border-bottom: 3px solid #6366f1;
+      page-break-after: avoid;
+    }
+
+    h2 {
+      color: #8b5cf6;
+      font-size: 20pt;
+      font-weight: 600;
+      margin: 32px 0 16px 0;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      color: #111827;
+      font-size: 14pt;
+      font-weight: 600;
+      margin: 24px 0 12px 0;
+      page-break-after: avoid;
+    }
+
+    h4, h5, h6 {
+      color: #374151;
+      font-weight: 600;
+      margin: 16px 0 8px 0;
+      page-break-after: avoid;
+    }
+
+    p {
+      margin: 0 0 12px 0;
+      text-align: justify;
+      page-break-inside: avoid;
+    }
+
+    ul, ol {
+      margin: 12px 0;
+      padding-left: 24px;
+    }
+
+    li {
+      margin: 6px 0;
+      page-break-inside: avoid;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      page-break-inside: avoid;
+      font-size: 10pt;
+    }
+
+    th {
+      background: #6366f1;
+      color: #ffffff;
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: 600;
+      border: 1px solid #4f46e5;
+    }
+
+    td {
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+    }
+
+    tr:nth-child(even) td {
+      background: #f9fafb;
+    }
+
+    code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 9pt;
+      color: #8b5cf6;
+    }
+
+    pre {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      page-break-inside: avoid;
+      font-size: 9pt;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+
+    blockquote {
+      border-left: 4px solid #6366f1;
+      padding-left: 16px;
+      margin: 16px 0;
+      color: #4b5563;
+      font-style: italic;
+      page-break-inside: avoid;
+    }
+
+    hr {
+      border: none;
+      border-top: 2px solid #e5e7eb;
+      margin: 32px 0;
+    }
+
+    strong {
+      color: #6366f1;
+      font-weight: 600;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .koda-logo {
+      color: #6366f1;
+      font-weight: 700;
+      font-size: 16pt;
+      letter-spacing: 2px;
+    }
+
+    .document-meta {
+      color: #6b7280;
+      font-size: 9pt;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="koda-logo">KODA AI</div>
+    <h1>${topic}</h1>
+    <div class="document-meta">Generated on ${new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })}</div>
+  </div>
+
+  <div class="content">
+    ${htmlContent}
+  </div>
+</body>
+</html>`;
   }
 
   /**
-   * Create PDF file
+   * Create high-quality PPTX using Manus slide system
    */
-  private async createPdf(content: string, title: string): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      const doc = new PDFDocument({
-        margins: { top: 72, bottom: 72, left: 72, right: 72 },
-      });
-
-      doc.on('data', (chunk) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
-
-      // Add title
-      doc.fontSize(24).font('Helvetica-Bold').text(title, { align: 'center' });
-      doc.moveDown(2);
-
-      // Add content
-      const lines = content.split('\n');
-      for (const line of lines) {
-        if (line.trim() === '') {
-          doc.moveDown(0.5);
-          continue;
-        }
-
-        if (line.startsWith('# ')) {
-          doc.fontSize(18).font('Helvetica-Bold').text(line.replace('# ', ''));
-          doc.moveDown(0.5);
-        } else if (line.startsWith('## ')) {
-          doc.fontSize(14).font('Helvetica-Bold').text(line.replace('## ', ''));
-          doc.moveDown(0.3);
-        } else {
-          doc.fontSize(11).font('Helvetica').text(line);
-          doc.moveDown(0.2);
-        }
-      }
-
-      doc.end();
-    });
-  }
-
-  /**
-   * Create PPTX file using Manus Method with Koda Branding
-   */
-  private async createPptx(content: string, title: string): Promise<Buffer> {
+  private async createPPTX(content: string, topic: string): Promise<Buffer> {
     console.log('🎨 [MANUS] Starting PPTX creation with Koda branding');
 
-    // STEP 1: Initialize slide project with Koda style instructions
+    // STEP 1: Initialize slide project
     const projectId = await manusService.slide_initialize(
-      title,
-      'Koda AI Professional Presentation: Indigo-purple gradient background (#6366f1 to #8b5cf6), Inter font, white content cards with 16px border radius'
+      topic,
+      'Koda AI Professional Presentation: Indigo-purple gradient background (#6366f1 to #8b5cf6), Inter font, white content cards'
     );
 
     // STEP 2: Parse content and create slides
     const slides = content.split('SLIDE ').filter((s) => s.trim());
 
-    // Create title slide (Slide 1)
+    // Create title slide
     const titleSlideHTML = this.generateSlideHTML('title', {
-      title: title,
+      title: topic,
       subtitle: 'Powered by Koda AI',
     });
     await manusService.slide_edit(projectId, 1, titleSlideHTML);
 
-    // Create content slides (Slide 2+)
+    // Create content slides
     let slideNumber = 2;
     for (const slideContent of slides) {
       const lines = slideContent.split('\n').filter((l) => l.trim());
@@ -537,7 +591,7 @@ generated_by: Koda AI Assistant
       slideNumber++;
     }
 
-    // STEP 3: Generate presentation and convert to PPTX
+    // STEP 3: Generate presentation
     const htmlPath = await manusService.slide_present(projectId);
     const pptxPath = htmlPath.replace('.html', '.pptx');
     const buffer = await manusService.convertHTMLToPPTX(htmlPath, pptxPath);
@@ -545,7 +599,7 @@ generated_by: Koda AI Assistant
     // Cleanup
     await manusService.cleanup(projectId);
 
-    console.log('✅ [MANUS] PPTX created successfully with Koda branding');
+    console.log('✅ [MANUS] PPTX created successfully');
     return buffer;
   }
 
@@ -663,96 +717,120 @@ generated_by: Koda AI Assistant
   }
 
   /**
-   * Create XLSX file
+   * Create DOCX file
    */
-  private async createXlsx(content: string, title: string): Promise<Buffer> {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet(title);
+  private async createDOCX(content: string, topic: string): Promise<Buffer> {
+    // Parse markdown content
+    const sections = this.parseMarkdownForDOCX(content, topic);
 
-    // Parse CSV content
-    const lines = content.split('\n').filter((l) => l.trim());
+    // Create document
+    const doc = new Document({
+      sections: [
+        {
+          properties: {},
+          children: sections,
+        },
+      ],
+    });
 
-    for (let i = 0; i < lines.length; i++) {
-      const cells = lines[i].split(',').map((c) => c.trim());
-      const row = worksheet.addRow(cells);
+    return await Packer.toBuffer(doc);
+  }
 
-      // Style header row
-      if (i === 0) {
-        row.font = { bold: true };
-        row.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFE0E0E0' },
-        };
+  /**
+   * Parse markdown content for DOCX conversion
+   */
+  private parseMarkdownForDOCX(content: string, topic: string): Paragraph[] {
+    const paragraphs: Paragraph[] = [];
+
+    // Add title
+    paragraphs.push(
+      new Paragraph({
+        text: topic,
+        heading: HeadingLevel.TITLE,
+        spacing: { after: 400 },
+      })
+    );
+
+    // Add metadata
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Created by Koda AI | ${new Date().toLocaleDateString()}`,
+            size: 20,
+            color: '6b7280',
+          }),
+        ],
+        spacing: { after: 600 },
+      })
+    );
+
+    // Parse content
+    const lines = content.split('\n');
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+
+      // Headings
+      if (line.startsWith('# ')) {
+        paragraphs.push(
+          new Paragraph({
+            text: line.replace(/^#\s+/, ''),
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 },
+          })
+        );
+      } else if (line.startsWith('## ')) {
+        paragraphs.push(
+          new Paragraph({
+            text: line.replace(/^##\s+/, ''),
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 300, after: 150 },
+          })
+        );
+      } else if (line.startsWith('### ')) {
+        paragraphs.push(
+          new Paragraph({
+            text: line.replace(/^###\s+/, ''),
+            heading: HeadingLevel.HEADING_3,
+            spacing: { before: 200, after: 100 },
+          })
+        );
+      }
+      // Regular paragraphs
+      else if (!line.startsWith('|') && !line.startsWith('-')) {
+        paragraphs.push(
+          new Paragraph({
+            text: line.replace(/\*\*(.+?)\*\*/g, '$1'), // Remove markdown bold
+            spacing: { after: 120 },
+          })
+        );
       }
     }
 
-    // Auto-fit columns
-    worksheet.columns.forEach((column) => {
-      column.width = 15;
-    });
-
-    return await workbook.xlsx.writeBuffer() as Buffer;
+    return paragraphs;
   }
 
   /**
-   * Generate filename
+   * Helper: Sanitize filename
    */
-  private generateFileName(fileType: string, topic: string): string {
-    const sanitized = topic
+  private sanitizeFileName(name: string): string {
+    return name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
+      .replace(/^-+|-+$/g, '')
       .substring(0, 50);
-
-    const timestamp = Date.now();
-    return `${sanitized}-${timestamp}.${fileType}`;
   }
 
   /**
-   * Save to database
-   */
-  private async saveToDatabase(params: {
-    userId: string;
-    fileName: string;
-    filePath: string;
-    fileType: string;
-    size: number;
-    topic: string;
-    conversationId?: string;
-  }) {
-    const document = await prisma.documents.create({
-      data: {
-        id: uuidv4(),
-        userId: params.userId,
-        filename: params.fileName,
-        encryptedFilename: params.fileName,
-        fileSize: params.size,
-        mimeType: this.getMimeType(params.fileType),
-        fileHash: uuidv4(), // Generate proper hash if needed
-        status: 'completed',
-        isEncrypted: false,
-        renderableContent: JSON.stringify({
-          source: 'ai_generated',
-          topic: params.topic,
-          createdBy: 'koda',
-          conversationId: params.conversationId,
-        }),
-      },
-    });
-
-    return document;
-  }
-
-  /**
-   * Get MIME type for file type
+   * Helper: Get MIME type
    */
   private getMimeType(fileType: string): string {
     const mimeTypes: Record<string, string> = {
       md: 'text/markdown',
-      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       pdf: 'application/pdf',
       pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     };
 

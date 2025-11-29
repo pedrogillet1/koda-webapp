@@ -1781,6 +1781,30 @@ Check each extraction for accuracy.`,
 };
 
 /**
+ * Simple text generation wrapper for general-purpose AI text generation
+ * Used for file creation, content generation, and other non-chat tasks
+ */
+export async function generateText(params: {
+  prompt: string;
+  temperature?: number;
+  maxTokens?: number;
+}): Promise<string> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini', // Fast and cost-effective for general text generation
+      messages: [{ role: 'user', content: params.prompt }],
+      temperature: params.temperature ?? 0.7,
+      max_tokens: params.maxTokens ?? 4000,
+    });
+
+    return response.choices[0].message.content || '';
+  } catch (error: any) {
+    console.error('❌ Error in generateText:', error);
+    throw new Error('Failed to generate text: ' + error.message);
+  }
+}
+
+/**
  * Generate a smart, concise title for a conversation based on its content
  * Analyzes the conversation context to create a meaningful title (max 50 characters)
  */
