@@ -1530,13 +1530,13 @@ const Documents = () => {
           {/* Recently Added - Full width card below */}
           <div style={{width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 20, border: '2px solid #E6E6EC', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)', display: 'flex', flexDirection: 'column', overflow: 'visible'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24}}>
-                <div style={{color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>Recently Added</div>
+                <div style={{color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700'}}>{t('documents.recentlyAdded')}</div>
                 {contextDocuments.length > 8 && (
                   <div
                     onClick={() => navigate('/documents')}
                     style={{color: '#171717', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '22.40px', cursor: 'pointer'}}
                   >
-                    See All
+                    {t('common.seeAll')}
                   </div>
                 )}
               </div>
@@ -1828,7 +1828,7 @@ const Documents = () => {
                               </div>
                               {isFailed && (
                                 <div style={{fontSize: 12, color: '#EF4444', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4}}>
-                                  <span>❌</span><span>Failed</span>
+                                  <span>❌</span><span>{t('upload.failed')}</span>
                                 </div>
                               )}
                             </div>
@@ -2055,7 +2055,7 @@ const Documents = () => {
                 </div>
               ) : (
                 <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: 200}}>
-                  <div style={{color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>No documents yet</div>
+                  <div style={{color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>{t('documents.noDocuments')}</div>
                 </div>
               )}
             </div>
@@ -2443,7 +2443,7 @@ const Documents = () => {
                   fontWeight: '600',
                   lineHeight: '24px'
                 }}>
-                  Create New Category
+                  {t('modals.createCategory.title')}
                 </div>
               </button>
             </div>

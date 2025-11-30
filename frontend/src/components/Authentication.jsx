@@ -1,7 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const Authentication = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   return (
@@ -28,7 +30,7 @@ const Authentication = () => {
           padding: 0
         }}
       >
-        ← Back
+        ← {t('common.back')}
       </button>
 
       {/* Content Container */}
@@ -60,7 +62,7 @@ const Authentication = () => {
           margin: 0,
           marginBottom: '16px'
         }}>
-          Authentication
+          {t('authentication.title')}
         </h1>
 
         <p style={{
@@ -71,7 +73,7 @@ const Authentication = () => {
           marginBottom: '48px',
           lineHeight: '1.5'
         }}>
-          Choose a method to authenticate your account.
+          {t('authentication.subtitle')}
         </p>
 
         {/* Email Option */}
@@ -95,7 +97,7 @@ const Authentication = () => {
           }}
         >
           <span style={{ fontSize: '28px', textShadow: '0 2px 6px rgba(0, 0, 0, 0.15)' }}>📧</span>
-          Continue With Email
+          {t('authentication.continueWithEmail')}
         </button>
 
         {/* Phone Option */}
@@ -119,7 +121,7 @@ const Authentication = () => {
           }}
         >
           <span style={{ fontSize: '28px', textShadow: '0 2px 6px rgba(0, 0, 0, 0.15)', display: 'inline-block', transform: 'rotate(-15deg)' }}>📱</span>
-          Continue With Phone
+          {t('authentication.continueWithPhone')}
         </button>
       </div>
     </div>

@@ -655,7 +655,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 // ✅ NEW: Handle file_created action (AI-generated files)
                 if (data.actionType === 'file_created' && data.success && data.file) {
                     console.log('🎨 [FILE_CREATED] Opening preview for created file:', data.file.name);
-                    showSuccess(`Created ${data.file.name}`, { duration: 4000 });
+                    showSuccess(t('toasts.createdFile', { name: data.file.name }), { duration: 4000 });
                     setCreatedFilePreview(data.file);
                 }
 
@@ -2778,7 +2778,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                         marginTop: 8,
                                                                         cursor: 'help'
                                                                     }}
-                                                                    title={`${msg.confidence.reasoning || 'Confidence based on source quality and relevance'}\n\nScore: ${msg.confidence.score}/100\n\n${msg.confidence.factors ? `Source relevance: ${(msg.confidence.factors.sourceRelevance * 100).toFixed(0)}%\nSources found: ${msg.confidence.factors.sourceCount}\nAnswer length: ${msg.confidence.factors.answerLength} words` : ''}`}
+                                                                    title={`${msg.confidence.reasoning || t('chat.confidenceReasoning')}\n\n${t('chat.score')}: ${msg.confidence.score}/100\n\n${msg.confidence.factors ? `${t('chat.sourceRelevance')}: ${(msg.confidence.factors.sourceRelevance * 100).toFixed(0)}%\n${t('chat.sourcesFound')}: ${msg.confidence.factors.sourceCount}\n${t('chat.answerLength')}: ${msg.confidence.factors.answerLength} ${t('chat.words')}` : ''}`}
                                                                 >
                                                                     <svg
                                                                         width="14"
@@ -2805,7 +2805,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                         color: msg.confidence.level === 'high' ? '#059669' : msg.confidence.level === 'medium' ? '#D97706' : '#DC2626',
                                                                         textTransform: 'capitalize'
                                                                     }}>
-                                                                        {msg.confidence.level} Confidence
+                                                                        {t(`chat.confidence.${msg.confidence.level}`)}
                                                                     </span>
                                                                     {msg.isMultiStep && (
                                                                         <span style={{
@@ -2816,9 +2816,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                             background: 'white',
                                                                             borderRadius: 4
                                                                         }}
-                                                                        title={`Multi-step reasoning used:\n${msg.subQuestions?.join('\n')}`}
+                                                                        title={`${t('chat.multiStepReasoningUsed')}:\n${msg.subQuestions?.join('\n')}`}
                                                                         >
-                                                                            Multi-Step
+                                                                            {t('chat.multiStep')}
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -4144,7 +4144,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     if (!createdFilePreview) return;
 
                     try {
-                        showSuccess(`Saved ${createdFilePreview.name} to your files`, { duration: 3000 });
+                        showSuccess(t('toasts.savedToFiles', { name: createdFilePreview.name }), { duration: 3000 });
                         setCreatedFilePreview(null);
                         // Refresh documents list if needed
                         if (window.location.pathname === '/files') {
@@ -4152,7 +4152,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     } catch (error) {
                         console.error('Error saving file:', error);
-                        showError('Failed to save file', { duration: 4000 });
+                        showError(t('toasts.failedToSaveFile'), { duration: 4000 });
                     }
                 }}
                 onDownload={() => {
@@ -4166,7 +4166,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     link.click();
                     document.body.removeChild(link);
 
-                    showSuccess(`Downloaded ${createdFilePreview.name}`, { duration: 3000 });
+                    showSuccess(t('toasts.downloadedFile', { name: createdFilePreview.name }), { duration: 3000 });
                 }}
             />
 
@@ -4200,7 +4200,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         setFolderPreviewModal({ isOpen: false, folder: null, contents: null });
                     } catch (error) {
                         console.error('Error opening file:', error);
-                        showError('Failed to open file', { duration: 4000 });
+                        showError(t('toasts.failedToOpenFile'), { duration: 4000 });
                     }
                 }}
             />

@@ -217,12 +217,12 @@ const FileTypeDetail = () => {
       const results = await Promise.all(deletePromises);
       const successCount = results.filter(r => r && r.success).length;
       if (successCount > 0) {
-        showSuccess(successCount + ' file' + (successCount > 1 ? 's have' : ' has') + ' been deleted');
+        showSuccess(t('toasts.fileDeletedSingular', { count: successCount }));
       }
     } else if (itemToDeleteCopy.type === 'document') {
       const result = await deleteDocument(itemToDeleteCopy.id);
       if (result && result.success) {
-        showSuccess('1 file has been deleted');
+        showSuccess(t('toasts.fileDeleted'));
       }
     }
   };
@@ -242,10 +242,10 @@ const FileTypeDetail = () => {
         await Promise.all(Array.from(selectedDocuments).map(docId => moveToFolder(docId, selectedCategoryId)));
         clearSelection();
         toggleSelectMode();
-        showSuccess(selectedDocuments.size + ' file' + (selectedDocuments.size > 1 ? 's' : '') + ' moved successfully');
+        showSuccess(t('toasts.filesMovedSuccessfully', { count: selectedDocuments.size }));
       } else if (selectedDocumentForCategory) {
         await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
-        showSuccess('File moved successfully');
+        showSuccess(t('toasts.fileMovedSuccessfully'));
       }
       setShowCategoryModal(false);
       setSelectedDocumentForCategory(null);

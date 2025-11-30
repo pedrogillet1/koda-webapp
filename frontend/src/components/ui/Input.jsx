@@ -186,7 +186,6 @@ export const SearchInput = forwardRef((props, ref) => (
   <Input
     ref={ref}
     type="search"
-    placeholder="Search..."
     leftIcon={
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <path
@@ -203,9 +202,9 @@ export const SearchInput = forwardRef((props, ref) => (
 ));
 
 export const PasswordInput = forwardRef((props, ref) => (
-  <Input ref={ref} type="password" placeholder="Enter password" {...props} />
+  <Input ref={ref} type="password" {...props} />
 ));
 
 export const EmailInput = forwardRef((props, ref) => (
-  <Input ref={ref} type="email" placeholder="Enter email" {...props} />
+  <Input ref={ref} type="email" {...props} />
 ));

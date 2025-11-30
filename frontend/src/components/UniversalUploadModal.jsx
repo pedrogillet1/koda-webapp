@@ -398,8 +398,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       // Add notification to global notification system
       addNotification({
         type: 'info',
-        title: 'Upload Complete',
-        text: `${totalSuccessCount} document${totalSuccessCount > 1 ? 's have' : ' has'} been successfully uploaded.`,
+        title: t('upload.notifications.uploadComplete'),
+        text: t('upload.notifications.uploadCompleteText', { count: totalSuccessCount }),
         action: { type: 'navigate', target: '/documents' }
       });
     }
@@ -412,15 +412,15 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       // Add error notification to global notification system
       addNotification({
         type: 'error',
-        title: 'Upload Failed',
-        text: `${totalFailureCount} file${totalFailureCount > 1 ? 's' : ''} failed to upload. Please try again.`
+        title: t('upload.notifications.uploadFailed'),
+        text: t('upload.notifications.uploadFailedText', { count: totalFailureCount })
       });
     } else if (totalFailureCount > 0 && totalSuccessCount > 0) {
       // Partial success
       addNotification({
         type: 'warning',
-        title: 'Upload Partially Complete',
-        text: `${totalSuccessCount} uploaded, ${totalFailureCount} failed.`,
+        title: t('upload.notifications.uploadPartialComplete'),
+        text: t('upload.notifications.uploadPartialCompleteText', { success: totalSuccessCount, failed: totalFailureCount }),
         action: { type: 'navigate', target: '/documents' }
       });
     }
@@ -441,15 +441,15 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
         if (usagePercent >= 90) {
           addNotification({
             type: 'error',
-            title: 'Storage Almost Full',
-            text: `You've used ${Math.round(usagePercent)}% of your storage. Upgrade now to avoid upload failures.`,
+            title: t('upload.notifications.storageAlmostFull'),
+            text: t('upload.notifications.storageAlmostFullText', { percent: Math.round(usagePercent) }),
             action: { type: 'navigate', target: '/upgrade' }
           });
         } else if (usagePercent >= 70) {
           addNotification({
             type: 'warning',
-            title: 'Storage Running Low',
-            text: `You've used ${Math.round(usagePercent)}% of your storage. Consider upgrading your plan.`,
+            title: t('upload.notifications.storageRunningLow'),
+            text: t('upload.notifications.storageRunningLowText', { percent: Math.round(usagePercent) }),
             action: { type: 'navigate', target: '/upgrade' }
           });
         }

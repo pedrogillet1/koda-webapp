@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import CategoryIcon from './CategoryIcon';
@@ -11,6 +12,7 @@ const UniversalAddToCategoryModal = ({
   onCategorySelected,
   onCreateNew
 }) => {
+  const { t } = useTranslation();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -143,7 +145,7 @@ const UniversalAddToCategoryModal = ({
               textTransform: 'capitalize',
               lineHeight: '26px'
             }}>
-              Add to Category
+              {t('modals.addToCategory.title')}
             </div>
           </div>
           <button
@@ -191,7 +193,7 @@ const UniversalAddToCategoryModal = ({
             fontWeight: '500',
             lineHeight: '24px'
           }}>
-            Choose a category for your document
+            {t('modals.addToCategory.chooseCategory')}
           </div>
         </div>
 
@@ -224,7 +226,7 @@ const UniversalAddToCategoryModal = ({
                 fontSize: 14,
                 fontFamily: 'Plus Jakarta Sans'
               }}>
-                Loading categories...
+                {t('modals.addToCategory.loadingCategories')}
               </div>
             ) : categoryRows.length === 0 ? (
               <div style={{
@@ -235,7 +237,7 @@ const UniversalAddToCategoryModal = ({
                 fontSize: 14,
                 fontFamily: 'Plus Jakarta Sans'
               }}>
-                No categories yet. Create one below!
+                {t('modals.addToCategory.noCategories')}
               </div>
             ) : (
               categoryRows.map((row, rowIndex) => (
@@ -405,7 +407,7 @@ const UniversalAddToCategoryModal = ({
                     fontWeight: '500',
                     lineHeight: '20px'
                   }}>
-                    Create New
+                    {t('common.createNew')}
                   </div>
                 </div>
               </button>
@@ -454,7 +456,7 @@ const UniversalAddToCategoryModal = ({
               textTransform: 'capitalize',
               lineHeight: '24px'
             }}>
-              Cancel
+              {t('common.cancel')}
             </div>
           </button>
           <button
@@ -491,7 +493,7 @@ const UniversalAddToCategoryModal = ({
                 textTransform: 'capitalize',
                 lineHeight: '24px'
               }}>
-                Add
+                {t('common.add')}
               </div>
             </div>
           </button>

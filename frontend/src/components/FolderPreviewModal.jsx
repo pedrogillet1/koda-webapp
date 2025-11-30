@@ -48,7 +48,7 @@ function FolderPreviewModal({
             <span className="folder-emoji">{folder.emoji || '📁'}</span>
             <h2>{folder.name}</h2>
           </div>
-          <button onClick={onClose} className="close-btn" aria-label="Close">
+          <button onClick={onClose} className="close-btn" aria-label={t('common.close')}>
             <X size={24} />
           </button>
         </div>

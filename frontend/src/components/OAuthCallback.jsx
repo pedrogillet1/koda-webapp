@@ -1,8 +1,10 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 
 const OAuthCallback = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { setAuthState } = useAuth();
@@ -110,7 +112,7 @@ const OAuthCallback = () => {
           fontWeight: '600',
           marginBottom: 8
         }}>
-          Completing sign in...
+          {t('oauth.completingSignIn')}
         </div>
 
         <div style={{
@@ -119,7 +121,7 @@ const OAuthCallback = () => {
           fontFamily: 'Plus Jakarta Sans',
           fontWeight: '400'
         }}>
-          Please wait while we authenticate your account
+          {t('oauth.pleaseWait')}
         </div>
       </div>
 

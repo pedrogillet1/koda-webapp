@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as ChevronRight } from '../assets/chevron-right-black.svg';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
@@ -323,6 +324,7 @@ const FolderTreeView = ({
   onFileClick,
   maxHeight = 300
 }) => {
+  const { t } = useTranslation();
   const [internalIsExpanded, setInternalIsExpanded] = useState(false);
 
   // Use external control if provided, otherwise internal state
@@ -375,7 +377,7 @@ const FolderTreeView = ({
             fontFamily: 'Plus Jakarta Sans'
           }}
         >
-          {isExpanded ? 'Hide contents' : 'Show contents'}
+          {isExpanded ? t('folder.hideContents') : t('folder.showContents')}
         </span>
         <span
           style={{
@@ -384,7 +386,7 @@ const FolderTreeView = ({
             fontFamily: 'Plus Jakarta Sans'
           }}
         >
-          ({tree.fileCount} file{tree.fileCount !== 1 ? 's' : ''})
+          ({t('folder.fileCount', { count: tree.fileCount })})
         </span>
       </div>
 

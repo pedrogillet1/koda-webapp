@@ -389,9 +389,9 @@ const Settings = () => {
       // Check if phone verification is needed
       if (response.data.needsPhoneVerification) {
         setShowPhoneVerification(true);
-        showSuccess('Verification code sent to your phone!');
+        showSuccess(t('toasts.verificationCodeSent'));
       } else {
-        showSuccess('Profile updated successfully!');
+        showSuccess(t('toasts.profileUpdatedSuccess'));
 
         // Refresh user data
         const userResponse = await api.get('/api/auth/me');
@@ -409,7 +409,7 @@ const Settings = () => {
       if (error.response?.data?.field === 'phoneNumber' && error.response?.data?.error) {
         setProfileError(error.response.data.error);
       } else {
-        showError('Failed to update profile. Please try again.');
+        showError(t('settings.errors.failedToUpdateProfile'));
       }
     }
   };
@@ -420,14 +420,14 @@ const Settings = () => {
         code: verificationCode
       });
 
-      showSuccess('Phone number verified successfully!');
+      showSuccess(t('settings.phoneVerifiedSuccess'));
       setShowPhoneVerification(false);
       setVerificationCode('');
 
       // Update user with verified phone
       setUser(response.data.user);
     } catch (error) {
-      showError(error.response?.data?.error || 'Invalid verification code');
+      showError(error.response?.data?.error || t('settings.errors.invalidVerificationCode'));
     }
   };
 
@@ -474,14 +474,14 @@ const Settings = () => {
 
       const response = await api.put('/api/users/change-password', requestBody);
 
-      showSuccess(response.data.message || 'Password changed successfully!');
+      showSuccess(response.data.message || t('settings.passwordChangedSuccess'));
 
       // Clear password fields
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error) {
-      const errorMessage = error.response?.data?.error || 'Failed to change password. Please try again.';
+      const errorMessage = error.response?.data?.error || t('settings.errors.failedToChangePassword');
       showError(errorMessage);
     }
   };
@@ -500,9 +500,9 @@ const Settings = () => {
       // Save to localStorage
       localStorage.setItem('notificationPreferences', JSON.stringify(preferences));
 
-      showSuccess('Notification preferences saved successfully!');
+      showSuccess(t('settings.notificationPreferencesSaved'));
     } catch (error) {
-      showError('Failed to save notification preferences. Please try again.');
+      showError(t('settings.errors.failedToSaveNotificationPreferences'));
     }
   };
 
@@ -569,9 +569,9 @@ const Settings = () => {
       setTotalStorage(0);
       setFileData([]);
 
-      showSuccess('Cache cleared successfully');
+      showSuccess(t('settings.cacheClearedSuccess'));
     } catch (error) {
-      showError('Failed to clear cache');
+      showError(t('settings.errors.failedToClearCache'));
     } finally {
       setShowDeleteModal(false);
     }
@@ -929,7 +929,7 @@ const Settings = () => {
                   : capitalizeFirst(user?.email.split('@')[0]) || 'User'}
               </div>
               <div style={{ color: '#6C6B6E', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>
-                {user ? user.email : 'Loading...'}
+                {user ? user.email : t('common.loading')}
               </div>
             </div>
           </div>
@@ -1503,7 +1503,7 @@ const Settings = () => {
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleConfirmClearCache}
-        itemName="cache and all documents"
+        itemName={t('settings.cacheAndDocuments')}
         itemType="cache"
       />
 

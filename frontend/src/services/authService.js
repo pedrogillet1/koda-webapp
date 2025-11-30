@@ -289,18 +289,23 @@ const authService = {
    */
   handleError(error) {
     if (error.response) {
-      // Server responded with error
-      const message = error.response.data?.message || error.response.data?.error || 'An error occurred';
-      const err = new Error(message);
+      // Server responded with error - use server message if available
+      const serverMessage = error.response.data?.message || error.response.data?.error;
+      const err = new Error(serverMessage || 'errors.genericError');
       err.status = error.response.status;
       err.data = error.response.data;
+      err.isTranslationKey = !serverMessage;
       return err;
     } else if (error.request) {
       // Request made but no response
-      return new Error('No response from server. Please check your connection.');
+      const err = new Error('errors.noServerResponse');
+      err.isTranslationKey = true;
+      return err;
     } else {
       // Something else happened
-      return new Error(error.message || 'An unexpected error occurred');
+      const err = new Error(error.message || 'errors.unexpectedError');
+      err.isTranslationKey = !error.message;
+      return err;
     }
   },
 };

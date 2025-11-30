@@ -66,14 +66,14 @@ const Verification = () => {
                 const data = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Failed to resend code');
+                    throw new Error(data.error || t('verification.failedToResendCode'));
                 }
 
                 setTimer(30);
                 console.log('✅ Verification code resent');
             } catch (error) {
                 console.error('Error resending code:', error);
-                setError(error.message || 'Failed to resend code');
+                setError(error.message || t('verification.failedToResendCode'));
             } finally {
                 setIsLoading(false);
             }
@@ -83,7 +83,7 @@ const Verification = () => {
     const handleVerify = async () => {
         const verificationCode = code.join('');
         if (verificationCode.length !== 6) {
-            setError('Please enter the complete 6-digit code');
+            setError(t('auth.verifyEmail.incompleteCode'));
             return;
         }
 
@@ -120,7 +120,7 @@ const Verification = () => {
                 const data = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Invalid verification code');
+                    throw new Error(data.error || t('settings.errors.invalidVerificationCode'));
                 }
 
                 console.log('✅ Phone verified successfully');
@@ -128,7 +128,7 @@ const Verification = () => {
             }
         } catch (error) {
             console.error('Error verifying code:', error);
-            setError(error.message || 'Invalid verification code');
+            setError(error.message || t('settings.errors.invalidVerificationCode'));
         } finally {
             setIsLoading(false);
         }

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import Toast from '../components/ui/Toast';
 
 const ToastContext = createContext();
@@ -12,6 +13,7 @@ export const useToast = () => {
 };
 
 export const ToastProvider = ({ children }) => {
+  const { t } = useTranslation();
   const [toasts, setToasts] = useState([]);
   const rateLimitShownRef = useRef(false);
   const deleteCounterRef = useRef(0);
@@ -66,34 +68,34 @@ export const ToastProvider = ({ children }) => {
   }, [addToast]);
 
   const showUploadSuccess = useCallback((count) => {
-    const message = count + ' document' + (count > 1 ? 's have' : ' has') + ' been successfully uploaded.';
+    const message = t('toast.uploadSuccess', { count });
     return showSuccess(message);
-  }, [showSuccess]);
+  }, [showSuccess, t]);
 
   const showUploadError = useCallback((errorMessage, details, onRetry) => {
-    return showError(errorMessage || 'Upload failed. Please try again.', {
+    return showError(errorMessage || t('toast.uploadFailed'), {
       details,
       duration: 0,
-      action: onRetry ? { label: 'Retry', onClick: onRetry } : null,
+      action: onRetry ? { label: t('common.retry'), onClick: onRetry } : null,
     });
-  }, [showError]);
+  }, [showError, t]);
 
   const showRateLimitWarning = useCallback(() => {
     if (rateLimitShownRef.current) return null;
     rateLimitShownRef.current = true;
     setTimeout(() => { rateLimitShownRef.current = false; }, 30000);
-    return showWarning('Too many requests. Please wait a moment before trying again.', {
-      details: 'The server is temporarily limiting requests. Your data is safe.',
+    return showWarning(t('toast.rateLimitWarning'), {
+      details: t('toast.rateLimitDetails'),
       duration: 8000,
     });
-  }, [showWarning]);
+  }, [showWarning, t]);
 
   const showDeleteSuccess = useCallback((itemType = 'file') => {
     deleteCounterRef.current += 1;
     const count = deleteCounterRef.current;
-    const message = `${count} ${itemType}${count > 1 ? 's have' : ' has'} been deleted`;
+    const message = t('toast.deleteSuccess', { count, itemType });
     return showSuccess(message);
-  }, [showSuccess]);
+  }, [showSuccess, t]);
 
   // Reset delete counter (call when all delete toasts are dismissed or after a delay)
   const resetDeleteCounter = useCallback(() => {

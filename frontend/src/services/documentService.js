@@ -283,10 +283,15 @@ class DocumentService {
    */
   handleError(error) {
     if (error.response) {
-      const message = error.response.data?.error || error.response.data?.message || 'An error occurred';
-      return new Error(message);
+      // Return server message if available, otherwise use translation key
+      const serverMessage = error.response.data?.error || error.response.data?.message;
+      const err = new Error(serverMessage || 'errors.genericError');
+      err.isTranslationKey = !serverMessage;
+      return err;
     } else if (error.request) {
-      return new Error('No response from server. Please check your connection.');
+      const err = new Error('errors.noServerResponse');
+      err.isTranslationKey = true;
+      return err;
     } else {
       return error;
     }

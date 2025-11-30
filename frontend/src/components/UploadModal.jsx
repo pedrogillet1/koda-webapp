@@ -235,9 +235,9 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
               textTransform: 'capitalize',
               lineHeight: uploadState === 'initial' ? '30px' : '26px'
             }}>
-              {uploadState === 'initial' && 'Upload Documents'}
-              {uploadState === 'uploading' && `Uploading ${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''}`}
-              {uploadState === 'complete' && `${selectedFiles.length} upload${selectedFiles.length > 1 ? 's' : ''} Complete`}
+              {uploadState === 'initial' && t('upload.uploadDocuments')}
+              {uploadState === 'uploading' && t('upload.uploadingFiles', { count: selectedFiles.length })}
+              {uploadState === 'complete' && t('upload.uploadsComplete', { count: selectedFiles.length })}
             </div>
           </div>
         </div>

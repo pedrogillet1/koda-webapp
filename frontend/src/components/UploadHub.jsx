@@ -886,7 +886,7 @@ const UploadHub = () => {
                 status: 'uploading',
                 error: null,
                 progress: 0,
-                stage: 'Preparing retry...'
+                stage: t('upload.preparingRetry')
               } : f
             ));
             // Note: The actual retry will happen on next processUploadQueue cycle
@@ -1099,7 +1099,7 @@ const UploadHub = () => {
 
           // ⚡ EDGE CASE: Set timeout warning for slow embeddings (30 seconds)
           const timeoutId = setTimeout(() => {
-            showSuccess('Document processing is taking longer than expected. Your file will be ready for AI chat soon.', 'warning');
+            showSuccess(t('upload.processingTakingLonger'), 'warning');
           }, 60000); // 60 seconds
 
           embeddingTimeoutsRef.current[document.id] = timeoutId;
@@ -1709,7 +1709,7 @@ const UploadHub = () => {
       }}>
         <div style={{padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
           {isLibraryExpanded && (
-            <h3 style={{fontSize: 20, fontWeight: '700', color: '#32302C', margin: 0, fontFamily: 'Plus Jakarta Sans', lineHeight: '30px', textTransform: 'capitalize', textShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)'}}>Library</h3>
+            <h3 style={{fontSize: 20, fontWeight: '700', color: '#32302C', margin: 0, fontFamily: 'Plus Jakarta Sans', lineHeight: '30px', textTransform: 'capitalize', textShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)'}}>{t('uploadHub.library')}</h3>
           )}
           <button
             onClick={() => setIsLibraryExpanded(!isLibraryExpanded)}
@@ -2459,8 +2459,8 @@ const UploadHub = () => {
                 transition: 'transform 0.3s ease, filter 0.3s ease'
               }}
             />
-            <h3 style={{fontSize: isMobile ? 16 : 18, fontWeight: '600', color: '#111827', margin: '0 0 8px 0', fontFamily: 'Plus Jakarta Sans'}}>{isMobile ? 'Tap to Upload' : 'Upload Documents Or Drag-N-Drop'}</h3>
-            <p style={{fontSize: isMobile ? 13 : 14, color: '#6B7280', margin: isMobile ? '0 0 16px 0' : '0 0 24px 0', lineHeight: 1.5, fontFamily: 'Plus Jakarta Sans'}}>{isMobile ? 'All file types supported (max 500MB)' : 'Upload files or folders'}<br/>{!isMobile && 'All file types supported (max 500MB per file)'}</p>
+            <h3 style={{fontSize: isMobile ? 16 : 18, fontWeight: '600', color: '#111827', margin: '0 0 8px 0', fontFamily: 'Plus Jakarta Sans'}}>{isMobile ? t('upload.tapToUpload') : t('upload.dragAndDrop')}</h3>
+            <p style={{fontSize: isMobile ? 13 : 14, color: '#6B7280', margin: isMobile ? '0 0 16px 0' : '0 0 24px 0', lineHeight: 1.5, fontFamily: 'Plus Jakarta Sans'}}>{isMobile ? t('upload.allFileTypesSupported') : t('upload.uploadFilesOrFolders')}<br/>{!isMobile && t('upload.allFileTypesSupportedPerFile')}</p>
             <div style={{display: 'flex', gap: isMobile ? 8 : 12, flexDirection: isMobile ? 'column' : 'row', width: isMobile ? '100%' : 'auto', maxWidth: isMobile ? 200 : 'none'}}>
               <button
                 onClick={(e) => { e.stopPropagation(); open(); }}
@@ -2484,7 +2484,7 @@ const UploadHub = () => {
                   width: isMobile ? '100%' : 'auto'
                 }}
               >
-                Select Files
+                {t('upload.selectFiles')}
               </button>
               {!isMobile && <button
                 onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
@@ -2507,7 +2507,7 @@ const UploadHub = () => {
                   fontFamily: 'Plus Jakarta Sans'
                 }}
               >
-                Select Folder
+                {t('upload.selectFolder')}
               </button>}
             </div>
             <input
@@ -3047,7 +3047,7 @@ const UploadHub = () => {
 
             {/* Description */}
             <div style={{alignSelf: 'stretch', paddingLeft: 18, paddingRight: 18}}>
-              <div style={{textAlign: 'center', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Choose a category for your document</div>
+              <div style={{textAlign: 'center', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>{t('uploadHub.chooseCategory')}</div>
             </div>
 
             {/* Category Grid */}
@@ -3100,7 +3100,7 @@ const UploadHub = () => {
                           <div style={{width: 11.67, height: 11.67, left: 4.17, top: 4.17, position: 'absolute', outline: '1.67px #55534E solid', outlineOffset: '-0.83px'}} />
                         </div>
                       </div>
-                      <div style={{textAlign: 'center', color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px'}}>Create New</div>
+                      <div style={{textAlign: 'center', color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px'}}>{t('common.createNew')}</div>
                     </div>
                   </button>
                 </div>

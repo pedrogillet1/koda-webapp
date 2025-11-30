@@ -1,40 +1,42 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const ThinkingIndicator = ({ stage = 'processing', context = null, showTips = false }) => {
+  const { t } = useTranslation();
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
 
   const stages = {
     analyzing: {
       icon: '🔍',
-      message: 'Analyzing your documents...',
-      submessage: 'Reading through uploaded files'
+      message: t('thinkingIndicator.analyzing.message'),
+      submessage: t('thinkingIndicator.analyzing.submessage')
     },
     processing: {
       icon: '⚙️',
-      message: 'Processing your request...',
-      submessage: 'Understanding context and requirements'
+      message: t('thinkingIndicator.processing.message'),
+      submessage: t('thinkingIndicator.processing.submessage')
     },
     generating: {
       icon: '✨',
-      message: 'Generating response...',
-      submessage: 'Crafting detailed answer'
+      message: t('thinkingIndicator.generating.message'),
+      submessage: t('thinkingIndicator.generating.submessage')
     },
     finalizing: {
       icon: '📝',
-      message: 'Finalizing response...',
-      submessage: 'Almost ready'
+      message: t('thinkingIndicator.finalizing.message'),
+      submessage: t('thinkingIndicator.finalizing.submessage')
     }
   };
 
   const tips = [
-    "💡 Tip: You can upload multiple documents at once",
-    "⚡ Did you know? You can drag and drop files anywhere",
-    "🎯 Pro tip: Use folders to organize your documents",
-    "✨ Fun fact: AI can analyze documents in 20+ languages",
-    "📁 Tip: Create folders to keep your workspace organized",
-    "🔍 Did you know? You can search across all your documents",
-    "⚡ Pro tip: Use tags to quickly find related documents",
-    "🎨 Fun fact: You can customize folder emojis"
+    t('thinkingIndicator.tips.uploadMultiple'),
+    t('thinkingIndicator.tips.dragAndDrop'),
+    t('thinkingIndicator.tips.useFolders'),
+    t('thinkingIndicator.tips.multiLanguage'),
+    t('thinkingIndicator.tips.createFolders'),
+    t('thinkingIndicator.tips.searchDocs'),
+    t('thinkingIndicator.tips.useTags'),
+    t('thinkingIndicator.tips.customizeEmojis')
   ];
 
   const current = stages[stage] || stages.processing;

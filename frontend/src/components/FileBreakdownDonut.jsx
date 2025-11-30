@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useDocuments } from '../context/DocumentsContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -15,6 +16,7 @@ import mp4Icon from '../assets/mp4.png';
 import txtIcon from '../assets/txt-icon.png';
 
 const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, semicircle = false, style = {} }) => {
+  const { t } = useTranslation();
   const { documents } = useDocuments();
   const navigate = useNavigate();
   const [hoveredType, setHoveredType] = useState(null);
@@ -133,7 +135,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
           fontWeight: '700',
           lineHeight: '26px'
         }}>
-          File Breakdown
+          {t('fileBreakdown.title')}
         </div>
       </div>
 
@@ -308,7 +310,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                       color: '#6C6B6E',
                       fontFamily: 'Plus Jakarta Sans'
                     }}>
-                      {fileCount} {fileCount === 1 ? 'File' : 'Files'}
+                      {t('fileBreakdown.fileCount', { count: fileCount })}
                     </div>
                   </div>
                 </div>
@@ -336,7 +338,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
               fontWeight: '700',
               lineHeight: '30px'
             }}>
-              Files
+              {t('fileBreakdown.files')}
             </div>
             <div style={{
               color: '#32302C',
@@ -345,7 +347,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
               fontWeight: '700',
               lineHeight: '30px'
             }}>
-              {totalFiles} Files
+              {t('fileBreakdown.totalFiles', { count: totalFiles })}
             </div>
           </div>
 
@@ -423,7 +425,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
               fontFamily: 'Plus Jakarta Sans',
               lineHeight: 1.5
             }}>
-              Your workspace is encrypted. All documents and conversations are private and secure.
+              {t('fileBreakdown.encryptionMessage')}
             </div>
           </div>
         )}

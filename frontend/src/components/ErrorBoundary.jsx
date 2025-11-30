@@ -1,4 +1,5 @@
 import React from 'react';
+import i18n from '../i18n';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -35,7 +36,7 @@ class ErrorBoundary extends React.Component {
             fontFamily: 'Plus Jakarta Sans',
             marginBottom: 12
           }}>
-            Unable to Display Preview
+            {i18n.t('errorBoundary.unableToDisplayPreview')}
           </div>
           <div style={{
             fontSize: 14,
@@ -43,7 +44,7 @@ class ErrorBoundary extends React.Component {
             fontFamily: 'Plus Jakarta Sans',
             marginBottom: 24
           }}>
-            There was an error rendering the markdown preview.
+            {i18n.t('errorBoundary.errorRenderingMarkdown')}
           </div>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
@@ -59,7 +60,7 @@ class ErrorBoundary extends React.Component {
               fontFamily: 'Plus Jakarta Sans'
             }}
           >
-            Try Again
+            {i18n.t('errorBoundary.tryAgain')}
           </button>
         </div>
       );

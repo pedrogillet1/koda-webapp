@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 
 /**
@@ -21,7 +22,7 @@ export default function UploadProgressModal({
   files = [],
   onClose,
   onRetry,
-  title = 'Upload Documents',
+  title,
   showLibrary = false,
   libraryDocuments = [],
   removeFile,
@@ -30,6 +31,11 @@ export default function UploadProgressModal({
   notificationMessage = '',
   onNotificationClose
 }) {
+  const { t } = useTranslation();
+
+  // Use translated default if no title provided
+  const modalTitle = title || t('upload.uploadDocuments');
+
   if (!isOpen || files.length === 0) {
     return null;
   }
@@ -78,7 +84,7 @@ export default function UploadProgressModal({
   const handleCloseModal = () => {
     const uploadingCount = files.filter(f => f.status === 'uploading').length;
     if (uploadingCount > 0) {
-      if (window.confirm('Files are still uploading. Are you sure you want to close?')) {
+      if (window.confirm(t('upload.filesStillUploading'))) {
         onClose();
       }
     } else {
@@ -137,7 +143,7 @@ export default function UploadProgressModal({
                   margin: 0,
                   fontFamily: 'Plus Jakarta Sans'
                 }}>
-                  Library
+                  {t('upload.library')}
                 </h3>
               </div>
 
@@ -223,9 +229,9 @@ export default function UploadProgressModal({
                 margin: 0,
                 fontFamily: 'Plus Jakarta Sans'
               }}>
-                {title}
-                {uploadingCount > 0 && ` (${uploadingCount} uploading)`}
-                {uploadingCount === 0 && completedCount > 0 && ` (${completedCount} complete)`}
+                {modalTitle}
+                {uploadingCount > 0 && ` (${uploadingCount} ${t('uploadProgressModal.uploading')})`}
+                {uploadingCount === 0 && completedCount > 0 && ` (${completedCount} ${t('uploadProgressModal.complete')})`}
               </h2>
               <button
                 onClick={handleCloseModal}
@@ -361,9 +367,9 @@ export default function UploadProgressModal({
                             fontFamily: 'Plus Jakarta Sans'
                           }}>
                             {f.isFolder ? (
-                              f.stage || (isCompleted ? 'Complete' : `${progressWidth}% uploaded`)
+                              f.stage || (isCompleted ? t('uploadProgressModal.complete') : t('upload.percentUploaded', { percent: progressWidth }))
                             ) : (
-                              `${formatFileSize(fileSize)} - ${isCompleted ? 'Complete' : `${progressWidth}% uploaded`}`
+                              `${formatFileSize(fileSize)} - ${isCompleted ? t('uploadProgressModal.complete') : t('upload.percentUploaded', { percent: progressWidth })}`
                             )}
                           </p>
                         )}
@@ -401,7 +407,7 @@ export default function UploadProgressModal({
                               fontFamily: 'Plus Jakarta Sans',
                               flex: 1
                             }}>
-                              {f.error || 'Failed to upload'}
+                              {f.error || t('upload.failedToUpload')}
                               {f.errorDetails && (
                                 <span style={{ display: 'block', fontSize: 12, marginTop: 4, opacity: 0.9 }}>
                                   {f.errorDetails}
@@ -433,7 +439,7 @@ export default function UploadProgressModal({
                                   e.currentTarget.style.background = 'transparent';
                                 }}
                               >
-                                Retry
+                                {t('common.retry')}
                               </button>
                             )}
                           </div>
@@ -468,7 +474,7 @@ export default function UploadProgressModal({
                   fontFamily: 'Plus Jakarta Sans'
                 }}
               >
-                {uploadingCount > 0 ? `Uploading ${uploadingCount} file${uploadingCount > 1 ? 's' : ''}...` : 'Done'}
+                {uploadingCount > 0 ? t('upload.uploadingFiles', { count: uploadingCount }) + '...' : t('common.done')}
               </button>
             </div>
           </div>

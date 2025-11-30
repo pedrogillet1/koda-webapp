@@ -3,9 +3,11 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkEmoji from 'remark-emoji';
 import rehypeRaw from 'rehype-raw';
+import { useTranslation } from 'react-i18next';
 import './MarkdownStyles.css';
 
 const MarkdownPreview = ({ document, zoom }) => {
+  const { t } = useTranslation();
   const [markdownContent, setMarkdownContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,7 +15,7 @@ const MarkdownPreview = ({ document, zoom }) => {
   useEffect(() => {
     const fetchMarkdown = async () => {
       if (!document || !document.metadata || !document.metadata.markdownContent) {
-        setError('Markdown content not available');
+        setError(t('markdownEditor.contentNotAvailable'));
         setLoading(false);
         return;
       }
@@ -23,7 +25,7 @@ const MarkdownPreview = ({ document, zoom }) => {
         setLoading(false);
       } catch (err) {
         console.error('Error loading markdown:', err);
-        setError('Failed to load markdown content');
+        setError(t('markdownEditor.failedToLoad'));
         setLoading(false);
       }
     };
@@ -43,7 +45,7 @@ const MarkdownPreview = ({ document, zoom }) => {
         fontFamily: 'Plus Jakarta Sans',
         textAlign: 'center'
       }}>
-        Loading preview...
+        {t('documentPreview.loadingPreview')}
       </div>
     );
   }
@@ -59,7 +61,7 @@ const MarkdownPreview = ({ document, zoom }) => {
       }}>
         <div style={{ fontSize: 64, marginBottom: 20 }}>📄</div>
         <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
-          Preview Not Available
+          {t('markdownEditor.previewNotAvailable')}
         </div>
         <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
           {document.filename}

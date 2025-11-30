@@ -29,9 +29,9 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemTyp
   // Format the item name for display
   const getDisplayName = () => {
     if (itemType === 'multiple') {
-      return `${itemName} items`;
+      return `${itemName} ${t('modals.delete.items')}`;
     }
-    return itemName || 'this item';
+    return itemName || t('modals.delete.thisItem');
   };
 
   return (

@@ -1,21 +1,24 @@
 export interface AppError {
-  title: string;
-  message: string;
+  titleKey: string;
+  messageKey: string;
   type: 'network' | 'api' | 'timeout' | 'auth' | 'unknown';
   retryable: boolean;
   originalError?: any;
+  // Fallback message from server (if available)
+  serverMessage?: string;
 }
 
 /**
- * Convert various error types to user-friendly AppError
+ * Convert various error types to user-friendly AppError with translation keys
+ * Callers should use t(error.titleKey) and t(error.messageKey) to get translated strings
  */
 export function handleError(error: any): AppError {
 
   // Network errors
   if (error.name === 'TypeError' && error.message.includes('fetch')) {
     return {
-      title: 'Connection Error',
-      message: 'Unable to connect to the server. Please check your internet connection.',
+      titleKey: 'errors.connectionError',
+      messageKey: 'errors.connectionErrorMessage',
       type: 'network',
       retryable: true,
       originalError: error
@@ -25,8 +28,8 @@ export function handleError(error: any): AppError {
   // Timeout errors
   if (error.name === 'AbortError' || error.message.includes('timeout')) {
     return {
-      title: 'Request Timeout',
-      message: 'The request took too long to complete. Please try again.',
+      titleKey: 'errors.requestTimeout',
+      messageKey: 'errors.requestTimeoutMessage',
       type: 'timeout',
       retryable: true,
       originalError: error
@@ -41,17 +44,18 @@ export function handleError(error: any): AppError {
     switch (status) {
       case 400:
         return {
-          title: 'Invalid Request',
-          message: data?.error || 'The request was invalid. Please try again.',
+          titleKey: 'errors.invalidRequest',
+          messageKey: 'errors.invalidRequestMessage',
           type: 'api',
           retryable: false,
-          originalError: error
+          originalError: error,
+          serverMessage: data?.error
         };
 
       case 401:
         return {
-          title: 'Authentication Required',
-          message: 'Your session has expired. Please log in again.',
+          titleKey: 'errors.authenticationRequired',
+          messageKey: 'errors.authenticationRequiredMessage',
           type: 'auth',
           retryable: false,
           originalError: error
@@ -59,8 +63,8 @@ export function handleError(error: any): AppError {
 
       case 403:
         return {
-          title: 'Access Denied',
-          message: 'You do not have permission to perform this action.',
+          titleKey: 'errors.accessDenied',
+          messageKey: 'errors.accessDeniedMessage',
           type: 'auth',
           retryable: false,
           originalError: error
@@ -68,8 +72,8 @@ export function handleError(error: any): AppError {
 
       case 404:
         return {
-          title: 'Not Found',
-          message: 'The requested resource was not found.',
+          titleKey: 'errors.notFound',
+          messageKey: 'errors.notFoundMessage',
           type: 'api',
           retryable: false,
           originalError: error
@@ -77,8 +81,8 @@ export function handleError(error: any): AppError {
 
       case 429:
         return {
-          title: 'Too Many Requests',
-          message: 'You are sending requests too quickly. Please wait a moment and try again.',
+          titleKey: 'errors.tooManyRequests',
+          messageKey: 'errors.tooManyRequestsMessage',
           type: 'api',
           retryable: true,
           originalError: error
@@ -88,8 +92,8 @@ export function handleError(error: any): AppError {
       case 502:
       case 503:
         return {
-          title: 'Server Error',
-          message: 'The server encountered an error. Please try again in a moment.',
+          titleKey: 'errors.serverError',
+          messageKey: 'errors.serverErrorMessage',
           type: 'api',
           retryable: true,
           originalError: error
@@ -97,11 +101,12 @@ export function handleError(error: any): AppError {
 
       default:
         return {
-          title: 'Error',
-          message: data?.error || error.message || 'An unexpected error occurred.',
+          titleKey: 'errors.error',
+          messageKey: 'errors.unexpectedError',
           type: 'unknown',
           retryable: true,
-          originalError: error
+          originalError: error,
+          serverMessage: data?.error || error.message
         };
     }
   }
@@ -111,17 +116,18 @@ export function handleError(error: any): AppError {
     switch (error.status) {
       case 400:
         return {
-          title: 'Invalid Request',
-          message: error.message || 'The request was invalid. Please try again.',
+          titleKey: 'errors.invalidRequest',
+          messageKey: 'errors.invalidRequestMessage',
           type: 'api',
           retryable: false,
-          originalError: error
+          originalError: error,
+          serverMessage: error.message
         };
 
       case 401:
         return {
-          title: 'Authentication Required',
-          message: 'Your session has expired. Please log in again.',
+          titleKey: 'errors.authenticationRequired',
+          messageKey: 'errors.authenticationRequiredMessage',
           type: 'auth',
           retryable: false,
           originalError: error
@@ -129,8 +135,8 @@ export function handleError(error: any): AppError {
 
       case 403:
         return {
-          title: 'Access Denied',
-          message: 'You do not have permission to perform this action.',
+          titleKey: 'errors.accessDenied',
+          messageKey: 'errors.accessDeniedMessage',
           type: 'auth',
           retryable: false,
           originalError: error
@@ -138,8 +144,8 @@ export function handleError(error: any): AppError {
 
       case 404:
         return {
-          title: 'Not Found',
-          message: 'The requested resource was not found.',
+          titleKey: 'errors.notFound',
+          messageKey: 'errors.notFoundMessage',
           type: 'api',
           retryable: false,
           originalError: error
@@ -147,8 +153,8 @@ export function handleError(error: any): AppError {
 
       case 429:
         return {
-          title: 'Too Many Requests',
-          message: 'You are sending requests too quickly. Please wait a moment and try again.',
+          titleKey: 'errors.tooManyRequests',
+          messageKey: 'errors.tooManyRequestsMessage',
           type: 'api',
           retryable: true,
           originalError: error
@@ -158,8 +164,8 @@ export function handleError(error: any): AppError {
       case 502:
       case 503:
         return {
-          title: 'Server Error',
-          message: 'The server encountered an error. Please try again in a moment.',
+          titleKey: 'errors.serverError',
+          messageKey: 'errors.serverErrorMessage',
           type: 'api',
           retryable: true,
           originalError: error
@@ -167,21 +173,23 @@ export function handleError(error: any): AppError {
 
       default:
         return {
-          title: 'Error',
-          message: error.message || 'An unexpected error occurred.',
+          titleKey: 'errors.error',
+          messageKey: 'errors.unexpectedError',
           type: 'unknown',
           retryable: true,
-          originalError: error
+          originalError: error,
+          serverMessage: error.message
         };
     }
   }
 
   // Generic errors
   return {
-    title: 'Error',
-    message: error.message || 'An unexpected error occurred. Please try again.',
+    titleKey: 'errors.error',
+    messageKey: 'errors.unexpectedErrorRetry',
     type: 'unknown',
     retryable: true,
-    originalError: error
+    originalError: error,
+    serverMessage: error.message
   };
 }

@@ -19,7 +19,7 @@ const MarkdownEditor = ({ document, zoom, onSave }) => {
   useEffect(() => {
     const fetchMarkdown = async () => {
       if (!document || !document.metadata || !document.metadata.markdownContent) {
-        setError('Markdown content not available');
+        setError(t('markdownEditor.contentNotAvailable'));
         setLoading(false);
         return;
       }
@@ -30,7 +30,7 @@ const MarkdownEditor = ({ document, zoom, onSave }) => {
         setLoading(false);
       } catch (err) {
         console.error('Error loading markdown:', err);
-        setError('Failed to load markdown content');
+        setError(t('markdownEditor.failedToLoad'));
         setLoading(false);
       }
     };
@@ -142,7 +142,7 @@ const MarkdownEditor = ({ document, zoom, onSave }) => {
       }}>
         <div style={{ fontSize: 64, marginBottom: 20 }}>📄</div>
         <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
-          Preview Not Available
+          {t('markdownEditor.previewNotAvailable')}
         </div>
         <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
           {document.filename}
@@ -195,7 +195,7 @@ const MarkdownEditor = ({ document, zoom, onSave }) => {
           {document.filename}
           {hasChanges && (
             <span style={{ color: '#DC2626', fontSize: 12, marginLeft: 8 }}>
-              (Unsaved changes)
+              ({t('markdownEditor.unsavedChanges')})
             </span>
           )}
         </div>
@@ -225,7 +225,7 @@ const MarkdownEditor = ({ document, zoom, onSave }) => {
                   opacity: isSaving ? 0.5 : 1
                 }}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleSave}
@@ -243,7 +243,7 @@ const MarkdownEditor = ({ document, zoom, onSave }) => {
                   opacity: (isSaving || !hasChanges) ? 0.5 : 1
                 }}
               >
-                {isSaving ? 'Saving...' : 'Save'}
+                {isSaving ? t('common.saving') : t('common.save')}
               </button>
             </>
           )}

@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import '../styles/VerifyRecovery.css';
 
 const VerifyRecoveryPhone = () => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState('verifying'); // verifying, success, error
@@ -15,7 +17,7 @@ const VerifyRecoveryPhone = () => {
 
       if (!token) {
         setStatus('error');
-        setMessage('Invalid verification link. No token provided.');
+        setMessage(t('verifyRecoveryPhone.invalidLink'));
         return;
       }
 
@@ -26,7 +28,7 @@ const VerifyRecoveryPhone = () => {
 
         if (response.data.success) {
           setStatus('success');
-          setMessage('Your recovery phone has been verified successfully!');
+          setMessage(t('verifyRecoveryPhone.verifiedSuccess'));
 
           // Redirect to settings after 3 seconds
           setTimeout(() => {
@@ -34,11 +36,11 @@ const VerifyRecoveryPhone = () => {
           }, 3000);
         } else {
           setStatus('error');
-          setMessage(response.data.message || 'Verification failed.');
+          setMessage(response.data.message || t('verifyRecoveryPhone.verificationFailed'));
         }
       } catch (error) {
         setStatus('error');
-        setMessage(error.response?.data?.error || 'An error occurred during verification.');
+        setMessage(error.response?.data?.error || t('verifyRecoveryPhone.errorOccurred'));
       }
     };
 
@@ -51,30 +53,30 @@ const VerifyRecoveryPhone = () => {
         {status === 'verifying' && (
           <>
             <div className="verify-icon verifying">⏳</div>
-            <h1>Verifying your phone...</h1>
-            <p>Please wait while we verify your recovery phone number.</p>
+            <h1>{t('verifyRecoveryPhone.verifying')}</h1>
+            <p>{t('verifyRecoveryPhone.pleaseWait')}</p>
           </>
         )}
 
         {status === 'success' && (
           <>
             <div className="verify-icon success">✅</div>
-            <h1>Phone Verified!</h1>
+            <h1>{t('verifyRecoveryPhone.phoneVerified')}</h1>
             <p>{message}</p>
-            <p className="redirect-message">Redirecting you to Settings...</p>
+            <p className="redirect-message">{t('verifyRecoveryPhone.redirectingToSettings')}</p>
           </>
         )}
 
         {status === 'error' && (
           <>
             <div className="verify-icon error">❌</div>
-            <h1>Verification Failed</h1>
+            <h1>{t('verifyRecoveryPhone.verificationFailed')}</h1>
             <p>{message}</p>
             <button
               className="button-primary"
               onClick={() => navigate('/settings')}
             >
-              Go to Settings
+              {t('verifyRecoveryPhone.goToSettings')}
             </button>
           </>
         )}
