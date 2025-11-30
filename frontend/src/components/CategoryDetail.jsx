@@ -1209,7 +1209,8 @@ const CategoryDetail = () => {
                       alignItems: 'center',
                       gap: 8,
                       cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
-                      opacity: selectedDocuments.size > 0 ? 1 : 0.5
+                      opacity: selectedDocuments.size > 0 ? 1 : 0.5,
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     <TrashCanIcon style={{ width: 18, height: 18 }} />
@@ -1217,7 +1218,8 @@ const CategoryDetail = () => {
                       color: '#D92D20',
                       fontSize: 15,
                       fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: '600'
+                      fontWeight: '600',
+                      whiteSpace: 'nowrap'
                     }}>
                       {t('common.delete')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
                     </span>
@@ -1246,7 +1248,8 @@ const CategoryDetail = () => {
                       alignItems: 'center',
                       gap: 8,
                       cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
-                      opacity: selectedDocuments.size > 0 ? 1 : 0.5
+                      opacity: selectedDocuments.size > 0 ? 1 : 0.5,
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1256,7 +1259,8 @@ const CategoryDetail = () => {
                       color: '#32302C',
                       fontSize: 15,
                       fontFamily: 'Plus Jakarta Sans',
-                      fontWeight: '600'
+                      fontWeight: '600',
+                      whiteSpace: 'nowrap'
                     }}>
                       {t('common.move')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
                     </span>
@@ -1279,7 +1283,8 @@ const CategoryDetail = () => {
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '600',
                       fontSize: 15,
-                      color: '#111827'
+                      color: '#111827',
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     {t('common.cancel')}
@@ -1361,7 +1366,7 @@ const CategoryDetail = () => {
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '600',
                       lineHeight: '24px',
-                      wordWrap: 'break-word'
+                      whiteSpace: 'nowrap'
                     }}>
                       {t('common.select')}
                     </div>

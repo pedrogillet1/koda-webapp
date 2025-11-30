@@ -617,11 +617,12 @@ const Documents = () => {
                     alignItems: 'center',
                     gap: 8,
                     cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
-                    opacity: selectedDocuments.size > 0 ? 1 : 0.5
+                    opacity: selectedDocuments.size > 0 ? 1 : 0.5,
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   <TrashCanLightIcon style={{ width: 18, height: 18 }} />
-                  <span style={{ color: '#D92D20', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>
+                  <span style={{ color: '#D92D20', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', whiteSpace: 'nowrap' }}>
                     {t('common.delete')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
                   </span>
                 </button>
@@ -644,13 +645,14 @@ const Documents = () => {
                     alignItems: 'center',
                     gap: 8,
                     cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
-                    opacity: selectedDocuments.size > 0 ? 1 : 0.5
+                    opacity: selectedDocuments.size > 0 ? 1 : 0.5,
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                  <span style={{ color: '#32302C', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>
+                  <span style={{ color: '#32302C', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', whiteSpace: 'nowrap' }}>
                     {t('common.move')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
                   </span>
                 </button>
@@ -672,7 +674,8 @@ const Documents = () => {
                     fontFamily: 'Plus Jakarta Sans',
                     fontWeight: '600',
                     fontSize: 15,
-                    color: '#111827'
+                    color: '#111827',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   {t('common.cancel')}
@@ -2738,7 +2741,7 @@ const Documents = () => {
                   wordWrap: 'break-word'
                 }}
               >
-                {t('help.needHelpFindingSomething')}
+                {t('documentViewer.needHelpFindingSomething')}
               </div>
             </div>
           </button>

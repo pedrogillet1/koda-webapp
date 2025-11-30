@@ -697,10 +697,10 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   open();
                 }}
                 style={{
-                  width: 166,
+                  minWidth: 140,
                   height: 52,
-                  paddingLeft: 18,
-                  paddingRight: 18,
+                  paddingLeft: 24,
+                  paddingRight: 24,
                   paddingTop: 10,
                   paddingBottom: 10,
                   background: 'white',
@@ -711,7 +711,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   alignItems: 'center',
                   gap: 8,
                   display: 'flex',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 <div style={{
@@ -720,7 +721,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '600',
                   textTransform: 'capitalize',
-                  lineHeight: '24px'
+                  lineHeight: '24px',
+                  textAlign: 'center'
                 }}>
                   {t('upload.selectFiles')}
                 </div>
@@ -732,10 +734,10 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   folderInputRef.current?.click();
                 }}
                 style={{
-                  width: 166,
+                  minWidth: 140,
                   height: 52,
-                  paddingLeft: 18,
-                  paddingRight: 18,
+                  paddingLeft: 24,
+                  paddingRight: 24,
                   paddingTop: 10,
                   paddingBottom: 10,
                   background: 'white',
@@ -746,7 +748,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   alignItems: 'center',
                   gap: 8,
                   display: 'flex',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
                 }}>
                 <div style={{
                   color: '#323232',
@@ -754,7 +757,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '600',
                   textTransform: 'capitalize',
-                  lineHeight: '24px'
+                  lineHeight: '24px',
+                  textAlign: 'center'
                 }}>
                   {t('upload.selectFolder')}
                 </div>
