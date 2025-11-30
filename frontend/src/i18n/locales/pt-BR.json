@@ -556,7 +556,9 @@
     "seeAll": "Ver Tudo",
     "saving": "Salvando...",
     "createNew": "Criar Novo",
-    "add": "Adicionar"
+    "add": "Adicionar",
+    "notAvailable": "N/D",
+    "previous": "Anterior"
   },
   "fileTypes": {
     "pdf": "PDF",
@@ -1167,16 +1169,6 @@
     "microsoftWord": "Documento do Microsoft Word",
     "microsoftPowerPoint": "Apresentação do Microsoft PowerPoint",
     "microsoftExcel": "Planilha do Microsoft Excel"
-  },
-  "common": {
-    "loading": "Carregando...",
-    "notAvailable": "N/D",
-    "retry": "Tentar Novamente",
-    "download": "Baixar",
-    "back": "Voltar",
-    "previous": "Anterior",
-    "next": "Próximo",
-    "close": "Fechar"
   },
   "errorBoundary": {
     "unableToDisplayPreview": "Não é Possível Exibir a Visualização",

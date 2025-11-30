@@ -556,7 +556,9 @@
     "seeAll": "Ver todo",
     "saving": "Guardando...",
     "createNew": "Crear Nuevo",
-    "add": "Añadir"
+    "add": "Añadir",
+    "notAvailable": "N/D",
+    "previous": "Anterior"
   },
   "fileTypes": {
     "pdf": "PDF",
@@ -1203,16 +1205,6 @@
     "microsoftWord": "Documento de Microsoft Word",
     "microsoftPowerPoint": "Presentación de Microsoft PowerPoint",
     "microsoftExcel": "Hoja de Cálculo de Microsoft Excel"
-  },
-  "common": {
-    "loading": "Cargando...",
-    "notAvailable": "N/D",
-    "retry": "Reintentar",
-    "download": "Descargar",
-    "back": "Atrás",
-    "previous": "Anterior",
-    "next": "Siguiente",
-    "close": "Cerrar"
   },
   "errorBoundary": {
     "unableToDisplayPreview": "No se Puede Mostrar la Vista Previa",

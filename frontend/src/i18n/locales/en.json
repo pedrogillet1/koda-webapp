@@ -583,7 +583,9 @@
     "error": "Error",
     "seeAll": "See All",
     "saving": "Saving...",
-    "createNew": "Create New"
+    "createNew": "Create New",
+    "notAvailable": "N/A",
+    "previous": "Previous"
   },
   "fileTypes": {
     "pdf": "PDF",
@@ -1235,16 +1237,6 @@
     "microsoftWord": "Microsoft Word Document",
     "microsoftPowerPoint": "Microsoft PowerPoint Presentation",
     "microsoftExcel": "Microsoft Excel Spreadsheet"
-  },
-  "common": {
-    "loading": "Loading...",
-    "notAvailable": "N/A",
-    "retry": "Retry",
-    "download": "Download",
-    "back": "Back",
-    "previous": "Previous",
-    "next": "Next",
-    "close": "Close"
   },
   "errorBoundary": {
     "unableToDisplayPreview": "Unable to Display Preview",
