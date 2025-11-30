@@ -13,6 +13,14 @@ import cacheService from '../services/cache.service'; // ✅ FIX: Cache invalida
 // ✅ P0 FEATURES: Import P0 services for multi-turn conversations
 import p0FeaturesService from '../services/p0Features.service';
 import clarificationService from '../services/clarification.service';
+import chatDocumentGenerationService from '../services/chatDocumentGeneration.service';
+import * as languageDetectionService from '../services/languageDetection.service';
+import Anthropic from '@anthropic-ai/sdk';
+
+// Initialize Anthropic client for document generation
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
+const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 /**
  * RAG Controller
@@ -23,12 +31,13 @@ import clarificationService from '../services/clarification.service';
  * Helper function to ensure conversation exists before creating messages
  */
 async function ensureConversationExists(conversationId: string, userId: string) {
-  let conversation = await prisma.conversations.findUnique({
+  let conversation = await prisma.conversation.findUnique({
     where: { id: conversationId }
   });
 
   if (!conversation) {
-    conversation = await prisma.conversations.create({
+    console.log(`⚠️ Conversation ${conversationId} not found, creating it...`);
+    conversation = await prisma.conversation.create({
       data: {
         id: conversationId,
         userId,
@@ -77,15 +86,19 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         typeof doc === 'string' ? doc : doc.id
       ).filter(Boolean);
 
+      console.log(`📎 [MULTI-ATTACHMENT] ${attachedDocumentIds.length} documents attached:`, attachedDocumentIds);
     }
     // Priority 2: Fall back to single documentId for backward compatibility
     else if (documentId && documentId !== null) {
       attachedDocumentIds = [documentId];
+      console.log(`📎 [SINGLE-ATTACHMENT] 1 document attached: ${documentId}`);
     }
     // Priority 3: No attachments
     else {
+      console.log(`📎 [NO-ATTACHMENT] Searching across all user documents`);
     }
 
+    console.log(`📏 [ANSWER LENGTH] ${finalAnswerLength}`);
 
     // Detect if this is a comparison query
     const isComparisonQuery = attachedDocumentIds.length > 1 && (
@@ -97,6 +110,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     );
 
     if (isComparisonQuery) {
+      console.log(`🔀 [COMPARISON] Detected comparison query across ${attachedDocumentIds.length} documents`);
     }
     // Prepare metadata for user message with attached files info
     const userMessageMetadata = attachedDocumentIds.length > 0 ? {
@@ -110,7 +124,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     }
 
     // Get conversation history for context resolution (needed for intent detection)
-    const conversationHistoryForIntent = await prisma.messages.findMany({
+    const conversationHistoryForIntent = await prisma.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
       take: 10,
@@ -210,7 +224,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     // ═══════════════════════════════════════════════════════════════════════════
     const fileKeywords = /file|document|paper|report|spreadsheet|presentation|pdf|docx?|xlsx?|pptx?|arquivo|documento|relatório|archivo|informe/i;
 
-    const isShowFileQuery = (
+    // ⚠️ FIX: Exclude creation/generation queries from show file detection
+    // Queries like "create a summary report" should NOT be treated as "show file"
+    const isCreationQuery = /(?:create|make|generate|build|write|draft|prepare|compose|criar|gerar|hacer|generar|créer)/i.test(queryLower);
+
+    const isShowFileQuery = !isCreationQuery && (
       // ═══════════════════════════════════════════════════════════════════════
       // CATEGORY 1: Direct Commands (EN, PT, ES)
       // ═══════════════════════════════════════════════════════════════════════
@@ -366,6 +384,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     if (isObviousRagQuery && !needsLlmIntent) {
       // ⚡ FAST PATH: Skip LLM intent detection for obvious RAG queries
+      console.log('⚡ [FAST INTENT] Obvious RAG query detected - skipping LLM intent detection (saved 3-6s)');
       intentResult = {
         intent: 'rag_query',
         confidence: 0.95,
@@ -373,9 +392,12 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       };
     } else {
       // SLOW PATH: Use LLM for ambiguous queries or file management
+      console.log('🧠 [SLOW INTENT] Using LLM intent detection for ambiguous/file management query');
       intentResult = await llmIntentDetectorService.detectIntent(query, conversationHistoryForIntent);
     }
 
+    console.log(`🎯 [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
+    console.log(`📝 [STREAMING Entities]`, intentResult.parameters);
 
     // TODO: Gemini fallback classifier removed - using pattern matching only
     // Only fallback to Gemini AI classifier if confidence is very low
@@ -398,6 +420,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     // SUMMARIZE - Go straight to RAG with summarization instruction
     if (intentResult.intent === Intent.SUMMARIZE_DOCUMENT) {
+      console.log(`📄 [SUMMARIZE] Processing summarization request`);
       // Add instruction to enhance the query for summarization
       const enhancedQuery = `Please provide a concise summary of ${intentResult.entities.documentName || 'the document'}. ${query}`;
       // Continue to RAG processing below with enhanced query
@@ -405,25 +428,26 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     // READ_EXCEL_CELL - Read specific cell from Excel
     if (intentResult.intent === Intent.READ_EXCEL_CELL) {
+      console.log(`📊 [EXCEL] Reading Excel cell from query: "${query}"`);
 
       const excelCellReader = await import('../services/excelCellReader.service');
-      const cellResult = await excelCellReader.default.readCell({ query, userId });
+      const cellResult = await excelCellReader.default.readCell(query, userId);
 
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         }
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: cellResult.message,
           metadata: JSON.stringify({
@@ -437,7 +461,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -459,12 +483,14 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         intentResult.intent === Intent.EXTRACT_TABLES ||
         intentResult.intent === Intent.COMPARE_DOCUMENTS ||
         intentResult.intent === Intent.ANALYZE_DOCUMENT) {
+      console.log(`🔍 [CONTENT QUERY] Proceeding to RAG for content analysis`);
       // These should go directly to RAG system - no navigation handler needed
       // Continue to RAG processing below
     }
 
     // DESCRIBE_FOLDER - Use folder contents handler
     if (intentResult.intent === Intent.DESCRIBE_FOLDER && intentResult.entities.folderName) {
+      console.log(`📁 [FOLDER] Describing folder: "${intentResult.entities.folderName}"`);
 
       const folderContentsHandler = await import('../services/handlers/folderContents.handler');
       const folderResult = await folderContentsHandler.default.handle(
@@ -475,25 +501,25 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         }
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: folderResult.answer,
           metadata: JSON.stringify({ actions: folderResult.actions })
         }
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -512,6 +538,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     // FIND_DOCUMENT_LOCATION - Use navigation service
     if (intentResult.intent === Intent.FIND_DOCUMENT_LOCATION && intentResult.entities.documentName) {
+      console.log(`📍 [LOCATION] Finding: "${intentResult.entities.documentName}"`);
 
       const navResult = await navigationService.findFile(userId, intentResult.entities.documentName);
 
@@ -519,13 +546,13 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         // Ensure conversation exists before creating messages
         await ensureConversationExists(conversationId, userId);
 
-        const userMessage = await prisma.messages.create({
+        const userMessage = await prisma.message.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.messages.create({
+        const assistantMessage = await prisma.message.create({
           data: {
-            conversations: { connect: { id: conversationId } },
+            conversationId,
             role: 'assistant',
             content: navResult.message,
             metadata: JSON.stringify({
@@ -536,7 +563,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           }
         });
 
-        await prisma.conversations.update({
+        await prisma.conversation.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -565,9 +592,10 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     // LIST_FILES - Use metadata query service
     if (intentResult.intent === Intent.LIST_FILES) {
+      console.log(`📋 [LIST] Listing files`);
 
       // TODO: Metadata query service removed - use direct database query
-      const documents = await prisma.documents.findMany({
+      const documents = await prisma.document.findMany({
         where: { userId, status: 'completed' },
         select: { filename: true },
         orderBy: { createdAt: 'desc' }
@@ -580,24 +608,24 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         }
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: filesListAnswer
         }
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -619,24 +647,25 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     // CREATE_FOLDER - Create a new folder (ACTUAL EXECUTION)
     if (intentResult.intent === Intent.CREATE_FOLDER && intentResult.entities.folderName) {
+      console.log(`📁 [ACTION] Creating folder: "${intentResult.entities.folderName}"`);
 
       const result = await fileActionsService.createFolder({
         userId,
         folderName: intentResult.entities.folderName
       }, query);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         }
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -647,7 +676,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -667,6 +696,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     if (intentResult.intent === Intent.RENAME_FOLDER &&
         intentResult.entities.folderName &&
         intentResult.entities.targetName) {
+      console.log(`📝 [ACTION] Renaming folder: "${intentResult.entities.folderName}" → "${intentResult.entities.targetName}"`);
 
       const result = await fileActionsService.renameFolder(
         intentResult.entities.folderName,
@@ -677,18 +707,18 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         }
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -699,7 +729,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -715,86 +745,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       });
     }
 
-    // CREATE_FILE - Generate and create new files (MD, DOCX, PDF, PPTX, XLSX)
-    if (intentResult.intent === Intent.CREATE_FILE ||
-        query.match(/create (a |an )?(budget|report|presentation|spreadsheet|document|file)/i)) {
-
-      const fileCreationService = await import('../services/fileCreation.service');
-
-      // Detect file type from query
-      const fileTypeMap: Record<string, string> = {
-        'spreadsheet': 'xlsx',
-        'excel': 'xlsx',
-        'presentation': 'pptx',
-        'powerpoint': 'pptx',
-        'slides': 'pptx',
-        'document': 'docx',
-        'word': 'docx',
-        'report': 'pdf',
-        'pdf': 'pdf',
-        'markdown': 'md'
-      };
-
-      let fileType = 'docx'; // default
-      for (const [key, value] of Object.entries(fileTypeMap)) {
-        if (query.toLowerCase().includes(key)) {
-          fileType = value;
-          break;
-        }
-      }
-
-      const result = await fileCreationService.default.createFile({
-        userId,
-        fileType: fileType as any,
-        topic: intentResult.entities?.topic || query,
-        conversationId
-      });
-
-      await ensureConversationExists(conversationId, userId);
-
-      const userMessage = await prisma.messages.create({
-        data: {
-          conversations: { connect: { id: conversationId } },
-          role: 'user',
-          content: query,
-          metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
-        }
-      });
-
-      const assistantMessage = await prisma.messages.create({
-        data: {
-          conversations: { connect: { id: conversationId } },
-          role: 'assistant',
-          content: result.message,
-          metadata: JSON.stringify({
-            actionType: 'file_created',
-            success: result.success,
-            file: result.file
-          })
-        }
-      });
-
-      await prisma.conversations.update({
-        where: { id: conversationId },
-        data: { updatedAt: new Date() }
-      });
-
-      res.json({
-        success: result.success,
-        answer: result.message,
-        sources: [],
-        expandedQuery: [],
-        contextId: 'action-create-file',
-        actionType: 'file_created',
-        file: result.file,
-        userMessage,
-        assistantMessage
-      });
-      return;
-    }
-
     // MOVE_FILES - Move documents to a folder (ACTUAL EXECUTION)
     if (intentResult.intent === Intent.MOVE_FILES && intentResult.entities.targetName) {
+      console.log(`📦 [ACTION] Moving files to: "${intentResult.entities.targetName}"`);
 
       const result = await fileActionsService.moveFiles(
         query,
@@ -805,18 +758,18 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         }
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -827,7 +780,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -845,10 +798,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     // FIND_DUPLICATES - Find duplicate files
     if (intentResult.intent === Intent.FIND_DUPLICATES) {
+      console.log(`🔍 [ACTION] Finding duplicate files`);
 
       // Extract folder name if specified
       const folderId = intentResult.entities.folderName
-        ? (await prisma.folders.findFirst({
+        ? (await prisma.folder.findFirst({
             where: {
               userId,
               name: {
@@ -864,18 +818,18 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         }
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -886,7 +840,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         }
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() }
       });
@@ -909,18 +863,19 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     /*
     // Handle FIND_DOCUMENT - Use navigation service (NOT RAG!)
     if (fileIntent && fileIntent.intent === FileManagementIntent.FIND_DOCUMENT && fileIntent.entities.documentName) {
+      console.log(`📍 [NAV] Finding document: "${fileIntent.entities.documentName}"`);
 
       const navResult = await navigationService.findFile(userId, fileIntent.entities.documentName);
 
       if (navResult.found) {
         // Save messages
-        const userMessage = await prisma.messages.create({
+        const userMessage = await prisma.message.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.messages.create({
+        const assistantMessage = await prisma.message.create({
           data: {
-            conversations: { connect: { id: conversationId } },
+            conversationId,
             role: 'assistant',
             content: navResult.message,
             metadata: JSON.stringify({
@@ -931,7 +886,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           }
         });
 
-        await prisma.conversations.update({
+        await prisma.conversation.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -961,18 +916,19 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     // Handle FIND_FOLDER and DESCRIBE_FOLDER - Use navigation service (NOT RAG!)
     if (fileIntent && (fileIntent.intent === FileManagementIntent.FIND_FOLDER || fileIntent.intent === FileManagementIntent.DESCRIBE_FOLDER) && fileIntent.entities.folderName) {
+      console.log(`📁 [NAV] Finding folder: "${fileIntent.entities.folderName}"`);
 
       const navResult = await navigationService.findFolder(userId, fileIntent.entities.folderName);
 
       if (navResult.found) {
         // Save messages
-        const userMessage = await prisma.messages.create({
+        const userMessage = await prisma.message.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.messages.create({
+        const assistantMessage = await prisma.message.create({
           data: {
-            conversations: { connect: { id: conversationId } },
+            conversationId,
             role: 'assistant',
             content: navResult.message,
             metadata: JSON.stringify({
@@ -983,7 +939,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           }
         });
 
-        await prisma.conversations.update({
+        await prisma.conversation.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -1011,28 +967,30 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     // Classify query to determine routing strategy
     const classification = await queryClassifier.classify(query, userId);
+    console.log(`🎯 Query classified as: ${classification.type} (confidence: ${classification.confidence})`);
 
     // Handle SIMPLE_GREETING - instant template response
     if (classification.type === QueryType.SIMPLE_GREETING) {
       const templateResponse = templateResponseService.generateResponse(classification.type, query);
 
       if (templateResponse) {
+        console.log(`⚡ Template response generated in ${templateResponse.responseTimeMs}ms`);
 
         // Save user and assistant messages
-        const userMessage = await prisma.messages.create({
+        const userMessage = await prisma.message.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.messages.create({
+        const assistantMessage = await prisma.message.create({
           data: {
-            conversations: { connect: { id: conversationId } },
+            conversationId,
             role: 'assistant',
             content: templateResponse.content,
             metadata: JSON.stringify({ templateResponse: true, responseTimeMs: templateResponse.responseTimeMs })
           }
         });
 
-        await prisma.conversations.update({
+        await prisma.conversation.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -1055,21 +1013,22 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       const templateResponse = templateResponseService.generateResponse(classification.type, query);
 
       if (templateResponse) {
+        console.log(`⚡ Template response generated in ${templateResponse.responseTimeMs}ms`);
 
-        const userMessage = await prisma.messages.create({
+        const userMessage = await prisma.message.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.messages.create({
+        const assistantMessage = await prisma.message.create({
           data: {
-            conversations: { connect: { id: conversationId } },
+            conversationId,
             role: 'assistant',
             content: templateResponse.content,
             metadata: JSON.stringify({ templateResponse: true, responseTimeMs: templateResponse.responseTimeMs })
           }
         });
 
-        await prisma.conversations.update({
+        await prisma.conversation.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -1089,6 +1048,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     // Handle SIMPLE_METADATA - fast database query (no RAG/LLM needed)
     if (classification.type === QueryType.SIMPLE_METADATA) {
+      console.log(`🗄️  Handling metadata query directly`);
 
       // TODO: Metadata query service removed - stub response
       const metadataResult = {
@@ -1098,13 +1058,13 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       };
 
       if (metadataResult.answer) {
-        const userMessage = await prisma.messages.create({
+        const userMessage = await prisma.message.create({
           data: { conversationId, role: 'user', content: query }
         });
 
-        const assistantMessage = await prisma.messages.create({
+        const assistantMessage = await prisma.message.create({
           data: {
-            conversations: { connect: { id: conversationId } },
+            conversationId,
             role: 'assistant',
             content: metadataResult.answer,
             metadata: JSON.stringify({
@@ -1115,7 +1075,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           }
         });
 
-        await prisma.conversations.update({
+        await prisma.conversation.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() }
         });
@@ -1137,9 +1097,10 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     // ========================================
     // COMPLEX_RAG - Full RAG pipeline
     // ========================================
+    console.log(`🔍 Executing full RAG pipeline for complex query`);
 
     // Get conversation history (last 5 messages) for context
-    const conversationHistory = await prisma.messages.findMany({
+    const conversationHistory = await prisma.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
       take: 5,
@@ -1155,13 +1116,14 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     conversationHistory.reverse();
 
     // ✅ Check if this is the first message in the conversation BEFORE saving
-    const existingMessageCount = await prisma.messages.count({
+    const existingMessageCount = await prisma.message.count({
       where: { conversationId }
     });
     const isFirstMessage = existingMessageCount === 0;
+    console.log(`👋 [GREETING CHECK] Conversation ${conversationId}: ${existingMessageCount} existing messages, isFirstMessage: ${isFirstMessage}`);
 
     // Save user message to database
-    const userMessage = await prisma.messages.create({
+    const userMessage = await prisma.message.create({
       data: {
         conversationId,
         role: 'user',
@@ -1182,9 +1144,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       isFirstMessage  // Pass first message flag for greeting logic
     );
 
+    console.log(`🔍 [RAG CONTROLLER] result.sources:`, JSON.stringify(result.sources?.slice(0, 3), null, 2));
+    console.log(`🔍 [RAG CONTROLLER] result.sources.length:`, result.sources?.length);
 
     // Save assistant message to database with RAG metadata
-    const assistantMessage = await prisma.messages.create({
+    const assistantMessage = await prisma.message.create({
       data: {
         conversationId,
         role: 'assistant',
@@ -1200,33 +1164,39 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     });
 
     // Update conversation timestamp
-    await prisma.conversations.update({
+    await prisma.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
     });
 
     // Auto-generate conversation name after first message (non-blocking)
-    const messageCount = await prisma.messages.count({
+    const messageCount = await prisma.message.count({
       where: { conversationId }
     });
 
+    console.log(`🔍 [AUTO-NAMING] Checking conditions - conversationId: ${conversationId}, messageCount: ${messageCount}`);
 
     if (messageCount === 2) { // 2 messages = first user message + first assistant message
-      const conversation = await prisma.conversations.findUnique({
+      console.log(`✅ [AUTO-NAMING] Message count is 2, proceeding with name generation`);
+      const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
         select: { title: true }
       });
+      console.log(`🔍 [AUTO-NAMING] Current title: "${conversation?.title}"`);
 
       // Determine if we should generate a name (only for "New Chat" or empty titles)
       const currentTitle = conversation?.title || '';
       const shouldGenerate = currentTitle === '' || currentTitle === 'New Chat';
+      console.log(`🔍 [AUTO-NAMING] shouldGenerateName result: ${shouldGenerate} (title: "${currentTitle}")`);
 
       if (conversation && shouldGenerate) {
+        console.log(`🚀 [AUTO-NAMING] Starting name generation for query: "${query}"`);
         // Generate name asynchronously without blocking the response
         generateConversationTitle(query)
           .then(async (generatedTitle) => {
+            console.log(`✅ [AUTO-NAMING] Generated title: "${generatedTitle}"`);
             // Update the conversation title
-            await prisma.conversations.update({
+            await prisma.conversation.update({
               where: { id: conversationId },
               data: { title: generatedTitle }
             });
@@ -1235,20 +1205,25 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
             try {
               const io = getIO();
               io.to(`user:${userId}`).emit('conversation:updated', {
-                conversations: { connect: { id: conversationId } },
+                conversationId,
                 title: generatedTitle,
                 updatedAt: new Date()
               });
+              console.log(`📡 [AUTO-NAMING] WebSocket event emitted to user:${userId}`);
             } catch (wsError) {
+              console.warn('⚠️  [AUTO-NAMING] WebSocket not available, skipping real-time update:', wsError);
             }
 
+            console.log(`🎉 [AUTO-NAMING] Successfully updated conversation name: "${generatedTitle}" for conversation ${conversationId}`);
           })
           .catch((error) => {
             console.error('❌ [AUTO-NAMING] Failed to generate conversation name:', error);
           });
       } else {
+        console.log(`⏭️  [AUTO-NAMING] Skipping - conversation: ${!!conversation}, shouldGenerate: ${shouldGenerate}`);
       }
     } else {
+      console.log(`⏭️  [AUTO-NAMING] Skipping - messageCount is ${messageCount}, not 2`);
     }
 
     res.json({
@@ -1372,6 +1347,7 @@ export const answerFollowUp = async (req: Request, res: Response): Promise<void>
  * Generate an answer using RAG with SSE streaming
  */
 export const queryWithRAGStreaming = async (req: Request, res: Response): Promise<void> => {
+  console.time('⚡ RAG Streaming Response Time');
 
   try {
     const userId = req.user?.id;
@@ -1398,6 +1374,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         return null; // Skip invalid entries
       })
       .filter(Boolean);
+    console.log('📎 [ATTACHED FILES] Received:', attachedArray);
+    console.log('📎 [ATTACHED DOCUMENT IDs] Extracted IDs:', attachedDocIds);
 
     // Use first attached document ID if available, otherwise use documentId
     let effectiveDocumentId = attachedDocIds.length > 0 ? attachedDocIds[0] : documentId;
@@ -1407,6 +1385,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       effectiveDocumentId = undefined;
     }
 
+    console.log(`📎 [STREAMING ATTACHMENT DEBUG] documentId: ${documentId}, attachedDocs: ${attachedDocIds.length}, final: ${effectiveDocumentId}`);
 
     // Prepare metadata for user message with attached files info
     const userMessageMetadata = attachedArray.length > 0 ? {
@@ -1420,33 +1399,50 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     // ✅ FIX #1: INTENT CLASSIFICATION
     // ========================================
+    // 🌍 LANGUAGE DETECTION
+    // ========================================
+    // Detect user's language from query
+    const detectedLanguage = languageDetectionService.detectLanguage(query);
+    console.log(`🌍 [LANGUAGE] Detected: ${detectedLanguage}`);
+
+    // ========================================
     // ⚡ PERFORMANCE: Do fast keyword detection FIRST, only fetch conversation history if needed
     const lowerQuery = query.toLowerCase();
     let intentResult: any = null;
     let conversationHistoryForIntent: any[] = [];
 
     // Simple greetings - skip LLM and skip conversation history fetch
-    if (/^(hi|hello|hey|good morning|good afternoon|good evening|olá|hola|bonjour)[\s!?]*$/i.test(lowerQuery.trim())) {
+    // ✅ FIX: Use language detection service for better multilingual support
+    if (languageDetectionService.isGreeting(query)) {
       intentResult = {
         intent: 'greeting',
         confidence: 1.0,
-        parameters: {}
+        parameters: { language: detectedLanguage }
       };
+      console.log(`⚡ [FAST KEYWORD] Detected greeting in ${detectedLanguage} (skipped LLM + DB)`);
     }
     // List files - skip LLM and skip conversation history fetch
-    else if (/\b(list|show|what|which)\b.*\b(files?|documents?|pdfs?|docx|xlsx)\b/i.test(lowerQuery)) {
-      // Extract file types if present
+    // ✅ FIX: Added natural language file type names (excel, word, powerpoint, images)
+    else if (/\b(list|show|what|which|how many|quantos|cuantos)\b.*\b(files?|documents?|pdfs?|docx|xlsx|excel|word|powerpoint|ppt|txt|png|jpe?g|images?|pictures?|photos?)\b/i.test(lowerQuery)) {
+      // Extract file types if present (support both technical and natural language terms)
       const fileTypes: string[] = [];
       if (/\bpdf/i.test(lowerQuery)) fileTypes.push('pdf');
-      if (/\bdocx?\b/i.test(lowerQuery)) fileTypes.push('docx');
-      if (/\bxlsx?\b/i.test(lowerQuery)) fileTypes.push('xlsx');
+      if (/\b(docx?|word)\b/i.test(lowerQuery)) fileTypes.push('docx');
+      if (/\b(xlsx?|excel|spreadsheet)\b/i.test(lowerQuery)) fileTypes.push('xlsx');
+      if (/\b(pptx?|powerpoint|presentation)\b/i.test(lowerQuery)) fileTypes.push('pptx');
       if (/\btxt\b/i.test(lowerQuery)) fileTypes.push('txt');
+      if (/\b(png|jpe?g|images?|pictures?|photos?)\b/i.test(lowerQuery)) {
+        fileTypes.push('png');
+        fileTypes.push('jpg');
+        fileTypes.push('jpeg');
+      }
 
       intentResult = {
         intent: 'list_files',
         confidence: 0.95,
         parameters: fileTypes.length > 0 ? { fileTypes } : {}
       };
+      console.log(`⚡ [FAST KEYWORD] Detected list_files (skipped LLM + DB)`);
     }
     // Create folder - skip LLM and skip conversation history fetch
     else if (/\b(create|make|new)\b.*\bfolder/i.test(lowerQuery)) {
@@ -1460,6 +1456,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           confidence: 0.95,
           parameters: { folderName }
         };
+        console.log(`⚡ [FAST KEYWORD] Detected create_folder (skipped LLM + DB)`);
       }
     }
 
@@ -1554,12 +1551,14 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           confidence: 0.95,
           parameters: {}
         };
+        console.log(`⚡ [FAST INTENT] Obvious RAG query detected - skipping LLM intent detection (saved 3-6s)`);
       }
     }
 
     // ⚡ PERFORMANCE: Only fetch conversation history if we need LLM (saves 50-150ms DB query)
     if (!intentResult) {
-      conversationHistoryForIntent = await prisma.messages.findMany({
+      console.log(`🔍 [OPTIMIZATION] No fast match - fetching conversation history for LLM`);
+      conversationHistoryForIntent = await prisma.message.findMany({
         where: { conversationId },
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -1571,8 +1570,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       conversationHistoryForIntent.reverse(); // Chronological order
 
       intentResult = await llmIntentDetectorService.detectIntent(query, conversationHistoryForIntent);
+      console.log(`🧠 [LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
     }
 
+    console.log(`📝 [STREAMING Entities]`, intentResult.parameters);
 
     // ========================================
     // ✅ FIX #1: FILE ACTION HANDLERS
@@ -1580,9 +1581,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
     // CREATE_FOLDER
     if (intentResult.intent === 'create_folder' && intentResult.parameters.folderName) {
+      console.log(`📁 [STREAMING ACTION] Creating folder: "${intentResult.parameters.folderName}"`);
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -1599,18 +1601,18 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         },
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -1621,7 +1623,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -1647,15 +1649,17 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         sources: []
       })}\n\n`);
       res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
       return;
     }
 
     // MOVE_FILES
     if (intentResult.intent === 'move_files' && intentResult.parameters.filename && intentResult.parameters.targetFolder) {
+      console.log(`📁 [STREAMING ACTION] Moving file: "${intentResult.parameters.filename}" to "${intentResult.parameters.targetFolder}"`);
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
       // This immediately establishes the connection so frontend knows request is being processed
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -1669,18 +1673,18 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         },
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -1690,7 +1694,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -1717,14 +1721,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         sources: []
       })}\n\n`);
       res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
       return;
     }
 
     // RENAME_FILE
     if (intentResult.intent === 'rename_file' && intentResult.parameters.oldFilename && intentResult.parameters.newFilename) {
+      console.log(`📁 [STREAMING ACTION] Renaming: "${intentResult.parameters.oldFilename}" to "${intentResult.parameters.newFilename}"`);
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -1738,18 +1744,18 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         },
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -1759,7 +1765,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -1787,14 +1793,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         sources: []
       })}\n\n`);
       res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
       return;
     }
 
     // DELETE_FILE
     if (intentResult.intent === 'delete_file' && intentResult.parameters.filename) {
+      console.log(`📁 [STREAMING ACTION] Deleting: "${intentResult.parameters.filename}"`);
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -1811,18 +1819,18 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         },
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -1832,7 +1840,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -1858,14 +1866,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         sources: []
       })}\n\n`);
       res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
       return;
     }
 
     // SHOW_FILE
     if (intentResult.intent === 'show_file' && intentResult.parameters.filename) {
+      console.log(`👁️ [STREAMING ACTION] Showing file: "${intentResult.parameters.filename}"`);
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -1882,18 +1892,18 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         },
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: result.message,
           metadata: JSON.stringify({
@@ -1905,7 +1915,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -1930,87 +1940,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         sources: []
       })}\n\n`);
       res.end();
-      return;
-    }
-
-    // SHOW_FOLDER
-    if (intentResult.intent === 'show_folder' && intentResult.parameters.folderName) {
-
-      // Set up SSE headers
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-
-      // Send "connected" event
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
-
-      // Execute the action
-      const result = await fileActionsService.showFolder({
-        userId,
-        folderName: intentResult.parameters.folderName
-      }, query);
-
-      // Ensure conversation exists
-      await ensureConversationExists(conversationId, userId);
-
-      const userMessage = await prisma.messages.create({
-        data: {
-          conversations: { connect: { id: conversationId } },
-          role: 'user',
-          content: query,
-          metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
-        },
-      });
-
-      const assistantMessage = await prisma.messages.create({
-        data: {
-          conversations: { connect: { id: conversationId } },
-          role: 'assistant',
-          content: result.message,
-          metadata: JSON.stringify({
-            actionType: 'show_folder',
-            success: result.success,
-            folder: result.data?.folder,
-            action: result.data?.action
-          })
-        },
-      });
-
-      await prisma.conversations.update({
-        where: { id: conversationId },
-        data: { updatedAt: new Date() },
-      });
-
-      // Send show_folder_modal action
-      if (result.success && result.data?.folder) {
-        res.write(`data: ${JSON.stringify({
-          type: 'action',
-          actionType: 'show_folder_modal',
-          success: true,
-          folder: result.data.folder,
-          contents: result.data.contents,
-          attachOnClose: false  // Folders don't attach, they navigate
-        })}\n\n`);
-      }
-
-      // Send response content
-      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
-      res.write(`data: ${JSON.stringify({
-        type: 'done',
-        userMessage,
-        assistantMessage,
-        sources: []
-      })}\n\n`);
-      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
       return;
     }
 
     // FILE_LOCATION
     if (intentResult.intent === 'file_location' && intentResult.parameters.filename) {
+      console.log(`📍 [STREAMING] Finding: "${intentResult.parameters.filename}"`);
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -2032,18 +1971,18 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
 
-      const userMessage = await prisma.messages.create({
+      const userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
         },
       });
 
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: responseMessage,
           metadata: JSON.stringify({
@@ -2053,7 +1992,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         },
       });
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
@@ -2069,6 +2008,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         conversationId
       })}\n\n`);
       res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
       return;
     }
 
@@ -2076,6 +2016,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // LIST_FILES and METADATA_QUERY Handlers
     // ========================================
     if (intentResult.intent === 'list_files' || intentResult.intent === 'metadata_query') {
+      console.log(`📊 [STREAMING] Handling ${intentResult.intent}`);
 
       // Call the handler from chat.service.ts
       const { handleFileActionsIfNeeded } = require('../services/chat.service');
@@ -2083,7 +2024,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       if (result) {
         // Set up SSE headers
-        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
         res.setHeader('X-Accel-Buffering', 'no');
@@ -2094,18 +2035,18 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         // Ensure conversation exists before creating messages
         await ensureConversationExists(conversationId, userId);
 
-        const userMessage = await prisma.messages.create({
+        const userMessage = await prisma.message.create({
           data: {
-            conversations: { connect: { id: conversationId } },
+            conversationId,
             role: 'user',
             content: query,
             metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null
           },
         });
 
-        const assistantMessage = await prisma.messages.create({
+        const assistantMessage = await prisma.message.create({
           data: {
-            conversations: { connect: { id: conversationId } },
+            conversationId,
             role: 'assistant',
             content: result.message,
             metadata: JSON.stringify({
@@ -2115,7 +2056,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           },
         });
 
-        await prisma.conversations.update({
+        await prisma.conversation.update({
           where: { id: conversationId },
           data: { updatedAt: new Date() },
         });
@@ -2129,6 +2070,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           sources: []
         })}\n\n`);
         res.end();
+        console.timeEnd('⚡ RAG Streaming Response Time');
         return;
       }
     }
@@ -2138,6 +2080,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     // If no file action matched above, fall through to RAG query
     // This handles: rag_query, greeting, and unknown intents
+    console.log(`📚 [FALLBACK] Falling through to RAG query for intent: ${intentResult.intent}`);
 
     // ========================================
     // ✅ P0 FEATURES: Pre-process query for multi-turn conversations
@@ -2152,10 +2095,13 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       // Log P0 processing results
       if (p0PreProcess.wasRewritten) {
+        console.log(`✅ [P0] Query rewritten: "${query}" → "${processedQuery}"`);
       }
       if (p0PreProcess.isRefinement) {
+        console.log(`🔍 [P0] Refinement query - searching within ${p0PreProcess.scopeDocumentIds.length} documents`);
       }
       if (p0PreProcess.requiresCalculation) {
+        console.log(`🧮 [P0] Calculation required: ${p0PreProcess.calculationType}`);
       }
     } catch (error) {
       console.error('❌ [P0] Pre-processing failed, using original query:', error);
@@ -2167,18 +2113,19 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     const finalAnswerLength = validLengths.includes(answerLength) ? answerLength : 'medium';
 
     // Set up SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
     // Send initial connection confirmation
     res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+    console.log('🚀 [DEBUG] Sent connected event');
 
     // Add keepalive pings every 15 seconds to prevent timeout
     const keepaliveInterval = setInterval(() => {
       res.write(': keepalive\n\n');
-      if ((res as any).flush) (res as any).flush();
+      if (res.flush) res.flush();
     }, 15000);
 
     // Clean up interval when done
@@ -2191,22 +2138,24 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
     // ✅ FIX: Check if this is the first message BEFORE saving the user message
     // This ensures greeting only appears on the very first message of the conversation
-    const existingMessageCount = await prisma.messages.count({
+    const existingMessageCount = await prisma.message.count({
       where: { conversationId }
     });
     const isFirstMessage = existingMessageCount === 0;
+    console.log(`👋 [GREETING CHECK - STREAMING] Conversation ${conversationId}: ${existingMessageCount} existing messages, isFirstMessage: ${isFirstMessage}`);
 
     // ✅ REGENERATION: Skip creating user message if we're regenerating an existing response
     let userMessage: any;
     if (regenerateMessageId) {
+      console.log(`🔄 [REGENERATE] Regenerating message ${regenerateMessageId}, skipping user message creation`);
       // Find the original user message for this assistant message
-      const assistantMsg = await prisma.messages.findUnique({
+      const assistantMsg = await prisma.message.findUnique({
         where: { id: regenerateMessageId }
       });
       if (assistantMsg) {
-        const originalUserMsg = await prisma.messages.findFirst({
+        const originalUserMsg = await prisma.message.findFirst({
           where: {
-            conversations: { connect: { id: conversationId } },
+            conversationId,
             role: 'user',
             createdAt: { lt: assistantMsg.createdAt }
           },
@@ -2216,9 +2165,9 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       }
     } else {
       // Save user message to database with attached files metadata
-      userMessage = await prisma.messages.create({
+      userMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'user',
           content: query,
           metadata: userMessageMetadata ? JSON.stringify(userMessageMetadata) : null,
@@ -2230,6 +2179,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     let fullAnswer = '';
     let result: any = { answer: '', sources: [], contextId: undefined };
     try {
+      console.log('🚀 [DEBUG] About to call generateAnswerStream');
+      console.log('🚀 [DEBUG] userId:', userId);
+      console.log('🚀 [DEBUG] processedQuery:', processedQuery);
+      console.log('🚀 [DEBUG] conversationId:', conversationId);
 
       // ✅ P0 FEATURES: Use processedQuery (may be rewritten) instead of original query
       // ✅ FIX: Use NEW generateAnswerStream (hybrid RAG with document detection + post-processing)
@@ -2240,10 +2193,24 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         processedQuery, // ✅ P0: Use processed/rewritten query
         conversationId,
         (chunk: string) => {
+          console.log('🚀 [DEBUG] onChunk called with chunk length:', chunk.length);
+          console.log('🚀 [DEBUG] Chunk full content:', chunk);
+          console.log('🚀 [DEBUG] Checking for marker...');
+          console.log('🚀 [DEBUG] Contains marker?:', chunk.includes('__DOCUMENT_GENERATION_REQUESTED__:'));
+
+          // Check if this is a document generation marker - don't send to client
+          if (chunk.includes('__DOCUMENT_GENERATION_REQUESTED__:')) {
+            console.log('📝 [RAG CONTROLLER] Intercepted document generation marker - not sending to client');
+            fullAnswer += chunk;
+            return; // Don't send marker to client
+          }
+
           fullAnswer += chunk;
           // Stream each chunk to client
+          console.log('🚀 [DEBUG] Writing chunk to SSE stream...');
           res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
-          if ((res as any).flush) (res as any).flush(); // Force immediate send
+          if (res.flush) res.flush(); // Force immediate send
+          console.log('🚀 [DEBUG] Chunk written and flushed');
         },
         effectiveDocumentId,
         conversationHistoryForIntent,  // Pass conversation history for context
@@ -2253,6 +2220,9 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         isFirstMessage  // ✅ Pass first message flag for greeting logic
       );
 
+      console.log('🚀 [DEBUG] generateAnswerStream completed');
+      console.log('🚀 [DEBUG] fullAnswer length:', fullAnswer.length);
+      console.log('🚀 [DEBUG] streamResult.sources length:', streamResult.sources?.length);
 
       // ✅ FIX: Use actual sources from generateAnswerStream, not hardcoded empty array!
       result = {
@@ -2265,15 +2235,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.error('❌ RAG Streaming Error:', ragError);
 
       // Sanitize error message - show user-friendly message instead of technical details
-      const userFriendlyMessage = 'I apologize, but I encountered an issue while processing your question. Please try rephrasing your question or try again in a moment.';
+      // ✅ FIX: Use localized error message based on detected language
+      const userFriendlyMessage = languageDetectionService.getLocalizedError('general_error', detectedLanguage);
 
       // Stream user-friendly message
       res.write(`data: ${JSON.stringify({ type: 'content', content: userFriendlyMessage })}\n\n`);
 
       // Save user-friendly message to database
-      const assistantMessage = await prisma.messages.create({
+      const assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: userFriendlyMessage
         }
@@ -2290,6 +2261,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       })}\n\n`);
 
       res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
       return;
     }
 
@@ -2298,6 +2270,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     // Use responsePostProcessor service for consistent formatting
     let cleanedAnswer = responsePostProcessor.process(result.answer, result.sources || []);
+    let generatedChatDocument: any = null; // Store chat document for the done event
+    console.log('✅ [POST-PROCESSING] Applied responsePostProcessor formatting (warnings, spacing, next steps limiting)');
 
     // ========================================
     // ✅ P0 FEATURES: Post-process response for calculations and context updates
@@ -2317,8 +2291,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         cleanedAnswer = p0PostProcess.answer;
 
         if (p0PostProcess.calculationResult) {
+          console.log(`🧮 [P0] Calculation added: ${p0PostProcess.calculationResult.explanation}`);
         }
         if (p0PostProcess.scopeUpdated) {
+          console.log(`📊 [P0] Scope updated: ${p0PostProcess.newScopeDescription}`);
         }
       }
     } catch (error) {
@@ -2327,13 +2303,17 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     }
 
     // ✅ FIX #2: Deduplicate sources by documentId (or filename if documentId is null)
+    console.log(`🔍 [DEBUG - DEDUP] result.sources:`, result.sources);
+    console.log(`🔍 [DEBUG - DEDUP] First source:`, result.sources?.[0]);
 
     const uniqueSources = result.sources ?
       Array.from(new Map(result.sources.map((src: any) => {
         const key = src.documentId || src.documentName || `${src.documentName}-${src.pageNumber}`;
+        console.log(`🔍 [DEBUG - DEDUP] Source: documentId=${src.documentId}, documentName=${src.documentName}, key=${key}`);
         return [key, src];
       })).values())
       : [];
+    console.log(`✅ [DEDUPLICATION] ${result.sources?.length || 0} sources → ${uniqueSources.length} unique sources`);
 
     // ✅ FIX #7: Filter sources for query-specific documents
     // But keep ALL mentioned documents for comparison queries
@@ -2354,9 +2334,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       if (isComparisonQuery || mentionedFiles.length >= 2) {
         // For comparisons or multiple mentioned files, show ALL mentioned documents
         filteredSources = mentionedFiles;
+        console.log(`✅ [SOURCE FILTERING] Comparison query with ${mentionedFiles.length} mentioned documents`);
       } else {
         // Single file mentioned (non-comparison) - filter to just that one
         filteredSources = mentionedFiles;
+        console.log(`✅ [SOURCE FILTERING] Query mentions "${mentionedFiles[0].documentName}", filtered to 1 source`);
       }
     } else {
       filteredSources = uniqueSources;
@@ -2366,7 +2348,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ✅ REGENERATION: Update existing message if regenerating, otherwise create new
     let assistantMessage: any;
     if (regenerateMessageId) {
-      assistantMessage = await prisma.messages.update({
+      console.log(`🔄 [REGENERATE] Updating existing message ${regenerateMessageId}`);
+      assistantMessage = await prisma.message.update({
         where: { id: regenerateMessageId },
         data: {
           content: cleanedAnswer,
@@ -2377,13 +2360,13 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
             confidence: (result as any).confidence || 0.8,
             answerLength: finalAnswerLength,
             regeneratedAt: new Date().toISOString()
-          }),
+          })
         },
       });
     } else {
-      assistantMessage = await prisma.messages.create({
+      assistantMessage = await prisma.message.create({
         data: {
-          conversations: { connect: { id: conversationId } },
+          conversationId,
           role: 'assistant',
           content: cleanedAnswer,
           metadata: JSON.stringify({
@@ -2397,23 +2380,94 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       });
     }
 
+    // ════════════════════════════════════════════════════════════════════════════════
+    // DOCUMENT GENERATION HANDLER
+    // ════════════════════════════════════════════════════════════════════════════════
+    // Check if the answer contains document generation marker
+    if (cleanedAnswer.includes('__DOCUMENT_GENERATION_REQUESTED__:')) {
+      console.log('📝 [RAG CONTROLLER] Detected document generation marker in answer');
+
+      // Extract document type from marker
+      const markerMatch = cleanedAnswer.match(/__DOCUMENT_GENERATION_REQUESTED__:(\w+)/);
+      const documentType = markerMatch ? markerMatch[1] as 'summary' | 'report' | 'analysis' | 'general' : 'general';
+
+      console.log(`📝 [RAG CONTROLLER] Triggering ${documentType} document generation`);
+
+      try {
+        // Import document generation service
+        const chatDocGenService = await import('../services/chatDocumentGeneration.service');
+
+        // Stream progress message to client
+        const progressMessage = `\n\n📝 Generating your ${documentType}...\n\n`;
+        res.write(`data: ${JSON.stringify({ type: 'content', content: progressMessage })}\n\n`);
+        if (res.flush) res.flush();
+
+        // Generate document
+        const docResult = await chatDocGenService.generateDocument({
+          userId,
+          conversationId,
+          messageId: assistantMessage.id,
+          query,
+          documentType,
+        });
+
+        // Store chat document for the done event
+        generatedChatDocument = docResult.chatDocument;
+
+        // Update assistant message with generated document content
+        await prisma.message.update({
+          where: { id: assistantMessage.id },
+          data: {
+            content: docResult.message,
+          },
+        });
+
+        // Update cleanedAnswer for the done event
+        cleanedAnswer = docResult.message;
+
+        console.log(`✅ [RAG CONTROLLER] Document generated successfully: ${docResult.chatDocument.id}`);
+
+        // Stream final message
+        res.write(`data: ${JSON.stringify({ type: 'content', content: '\n' + docResult.message })}\n\n`);
+        if (res.flush) res.flush();
+      } catch (docGenError: any) {
+        console.error('❌ [RAG CONTROLLER] Document generation failed:', docGenError);
+        console.error('❌ [RAG CONTROLLER] Error message:', docGenError?.message);
+        console.error('❌ [RAG CONTROLLER] Error stack:', docGenError?.stack);
+        const errorMessage = '\n\n❌ Failed to generate document. Please try again.';
+
+        await prisma.message.update({
+          where: { id: assistantMessage.id },
+          data: {
+            content: cleanedAnswer + errorMessage,
+          },
+        });
+
+        cleanedAnswer += errorMessage;
+
+        res.write(`data: ${JSON.stringify({ type: 'content', content: errorMessage })}\n\n`);
+        if (res.flush) res.flush();
+      }
+    }
+
     // Update conversation timestamp
-    await prisma.conversations.update({
+    await prisma.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
     });
 
     // ✅ FIX: Invalidate conversation cache so refresh shows latest messages
     cacheService.invalidateConversationCache(userId, conversationId)
+      .then(() => console.log(`🗑️  [Cache] Invalidated conversation cache for ${conversationId.substring(0, 8)}...`))
       .catch(err => console.error('❌ Error invalidating cache:', err));
 
     // Auto-generate conversation title (non-blocking)
-    const messageCount = await prisma.messages.count({
+    const messageCount = await prisma.message.count({
       where: { conversationId }
     });
 
     if (messageCount === 2) {
-      const conversation = await prisma.conversations.findUnique({
+      const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
         select: { title: true }
       });
@@ -2424,7 +2478,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       if (conversation && shouldGenerate) {
         generateConversationTitle(query)
           .then(async (generatedTitle) => {
-            await prisma.conversations.update({
+            await prisma.conversation.update({
               where: { id: conversationId },
               data: { title: generatedTitle }
             });
@@ -2432,11 +2486,12 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
             try {
               const io = getIO();
               io.to(`user:${userId}`).emit('conversation:updated', {
-                conversations: { connect: { id: conversationId } },
+                conversationId,
                 title: generatedTitle,
                 updatedAt: new Date()
               });
             } catch (wsError) {
+              console.warn('⚠️  WebSocket not available for title update');
             }
           })
           .catch((error) => {
@@ -2445,7 +2500,72 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       }
     }
 
+    // ✅ DOCUMENT CREATION: Auto-generate PDF for creation queries
+    // Check if this was a document creation request (e.g., "create a summary report")
+    const queryLower = query.toLowerCase();
+    const isCreationQuery = /(?:create|make|generate|build|write|draft|prepare|compose|criar|gerar|hacer|generar|créer)/i.test(queryLower);
+    const isDocumentRequest = /(?:document|report|summary|file|pdf|docx)/i.test(queryLower);
+
+    let generatedDocument: any = null;
+    if (isCreationQuery && isDocumentRequest) {
+      console.log('📄 [AUTO-DOCUMENT] Detected document creation request, generating comprehensive document...');
+      try {
+        // Extract title from query or use default
+        const titleMatch = query.match(/(?:summary|report)\s+(?:of|about|for|on)\s+(.+?)(?:\?|$)/i);
+        const title = titleMatch ? titleMatch[1].trim() : 'Summary Report';
+
+        console.log('📝 [AUTO-DOCUMENT] Generating long-form document content with Claude...');
+
+        // Generate comprehensive document content using Claude
+        const documentPrompt = `You are generating a professional business document. Based on the following information, create a comprehensive, well-structured document with multiple sections.
+
+Title: ${title}
+
+Information to include:
+${cleanedAnswer}
+
+Please generate a professional document with:
+1. An "Executive Summary" section (2-3 paragraphs) that provides a high-level overview
+2. Multiple detailed sections with clear headings (H2 level with ##)
+3. Each section should have 2-4 paragraphs of detailed content
+4. Use proper markdown formatting (headers, bold, lists, etc.)
+5. Make it comprehensive and professional - similar to a business report
+6. Include relevant details, insights, and context
+7. Total length should be at least 800-1200 words
+
+Format the document using markdown with proper structure. Do NOT include the title or date headers - just start with the Executive Summary section.`;
+
+        const documentContentResponse = await anthropic.messages.create({
+          model: ANTHROPIC_MODEL,
+          max_tokens: 4096,
+          system: 'You are a professional business document writer. Generate comprehensive, well-structured documents with executive summaries and detailed sections.',
+          messages: [{ role: 'user', content: documentPrompt }]
+        });
+
+        const documentContent = documentContentResponse.content
+          .filter((block: any) => block.type === 'text')
+          .map((block: any) => block.text)
+          .join('\n\n');
+
+        console.log(`✅ [AUTO-DOCUMENT] Generated ${documentContent.length} characters of document content`);
+
+        generatedDocument = await chatDocumentGenerationService.generateDocument({
+          userId,
+          content: documentContent,
+          title,
+          conversationId,
+        });
+
+        console.log(`✅ [AUTO-DOCUMENT] PDF created: ${generatedDocument.documentId}`);
+      } catch (docError) {
+        console.error('❌ [AUTO-DOCUMENT] Failed to create PDF:', docError);
+        // Don't fail the whole request if document creation fails
+      }
+    }
+
     // Send completion signal with metadata AND formatted answer
+    console.log('🚀 [DEBUG] About to send done event');
+    console.log('📄 [DEBUG] generatedChatDocument:', generatedChatDocument ? `{id: "${generatedChatDocument.id}", title: "${generatedChatDocument.title}"}` : 'null');
     res.write(`data: ${JSON.stringify({
       type: 'done',
       formattedAnswer: cleanedAnswer, // ✅ Send post-processed answer (next steps limited)
@@ -2457,11 +2577,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       confidence: (result as any).confidence || 0.8,
       actions: (result as any).actions || [] || [],
       uiUpdate: result.uiUpdate,
-      conversationId
+      conversationId,
+      generatedDocument: generatedDocument || undefined, // ✅ Include generated document info
+      chatDocument: generatedChatDocument || undefined, // ✅ Include chat document for display
     })}\n\n`);
+    console.log('🚀 [DEBUG] Done event sent');
 
     clearInterval(keepaliveInterval); // Clean up keepalive
     res.end();
+    console.log('🚀 [DEBUG] Response ended');
+    console.timeEnd('⚡ RAG Streaming Response Time');
 
   } catch (error: any) {
     console.error('❌ Error in RAG streaming:', error);

@@ -16,6 +16,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { getFileIcon } from '../utils/iconMapper';
 import GeneratedDocumentCard from './GeneratedDocumentCard';
+import DocumentPreviewButton from './DocumentPreviewButton';
 import DocumentCard from './DocumentCard';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import FilePreviewModal from './FilePreviewModal';
@@ -28,6 +29,7 @@ import FailedMessage from './FailedMessage';
 import TypingIndicator from './TypingIndicator';
 import FileUploadPreview from './FileUploadPreview';
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts';
+import useStreamingAnimation from '../hooks/useStreamingAnimation';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import './MarkdownStyles.css';
 import StreamingWelcomeMessage from './StreamingWelcomeMessage';
@@ -117,7 +119,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const searchInputRef = useRef(null); // For focusing search via keyboard shortcut
 
     // Display streaming chunks immediately without animation for smoother UX (like ChatGPT)
-    const displayedText = streamingMessage;
+    // ✅ ChatGPT-style streaming animation
+    const animatedStreamingMessage = useStreamingAnimation(streamingMessage, 2, 30);
+    const displayedText = animatedStreamingMessage;
     const isStreaming = isLoading && streamingMessage.length > 0;
 
     // ✅ KEYBOARD SHORTCUTS: Power user shortcuts for faster navigation
@@ -2325,6 +2329,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         }
                                     } else if (data.type === 'done') {
                                         metadata = data;
+                                        console.log('📄 [DONE EVENT] chatDocument:', metadata.chatDocument ? `ID: ${metadata.chatDocument.id}` : 'null');
                                     } else if (data.type === 'error') {
                                         throw new Error(data.error);
                                     }
@@ -2351,6 +2356,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             createdAt: new Date().toISOString(),
                             ragSources: metadata.sources || [],
                             confidence: metadata.confidence, // Include confidence score
+                            chatDocument: metadata.chatDocument || null, // Include chat document for display
                         };
 
                         pendingMessageRef.current = {
@@ -2539,9 +2545,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 </ReactMarkdown>
                                                             </div>
 
-                                                            {/* Generated Document Card */}
+                                                            {/* Manus-style Document Preview Button */}
                                                             {msg.chatDocument && (
-                                                                <GeneratedDocumentCard chatDocument={msg.chatDocument} />
+                                                                <DocumentPreviewButton 
+                                                                    chatDocument={msg.chatDocument}
+                                                                    onPreview={() => {
+                                                                        console.log('📄 [DOCUMENT] Opening preview for:', msg.chatDocument);
+                                                                        // Convert chatDocument to document format for preview modal
+                                                                        setPreviewDocument({
+                                                                            id: msg.chatDocument.id,
+                                                                            filename: `${msg.chatDocument.title}.md`,
+                                                                            mimeType: 'text/markdown',
+                                                                            chatDocument: msg.chatDocument // Pass full chatDocument for rendering
+                                                                        });
+                                                                    }}
+                                                                />
                                                             )}
 
                                                             {/* Document Cards (for document requests) */}

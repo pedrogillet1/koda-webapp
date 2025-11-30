@@ -112,10 +112,10 @@ export function getLocalizedError(errorType: string, language: string): string {
       fr: 'Je n\'ai pas pu trouver de documents pertinents pour répondre à votre question.'
     },
     general_error: {
-      en: 'Sorry, I encountered an error while processing your request.',
-      pt: 'Desculpe, encontrei um erro ao processar sua solicitação.',
-      es: 'Lo siento, encontré un error al procesar tu solicitud.',
-      fr: 'Désolé, j\'ai rencontré une erreur lors du traitement de votre demande.'
+      en: 'Something went wrong while processing your question. Could you try rephrasing it or asking something else?',
+      pt: 'Algo deu errado ao processar sua pergunta. Você poderia reformulá-la ou perguntar outra coisa?',
+      es: 'Algo salió mal al procesar tu pregunta. ¿Podrías reformularla o preguntar otra cosa?',
+      fr: 'Quelque chose s\'est mal passé lors du traitement de votre question. Pourriez-vous la reformuler ou poser une autre question?'
     },
     file_not_found: {
       en: 'I couldn\'t find the file you\'re looking for.',

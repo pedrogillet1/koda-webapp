@@ -53,6 +53,7 @@ class CalculationService {
     const lowerQuery = query.toLowerCase();
 
     // ✅ FIX: Exclude document summary/report queries from calculation detection
+    // These queries use words like "summary", "report" which should NOT trigger calculations
     const documentQueryPatterns = [
       /(?:create|make|generate|write).*(?:summary|report|document|analysis)/i,
       /(?:summarize|summary).*(?:documents?|files?|papers?)/i,
