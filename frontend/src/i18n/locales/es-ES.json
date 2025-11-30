@@ -13,6 +13,7 @@
     "upgrade": "Actualizar"
   },
   "settings": {
+    "cacheAndDocuments": "caché y todos los documentos",
     "title": "Configuración",
     "general": "General",
     "security": "Seguridad",
@@ -193,6 +194,10 @@
     }
   },
   "chat": {
+    "documentSources": "Fuentes del Documento ({{count}})",
+    "webSources": "Fuentes Web ({{count}})",
+    "noDocumentsReferenced": "No se referenciaron documentos para esta respuesta.",
+    "failedToSend": "Error al enviar",
     "title": "Chat",
     "placeholder": "Pregunta a Koda sobre tus documentos...",
     "send": "Enviar",
@@ -326,6 +331,7 @@
     "noResultsMatching": "No se encontraron carpetas o documentos para \"{{query}}\""
   },
   "upload": {
+    "removeFile": "Eliminar archivo",
     "title": "Enviar",
     "uploadHub": "Centro de Envío",
     "dropFiles": "Suelta los archivos aquí para enviar",
@@ -355,7 +361,6 @@
     "uploaded": "Subido",
     "failedToUpload": "Error al subir",
     "waiting": "Esperando...",
-    "processing": "Procesando...",
     "tapToUpload": "Toca para Subir",
     "dragAndDrop": "Sube Documentos o Arrastra y Suelta",
     "allFileTypesSupported": "Todos los tipos de archivo soportados (máx. 500MB)",
@@ -365,7 +370,6 @@
     "uploadingFiles_plural": "Subiendo {{count}} archivos",
     "uploadsComplete": "{{count}} subida Completada",
     "uploadsComplete_plural": "{{count}} subidas Completadas",
-    "removeFile": "Eliminar archivo",
     "preparingRetry": "Preparando reintento...",
     "processingTakingLonger": "El procesamiento del documento está tardando más de lo esperado. Tu archivo estará listo para el chat de IA pronto.",
     "notifications": {
@@ -411,10 +415,15 @@
   },
   "notifications": {
     "title": "Notificaciones",
+    "noNotifications": "Sin notificaciones",
+    "markAllRead": "Marcar todo como leído",
+    "justNow": "Justo ahora",
+    "minutesAgo": "hace {{count}}m",
+    "hoursAgo": "hace {{count}}h",
+    "daysAgo": "hace {{count}}d",
     "all": "Todas",
     "unread": "No leídas",
     "read": "Leídas",
-    "noNotifications": "Sin notificaciones aún",
     "noNotificationsYet": "Sin notificaciones aún",
     "noNotificationsSubtitle": "¡Estás al día! Vuelve más tarde para actualizaciones sobre tus documentos y cuenta.",
     "allCaughtUp": "¡Estás al día! Vuelve más tarde para actualizaciones sobre tus documentos y cuenta.",
@@ -422,7 +431,6 @@
     "noUnreadSubtitle": "¡Buen trabajo! Has leído todas tus notificaciones.",
     "noReadNotifications": "Sin notificaciones leídas",
     "noReadSubtitle": "Las notificaciones que leas aparecerán aquí.",
-    "markAllRead": "Marcar todas como leídas",
     "clearAll": "Borrar todas",
     "close": "Cerrar",
     "today": "Hoy",
@@ -449,7 +457,7 @@
     }
   },
   "errors": {
-    "generic": "Algo salió mal. Por favor, inténtalo de nuevo.",
+    "generic": "Ocurrió un error. Por favor, intenta de nuevo.",
     "genericError": "Ocurrió un error",
     "networkError": "Error de red. Verifica tu conexión.",
     "unauthorized": "Sesión expirada. Inicia sesión de nuevo.",
@@ -528,7 +536,7 @@
     "download": "Descargar",
     "rename": "Renombrar",
     "new": "Nuevo",
-    "add": "Agregar",
+    "add": "Añadir",
     "remove": "Eliminar",
     "retry": "Reintentar",
     "noResults": "No se encontraron resultados",
@@ -556,11 +564,18 @@
     "seeAll": "Ver todo",
     "saving": "Guardando...",
     "createNew": "Crear Nuevo",
-    "add": "Añadir",
     "notAvailable": "N/D",
     "previous": "Anterior"
   },
   "fileTypes": {
+    "pdfLabel": "Documento PDF",
+    "word": "Documento de Word",
+    "excel": "Hoja de Cálculo de Excel",
+    "powerpoint": "Presentación de PowerPoint",
+    "image": "Imagen",
+    "text": "Archivo de Texto",
+    "file": "Archivo",
+    "markdown": "Markdown",
     "pdf": "PDF",
     "doc": "Documento",
     "docx": "Documento",
@@ -633,7 +648,11 @@
     "documentDeleted": "Documento eliminado correctamente",
     "failedToDelete": "Error al eliminar documento: {{error}}",
     "createCategoryComingSoon": "¡Función de crear categoría próximamente!",
-    "failedToMoveDocument": "Error al mover documento: {{error}}"
+    "failedToMoveDocument": "Error al mover documento: {{error}}",
+    "failedToLoadForPrinting": "Error al cargar el documento para imprimir",
+    "failedToRegeneratePreview": "Error al regenerar la vista previa. Por favor, inténtalo de nuevo.",
+    "previewRegenerated": "¡Vista previa regenerada con éxito!",
+    "unableToPrint": "No se puede imprimir. Por favor, intenta descargar el archivo."
   },
   "welcomePopup": {
     "title": "Únete al Universo Koda",
@@ -744,6 +763,9 @@
     "confirmDelete": "¿Estás seguro de que deseas eliminar la categoría \"{{name}}\"? Los documentos no serán eliminados."
   },
   "errorBoundary": {
+    "unableToDisplayPreview": "No se Puede Mostrar la Vista Previa",
+    "errorRenderingMarkdown": "Hubo un error al renderizar la vista previa del markdown.",
+    "tryAgain": "Intentar de Nuevo",
     "title": "¡Ups! Algo salió mal",
     "message": "Lo sentimos, algo salió mal. Por favor, intenta actualizar la página.",
     "refresh": "Actualizar Página"
@@ -865,9 +887,6 @@
     "unableToProcess": "No se pudo procesar el restablecimiento de contraseña. Por favor, verifica que tu correo electrónico sea correcto e intenta de nuevo.",
     "verifyEmailFirst": "Por favor, verifica tu correo electrónico antes de restablecer la contraseña"
   },
-  "errors": {
-    "generic": "Ocurrió un error. Por favor, intenta de nuevo."
-  },
   "markdownEditor": {
     "bold": "Negrita",
     "italic": "Cursiva",
@@ -901,6 +920,8 @@
   },
   "modals": {
     "delete": {
+      "items": "elementos",
+      "thisItem": "este elemento",
       "title": "Eliminar",
       "confirmText": "¿Estás seguro de que deseas eliminar",
       "message": "¿Estás seguro de que deseas eliminar este {{item}}? Esta acción no se puede deshacer.",
@@ -997,6 +1018,8 @@
   },
   "placeholders": {
     "search": "Buscar...",
+    "password": "Ingresa la contraseña",
+    "email": "Ingresa el correo",
     "searchDocuments": "Buscar documentos...",
     "searchForDocument": "Buscar documento...",
     "searchForText": "Buscar texto...",
@@ -1062,7 +1085,12 @@
     "link": "Enlace",
     "heading1": "Encabezado 1",
     "heading2": "Encabezado 2",
-    "pressEscToClose": "Presiona Esc para cerrar"
+    "pressEscToClose": "Presiona Esc para cerrar",
+    "cancelGeneration": "Cancelar generación",
+    "copyLastResponse": "Copiar última respuesta",
+    "editLastMessage": "Editar último mensaje",
+    "newConversation": "Nueva conversación",
+    "showThisMenu": "Mostrar este menú"
   },
   "fileBreakdown": {
     "title": "Desglose de Archivos",
@@ -1136,21 +1164,6 @@
     "openFullPreview": "Abrir Vista Previa Completa",
     "closeAndAttach": "Cerrar y Adjuntar"
   },
-  "notifications": {
-    "title": "Notificaciones",
-    "noNotifications": "Sin notificaciones",
-    "markAllRead": "Marcar todo como leído",
-    "justNow": "Justo ahora",
-    "minutesAgo": "hace {{count}}m",
-    "hoursAgo": "hace {{count}}h",
-    "daysAgo": "hace {{count}}d"
-  },
-  "chat": {
-    "documentSources": "Fuentes del Documento ({{count}})",
-    "webSources": "Fuentes Web ({{count}})",
-    "noDocumentsReferenced": "No se referenciaron documentos para esta respuesta.",
-    "failedToSend": "Error al enviar"
-  },
   "verification": {
     "twoStepVerification": "Verificación en 2 Pasos",
     "keepAccountSafe": "Mantén tu cuenta de Koda segura. Ingresa el código de 6 dígitos enviado a tu teléfono.",
@@ -1186,16 +1199,6 @@
     "emptySlide": "Diapositiva vacía",
     "presentationInfo": "Información de la Presentación"
   },
-  "fileTypes": {
-    "pdfLabel": "Documento PDF",
-    "word": "Documento de Word",
-    "excel": "Hoja de Cálculo de Excel",
-    "powerpoint": "Presentación de PowerPoint",
-    "image": "Imagen",
-    "text": "Archivo de Texto",
-    "file": "Archivo",
-    "markdown": "Markdown"
-  },
   "filePreview": {
     "loadingPdf": "Cargando PDF...",
     "previewNotAvailable": "Vista previa no disponible",
@@ -1205,28 +1208,6 @@
     "microsoftWord": "Documento de Microsoft Word",
     "microsoftPowerPoint": "Presentación de Microsoft PowerPoint",
     "microsoftExcel": "Hoja de Cálculo de Microsoft Excel"
-  },
-  "errorBoundary": {
-    "unableToDisplayPreview": "No se Puede Mostrar la Vista Previa",
-    "errorRenderingMarkdown": "Hubo un error al renderizar la vista previa del markdown.",
-    "tryAgain": "Intentar de Nuevo"
-  },
-  "modals": {
-    "delete": {
-      "items": "elementos",
-      "thisItem": "este elemento"
-    }
-  },
-  "settings": {
-    "cacheAndDocuments": "caché y todos los documentos"
-  },
-  "upload": {
-    "removeFile": "Eliminar archivo"
-  },
-  "placeholders": {
-    "search": "Buscar...",
-    "password": "Ingresa la contraseña",
-    "email": "Ingresa el correo"
   },
   "authentication": {
     "title": "Autenticación",
@@ -1265,5 +1246,18 @@
       "useTags": "⚡ Consejo profesional: Usa etiquetas para encontrar documentos relacionados rápidamente",
       "customizeEmojis": "🎨 Dato curioso: Puedes personalizar emojis de las carpetas"
     }
+  },
+  "forgotPassword": {
+    "checkSpam": "Revisa tu carpeta de spam si no ves el correo.",
+    "checkYourEmail": "Revisa Tu Correo",
+    "checkYourMessages": "Revisa Tus Mensajes",
+    "checkYourSms": "Revisa Tu SMS",
+    "didntGetEmail": "¿No recibiste el correo?",
+    "didntGetEmailLower": "¿no recibiste el correo?",
+    "didntGetLink": "¿No recibiste el enlace?",
+    "didntGetSms": "¿No recibiste el SMS?",
+    "secureLinkSent": "Hemos enviado un enlace seguro a tu correo.",
+    "secureLinkSentSms": "Hemos enviado un enlace seguro a tu teléfono.",
+    "secureLinkSentWithSpam": "Hemos enviado un enlace seguro a tu correo. Revisa tu carpeta de spam si no lo ves."
   }
 }
