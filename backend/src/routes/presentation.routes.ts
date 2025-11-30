@@ -26,6 +26,9 @@ router.get('/:presentationId/view', presentationController.viewPresentation);
 // Generate slide content
 router.post('/:presentationId/slides/:slideId', presentationController.generateSlide);
 
+// Export presentation (PDF/PPTX/HTML)
+router.get('/:presentationId/export/:format', presentationController.exportPresentation);
+
 // Delete presentation
 router.delete('/:presentationId', presentationController.deletePresentation);
 

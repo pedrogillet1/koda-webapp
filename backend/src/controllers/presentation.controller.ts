@@ -6,7 +6,9 @@
 
 import { Request, Response } from 'express';
 import slideGenerationService from '../services/slideGeneration.service';
+import presentationExportService from '../services/presentationExport.service';
 import { PrismaClient } from '@prisma/client';
+import fs from 'fs/promises';
 
 const prisma = new PrismaClient();
 
@@ -440,3 +442,58 @@ function escapeHTML(html: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
+
+
+/**
+ * Export presentation to PDF/PPTX/HTML
+ * GET /api/presentations/:presentationId/export/:format
+ */
+export const exportPresentation = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { presentationId, format } = req.params;
+
+    if (!['pdf', 'pptx', 'html'].includes(format)) {
+      res.status(400).json({ error: 'Invalid format. Must be pdf, pptx, or html' });
+      return;
+    }
+
+    console.log(`📦 [Export] Starting ${format.toUpperCase()} export for presentation: ${presentationId}`);
+
+    // Export presentation
+    const { filePath, filename } = await presentationExportService.exportPresentation({
+      presentationId,
+      format: format as 'pdf' | 'pptx' | 'html',
+      userId: req.user.id
+    });
+
+    // Set appropriate content type
+    const contentTypes = {
+      pdf: 'application/pdf',
+      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      html: 'text/html'
+    };
+
+    // Send file
+    res.setHeader('Content-Type', contentTypes[format as keyof typeof contentTypes]);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    const fileBuffer = await fs.readFile(filePath);
+    res.send(fileBuffer);
+
+    // Cleanup temp files after sending
+    setTimeout(async () => {
+      await presentationExportService.cleanupTempFiles(presentationId);
+    }, 5000);
+
+    console.log(`✅ [Export] Successfully sent ${format.toUpperCase()}: ${filename}`);
+
+  } catch (error: any) {
+    console.error('❌ [Export] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
