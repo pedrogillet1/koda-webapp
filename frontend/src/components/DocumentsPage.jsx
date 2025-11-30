@@ -833,19 +833,21 @@ const DocumentsPage = () => {
                       onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
                       onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                     >
-                      <DotsIcon style={{width: 24, height: 24}} />
+                      <DotsIcon style={{width: 24, height: 24, pointerEvents: 'auto'}} />
                     </button>
                     {categoryMenuOpen === category.id && (
                       <div
+                        onClick={(e) => e.stopPropagation()}
                         style={{
-                          position: 'fixed',
-                          top: categoryMenuPosition.top,
-                          left: categoryMenuPosition.left,
+                          position: 'absolute',
+                          right: 0,
+                          top: '100%',
+                          marginTop: 4,
                           background: 'white',
                           borderRadius: 12,
                           border: '1px solid #E6E6EC',
                           boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                          zIndex: 10000,
+                          zIndex: 100,
                           minWidth: 160,
                           overflow: 'hidden'
                         }}
@@ -1418,7 +1420,7 @@ const DocumentsPage = () => {
                             transition: 'transform 0.2s ease'
                           }}
                         >
-                          <DotsIcon style={{width: 24, height: 24}} />
+                          <DotsIcon style={{width: 24, height: 24, pointerEvents: 'auto'}} />
                         </button>
 
                         {openDropdownId === doc.id && (

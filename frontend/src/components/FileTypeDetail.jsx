@@ -447,7 +447,7 @@ const FileTypeDetail = () => {
                       )}
                       <div data-dropdown style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
                         <button onClick={() => setOpenDropdownId(openDropdownId === doc.id ? null : doc.id)} style={{ width: 32, height: 32, background: 'transparent', borderRadius: '50%', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-                          <DotsIcon style={{ width: 24, height: 24 }} />
+                          <DotsIcon style={{ width: 24, height: 24, pointerEvents: 'auto' }} />
                         </button>
                         {openDropdownId === doc.id && (
                           <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
@@ -482,7 +482,7 @@ const FileTypeDetail = () => {
                       {isSelectMode && <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}><input type="checkbox" checked={isSelected(doc.id)} onChange={() => toggleDocument(doc.id)} onClick={(e) => e.stopPropagation()} style={{ width: 20, height: 20, cursor: 'pointer', accentColor: '#111827' }} /></div>}
                       <div data-dropdown style={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
                         <button onClick={() => setOpenDropdownId(openDropdownId === doc.id ? null : doc.id)} style={{ width: 32, height: 32, background: 'white', border: '1px solid #E5E7EB', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-                          <DotsIcon style={{ width: 20, height: 20 }} />
+                          <DotsIcon style={{ width: 20, height: 20, pointerEvents: 'auto' }} />
                         </button>
                         {openDropdownId === doc.id && (
                           <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>

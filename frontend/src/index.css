@@ -689,3 +689,101 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   .mobile-gap-base { gap: 14px !important; }
   .mobile-gap-lg { gap: 20px !important; }
 }
+
+/* ========================================
+   MOBILE-ONLY: VIEWPORT HEIGHT FIX
+   Use 100dvh instead of 100vh on mobile
+   Only applies to max-width: 768px
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* Use dynamic viewport height for mobile */
+  @supports (height: 100dvh) {
+    html, body, #root {
+      height: 100dvh;
+    }
+  }
+}
+
+/* ========================================
+   MOBILE-ONLY: INPUT ZOOM PREVENTION
+   Ensure all inputs are 16px+ to prevent iOS zoom
+   Only applies to max-width: 768px
+   ======================================== */
+
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  textarea,
+  select {
+    font-size: 16px !important;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
+
+/* ========================================
+   MOBILE-ONLY: MOMENTUM SCROLLING
+   Enable smooth scrolling on iOS
+   Only applies to max-width: 768px
+   ======================================== */
+
+@media (max-width: 768px) {
+  .scrollable,
+  [role="log"],
+  .messages-container,
+  .modal-content {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* ========================================
+   MOBILE-ONLY: DISABLE HOVER EFFECTS
+   Prevent scale transforms on touch devices
+   Only applies to max-width: 768px
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* Disable all hover-based scale transforms on mobile */
+  button:hover,
+  a:hover,
+  [role="button"]:hover {
+    transform: none !important;
+  }
+}
+
+/* ========================================
+   MOBILE-ONLY: MODAL FIXES
+   Ensure modals don't clip buttons
+   Only applies to max-width: 768px
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* Modal wrapper should be scrollable, not fixed height */
+  [role="dialog"],
+  .modal-overlay {
+    max-height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Modal content should flex properly */
+  .modal-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* Action buttons should not be pushed out of view */
+  .modal-buttons,
+  .modal-actions {
+    flex-shrink: 0;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}

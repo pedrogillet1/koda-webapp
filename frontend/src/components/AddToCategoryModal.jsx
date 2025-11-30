@@ -4,6 +4,7 @@ import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import CategoryIcon from './CategoryIcon';
 import api from '../services/api';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const AddToCategoryModal = ({
   isOpen,
@@ -13,6 +14,7 @@ const AddToCategoryModal = ({
   onCreateNew
 ) => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -64,35 +66,44 @@ const AddToCategoryModal = ({
   if (!isOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: 700,
-        paddingTop: 18,
-        paddingBottom: 18,
-        position: 'relative',
-        background: 'white',
-        borderRadius: 14,
-        outline: '1px #E6E6EC solid',
-        outlineOffset: '-1px',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 18,
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
+        alignItems: isMobile ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: isMobile ? 0 : 16,
+        paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 16
       }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: isMobile ? '100%' : '100%',
+          maxWidth: isMobile ? '100%' : 700,
+          maxHeight: isMobile ? '90vh' : '85vh',
+          paddingTop: 18,
+          paddingBottom: isMobile ? 'calc(18px + env(safe-area-inset-bottom, 0px))' : 18,
+          position: 'relative',
+          background: 'white',
+          borderRadius: isMobile ? '14px 14px 0 0' : 14,
+          outline: '1px #E6E6EC solid',
+          outlineOffset: '-1px',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 18,
+          display: 'flex',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}>
         {/* Header */}
         <div style={{
           alignSelf: 'stretch',

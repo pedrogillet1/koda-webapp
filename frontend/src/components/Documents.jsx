@@ -99,7 +99,6 @@ const Documents = () => {
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
-  const [dropdownPosition, setDropdownPosition] = useState({});
   const dropdownRefs = useRef({});
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
@@ -542,7 +541,7 @@ const Documents = () => {
         onDragLeave={handlePageDragLeave}
       >
         {/* Header */}
-        <div style={{minHeight: isMobile ? 'auto' : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 12 : 0, paddingBottom: isMobile ? 12 : 0, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'center' : 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 12 : 0}}>
+        <div style={{minHeight: isMobile ? 'auto' : 84, paddingLeft: isMobile ? 70 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 12 : 0, paddingBottom: isMobile ? 12 : 0, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'center' : 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 12 : 0}}>
           {isSelectMode ? (
             <>
               {/* Left: Back arrow + Documents title */}
@@ -694,8 +693,8 @@ const Documents = () => {
                     transition: 'transform 0.15s ease',
                     cursor: 'text'
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                  onMouseEnter={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1.02)'; }}
+                  onMouseLeave={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1)'; }}
                 >
                   <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
                   <input
@@ -714,7 +713,7 @@ const Documents = () => {
                       border: '1px #E6E6EC solid',
                       outline: 'none',
                       color: '#32302C',
-                      fontSize: isMobile ? 14 : 16,
+                      fontSize: 16,
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '500',
                       lineHeight: '24px',
@@ -1161,8 +1160,8 @@ const Documents = () => {
                         flexShrink: 0,
                         transition: 'transform 0.2s ease'
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                      onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                      onMouseEnter={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1.1)'; }}
+                      onMouseLeave={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                       <DotsIcon style={{width: 24, height: 24}} />
                     </button>
@@ -1383,8 +1382,8 @@ const Documents = () => {
                           flexShrink: 0,
                           transition: 'transform 0.2s ease'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                        onMouseEnter={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1.1)'; }}
+                        onMouseLeave={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1)'; }}
                       >
                         <DotsIcon style={{width: 24, height: 24}} />
                       </button>
@@ -1871,32 +1870,14 @@ const Documents = () => {
                             }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              console.log('Clicked three dots for doc:', doc.id);
-
                               if (openDropdownId === doc.id) {
                                 setOpenDropdownId(null);
                               } else {
-                                // Calculate dropdown position with proper bounds checking
-                                const buttonRect = e.currentTarget.getBoundingClientRect();
-                                const dropdownHeight = 180;
-                                const dropdownWidth = 160;
-                                const spaceBelow = window.innerHeight - buttonRect.bottom;
-                                const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
-                                // Calculate left position with bounds checking
-                                let leftPos = buttonRect.right - dropdownWidth;
-                                leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - dropdownWidth - 8));
-                                setDropdownPosition({
-                                  [doc.id]: {
-                                    openUpward: openUpward,
-                                    top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
-                                    left: leftPos
-                                  }
-                                });
                                 setOpenDropdownId(doc.id);
                               }
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                            onMouseEnter={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1.1)'; }}
+                            onMouseLeave={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1)'; }}
                             style={{
                               width: 32,
                               height: 32,
@@ -1910,21 +1891,23 @@ const Documents = () => {
                               transition: 'transform 0.2s ease'
                             }}
                           >
-                            <DotsIcon style={{width: 24, height: 24}} />
+                            <DotsIcon style={{width: 24, height: 24, pointerEvents: 'auto'}} />
                           </button>
 
-                          {openDropdownId === doc.id && ReactDOM.createPortal(
+                          {openDropdownId === doc.id && (
                             <div
                               data-dropdown
+                              onClick={(e) => e.stopPropagation()}
                               style={{
-                                position: 'fixed',
-                                top: dropdownPosition[doc.id]?.top || 0,
-                                left: dropdownPosition[doc.id]?.left || 0,
+                                position: 'absolute',
+                                right: 0,
+                                top: '100%',
+                                marginTop: 4,
                                 background: 'white',
                                 boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                                 borderRadius: 12,
                                 border: '1px solid #E6E6EC',
-                                zIndex: 1001,
+                                zIndex: 100,
                                 minWidth: 160,
                                 overflow: 'hidden'
                               }}
@@ -2047,8 +2030,7 @@ const Documents = () => {
                                   {t('common.delete')}
                                 </button>
                               </div>
-                            </div>,
-                            document.body
+                            </div>
                           )}
                         </div>
                       </div>
