@@ -50,6 +50,7 @@ temp/
 !package.json
 !package-lock.json
 !tsconfig.json
+!frontend/src/i18n/locales/*.json
 
 # SQLite
 *.db
