@@ -1049,28 +1049,33 @@ const CategoryDetail = () => {
         {/* Header with Breadcrumb, Search, and Controls */}
         <div style={{
           background: 'white',
-          padding: '20px 32px',
+          padding: isMobile ? '16px 16px 16px 70px' : '20px 32px',
           borderBottom: '1px solid #E5E7EB'
         }}>
           {/* Main Header Row */}
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            gap: 24,
-            flexWrap: 'wrap'
+            alignItems: isMobile ? 'center' : 'flex-start',
+            gap: isMobile ? 12 : 24,
+            flexWrap: 'wrap',
+            flexDirection: isMobile && isSelectMode ? 'column' : 'row'
           }}>
             {/* Left: Breadcrumb and Title */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {/* Real Breadcrumb Navigation */}
+            <div style={{ flex: 1, minWidth: 0, width: isMobile && isSelectMode ? '100%' : 'auto' }}>
+              {/* Real Breadcrumb Navigation - Hide on mobile in select mode */}
               <div style={{
                 fontSize: 13,
                 color: '#6B7280',
                 marginBottom: 8,
-                display: 'flex',
+                display: isMobile && isSelectMode ? 'none' : 'flex',
                 alignItems: 'center',
                 gap: 8,
-                flexWrap: 'wrap'
+                flexWrap: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: isMobile ? 'calc(100vw - 120px)' : 'none'
               }}>
                 {/* Home or Documents based on route */}
                 <span
@@ -1162,11 +1167,15 @@ const CategoryDetail = () => {
                   </svg>
                 </button>
                 <h1 style={{
-                  fontSize: 32,
+                  fontSize: isMobile ? 22 : 32,
                   fontWeight: '600',
                   color: '#111827',
                   fontFamily: 'Plus Jakarta Sans',
-                  margin: 0
+                  margin: 0,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: isMobile ? 'calc(100vw - 140px)' : 'none'
                 }}>
                   {currentFolderName || formatCategoryName(categoryName)}
                 </h1>
@@ -1177,9 +1186,11 @@ const CategoryDetail = () => {
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
+              gap: isMobile ? 8 : 12,
               flexShrink: 0,
-              flexWrap: 'wrap'
+              flexWrap: 'wrap',
+              width: isMobile && isSelectMode ? '100%' : 'auto',
+              justifyContent: isMobile && isSelectMode ? 'space-between' : 'flex-end'
             }}>
               {isSelectMode ? (
                 <>
@@ -1199,29 +1210,32 @@ const CategoryDetail = () => {
                     }}
                     disabled={selectedDocuments.size === 0}
                     style={{
-                      height: 42,
-                      paddingLeft: 18,
-                      paddingRight: 18,
+                      height: isMobile ? 38 : 42,
+                      paddingLeft: isMobile ? 12 : 18,
+                      paddingRight: isMobile ? 12 : 18,
                       background: selectedDocuments.size > 0 ? '#FEE2E2' : '#F5F5F5',
                       borderRadius: 100,
                       border: '1px solid #E6E6EC',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 8,
+                      justifyContent: 'center',
+                      gap: isMobile ? 4 : 8,
                       cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
                       opacity: selectedDocuments.size > 0 ? 1 : 0.5,
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      flex: isMobile ? 1 : 'none',
+                      minWidth: isMobile ? 0 : 'auto'
                     }}
                   >
-                    <TrashCanIcon style={{ width: 18, height: 18 }} />
+                    <TrashCanIcon style={{ width: isMobile ? 16 : 18, height: isMobile ? 16 : 18 }} />
                     <span style={{
                       color: '#D92D20',
-                      fontSize: 15,
+                      fontSize: isMobile ? 13 : 15,
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '600',
                       whiteSpace: 'nowrap'
                     }}>
-                      {t('common.delete')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
+                      {isMobile ? (selectedDocuments.size > 0 ? `(${selectedDocuments.size})` : '') : (t('common.delete') + (selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''))}
                     </span>
                   </button>
 
@@ -1238,31 +1252,34 @@ const CategoryDetail = () => {
                     }}
                     disabled={selectedDocuments.size === 0}
                     style={{
-                      height: 42,
-                      paddingLeft: 18,
-                      paddingRight: 18,
+                      height: isMobile ? 38 : 42,
+                      paddingLeft: isMobile ? 12 : 18,
+                      paddingRight: isMobile ? 12 : 18,
                       background: 'white',
                       borderRadius: 100,
                       border: '1px solid #E6E6EC',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 8,
+                      justifyContent: 'center',
+                      gap: isMobile ? 4 : 8,
                       cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
                       opacity: selectedDocuments.size > 0 ? 1 : 0.5,
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      flex: isMobile ? 1 : 'none',
+                      minWidth: isMobile ? 0 : 'auto'
                     }}
                   >
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg width={isMobile ? 16 : 18} height={isMobile ? 16 : 18} viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                     <span style={{
                       color: '#32302C',
-                      fontSize: 15,
+                      fontSize: isMobile ? 13 : 15,
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '600',
                       whiteSpace: 'nowrap'
                     }}>
-                      {t('common.move')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
+                      {isMobile ? (selectedDocuments.size > 0 ? `(${selectedDocuments.size})` : '') : (t('common.move') + (selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''))}
                     </span>
                   </button>
 
@@ -1273,18 +1290,20 @@ const CategoryDetail = () => {
                       toggleSelectMode();
                     }}
                     style={{
-                      height: 42,
-                      paddingLeft: 18,
-                      paddingRight: 18,
+                      height: isMobile ? 38 : 42,
+                      paddingLeft: isMobile ? 12 : 18,
+                      paddingRight: isMobile ? 12 : 18,
                       background: 'white',
                       borderRadius: 100,
                       border: '1px solid #E6E6EC',
                       cursor: 'pointer',
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '600',
-                      fontSize: 15,
+                      fontSize: isMobile ? 13 : 15,
                       color: '#111827',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      flex: isMobile ? 1 : 'none',
+                      minWidth: isMobile ? 0 : 'auto'
                     }}
                   >
                     {t('common.cancel')}
@@ -1312,8 +1331,8 @@ const CategoryDetail = () => {
                       transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                       cursor: 'text'
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(50, 48, 44, 0.1)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0px 0px 8px 1px rgba(0, 0, 0, 0.02)'; }}
+                    onMouseEnter={(e) => { if (!isMobile) { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(50, 48, 44, 0.1)'; } }}
+                    onMouseLeave={(e) => { if (!isMobile) { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0px 0px 8px 1px rgba(0, 0, 0, 0.02)'; } }}
                   >
                     <div style={{justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
                       <SearchIcon style={{ width: 24, height: 24 }} />
@@ -1718,13 +1737,13 @@ const CategoryDetail = () => {
                               transition: 'transform 0.2s ease'
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = 'scale(1.1)';
+                              if (!isMobile) e.currentTarget.style.transform = 'scale(1.1)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = 'scale(1)';
+                              if (!isMobile) e.currentTarget.style.transform = 'scale(1)';
                             }}
                           >
-                            <DotsIcon style={{width: 24, height: 24}} />
+                            <DotsIcon style={{width: 24, height: 24, pointerEvents: 'auto'}} />
                           </button>
 
                           {/* Dropdown Menu */}
@@ -2138,13 +2157,13 @@ const CategoryDetail = () => {
                               justifyContent: 'center'
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = 'scale(1.1)';
+                              if (!isMobile) e.currentTarget.style.transform = 'scale(1.1)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = 'scale(1)';
+                              if (!isMobile) e.currentTarget.style.transform = 'scale(1)';
                             }}
                           >
-                            <DotsIcon style={{width: 24, height: 24}} />
+                            <DotsIcon style={{width: 24, height: 24, pointerEvents: 'auto'}} />
                           </button>
 
                           {openDropdownId === doc.id && (
@@ -2152,14 +2171,15 @@ const CategoryDetail = () => {
                               data-dropdown
                               onClick={(e) => e.stopPropagation()}
                               style={{
-                                position: 'fixed',
-                                top: dropdownMenuPosition.top,
-                                left: dropdownMenuPosition.left,
+                                position: 'absolute',
+                                right: 0,
+                                top: '100%',
+                                marginTop: 4,
                                 background: 'white',
                                 border: '1px solid #E6E6EC',
                                 borderRadius: 12,
                                 boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                                zIndex: 1001,
+                                zIndex: 100,
                                 minWidth: 160,
                                 overflow: 'hidden',
                                 padding: 8
@@ -2471,8 +2491,8 @@ const CategoryDetail = () => {
                                 setOpenDropdownId(doc.id);
                               }
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                            onMouseEnter={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1.1)'; }}
+                            onMouseLeave={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1)'; }}
                             style={{
                               width: 32,
                               height: 32,
@@ -2486,21 +2506,23 @@ const CategoryDetail = () => {
                               transition: 'transform 0.2s ease'
                             }}
                           >
-                            <DotsIcon style={{width: 24, height: 24}} />
+                            <DotsIcon style={{width: 24, height: 24, pointerEvents: 'auto'}} />
                           </button>
 
                               {openDropdownId === doc.id && (
                                 <div
                                   data-dropdown
+                                  onClick={(e) => e.stopPropagation()}
                                   style={{
-                                    position: 'fixed',
-                                    top: dropdownMenuPosition.top,
-                                    left: dropdownMenuPosition.left,
+                                    position: 'absolute',
+                                    right: 0,
+                                    top: '100%',
+                                    marginTop: 4,
                                     background: 'white',
                                     border: '1px solid #E6E6EC',
                                     borderRadius: 12,
                                     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                                    zIndex: 1001,
+                                    zIndex: 100,
                                     minWidth: 160,
                                     overflow: 'hidden',
                                     padding: 8

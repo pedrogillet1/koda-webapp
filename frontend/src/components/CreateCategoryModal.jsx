@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
+import { useIsMobile } from '../hooks/useIsMobile';
 import CategoryIcon from './CategoryIcon';
 import folderIcon from '../assets/folder_icon.svg';
 import pdfIcon from '../assets/pdf-icon.png';
@@ -18,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 
 const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocuments = [], preSelectedDocumentId = null }) => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [categoryName, setCategoryName] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState('__FOLDER_SVG__');
   const [documents, setDocuments] = useState([]);
@@ -189,23 +191,29 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
         background: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
         justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000
+        alignItems: isMobile ? 'flex-end' : 'center',
+        zIndex: 1000,
+        padding: isMobile ? 0 : 16,
+        paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 16
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: 500,
+          maxWidth: isMobile ? '100%' : 500,
+          maxHeight: isMobile ? '90vh' : '85vh',
           background: 'white',
-          borderRadius: 14,
+          borderRadius: isMobile ? '14px 14px 0 0' : 14,
           outline: '1px #E6E6EC solid',
           outlineOffset: '-1px',
           display: 'flex',
           flexDirection: 'column',
           gap: 18,
-          padding: '18px 0'
+          padding: '18px 0',
+          paddingBottom: isMobile ? 'calc(18px + env(safe-area-inset-bottom, 0px))' : 18,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch'
         }}
       >
         {/* Header */}
@@ -437,7 +445,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
                 outlineOffset: '-1px',
                 border: 'none',
                 color: '#32302C',
-                fontSize: 14,
+                fontSize: 16,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '400',
                 lineHeight: '20px'

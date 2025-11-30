@@ -6,6 +6,7 @@ import { ReactComponent as PencilIcon } from '../assets/pencil-ai.svg';
 import { ReactComponent as ExpandIcon } from '../assets/expand.svg';
 import * as chatService from '../services/chatService';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // CSS for blinking cursor animation
 const titleAnimationStyles = `
@@ -26,6 +27,7 @@ const titleAnimationStyles = `
 
 const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onConversationUpdate }) => {
     const { t } = useTranslation();
+    const isMobile = useIsMobile();
     const [conversations, setConversations] = useState(() => {
         // Load from cache immediately for instant display
         const cached = sessionStorage.getItem('koda_chat_conversations');
@@ -616,8 +618,8 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                             transition: 'transform 0.15s ease',
                             cursor: 'text'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                        onMouseEnter={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1.02)'; }}
+                        onMouseLeave={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                         <input
                             type="text"
@@ -823,8 +825,8 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                             cursor: 'pointer',
                             transition: 'background 200ms ease-in-out, transform 0.15s ease'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; if (!isMobile) e.currentTarget.style.transform = 'scale(1.08)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; if (!isMobile) e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                         <ExpandIcon style={{width: 20, height: 20}} />
                     </div>
@@ -842,8 +844,8 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                             cursor: 'pointer',
                             transition: 'background 200ms ease-in-out, transform 0.15s ease'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; if (!isMobile) e.currentTarget.style.transform = 'scale(1.08)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; if (!isMobile) e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                         <PencilIcon style={{width: 20, height: 20}} />
                     </div>
@@ -861,8 +863,8 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                             cursor: 'pointer',
                             transition: 'background 200ms ease-in-out, transform 0.15s ease'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; if (!isMobile) e.currentTarget.style.transform = 'scale(1.08)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; if (!isMobile) e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                         <SearchIcon style={{width: 20, height: 20}} />
                     </div>
@@ -887,8 +889,8 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                         transition: 'background 200ms ease-in-out, transform 0.15s ease',
                         background: 'transparent',
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; e.currentTarget.style.transform = 'scale(1.08)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5'; if (!isMobile) e.currentTarget.style.transform = 'scale(1.08)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; if (!isMobile) e.currentTarget.style.transform = 'scale(1)'; }}
                 >
                     <ExpandIcon style={{width: 20, height: 20, transform: 'rotate(180deg)'}} />
                 </div>
@@ -930,8 +932,8 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                             transition: 'transform 0.15s ease',
                             cursor: 'text'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                        onMouseEnter={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1.02)'; }}
+                        onMouseLeave={(e) => { if (!isMobile) e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                         <input
                             type="text"

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Folder, ChevronRight, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 /**
  * Modal for selecting a folder to move documents to
@@ -9,6 +10,7 @@ import axios from 'axios';
  */
 export default function MoveToFolderModal({ isOpen, onClose, onMove, selectedCount }) {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,8 +134,26 @@ export default function MoveToFolderModal({ isOpen, onClose, onMove, selectedCou
   const folderTree = buildFolderTree(filteredFolders);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex justify-center z-50"
+      style={{
+        alignItems: isMobile ? 'flex-end' : 'center',
+        padding: isMobile ? 0 : 16,
+        paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 16
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white shadow-2xl flex flex-col"
+        style={{
+          width: isMobile ? '100%' : '100%',
+          maxWidth: isMobile ? '100%' : '32rem',
+          maxHeight: isMobile ? '90vh' : '80vh',
+          borderRadius: isMobile ? '14px 14px 0 0' : '0.5rem',
+          paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 0
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">

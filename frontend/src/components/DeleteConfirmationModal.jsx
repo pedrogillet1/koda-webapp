@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import { useAuth } from '../context/AuthContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 /**
  * Delete Confirmation Modal
@@ -10,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
  */
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemType = 'item' }) => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [cancelHover, setCancelHover] = useState(false);
   const [deleteHover, setDeleteHover] = useState(false);
   const { isAuthenticated } = useAuth();
@@ -48,18 +50,22 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemTyp
           background: 'linear-gradient(180deg, rgba(17, 19, 21, 0.50) 0%, rgba(17, 19, 21, 0.90) 100%)',
           zIndex: 999,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
+          alignItems: isMobile ? 'flex-end' : 'center',
+          justifyContent: 'center',
+          padding: isMobile ? 0 : 16,
+          paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 16
         }}
       >
         {/* Modal */}
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
-            width: 400,
+            width: isMobile ? '100%' : 400,
+            maxWidth: isMobile ? '100%' : 400,
             padding: 18,
+            paddingBottom: isMobile ? 'calc(18px + env(safe-area-inset-bottom, 0px))' : 18,
             background: 'white',
-            borderRadius: 14,
+            borderRadius: isMobile ? '14px 14px 0 0' : 14,
             outline: '1px #E6E6EC solid',
             outlineOffset: '-1px',
             flexDirection: 'column',

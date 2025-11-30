@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import CategoryIcon from './CategoryIcon';
+import { useIsMobile } from '../hooks/useIsMobile';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -29,6 +30,7 @@ export default function MoveToCategoryModal({
   onConfirm
 }) {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
 
   if (!isOpen) return null;
 
@@ -48,33 +50,42 @@ export default function MoveToCategoryModal({
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: 480,
-        paddingTop: 18,
-        paddingBottom: 18,
-        background: 'white',
-        borderRadius: 14,
-        outline: '1px #E6E6EC solid',
-        outlineOffset: '-1px',
-        flexDirection: 'column',
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: isMobile ? 'flex-end' : 'center',
         justifyContent: 'center',
-        alignItems: 'center',
-        gap: 18,
-        display: 'flex'
+        zIndex: 1000,
+        padding: isMobile ? 0 : 16,
+        paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 16
       }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: isMobile ? '100%' : '100%',
+          maxWidth: isMobile ? '100%' : 480,
+          maxHeight: isMobile ? '90vh' : '85vh',
+          paddingTop: 18,
+          paddingBottom: isMobile ? 'calc(18px + env(safe-area-inset-bottom, 0px))' : 18,
+          background: 'white',
+          borderRadius: isMobile ? '14px 14px 0 0' : 14,
+          outline: '1px #E6E6EC solid',
+          outlineOffset: '-1px',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 18,
+          display: 'flex',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}>
         {/* Header */}
         <div style={{
           width: '100%',

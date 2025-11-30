@@ -1015,7 +1015,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 isNewlyCreatedConversation.current = false;
             }
 
-            console.log('🔄 [CONVERSATION CHANGE] conversation:', currentConversation.id.substring(0, 8), 'hasMessages:', realMessages.length > 0, 'isNew:', isNewlyCreatedConversation.current);
+            console.log('🔄 [CONVERSATION CHANGE] conversation:', currentConversation.id?.substring(0, 8), 'hasMessages:', realMessages.length > 0, 'isNew:', isNewlyCreatedConversation.current);
         }
     }, [currentConversation?.id, messages.length]); // Re-run when conversation or messages change
 
@@ -3560,7 +3560,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             {/* Message Input */}
             <div
                 style={{
-                    padding: '8px 20px 20px 20px',
+                    padding: isMobile ? '8px 12px calc(12px + env(safe-area-inset-bottom, 0px)) 12px' : '8px 20px 20px 20px',
                     background: '#F5F5F7',
                     borderTop: 'none',
                     display: 'flex',
@@ -3827,12 +3827,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         transition: 'transform 0.2s ease, box-shadow 0.2s ease'
                     }}
                     onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08)';
+                        if (!isMobile) {
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08)';
+                        }
                     }}
                     onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)';
+                        if (!isMobile) {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)';
+                        }
                     }}
                 >
                     <textarea
@@ -3861,6 +3865,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             // Always allow focus, even if disabled
                             if (e.target.disabled) {
                                 e.target.disabled = false;
+                            }
+                            // Mobile: Scroll input into view when keyboard appears
+                            if (isMobile) {
+                                setTimeout(() => {
+                                    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }, 300);
                             }
                         }}
                         autoFocus
