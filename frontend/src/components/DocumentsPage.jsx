@@ -48,7 +48,7 @@ const DocumentsPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { showSuccess, showDeleteSuccess } = useToast();
+  const { showSuccess, showDeleteSuccess, showError } = useToast();
   const isMobile = useIsMobile();
 
   // Get global state from context
@@ -177,7 +177,7 @@ const DocumentsPage = () => {
 
       // No manual refresh needed - context auto-updates!
     } catch (error) {
-      alert('Failed to create category');
+      showError(t('alerts.failedToCreateCategory', { error: error.message || t('common.unknownError') }));
     }
   };
 
@@ -187,8 +187,8 @@ const DocumentsPage = () => {
       await deleteFolder(categoryId);
       showDeleteSuccess('folder');
     } catch (error) {
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to delete folder';
-      alert(errorMessage);
+      const errorMessage = error.response?.data?.error || error.message || t('common.unknownError');
+      showError(t('alerts.failedToDeleteFolder', { error: errorMessage }));
     }
   };
 
@@ -211,7 +211,7 @@ const DocumentsPage = () => {
 
       setOpenDropdownId(null);
     } catch (error) {
-      alert('Failed to download document');
+      showError(t('alerts.failedToDownload'));
     }
   };
 
@@ -235,7 +235,7 @@ const DocumentsPage = () => {
       setShowRenameModal(false);
       setItemToRename(null);
     } catch (error) {
-      alert(`Failed to rename ${itemToRename.type}`);
+      showError(t('alerts.failedToRenameItem', { type: itemToRename.type === 'folder' ? t('common.folder') : t('common.file') }));
     }
   };
 
@@ -253,11 +253,7 @@ const DocumentsPage = () => {
       setOpenDropdownId(null);
     } catch (error) {
       // Show user-friendly error message
-      const errorMessage = error.filename
-        ? `Failed to delete "${error.filename}": ${error.message}`
-        : `Failed to delete document: ${error.message}`;
-
-      alert(errorMessage);
+      showError(t('alerts.failedToDeleteDocument', { error: error.message || t('common.unknownError') }));
     }
   };
 
@@ -279,7 +275,7 @@ const DocumentsPage = () => {
       setSelectedDocumentForCategory(null);
       setSelectedCategoryId(null);
     } catch (error) {
-      alert('Failed to add document to category');
+      showError(t('alerts.failedToAddDocsToCategory'));
     }
   };
 
@@ -486,7 +482,7 @@ const DocumentsPage = () => {
                 <button
                   onClick={() => {
                     if (selectedDocuments.size === 0) return;
-                    alert('Move functionality coming soon');
+                    showError(t('alerts.moveComingSoon'));
                   }}
                   disabled={selectedDocuments.size === 0}
                   style={{
@@ -1752,10 +1748,10 @@ const DocumentsPage = () => {
                 if (failed === 0) {
                   showDeleteSuccess('file');
                 } else if (succeeded === 0) {
-                  alert(`Failed to delete ${failed} file${failed > 1 ? 's' : ''}`);
+                  showError(t('alerts.failedToDeleteFiles', { count: failed }));
                 } else {
                   showDeleteSuccess('file');
-                  alert(`Failed to delete ${failed} file${failed > 1 ? 's' : ''}`);
+                  showError(t('alerts.failedToDeleteFiles', { count: failed }));
                 }
               } else if (itemToDeleteCopy.type === 'category') {
                 await handleDeleteCategory(itemToDeleteCopy.id);
@@ -1763,7 +1759,7 @@ const DocumentsPage = () => {
                 await handleDelete(itemToDeleteCopy.id);
               }
             } catch (error) {
-              alert('Failed to delete: ' + (error.message || 'Unknown error'));
+              showError(t('alerts.failedToDelete', { error: error.message || t('common.unknownError') }));
             }
           })();
         }}

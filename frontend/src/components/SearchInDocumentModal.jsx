@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 const SearchInDocumentModal = ({ documentId, document, onClose }) => {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMatch, setCurrentMatch] = useState(0);
   const [totalMatches, setTotalMatches] = useState(0);
@@ -313,7 +315,7 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
               fontFamily: 'Plus Jakarta Sans'
             }}
           >
-            Search in Document
+            {t('searchInDocument.title')}
           </h3>
           <button
             onClick={onClose}
@@ -353,7 +355,7 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
             <input
               ref={inputRef}
               type="text"
-              placeholder="Search for text..."
+              placeholder={t('searchInDocument.searchForText')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={(e) => {
@@ -411,7 +413,7 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
             <button
               onClick={navigateToPrevious}
               disabled={totalMatches === 0}
-              title="Previous match (Shift+Enter)"
+              title={t('searchInDocument.previousMatch')}
               style={{
                 padding: '8px 12px',
                 background: '#f3f4f6',
@@ -444,7 +446,7 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
             <button
               onClick={navigateToNext}
               disabled={totalMatches === 0}
-              title="Next match (Enter)"
+              title={t('searchInDocument.nextMatch')}
               style={{
                 padding: '8px 12px',
                 background: '#f3f4f6',
@@ -501,7 +503,7 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
                 e.currentTarget.style.borderColor = '#e5e7eb';
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
 
             {/* Search Button */}
@@ -532,7 +534,7 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
                 }
               }}
             >
-              {searching ? 'Searching...' : 'Search'}
+              {searching ? t('common.searching') : t('common.search')}
             </button>
           </div>
 
@@ -551,7 +553,7 @@ const SearchInDocumentModal = ({ documentId, document, onClose }) => {
                 fontFamily: 'Plus Jakarta Sans'
               }}
             >
-              No matches found for "{searchQuery}"
+              {t('searchInDocument.noMatchesFound', { query: searchQuery })}
             </div>
           )}
         </div>

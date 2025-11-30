@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { ReactComponent as ArrowLeftIcon } from '../assets/arrow-narrow-left.svg';
 import { ReactComponent as ArrowRightIcon } from '../assets/arrow-narrow-right.svg';
@@ -24,6 +25,7 @@ if (!document.head.querySelector('#pptx-spinner-styles')) {
  * Displays PowerPoint presentations with slide navigation
  */
 const PPTXPreview = ({ document, zoom }) => {
+  const { t } = useTranslation();
   const [slides, setSlides] = useState([]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -162,7 +164,7 @@ const PPTXPreview = ({ document, zoom }) => {
           fontSize: 16,
           fontFamily: 'Plus Jakarta Sans'
         }}>
-          Loading presentation...
+          {t('pptxPreview.loadingPresentation')}
         </div>
       </div>
     );
@@ -190,7 +192,7 @@ const PPTXPreview = ({ document, zoom }) => {
           fontFamily: 'Plus Jakarta Sans',
           marginBottom: 12
         }}>
-          PowerPoint Preview
+          {t('pptxPreview.powerpointPreview')}
         </div>
         <div style={{
           fontSize: 14,
@@ -198,7 +200,7 @@ const PPTXPreview = ({ document, zoom }) => {
           fontFamily: 'Plus Jakarta Sans',
           marginBottom: 24
         }}>
-          {error || 'No slides available. The presentation may still be processing.'}
+          {error || t('pptxPreview.noSlidesAvailable')}
         </div>
         {metadata && (
           <div style={{
@@ -210,9 +212,9 @@ const PPTXPreview = ({ document, zoom }) => {
             fontFamily: 'Plus Jakarta Sans',
             textAlign: 'left'
           }}>
-            <div><strong>Title:</strong> {metadata.title || 'N/A'}</div>
-            <div><strong>Author:</strong> {metadata.author || 'N/A'}</div>
-            <div><strong>Slide Count:</strong> {metadata.slide_count || 0}</div>
+            <div><strong>{t('pptxPreview.title')}:</strong> {metadata.title || t('common.notAvailable')}</div>
+            <div><strong>{t('pptxPreview.author')}:</strong> {metadata.author || t('common.notAvailable')}</div>
+            <div><strong>{t('pptxPreview.slideCount')}:</strong> {metadata.slide_count || 0}</div>
           </div>
         )}
       </div>
@@ -254,7 +256,7 @@ const PPTXPreview = ({ document, zoom }) => {
             color: '#32302C',
             fontFamily: 'Plus Jakarta Sans'
           }}>
-            Slide {currentSlideIndex + 1} of {slides.length}
+            {t('pptxPreview.slideOf', { current: currentSlideIndex + 1, total: slides.length })}
           </div>
           {metadata && metadata.title && (
             <div style={{
@@ -303,7 +305,7 @@ const PPTXPreview = ({ document, zoom }) => {
                 color: '#EA580C',
                 fontFamily: 'Plus Jakarta Sans'
               }}>
-                Generating slide images...
+                {t('pptxPreview.generatingSlideImages')}
               </div>
               <div style={{
                 fontSize: 12,
@@ -311,7 +313,7 @@ const PPTXPreview = ({ document, zoom }) => {
                 fontFamily: 'Plus Jakarta Sans',
                 textAlign: 'center'
               }}>
-                This may take a minute. The preview will update automatically.
+                {t('pptxPreview.mayTakeMinute')}
               </div>
             </div>
           )}
@@ -334,7 +336,7 @@ const PPTXPreview = ({ document, zoom }) => {
                 color: '#DC2626',
                 fontFamily: 'Plus Jakarta Sans'
               }}>
-                Failed to generate slide images
+                {t('pptxPreview.failedToGenerateImages')}
               </div>
               <div style={{
                 fontSize: 12,
@@ -361,7 +363,7 @@ const PPTXPreview = ({ document, zoom }) => {
                   fontFamily: 'Plus Jakarta Sans'
                 }}
               >
-                Retry Generation
+                {t('pptxPreview.retryGeneration')}
               </button>
             </div>
           )}
@@ -407,7 +409,7 @@ const PPTXPreview = ({ document, zoom }) => {
               fontFamily: 'Plus Jakarta Sans',
               padding: 40
             }}>
-              This slide is empty
+              {t('pptxPreview.slideEmpty')}
             </div>
           )}
         </div>
@@ -538,7 +540,7 @@ const PPTXPreview = ({ document, zoom }) => {
           fontFamily: 'Plus Jakarta Sans',
           marginBottom: 12
         }}>
-          All Slides
+          {t('pptxPreview.allSlides')}
         </div>
         <div style={{
           display: 'grid',
@@ -582,7 +584,7 @@ const PPTXPreview = ({ document, zoom }) => {
                 color: '#32302C',
                 fontFamily: 'Plus Jakarta Sans'
               }}>
-                Slide {index + 1}
+                {t('pptxPreview.slideNumber', { number: index + 1 })}
               </div>
               {slide.imageUrl ? (
                 <div style={{
@@ -617,7 +619,7 @@ const PPTXPreview = ({ document, zoom }) => {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap'
                 }}>
-                  {slide.content ? slide.content.substring(0, 30) + '...' : 'Empty slide'}
+                  {slide.content ? slide.content.substring(0, 30) + '...' : t('pptxPreview.emptySlide')}
                 </div>
               )}
             </div>
@@ -640,7 +642,7 @@ const PPTXPreview = ({ document, zoom }) => {
             fontFamily: 'Plus Jakarta Sans',
             marginBottom: 12
           }}>
-            Presentation Info
+            {t('pptxPreview.presentationInfo')}
           </div>
           <div style={{
             display: 'grid',
@@ -652,30 +654,30 @@ const PPTXPreview = ({ document, zoom }) => {
           }}>
             {metadata.title && (
               <div>
-                <strong>Title:</strong> {metadata.title}
+                <strong>{t('pptxPreview.title')}:</strong> {metadata.title}
               </div>
             )}
             {metadata.author && (
               <div>
-                <strong>Author:</strong> {metadata.author}
+                <strong>{t('pptxPreview.author')}:</strong> {metadata.author}
               </div>
             )}
             {metadata.subject && (
               <div>
-                <strong>Subject:</strong> {metadata.subject}
+                <strong>{t('pptxPreview.subject')}:</strong> {metadata.subject}
               </div>
             )}
             <div>
-              <strong>Total Slides:</strong> {slides.length}
+              <strong>{t('pptxPreview.totalSlides')}:</strong> {slides.length}
             </div>
             {metadata.created && (
               <div>
-                <strong>Created:</strong> {new Date(metadata.created).toLocaleDateString()}
+                <strong>{t('pptxPreview.created')}:</strong> {new Date(metadata.created).toLocaleDateString()}
               </div>
             )}
             {metadata.modified && (
               <div>
-                <strong>Modified:</strong> {new Date(metadata.modified).toLocaleDateString()}
+                <strong>{t('pptxPreview.modified')}:</strong> {new Date(metadata.modified).toLocaleDateString()}
               </div>
             )}
           </div>

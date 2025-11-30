@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '../context/ToastContext';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import fileTypesStackIcon from '../assets/file-types-stack.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
@@ -25,6 +26,7 @@ import folderIcon from '../assets/folder_icon.svg';
 
 const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComplete, initialFiles = null }) => {
   const { t } = useTranslation();
+  const { showError } = useToast();
   // ✅ FIX: Get fetchFolders to refresh categories after upload
   const { fetchFolders, invalidateCache } = useDocuments();
   const { isAuthenticated } = useAuth();
@@ -59,7 +61,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
 
     if (invalidFiles.length > 0) {
       // Show error notification to user
-      alert('⚠️ Folder drag-and-drop is not supported by browsers.\n\nPlease use the "Select Folder" button to upload folders with their contents.');
+      showError(t('alerts.folderDragDropNotSupported'));
       setUploadingFiles(prev => prev.filter(f => f.id !== loadingId));
       return;
     }
@@ -494,7 +496,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
     // Validate that files have webkitRelativePath
     const firstFile = files[0];
     if (!firstFile.webkitRelativePath) {
-      alert('Error: Folder selection failed. Please try again or contact support.');
+      showError(t('alerts.folderSelectionFailed'));
       return;
     }
     await onDrop(files);

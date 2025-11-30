@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 
 const NotificationCenter = () => {
+  const { t } = useTranslation();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -100,10 +102,10 @@ const NotificationCenter = () => {
     const date = new Date(timestamp);
     const seconds = Math.floor((now - date) / 1000);
 
-    if (seconds < 60) return 'Just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+    if (seconds < 60) return t('notifications.justNow');
+    if (seconds < 3600) return t('notifications.minutesAgo', { count: Math.floor(seconds / 60) });
+    if (seconds < 86400) return t('notifications.hoursAgo', { count: Math.floor(seconds / 3600) });
+    if (seconds < 604800) return t('notifications.daysAgo', { count: Math.floor(seconds / 86400) });
     return date.toLocaleDateString();
   };
 
@@ -223,7 +225,7 @@ const NotificationCenter = () => {
                 fontFamily: 'Plus Jakarta Sans',
               }}
             >
-              Notifications
+              {t('notifications.title')}
             </h3>
             {unreadCount > 0 && (
               <button
@@ -238,7 +240,7 @@ const NotificationCenter = () => {
                   fontWeight: '500',
                 }}
               >
-                Mark all read
+                {t('notifications.markAllRead')}
               </button>
             )}
           </div>
@@ -260,7 +262,7 @@ const NotificationCenter = () => {
                   fontFamily: 'Plus Jakarta Sans',
                 }}
               >
-                Loading...
+                {t('common.loading')}
               </div>
             ) : notifications.length === 0 ? (
               <div
@@ -272,7 +274,7 @@ const NotificationCenter = () => {
                 }}
               >
                 <div style={{ fontSize: 40, marginBottom: 12 }}>🔔</div>
-                <div>No notifications</div>
+                <div>{t('notifications.noNotifications')}</div>
               </div>
             ) : (
               notifications.map((notification) => (

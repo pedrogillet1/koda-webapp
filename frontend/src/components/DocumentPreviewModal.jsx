@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../services/api';
 import { previewCache } from '../services/previewCache';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useToast } from '../context/ToastContext';
 import { getFileIcon } from '../utils/iconMapper';
 import { downloadFile } from '../utils/browserUtils';
 
@@ -11,6 +13,8 @@ import { downloadFile } from '../utils/browserUtils';
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false }) => {
+  const { t } = useTranslation();
+  const { showError } = useToast();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [zoom, setZoom] = useState(100);
@@ -220,7 +224,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
       // Use browser-aware download function with the original file URL
       downloadFile(downloadUrl, document.filename);
     } catch (error) {
-      alert('Failed to download document');
+      showError(t('alerts.failedToDownload'));
     }
   };
 
@@ -366,7 +370,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                 whiteSpace: 'nowrap',
                 marginLeft: 8
               }}>
-                Will attach on close
+                {t('documentPreview.willAttachOnClose')}
               </span>
             )}
           </div>
@@ -384,7 +388,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
               whiteSpace: 'nowrap',
               letterSpacing: '0.2px'
             }}>
-              Page {currentPage} of {totalPages}
+              {t('documentViewer.pageOfPages', { current: currentPage, total: totalPages })}
             </div>
           )}
 
@@ -574,7 +578,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                 fontFamily: 'Plus Jakarta Sans'
               }}
             >
-              Loading preview...
+              {t('documentPreview.loadingPreview')}
             </div>
           ) : previewUrl ? (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
@@ -592,7 +596,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                       fontSize: 16,
                       fontFamily: 'Plus Jakarta Sans'
                     }}>
-                      Loading image...
+                      {t('documentPreview.loadingImage')}
                     </div>
                   )}
                   {imageError ? (
@@ -605,7 +609,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                     }}>
                       <div style={{ fontSize: 64, marginBottom: 20 }}>🖼️</div>
                       <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
-                        Failed to load image
+                        {t('documentPreview.failedToLoadImage')}
                       </div>
                       <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
                         {document.filename}
@@ -652,7 +656,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                       fontSize: 16,
                       fontFamily: 'Plus Jakarta Sans'
                     }}>
-                      Loading PDF...
+                      {t('documentPreview.loadingPdf')}
                     </div>
                   }
                   error={
@@ -665,13 +669,13 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                     }}>
                       <div style={{ fontSize: 64, marginBottom: 20 }}>📄</div>
                       <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 12 }}>
-                        Failed to load document preview
+                        {t('documentPreview.failedToLoadPreview')}
                       </div>
                       <div style={{ fontSize: 14, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans', marginBottom: 24 }}>
                         {document.filename}
                       </div>
                       <div style={{ fontSize: 13, color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans' }}>
-                        The document may still be processing. Please try opening the full preview.
+                        {t('documentPreview.documentMayBeProcessing')}
                       </div>
                     </div>
                   }
@@ -707,7 +711,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                             color: '#6C6C6C',
                             fontFamily: 'Plus Jakarta Sans'
                           }}>
-                            Loading page {index + 1}...
+                            {t('documentPreview.loadingPage', { page: index + 1 })}
                           </div>
                         }
                       />
@@ -728,7 +732,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                 fontFamily: 'Plus Jakarta Sans'
               }}
             >
-              Preview not available
+              {t('documentPreview.previewNotAvailable')}
             </div>
           )}
         </div>
@@ -835,7 +839,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                   fontWeight: '600',
                   color: '#1A1A1A',
                   fontFamily: 'Plus Jakarta Sans'
-                }}>Download</span>
+                }}>{t('common.download')}</span>
               </button>
               <button
                 onClick={handleOpenFullPreview}
@@ -857,7 +861,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                   fontWeight: '600',
                   color: '#FFFFFF',
                   fontFamily: 'Plus Jakarta Sans'
-                }}>Full View</span>
+                }}>{t('documentPreview.fullView')}</span>
               </button>
             </div>
           </>
@@ -898,7 +902,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                 e.currentTarget.style.opacity = '1';
               }}
             >
-              Open Full Preview
+              {t('documentPreview.openFullPreview')}
             </button>
 
             {/* Close & Attach Button - only shown when attachOnClose is true */}
@@ -932,7 +936,7 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                   <path d="M11.3333 5.33333L8 2L4.66667 5.33333" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                   <path d="M8 2V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                Close & Attach
+                {t('documentPreview.closeAndAttach')}
               </button>
             )}
           </div>

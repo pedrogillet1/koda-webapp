@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import backArrow from '../assets/arrow-narrow-left.svg';
 import blockIcon from '../assets/block.svg';
 
 const ForgotPasswordCode = () => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const [timer, setTimer] = useState(14);
@@ -54,8 +56,8 @@ const ForgotPasswordCode = () => {
         <div style={{display: 'flex', width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', background: '#FFFFFF'}}>
             {/* Back Button */}
             <div onClick={() => navigate(-1)} style={{alignSelf: 'flex-start', justifyContent: 'center', alignItems: 'center', gap: 4, display: 'flex', cursor: 'pointer', margin: '16px 0 0 16px'}}>
-                <img src={backArrow} alt="Back" />
-                <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px'}}>Back</div>
+                <img src={backArrow} alt={t('common.back')} />
+                <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px'}}>{t('common.back')}</div>
             </div>
 
             {/* Main Content */}
@@ -105,7 +107,7 @@ const ForgotPasswordCode = () => {
                         marginBottom: 8
                     }}
                 >
-                    Check Your Email
+                    {t('forgotPassword.checkYourEmail')}
                 </h1>
 
                 {/* Body */}
@@ -118,7 +120,7 @@ const ForgotPasswordCode = () => {
                     fontFamily: 'Plus Jakarta Sans',
                     marginBottom: 32
                 }}>
-                    We've sent a secure link to reset your password.<br />
+                    {t('forgotPassword.secureLinkSent')}<br />
                     <strong style={{color: '#000000', fontWeight: 500, wordBreak: 'break-word'}}>{contactInfo}</strong>
                 </p>
 
@@ -150,7 +152,7 @@ const ForgotPasswordCode = () => {
                         e.currentTarget.style.outline = 'none';
                     }}
                 >
-                    Back to Log In
+                    {t('passwordChanged.backToLogin')}
                 </button>
 
                 {/* Resend Row */}
@@ -164,10 +166,10 @@ const ForgotPasswordCode = () => {
                         fontFamily: 'Plus Jakarta Sans'
                     }}
                 >
-                    Didn't get the email?{' '}
+                    {t('forgotPassword.didntGetEmailLower')}{' '}
                     {timer > 0 ? (
                         <span style={{color: '#B3B3B3'}}>
-                            Resend in 00:{String(timer).padStart(2, '0')}
+                            {t('forgotPassword.resendIn', { time: `00:${String(timer).padStart(2, '0')}` })}
                         </span>
                     ) : (
                         <button
@@ -195,7 +197,7 @@ const ForgotPasswordCode = () => {
                                 e.currentTarget.style.outline = 'none';
                             }}
                         >
-                            {isResending ? 'Sending...' : 'Resend'}
+                            {isResending ? t('common.sending') : t('common.resend')}
                         </button>
                     )}
                 </p>
@@ -227,7 +229,7 @@ const ForgotPasswordCode = () => {
                         e.currentTarget.style.outline = 'none';
                     }}
                 >
-                    Back to Login
+                    {t('passwordChanged.backToLogin')}
                 </a>
             </section>
         </div>

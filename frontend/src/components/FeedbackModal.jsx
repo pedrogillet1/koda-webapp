@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import crownIcon from '../assets/crown.png';
 
 /**
@@ -7,6 +8,7 @@ import crownIcon from '../assets/crown.png';
  * Redesigned to match the phone verification modal style
  */
 const FeedbackModal = ({ isOpen, onClose }) => {
+  const { t } = useTranslation();
   const [feedback, setFeedback] = useState('');
 
   if (!isOpen) return null;
@@ -73,7 +75,7 @@ const FeedbackModal = ({ isOpen, onClose }) => {
             margin: 0,
             textAlign: 'center'
           }}>
-            Beta Access
+            {t('feedback.betaAccess')}
           </h2>
         </div>
 
@@ -87,7 +89,7 @@ const FeedbackModal = ({ isOpen, onClose }) => {
           marginTop: 0,
           textAlign: 'center'
         }}>
-          Early access · All features unlocked
+          {t('feedback.earlyAccess')}
         </p>
 
         {/* Description */}
@@ -101,7 +103,7 @@ const FeedbackModal = ({ isOpen, onClose }) => {
           marginTop: 0,
           textAlign: 'center'
         }}>
-          You're part of Koda's early access program. Every search, upload, and note helps refine how Koda thinks.
+          {t('feedback.earlyAccessDescription')}
         </p>
 
         {/* Divider */}
@@ -120,14 +122,14 @@ const FeedbackModal = ({ isOpen, onClose }) => {
           fontWeight: '600',
           marginBottom: 10
         }}>
-          Share your feedback
+          {t('feedback.shareYourFeedback')}
         </label>
 
         {/* Textarea */}
         <textarea
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
-          placeholder="Tell us what you think..."
+          placeholder={t('placeholders.tellUsWhatYouThink')}
           style={{
             width: '100%',
             minHeight: 100,
@@ -180,7 +182,7 @@ const FeedbackModal = ({ isOpen, onClose }) => {
             onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
             onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
 
           {/* Submit Button */}
@@ -211,7 +213,7 @@ const FeedbackModal = ({ isOpen, onClose }) => {
               }
             }}
           >
-            Send Feedback
+            {t('feedback.sendFeedback')}
           </button>
         </div>
       </div>

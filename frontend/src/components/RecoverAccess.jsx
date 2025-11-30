@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 function RecoverAccess() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
@@ -13,13 +15,13 @@ function RecoverAccess() {
     setError('');
 
     if (!email) {
-      setError('Please enter your email');
+      setError(t('recoverAccess.pleaseEnterEmail'));
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address');
+      setError(t('recoverAccess.pleaseEnterValidEmail'));
       return;
     }
 
@@ -52,7 +54,7 @@ function RecoverAccess() {
           });
         } else {
           console.warn('⚠️  [RecoverAccess] No sessionToken in response!');
-          setError('Unable to process password reset. Please verify your email address is correct and try again.');
+          setError(t('recoverAccess.unableToProcess'));
         }
       }
     } catch (error) {
@@ -60,11 +62,11 @@ function RecoverAccess() {
       console.error('❌ [RecoverAccess] Error response:', error.response?.data);
 
       if (error.response?.data?.needsVerification) {
-        setError('Please verify your email first before resetting password');
+        setError(t('recoverAccess.verifyEmailFirst'));
       } else if (error.response?.data?.error) {
         setError(error.response.data.error);
       } else {
-        setError('An error occurred. Please try again.');
+        setError(t('errors.generic'));
       }
     } finally {
       setLoading(false);
@@ -101,7 +103,7 @@ function RecoverAccess() {
           padding: 0
         }}
       >
-        ← Back
+        {t('phoneNumber.back')}
       </button>
 
       {/* Content Container */}
@@ -133,7 +135,7 @@ function RecoverAccess() {
           margin: 0,
           marginBottom: '16px'
         }}>
-          Recover Access
+          {t('recoverAccess.title')}
         </h1>
 
         <p style={{
@@ -144,7 +146,7 @@ function RecoverAccess() {
           marginBottom: '48px',
           lineHeight: '1.5'
         }}>
-          Enter your email to recover your account
+          {t('recoverAccess.subtitle')}
         </p>
 
         <div style={{ width: '100%', marginBottom: '32px' }}>
@@ -157,11 +159,11 @@ function RecoverAccess() {
             textAlign: 'left',
             paddingLeft: '20px'
           }}>
-            Email
+            {t('common.email')}
           </label>
           <input
             type="email"
-            placeholder="example@example.com"
+            placeholder={t('placeholders.emailExample')}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onKeyPress={handleKeyPress}
@@ -216,7 +218,7 @@ function RecoverAccess() {
             boxSizing: 'border-box'
           }}
         >
-          {loading ? 'Please wait...' : 'Continue'}
+          {loading ? t('common.pleaseWait') : t('common.continue')}
         </button>
       </div>
     </div>

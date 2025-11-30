@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import './UploadProgressItem.css';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
@@ -23,6 +24,7 @@ export default function UploadProgressItem({
   isFolder = false,
   folderName = null
 }) {
+  const { t } = useTranslation();
   const getFileIcon = () => {
     if (isFolder) return folderIcon;
     if (!file) return docIcon;
@@ -62,14 +64,14 @@ export default function UploadProgressItem({
     if (isFolder && folderName) {
       return folderName;
     }
-    return file?.name || 'Unknown file';
+    return file?.name || t('upload.unknownFile');
   };
 
   const getDisplaySize = () => {
     if (isFolder && totalSize !== null) {
       const sizeStr = formatFileSize(totalSize);
       if (fileCount !== null) {
-        return `${sizeStr} - ${fileCount} file${fileCount > 1 ? 's' : ''}`;
+        return `${sizeStr} - ${t('folderPreview.filesCount', { count: fileCount })}`;
       }
       return sizeStr;
     }
@@ -78,18 +80,18 @@ export default function UploadProgressItem({
 
   const getDisplayStatus = () => {
     if (status === 'completed') {
-      return '100% uploaded';
+      return t('upload.percentUploaded', { percent: 100 });
     }
     if (status === 'failed') {
-      return 'Failed to upload';
+      return t('upload.failedToUpload');
     }
     if (status === 'pending') {
-      return 'Waiting...';
+      return t('upload.waiting');
     }
     if (status === 'processing') {
-      return 'Processing...';
+      return t('upload.processing');
     }
-    return `${Math.round(progress)}% uploaded`;
+    return t('upload.percentUploaded', { percent: Math.round(progress) });
   };
 
   const isComplete = status === 'completed';
@@ -135,9 +137,9 @@ export default function UploadProgressItem({
               e.stopPropagation();
               onRetry();
             }}
-            aria-label="Retry upload"
+            aria-label={t('common.retry')}
           >
-            Retry
+            {t('common.retry')}
           </button>
         )}
         {onRemove && status !== 'uploading' && status !== 'processing' && (

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
 import { ReactComponent as TrashIcon } from '../assets/Trash can.svg';
 import { ReactComponent as PencilIcon } from '../assets/pencil-ai.svg';
@@ -24,6 +25,7 @@ const titleAnimationStyles = `
 `;
 
 const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onConversationUpdate }) => {
+    const { t } = useTranslation();
     const [conversations, setConversations] = useState(() => {
         // Load from cache immediately for instant display
         const cached = sessionStorage.getItem('koda_chat_conversations');
@@ -619,7 +621,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                     >
                         <input
                             type="text"
-                            placeholder="Search chats..."
+                            placeholder={t('chatHistory.searchChats')}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             autoFocus
@@ -699,7 +701,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                         onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
                     >
                         <PencilIcon style={{width: 16, height: 16}} />
-                        <span>New chat</span>
+                        <span>{t('chatHistory.newChat')}</span>
                     </button>
                 </div>
 
@@ -779,7 +781,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                             fontSize: 14,
                             marginTop: 20
                         }}>
-                            No conversations yet. Start a new chat!
+                            {t('chatHistory.noConversationsYet')}
                         </div>
                     )}
                 </div>
@@ -870,7 +872,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
             {/* Expanded sidebar header */}
             {isExpanded && (
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '30px', textShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)'}}>Chat</div>
+                <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '30px', textShadow: '0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)'}}>{t('chatHistory.chat')}</div>
                 {/* Collapse Button */}
                 <div
                     onClick={() => setIsExpanded(false)}
@@ -919,7 +921,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                         onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
                     >
                         <PencilIcon style={{width: 16, height: 16}} />
-                        <span>New Chat</span>
+                        <span>{t('chatHistory.newChat')}</span>
                     </button>
 
                     <div
@@ -933,7 +935,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                     >
                         <input
                             type="text"
-                            placeholder="Search for conversation..."
+                            placeholder={t('chatHistory.searchConversation')}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             style={{
@@ -1026,7 +1028,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                 })}
                 {displayConversations.length === 0 && (
                     <div style={{textAlign: 'center', color: '#6C6B6E', fontSize: 14, marginTop: 20}}>
-                        No conversations yet. Start a new chat!
+                        {t('chatHistory.noConversationsYet')}
                     </div>
                 )}
             </div>
@@ -1038,7 +1040,7 @@ const ChatHistory = ({ onSelectConversation, currentConversation, onNewChat, onC
                     onClick={handleDeleteAll}
                     style={{paddingTop: 12, borderTop: '1px solid #E6E6EC', textAlign: 'center', color: '#D92D20', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', cursor: 'pointer'}}
                 >
-                    Delete All
+                    {t('chatHistory.deleteAll')}
                 </div>
             )}
 

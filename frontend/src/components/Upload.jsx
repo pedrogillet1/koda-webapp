@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useFiles } from '../context/FileContext';
 import { useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
@@ -8,6 +9,7 @@ import { formatFileSize } from '../utils/crypto';
 import api from '../services/api';
 
 const Upload = () => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const isMobile = useIsMobile();
     const { files, onDrop, removeFile, isUploading, uploadFile } = useFiles();
@@ -134,7 +136,7 @@ const Upload = () => {
     const handleCloseModal = () => {
         const uploadingCount = files.filter(f => f.status === 'uploading').length;
         if (uploadingCount > 0) {
-            if (window.confirm('Files are still uploading. Are you sure you want to close?')) {
+            if (window.confirm(t('upload.filesStillUploading'))) {
                 setIsModalOpen(false);
             }
         } else {
@@ -149,7 +151,7 @@ const Upload = () => {
             {/* Main Content */}
             <div style={{flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex'}}>
                 <div style={{alignSelf: 'stretch', height: isMobile ? 60 : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px solid #E6E6EC', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex'}}>
-                    <div style={{textAlign: 'center', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px'}}>Upload Documents</div>
+                    <div style={{textAlign: 'center', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px'}}>{t('upload.uploadDocuments')}</div>
                 </div>
 
                 <div style={{alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 12 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: isMobile ? 12 : 20, display: 'flex'}}>
@@ -182,7 +184,7 @@ const Upload = () => {
                                     opacity: isDragActive ? 1.0 : 0.6,
                                     transition: 'opacity 250ms ease-out',
                                     textAlign: 'center'
-                                }}>{isMobile ? 'Tap to Upload' : 'Upload Documents or Drag-n-drop'}</div>
+                                }}>{isMobile ? t('upload.tapToUpload') : t('upload.uploadOrDragDrop')}</div>
                             </div>
                             <div style={{
                                 width: isMobile ? '100%' : 366,
@@ -195,12 +197,12 @@ const Upload = () => {
                                 lineHeight: isMobile ? '20px' : '24px',
                                 opacity: isDragActive ? 0.8 : 0.4,
                                 transition: 'opacity 250ms ease-out'
-                            }}>{isMobile ? 'All file types supported (max 15MB)' : 'Upload your first document           All file types supported (max 15MB)'}</div>
+                            }}>{isMobile ? t('upload.allFileTypesSupported') : t('upload.uploadFirstDocAllTypes')}</div>
                         </div>
                         <div style={{width: isMobile ? '100%' : 340, maxWidth: isMobile ? 280 : 340, borderRadius: 12, justifyContent: 'center', alignItems: 'flex-start', gap: 8, display: 'flex', flexDirection: 'column'}}>
                             <div onClick={(e) => { e.stopPropagation(); open(); }} style={{width: '100%', height: isMobile ? 48 : 52, borderRadius: 100, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex', cursor: 'pointer'}}>
                                 <div style={{flex: '1 1 0', alignSelf: 'stretch', paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 100, border: '1px solid #E6E6EC', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex'}}>
-                                    <div style={{color: '#323232', fontSize: isMobile ? 14 : 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>Select Files</div>
+                                    <div style={{color: '#323232', fontSize: isMobile ? 14 : 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px'}}>{t('upload.selectFiles')}</div>
                                 </div>
                             </div>
                         </div>
@@ -247,13 +249,13 @@ const Upload = () => {
                             overflowY: 'auto'
                         }}>
                             <div style={{padding: 20, borderBottom: '1px solid #E5E7EB'}}>
-                                <h3 style={{fontSize: 18, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Library</h3>
+                                <h3 style={{fontSize: 18, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>{t('upload.library')}</h3>
                             </div>
 
                             <div style={{padding: 16}}>
                                 <input
                                     type="text"
-                                    placeholder="Search for document......"
+                                    placeholder={t('placeholders.searchForDocument')}
                                     style={{
                                         width: '100%',
                                         padding: '8px 12px',
@@ -321,7 +323,7 @@ const Upload = () => {
                                 padding: isMobile ? '16px' : '20px 24px',
                                 borderBottom: '1px solid #E5E7EB'
                             }}>
-                                <h2 style={{fontSize: isMobile ? 18 : 20, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>Upload Documents</h2>
+                                <h2 style={{fontSize: isMobile ? 18 : 20, fontWeight: '600', color: '#111827', margin: 0, fontFamily: 'Plus Jakarta Sans'}}>{t('upload.uploadDocuments')}</h2>
                                 <button
                                     onClick={handleCloseModal}
                                     style={{
@@ -374,7 +376,7 @@ const Upload = () => {
                                         fontFamily: 'Plus Jakarta Sans',
                                         opacity: isDragActive ? 1.0 : 0.6,
                                         transition: 'opacity 250ms ease-out'
-                                    }}>{isMobile ? 'Tap to Upload' : 'Upload Documents Or Drag-N-Drop'}</h3>
+                                    }}>{isMobile ? t('upload.tapToUpload') : t('upload.uploadOrDragDrop')}</h3>
                                     <p style={{
                                         fontSize: isMobile ? 13 : 14,
                                         color: '#6B7280',
@@ -383,7 +385,7 @@ const Upload = () => {
                                         fontFamily: 'Plus Jakarta Sans',
                                         opacity: isDragActive ? 0.8 : 0.4,
                                         transition: 'opacity 250ms ease-out'
-                                    }}>{isMobile ? 'All file types supported (max 15MB)' : 'Upload your first document'}<br/>{!isMobile && 'All file types supported (max 15MB)'}</p>
+                                    }}>{isMobile ? t('upload.allFileTypesSupported') : t('upload.uploadFirstDocument')}<br/>{!isMobile && t('upload.allFileTypesSupported')}</p>
                                     <button
                                         onClick={(e) => { e.stopPropagation(); open(); }}
                                         style={{
@@ -401,7 +403,7 @@ const Upload = () => {
                                             maxWidth: isMobile ? 200 : 'none'
                                         }}
                                     >
-                                        Select Files
+                                        {t('upload.selectFiles')}
                                     </button>
                                 </div>
 
@@ -528,7 +530,7 @@ const Upload = () => {
                                                             margin: '0 0 8px 0',
                                                             fontFamily: 'Plus Jakarta Sans'
                                                         }}>
-                                                            {`${formatFileSize(f.file.size)} - ${progressWidth}% uploaded`}
+                                                            {t('upload.uploadedProgress', { size: formatFileSize(f.file.size), percent: progressWidth })}
                                                         </p>
                                                     )}
 
@@ -547,7 +549,7 @@ const Upload = () => {
                                                                 fontFamily: 'Plus Jakarta Sans',
                                                                 flex: 1
                                                             }}>
-                                                                Failed to upload
+                                                                {t('upload.failedToUpload')}
                                                             </p>
                                                             <button
                                                                 onClick={(e) => {
@@ -574,7 +576,7 @@ const Upload = () => {
                                                                     e.currentTarget.style.background = 'transparent';
                                                                 }}
                                                             >
-                                                                Retry
+                                                                {t('common.retry')}
                                                             </button>
                                                         </div>
                                                     )}
@@ -608,7 +610,7 @@ const Upload = () => {
                                         opacity: files.filter(f => f.status === 'completed').length === files.length ? 0.5 : 1
                                     }}
                                 >
-                                    Upload {files.length} Document{files.length > 1 ? 's' : ''}
+                                    {t('upload.uploadDocumentsCount', { count: files.length })}
                                 </button>
                             </div>
                         </div>
@@ -632,7 +634,7 @@ const Upload = () => {
                                     </div>
                                 </div>
                                 <div style={{flex: '1 1 0', color: 'white', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '20px'}}>
-                                    {files.length} document{files.length > 1 ? 's have' : ' has'} been successfully uploaded.
+                                    {t('upload.documentsUploaded', { count: files.length })}
                                 </div>
                             </>
                         ) : (
@@ -647,7 +649,7 @@ const Upload = () => {
                                     </div>
                                 </div>
                                 <div style={{flex: '1 1 0', color: 'white', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '20px'}}>
-                                    Hmm… the upload didn't work. Please retry.
+                                    {t('upload.uploadFailed')}
                                 </div>
                             </>
                         )}

@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useDocuments } from '../context/DocumentsContext';
 import { useIsMobile, useMobileBreakpoints } from '../hooks/useIsMobile';
 import CategoryIcon from './CategoryIcon';
 
 const CategoryGrid = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const mobile = useMobileBreakpoints();
@@ -107,7 +109,7 @@ const CategoryGrid = () => {
             textAlign: 'center',
             wordBreak: 'break-word'
           }}>
-            {isMobile ? 'Add New' : 'Add New Smart Category'}
+            {isMobile ? t('documents.addNewCategory').split(' ').slice(0, 2).join(' ') : t('documents.addNewCategory')}
           </span>
         </div>
 
@@ -176,7 +178,7 @@ const CategoryGrid = () => {
                 fontWeight: '500',
                 lineHeight: '1.3'
               }}>
-                {category.fileCount || 0} {category.fileCount === 1 ? 'File' : 'Files'}
+                {category.fileCount || 0} {category.fileCount === 1 ? t('common.file') : t('common.files')}
               </div>
             </div>
           </div>
@@ -201,7 +203,7 @@ const CategoryGrid = () => {
           onMouseEnter={(e) => !isMobile && (e.currentTarget.style.opacity = '0.7')}
           onMouseLeave={(e) => !isMobile && (e.currentTarget.style.opacity = '1')}
         >
-          See All ({categories.length})
+          {t('documents.seeAll')} ({categories.length})
         </div>
       )}
     </div>

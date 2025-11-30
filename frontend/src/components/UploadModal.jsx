@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { useDocuments } from '../context/DocumentsContext';
+import { useToast } from '../context/ToastContext';
 import UniversalAddToCategoryModal from './UniversalAddToCategoryModal';
 import CreateCategoryModal from './CreateCategoryModal';
 import pdfIcon from '../assets/pdf-icon.png';
@@ -16,6 +18,8 @@ import mp3Icon from '../assets/mp3.svg';
 import folderIcon from '../assets/folder_icon.svg';
 
 const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
+  const { t } = useTranslation();
+  const { showError } = useToast();
   // Get context functions for optimistic uploads
   const { addDocument, moveToFolder, createFolder, pauseAutoRefresh, resumeAutoRefresh } = useDocuments();
 
@@ -100,7 +104,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
           ...prev,
           [relativePath]: -1 // -1 indicates error
         }));
-        alert(`Upload failed for ${file.name}\n\nError: ${error.message || 'Unknown error'}`);
+        showError(t('alerts.uploadFailed', { filename: file.name, error: error.message || t('common.unknownError') }));
         return { success: false, file: file.name, error };
       }
     };
@@ -1102,7 +1106,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
             }
             handleClose();
           } catch (error) {
-            alert('Failed to add documents to category');
+            showError(t('alerts.failedToAddDocsToCategory'));
           }
         }}
         onCreateNew={() => {
@@ -1136,7 +1140,7 @@ const UploadModal = ({ isOpen, onClose, categoryId, onUploadComplete }) => {
             }
             handleClose();
           } catch (error) {
-            alert('Failed to create category: ' + (error.message || 'Unknown error'));
+            showError(t('alerts.failedToCreateCategory', { error: error.message || t('common.unknownError') }));
           }
         }}
       />

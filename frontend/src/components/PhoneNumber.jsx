@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import backArrow from '../assets/arrow-narrow-left.svg';
 import PhoneInput from 'react-phone-number-input';
@@ -8,6 +9,7 @@ import './PhoneNumber.css';
 import { isValidPhoneNumber } from 'react-phone-number-input';
 
 const PhoneNumber = () => {
+    const { t } = useTranslation();
     const [phoneNumber, setPhoneNumber] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -17,13 +19,13 @@ const PhoneNumber = () => {
 
     const handleSendCode = async () => {
         if (!phoneNumber) {
-            setError('Please enter a phone number');
+            setError(t('phoneNumber.pleaseEnterPhoneNumber'));
             return;
         }
 
         // Validate phone number format
         if (!isValidPhoneNumber(phoneNumber)) {
-            setError('Please enter a valid phone number');
+            setError(t('phoneNumber.pleaseEnterValidPhoneNumber'));
             return;
         }
 
@@ -35,7 +37,7 @@ const PhoneNumber = () => {
             const pendingEmail = localStorage.getItem('pendingEmail');
 
             if (!pendingEmail) {
-                throw new Error('No pending registration found. Please register first.');
+                throw new Error(t('phoneNumber.noPendingRegistration'));
             }
 
             const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/pending/add-phone`, {
@@ -52,14 +54,14 @@ const PhoneNumber = () => {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to send verification code');
+                throw new Error(data.error || t('phoneNumber.failedToSendCode'));
             }
 
             console.log('✅ Verification code sent to:', phoneNumber);
             navigate('/verification', { state: { phoneNumber, email: pendingEmail } });
         } catch (error) {
             console.error('Error sending code:', error);
-            setError(error.message || 'Failed to send verification code');
+            setError(error.message || t('phoneNumber.failedToSendCode'));
         } finally {
             setIsLoading(false);
         }
@@ -89,7 +91,7 @@ const PhoneNumber = () => {
                     padding: 0
                 }}
             >
-                ← Back
+                {t('phoneNumber.back')}
             </button>
 
             {/* Content Container */}
@@ -123,7 +125,7 @@ const PhoneNumber = () => {
                     margin: 0,
                     marginBottom: '16px'
                 }}>
-                    Enter Your Phone
+                    {t('phoneNumber.enterYourPhone')}
                 </h1>
 
                 <p style={{
@@ -134,7 +136,7 @@ const PhoneNumber = () => {
                     marginBottom: '48px',
                     lineHeight: '1.5'
                 }}>
-                    Authenticate your account via SMS.
+                    {t('phoneNumber.authenticateViaSms')}
                 </p>
 
                 {/* Phone Input */}
@@ -152,7 +154,7 @@ const PhoneNumber = () => {
                         marginBottom: '6px',
                         textAlign: 'left'
                     }}>
-                        Phone Number <span style={{color: '#ef4444'}}>*</span>
+                        {t('phoneNumber.phoneNumberLabel')} <span style={{color: '#ef4444'}}>*</span>
                     </label>
                     <div
                         onFocus={() => setPhoneFocused(true)}
@@ -180,7 +182,7 @@ const PhoneNumber = () => {
                             defaultCountry="US"
                             value={phoneNumber}
                             onChange={setPhoneNumber}
-                            placeholder="Enter phone number"
+                            placeholder={t('phoneNumber.enterPhoneNumber')}
                             style={{
                                 flex: '1 1 0',
                                 width: '100%',
@@ -229,7 +231,7 @@ const PhoneNumber = () => {
                         opacity: isLoading ? 0.6 : 1
                     }}
                 >
-                    {isLoading ? 'Sending Code...' : 'Send Code'}
+                    {isLoading ? t('phoneNumber.sendingCode') : t('phoneNumber.sendCode')}
                 </button>
             </div>
         </div>

@@ -30,7 +30,7 @@ const FileTypeDetail = () => {
   const navigate = useNavigate();
   const { documents, deleteDocument, folders: contextFolders, moveToFolder } = useDocuments();
   const isMobile = useIsMobile();
-  const { showSuccess } = useToast();
+  const { showSuccess, showError } = useToast();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('timeAdded');
@@ -252,7 +252,7 @@ const FileTypeDetail = () => {
       setSelectedCategoryId(null);
     } catch (error) {
       console.error('Error moving item:', error);
-      alert('Failed to move item');
+      showError(t('alerts.failedToMoveItem'));
     }
   };
 

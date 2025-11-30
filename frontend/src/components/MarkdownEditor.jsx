@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import { useTranslation } from 'react-i18next';
+import { useToast } from '../context/ToastContext';
 
 const MarkdownEditor = ({ document, zoom, onSave }) => {
+  const { t } = useTranslation();
+  const { showError } = useToast();
   const [markdownContent, setMarkdownContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -62,7 +66,7 @@ const MarkdownEditor = ({ document, zoom, onSave }) => {
       setHasChanges(false);
     } catch (err) {
       console.error('Error saving markdown:', err);
-      alert('Failed to save changes. Please try again.');
+      showError(t('alerts.failedToSaveChanges'));
     } finally {
       setIsSaving(false);
     }
@@ -106,7 +110,7 @@ const MarkdownEditor = ({ document, zoom, onSave }) => {
       window.document.body.removeChild(a);
     } catch (err) {
       console.error('Error exporting document:', err);
-      alert('Failed to export document. Please try again.');
+      showError(t('alerts.failedToExportDocument'));
     }
   };
 
@@ -268,7 +272,7 @@ const MarkdownEditor = ({ document, zoom, onSave }) => {
               resize: 'vertical',
               outline: 'none'
             }}
-            placeholder="Write markdown content..."
+            placeholder={t('markdownEditor.placeholder')}
           />
           <div style={{
             marginTop: 16,

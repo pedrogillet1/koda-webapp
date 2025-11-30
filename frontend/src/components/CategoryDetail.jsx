@@ -346,15 +346,15 @@ const CategoryDetail = () => {
     const diffDays = Math.floor(diffMs / 86400000);
 
     if (diffMins < 1) {
-      return 'Just now';
+      return t('timeAgo.justNow');
     } else if (diffMins < 60) {
-      return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+      return t('timeAgo.minutesAgo', { count: diffMins });
     } else if (diffHours < 24) {
-      return `Today, ${docDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+      return `${t('common.today')}, ${docDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true })}`;
     } else if (diffDays === 1) {
-      return `Yesterday, ${docDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+      return `${t('common.yesterday')}, ${docDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true })}`;
     } else {
-      return docDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return docDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     }
   };
 
@@ -396,7 +396,7 @@ const CategoryDetail = () => {
     if (ext === 'AAC') return 'AAC';
     if (ext === 'M4A') return 'M4A';
 
-    return ext || 'File';
+    return ext || t('common.file');
   };
 
   // Filter and sort documents
@@ -447,7 +447,7 @@ const CategoryDetail = () => {
 
       setOpenDropdownId(null);
     } catch (error) {
-      alert('Failed to download document');
+      showError(t('alerts.failedToDownload'));
     }
   };
 
@@ -470,7 +470,7 @@ const CategoryDetail = () => {
 
       // ✅ NO refreshAll() - context handles updates automatically
     } catch (error) {
-      alert('Failed to rename document');
+      showError(t('alerts.failedToRename'));
     }
   };
 
@@ -494,7 +494,7 @@ const CategoryDetail = () => {
 
       // ✅ NO refreshAll() for documents - context handles updates automatically
     } catch (error) {
-      alert(`Failed to rename ${itemToRename.type}`);
+      showError(t('alerts.failedToRenameItem', { type: itemToRename.type }));
     }
   };
 
@@ -553,7 +553,7 @@ const CategoryDetail = () => {
       setSelectedDocumentForCategory(null);
       setSelectedCategoryId(null);
     } catch (error) {
-      alert(`Failed to move ${selectedDocumentForCategory?.type || 'item'} to category`);
+      showError(t('alerts.failedToMoveToCategory', { type: selectedDocumentForCategory?.type || 'item' }));
 
       // ✅ On error, refresh context to restore correct state
       await refreshAll();
@@ -611,7 +611,7 @@ const CategoryDetail = () => {
 
         if (successCount < deleteCount) {
           const failedCount = deleteCount - successCount;
-          alert(`${failedCount} file${failedCount > 1 ? 's' : ''} failed to delete`);
+          showError(failedCount > 1 ? t('alerts.filesFailedToDeletePlural', { count: failedCount }) : t('alerts.filesFailedToDelete', { count: failedCount }));
         }
 
         // ✅ NO refreshAll() - context handles updates automatically
@@ -645,10 +645,10 @@ const CategoryDetail = () => {
 
       // Show user-friendly error message
       const errorMessage = error.filename
-        ? `Failed to delete "${error.filename}": ${error.message}`
-        : error.message || 'Failed to delete item';
+        ? t('toasts.failedToDeleteFile', { name: error.filename, error: error.message })
+        : error.message || t('errors.generic');
 
-      alert(errorMessage);
+      showError(errorMessage);
     }
   };
 
@@ -696,7 +696,7 @@ const CategoryDetail = () => {
 
       setShowNewDropdown(false);
     } catch (error) {
-      alert('Failed to upload files. Please try again.');
+      showError(t('alerts.failedToUploadFiles'));
     }
   };
 
@@ -744,7 +744,7 @@ const CategoryDetail = () => {
 
       setShowNewDropdown(false);
     } catch (error) {
-      alert('Failed to upload folder. Please try again.');
+      showError(t('alerts.failedToUploadFolder'));
     }
   };
 
@@ -762,7 +762,7 @@ const CategoryDetail = () => {
       // Context automatically updates all components with the new folder!
       setShowCreateFolderModal(false);
     } catch (error) {
-      alert('Failed to create folder. Please try again.');
+      showError(t('alerts.failedToCreateFolder'));
     }
   };
 
@@ -916,7 +916,7 @@ const CategoryDetail = () => {
       } else if (data.type === 'folder') {
         // Can't drop folder into itself
         if (data.id === targetFolder.id) {
-          alert('Cannot move folder into itself');
+          showError(t('alerts.cannotMoveFolderIntoItself'));
           return;
         }
 
@@ -929,10 +929,10 @@ const CategoryDetail = () => {
         // ✅ Context will auto-update after folder move
         await refreshAll();
 
-        alert(`Moved folder "${data.name}" into "${targetFolder.name}"`);
+        showSuccess(t('alerts.movedFolderInto', { name: data.name, target: targetFolder.name }));
       }
     } catch (error) {
-      alert('Failed to move item. Please try again.');
+      showError(t('alerts.failedToMoveItem'));
     }
   };
 

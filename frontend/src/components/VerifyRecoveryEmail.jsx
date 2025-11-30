@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import '../styles/VerifyRecovery.css';
 
 const VerifyRecoveryEmail = () => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState('verifying'); // verifying, success, error
@@ -15,7 +17,7 @@ const VerifyRecoveryEmail = () => {
 
       if (!token) {
         setStatus('error');
-        setMessage('Invalid verification link. No token provided.');
+        setMessage(t('verifyRecovery.invalidLinkNoToken'));
         return;
       }
 
@@ -26,7 +28,7 @@ const VerifyRecoveryEmail = () => {
 
         if (response.data.success) {
           setStatus('success');
-          setMessage('Your recovery email has been verified successfully!');
+          setMessage(t('verifyRecovery.emailVerifiedSuccess'));
 
           // Redirect to settings after 3 seconds
           setTimeout(() => {
@@ -34,11 +36,11 @@ const VerifyRecoveryEmail = () => {
           }, 3000);
         } else {
           setStatus('error');
-          setMessage(response.data.message || 'Verification failed.');
+          setMessage(response.data.message || t('verifyRecovery.verificationFailed'));
         }
       } catch (error) {
         setStatus('error');
-        setMessage(error.response?.data?.error || 'An error occurred during verification.');
+        setMessage(error.response?.data?.error || t('verifyRecovery.errorOccurred'));
       }
     };
 
@@ -51,30 +53,30 @@ const VerifyRecoveryEmail = () => {
         {status === 'verifying' && (
           <>
             <div className="verify-icon verifying">⏳</div>
-            <h1>Verifying your email...</h1>
-            <p>Please wait while we verify your recovery email address.</p>
+            <h1>{t('verifyRecovery.verifyingEmail')}</h1>
+            <p>{t('verifyRecovery.pleaseWait')}</p>
           </>
         )}
 
         {status === 'success' && (
           <>
             <div className="verify-icon success">✅</div>
-            <h1>Email Verified!</h1>
+            <h1>{t('verifyRecovery.emailVerified')}</h1>
             <p>{message}</p>
-            <p className="redirect-message">Redirecting you to Settings...</p>
+            <p className="redirect-message">{t('verifyRecovery.redirectingToSettings')}</p>
           </>
         )}
 
         {status === 'error' && (
           <>
             <div className="verify-icon error">❌</div>
-            <h1>Verification Failed</h1>
+            <h1>{t('verifyRecovery.verificationFailedTitle')}</h1>
             <p>{message}</p>
             <button
               className="button-primary"
               onClick={() => navigate('/settings')}
             >
-              Go to Settings
+              {t('verifyRecovery.goToSettings')}
             </button>
           </>
         )}

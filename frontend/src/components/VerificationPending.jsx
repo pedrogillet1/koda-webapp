@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import backArrow from '../assets/arrow-narrow-left.svg';
 
 const VerificationPending = () => {
+    const { t } = useTranslation();
     const [code, setCode] = useState(new Array(6).fill(''));
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -103,7 +105,7 @@ const VerificationPending = () => {
                     padding: 0
                 }}
             >
-                ← Back
+                {t('common.back')}
             </button>
 
             {/* Content Container */}
@@ -137,7 +139,7 @@ const VerificationPending = () => {
                     margin: 0,
                     marginBottom: '16px'
                 }}>
-                    Verify Your Phone
+                    {t('verificationPending.verifyYourPhone')}
                 </h1>
 
                 <p style={{
@@ -148,7 +150,7 @@ const VerificationPending = () => {
                     marginBottom: '32px',
                     lineHeight: '1.5'
                 }}>
-                    Enter the 6-digit code sent to your phone to complete registration.
+                    {t('verificationPending.enterCodeToComplete')}
                 </p>
 
                 {/* Phone Display */}
@@ -158,7 +160,7 @@ const VerificationPending = () => {
                     marginBottom: '24px'
                 }}>
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
-                        <div style={{color: '#181818', fontSize: 14, fontWeight: '600'}}>Phone</div>
+                        <div style={{color: '#181818', fontSize: 14, fontWeight: '600'}}>{t('verificationPending.phone')}</div>
                         <div
                             onClick={() => navigate('/phone-number-pending', { state: { email } })}
                             onMouseEnter={() => setChangeNumberHover(true)}
@@ -172,10 +174,10 @@ const VerificationPending = () => {
                                 transition: 'transform 0.2s ease'
                             }}
                         >
-                            Change number
+                            {t('verificationPending.changeNumber')}
                         </div>
                     </div>
-                    <div style={{color: '#181818', fontSize: 16, fontWeight: '500'}}>{phoneNumber ? phoneNumber.replace(/(\d{3})(?=\d{3}$)/, '••• ') : 'Phone number'}</div>
+                    <div style={{color: '#181818', fontSize: 16, fontWeight: '500'}}>{phoneNumber ? phoneNumber.replace(/(\d{3})(?=\d{3}$)/, '••• ') : t('verificationPending.phoneNumber')}</div>
                 </div>
 
                 {/* Code Input */}
@@ -191,7 +193,7 @@ const VerificationPending = () => {
                         marginBottom: '12px',
                         textAlign: 'left'
                     }}>
-                        Enter Code
+                        {t('verificationPending.enterCode')}
                     </label>
                     <div style={{display: 'flex', justifyContent: 'center', gap: 12}}>
                         {code.map((digit, index) => (
@@ -260,7 +262,7 @@ const VerificationPending = () => {
                         opacity: isLoading ? 0.6 : 1
                     }}
                 >
-                    {isLoading ? 'Completing Registration...' : 'Complete Registration'}
+                    {isLoading ? t('verificationPending.completingRegistration') : t('verificationPending.completeRegistration')}
                 </button>
             </div>
         </div>

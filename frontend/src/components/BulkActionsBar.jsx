@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { FolderOpen, Tag, Trash2, X } from 'lucide-react';
 
 /**
@@ -12,6 +13,8 @@ export default function BulkActionsBar({
   onDelete,
   onCancel
 }) {
+  const { t } = useTranslation();
+
   if (selectedCount === 0) return null;
 
   return (
@@ -23,7 +26,9 @@ export default function BulkActionsBar({
             <span className="text-white font-semibold text-sm">{selectedCount}</span>
           </div>
           <span className="font-medium text-gray-900">
-            {selectedCount} {selectedCount === 1 ? 'document' : 'documents'} selected
+            {selectedCount === 1
+              ? t('bulkActions.documentsSelected', { count: selectedCount })
+              : t('bulkActions.documentsSelectedPlural', { count: selectedCount })}
           </span>
         </div>
 
@@ -37,7 +42,7 @@ export default function BulkActionsBar({
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
           >
             <FolderOpen size={18} />
-            Move to Folder
+            {t('bulkActions.moveToFolder')}
           </button>
 
           <button
@@ -45,7 +50,7 @@ export default function BulkActionsBar({
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
           >
             <Tag size={18} />
-            Move to Category
+            {t('bulkActions.moveToCategory')}
           </button>
 
           <button
@@ -53,7 +58,7 @@ export default function BulkActionsBar({
             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
           >
             <Trash2 size={18} />
-            Delete
+            {t('bulkActions.delete')}
           </button>
         </div>
 
@@ -61,7 +66,7 @@ export default function BulkActionsBar({
         <button
           onClick={onCancel}
           className="ml-2 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-          aria-label="Cancel selection"
+          aria-label={t('bulkActions.cancelSelection')}
         >
           <X size={20} />
         </button>

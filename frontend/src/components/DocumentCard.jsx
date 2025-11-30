@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import xlsIcon from '../assets/xls.png';
@@ -13,6 +14,7 @@ import fileIcon from '../assets/txt-icon.png'; // Use txt-icon as generic file f
  */
 const DocumentCard = ({ document }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   if (!document) return null;
 
@@ -39,22 +41,22 @@ const DocumentCard = ({ document }) => {
   const getFileTypeDisplay = (type) => {
     switch (type) {
       case 'pdf':
-        return 'PDF';
+        return t('fileTypes.pdfLabel');
       case 'docx':
       case 'doc':
-        return 'WORD';
+        return t('fileTypes.word');
       case 'xlsx':
       case 'xls':
-        return 'EXCEL';
+        return t('fileTypes.excel');
       case 'pptx':
       case 'ppt':
-        return 'POWERPOINT';
+        return t('fileTypes.powerpoint');
       case 'image':
-        return 'IMAGE';
+        return t('fileTypes.image');
       case 'text':
-        return 'TEXT';
+        return t('fileTypes.text');
       default:
-        return 'FILE';
+        return t('fileTypes.file');
     }
   };
 

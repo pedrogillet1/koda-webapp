@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import './ErrorBanner.css';
 
 export default function ErrorBanner({ error, onDismiss, onRetry }) {
+  const { t } = useTranslation();
   const [retryCountdown, setRetryCountdown] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
 
@@ -60,7 +62,7 @@ export default function ErrorBanner({ error, onDismiss, onRetry }) {
       <div className="error-content">
         <span className="error-icon">⚠️</span>
         <div className="error-text">
-          <div className="error-title">{error.title || 'Something went wrong'}</div>
+          <div className="error-title">{error.title || t('error.somethingWentWrong')}</div>
           <div className="error-message">{error.message}</div>
         </div>
       </div>
@@ -71,9 +73,9 @@ export default function ErrorBanner({ error, onDismiss, onRetry }) {
             {showCountdown ? (
               <div className="retry-countdown-container">
                 <div className="countdown-text">
-                  <span className="countdown-label">Retrying in</span>
+                  <span className="countdown-label">{t('error.retryingIn')}</span>
                   <span className="countdown-number">{retryCountdown}</span>
-                  <span className="countdown-unit">s</span>
+                  <span className="countdown-unit">{t('error.seconds')}</span>
                 </div>
                 <div className="countdown-progress">
                   <div
@@ -86,25 +88,25 @@ export default function ErrorBanner({ error, onDismiss, onRetry }) {
                     className="error-button retry-now-button"
                     onClick={handleRetryNow}
                   >
-                    Retry Now
+                    {t('error.retryNow')}
                   </button>
                   <button
                     className="error-button cancel-button"
                     onClick={handleCancelCountdown}
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
             ) : (
               <button className="error-button retry-button" onClick={handleRetryNow}>
-                Retry
+                {t('common.retry')}
               </button>
             )}
           </>
         )}
         <button className="error-button dismiss-button" onClick={handleDismiss}>
-          Dismiss
+          {t('common.dismiss')}
         </button>
       </div>
     </div>

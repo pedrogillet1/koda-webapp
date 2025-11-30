@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import './KeyboardShortcutsModal.css';
 
 export default function KeyboardShortcutsModal({ isOpen, onClose }) {
+  const { t } = useTranslation();
   // Close on Escape key
   useEffect(() => {
     if (!isOpen) return;
@@ -22,21 +24,21 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
   const cmdKey = isMac ? '⌘' : 'Ctrl';
 
   const shortcuts = [
-    { keys: [`${cmdKey}`, 'Enter'], action: 'Send message' },
-    { keys: [`${cmdKey}`, 'K'], action: 'Focus search' },
-    { keys: [`${cmdKey}`, 'N'], action: 'New conversation' },
-    { keys: [`${cmdKey}`, 'Shift', 'C'], action: 'Copy last response' },
-    { keys: ['Esc'], action: 'Cancel generation' },
-    { keys: [`${cmdKey}`, '/'], action: 'Show this menu' },
-    { keys: ['↑'], action: 'Edit last message (in empty input)' },
-    { keys: [`${cmdKey}`, 'Shift', 'L'], action: 'Toggle sidebar' },
+    { keys: [`${cmdKey}`, 'Enter'], action: t('keyboardShortcuts.sendMessage') },
+    { keys: [`${cmdKey}`, 'K'], action: t('keyboardShortcuts.focusSearch') },
+    { keys: [`${cmdKey}`, 'N'], action: t('keyboardShortcuts.newConversation') },
+    { keys: [`${cmdKey}`, 'Shift', 'C'], action: t('keyboardShortcuts.copyLastResponse') },
+    { keys: ['Esc'], action: t('keyboardShortcuts.cancelGeneration') },
+    { keys: [`${cmdKey}`, '/'], action: t('keyboardShortcuts.showThisMenu') },
+    { keys: ['↑'], action: t('keyboardShortcuts.editLastMessage') },
+    { keys: [`${cmdKey}`, 'Shift', 'L'], action: t('keyboardShortcuts.toggleSidebar') },
   ];
 
   return (
     <div className="shortcuts-modal-overlay" onClick={onClose}>
       <div className="shortcuts-modal" onClick={(e) => e.stopPropagation()}>
         <div className="shortcuts-modal-header">
-          <h2>Keyboard Shortcuts</h2>
+          <h2>{t('keyboardShortcuts.title')}</h2>
           <button className="shortcuts-close-btn" onClick={onClose}>×</button>
         </div>
 
@@ -57,7 +59,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
         </div>
 
         <div className="shortcuts-footer">
-          <span className="shortcuts-tip">Press <kbd>Esc</kbd> to close</span>
+          <span className="shortcuts-tip">{t('keyboardShortcuts.pressEscToClose')}</span>
         </div>
       </div>
     </div>

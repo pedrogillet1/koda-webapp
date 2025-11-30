@@ -1,12 +1,14 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 const QuickAccess = () => {
+  const { t } = useTranslation();
   return (
     <div style={{alignSelf: 'stretch', flex: '1 1 0', padding: 14, background: 'white', boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 20, display: 'flex'}}>
         <div style={{alignSelf: 'stretch', justifyContent: 'center', alignItems: 'center', gap: 10, display: 'inline-flex'}}>
-            <div style={{flex: '1 1 0', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: 24, wordWrap: 'break-word'}}>Quick Access</div>
+            <div style={{flex: '1 1 0', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: 24, wordWrap: 'break-word'}}>{t('quickAccess.title')}</div>
             <div style={{justifyContent: 'center', alignItems: 'center', gap: 10, display: 'flex'}}>
-                <div style={{color: '#171717', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: 22.40, wordWrap: 'break-word'}}>See All</div>
+                <div style={{color: '#171717', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: 22.40, wordWrap: 'break-word'}}>{t('common.seeAll')}</div>
             </div>
         </div>
         <div style={{alignSelf: 'stretch', flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'inline-flex'}}>

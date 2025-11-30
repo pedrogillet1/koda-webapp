@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 function ForgotPasswordVerification() {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -34,10 +36,10 @@ function ForgotPasswordVerification() {
   };
 
   const isEmail = method === 'email';
-  const title = isEmail ? 'Check Your Email' : 'Check Your Messages';
+  const title = isEmail ? t('forgotPassword.checkYourEmail') : t('forgotPassword.checkYourMessages');
   const subtitle = isEmail
-    ? "We've sent a secure link to reset your password. If you don't see it in a few minutes, check your spam or junk folder."
-    : "We've sent a secure link to reset your password via SMS.";
+    ? t('forgotPassword.secureLinkSentWithSpam')
+    : t('forgotPassword.secureLinkSentSms');
 
   return (
     <div style={{
@@ -63,7 +65,7 @@ function ForgotPasswordVerification() {
           padding: 0
         }}
       >
-        ← Back
+        {t('common.back')}
       </button>
 
       {/* Content Container */}
@@ -109,7 +111,7 @@ function ForgotPasswordVerification() {
 
         <div style={{ marginBottom: '24px' }}>
           <span style={{ fontSize: '14px', color: '#666' }}>
-            Didn't Get the {isEmail ? 'Email' : 'Link'}?{' '}
+            {isEmail ? t('forgotPassword.didntGetEmail') : t('forgotPassword.didntGetLink')}{' '}
           </span>
           {canResend ? (
             <button
@@ -128,11 +130,11 @@ function ForgotPasswordVerification() {
                 transition: 'transform 0.2s ease'
               }}
             >
-              Resend
+              {t('common.resend')}
             </button>
           ) : (
             <span style={{ fontSize: '14px', color: '#000', fontWeight: '600' }}>
-              Resend in {formatTime(countdown)}
+              {t('forgotPassword.resendIn', { time: formatTime(countdown) })}
             </span>
           )}
         </div>
@@ -157,7 +159,7 @@ function ForgotPasswordVerification() {
             transition: 'transform 0.2s ease, border-color 0.2s ease'
           }}
         >
-          Back to Log In
+          {t('passwordChanged.backToLogin')}
         </button>
       </div>
     </div>

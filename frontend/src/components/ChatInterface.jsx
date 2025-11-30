@@ -590,7 +590,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 const stoppedMessage = {
                     id: `stopped-${Date.now()}`,
                     role: 'assistant',
-                    content: '**Stopped Searching**',
+                    content: `**${t('chat.stoppedSearching')}**`,
                     createdAt: new Date().toISOString(),
                 };
                 setMessages((prev) => [...prev, stoppedMessage]);
@@ -1401,7 +1401,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             if (!userMessage) {
                 console.error('❌ Could not find original user query');
-                alert('Could not find the original question to regenerate.');
+                showError(t('alerts.cannotFindOriginalQuestion'));
                 return;
             }
 
@@ -1540,7 +1540,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         : msg
                 )
             );
-            alert('Failed to regenerate message. Please try again.');
+            showError(t('alerts.failedToRegenerateMessage'));
         } finally {
             setRegeneratingMessageId(null);
             setIsLoading(false);
@@ -1624,7 +1624,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         const stoppedMessage = {
             id: `stopped-${Date.now()}`,
             role: 'assistant',
-            content: '**Stopped Searching**',
+            content: `**${t('chat.stoppedSearching')}**`,
             createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, stoppedMessage]);
@@ -1681,7 +1681,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             return data.document;
         } catch (error) {
             console.error('❌ Error uploading file:', error);
-            alert('Failed to upload file: ' + error.message);
+            showError(t('alerts.failedToUploadFile', { error: error.message || t('common.unknownError') }));
             return null;
         }
     };
@@ -2905,7 +2905,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                             <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
                                                                             <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
                                                                         </svg>
-                                                                        <span>Document Sources ({documentList.length})</span>
+                                                                        <span>{t('chat.documentSources', { count: documentList.length })}</span>
                                                                     </div>
                                                                     <svg
                                                                         width="14"
@@ -2938,7 +2938,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                             color: '#6B7280',
                                                                             fontSize: 13
                                                                         }}>
-                                                                            No documents were referenced for this response.
+                                                                            {t('chat.noDocumentsReferenced')}
                                                                         </div>
                                                                     ) : documentList.map((doc, index) => {
                                                                         // Get the highest similarity chunk for this document
@@ -3059,7 +3059,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                         gap: 8
                                                                     }}>
                                                                         <span>🌐</span>
-                                                                        <span>Web Sources ({msg.webSources.length})</span>
+                                                                        <span>{t('chat.webSources', { count: msg.webSources.length })}</span>
                                                                     </div>
                                                                     <svg
                                                                         width="14"
@@ -3141,7 +3141,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                         window.open(data.url, '_blank');
                                                                     } catch (error) {
                                                                         console.error('Error downloading file:', error);
-                                                                        alert('Failed to download file');
+                                                                        showError(t('alerts.failedToDownloadFile'));
                                                                     }
                                                                 };
 
@@ -3410,7 +3410,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 marginTop: 4,
                                             }}>
                                                 <span style={{ fontSize: 10 }}>✗</span>
-                                                <span>Failed to send</span>
+                                                <span>{t('chat.failedToSend')}</span>
                                                 <button
                                                     onClick={() => {
                                                         // Remove failed message and retry
@@ -3432,7 +3432,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                         cursor: 'pointer',
                                                     }}
                                                 >
-                                                    Retry
+                                                    {t('common.retry')}
                                                 </button>
                                             </div>
                                         )}

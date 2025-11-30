@@ -1,7 +1,11 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useToast } from '../context/ToastContext';
 import { ReactComponent as MicIcon } from '../assets/Microphone.svg';
 
 const VoiceInput = ({ onTranscript, disabled }) => {
+    const { t } = useTranslation();
+    const { showError } = useToast();
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -33,7 +37,7 @@ const VoiceInput = ({ onTranscript, disabled }) => {
 
         } catch (error) {
             console.error('Error accessing microphone:', error);
-            alert('Please allow microphone access to use voice input');
+            showError(t('alerts.microphoneAccessRequired'));
         }
     };
 
@@ -69,7 +73,7 @@ const VoiceInput = ({ onTranscript, disabled }) => {
 
         } catch (error) {
             console.error('Transcription error:', error);
-            alert('Failed to transcribe audio. Please try again.');
+            showError(t('alerts.failedToTranscribeAudio'));
         }
     };
 

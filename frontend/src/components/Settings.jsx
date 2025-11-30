@@ -435,24 +435,24 @@ const Settings = () => {
     try {
       // Check if new password is provided
       if (!newPassword) {
-        alert('Please enter a new password');
+        showError(t('passwordValidation.enterNewPassword'));
         return;
       }
 
       // Validate passwords match
       if (newPassword !== confirmPassword) {
-        alert('New password and confirm password do not match');
+        showError(t('passwordValidation.passwordsDoNotMatch'));
         return;
       }
 
       // Validate password requirements
       if (newPassword.length < 8) {
-        alert('Password must be at least 8 characters');
+        showError(t('passwordValidation.atLeast8Characters'));
         return;
       }
 
       if (!/[!@#$%^&*(),.?":{}|<>0-9]/.test(newPassword)) {
-        alert('Password must contain a symbol or number');
+        showError(t('passwordValidation.mustContainSymbolOrNumber'));
         return;
       }
 
@@ -460,7 +460,7 @@ const Settings = () => {
       if (user?.email?.includes(newPassword.toLowerCase()) ||
           user?.firstName?.toLowerCase().includes(newPassword.toLowerCase()) ||
           user?.lastName?.toLowerCase().includes(newPassword.toLowerCase())) {
-        alert('Password must not contain your name or email');
+        showError(t('passwordValidation.mustNotContainNameOrEmail'));
         return;
       }
 
@@ -1470,13 +1470,13 @@ const Settings = () => {
             <div style={{ alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', gap: 10, display: 'flex' }}>
               <div style={{ flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                 <div style={{ height: 36, paddingLeft: isMobile ? 14 : 18, paddingRight: isMobile ? 14 : 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex' }}>
-                  <div style={{ color: '#32302C', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>All (0)</div>
+                  <div style={{ color: '#32302C', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{t('notifications.all')} (0)</div>
                 </div>
                 <div style={{ paddingLeft: isMobile ? 8 : 12, paddingRight: isMobile ? 8 : 12, paddingTop: 8, paddingBottom: 8, borderRadius: 6, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer' }}>
-                  <div style={{ color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Unread</div>
+                  <div style={{ color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{t('notifications.unread')}</div>
                 </div>
                 <div style={{ paddingLeft: isMobile ? 8 : 12, paddingRight: isMobile ? 8 : 12, paddingTop: 8, paddingBottom: 8, borderRadius: 6, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer' }}>
-                  <div style={{ color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Read</div>
+                  <div style={{ color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{t('notifications.read')}</div>
                 </div>
               </div>
               <div
@@ -1490,9 +1490,9 @@ const Settings = () => {
             {/* No notifications message */}
             <div style={{ alignSelf: 'stretch', flex: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 16, display: 'flex' }}>
               <BellIcon style={{ width: isMobile ? 48 : 64, height: isMobile ? 48 : 64, opacity: 0.3 }} />
-              <div style={{ color: '#6C6B6E', fontSize: isMobile ? 14 : 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textAlign: 'center' }}>No notifications yet</div>
+              <div style={{ color: '#6C6B6E', fontSize: isMobile ? 14 : 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textAlign: 'center' }}>{t('notifications.noNotificationsYet')}</div>
               <div style={{ color: '#B9B9B9', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textAlign: 'center', maxWidth: 300, padding: isMobile ? '0 16px' : 0 }}>
-                You're all caught up! Check back later for updates on your documents and account.
+                {t('notifications.allCaughtUp')}
               </div>
             </div>
           </div>

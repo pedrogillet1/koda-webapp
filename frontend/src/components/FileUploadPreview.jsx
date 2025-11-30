@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import './FileUploadPreview.css';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
@@ -12,6 +13,7 @@ import mp4Icon from '../assets/mp4.png';
 import mp3Icon from '../assets/mp3.svg';
 
 export default function FileUploadPreview({ file, progress = 0, onRemove }) {
+  const { t } = useTranslation();
   const [thumbnail, setThumbnail] = useState(null);
 
   useEffect(() => {
@@ -88,11 +90,11 @@ export default function FileUploadPreview({ file, progress = 0, onRemove }) {
       </div>
 
       <div className="file-info" style={{ position: 'relative', zIndex: 1 }}>
-        <div className="file-name">{file?.name || 'Unknown file'}</div>
+        <div className="file-name">{file?.name || t('upload.unknownFile')}</div>
         <div className="file-meta">
           {!isComplete ? (
             <>
-              <span className="file-size">{formatFileSize(file?.size)} – {Math.round(progress)}% uploaded</span>
+              <span className="file-size">{formatFileSize(file?.size)} – {t('upload.percentUploaded', { percent: Math.round(progress) })}</span>
             </>
           ) : (
             <div className="upload-complete">
@@ -102,7 +104,7 @@ export default function FileUploadPreview({ file, progress = 0, onRemove }) {
                   fill="#10B981"
                 />
               </svg>
-              <span>Uploaded</span>
+              <span>{t('upload.uploaded')}</span>
             </div>
           )}
         </div>

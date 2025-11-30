@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Standardized Upload Progress Bar Component
@@ -17,6 +18,7 @@ const UploadProgressBar = ({
   showStatus = true,
   variant = 'default' // 'default' | 'compact' | 'large'
 }) => {
+  const { t } = useTranslation();
   const [displayProgress, setDisplayProgress] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [showShimmer, setShowShimmer] = useState(true);
@@ -87,9 +89,9 @@ const UploadProgressBar = ({
 
   // Status text
   const getStatusText = () => {
-    if (status === 'error') return 'Error';
-    if (isCompleted || status === 'completed') return '✓ Uploaded';
-    return 'Uploading to cloud...';
+    if (status === 'error') return t('common.error');
+    if (isCompleted || status === 'completed') return t('upload.uploaded');
+    return t('upload.uploadingToCloud');
   };
 
   // Progress bar color - grey for uploading, green for completed

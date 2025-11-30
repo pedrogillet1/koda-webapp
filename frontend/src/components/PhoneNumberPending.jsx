@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import backArrow from '../assets/arrow-narrow-left.svg';
 
 const PhoneNumberPending = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { addPendingPhone } = useAuth();
@@ -16,7 +18,7 @@ const PhoneNumberPending = () => {
 
   const handleSendCode = async () => {
     if (!phoneNumber) {
-      setError('Please enter your phone number');
+      setError(t('phoneNumber.pleaseEnterPhoneNumber'));
       return;
     }
 
@@ -31,7 +33,7 @@ const PhoneNumberPending = () => {
       navigate('/verification-pending', { state: { email, phoneNumber } });
     } catch (error) {
       console.error('Error sending code:', error);
-      setError(error.message || 'Failed to send verification code');
+      setError(error.message || t('phoneNumber.failedToSendCode'));
     } finally {
       setIsLoading(false);
     }
@@ -41,7 +43,7 @@ const PhoneNumberPending = () => {
     <div style={{width: '100%', minHeight: '100vh', padding: '20px', background: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center'}}>
       <div onClick={() => navigate(-1)} style={{alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', marginBottom: 'auto'}}>
         <img src={backArrow} alt="Back" />
-        <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600'}}>Back</div>
+        <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600'}}>{t('common.back')}</div>
       </div>
 
       <div style={{width: '100%', maxWidth: 450, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32, flexGrow: 1, justifyContent: 'center'}}>
@@ -56,18 +58,18 @@ const PhoneNumberPending = () => {
           📱
         </div>
         <div style={{alignSelf: 'stretch', textAlign: 'center', flexDirection: 'column', gap: 12}}>
-          <div style={{color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600'}}>Enter Your Phone Number</div>
-          <div style={{color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>We'll send you a verification code via SMS.</div>
+          <div style={{color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600'}}>{t('phoneNumber.enterYourPhone')}</div>
+          <div style={{color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>{t('phoneNumber.authenticateViaSms')}</div>
         </div>
 
         <div style={{alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 20}}>
           <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
-            <label style={{fontWeight: '600', fontSize: 14}}>Phone Number</label>
+            <label style={{fontWeight: '600', fontSize: 14}}>{t('phoneNumber.phoneNumberLabel')}</label>
             <input
               type="tel"
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="Enter your phone number"
+              placeholder={t('phoneNumber.enterPhoneNumber')}
               style={{
                 height: 52,
                 padding: '0 18px',
@@ -102,7 +104,7 @@ const PhoneNumberPending = () => {
               opacity: isLoading ? 0.6 : 1
             }}
           >
-            {isLoading ? 'Sending...' : 'Send Code'}
+            {isLoading ? t('phoneNumber.sending') : t('phoneNumber.sendCode')}
           </button>
         </div>
       </div>

@@ -1277,7 +1277,7 @@ const UploadHub = () => {
         setDocuments(prev => [documentToDelete, ...prev]);
       }
 
-      alert('Failed to delete document. Please try again.');
+      showError(t('alerts.failedToDeleteDocument'));
     }
   };
 
@@ -1320,7 +1320,7 @@ const UploadHub = () => {
         setDocuments(prev => [...docsInFolders, ...prev]);
       }
 
-      alert('Failed to delete folder. Please try again.');
+      showError(t('alerts.failedToDeleteFolder'));
     }
   };
 
@@ -1357,7 +1357,7 @@ const UploadHub = () => {
 
       setShowNewCategoryModal(false);
     } catch (error) {
-      alert('Failed to create category. Please try again.');
+      showError(t('alerts.failedToCreateFolder'));
     }
   };
 
@@ -1394,7 +1394,7 @@ const UploadHub = () => {
           !f.parentFolderId && f.name.toLowerCase() !== 'recently added'
         ));
       } catch (error) {
-        alert('Failed to move folder. Please try again.');
+        showError(t('alerts.failedToMoveFolder'));
       }
     } else {
       // It's a document or pending folder - existing logic
@@ -2235,7 +2235,7 @@ const UploadHub = () => {
                                 link.remove();
                                 setOpenDropdownId(null);
                               } catch (error) {
-                                alert('Failed to download file');
+                                showError(t('alerts.failedToDownloadFile'));
                               }
                             }}
                             style={{
@@ -2717,7 +2717,7 @@ const UploadHub = () => {
                                           link.remove();
                                           setOpenDropdownId(null);
                                         } catch (error) {
-                                          alert('Failed to download file');
+                                          showError(t('alerts.failedToDownloadFile'));
                                         }
                                       }}
                                       style={{
@@ -3176,7 +3176,7 @@ const UploadHub = () => {
                 showDeleteSuccess('file');
               }
             } catch (error) {
-              alert('Failed to delete: ' + (error.response?.data?.error || error.message));
+              showError(t('alerts.failedToDeleteItem', { error: error.response?.data?.error || error.message }));
             }
           })();
         }}
@@ -3221,7 +3221,7 @@ const UploadHub = () => {
             setShowRenameModal(false);
             setItemToRename(null);
           } catch (error) {
-            alert(`Failed to rename ${itemToRename.type === 'folder' ? 'folder' : 'file'}`);
+            showError(t('alerts.failedToRenameItem', { type: itemToRename.type === 'folder' ? t('common.folder') : t('common.file') }));
           }
         }}
         itemName={itemToRename?.name}
@@ -3242,7 +3242,7 @@ const UploadHub = () => {
             setFolders(prev => [...prev, newFolder]);
             setShowCreateFolderModal(false);
           } catch (error) {
-            alert('Failed to create folder: ' + (error.response?.data?.error || error.message));
+            showError(t('alerts.failedToCreateFolder', { error: error.response?.data?.error || error.message }));
           }
         }}
       />

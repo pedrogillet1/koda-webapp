@@ -283,16 +283,18 @@ class PresignedUploadService {
             successfulUploads.map(r => r.documentId)
           );
         } catch (completeError) {
-          // Show user-friendly error with recovery instructions
+          // Log error - files uploaded successfully but failed to register in database
+          // The caller component should handle displaying error to user via toast
           const errorMsg = completeError.response?.data?.error || completeError.message;
-          alert(
-            `⚠️ Files uploaded to cloud successfully, but failed to register in database after ${MAX_CONFIRM_RETRIES} attempts.\n\n` +
-            `Error: ${errorMsg}\n\n` +
-            `Please refresh the page to retry, or contact support if this persists.`
+          console.warn(
+            `[presignedUploadService] Files uploaded to cloud successfully, but failed to register in database after ${MAX_CONFIRM_RETRIES} attempts. Error: ${errorMsg}`
           );
 
-          // Don't throw - let the upload succeed even if completion notification fails
-          // User can manually trigger reprocessing later
+          // Throw a special error so the calling component can display translated message
+          const uploadError = new Error('UPLOAD_COMPLETION_FAILED');
+          uploadError.details = errorMsg;
+          uploadError.retries = MAX_CONFIRM_RETRIES;
+          throw uploadError;
         }
       }
 

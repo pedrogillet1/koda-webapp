@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import ReactMarkdown from 'react-markdown';
 import { Document, Page, pdfjs } from 'react-pdf';
+import { useTranslation } from 'react-i18next';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import '../styles/FilePreviewModal.css';
@@ -14,6 +15,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/$
  * Displays created files with preview and download/save options
  */
 const FilePreviewModal = ({ file, isOpen, onClose, onSave, onDownload }) => {
+  const { t } = useTranslation();
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
 
@@ -31,7 +33,7 @@ const FilePreviewModal = ({ file, isOpen, onClose, onSave, onDownload }) => {
       case 'markdown':
         return (
           <div className="markdown-preview prose max-w-none p-6 bg-white dark:bg-gray-800 overflow-auto" style={{ maxHeight: '60vh' }}>
-            <ReactMarkdown>{file.content || 'Loading...'}</ReactMarkdown>
+            <ReactMarkdown>{file.content || t('common.loading')}</ReactMarkdown>
           </div>
         );
 
@@ -41,7 +43,7 @@ const FilePreviewModal = ({ file, isOpen, onClose, onSave, onDownload }) => {
             <Document
               file={file.previewUrl || file.url}
               onLoadSuccess={onDocumentLoadSuccess}
-              loading={<div className="text-center py-8">Loading PDF...</div>}
+              loading={<div className="text-center py-8">{t('filePreview.loadingPdf')}</div>}
             >
               <Page pageNumber={pageNumber} />
             </Document>
@@ -52,17 +54,17 @@ const FilePreviewModal = ({ file, isOpen, onClose, onSave, onDownload }) => {
                   disabled={pageNumber <= 1}
                   className="px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
                 >
-                  Previous
+                  {t('common.previous')}
                 </button>
                 <span className="text-sm">
-                  Page {pageNumber} of {numPages}
+                  {t('documentViewer.pageOfPages', { current: pageNumber, total: numPages })}
                 </span>
                 <button
                   onClick={() => setPageNumber(Math.min(numPages, pageNumber + 1))}
                   disabled={pageNumber >= numPages}
                   className="px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50"
                 >
-                  Next
+                  {t('common.next')}
                 </button>
               </div>
             )}
@@ -82,19 +84,19 @@ const FilePreviewModal = ({ file, isOpen, onClose, onSave, onDownload }) => {
               </div>
               <h3 className="text-xl font-semibold mb-2 dark:text-white">{file.name}</h3>
               <p className="text-gray-600 dark:text-gray-400 mb-4">
-                {fileType === 'docx' && 'Microsoft Word Document'}
-                {fileType === 'pptx' && 'Microsoft PowerPoint Presentation'}
-                {fileType === 'xlsx' && 'Microsoft Excel Spreadsheet'}
+                {fileType === 'docx' && t('filePreview.microsoftWord')}
+                {fileType === 'pptx' && t('filePreview.microsoftPowerPoint')}
+                {fileType === 'xlsx' && t('filePreview.microsoftExcel')}
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">
-                Preview not available for this file type.<br />
-                Download to view the complete document.
+                {t('filePreview.previewNotAvailable')}<br />
+                {t('filePreview.downloadToView')}
               </p>
               <button
                 onClick={onDownload}
                 className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
               >
-                ⬇️ Download to View
+                {t('filePreview.downloadToViewBtn')}
               </button>
             </div>
           </div>
@@ -103,7 +105,7 @@ const FilePreviewModal = ({ file, isOpen, onClose, onSave, onDownload }) => {
       default:
         return (
           <div className="p-6 text-center bg-white dark:bg-gray-800">
-            <p className="text-gray-600 dark:text-gray-400">Preview not available for this file type.</p>
+            <p className="text-gray-600 dark:text-gray-400">{t('filePreview.previewNotAvailable')}</p>
           </div>
         );
     }
@@ -123,12 +125,12 @@ const FilePreviewModal = ({ file, isOpen, onClose, onSave, onDownload }) => {
 
   const getFileTypeLabel = (type) => {
     const labels = {
-      md: 'MARKDOWN',
-      markdown: 'MARKDOWN',
-      docx: 'WORD',
-      pdf: 'PDF',
-      pptx: 'POWERPOINT',
-      xlsx: 'EXCEL'
+      md: t('fileTypes.markdown'),
+      markdown: t('fileTypes.markdown'),
+      docx: t('fileTypes.word'),
+      pdf: t('fileTypes.pdfLabel'),
+      pptx: t('fileTypes.powerpoint'),
+      xlsx: t('fileTypes.excel')
     };
     return labels[type?.toLowerCase()] || type?.toUpperCase();
   };
@@ -166,19 +168,19 @@ const FilePreviewModal = ({ file, isOpen, onClose, onSave, onDownload }) => {
             onClick={onDownload}
             className="px-6 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg transition-colors flex items-center gap-2"
           >
-            <span>⬇️</span> Download
+            <span>⬇️</span> {t('common.download')}
           </button>
           <button
             onClick={onSave}
             className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center gap-2"
           >
-            <span>💾</span> Save to Files
+            <span>💾</span> {t('filePreview.saveToFiles')}
           </button>
           <button
             onClick={onClose}
             className="px-6 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg transition-colors"
           >
-            Close
+            {t('common.close')}
           </button>
         </div>
       </div>

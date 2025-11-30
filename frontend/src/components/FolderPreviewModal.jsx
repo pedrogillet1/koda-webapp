@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Folder, File, ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import '../styles/FolderPreviewModal.css';
 
 function FolderPreviewModal({
@@ -10,6 +11,8 @@ function FolderPreviewModal({
   onNavigateToFolder,
   onOpenFile
 }) {
+  const { t } = useTranslation();
+
   if (!isOpen || !folder) return null;
 
   const { files = [], subfolders = [] } = contents || {};
@@ -52,9 +55,9 @@ function FolderPreviewModal({
 
         {/* Folder Stats */}
         <div className="folder-stats">
-          <span>{files.length} file{files.length !== 1 ? 's' : ''}</span>
+          <span>{t('folderPreview.filesCount', { count: files.length })}</span>
           <span className="stat-divider">•</span>
-          <span>{subfolders.length} subfolder{subfolders.length !== 1 ? 's' : ''}</span>
+          <span>{t('folderPreview.subfoldersCount', { count: subfolders.length })}</span>
         </div>
 
         {/* Contents */}
@@ -62,7 +65,7 @@ function FolderPreviewModal({
           {/* Subfolders */}
           {subfolders.length > 0 && (
             <div className="subfolder-section">
-              <h3>Subfolders</h3>
+              <h3>{t('folderPreview.subfolders')}</h3>
               <div className="subfolder-list">
                 {subfolders.map(subfolder => (
                   <div
@@ -74,7 +77,7 @@ function FolderPreviewModal({
                     <span className="subfolder-emoji">{subfolder.emoji || '📁'}</span>
                     <span className="subfolder-name">{subfolder.name}</span>
                     <span className="subfolder-count">
-                      {subfolder.fileCount} file{subfolder.fileCount !== 1 ? 's' : ''}
+                      {t('folderPreview.filesCount', { count: subfolder.fileCount })}
                     </span>
                     <ChevronRight size={16} className="chevron" />
                   </div>
@@ -86,7 +89,7 @@ function FolderPreviewModal({
           {/* Files */}
           {files.length > 0 && (
             <div className="file-section">
-              <h3>Files</h3>
+              <h3>{t('folderPreview.files')}</h3>
               <div className="file-list">
                 {files.map(file => (
                   <div
@@ -109,7 +112,7 @@ function FolderPreviewModal({
           {files.length === 0 && subfolders.length === 0 && (
             <div className="empty-state">
               <Folder size={48} />
-              <p>This folder is empty</p>
+              <p>{t('folderPreview.emptyFolder')}</p>
             </div>
           )}
         </div>
@@ -117,10 +120,10 @@ function FolderPreviewModal({
         {/* Footer */}
         <div className="folder-preview-footer">
           <button onClick={() => onNavigateToFolder(folder.id)} className="btn-primary">
-            Go to Folder
+            {t('folderPreview.goToFolder')}
           </button>
           <button onClick={onClose} className="btn-secondary">
-            Close
+            {t('common.close')}
           </button>
         </div>
       </div>

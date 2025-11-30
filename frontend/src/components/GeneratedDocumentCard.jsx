@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '../context/ToastContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkEmoji from 'remark-emoji';
@@ -11,6 +12,7 @@ import '../components/MarkdownStyles.css';
  */
 const GeneratedDocumentCard = ({ chatDocument }) => {
   const { t } = useTranslation();
+  const { showError } = useToast();
   const [isExpanded, setIsExpanded] = useState(true);
   const [copyStatus, setCopyStatus] = useState({ copied: false, format: null });
   const [isDownloading, setIsDownloading] = useState(false);
@@ -80,7 +82,7 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
 
       setIsDownloading(false);
     } catch (error) {
-      alert('Failed to download document');
+      showError(t('alerts.failedToDownload'));
       setIsDownloading(false);
     }
   };

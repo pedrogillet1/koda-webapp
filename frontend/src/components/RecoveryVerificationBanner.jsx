@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
 import '../styles/RecoveryVerificationBanner.css';
 
 const RecoveryVerificationBanner = () => {
+  const { t } = useTranslation();
   const [verificationStatus, setVerificationStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -327,7 +329,7 @@ const AddPhoneModal = ({ onClose, onSuccess, onError }) => {
                 defaultCountry="US"
                 value={phoneNumber}
                 onChange={setPhoneNumber}
-                placeholder="Enter phone number"
+                placeholder={t('phoneNumber.enterPhoneNumber')}
                 disabled={submitting}
                 style={{
                   flex: '1 1 0',
@@ -363,7 +365,7 @@ const AddPhoneModal = ({ onClose, onSuccess, onError }) => {
               transition: 'opacity 0.2s ease'
             }}
           >
-            {submitting ? 'Sending Code...' : 'Send Code'}
+            {submitting ? t('phoneNumber.sendingCode') : t('phoneNumber.sendCode')}
           </button>
         </form>
       </div>

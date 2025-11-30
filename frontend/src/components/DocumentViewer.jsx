@@ -35,6 +35,7 @@ import mp4Icon from '../assets/mp4.png';
 import mp3Icon from '../assets/mp3.svg';
 import CategoryIcon from './CategoryIcon';
 import { useDocuments } from '../context/DocumentsContext';
+import { useToast } from '../context/ToastContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import {
   isSafari,
@@ -131,6 +132,7 @@ const TextCodePreview = ({ url, document, zoom, t }) => {
 
 const DocumentViewer = () => {
   const { t } = useTranslation();
+  const { showSuccess, showError } = useToast();
   const { documentId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -261,7 +263,7 @@ const DocumentViewer = () => {
       window.document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (error) {
-      alert(`Failed to export document: ${error.response?.data?.error || error.message}`);
+      showError(t('documentViewer.failedToExport', { error: error.response?.data?.error || error.message }));
     }
   };
 
@@ -287,9 +289,9 @@ const DocumentViewer = () => {
       setActualDocumentUrl(null);
 
       // Show success message (no reload needed)
-      alert('Preview regenerated successfully!');
+      showSuccess(t('documentViewer.previewRegenerated'));
     } catch (error) {
-      alert('Failed to regenerate preview. Please try again.');
+      showError(t('documentViewer.failedToRegeneratePreview'));
     } finally {
       setIsRegenerating(false);
     }
@@ -299,10 +301,10 @@ const DocumentViewer = () => {
   const breadcrumbStart = useMemo(() => {
     const from = location.state?.from;
     if (from === '/home' || from === 'home') {
-      return { label: 'Home', path: '/home' };
+      return { label: t('nav.home'), path: '/home' };
     }
-    return { label: 'Documents', path: '/documents' };
-  }, [location.state]);
+    return { label: t('nav.documents'), path: '/documents' };
+  }, [location.state, t]);
 
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
@@ -902,7 +904,7 @@ const DocumentViewer = () => {
                             window.document.body.removeChild(iframe);
                           }
                           window.URL.revokeObjectURL(blobUrl);
-                          alert('Unable to print. Please try downloading the file instead.');
+                          showError(t('documentViewer.unableToPrint'));
                         }
                       };
 
@@ -911,12 +913,12 @@ const DocumentViewer = () => {
                           window.document.body.removeChild(iframe);
                         }
                         window.URL.revokeObjectURL(blobUrl);
-                        alert('Failed to load document for printing.');
+                        showError(t('documentViewer.failedToLoadForPrinting'));
                       };
 
                       iframe.src = blobUrl;
                     } catch (error) {
-                      alert('Failed to load document for printing. Please try again.');
+                      showError(t('documentViewer.failedToLoadForPrinting'));
                     }
                   }
                 }}
@@ -1035,9 +1037,9 @@ const DocumentViewer = () => {
             {(() => {
               const fileType = document ? getFileType(document.filename, document.mimeType) : 'unknown';
               if (fileType === 'pdf' || fileType === 'word') {
-                return numPages ? `${currentPage} of ${numPages} page${numPages > 1 ? 's' : ''}` : 'Loading...';
+                return numPages ? t('documentViewer.pageOfPages', { current: currentPage, total: numPages }) : t('common.loading');
               }
-              return '1 page';
+              return t('documentViewer.onePage');
             })()}
           </div>
           <div style={{ width: 1, height: 19, background: '#D9D9D9' }} />
@@ -1277,7 +1279,7 @@ const DocumentViewer = () => {
                                   const downloadUrl = response.data.url;
                                   safariDownloadFile(downloadUrl, document.filename);
                                 } catch (error) {
-                                  alert('Failed to download document');
+                                  showError(t('alerts.failedToDownload'));
                                 }
                               }}
                               style={{
@@ -1293,7 +1295,7 @@ const DocumentViewer = () => {
                                 border: 'none',
                                 cursor: 'pointer'
                               }}>
-                              {isSafari() || isIOS() ? 'Open PDF' : 'Download PDF'}
+                              {isSafari() || isIOS() ? t('documentViewer.openPdf') : t('documentViewer.downloadPdf')}
                             </button>
                           </div>
                         }
@@ -1422,7 +1424,7 @@ const DocumentViewer = () => {
                                   const downloadUrl = response.data.url;
                                   safariDownloadFile(downloadUrl, document.filename);
                                 } catch (error) {
-                                  alert('Failed to download document');
+                                  showError(t('alerts.failedToDownload'));
                                 }
                               }}
                               style={{
@@ -1438,7 +1440,7 @@ const DocumentViewer = () => {
                                 border: 'none',
                                 cursor: 'pointer'
                               }}>
-                              {isSafari() || isIOS() ? 'Open PDF' : 'Download PDF'}
+                              {isSafari() || isIOS() ? t('documentViewer.openPdf') : t('documentViewer.downloadPdf')}
                             </button>
                           </div>
                         }
@@ -1523,7 +1525,7 @@ const DocumentViewer = () => {
                                 const downloadUrl = response.data.url;
                                 safariDownloadFile(downloadUrl, document.filename);
                               } catch (error) {
-                                alert('Failed to download document');
+                                showError(t('alerts.failedToDownload'));
                               }
                             }}
                             style={{
@@ -1539,7 +1541,7 @@ const DocumentViewer = () => {
                               border: 'none',
                               cursor: 'pointer'
                             }}>
-                            {isSafari() || isIOS() ? 'Open Image' : 'Download Image'}
+                            {isSafari() || isIOS() ? t('documentViewer.openImage') : t('documentViewer.downloadImage')}
                           </button>
                         </div>
                       ) : (
@@ -1892,7 +1894,7 @@ const DocumentViewer = () => {
                         URL.revokeObjectURL(blobUrl);
                       }, 100);
                     } catch (error) {
-                      alert('Failed to download document');
+                      showError(t('alerts.failedToDownload'));
                     }
                   }
                 }}
@@ -2018,10 +2020,10 @@ const DocumentViewer = () => {
         onConfirm={async () => {
           try {
             await api.delete(`/api/documents/${documentId}`);
-            alert('Document deleted successfully');
+            showSuccess(t('documentViewer.documentDeleted'));
             navigate('/documents');
           } catch (error) {
-            alert('Failed to delete document: ' + (error.response?.data?.error || error.message));
+            showError(t('documentViewer.failedToDelete', { error: error.response?.data?.error || error.message }));
           }
         }}
         itemName={document.filename || 'this document'}
@@ -2291,7 +2293,7 @@ const DocumentViewer = () => {
                 onClick={() => {
                   setShowCategoryModal(false);
                   // Note: Create category functionality not yet implemented in DocumentViewer
-                  alert('Create category feature coming soon!');
+                  showSuccess(t('documentViewer.createCategoryComingSoon'));
                 }}
                 style={{
                   width: '100%',
@@ -2379,7 +2381,7 @@ const DocumentViewer = () => {
                     setSelectedDocumentForCategory(null);
                     setSelectedCategoryId(null);
                   } catch (error) {
-                    alert('Failed to move document: ' + (error.response?.data?.error || error.message));
+                    showError(t('documentViewer.failedToMoveDocument', { error: error.response?.data?.error || error.message }));
                   }
                 }}
                 disabled={!selectedCategoryId}

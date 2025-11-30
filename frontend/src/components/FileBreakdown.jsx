@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDocuments } from '../context/DocumentsContext';
 
 const FileBreakdown = () => {
+  const { t } = useTranslation();
   const { documents, getFileBreakdown } = useDocuments();
   const breakdown = getFileBreakdown();
 
@@ -155,7 +157,7 @@ const FileBreakdown = () => {
     <div style={{width: 527, alignSelf: 'stretch', padding: 16, background: 'white', overflow: 'hidden', borderRadius: 20, outline: '1px #E6E6EC solid', outlineOffset: '-1px', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'inline-flex'}}>
         <div style={{alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 16, display: 'inline-flex'}}>
             <div style={{flex: '1 1 0', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 6, display: 'inline-flex'}}>
-                <div style={{alignSelf: 'stretch', justifyContent: 'center', display: 'flex', flexDirection: 'column', color: '#101828', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: 26, wordWrap: 'break-word', textShadow: '0px 0px 0px rgba(244, 235, 255, 1.00)'}}>File Breakdown</div>
+                <div style={{alignSelf: 'stretch', justifyContent: 'center', display: 'flex', flexDirection: 'column', color: '#101828', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: 26, wordWrap: 'break-word', textShadow: '0px 0px 0px rgba(244, 235, 255, 1.00)'}}>{t('fileBreakdown.title')}</div>
             </div>
         </div>
         <div style={{alignSelf: 'stretch', flex: '1 1 0', position: 'relative', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', display: 'flex'}}>
@@ -188,7 +190,7 @@ const FileBreakdown = () => {
                             <div style={{flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 4, display: 'inline-flex'}}>
                               <div style={{alignSelf: 'stretch', color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: 19.60, wordWrap: 'break-word'}}>{category}</div>
                               <div style={{justifyContent: 'center', alignItems: 'center', gap: 10, display: 'inline-flex'}}>
-                                <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: 15.40, wordWrap: 'break-word'}}>{categoryBreakdown[category].count} {categoryBreakdown[category].count === 1 ? 'File' : 'Files'}</div>
+                                <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: 15.40, wordWrap: 'break-word'}}>{t('folderPreview.filesCount', { count: categoryBreakdown[category].count })}</div>
                                 <div style={{width: 6, height: 6, opacity: 0.90, background: '#6C6B6E', borderRadius: 9999}} />
                                 <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: 15.40, wordWrap: 'break-word'}}>{formatSize(categoryBreakdown[category].size)}</div>
                               </div>
@@ -208,7 +210,7 @@ const FileBreakdown = () => {
                               <div style={{flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 4, display: 'inline-flex'}}>
                                 <div style={{alignSelf: 'stretch', color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: 19.60, wordWrap: 'break-word'}}>{category}</div>
                                 <div style={{justifyContent: 'center', alignItems: 'center', gap: 10, display: 'inline-flex'}}>
-                                  <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: 15.40, wordWrap: 'break-word'}}>{categoryBreakdown[category].count} {categoryBreakdown[category].count === 1 ? 'File' : 'Files'}</div>
+                                  <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: 15.40, wordWrap: 'break-word'}}>{t('folderPreview.filesCount', { count: categoryBreakdown[category].count })}</div>
                                   <div style={{width: 6, height: 6, opacity: 0.90, background: '#6C6B6E', borderRadius: 9999}} />
                                   <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: 15.40, wordWrap: 'break-word'}}>{formatSize(categoryBreakdown[category].size)}</div>
                                 </div>
@@ -220,12 +222,12 @@ const FileBreakdown = () => {
                     )}
                   </>
                 ) : (
-                  <div style={{flex: '1 1 0', textAlign: 'center', color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>No files</div>
+                  <div style={{flex: '1 1 0', textAlign: 'center', color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>{t('fileBreakdown.noFiles')}</div>
                 )}
             </div>
             <div style={{left: 196, top: 90, position: 'absolute', borderRadius: 8, flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', display: 'flex'}}>
-                <div style={{alignSelf: 'stretch', color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: 42, wordWrap: 'break-word'}}>{documents.length} {documents.length === 1 ? 'File' : 'Files'}</div>
-                <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: 22.40, wordWrap: 'break-word'}}>Total</div>
+                <div style={{alignSelf: 'stretch', color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: 42, wordWrap: 'break-word'}}>{t('folderPreview.filesCount', { count: documents.length })}</div>
+                <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: 22.40, wordWrap: 'break-word'}}>{t('fileBreakdown.total')}</div>
             </div>
         </div>
     </div>

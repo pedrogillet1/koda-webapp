@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import backArrow from '../assets/arrow-narrow-left.svg';
 
 const ForgotPasswordEmailSent = () => {
+    const { t } = useTranslation();
     const [timer, setTimer] = useState(30);
     const navigate = useNavigate();
     const location = useLocation();
@@ -44,8 +46,8 @@ const ForgotPasswordEmailSent = () => {
         <div style={{width: '100%', height: '100vh', background: 'white', display: 'flex', flexDirection: 'column'}}>
             {/* Back Button */}
             <div onClick={() => navigate(-1)} style={{position: 'absolute', top: 16, left: 16, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer'}}>
-                <img src={backArrow} alt="Back" style={{width: 20, height: 20}} />
-                <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px'}}>Back</div>
+                <img src={backArrow} alt={t('common.back')} style={{width: 20, height: 20}} />
+                <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px'}}>{t('common.back')}</div>
             </div>
 
             {/* Main Content - Centered */}
@@ -62,17 +64,17 @@ const ForgotPasswordEmailSent = () => {
 
                     {/* Title */}
                     <div style={{textAlign: 'center', color: '#32302C', fontSize: 24, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '32px'}}>
-                        Check Your {method === 'email' ? 'Email' : 'SMS'}
+                        {method === 'email' ? t('forgotPassword.checkYourEmail') : t('forgotPassword.checkYourSms')}
                     </div>
 
                     {/* Description */}
                     <div style={{textAlign: 'center'}}>
                         <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px'}}>
-                            We've sent a secure link to reset your password.
+                            {t('forgotPassword.secureLinkSent')}
                         </div>
                         {method === 'email' && (
                             <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px', marginTop: 4}}>
-                                If you don't see it in a few minutes, check your spam or junk folder.
+                                {t('forgotPassword.checkSpam')}
                             </div>
                         )}
                     </div>
@@ -85,7 +87,7 @@ const ForgotPasswordEmailSent = () => {
                     {/* Resend Timer */}
                     <div style={{textAlign: 'center'}}>
                         <span style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '18px'}}>
-                            Didn't Get the {method === 'email' ? 'Email' : 'SMS'}?{' '}
+                            {method === 'email' ? t('forgotPassword.didntGetEmail') : t('forgotPassword.didntGetSms')}{' '}
                         </span>
                         <span
                             onClick={handleResend}
@@ -98,7 +100,7 @@ const ForgotPasswordEmailSent = () => {
                                 cursor: timer === 0 ? 'pointer' : 'default'
                             }}
                         >
-                            {timer > 0 ? `Resend in 00:${timer.toString().padStart(2, '0')}` : 'Resend'}
+                            {timer > 0 ? t('forgotPassword.resendIn', { time: `00:${timer.toString().padStart(2, '0')}` }) : t('common.resend')}
                         </span>
                     </div>
 
@@ -116,7 +118,7 @@ const ForgotPasswordEmailSent = () => {
                         }}
                     >
                         <div style={{color: 'white', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '22px'}}>
-                            Back to Log In
+                            {t('passwordChanged.backToLogin')}
                         </div>
                     </button>
                 </div>

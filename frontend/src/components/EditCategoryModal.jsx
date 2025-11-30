@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '../context/ToastContext';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
@@ -16,6 +17,7 @@ import folderIcon from '../assets/folder_icon.svg';
 
 const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
   const { t } = useTranslation();
+  const { showError } = useToast();
   const [categoryName, setCategoryName] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState('__FOLDER_SVG__');
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,7 +105,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
       onClose();
 
     } catch (error) {
-      alert(`Failed to update category: ${error.response?.data?.message || error.message}`);
+      showError(t('alerts.failedToUpdateCategory', { error: error.response?.data?.message || error.message }));
     }
   };
 

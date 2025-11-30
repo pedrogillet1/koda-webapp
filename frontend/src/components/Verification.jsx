@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import backArrow from '../assets/arrow-narrow-left.svg';
 
 const Verification = () => {
+    const { t } = useTranslation();
     const [code, setCode] = useState(new Array(6).fill(''));
     const [timer, setTimer] = useState(30);
     const [isLoading, setIsLoading] = useState(false);
@@ -191,7 +193,7 @@ const Verification = () => {
                     padding: 0
                 }}
             >
-                ← Back
+                ← {t('common.back')}
             </button>
 
             {/* Content Container */}
@@ -223,7 +225,7 @@ const Verification = () => {
                     margin: 0,
                     marginBottom: '16px'
                 }}>
-                    2-Step Verification
+                    {t('verification.twoStepVerification')}
                 </h1>
 
                 <p style={{
@@ -234,7 +236,7 @@ const Verification = () => {
                     marginBottom: '32px',
                     lineHeight: '1.5'
                 }}>
-                    Keep your Koda account safe. Enter the 6-digit code sent to your phone.
+                    {t('verification.keepAccountSafe')}
                 </p>
 
                 {/* Phone Display */}
@@ -244,7 +246,7 @@ const Verification = () => {
                     marginBottom: '24px'
                 }}>
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px'}}>
-                        <div style={{color: '#181818', fontSize: 14, fontWeight: '600'}}>Phone</div>
+                        <div style={{color: '#181818', fontSize: 14, fontWeight: '600'}}>{t('verification.phone')}</div>
                         <div
                             onClick={() => navigate('/phone-number')}
                             onMouseEnter={() => setChangeNumberHover(true)}
@@ -258,7 +260,7 @@ const Verification = () => {
                                 transition: 'transform 0.2s ease'
                             }}
                         >
-                            Change number
+                            {t('verification.changeNumber')}
                         </div>
                     </div>
                     <div style={{color: '#181818', fontSize: 16, fontWeight: '500'}}>{phoneNumber.replace(/(\d{3})(?=\d{3}$)/, '••• ')}</div>
@@ -277,7 +279,7 @@ const Verification = () => {
                         marginBottom: '12px',
                         textAlign: 'left'
                     }}>
-                        Enter Code
+                        {t('verification.enterCode')}
                     </label>
                     <div style={{display: 'flex', justifyContent: 'center', gap: 12}}>
                         {code.map((digit, index) => (
@@ -313,7 +315,7 @@ const Verification = () => {
 
                 {/* Resend Code */}
                 <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: '24px'}}>
-                    <span style={{color: '#6C6B6E', fontSize: 14, fontWeight: '500'}}>Didn't get a code?</span>
+                    <span style={{color: '#6C6B6E', fontSize: 14, fontWeight: '500'}}>{t('verification.didntGetCode')}</span>
                     <span
                         onClick={handleResendCode}
                         onMouseEnter={() => timer === 0 && setResendHover(true)}
@@ -327,7 +329,7 @@ const Verification = () => {
                             transition: 'transform 0.2s ease'
                         }}
                     >
-                        {timer > 0 ? `Resend in 00:${timer.toString().padStart(2, '0')}` : 'Click To Resend'}
+                        {timer > 0 ? t('verification.resendIn', { time: `00:${timer.toString().padStart(2, '0')}` }) : t('verification.clickToResend')}
                     </span>
                 </div>
 
@@ -366,7 +368,7 @@ const Verification = () => {
                         opacity: isLoading ? 0.6 : 1
                     }}
                 >
-                    {isLoading ? 'Verifying...' : 'Verify & Continue'}
+                    {isLoading ? t('verification.verifying') : t('verification.verifyAndContinue')}
                 </button>
             </div>
         </div>
