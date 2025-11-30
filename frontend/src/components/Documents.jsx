@@ -1207,7 +1207,7 @@ const Documents = () => {
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
                           <EditIcon style={{width: 16, height: 16}} />
-                          Edit
+                          {t('common.edit')}
                         </button>
                         <button
                           onClick={(e) => {
@@ -1238,7 +1238,7 @@ const Documents = () => {
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
                           <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
-                          Upload
+                          {t('common.upload')}
                         </button>
                         <button
                           onClick={(e) => {
@@ -1267,7 +1267,7 @@ const Documents = () => {
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
                           <TrashCanIcon style={{width: 16, height: 16}} />
-                          Delete
+                          {t('common.delete')}
                         </button>
                       </div>
                     )}
@@ -1428,7 +1428,7 @@ const Documents = () => {
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
                             <EditIcon style={{width: 16, height: 16}} />
-                            Edit
+                            {t('common.edit')}
                           </button>
                           <button
                             onClick={(e) => {
@@ -1458,7 +1458,7 @@ const Documents = () => {
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
                             <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
-                            Upload
+                            {t('common.upload')}
                           </button>
                           <button
                             onClick={(e) => {
@@ -1487,7 +1487,7 @@ const Documents = () => {
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
                             <TrashCanIcon style={{width: 16, height: 16}} />
-                            Delete
+                            {t('common.delete')}
                           </button>
                         </div>
                       )}
@@ -1956,7 +1956,7 @@ const Documents = () => {
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
                                   <DownloadIcon style={{ width: 20, height: 20 }} />
-                                  Download
+                                  {t('common.download')}
                                 </button>
 
                                 <button
@@ -1985,7 +1985,7 @@ const Documents = () => {
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
                                   <EditIcon style={{ width: 20, height: 20 }} />
-                                  Rename
+                                  {t('common.rename')}
                                 </button>
 
                                 <button
@@ -2014,7 +2014,7 @@ const Documents = () => {
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
                                   <AddIcon style={{ width: 20, height: 20 }} />
-                                  Move
+                                  {t('common.move')}
                                 </button>
 
                                 <button
@@ -2044,7 +2044,7 @@ const Documents = () => {
                                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                 >
                                   <TrashCanIcon style={{ width: 20, height: 20 }} />
-                                  Delete
+                                  {t('common.delete')}
                                 </button>
                               </div>
                             </div>,

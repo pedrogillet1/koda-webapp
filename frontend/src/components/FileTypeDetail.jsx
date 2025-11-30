@@ -20,15 +20,18 @@ import txtIcon from '../assets/txt-icon.png';
 import mp3Icon from '../assets/mp3.svg';
 
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
-import { ReactComponent as VectorIcon } from '../assets/Vector.svg';
+import { ReactComponent as DotsIcon } from '../assets/dots.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can-red.svg';
 import { ReactComponent as FolderSvgIcon } from '../assets/Folder.svg';
+import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
+import { ReactComponent as EditIcon } from '../assets/Edit 5.svg';
+import { ReactComponent as AddIcon } from '../assets/add.svg';
 
 const FileTypeDetail = () => {
   const { t } = useTranslation();
   const { fileType } = useParams();
   const navigate = useNavigate();
-  const { documents, deleteDocument, folders: contextFolders, moveToFolder } = useDocuments();
+  const { documents, deleteDocument, folders: contextFolders, moveToFolder, renameDocument, downloadDocument } = useDocuments();
   const isMobile = useIsMobile();
   const { showSuccess, showError } = useToast();
   
@@ -43,6 +46,9 @@ const FileTypeDetail = () => {
   const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [availableCategories, setAvailableCategories] = useState([]);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [itemToRename, setItemToRename] = useState(null);
+  const [newName, setNewName] = useState('');
 
   const {
     isSelectMode,
@@ -269,6 +275,38 @@ const FileTypeDetail = () => {
     setShowCategoryModal(true);
   };
 
+  const handleDownload = async (doc) => {
+    setOpenDropdownId(null);
+    try {
+      await downloadDocument(doc.id, doc.filename);
+      showSuccess(t('toasts.downloadedFile', { name: doc.filename }));
+    } catch (error) {
+      console.error('Download error:', error);
+      showError(t('alerts.failedToDownloadFile'));
+    }
+  };
+
+  const handleRename = (doc) => {
+    setItemToRename({ type: 'document', id: doc.id, name: doc.filename });
+    setNewName(doc.filename);
+    setShowRenameModal(true);
+    setOpenDropdownId(null);
+  };
+
+  const handleConfirmRename = async () => {
+    if (!itemToRename || !newName.trim()) return;
+    try {
+      await renameDocument(itemToRename.id, newName.trim());
+      showSuccess(t('success.renamed'));
+      setShowRenameModal(false);
+      setItemToRename(null);
+      setNewName('');
+    } catch (error) {
+      console.error('Rename error:', error);
+      showError(t('toasts.failedToRename', { type: 'document' }));
+    }
+  };
+
   return (
     <div style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex' }}>
       <LeftNav />
@@ -408,19 +446,29 @@ const FileTypeDetail = () => {
                         </>
                       )}
                       <div data-dropdown style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => setOpenDropdownId(openDropdownId === doc.id ? null : doc.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 8, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <VectorIcon style={{ width: 18, height: 18, color: '#6B7280' }} />
+                        <button onClick={() => setOpenDropdownId(openDropdownId === doc.id ? null : doc.id)} style={{ width: 32, height: 32, background: 'transparent', borderRadius: '50%', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                          <DotsIcon style={{ width: 24, height: 24 }} />
                         </button>
                         {openDropdownId === doc.id && (
-                          <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #E5E7EB', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
-                            <button onClick={() => handleAddToCategory(doc)} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                              <FolderSvgIcon style={{ width: 16, height: 16 }} />
-                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#111827' }}>{t('common.moveToFolder')}</span>
-                            </button>
-                            <button onClick={() => handleDelete(doc)} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }} onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                              <TrashCanIcon style={{ width: 16, height: 16 }} />
-                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#D92D20' }}>{t('common.delete')}</span>
-                            </button>
+                          <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
+                            <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                              <button onClick={() => handleDownload(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <DownloadIcon style={{ width: 20, height: 20 }} />
+                                {t('common.download')}
+                              </button>
+                              <button onClick={() => handleRename(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <EditIcon style={{ width: 20, height: 20 }} />
+                                {t('common.rename')}
+                              </button>
+                              <button onClick={() => handleAddToCategory(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <AddIcon style={{ width: 20, height: 20 }} />
+                                {t('common.move')}
+                              </button>
+                              <button onClick={() => handleDelete(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#D92D20', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <TrashCanIcon style={{ width: 20, height: 20 }} />
+                                {t('common.delete')}
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -433,19 +481,29 @@ const FileTypeDetail = () => {
                     <div key={doc.id} onClick={() => { if (isSelectMode) toggleDocument(doc.id); else navigate('/document/' + doc.id); }} style={{ background: 'white', borderRadius: 16, border: isSelected(doc.id) ? '2px solid #32302C' : '1px solid #E6E6EC', padding: 16, cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }} onMouseEnter={(e) => { if (!isSelected(doc.id)) { e.currentTarget.style.transform = 'translateY(-2px)'; } }} onMouseLeave={(e) => { if (!isSelected(doc.id)) { e.currentTarget.style.transform = 'translateY(0)'; } }}>
                       {isSelectMode && <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}><input type="checkbox" checked={isSelected(doc.id)} onChange={() => toggleDocument(doc.id)} onClick={(e) => e.stopPropagation()} style={{ width: 20, height: 20, cursor: 'pointer', accentColor: '#111827' }} /></div>}
                       <div data-dropdown style={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => setOpenDropdownId(openDropdownId === doc.id ? null : doc.id)} style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <VectorIcon style={{ width: 16, height: 16, color: '#6B7280' }} />
+                        <button onClick={() => setOpenDropdownId(openDropdownId === doc.id ? null : doc.id)} style={{ width: 32, height: 32, background: 'white', border: '1px solid #E5E7EB', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                          <DotsIcon style={{ width: 20, height: 20 }} />
                         </button>
                         {openDropdownId === doc.id && (
-                          <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #E5E7EB', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
-                            <button onClick={() => handleAddToCategory(doc)} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                              <FolderSvgIcon style={{ width: 16, height: 16 }} />
-                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#111827' }}>{t('common.moveToFolder')}</span>
-                            </button>
-                            <button onClick={() => handleDelete(doc)} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }} onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                              <TrashCanIcon style={{ width: 16, height: 16 }} />
-                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#D92D20' }}>{t('common.delete')}</span>
-                            </button>
+                          <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
+                            <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                              <button onClick={() => handleDownload(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <DownloadIcon style={{ width: 20, height: 20 }} />
+                                {t('common.download')}
+                              </button>
+                              <button onClick={() => handleRename(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <EditIcon style={{ width: 20, height: 20 }} />
+                                {t('common.rename')}
+                              </button>
+                              <button onClick={() => handleAddToCategory(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <AddIcon style={{ width: 20, height: 20 }} />
+                                {t('common.move')}
+                              </button>
+                              <button onClick={() => handleDelete(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#D92D20', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                                <TrashCanIcon style={{ width: 20, height: 20 }} />
+                                {t('common.delete')}
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -489,6 +547,27 @@ const FileTypeDetail = () => {
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button onClick={() => { setShowCategoryModal(false); setSelectedDocumentForCategory(null); setSelectedCategoryId(null); }} style={{ padding: '10px 20px', background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer', fontSize: 15, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#111827' }}>{t('common.cancel')}</button>
               <button onClick={handleCategorySelection} disabled={!selectedCategoryId} style={{ padding: '10px 20px', background: selectedCategoryId ? '#111827' : '#E5E7EB', border: 'none', borderRadius: 8, cursor: selectedCategoryId ? 'pointer' : 'not-allowed', fontSize: 15, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: 'white' }}>{t('common.move')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRenameModal && (
+        <div onClick={() => { setShowRenameModal(false); setItemToRename(null); setNewName(''); }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: 16, padding: 24, width: '90%', maxWidth: 400 }}>
+            <h3 style={{ fontSize: 20, fontWeight: '700', color: '#111827', fontFamily: 'Plus Jakarta Sans', marginTop: 0, marginBottom: 16 }}>{t('modals.rename.title', { item: t('common.file') })}</h3>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder={t('modals.rename.placeholder')}
+              style={{ width: '100%', padding: '12px 16px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 15, fontFamily: 'Plus Jakarta Sans', marginBottom: 24, boxSizing: 'border-box' }}
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmRename(); }}
+            />
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowRenameModal(false); setItemToRename(null); setNewName(''); }} style={{ padding: '10px 20px', background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer', fontSize: 15, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#111827' }}>{t('common.cancel')}</button>
+              <button onClick={handleConfirmRename} disabled={!newName.trim()} style={{ padding: '10px 20px', background: newName.trim() ? '#111827' : '#E5E7EB', border: 'none', borderRadius: 8, cursor: newName.trim() ? 'pointer' : 'not-allowed', fontSize: 15, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: 'white' }}>{t('modals.rename.confirm')}</button>
             </div>
           </div>
         </div>

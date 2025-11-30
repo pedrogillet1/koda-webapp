@@ -533,6 +533,8 @@
     "confirm": "Confirm",
     "delete": "Delete",
     "edit": "Edit",
+    "upload": "Upload",
+    "open": "Open",
     "close": "Close",
     "back": "Back",
     "next": "Next",
