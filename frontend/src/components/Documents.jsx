@@ -587,7 +587,7 @@ const Documents = () => {
             </>
           ) : (
             <div style={{color: '#32302C', fontSize: isMobile ? 16 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', textAlign: isMobile ? 'center' : 'left'}}>
-              Welcome{isMobile ? '' : ' Back'}, {user && (user.firstName || user.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.email?.split('@')[0] || 'User'}!
+              {t('documents.welcomeBack', { name: user && (user.firstName || user.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.email?.split('@')[0] || t('common.user') })}
             </div>
           )}
           <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
@@ -622,7 +622,7 @@ const Documents = () => {
                 >
                   <TrashCanLightIcon style={{ width: 18, height: 18 }} />
                   <span style={{ color: '#D92D20', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>
-                    Delete{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
+                    {t('common.delete')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
                   </span>
                 </button>
 
@@ -651,7 +651,7 @@ const Documents = () => {
                     <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   <span style={{ color: '#32302C', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>
-                    Move{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
+                    {t('common.move')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
                   </span>
                 </button>
 
@@ -675,7 +675,7 @@ const Documents = () => {
                     color: '#111827'
                   }}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </>
             ) : (
@@ -1554,10 +1554,10 @@ const Documents = () => {
                       marginBottom: 8
                     }}>
                       {[
-                        { key: 'name', label: 'Name' },
-                        { key: 'type', label: 'Type' },
-                        { key: 'size', label: 'Size' },
-                        { key: 'date', label: 'Date' }
+                        { key: 'name', label: t('documents.tableHeaders.name') },
+                        { key: 'type', label: t('documents.tableHeaders.type') },
+                        { key: 'size', label: t('documents.tableHeaders.size') },
+                        { key: 'date', label: t('documents.tableHeaders.date') }
                       ].map(col => (
                         <div
                           key={col.key}
@@ -2738,7 +2738,7 @@ const Documents = () => {
                   wordWrap: 'break-word'
                 }}
               >
-                Need help finding something?
+                {t('help.needHelpFindingSomething')}
               </div>
             </div>
           </button>

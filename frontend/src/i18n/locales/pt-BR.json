@@ -272,7 +272,11 @@
       "O que é urgente para você agora?",
       "Com o que o Koda deve ajudar primeiro?",
       "Certo {name}, o que você precisa agora?"
-    ]
+    ],
+    "showMeTheFile": "Mostre-me o arquivo {{fileName}}",
+    "showMeFilesFrom": "Mostre-me arquivos de {{category}}",
+    "inFolder": "Em {{folderName}}",
+    "inDocuments": "Em Documentos"
   },
   "documents": {
     "title": "Documentos",

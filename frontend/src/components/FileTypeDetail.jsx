@@ -180,11 +180,11 @@ const FileTypeDetail = () => {
     const diffMs = now - docDate;
     const diffDays = Math.floor(diffMs / 86400000);
     if (diffDays === 0) {
-      return 'Today, ' + docDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      return t('common.today') + ', ' + docDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
     } else if (diffDays === 1) {
-      return 'Yesterday';
+      return t('common.yesterday');
     } else {
-      return docDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return docDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     }
   };
 
@@ -345,10 +345,10 @@ const FileTypeDetail = () => {
                       marginBottom: 8
                     }}>
                       {[
-                        { key: 'name', label: 'NAME' },
-                        { key: 'type', label: 'TYPE' },
-                        { key: 'size', label: 'SIZE' },
-                        { key: 'timeAdded', label: 'DATE' }
+                        { key: 'name', label: t('documents.tableHeaders.name') },
+                        { key: 'type', label: t('documents.tableHeaders.type') },
+                        { key: 'size', label: t('documents.tableHeaders.size') },
+                        { key: 'timeAdded', label: t('documents.tableHeaders.date') }
                       ].map(col => (
                         <div
                           key={col.key}

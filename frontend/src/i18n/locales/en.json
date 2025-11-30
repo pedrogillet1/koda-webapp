@@ -282,7 +282,11 @@
       "What's urgent for you right now?",
       "What should Koda help with first?",
       "Okay {name}, what do you need next?"
-    ]
+    ],
+    "showMeTheFile": "Show me the file {{fileName}}",
+    "showMeFilesFrom": "Show me files from {{category}}",
+    "inFolder": "In {{folderName}}",
+    "inDocuments": "In Documents"
   },
   "documents": {
     "title": "Documents",

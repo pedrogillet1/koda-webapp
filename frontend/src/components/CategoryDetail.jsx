@@ -1219,7 +1219,7 @@ const CategoryDetail = () => {
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '600'
                     }}>
-                      Delete{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
+                      {t('common.delete')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
                     </span>
                   </button>
 
@@ -1258,7 +1258,7 @@ const CategoryDetail = () => {
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '600'
                     }}>
-                      Move{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
+                      {t('common.move')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
                     </span>
                   </button>
 
@@ -1282,7 +1282,7 @@ const CategoryDetail = () => {
                       color: '#111827'
                     }}
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </>
               ) : (
@@ -1363,7 +1363,7 @@ const CategoryDetail = () => {
                       lineHeight: '24px',
                       wordWrap: 'break-word'
                     }}>
-                      Select
+                      {t('common.select')}
                     </div>
                   </button>
 
@@ -1613,7 +1613,7 @@ const CategoryDetail = () => {
                                 fontWeight: '500',
                                 lineHeight: '20px'
                               }}>
-                                Delete
+                                {t('common.delete')}
                               </div>
                             </div>
                           </div>
@@ -1820,7 +1820,7 @@ const CategoryDetail = () => {
                                 onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
-                                Move
+                                {t('common.move')}
                               </button>
                               <button
                                 onClick={(e) => {
@@ -1846,7 +1846,7 @@ const CategoryDetail = () => {
                                 onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
-                                Delete
+                                {t('common.delete')}
                               </button>
                             </div>
                           )}
@@ -2272,10 +2272,10 @@ const CategoryDetail = () => {
                       marginBottom: 8
                     }}>
                       {[
-                        { key: 'name', label: 'Name' },
-                        { key: 'type', label: 'Type' },
-                        { key: 'size', label: 'Size' },
-                        { key: 'timeAdded', label: 'Date' }
+                        { key: 'name', label: t('documents.tableHeaders.name') },
+                        { key: 'type', label: t('documents.tableHeaders.type') },
+                        { key: 'size', label: t('documents.tableHeaders.size') },
+                        { key: 'timeAdded', label: t('documents.tableHeaders.date') }
                       ].map(col => (
                         <div
                           key={col.key}

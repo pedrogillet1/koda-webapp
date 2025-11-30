@@ -272,7 +272,11 @@
       "¿Qué es urgente para ti ahora?",
       "¿Con qué debería ayudar Koda primero?",
       "Bien {name}, ¿qué necesitas ahora?"
-    ]
+    ],
+    "showMeTheFile": "Muéstrame el archivo {{fileName}}",
+    "showMeFilesFrom": "Muéstrame archivos de {{category}}",
+    "inFolder": "En {{folderName}}",
+    "inDocuments": "En Documentos"
   },
   "documents": {
     "title": "Documentos",
