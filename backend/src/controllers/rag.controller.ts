@@ -1568,7 +1568,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.log(`📁 [STREAMING ACTION] Creating folder: "${intentResult.parameters.folderName}"`);
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -1643,7 +1643,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
       // This immediately establishes the connection so frontend knows request is being processed
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -1714,7 +1714,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.log(`📁 [STREAMING ACTION] Renaming: "${intentResult.parameters.oldFilename}" to "${intentResult.parameters.newFilename}"`);
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -1786,7 +1786,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.log(`📁 [STREAMING ACTION] Deleting: "${intentResult.parameters.filename}"`);
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -1859,7 +1859,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.log(`👁️ [STREAMING ACTION] Showing file: "${intentResult.parameters.filename}"`);
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -1933,7 +1933,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.log(`📍 [STREAMING] Finding: "${intentResult.parameters.filename}"`);
 
       // ✅ FIX: Set up SSE headers FIRST, before doing work
-      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
@@ -2008,7 +2008,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       if (result) {
         // Set up SSE headers
-        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
         res.setHeader('X-Accel-Buffering', 'no');
@@ -2097,7 +2097,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     const finalAnswerLength = validLengths.includes(answerLength) ? answerLength : 'medium';
 
     // Set up SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
