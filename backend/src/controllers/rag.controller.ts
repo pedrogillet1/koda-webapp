@@ -1422,8 +1422,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.log(`⚡ [FAST KEYWORD] Detected greeting in ${detectedLanguage} (skipped LLM + DB)`);
     }
     // List files - skip LLM and skip conversation history fetch
-    // ✅ FIX: Added natural language file type names (excel, word, powerpoint)
-    else if (/\b(list|show|what|which|how many|quantos|cuantos)\b.*\b(files?|documents?|pdfs?|docx|xlsx|excel|word|powerpoint|ppt|txt)\b/i.test(lowerQuery)) {
+    // ✅ FIX: Added natural language file type names (excel, word, powerpoint, images)
+    else if (/\b(list|show|what|which|how many|quantos|cuantos)\b.*\b(files?|documents?|pdfs?|docx|xlsx|excel|word|powerpoint|ppt|txt|png|jpe?g|images?|pictures?|photos?)\b/i.test(lowerQuery)) {
       // Extract file types if present (support both technical and natural language terms)
       const fileTypes: string[] = [];
       if (/\bpdf/i.test(lowerQuery)) fileTypes.push('pdf');
@@ -1431,6 +1431,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       if (/\b(xlsx?|excel|spreadsheet)\b/i.test(lowerQuery)) fileTypes.push('xlsx');
       if (/\b(pptx?|powerpoint|presentation)\b/i.test(lowerQuery)) fileTypes.push('pptx');
       if (/\btxt\b/i.test(lowerQuery)) fileTypes.push('txt');
+      if (/\b(png|jpe?g|images?|pictures?|photos?)\b/i.test(lowerQuery)) {
+        fileTypes.push('png');
+        fileTypes.push('jpg');
+        fileTypes.push('jpeg');
+      }
 
       intentResult = {
         intent: 'list_files',

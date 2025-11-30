@@ -3951,7 +3951,7 @@ async function handleNavigationQuery(
 
   // Build folder list for context
   const folderList = folders.length > 0
-    ? folders.map(f => `${f.emoji || 'ðŸ“'} **${f.name}** (${f._count.documents} files)`).join(', ')
+    ? folders.map(f => `**${f.name}** (${f._count.documents} files)`).join(', ')
     : 'No folders created yet';
 
   // Build personalization context with user's library and navigation guide
@@ -6280,14 +6280,14 @@ async function handleFileLocationQuery(
 
   if (documents.length === 1) {
     const doc = documents[0];
-    const folderName = doc.folder ? `${doc.folder.emoji || 'ðŸ“'} **${doc.folder.name}**` : '**Library**';
+    const folderName = doc.folder ? `**${doc.folder.name}**` : '**Library**';
     onChunk(`**${doc.filename}** is located in: ${folderName}`);
     return { sources: [{ documentId: doc.id, documentName: doc.filename, score: 1.0 }] };
   }
 
   // Multiple files with same name
   const locations = documents.map(doc => {
-    const folderName = doc.folder ? `${doc.folder.emoji || 'ðŸ“'} **${doc.folder.name}**` : '**Library**';
+    const folderName = doc.folder ? `**${doc.folder.name}**` : '**Library**';
     return `- **${doc.filename}** in ${folderName}`;
   }).join('\n');
 
@@ -6431,8 +6431,7 @@ async function handleFolderContentQuery(
   }
 
   // Build response
-  const emoji = folder.emoji || 'ðŸ“';
-  let response = `Your ${emoji} **${folder.name}** folder contains:\n\n`;
+  let response = `Your **${folder.name}** folder contains:\n\n`;
 
   // List documents
   if (folder.documents.length === 0) {
@@ -6602,19 +6601,13 @@ function buildFolderTree(folders: any[]): any[] {
 function formatFolderTreeItem(folder: any, depth: number): string {
   const indent = '  '.repeat(depth);
 
-  // Sanitize emoji - replace "FOLDER_SVG", "__FOLDER_SVG__", or invalid values with ðŸ“
-  let emoji = folder.emoji || 'ðŸ“';
-  if (emoji === 'FOLDER_SVG' || emoji === '__FOLDER_SVG__' || emoji.trim() === '') {
-    emoji = 'ðŸ“';
-  }
-
   const docCount = folder._count?.documents || 0;
   const docText = docCount === 1 ? '1 document' : `${docCount} documents`;
 
   // Use proper Markdown list format with dash bullets
   const prefix = depth === 0 ? '-' : '  -';
 
-  let result = `${indent}${prefix} ${emoji} **${folder.name}** (${docText})\n`;
+  let result = `${indent}${prefix} **${folder.name}** (${docText})\n`;ext})\n`;
 
   // Add children recursively
   if (folder.children && folder.children.length > 0) {
@@ -6647,15 +6640,9 @@ function buildFolderTreeContext(folders: any[]): string {
 
   // Recursive function to build tree
   const buildTree = (folder: any, indent: string = ''): string => {
-    // Sanitize emoji - replace "FOLDER_SVG", "__FOLDER_SVG__", or invalid values with ðŸ“
-    let emoji = folder.emoji || 'ðŸ“';
-    if (emoji === 'FOLDER_SVG' || emoji === '__FOLDER_SVG__' || emoji.trim() === '') {
-      emoji = 'ðŸ“';
-    }
+       const docCount = folder._count?.documents || 0;
 
-    const docCount = folder._count?.documents || 0;
-
-    let result = `${indent}${emoji} **${folder.name}** (${docCount} ${docCount === 1 ? 'file' : 'files'})`;
+    let result = `${indent}**${folder.name}** (${docCount} ${docCount === 1 ? 'file' : 'files'})`;s'})`;
 
     // Add subfolders
     const subfolders = folders.filter(f => f.parentFolderId === folder.id);
