@@ -1761,7 +1761,7 @@ const CategoryDetail = () => {
                               borderRadius: 12,
                               border: '1px solid #E6E6EC',
                               minWidth: 150,
-                              zIndex: 1001,
+                              zIndex: 90001,
                               overflow: 'hidden',
                               padding: 8
                             }}>
@@ -2004,7 +2004,7 @@ const CategoryDetail = () => {
                           position: 'relative',
                           opacity: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 0.5 : 1,
                           overflow: 'visible',
-                          zIndex: openDropdownId === doc.id ? 200 : 1
+                          zIndex: openDropdownId === doc.id ? 9000 : 1
                         }}
                         onMouseEnter={(e) => {
                           if (!isSelected(doc.id)) {
@@ -2118,7 +2118,7 @@ const CategoryDetail = () => {
                             position: 'absolute',
                             top: 12,
                             right: 12,
-                            zIndex: 100
+                            zIndex: 9000
                           }}
                           data-dropdown
                         >
@@ -2137,10 +2137,11 @@ const CategoryDetail = () => {
                                 // Calculate left position with bounds checking
                                 let leftPos = buttonRect.right - dropdownWidth;
                                 leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - dropdownWidth - 8));
-                                setDropdownMenuPosition({
+                                setDropdownMenuPosition(prev => ({
+                                  ...prev,
                                   top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
                                   left: leftPos
-                                });
+                                }));
                                 setOpenDropdownId(doc.id);
                               }
                             }}
@@ -2179,7 +2180,7 @@ const CategoryDetail = () => {
                                 border: '1px solid #E6E6EC',
                                 borderRadius: 12,
                                 boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                                zIndex: 100,
+                                zIndex: 9000,
                                 minWidth: 160,
                                 overflow: 'hidden',
                                 padding: 8
@@ -2484,10 +2485,11 @@ const CategoryDetail = () => {
                                 // Calculate left position with bounds checking
                                 let leftPos = buttonRect.right - dropdownWidth;
                                 leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - dropdownWidth - 8));
-                                setDropdownMenuPosition({
+                                setDropdownMenuPosition(prev => ({
+                                  ...prev,
                                   top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
                                   left: leftPos
-                                });
+                                }));
                                 setOpenDropdownId(doc.id);
                               }
                             }}
@@ -2522,7 +2524,7 @@ const CategoryDetail = () => {
                                     border: '1px solid #E6E6EC',
                                     borderRadius: 12,
                                     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                                    zIndex: 100,
+                                    zIndex: 9000,
                                     minWidth: 160,
                                     overflow: 'hidden',
                                     padding: 8

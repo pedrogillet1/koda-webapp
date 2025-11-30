@@ -3138,6 +3138,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
                                                             if (metadata?.result?.fileType === 'document_location') {
                                                                 const filename = metadata.result.filename || '';
+                                                                const mimeType = metadata.result.mimeType || '';
                                                                 const extension = filename.split('.').pop()?.toLowerCase() || '';
 
                                                                 const handleDownload = async () => {
@@ -3178,7 +3179,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                             gap: 12,
                                                                         }}>
                                                                             <img
-                                                                                src={getFileIcon(filename)}
+                                                                                src={getFileIcon(filename, mimeType)}
                                                                                 alt="File icon"
                                                                                 style={{
                                                                                     width: 40,
@@ -3304,7 +3305,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             }
 
                                             return attachedFiles.length > 0 ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'row', gap: 8, width: '100%', flexWrap: 'wrap', alignItems: 'flex-start' }}>
                                                     {attachedFiles.map((attachedFile, fileIndex) => (
                                                         <div
                                                             key={fileIndex}
@@ -3652,7 +3653,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
                 {/* File Attachments Preview */}
                 {uploadingFiles.length > 0 && (
-                    <div style={{marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
+                    <div style={{marginBottom: 12, display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
                         {uploadingFiles.map((file, index) => (
                             <FileUploadPreview
                                 key={`uploading-${index}`}
@@ -3729,15 +3730,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }}
                     >
                         <img
-                            src={getFileIcon((() => {
+                            src={(() => {
                                 const docs = attachedDocuments.length > 0
                                     ? attachedDocuments
                                     : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
                                 if (docs.length > 0) {
-                                    return docs[0].name || docs[0].filename || docs[0].originalName || '';
+                                    const filename = docs[0].name || docs[0].filename || docs[0].originalName || '';
+                                    const mimeType = docs[0].type || docs[0].mimeType || '';
+                                    return getFileIcon(filename, mimeType);
                                 }
-                                return '';
-                            })())}
+                                return getFileIcon('', '');
+                            })()}
                             alt="File icon"
                             style={{
                                 width: 40,

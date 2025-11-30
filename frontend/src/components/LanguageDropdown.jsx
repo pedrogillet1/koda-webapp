@@ -168,7 +168,7 @@ const LanguageDropdown = ({ type = 'interface', variant = 'default' }) => {
           border: '1px solid #E6E6EC',
           borderRadius: 12,
           boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-          zIndex: 1000,
+          zIndex: 9000,
           overflow: 'hidden',
           animation: 'dropdownFadeIn 0.15s ease-out'
         }}>

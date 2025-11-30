@@ -779,7 +779,7 @@ const DocumentsPage = () => {
                     position: 'relative',
                     height: 72,
                     boxSizing: 'border-box',
-                    zIndex: categoryMenuOpen === category.id ? 99999 : 1
+                    zIndex: categoryMenuOpen === category.id ? 9000 : 1
                   }}
                 >
                   <div onClick={() => {

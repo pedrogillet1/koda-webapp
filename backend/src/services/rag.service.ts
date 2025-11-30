@@ -6631,7 +6631,7 @@ function formatFolderTreeItem(folder: any, depth: number): string {
   // Use proper Markdown list format with dash bullets
   const prefix = depth === 0 ? '-' : '  -';
 
-  let result = `${indent}${prefix} **${folder.name}** (${docText})\n`;ext})\n`;
+  let result = `${indent}${prefix} **${folder.name}** (${docText})\n`;
 
   // Add children recursively
   if (folder.children && folder.children.length > 0) {
@@ -6666,7 +6666,7 @@ function buildFolderTreeContext(folders: any[]): string {
   const buildTree = (folder: any, indent: string = ''): string => {
        const docCount = folder._count?.documents || 0;
 
-    let result = `${indent}**${folder.name}** (${docCount} ${docCount === 1 ? 'file' : 'files'})`;s'})`;
+    let result = `${indent}**${folder.name}** (${docCount} ${docCount === 1 ? 'file' : 'files'})`;
 
     // Add subfolders
     const subfolders = folders.filter(f => f.parentFolderId === folder.id);

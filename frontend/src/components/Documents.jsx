@@ -1863,7 +1863,7 @@ const Documents = () => {
                             <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans', position: 'relative', zIndex: 1}}>{isUploading ? '' : new Date(doc.createdAt).toLocaleDateString()}</div>
                           </>
                         )}
-                        <div style={{position: 'relative', zIndex: 1}} data-dropdown>
+                        <div style={{position: 'relative'}} data-dropdown>
                           <button
                             ref={(el) => {
                               if (el) dropdownRefs.current[doc.id] = el;
@@ -1907,7 +1907,7 @@ const Documents = () => {
                                 boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                                 borderRadius: 12,
                                 border: '1px solid #E6E6EC',
-                                zIndex: 100,
+                                zIndex: 9000,
                                 minWidth: 160,
                                 overflow: 'hidden'
                               }}
