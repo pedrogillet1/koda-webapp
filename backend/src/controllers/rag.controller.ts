@@ -2178,7 +2178,17 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         conversationId,
         (chunk: string) => {
           console.log('🚀 [DEBUG] onChunk called with chunk length:', chunk.length);
-          console.log('🚀 [DEBUG] Chunk preview:', chunk.substring(0, 50));
+          console.log('🚀 [DEBUG] Chunk full content:', chunk);
+          console.log('🚀 [DEBUG] Checking for marker...');
+          console.log('🚀 [DEBUG] Contains marker?:', chunk.includes('__DOCUMENT_GENERATION_REQUESTED__:'));
+
+          // Check if this is a document generation marker - don't send to client
+          if (chunk.includes('__DOCUMENT_GENERATION_REQUESTED__:')) {
+            console.log('📝 [RAG CONTROLLER] Intercepted document generation marker - not sending to client');
+            fullAnswer += chunk;
+            return; // Don't send marker to client
+          }
+
           fullAnswer += chunk;
           // Stream each chunk to client
           console.log('🚀 [DEBUG] Writing chunk to SSE stream...');
@@ -2243,6 +2253,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     // Use responsePostProcessor service for consistent formatting
     let cleanedAnswer = responsePostProcessor.process(result.answer, result.sources || []);
+    let generatedChatDocument: any = null; // Store chat document for the done event
     console.log('✅ [POST-PROCESSING] Applied responsePostProcessor formatting (warnings, spacing, next steps limiting)');
 
     // ========================================
@@ -2332,8 +2343,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
             confidence: (result as any).confidence || 0.8,
             answerLength: finalAnswerLength,
             regeneratedAt: new Date().toISOString()
-          }),
-          updatedAt: new Date()
+          })
         },
       });
     } else {
@@ -2351,6 +2361,76 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           }),
         },
       });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════════
+    // DOCUMENT GENERATION HANDLER
+    // ════════════════════════════════════════════════════════════════════════════════
+    // Check if the answer contains document generation marker
+    if (cleanedAnswer.includes('__DOCUMENT_GENERATION_REQUESTED__:')) {
+      console.log('📝 [RAG CONTROLLER] Detected document generation marker in answer');
+
+      // Extract document type from marker
+      const markerMatch = cleanedAnswer.match(/__DOCUMENT_GENERATION_REQUESTED__:(\w+)/);
+      const documentType = markerMatch ? markerMatch[1] as 'summary' | 'report' | 'analysis' | 'general' : 'general';
+
+      console.log(`📝 [RAG CONTROLLER] Triggering ${documentType} document generation`);
+
+      try {
+        // Import document generation service
+        const chatDocGenService = await import('../services/chatDocumentGeneration.service');
+
+        // Stream progress message to client
+        const progressMessage = `\n\n📝 Generating your ${documentType}...\n\n`;
+        res.write(`data: ${JSON.stringify({ type: 'content', content: progressMessage })}\n\n`);
+        if (res.flush) res.flush();
+
+        // Generate document
+        const docResult = await chatDocGenService.generateDocument({
+          userId,
+          conversationId,
+          messageId: assistantMessage.id,
+          query,
+          documentType,
+        });
+
+        // Store chat document for the done event
+        generatedChatDocument = docResult.chatDocument;
+
+        // Update assistant message with generated document content
+        await prisma.message.update({
+          where: { id: assistantMessage.id },
+          data: {
+            content: docResult.message,
+          },
+        });
+
+        // Update cleanedAnswer for the done event
+        cleanedAnswer = docResult.message;
+
+        console.log(`✅ [RAG CONTROLLER] Document generated successfully: ${docResult.chatDocument.id}`);
+
+        // Stream final message
+        res.write(`data: ${JSON.stringify({ type: 'content', content: '\n' + docResult.message })}\n\n`);
+        if (res.flush) res.flush();
+      } catch (docGenError: any) {
+        console.error('❌ [RAG CONTROLLER] Document generation failed:', docGenError);
+        console.error('❌ [RAG CONTROLLER] Error message:', docGenError?.message);
+        console.error('❌ [RAG CONTROLLER] Error stack:', docGenError?.stack);
+        const errorMessage = '\n\n❌ Failed to generate document. Please try again.';
+
+        await prisma.message.update({
+          where: { id: assistantMessage.id },
+          data: {
+            content: cleanedAnswer + errorMessage,
+          },
+        });
+
+        cleanedAnswer += errorMessage;
+
+        res.write(`data: ${JSON.stringify({ type: 'content', content: errorMessage })}\n\n`);
+        if (res.flush) res.flush();
+      }
     }
 
     // Update conversation timestamp
@@ -2468,6 +2548,7 @@ Format the document using markdown with proper structure. Do NOT include the tit
 
     // Send completion signal with metadata AND formatted answer
     console.log('🚀 [DEBUG] About to send done event');
+    console.log('📄 [DEBUG] generatedChatDocument:', generatedChatDocument ? `{id: "${generatedChatDocument.id}", title: "${generatedChatDocument.title}"}` : 'null');
     res.write(`data: ${JSON.stringify({
       type: 'done',
       formattedAnswer: cleanedAnswer, // ✅ Send post-processed answer (next steps limited)
@@ -2481,6 +2562,7 @@ Format the document using markdown with proper structure. Do NOT include the tit
       uiUpdate: result.uiUpdate,
       conversationId,
       generatedDocument: generatedDocument || undefined, // ✅ Include generated document info
+      chatDocument: generatedChatDocument || undefined, // ✅ Include chat document for display
     })}\n\n`);
     console.log('🚀 [DEBUG] Done event sent');
 

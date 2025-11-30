@@ -2293,6 +2293,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         }
                                     } else if (data.type === 'done') {
                                         metadata = data;
+                                        console.log('📄 [DONE EVENT] chatDocument:', metadata.chatDocument ? `ID: ${metadata.chatDocument.id}` : 'null');
                                     } else if (data.type === 'error') {
                                         throw new Error(data.error);
                                     }
@@ -2319,6 +2320,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             createdAt: new Date().toISOString(),
                             ragSources: metadata.sources || [],
                             confidence: metadata.confidence, // Include confidence score
+                            chatDocument: metadata.chatDocument || null, // Include chat document for display
                         };
 
                         pendingMessageRef.current = {
