@@ -6,6 +6,7 @@ import { previewCache } from '../services/previewCache';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { getFileIcon } from '../utils/iconMapper';
 import { downloadFile } from '../utils/browserUtils';
+import GeneratedDocumentCard from './GeneratedDocumentCard';
 
 // Set up the worker for pdf.js
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -575,6 +576,18 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
               }}
             >
               Loading preview...
+            </div>
+          ) : document.chatDocument ? (
+            /* Render ChatDocument (generated documents) */
+            <div style={{ 
+              width: '100%', 
+              maxWidth: 900, 
+              background: 'white', 
+              borderRadius: 12, 
+              padding: '32px 40px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+            }}>
+              <GeneratedDocumentCard chatDocument={document.chatDocument} />
             </div>
           ) : previewUrl ? (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>

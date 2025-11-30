@@ -15,6 +15,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { getFileIcon } from '../utils/iconMapper';
 import GeneratedDocumentCard from './GeneratedDocumentCard';
+import DocumentPreviewButton from './DocumentPreviewButton';
 import DocumentCard from './DocumentCard';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import { previewCache } from '../services/previewCache';
@@ -2509,9 +2510,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 </ReactMarkdown>
                                                             </div>
 
-                                                            {/* Generated Document Card */}
+                                                            {/* Manus-style Document Preview Button */}
                                                             {msg.chatDocument && (
-                                                                <GeneratedDocumentCard chatDocument={msg.chatDocument} />
+                                                                <DocumentPreviewButton 
+                                                                    chatDocument={msg.chatDocument}
+                                                                    onPreview={() => {
+                                                                        console.log('📄 [DOCUMENT] Opening preview for:', msg.chatDocument);
+                                                                        // Convert chatDocument to document format for preview modal
+                                                                        setPreviewDocument({
+                                                                            id: msg.chatDocument.id,
+                                                                            filename: `${msg.chatDocument.title}.md`,
+                                                                            mimeType: 'text/markdown',
+                                                                            chatDocument: msg.chatDocument // Pass full chatDocument for rendering
+                                                                        });
+                                                                    }}
+                                                                />
                                                             )}
 
                                                             {/* Document Cards (for document requests) */}
