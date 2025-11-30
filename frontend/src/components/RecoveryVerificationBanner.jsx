@@ -182,6 +182,7 @@ const RecoveryVerificationBanner = () => {
 
 // Phone number input modal component
 const AddPhoneModal = ({ onClose, onSuccess, onError }) => {
+  const { t } = useTranslation();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [phoneFocused, setPhoneFocused] = useState(false);

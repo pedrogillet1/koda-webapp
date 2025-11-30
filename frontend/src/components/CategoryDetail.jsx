@@ -124,7 +124,7 @@ const CategoryDetail = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
-  const { showSuccess, showDeleteSuccess } = useToast();
+  const { showSuccess, showDeleteSuccess, showError } = useToast();
   const isMobile = useIsMobile();
   const {
     documents: contextDocuments,
