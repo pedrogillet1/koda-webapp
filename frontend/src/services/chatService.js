@@ -123,14 +123,12 @@ export const initializeSocket = (token) => {
     socket.disconnect();
   }
 
-  const isNgrok = WS_URL.includes('ngrok');
-  console.log(`📡 [WEBSOCKET] Initializing connection (attempt ${reconnectAttempts + 1}) to:`, WS_URL, '(ngrok:', isNgrok, ')');
+  console.log(`📡 [WEBSOCKET] Initializing connection (attempt ${reconnectAttempts + 1}) to:`, WS_URL);
 
   // Create new socket connection
   socket = io(WS_URL, {
     auth: { token },
-    // For ngrok, start with polling first due to WebSocket limitations
-    transports: isNgrok ? ['polling', 'websocket'] : ['websocket', 'polling'],
+    transports: ['websocket', 'polling'],
     reconnection: false, // We handle reconnection manually for better control
     timeout: 20000, // 20 second connection timeout
   });

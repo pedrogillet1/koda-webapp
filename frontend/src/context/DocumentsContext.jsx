@@ -493,14 +493,12 @@ export const DocumentsProvider = ({ children }) => {
       return;
     }
 
-    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-    const isNgrok = apiUrl.includes('ngrok');
+    const apiUrl = process.env.REACT_APP_API_URL || 'https://getkoda.ai';
 
     // Initialize socket connection
-    // For ngrok, start with polling first due to WebSocket limitations
     const socket = io(apiUrl, {
       auth: { token },
-      transports: isNgrok ? ['polling', 'websocket'] : ['websocket', 'polling'],
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,

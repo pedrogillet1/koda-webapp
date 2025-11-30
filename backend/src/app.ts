@@ -39,29 +39,24 @@ const app: Application = express();
 // Initialize Sentry (MUST be first, before other middleware)
 initSentry(app);
 
-// Trust proxy - needed for ngrok and other proxies
+// Trust proxy - needed for reverse proxies
 app.set('trust proxy', 1);
 
 // CORS configuration - MUST BE FIRST to handle preflight OPTIONS requests properly
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean | string) => void) => {
-    // Allow configured frontend URL and ngrok domains
+    // Allow configured frontend URL and production domains
     const allowedOrigins = [
-      'https://koda-frontend.ngrok.app',
+      'https://getkoda.ai',
       'http://localhost:3000', // Development frontend
       'http://localhost:3001', // Alternative development frontend port
       config.FRONTEND_URL
     ];
 
-    // Check if origin is allowed or if it's an ngrok domain
-    const isNgrokDomain = origin && (origin.includes('.ngrok.app') || origin.includes('.ngrok-free.dev'));
-
-    console.log(`🔍 CORS Check - Origin: ${origin}, isNgrokDomain: ${isNgrokDomain}, allowed: ${!origin || allowedOrigins.includes(origin || '') || isNgrokDomain}`);
-
     if (!origin) {
       // No origin (same-origin requests)
       callback(null, true);
-    } else if (allowedOrigins.includes(origin) || isNgrokDomain) {
+    } else if (allowedOrigins.includes(origin)) {
       // Return the actual origin to set proper Access-Control-Allow-Origin header
       callback(null, origin);
     } else {
@@ -89,7 +84,7 @@ const corsOptions = {
 // Apply CORS before any other middleware that sets headers
 app.use(cors(corsOptions));
 
-// Security middleware - Relaxed for ngrok development
+// Security middleware
 if (process.env.NODE_ENV === 'production') {
   app.use(helmet({
     contentSecurityPolicy: {
@@ -140,7 +135,7 @@ if (process.env.NODE_ENV === 'production') {
     next();
   });
 } else {
-  // Development mode - Apply security headers but allow ngrok/CORS flexibility
+  // Development mode - Apply security headers with CORS flexibility
   app.use((req, res, next) => {
     // Skip CORS preflight requests
     if (req.method === 'OPTIONS') {

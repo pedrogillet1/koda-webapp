@@ -33,18 +33,14 @@ const httpServer = createSecureServer(app);
 // Create HTTP to HTTPS redirect server (production only)
 const redirectServer = createHTTPRedirectServer();
 
-// Initialize Socket.IO with dynamic CORS for ngrok domains
+// Initialize Socket.IO with CORS configuration
 export const io = new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
-      // Allow configured frontend URL, any ngrok domain, or no origin (same-origin)
-      const allowedOrigins = [config.FRONTEND_URL, 'https://koda-frontend.ngrok.app'];
-      const isNgrokDomain = origin && (origin.includes('.ngrok.app') || origin.includes('.ngrok-free.dev'));
+      // Allow configured frontend URL, production domain, localhost, or no origin (same-origin)
+      const allowedOrigins = [config.FRONTEND_URL, 'https://getkoda.ai', 'http://localhost:3000'];
 
-      console.log('🔍 CORS Check - Origin:', origin, 'isNgrokDomain:', isNgrokDomain, 'allowed:', !origin || allowedOrigins.includes(origin || '') || isNgrokDomain);
-
-      if (!origin || allowedOrigins.includes(origin || '') || isNgrokDomain) {
-        // Return the actual origin to set Access-Control-Allow-Origin header
+      if (!origin || allowedOrigins.includes(origin || '')) {
         callback(null, origin || '*');
       } else {
         callback(new Error('Not allowed by CORS'));
@@ -54,7 +50,6 @@ export const io = new Server(httpServer, {
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   },
-  // Add transport options for better ngrok compatibility
   transports: ['websocket', 'polling'],
   allowEIO3: true, // Allow Engine.IO v3 clients
   pingTimeout: 60000,
@@ -153,7 +148,7 @@ io.on('connection', (socket) => {
       }
 
       // ✅ FIX: Emit to BOTH room AND directly to sender socket
-      // This ensures the sender always receives events even if room joining has issues (ngrok/polling)
+      // This ensures the sender always receives events even if room joining has issues
       const emitToConversation = (event: string, data: any) => {
         io.to(`conversation:${conversationId}`).emit(event, data);
         // Also emit directly to sender socket as fallback
