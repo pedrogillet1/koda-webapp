@@ -67,8 +67,8 @@ const SYNTHESIS_PATTERNS = {
     /(?:summarize|overview|summary) (?:of )?(?:all|my) (?:papers?|documents?)/i,
     /(?:overall|combined|total) (?:findings?|results?|conclusions?)/i,
     // "Create a summary report" patterns
-    /(?:create|make|generate|write|produce) (?:a |an )?(?:summary|comprehensive|detailed)? ?(?:report|document|analysis|overview) (?:of|from|based on|using) (?:my |the |all )?(?:documents?|files?|papers?)/i,
-    /(?:create|make|generate|write|produce) (?:a |an )?(?:summary|comprehensive|detailed)? ?(?:report|document|analysis|overview)/i,
+    /(?:create|make|generate) (?:a |an )?(?:summary|comprehensive|detailed)? ?(?:report|document|analysis) (?:of|from|based on|using) (?:my |the |all )?(?:documents?|files?|papers?)/i,
+    /(?:create|make|generate) (?:a |an )?(?:summary|comprehensive|detailed)? ?(?:report|document|analysis)/i,
   ],
 };
 
@@ -90,6 +90,18 @@ class SynthesisQueryDetectionService {
    */
   detect(query: string): SynthesisQueryResult {
     const queryLower = query.toLowerCase().trim();
+
+    // ⚠️ PRIORITY FIX: Exclude document creation queries from synthesis detection
+    // Queries like "create a summary report" should be handled by document generation, not synthesis
+    const isCreationQuery = /(?:create|make|generate|build|write|draft|prepare|compose|criar|gerar|hacer|generar|créer)\s+(?:a |an )?(?:summary|report|document|file|pdf|docx)/i.test(queryLower);
+    if (isCreationQuery) {
+      return {
+        isSynthesisQuery: false,
+        type: 'none',
+        confidence: 0,
+        reasoning: 'Document creation query - not a synthesis query',
+      };
+    }
 
     // Check each pattern type
     for (const [type, patterns] of Object.entries(SYNTHESIS_PATTERNS)) {

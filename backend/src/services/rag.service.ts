@@ -51,6 +51,7 @@ class PerformanceTimer {
   start(label: string): void {
     const now = Date.now();
     this.checkpointStack.push({ label, start: now });
+    console.log(`â±ï¸  [START] ${label}`);
   }
 
   end(label: string): number {
@@ -70,6 +71,7 @@ class PerformanceTimer {
     this.timings.get(label)!.push(duration);
 
     const totalElapsed = now - this.startTime;
+    console.log(`â±ï¸  [END] ${label}: ${duration}ms (total: ${totalElapsed}ms)`);
 
     return duration;
   }
@@ -93,6 +95,7 @@ class PerformanceTimer {
     }
     this.timings.get(label)!.push(duration);
 
+    console.log(`â±ï¸  [MEASURE] ${label}: ${duration}ms`);
     return duration;
   }
 
@@ -101,10 +104,14 @@ class PerformanceTimer {
       this.timings.set(label, []);
     }
     this.timings.get(label)!.push(duration);
+    console.log(`â±ï¸  [RECORD] ${label}: ${duration}ms`);
   }
 
   printSummary(): void {
     const totalTime = Date.now() - this.startTime;
+    console.log('\nâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+    console.log('â±ï¸  COMPLETE PERFORMANCE TIMING BREAKDOWN');
+    console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
 
     const entries = Array.from(this.timings.entries())
       .map(([label, times]) => ({
@@ -124,7 +131,9 @@ class PerformanceTimer {
       }
       const percentage = ((total / totalTime) * 100).toFixed(1);
       if (count > 1) {
+        console.log(`  ${label}: ${total}ms (${percentage}%) - ${avg.toFixed(1)}ms avg Ã— ${count} calls`);
       } else {
+        console.log(`  ${label}: ${total}ms (${percentage}%)`);
       }
     });
 
@@ -132,6 +141,11 @@ class PerformanceTimer {
     const measuredPct = ((measuredTime / totalTime) * 100).toFixed(1);
     const unmeasuredPct = ((unmeasuredTime / totalTime) * 100).toFixed(1);
 
+    console.log('â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€');
+    console.log(`  MEASURED: ${measuredTime}ms (${measuredPct}%)`);
+    console.log(`  UNMEASURED: ${unmeasuredTime}ms (${unmeasuredPct}%) â† INVESTIGATE THIS`);
+    console.log(`  TOTAL TIME: ${totalTime}ms`);
+    console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
   }
 
   reset(): void {
@@ -157,6 +171,7 @@ function fixMarkdownTableCells(markdown: string): string {
 
     // ðŸ”§ SAFEGUARD: Skip extremely long lines (malformed LLM output)
     if (line.length > 2000) {
+      console.warn(`âš ï¸ [TABLE FIX] Skipping malformed line (${line.length} chars)`);
       continue;
     }
 
@@ -177,6 +192,7 @@ function fixMarkdownTableCells(markdown: string): string {
           if (nextLine.startsWith('|') || !nextLine || nextLine.length === 0) break;
           // Skip extremely long continuation lines
           if (nextLine.length > 1000) {
+            console.warn(`âš ï¸ [TABLE FIX] Skipping malformed continuation (${nextLine.length} chars)`);
             break;
           }
           fullRow += ' ' + nextLine;
@@ -395,9 +411,11 @@ function getCachedIntent(query: string): any | null {
   const age = Date.now() - cached.timestamp;
   if (age > INTENT_CACHE_TTL) {
     intentCache.delete(normalizedQuery);
+    console.log('ðŸ—‘ï¸ [INTENT CACHE] Expired cache entry removed');
     return null;
   }
 
+  console.log(`âš¡ [INTENT CACHE] Cache hit! (age: ${Math.round(age / 1000)}s)`);
   return cached.result;
 }
 
@@ -407,6 +425,7 @@ function cacheIntent(query: string, result: any): void {
     result,
     timestamp: Date.now()
   });
+  console.log(`ðŸ’¾ [INTENT CACHE] Cached result (total entries: ${intentCache.size})`);
 }
 
 // Periodic cleanup of expired cache entries (every 10 minutes)
@@ -422,6 +441,7 @@ setInterval(() => {
   }
 
   if (removed > 0) {
+    console.log(`ðŸ§¹ [INTENT CACHE] Cleaned up ${removed} expired entries (${intentCache.size} remaining)`);
   }
 }, 10 * 60 * 1000);
 
@@ -442,7 +462,7 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 
   // Get unique document IDs
   const extractStart = Date.now();
-  const documentIds = [...new Set(matches.map(m => m.document_metadata?.documentId).filter(Boolean))];
+  const documentIds = [...new Set(matches.map(m => m.metadata?.documentId).filter(Boolean))];
   if (requestTimer) requestTimer.record('filterDeletedDocuments: Extract IDs', Date.now() - extractStart);
 
   if (documentIds.length === 0) {
@@ -450,10 +470,11 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
     return matches;
   }
 
+  console.log(`ðŸ” [FILTER] Checking ${documentIds.length} unique documents from ${matches.length} matches`);
 
   // Query database for valid (non-deleted) documents
   const dbStart = Date.now();
-  const validDocuments = await prisma.documents.findMany({
+  const validDocuments = await prisma.document.findMany({
     where: {
       id: { in: documentIds },
       userId: userId,
@@ -467,10 +488,11 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
 
   // Filter matches to only include valid documents
   const filterStart = Date.now();
-  const filtered = matches.filter(m => validDocumentIds.has(m.document_metadata?.documentId));
+  const filtered = matches.filter(m => validDocumentIds.has(m.metadata?.documentId));
   if (requestTimer) requestTimer.record('filterDeletedDocuments: Filter Matches', Date.now() - filterStart);
 
   if (filtered.length < matches.length) {
+    console.log(`ðŸ—‘ï¸ [FILTER] Removed deleted documents: ${matches.length} â†’ ${filtered.length}`);
   }
 
   if (requestTimer) requestTimer.record('filterDeletedDocuments (total)', Date.now() - fnStart);
@@ -489,18 +511,19 @@ async function retrieveFullDocuments(
   userId: string
 ): Promise<{ id: string; title: string; content: string; metadata?: any }[]> {
 
+  console.log(`ðŸ“„ [FULL DOCS] Retrieving ${documentIds.length} full documents`);
 
   // Remove duplicates
   const uniqueDocIds = [...new Set(documentIds)];
 
-  const documents = await prisma.documents.findMany({
+  const documents = await prisma.document.findMany({
     where: {
       id: { in: uniqueDocIds },
       userId: userId,
       status: 'completed'
     },
     include: {
-      document_metadata: {
+      metadata: {
         select: {
           extractedText: true,
           markdownContent: true,
@@ -514,18 +537,20 @@ async function retrieveFullDocuments(
   const fullDocs = documents.map(doc => ({
     id: doc.id,
     title: doc.filename,
-    content: doc.document_metadata?.markdownContent || doc.document_metadata?.extractedText || '',
-    document_metadata: {
-      pageCount: doc.document_metadata?.pageCount,
-      wordCount: doc.document_metadata?.wordCount
+    content: doc.metadata?.markdownContent || doc.metadata?.extractedText || '',
+    metadata: {
+      pageCount: doc.metadata?.pageCount,
+      wordCount: doc.metadata?.wordCount
     }
   }));
 
   // Calculate total tokens (rough estimate: 1 token â‰ˆ 4 characters)
   const totalTokens = fullDocs.reduce((sum, doc) => sum + (doc.content.length / 4), 0);
+  console.log(`ðŸ“„ [FULL DOCS] Retrieved ${fullDocs.length} documents (~${Math.floor(totalTokens)} tokens)`);
 
   // Warn if approaching context limit
   if (totalTokens > 800000) { // 800K tokens, leaving room for prompt and response
+    console.warn(`âš ï¸ [FULL DOCS] Large context size (${Math.floor(totalTokens)} tokens) - may need truncation`);
   }
 
   return fullDocs;
@@ -548,10 +573,10 @@ function buildDocumentContext(
     context += `### Document: ${doc.title}\n\n`;
 
     // Add metadata if available
-    if (doc.document_metadata) {
+    if (doc.metadata) {
       const meta = [];
-      if (doc.document_metadata.pageCount) meta.push(`${doc.document_metadata.pageCount} pages`);
-      if (doc.document_metadata.wordCount) meta.push(`${doc.document_metadata.wordCount} words`);
+      if (doc.metadata.pageCount) meta.push(`${doc.metadata.pageCount} pages`);
+      if (doc.metadata.wordCount) meta.push(`${doc.metadata.wordCount} words`);
       if (meta.length > 0) {
         context += `*[${meta.join(', ')}]*\n\n`;
       }
@@ -576,6 +601,7 @@ function buildConversationContext(
     return '';
   }
 
+  console.log(`ðŸ“š [CONTEXT] Building conversation history (${conversationHistory.length} messages)`);
 
   let context = '## Conversation History\n\n';
   let tokenCount = 0;
@@ -591,6 +617,7 @@ function buildConversationContext(
     const messageTokens = messageText.length / 4;
 
     if (tokenCount + messageTokens > maxTokens) {
+      console.log(`ðŸ“š [CONTEXT] Reached token limit, truncating history`);
       break;
     }
 
@@ -600,6 +627,7 @@ function buildConversationContext(
 
   context += includedMessages.join('');
 
+  console.log(`ðŸ“š [CONTEXT] Built history with ${includedMessages.length} messages (~${Math.floor(tokenCount)} tokens)`);
 
   return context;
 }
@@ -801,6 +829,7 @@ const model = genAI.getGenerativeModel({
     maxOutputTokens: 8192, // Keep same (max response length)
   },
 });
+console.log('âš¡ [SPEED] Gemini topK optimized: 40 â†’ 10 (balanced speed/quality)');
 
 let pinecone: Pinecone | null = null;
 let pineconeIndex: any = null;
@@ -809,6 +838,7 @@ let pineconeIndex: any = null;
 // âš¡ PERFORMANCE FIX: Export this function to allow pre-warming at server startup
 export async function initializePinecone() {
   if (!pinecone) {
+    console.log('ðŸ”¥ [PINECONE] Initializing Pinecone client...');
     const startTime = Date.now();
     pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY || '',
@@ -818,7 +848,9 @@ export async function initializePinecone() {
     // âš¡ WARM UP: Do a dummy query to establish the connection
     try {
       await pineconeIndex.describeIndexStats();
+      console.log(`âœ… [PINECONE] Connection warmed up in ${Date.now() - startTime}ms`);
     } catch (error) {
+      console.log(`âš ï¸  [PINECONE] Warm-up query failed (will retry on first real query)`);
     }
   }
 }
@@ -839,12 +871,13 @@ function fastCitationExtraction(response: string, chunks: any[]): any[] {
   const citationMatches = response.match(/\[(\d+)\]/g) || [];
   const citedIndices = [...new Set(citationMatches.map(m => parseInt(m.replace(/\[|\]/g, '')) - 1))];
 
+  console.log(`âš¡ [FAST CITATION] Found ${citedIndices.length} unique citation references in response`);
 
   // Map citations to chunks - keep highest score per document
   citedIndices.forEach(idx => {
     if (idx >= 0 && idx < chunks.length) {
       const chunk = chunks[idx];
-      const docId = chunk.document_metadata?.documentId;
+      const docId = chunk.metadata?.documentId;
       const score = chunk.score || chunk.rerankScore || chunk.hybridScore || 0;
 
       if (docId) {
@@ -853,9 +886,9 @@ function fastCitationExtraction(response: string, chunks: any[]): any[] {
         if (!existing || score > existing.score) {
           sourceMap.set(docId, {
             documentId: docId,
-            documentName: chunk.document_metadata?.filename || 'Unknown',
-            pageNumber: chunk.document_metadata?.page || null,
-            relevantText: (chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '').substring(0, 200),
+            documentName: chunk.metadata?.filename || 'Unknown',
+            pageNumber: chunk.metadata?.page || null,
+            relevantText: (chunk.metadata?.text || chunk.metadata?.content || chunk.content || '').substring(0, 200),
             score
           });
         }
@@ -865,8 +898,9 @@ function fastCitationExtraction(response: string, chunks: any[]): any[] {
 
   // If no citations found in response, use top 3 chunks as sources
   if (sourceMap.size === 0) {
+    console.log(`âš¡ [FAST CITATION] No explicit citations found, using top 3 chunks as sources`);
     chunks.slice(0, 3).forEach(chunk => {
-      const docId = chunk.document_metadata?.documentId;
+      const docId = chunk.metadata?.documentId;
       const score = chunk.score || chunk.rerankScore || chunk.hybridScore || 0;
 
       if (docId) {
@@ -875,9 +909,9 @@ function fastCitationExtraction(response: string, chunks: any[]): any[] {
         if (!existing || score > existing.score) {
           sourceMap.set(docId, {
             documentId: docId,
-            documentName: chunk.document_metadata?.filename || 'Unknown',
-            pageNumber: chunk.document_metadata?.page || null,
-            relevantText: (chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '').substring(0, 200),
+            documentName: chunk.metadata?.filename || 'Unknown',
+            pageNumber: chunk.metadata?.page || null,
+            relevantText: (chunk.metadata?.text || chunk.metadata?.content || chunk.content || '').substring(0, 200),
             score
           });
         }
@@ -888,6 +922,7 @@ function fastCitationExtraction(response: string, chunks: any[]): any[] {
   // Convert Map to array, sorted by score descending
   const sources = Array.from(sourceMap.values()).sort((a, b) => b.score - a.score);
 
+  console.log(`âš¡ [FAST CITATION] Extracted ${sources.length} unique document sources (saved ~1000ms)`);
   return sources;
 }
 
@@ -929,6 +964,7 @@ function observeRetrievalResults(
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   if (!results.matches || results.matches.length === 0) {
+    console.log('ðŸ” [OBSERVE] No results found - refinement needed');
     return {
       needsRefinement: true,
       reason: 'no_results',
@@ -946,6 +982,7 @@ function observeRetrievalResults(
   const topScore = results.matches[0]?.score || 0;
 
   if (topScore < minRelevanceScore) {
+    console.log(`ðŸ” [OBSERVE] Low relevance (top: ${topScore.toFixed(2)}, avg: ${avgScore.toFixed(2)}) - refinement needed`);
     return {
       needsRefinement: true,
       reason: 'low_relevance',
@@ -968,7 +1005,7 @@ function observeRetrievalResults(
 
     // Try to count how many distinct items we found
     // This is a heuristic - we look for numbered lists or distinct concepts
-    const content = results.matches.map((m: any) => m.document_metadata?.content || '').join(' ');
+    const content = results.matches.map((m: any) => m.metadata?.content || '').join(' ');
 
     // Count numbered items (1., 2., 3., etc.)
     const numberedItems = content.match(/\b\d+\.\s/g)?.length || 0;
@@ -979,6 +1016,7 @@ function observeRetrievalResults(
     const foundCount = Math.max(numberedItems, bulletItems, results.matches.length);
 
     if (foundCount < expectedCount) {
+      console.log(`ðŸ” [OBSERVE] Incomplete results (expected: ${expectedCount}, found: ${foundCount}) - refinement needed`);
       return {
         needsRefinement: true,
         reason: 'incomplete',
@@ -1001,6 +1039,7 @@ function observeRetrievalResults(
   const hasVs = /\bvs\.?\b|\bversus\b/i.test(query);
 
   if ((hasAnd || hasOr || hasVs) && results.matches.length < 5) {
+    console.log(`ðŸ” [OBSERVE] Multi-part query with insufficient results (${results.matches.length} chunks) - refinement may be needed`);
     // Don't force refinement, but flag as potentially insufficient
     return {
       needsRefinement: false, // Let it proceed, but log the concern
@@ -1016,6 +1055,7 @@ function observeRetrievalResults(
   // ALL CHECKS PASSED - Results are good
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+  console.log(`âœ… [OBSERVE] Results are sufficient (${results.matches.length} chunks, avg score: ${avgScore.toFixed(2)})`);
   return {
     needsRefinement: false
   };
@@ -1034,6 +1074,7 @@ function refineQuery(originalQuery: string, observation: ObservationResult): str
     return originalQuery; // No refinement needed
   }
 
+  console.log(`ðŸ”§ [REFINE] Refining query due to: ${observation.reason}`);
 
   switch (observation.reason) {
 
@@ -1055,6 +1096,7 @@ function refineQuery(originalQuery: string, observation: ObservationResult): str
       );
 
       const refinedQuery = keyWords.slice(0, 3).join(' '); // Take top 3 key words
+      console.log(`ðŸ”§ [REFINE] Broadened query: "${originalQuery}" â†’ "${refinedQuery}"`);
       return refinedQuery;
     }
 
@@ -1070,6 +1112,7 @@ function refineQuery(originalQuery: string, observation: ObservationResult): str
         .replace(/^(what|how|why|when|where|who|which)\s+(is|are|does|do|can|could|would|should)\s+/i, '')
         .replace(/^(tell me about|explain|describe|list|show me)\s+/i, '');
 
+      console.log(`ðŸ”§ [REFINE] Simplified query: "${originalQuery}" â†’ "${withoutQuestionWords}"`);
       return withoutQuestionWords;
     }
 
@@ -1088,6 +1131,7 @@ function refineQuery(originalQuery: string, observation: ObservationResult): str
         ? `${coreQuery} complete list all ${expected}`
         : `${coreQuery} complete list`;
 
+      console.log(`ðŸ”§ [REFINE] Added "complete list": "${originalQuery}" â†’ "${refinedQuery}"`);
       return refinedQuery;
     }
 
@@ -1096,6 +1140,7 @@ function refineQuery(originalQuery: string, observation: ObservationResult): str
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     case 'insufficient_coverage': {
       // This will be handled by query decomposition in Phase 2
+      console.log(`ðŸ”§ [REFINE] Insufficient coverage - will be handled by decomposition`);
       return originalQuery;
     }
 
@@ -1148,6 +1193,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
 
   for (const pattern of multiDocPatterns) {
     if (pattern.test(query)) {
+      console.log(`ðŸ”— [DECOMPOSE] Detected multi-document cross-reference query`);
 
       // Use LLM to intelligently decompose
       if (requestTimer) requestTimer.start('decomposeWithLLM');
@@ -1188,6 +1234,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
       }
 
       if (concept1 && concept2) {
+        console.log(`ðŸ§© [DECOMPOSE] Detected comparison query: "${concept1}" vs "${concept2}"`);
 
         if (requestTimer) requestTimer.end('analyzeQueryComplexity');
         return {
@@ -1215,6 +1262,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
 
   if (andParts.length >= 3) {
     // Has 3+ parts connected by "and"
+    console.log(`ðŸ§© [DECOMPOSE] Detected multi-part query with ${andParts.length} parts`);
 
     // Extract the question stem (e.g., "What is" from "What is A and B and C")
     const questionStem = andParts[0].match(/^(what|how|why|when|where|who|which|explain|describe|tell me about|list)\s+(is|are|does|do|was|were)?/i)?.[0] || '';
@@ -1251,6 +1299,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
 
   for (const pattern of sequentialPatterns) {
     if (pattern.test(query)) {
+      console.log(`ðŸ§© [DECOMPOSE] Detected sequential query`);
 
       // Use LLM to decompose (more complex pattern)
       if (requestTimer) requestTimer.start('decomposeWithLLM (sequential)');
@@ -1276,6 +1325,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
     const count = parseInt(countMatch[2]);
     if (count >= 5) {
       // Large lists might benefit from decomposition
+      console.log(`ðŸ§© [DECOMPOSE] Detected large list query (${count} items)`);
 
       // Don't decompose, but flag for special handling (completeness check)
       if (requestTimer) requestTimer.end('analyzeQueryComplexity');
@@ -1291,6 +1341,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
   // DEFAULT: Simple query
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+  console.log(`âœ… [DECOMPOSE] Simple query - no decomposition needed`);
   if (requestTimer) requestTimer.end('analyzeQueryComplexity');
   return {
     isComplex: false,
@@ -1315,10 +1366,12 @@ async function decomposeWithLLM(query: string): Promise<QueryAnalysis | null> {
   const cached = decompositionCache.get(cacheKey);
 
   if (cached && (Date.now() - cached.timestamp) < DECOMPOSITION_CACHE_TTL) {
+    console.log(`âš¡ [DECOMPOSE CACHE HIT] Using cached decomposition (saved 1-2s)`);
     return cached.result;
   }
 
   try {
+    console.log(`ðŸ¤– [LLM DECOMPOSE] Analyzing query complexity with LLM...`);
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
@@ -1399,6 +1452,7 @@ Respond with ONLY the JSON object, no explanation.`;
     const analysis = JSON.parse(jsonText);
 
     if (analysis.isComplex && analysis.subQueries && analysis.subQueries.length > 0) {
+      console.log(`ðŸ¤– [LLM DECOMPOSE] Broke query into ${analysis.subQueries.length} sub-queries`);
       const result: QueryAnalysis = {
         isComplex: true,
         queryType: analysis.queryType || 'sequential',
@@ -1410,6 +1464,7 @@ Respond with ONLY the JSON object, no explanation.`;
       return result;
     }
 
+    console.log(`âœ… [LLM DECOMPOSE] Query classified as simple`);
     // âš¡ Cache null result for simple queries too (avoids re-analyzing)
     decompositionCache.set(cacheKey, { result: null, timestamp: Date.now() });
     return null;
@@ -1438,12 +1493,14 @@ async function handleMultiStepQuery(
     throw new Error('No sub-queries provided for multi-step query');
   }
 
+  console.log(`ðŸ”„ [MULTI-STEP] Executing ${analysis.subQueries.length} sub-queries...`);
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // âš¡ PERFORMANCE: Generate ALL embeddings in parallel first (saves 1-2s)
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   analysis.subQueries.forEach((subQuery, index) => {
+    console.log(`  ${index + 1}. "${subQuery}"`);
   });
 
   // Generate all embeddings in parallel
@@ -1476,6 +1533,7 @@ async function handleMultiStepQuery(
       boostSectionMatches(filteredMatches, sectionRefs);
     }
 
+    console.log(`  âœ… Found ${filteredMatches.length} chunks for sub-query ${index + 1}`);
 
     return filteredMatches;
   });
@@ -1493,7 +1551,7 @@ async function handleMultiStepQuery(
   for (const results of allResults) {
     for (const match of results) {
       // Deduplicate by chunk ID
-      const chunkId = match.id || `${match.document_metadata?.documentId}-${match.document_metadata?.page}`;
+      const chunkId = match.id || `${match.metadata?.documentId}-${match.metadata?.page}`;
 
       if (!seenChunkIds.has(chunkId)) {
         seenChunkIds.add(chunkId);
@@ -1508,6 +1566,7 @@ async function handleMultiStepQuery(
   // âš¡ PERFORMANCE: Reduced from 20 to 10 overall (less context = faster LLM)
   const topMatches = combinedMatches.slice(0, 10);
 
+  console.log(`âœ… [MULTI-STEP] Combined ${allResults.length} sub-query results into ${topMatches.length} unique chunks`);
 
   return { matches: topMatches };
 }
@@ -1572,6 +1631,7 @@ async function iterativeRetrieval(
   const state = createInitialState();
   let currentQuery = initialQuery;
 
+  console.log(`ðŸ”„ [AGENT LOOP] Starting iterative retrieval (max ${config.maxAttempts} attempts)`);
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // AGENT LOOP: Try up to maxAttempts times
@@ -1579,6 +1639,7 @@ async function iterativeRetrieval(
 
   while (state.attempt < config.maxAttempts) {
     state.attempt++;
+    console.log(`\nðŸ”„ [AGENT LOOP] Attempt ${state.attempt}/${config.maxAttempts}: "${currentQuery}"`);
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 1: Execute retrieval
@@ -1622,6 +1683,7 @@ async function iterativeRetrieval(
       observation
     });
 
+    console.log(`  ðŸ“Š Results: ${filteredMatches.length} chunks, avg score: ${avgScore.toFixed(2)}`);
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 3: Update best results if this attempt is better
@@ -1632,10 +1694,12 @@ async function iterativeRetrieval(
         ? ((avgScore - state.bestScore) / state.bestScore)
         : 1.0;
 
+      console.log(`  âœ… New best results! (${(improvement * 100).toFixed(1)}% improvement)`);
 
       state.bestResults = { matches: filteredMatches };
       state.bestScore = avgScore;
     } else {
+      console.log(`  âš ï¸  Not better than previous best (${state.bestScore.toFixed(2)})`);
     }
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1646,11 +1710,13 @@ async function iterativeRetrieval(
     if (!observation.needsRefinement &&
         filteredMatches.length >= config.minChunks &&
         avgScore >= config.minRelevanceScore) {
+      console.log(`  âœ… Results are satisfactory - stopping`);
       break;
     }
 
     // Stop if we've reached max attempts
     if (state.attempt >= config.maxAttempts) {
+      console.log(`  â¹ï¸  Reached max attempts - using best results`);
       break;
     }
 
@@ -1660,6 +1726,7 @@ async function iterativeRetrieval(
       const improvement = avgScore > 0 ? (avgScore - previousScore) / previousScore : 0;
 
       if (improvement < config.improvementThreshold && improvement >= 0) {
+        console.log(`  â¹ï¸  Improvement too small (${(improvement * 100).toFixed(1)}%) - stopping`);
         break;
       }
     }
@@ -1668,9 +1735,11 @@ async function iterativeRetrieval(
     // STEP 5: Refine query for next attempt
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    console.log(`  ðŸ”§ Refining query for next attempt...`);
     currentQuery = refineQuery(currentQuery, observation);
 
     if (currentQuery === state.history[state.history.length - 1].query) {
+      console.log(`  â¹ï¸  Refinement produced same query - stopping to avoid infinite loop`);
       break;
     }
   }
@@ -1679,6 +1748,9 @@ async function iterativeRetrieval(
   // Return best results found across all attempts
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+  console.log(`\nâœ… [AGENT LOOP] Completed after ${state.attempt} attempts`);
+  console.log(`  Best score: ${state.bestScore.toFixed(2)}`);
+  console.log(`  Best result count: ${state.bestResults?.matches?.length || 0}`);
 
   return state.bestResults || { matches: [] };
 }
@@ -1748,10 +1820,12 @@ function validateAnswer(answer: string, query: string, sources: any[]): AnswerVa
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   if (issues.length > 0) {
+    console.log(`âš ï¸  [VALIDATE] Answer validation found ${issues.length} issues:`);
     issues.forEach(issue => console.log(`   - ${issue}`));
     return { isValid: false, issues, suggestions };
   }
 
+  console.log(`âœ… [VALIDATE] Answer passed validation`);
   return { isValid: true };
 }
 
@@ -1788,6 +1862,7 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
   for (const pattern of hasExactMatchPattern) {
     if (pattern.test(query)) {
       // âš ï¸  DISABLED: Use VECTOR instead of KEYWORD since BM25 is broken
+      console.log(`ðŸŽ¯ [STRATEGY] Exact-match pattern detected â†’ using VECTOR search (BM25 disabled)`);
       return 'vector';  // Changed from 'keyword' to 'vector'
     }
   }
@@ -1799,6 +1874,7 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
   const isComparison = /compare|difference|versus|vs\.?/i.test(query);
 
   if (isComparison) {
+    console.log(`ðŸŽ¯ [STRATEGY] Comparison query detected â†’ using HYBRID search`);
     return 'hybrid';
   }
 
@@ -1810,6 +1886,7 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
   const documentMentions = query.match(/\b\w+\.(pdf|docx|xlsx|pptx|txt)\b/gi);
 
   if (documentMentions && documentMentions.length >= 2) {
+    console.log(`ðŸŽ¯ [STRATEGY] Multiple documents mentioned â†’ using HYBRID search`);
     return 'hybrid';
   }
 
@@ -1817,6 +1894,7 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
   // STRATEGY 4: Vector search for everything else (semantic understanding)
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+  console.log(`ðŸŽ¯ [STRATEGY] Standard query â†’ using VECTOR search`);
   return 'vector';
 }
 
@@ -1829,6 +1907,7 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
  * @returns Search results with BM25 scores
  */
 async function pureBM25Search(query: string, userId: string, topK: number = 20): Promise<any> {
+  console.log(`ðŸ” [PURE BM25] Executing keyword-only search for: "${query}"`);
 
   try {
     await initializePinecone();
@@ -1838,12 +1917,13 @@ async function pureBM25Search(query: string, userId: string, topK: number = 20):
     const emptyVectorResults: any[] = [];
     const hybridResults = await bm25RetrievalService.hybridSearch(query, emptyVectorResults, userId, topK);
 
+    console.log(`âœ… [PURE BM25] Found ${hybridResults.length} keyword matches`);
 
     // Convert to Pinecone-like format
     const matches = hybridResults.map((result: any) => ({
-      id: result.document_metadata?.documentId || '',
+      id: result.metadata?.documentId || '',
       score: result.bm25Score || result.hybridScore,
-      metadata: result.document_metadata,
+      metadata: result.metadata,
       content: result.content
     }));
 
@@ -1908,10 +1988,16 @@ export async function generateAnswerStream(
   fullConversationContext?: string,
   isFirstMessage?: boolean  // âœ… NEW: Flag to control greeting logic
 ): Promise<{ sources: any[] }> {
+  console.log('ðŸš€ [DEBUG] generateAnswerStream called');
+  console.log('ðŸš€ [DEBUG] onChunk is function:', typeof onChunk === 'function');
 
   // âœ… FIX: Initialize Pinecone in parallel with fast checks
   const pineconePromise = initializePinecone();
 
+  console.log('\nâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+  console.log('ðŸ” [QUERY ROUTING] Starting query classification');
+  console.log(`ðŸ“ [QUERY] "${query}"`);
+  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // FAST PATH DETECTION - Instant responses for greetings and simple queries
@@ -1927,6 +2013,7 @@ export async function generateAnswerStream(
   const fastPathResult = await fastPathDetector.detect(query);
 
   if (fastPathResult.isFastPath && fastPathResult.response) {
+    console.log(`âš¡ FAST PATH: ${fastPathResult.type} - Bypassing RAG pipeline`);
 
     // âœ… FIX: Stream the response immediately without artificial delay
     if (onChunk && fastPathResult.response) {
@@ -1943,7 +2030,34 @@ export async function generateAnswerStream(
     };
   }
 
+  console.log('ðŸ“Š Not a fast path query - proceeding with RAG pipeline');
+  console.log('ðŸŽ¯ [HYBRID RAG] Processing query:', query);
+  console.log('ðŸ“Ž Attached document ID:', attachedDocumentId);
 
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // DOCUMENT GENERATION DETECTION
+  // ════════════════════════════════════════════════════════════════════════════════
+  const { detectDocumentGenerationIntent } = await import('./documentGenerationDetection.service');
+
+  const docGenResult = detectDocumentGenerationIntent(query);
+
+  if (docGenResult.isDocumentGeneration && docGenResult.confidence > 0.7) {
+    console.log(`📝 [DOC GEN] Detected ${docGenResult.documentType} generation request (confidence: ${docGenResult.confidence})`);
+
+    // Return special marker to trigger document generation in chat service
+    if (onChunk) {
+      onChunk(`__DOCUMENT_GENERATION_REQUESTED__:${docGenResult.documentType}`);
+    }
+
+    if (onStage) {
+      onStage('complete', 'Document generation requested');
+    }
+
+    return {
+      sources: [],
+    };
+  }
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 1: Meta-Queries - FIRST (No LLM call, instant response)
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1951,6 +2065,7 @@ export async function generateAnswerStream(
   // WHY: "hello" should not trigger LLM intent detection
   // IMPACT: 20-30s â†’ < 1s for simple queries
   if (isMetaQuery(query)) {
+    console.log('ðŸ’­ [META-QUERY] Detected');
     await handleMetaQuery(query, onChunk, conversationHistory);
     return { sources: [] }; // Meta queries don't have sources
   }
@@ -1962,6 +2077,7 @@ export async function generateAnswerStream(
   // WHY: "Where do I upload?" should explain the UI, not search documents
   // IMPACT: Provides accurate app guidance instead of irrelevant document content
   if (isNavigationQuery(query)) {
+    console.log('ðŸ§­ [NAVIGATION] Detected app navigation question');
     await handleNavigationQuery(query, userId, onChunk);
     return { sources: [] }; // Navigation queries don't have document sources
   }
@@ -1974,6 +2090,7 @@ export async function generateAnswerStream(
   // IMPACT: Transforms Koda from citation-only to ChatGPT-like explanations
   const methodologyQueryResult = await handleMethodologyKnowledgeQuery(userId, query, onChunk);
   if (methodologyQueryResult.handled) {
+    console.log('📚 [METHODOLOGY KNOWLEDGE] Query answered from knowledge base');
     return { sources: methodologyQueryResult.sources || [] };
   }
 
@@ -1986,6 +2103,7 @@ export async function generateAnswerStream(
   // IMPACT: Transform "Sharpe ratio mentioned in 10 papers" → full explanation with formula
   const domainQueryResult = await handleDomainKnowledgeQuery(userId, query, onChunk);
   if (domainQueryResult.handled) {
+    console.log('🎓 [DOMAIN KNOWLEDGE] Query answered from domain knowledge base');
     return { sources: domainQueryResult.sources || [] };
   }
 
@@ -1998,6 +2116,7 @@ export async function generateAnswerStream(
   // IMPACT: ChatGPT-level cross-document intelligence
   const synthesisQueryResult = synthesisQueryDetectionService.detect(query);
   if (synthesisQueryResult.isSynthesisQuery) {
+    console.log(`📊 [CROSS-DOCUMENT SYNTHESIS] Detected ${synthesisQueryResult.type} query`);
     const synthesisResult = await handleCrossDocumentSynthesis(
       userId,
       query,
@@ -2018,28 +2137,32 @@ export async function generateAnswerStream(
   // IMPACT: ChatGPT-level trend identification and temporal analysis
   const trendQueryResult = await handleTrendAnalysisQuery(userId, query, onChunk);
   if (trendQueryResult.handled) {
+    console.log('📈 [TREND ANALYSIS] Query answered with temporal analysis');
     return { sources: trendQueryResult.sources || [] };
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
-  // STEP 2: documents Counting - Fast (No LLM call)
+  // STEP 2: Document Counting - Fast (No LLM call)
   // ──────────────────────────────────────────────────────────────────────────────
   const countingCheck = isDocumentCountingQuery(query);
   if (countingCheck.isCounting) {
+    console.log('ðŸ”¢ [DOCUMENT COUNTING] Detected');
     return await handleDocumentCounting(userId, query, countingCheck.fileType, onChunk);
   }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // STEP 3: documents Types - Fast (No LLM call)
+  // STEP 3: Document Types - Fast (No LLM call)
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (isDocumentTypesQuery(query)) {
+    console.log('ðŸ“Š [DOCUMENT TYPES] Detected');
     return await handleDocumentTypes(userId, query, onChunk);
   }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // STEP 4: documents Listing - Fast (No LLM call)
+  // STEP 4: Document Listing - Fast (No LLM call)
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (isDocumentListingQuery(query)) {
+    console.log('âœ… [QUERY ROUTING] Routed to: DOCUMENT LISTING');
     return await handleDocumentListing(userId, query, onChunk);
   }
 
@@ -2047,20 +2170,22 @@ export async function generateAnswerStream(
   await pineconePromise;
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // STEP 5.5: folders Listing Queries - Direct DB Lookup
+  // STEP 5.5: Folder Listing Queries - Direct DB Lookup
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // âœ… NEW: Handle "which folders do I have?" queries
   const isFolderListingQuery = detectFolderListingQuery(query);
   if (isFolderListingQuery) {
+    console.log('ðŸ“‚ [FOLDER LISTING] Detected folder listing query');
     return await handleFolderListingQuery(userId, onChunk);
   }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // STEP 5.6: folders Content Queries - Direct DB Lookup
+  // STEP 5.6: Folder Content Queries - Direct DB Lookup
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // âœ… MOVED UP: Handle "what's in Finance folder?" queries BEFORE file actions
   const isFolderContentQuery = detectFolderContentQuery(query);
   if (isFolderContentQuery) {
+    console.log('ðŸ“ [FOLDER CONTENT] Detected folder content query');
     return await handleFolderContentQuery(query, userId, onChunk);
   }
 
@@ -2082,10 +2207,12 @@ export async function generateAnswerStream(
     // If user has attached 2+ documents and comparison detection didn't find specific docs
     // OR if user explicitly attached docs, use those for comparison
     if (attachedIds.length >= 2 && (!comparison.documents || comparison.documents.length < 2)) {
+      console.log(`ðŸ”„ [COMPARISON] Using ${attachedIds.length} attached documents for comparison`);
       comparison.type = 'document';
       comparison.documents = attachedIds;
     }
 
+    console.log('ðŸ”„ [COMPARISON] Detected:', comparison.documents);
     return await handleComparison(userId, query, comparison, onChunk, conversationHistory);
   }
 
@@ -2095,6 +2222,7 @@ export async function generateAnswerStream(
   if (attachedIds.length >= 2) {
     const hasCompareIntent = /\b(compare|difference|vs|versus|between|contrast|similarities)\b/i.test(query);
     if (hasCompareIntent) {
+      console.log(`ðŸ”„ [MULTI-DOC] Routing to comparison handler with ${attachedIds.length} attached documents`);
       return await handleComparison(userId, query, {
         type: 'document',
         documents: attachedIds
@@ -2108,6 +2236,7 @@ export async function generateAnswerStream(
   // REASON: Only check file actions if nothing else matched
   // WHY: LLM intent detection is expensive (20-30s)
   if (fileAction) {
+    console.log('ðŸ“ [FILE ACTION] Detected:', fileAction);
     await handleFileAction(userId, query, fileAction, onChunk);
     return { sources: [] }; // File actions don't have sources
   }
@@ -2118,21 +2247,25 @@ export async function generateAnswerStream(
   // âœ… NEW: Handle "where is myfile.pdf?" queries with direct database lookup
   const isFileLocationQuery = detectFileLocationQuery(query);
   if (isFileLocationQuery) {
+    console.log('ðŸ“ [FILE LOCATION] Detected file location query');
     return await handleFileLocationQuery(query, userId, onChunk);
   }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // MEMORY RETRIEVAL - Get relevant user memories for context
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  console.log('ðŸ§  [MEMORY] Retrieving relevant memories...');
   const relevantMemories = await memoryService.getRelevantMemories(userId, query, undefined, 10);
   const memoryPromptContext = memoryService.formatMemoriesForPrompt(relevantMemories);
 
   if (relevantMemories.length > 0) {
+    console.log(`ðŸ§  [MEMORY] Found ${relevantMemories.length} relevant memories`);
   }
 
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 7: Regular Queries - Standard RAG
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  console.log('âœ… [QUERY ROUTING] Routed to: REGULAR QUERY (RAG)');
   return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage, memoryPromptContext, isFirstMessage);
 }
 
@@ -2201,6 +2334,8 @@ async function detectFileAction(query: string): Promise<string | null> {
   const hasTargetKeyword = fileTargetKeywords.some(keyword => lower.includes(keyword));
 
   if (!hasActionKeyword || !hasTargetKeyword) {
+    console.log('âš¡ [FILE ACTION] No file action pattern detected - skipping LLM intent detection');
+    console.log(`   Action keyword: ${hasActionKeyword}, Target keyword: ${hasTargetKeyword}`);
     return null; // Skip expensive LLM call
   }
 
@@ -2216,6 +2351,7 @@ async function detectFileAction(query: string): Promise<string | null> {
   ];
 
   if (contentQuestionPatterns.some(pattern => pattern.test(query))) {
+    console.log('âš¡ [FILE ACTION] Detected content question - skipping LLM intent detection');
     return null;
   }
 
@@ -2258,6 +2394,7 @@ async function detectFileAction(query: string): Promise<string | null> {
   ];
 
   if (negativePatterns.some(pattern => pattern.test(query))) {
+    console.log('⚡ [FILE ACTION] Detected negative pattern (informational query) - skipping file action');
     return null;
   }
 
@@ -2268,6 +2405,7 @@ async function detectFileAction(query: string): Promise<string | null> {
   // WHY: LLM is expensive (20-30s) but accurate
   // HOW: Only call if file action keywords detected
 
+  console.log('ðŸ¤” [FILE ACTION] Possible file action detected - proceeding with LLM intent detection');
 
   // âœ… FIX: Check cache before calling expensive LLM
   const cachedResult = getCachedIntent(query);
@@ -2289,7 +2427,9 @@ async function detectFileAction(query: string): Promise<string | null> {
     let intentResult;
     try {
       intentResult = await Promise.race([intentPromise, timeoutPromise]);
+      console.log('ðŸ¤– [FILE ACTION] LLM intent:', intentResult);
     } catch (error: any) {
+      console.log('â±ï¸  [FILE ACTION] Intent detection timed out or failed - assuming not file action');
       cacheIntent(query, null); // Cache the null result
       return null;
     }
@@ -2304,10 +2444,12 @@ async function detectFileAction(query: string): Promise<string | null> {
 
     if (fileActionIntents[intentResult.intent] && intentResult.confidence > 0.7) {
       const action = fileActionIntents[intentResult.intent];
+      console.log(`âœ… [FILE ACTION] LLM detected: ${action} (confidence: ${intentResult.confidence})`);
       cacheIntent(query, action); // Cache the successful detection
       return action;
     }
 
+    console.log(`âŒ [FILE ACTION] LLM confidence too low or not a file action (confidence: ${intentResult.confidence})`);
     cacheIntent(query, null); // Cache the negative result
   } catch (error) {
     console.error('âŒ [FILE ACTION] LLM intent detection failed:', error);
@@ -2327,6 +2469,7 @@ async function handleFileAction(
   actionType: string,
   onChunk: (chunk: string) => void
 ): Promise<void> {
+  console.log(`ðŸ”§ [FILE ACTION] Executing: ${actionType}`);
 
   // Detect language
   const lang = detectLanguage(query);
@@ -2439,30 +2582,40 @@ async function detectComparison(userId: string, query: string): Promise<{
     return null;
   }
 
+  console.log('ðŸ” [COMPARISON] Detected comparison keyword');
 
   // Try to extract document mentions with fuzzy matching
   const documentMentions = await extractDocumentMentions(userId, query);
 
+  console.log(`ðŸ” [COMPARISON] Query: "${query}"`);
+  console.log(`ðŸ“Š [COMPARISON] Found ${documentMentions.length} matching documents`);
 
   if (documentMentions.length >= 2) {
     // Document comparison - found 2+ specific documents
+    console.log(`âœ… [COMPARISON] Document comparison: ${documentMentions.length} documents`);
+    console.log(`ðŸ“„ [COMPARISON] Document IDs: ${documentMentions.join(', ')}`);
 
     // âœ… DEBUG: Fetch and log actual document names for debugging
-    const docs = await prisma.documents.findMany({
+    const docs = await prisma.document.findMany({
       where: { id: { in: documentMentions } },
       select: { id: true, filename: true }
     });
+    console.log(`ðŸ“ [COMPARISON] Matched documents:`, docs.map(d => ({ id: d.id.substring(0, 8), name: d.filename })));
 
     return {
       type: 'document',
       documents: documentMentions,
     };
   } else if (documentMentions.length === 1) {
+    console.log(`âš ï¸ [COMPARISON] Only found 1 document, need 2+ for comparison`);
   } else {
+    console.log(`âš ï¸ [COMPARISON] No specific documents found in query`);
   }
 
   // Concept comparison - no specific documents, extract concepts being compared
+  console.log('âœ… [COMPARISON] Concept comparison detected');
   const concepts = extractComparisonConcepts(query);
+  console.log(`ðŸ“ [COMPARISON] Extracted concepts: ${concepts.join(', ')}`);
 
   return {
     type: 'concept',
@@ -2518,9 +2671,10 @@ async function extractDocumentMentions(userId: string, query: string): Promise<s
   let documents = documentNameCache.get(userDocsCacheKey)?.documentIds as any;
 
   if (!documents || (Date.now() - (documentNameCache.get(userDocsCacheKey)?.timestamp || 0)) > CACHE_TTL) {
+    console.log(`âŒ [CACHE MISS] User documents for ${userId}`);
 
     // Get all user's documents
-    const docs = await prisma.documents.findMany({
+    const docs = await prisma.document.findMany({
       where: { userId, status: { not: 'deleted' } },
       select: { id: true, filename: true },
     });
@@ -2533,13 +2687,16 @@ async function extractDocumentMentions(userId: string, query: string): Promise<s
 
     documents = docs;
   } else {
+    console.log(`âœ… [CACHE HIT] User documents for ${userId} (${documents.length} docs)`);
   }
 
+  console.log(`ðŸ“„ [FUZZY MATCH] Checking ${documents.length} documents`);
 
   const matches: string[] = [];
 
   for (const doc of documents) {
     if (isDocumentMentioned(queryLower, doc.filename)) {
+      console.log(`âœ… [FUZZY MATCH] Found: ${doc.filename}`);
       matches.push(doc.id);
     }
   }
@@ -2598,6 +2755,7 @@ function isDocumentMentioned(queryLower: string, documentName: string): boolean 
   const matched = matchCount >= threshold || substringMatch;
 
   if (matched) {
+    console.log(`  âœ“ "${documentName}" matched: ${matchCount}/${docWords.length} words (threshold: ${threshold}) or substring match: ${substringMatch}`);
   }
 
   return matched;
@@ -2616,6 +2774,7 @@ function extractDocumentNames(query: string): string[] {
     .split(/\s+/)
     .filter(w => w.length > 2);  // Ignore short words like "is", "me"
 
+  console.log('ðŸ” [EXTRACT] All words:', words);
 
   // Remove common question words AND file extensions
   const stopWords = new Set([
@@ -2626,6 +2785,7 @@ function extractDocumentNames(query: string): string[] {
   ]);
 
   const result = words.filter(w => !stopWords.has(w));
+  console.log('ðŸ” [EXTRACT] After filtering stop words:', result);
   return result;
 }
 
@@ -2658,6 +2818,7 @@ function extractSectionReferences(query: string): string[] {
   }
 
   if (sections.length > 0) {
+    console.log(`ðŸ“ [SECTION DETECTION] Found section references: ${sections.join(', ')}`);
   }
 
   return sections;
@@ -2670,10 +2831,11 @@ function extractSectionReferences(query: string): string[] {
 function boostSectionMatches(matches: any[], sectionRefs: string[]): void {
   if (sectionRefs.length === 0) return;
 
+  console.log(`ðŸŽ¯ [SECTION BOOST] Boosting chunks containing sections: ${sectionRefs.join(', ')}`);
 
   let boostedCount = 0;
   for (const match of matches) {
-    const chunkText = match.document_metadata?.text || match.document_metadata?.content || '';
+    const chunkText = match.metadata?.text || match.metadata?.content || '';
 
     // Check if chunk contains any of the section references
     for (const sectionRef of sectionRefs) {
@@ -2688,6 +2850,7 @@ function boostSectionMatches(matches: any[], sectionRefs: string[]): void {
         const oldScore = match.score || 0;
         match.score = oldScore * 1.3;
         boostedCount++;
+        console.log(`  â†‘ Boosted chunk containing section ${sectionRef}: ${oldScore.toFixed(3)} â†’ ${match.score.toFixed(3)}`);
         break;  // Only boost once per chunk
       }
     }
@@ -2696,7 +2859,9 @@ function boostSectionMatches(matches: any[], sectionRefs: string[]): void {
   if (boostedCount > 0) {
     // Re-sort by score after boosting
     matches.sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
+    console.log(`âœ… [SECTION BOOST] Boosted ${boostedCount} chunks`);
   } else {
+    console.warn(`âš ï¸ [SECTION BOOST] No chunks found containing sections ${sectionRefs.join(', ')}`);
   }
 }
 
@@ -2754,9 +2919,11 @@ async function findDocumentsByNameCached(userId: string, names: string[]): Promi
   // Check cache
   const cached = documentNameCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    console.log(`âœ… [CACHE HIT] Document name lookup for ${names.join(', ')}`);
     return cached.documentIds;
   }
 
+  console.log(`âŒ [CACHE MISS] Document name lookup for ${names.join(', ')}`);
 
   // Query database
   const documentIds = await findDocumentsByName(userId, names);
@@ -2789,14 +2956,16 @@ async function findDocumentsByName(
 ): Promise<string[]> {
   if (potentialNames.length === 0) return [];
 
+  console.log('ðŸ” [DOC SEARCH] Looking for documents matching:', potentialNames);
 
   try {
     // Get all user's documents from database
-    const allDocs = await prisma.documents.findMany({
+    const allDocs = await prisma.document.findMany({
       where: { userId, status: { not: 'deleted' } },
       select: { id: true, filename: true },
     });
 
+    console.log(`ðŸ“„ [DOC SEARCH] Checking ${allDocs.length} documents`);
 
     // Fuzzy match against potential names
     const matchedDocIds: string[] = [];
@@ -2805,16 +2974,19 @@ async function findDocumentsByName(
       const docLower = doc.filename.toLowerCase();
       const docWithoutExt = docLower.replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv)$/i, '');
 
+      console.log(`ðŸ“„ [DOC SEARCH] Checking document: "${doc.filename}" (lower: "${docLower}", without ext: "${docWithoutExt}")`);
 
       for (const potentialName of potentialNames) {
         const match1 = docLower.includes(potentialName);
         const match2 = potentialName.includes(docWithoutExt);
         const match3 = docWithoutExt.includes(potentialName);
 
+        console.log(`  ðŸ” Testing "${potentialName}": docLower.includes="${match1}", potentialName.includes(docWithoutExt)="${match2}", docWithoutExt.includes="${match3}"`);
 
         // Check if document name contains the potential name OR vice versa
         if (match1 || match2 || match3) {
           matchedDocIds.push(doc.id);
+          console.log(`  âœ… [DOC SEARCH] MATCHED "${potentialName}" â†’ "${doc.filename}"`);
           break;
         }
       }
@@ -2839,6 +3011,7 @@ async function handleComparison(
   onChunk: (chunk: string) => void,
   conversationHistory?: Array<{ role: string; content: string }>
 ): Promise<{ sources: any[] }> {
+  console.log(`ðŸ”„ [COMPARISON] Type: ${comparison.type}`);
 
   if (comparison.type === 'concept') {
     // Concept comparison (e.g., "Compare Maslow vs SDT")
@@ -2864,15 +3037,18 @@ async function handleConceptComparison(
   const comparisonTimer = new PerformanceTimer();
   comparisonTimer.start('CONCEPT COMPARISON TOTAL');
 
+  console.log(`ðŸ” [CONCEPT COMPARISON] Searching for: ${concepts.join(' vs ')}`);
 
   // âš¡ PERFORMANCE FIX #1: Parallelize concept searches using Promise.all()
   // REASON: Sequential searches take N Ã— (embedding + pinecone) time
   // IMPACT: Reduces 4468ms â†’ max(concept times) â‰ˆ 3625ms, saves ~843ms
   comparisonTimer.start('All Concept Searches (Parallel)');
+  console.log(`ðŸ”„ [PARALLEL] Searching ${concepts.length} concepts in parallel...`);
 
   // Create parallel search promises for all concepts
   const conceptSearchPromises = concepts.map(async (concept) => {
     const searchQuery = `${concept} definition meaning explanation`;
+    console.log(`  ðŸ” Searching for concept: "${concept}"`);
 
     try {
       const conceptStartTime = Date.now();
@@ -2894,6 +3070,7 @@ async function handleConceptComparison(
       const pineconeTime = Date.now() - pineconeStartTime;
 
       const totalConceptTime = Date.now() - conceptStartTime;
+      console.log(`  â±ï¸  [${concept}] Embedding: ${embeddingTime}ms, Pinecone: ${pineconeTime}ms, Total: ${totalConceptTime}ms`);
 
       // Return raw results with concept label (we'll filter deleted docs in batch later)
       return {
@@ -2916,6 +3093,7 @@ async function handleConceptComparison(
   // Log parallel timing summary
   const maxConceptTime = Math.max(...conceptResults.map(r => r.totalTime));
   const totalSequentialTime = conceptResults.reduce((sum, r) => sum + r.totalTime, 0);
+  console.log(`âœ… [PARALLEL] All ${concepts.length} concepts searched. Max time: ${maxConceptTime}ms (saved ${totalSequentialTime - maxConceptTime}ms vs sequential)`);
 
   // âš¡ PERFORMANCE FIX #3: Batch filterDeletedDocuments
   // REASON: Instead of N separate DB queries (N Ã— 325ms), do ONE batch query
@@ -2933,11 +3111,13 @@ async function handleConceptComparison(
     }
   }
 
+  console.log(`ðŸ”„ [BATCH FILTER] Filtering ${allRawMatches.length} total matches from ${concepts.length} concepts...`);
 
   // Filter all matches in ONE batch DB query
   const filteredMatches = await filterDeletedDocuments(allRawMatches, userId);
   comparisonTimer.end('filterDeletedDocuments (Batch)');
 
+  console.log(`âœ… [BATCH FILTER] ${filteredMatches.length}/${allRawMatches.length} matches after filtering`);
 
   // Now process filtered results
   const allChunks: any[] = [];
@@ -2945,7 +3125,7 @@ async function handleConceptComparison(
 
   for (const match of filteredMatches) {
     if (match.score && match.score > 0.3) {
-      const meta = match.document_metadata || {};
+      const meta = match.metadata || {};
       const docName = meta.filename || meta.documentName || '';
       const concept = matchToConceptMap.get(match) || 'unknown';
 
@@ -2975,6 +3155,7 @@ async function handleConceptComparison(
   // Log per-concept results
   for (const concept of concepts) {
     const conceptChunkCount = allChunks.filter(c => c.concept === concept).length;
+    console.log(`  âœ… Found ${conceptChunkCount} chunks for concept "${concept}"`);
   }
 
   // Convert Map to array for sources
@@ -2991,6 +3172,7 @@ async function handleConceptComparison(
     return { sources: [] };
   }
 
+  console.log(`âœ… [CONCEPT COMPARISON] Found ${allChunks.length} total chunks across all concepts`);
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // COMPARATIVE ANALYSIS - Extract structured comparison intelligence
@@ -3005,7 +3187,7 @@ async function handleConceptComparison(
   // Prepare chunks for comparative analysis
   const chunksForComparison = allChunks.map(chunk => ({
     content: chunk.text || '',
-    document_metadata: {
+    metadata: {
       documentId: chunk.documentId || 'unknown',
       filename: chunk.documentName || 'Unknown',
       page: chunk.pageNumber
@@ -3021,6 +3203,8 @@ async function handleConceptComparison(
 
   comparisonTimer.end('Comparative Analysis');
 
+  console.log(`ðŸ” [COMPARATIVE] Found ${comparativeResult.comparativeStatements.length} comparative statements`);
+  console.log(`ðŸ” [COMPARATIVE] Extracted attributes for ${comparativeResult.conceptAttributesMap.size} concepts`);
 
   // Build context for LLM, grouped by concept
   let context = '';
@@ -3039,6 +3223,7 @@ async function handleConceptComparison(
   // Add comparative intelligence to context
   if (comparativeResult.promptAddition) {
     context += comparativeResult.promptAddition;
+    console.log(`âœ… [COMPARATIVE] Added comparative intelligence to prompt context`);
   }
 
   // Detect language
@@ -3094,6 +3279,8 @@ async function handleDocumentComparison(
   onChunk: (chunk: string) => void,
   conversationHistory?: Array<{ role: string; content: string }>
 ): Promise<{ sources: any[] }> {
+  console.log('ðŸ”„ [DOCUMENT COMPARISON] Retrieving content for comparison');
+  console.log('ðŸ“„ [DOCUMENT COMPARISON] Specific documents:', documentIds.length);
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // DOCUMENT COMPARISON: Query specific documents
@@ -3110,6 +3297,7 @@ async function handleDocumentComparison(
   const queryEmbedding = embeddingResult.embedding;
 
   const queryPromises = documentIds.map(async (docId) => {
+    console.log(`  ðŸ“„ Searching document: ${docId}`);
 
     try {
       // Search this specific document
@@ -3123,6 +3311,7 @@ async function handleDocumentComparison(
       // Filter out deleted documents
       const filteredMatches = await filterDeletedDocuments(rawResults.matches || [], userId);
 
+      console.log(`  âœ… Found ${filteredMatches.length} chunks for ${docId}`);
 
       return filteredMatches;
     } catch (error) {
@@ -3137,22 +3326,27 @@ async function handleDocumentComparison(
   // Flatten results
   const allChunks = allResultsArrays.flat();
 
+  console.log(`âœ… [DOCUMENT COMPARISON] Queried ${documentIds.length} documents in parallel, found ${allChunks.length} total chunks`);
 
   // ðŸ” DEBUG: Log first chunk metadata to find the correct field names
   if (allChunks.length > 0) {
-    const firstMeta = allChunks[0].document_metadata || {};
+    const firstMeta = allChunks[0].metadata || {};
+    console.log(`ðŸ” [DEBUG] First chunk metadata keys:`, Object.keys(firstMeta));
+    console.log(`ðŸ” [DEBUG] First chunk content field:`, firstMeta.content ? `${firstMeta.content.substring(0, 100)}...` : 'EMPTY');
+    console.log(`ðŸ” [DEBUG] First chunk text field:`, firstMeta.text ? `${firstMeta.text.substring(0, 100)}...` : 'EMPTY');
   }
 
   // Build context from all chunks
   const context = allChunks
     .map((match: any) => {
-      const meta = match.document_metadata || {};
+      const meta = match.metadata || {};
       // âœ… FIX: Use correct field names from Pinecone - try 'text' first, then 'content'
       const chunkContent = meta.text || meta.content || '';
       return `[Document: ${meta.filename || 'Unknown'}, Page: ${meta.page || 'N/A'}]\n${chunkContent}`;
     })
     .join('\n\n---\n\n');
 
+  console.log(`ðŸ” [DEBUG] Built context length: ${context.length} chars`);
 
   // Build sources array - Will be updated after LLM response
   let sources: any[] = [];
@@ -3191,6 +3385,7 @@ async function handleDocumentComparison(
   const fullResponse = await smartStreamLLMResponse(finalSystemPrompt, '', onChunk);
 
   // âš¡ SPEED OPTIMIZATION: Build sources using fast regex extraction (saves ~1000ms)
+  console.log(`âš¡ [DOCUMENT COMPARISON] Building sources using fast regex extraction`);
 
   // Remove citation block from response
   const cleanResponse = citationTracking.removeCitationBlock(fullResponse);
@@ -3200,8 +3395,9 @@ async function handleDocumentComparison(
 
   // SPECIAL CASE: For document comparison, if no sources found, assume all compared docs were used
   if (sources.length === 0 && documentIds.length > 0) {
+    console.log('âš ï¸ [DOCUMENT COMPARISON] No citations found, assuming all compared documents were used');
 
-    const documents = await prisma.documents.findMany({
+    const documents = await prisma.document.findMany({
       where: { id: { in: documentIds } },
       select: { id: true, filename: true, mimeType: true }
     });
@@ -3215,6 +3411,7 @@ async function handleDocumentComparison(
     })));
   }
 
+  console.log(`âœ… [DOCUMENT COMPARISON] Built ${sources.length} accurate sources`);
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // NEW: ANSWER VALIDATION - Check answer quality
@@ -3223,13 +3420,17 @@ async function handleDocumentComparison(
   const validation = validateAnswer(cleanResponse, query, sources);
 
   if (!validation.isValid) {
+    console.log(`âš ï¸  [AGENT LOOP] Answer validation failed - issues detected`);
     validation.issues?.forEach(issue => console.log(`   - ${issue}`));
 
     // Log for monitoring (could trigger alert in production)
+    console.log(`âš ï¸  [MONITORING] Low quality answer generated for query: "${query}"`);
   }
 
   // âœ… DEBUG: Log sources being returned
+  console.log(`ðŸ“š [DOCUMENT COMPARISON] Returning ${sources.length} sources:`);
   sources.forEach((src, idx) => {
+    console.log(`   ${idx + 1}. ${src.documentName} (page: ${src.pageNumber || 'N/A'}, score: ${src.score?.toFixed(3) || 0})`);
   });
 
   return { sources };
@@ -3280,6 +3481,7 @@ async function handleDocumentCounting(
   fileType: string | undefined,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
+  console.log(`ðŸ”¢ [DOCUMENT COUNTING] Counting documents${fileType ? ` of type ${fileType}` : ''}`);
 
   // Detect language
   const lang = detectLanguage(query);
@@ -3293,8 +3495,8 @@ async function handleDocumentCounting(
     whereClause.filename = { endsWith: fileType };
   }
 
-  const count = await prisma.documents.count({ where: whereClause });
-  const documents = await prisma.documents.findMany({
+  const count = await prisma.document.count({ where: whereClause });
+  const documents = await prisma.document.findMany({
     where: whereClause,
     select: { filename: true },
   });
@@ -3336,7 +3538,7 @@ async function handleDocumentCounting(
 
   onChunk(response);
 
-  // âŒ NO SOURCES: documents counting queries don't use document CONTENT
+  // âŒ NO SOURCES: Document counting queries don't use document CONTENT
   // We're just counting rows in the database, not reading/analyzing documents
   return { sources: [] };
 }
@@ -3372,11 +3574,12 @@ async function handleDocumentTypes(
   query: string,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
+  console.log('ðŸ“Š [DOCUMENT TYPES] Fetching document types from database');
 
   // Detect language
   const lang = detectLanguage(query);
 
-  const documents = await prisma.documents.findMany({
+  const documents = await prisma.document.findMany({
     where: {
       userId,
       status: { not: 'deleted' },
@@ -3442,7 +3645,7 @@ async function handleDocumentTypes(
 
   onChunk(response);
 
-  // âŒ NO SOURCES: documents types queries don't use document CONTENT
+  // âŒ NO SOURCES: Document types queries don't use document CONTENT
   // We're just grouping files by extension, not reading/analyzing documents
   return { sources: [] };
 }
@@ -3492,6 +3695,7 @@ function isDocumentListingQuery(query: string): boolean {
   const isContentQuery = contentKeywords.some(keyword => lower.includes(keyword));
 
   if (isContentQuery) {
+    console.log('ðŸ” [QUERY ROUTING] Content query detected, not a document listing request');
     return false; // This is a content query, not a listing query
   }
 
@@ -3524,9 +3728,11 @@ function isDocumentListingQuery(query: string): boolean {
   const isExplicitListingRequest = explicitPatterns.some(pattern => pattern.test(query));
 
   if (isExplicitListingRequest) {
+    console.log('ðŸ“‹ [QUERY ROUTING] Explicit document listing request detected');
     return true;
   }
 
+  console.log('ðŸ” [QUERY ROUTING] Not a document listing request, routing to regular query handler');
   return false;
 }
 
@@ -3535,11 +3741,12 @@ async function handleDocumentListing(
   query: string,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
+  console.log('ðŸ“‹ [DOCUMENT LISTING] Fetching all user documents from database');
 
   // Detect language
   const lang = detectLanguage(query);
 
-  const documents = await prisma.documents.findMany({
+  const documents = await prisma.document.findMany({
     where: {
       userId,
       status: { not: 'deleted' },
@@ -3553,6 +3760,7 @@ async function handleDocumentListing(
   const displayDocs = documents.slice(0, DISPLAY_LIMIT);
   const hasMore = totalCount > DISPLAY_LIMIT;
 
+  console.log(`ðŸ“‹ [DOCUMENT LISTING] Total: ${totalCount}, Displaying: ${displayDocs.length}, Has more: ${hasMore}`);
 
   // Build multilingual response
   let response = '';
@@ -3612,7 +3820,7 @@ async function handleDocumentListing(
 
   onChunk(response);
 
-  // âŒ NO SOURCES: documents listing queries don't use document CONTENT
+  // âŒ NO SOURCES: Document listing queries don't use document CONTENT
   // We're just listing filenames from the database, not reading/analyzing documents
   return { sources: [] };
 }
@@ -3702,6 +3910,7 @@ async function handleMetaQuery(
   onChunk: (chunk: string) => void,
   conversationHistory?: Array<{ role: string; content: string }>
 ): Promise<void> {
+  console.log(`âš¡ FAST PATH: Meta-query detected`);
 
   // Check if this is the first message in conversation
   const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
@@ -3746,9 +3955,10 @@ async function handleNavigationQuery(
   userId: string,
   onChunk: (chunk: string) => void
 ): Promise<void> {
+  console.log(`ðŸ§­ [NAVIGATION] Handling app navigation question`);
 
   // âœ… PERSONALIZATION: Fetch user's folders and document count
-  const folders = await prisma.folders.findMany({
+  const folders = await prisma.folder.findMany({
     where: { userId },
     select: {
       id: true,
@@ -3759,13 +3969,13 @@ async function handleNavigationQuery(
     orderBy: { name: 'asc' }
   });
 
-  const documentCount = await prisma.documents.count({
+  const documentCount = await prisma.document.count({
     where: { userId }
   });
 
   // Build folder list for context
   const folderList = folders.length > 0
-    ? folders.map(f => `${f.emoji || 'ðŸ“'} **${f.name}** (${f._count.documents} files)`).join(', ')
+    ? folders.map(f => `**${f.name}** (${f._count.documents} files)`).join(', ')
     : 'No folders created yet';
 
   // Build personalization context with user's library and navigation guide
@@ -3861,15 +4071,18 @@ async function handleMethodologyKnowledgeQuery(
     return { handled: false };
   }
 
+  console.log(`ðŸ“š [METHODOLOGY] Detected methodology query for: "${methodologyName}"`);
 
   // Look up methodology knowledge from database
   const knowledge = await methodologyExtractionService.getMethodologyKnowledge(userId, methodologyName);
 
   if (!knowledge || !knowledge.definition) {
     // No knowledge found, fall back to regular RAG pipeline
+    console.log(`   âš ï¸ No knowledge found for "${methodologyName}", falling back to RAG`);
     return { handled: false };
   }
 
+  console.log(`   âœ… Found knowledge from ${knowledge.documentCount} documents`);
 
   // Format the knowledge for response
   const formattedResponse = methodologyExtractionService.formatKnowledgeForResponse(knowledge);
@@ -3909,15 +4122,18 @@ async function handleTrendAnalysisQuery(
     return { handled: false };
   }
 
+  console.log(`📈 [TRENDS] Detected trend analysis query`);
 
   try {
     // Perform trend analysis on user's document collection
     const trendResult = await trendAnalysisService.analyzeUserTrends(userId);
 
     if (!trendResult || !trendResult.summary) {
+      console.log(`   ⚠️ No trends found, falling back to RAG`);
       return { handled: false };
     }
 
+    console.log(`   ✅ Found ${trendResult.trends.length} trends across ${trendResult.totalDocuments} documents`);
 
     // Format the response
     const formattedResponse = trendAnalysisService.formatTrendAnalysisForResponse(trendResult);
@@ -3949,6 +4165,7 @@ async function handleDomainKnowledgeQuery(
     return { handled: false };
   }
 
+  console.log(`🎓 [DOMAIN] Detected terminology query for: "${term}"`);
 
   try {
     // Ensure Pinecone is initialized
@@ -3967,11 +4184,11 @@ async function handleDomainKnowledgeQuery(
 
     // Transform Pinecone results to document chunks format
     const documentChunks = (searchResults.matches || [])
-      .filter((match: any) => match.document_metadata)
+      .filter((match: any) => match.metadata)
       .map((match: any) => ({
-        content: match.document_metadata.text || match.document_metadata.content || '',
-        documentId: match.document_metadata.documentId || 'unknown',
-        documentName: match.document_metadata.filename || match.document_metadata.documentName || 'Unknown',
+        content: match.metadata.text || match.metadata.content || '',
+        documentId: match.metadata.documentId || 'unknown',
+        documentName: match.metadata.filename || match.metadata.documentName || 'Unknown',
       }));
 
     // Generate the terminology response with full intelligence
@@ -3994,6 +4211,7 @@ async function handleDomainKnowledgeQuery(
     }
 
     const confidenceStr = response.confidence.toFixed(2);
+    console.log(`   ✅ Domain knowledge generated for "${term}" (confidence: ${confidenceStr})`);
 
     return {
       handled: true,
@@ -4029,6 +4247,7 @@ async function handleTerminologyIntelligenceQuery(
     return { handled: false };
   }
 
+  console.log(`📖 [TERMINOLOGY] Detected terminology query for: "${term}"`);
 
   try {
     // If we have document chunks, use them; otherwise we need to search for relevant chunks
@@ -4060,6 +4279,7 @@ async function handleTerminologyIntelligenceQuery(
       onChunk(formattedResponse);
     }
 
+    console.log(`   ✅ Terminology response generated (confidence: ${response.confidence.toFixed(2)})`);
 
     return {
       handled: true,
@@ -4093,11 +4313,11 @@ async function searchDocumentsForTerm(
 
     // Transform Pinecone results to document chunks format
     return (searchResults.matches || [])
-      .filter((match: any) => match.document_metadata)
+      .filter((match: any) => match.metadata)
       .map((match: any) => ({
-        content: match.document_metadata.text || match.document_metadata.content || '',
-        documentId: match.document_metadata.documentId || 'unknown',
-        documentName: match.document_metadata.filename || match.document_metadata.documentName || 'Unknown',
+        content: match.metadata.text || match.metadata.content || '',
+        documentId: match.metadata.documentId || 'unknown',
+        documentName: match.metadata.filename || match.metadata.documentName || 'Unknown',
       }));
   } catch (error) {
     console.error('Error searching for term in documents:', error);
@@ -4116,131 +4336,11 @@ async function handleCrossDocumentSynthesis(
   synthesisQuery: { type: string; topic?: string; confidence: number },
   onChunk: (chunk: string) => void
 ): Promise<{ handled: boolean; sources?: any[] }> {
+  console.log(`📊 [SYNTHESIS] Handling ${synthesisQuery.type} synthesis query`);
+  console.log(`   Topic: ${synthesisQuery.topic || 'all documents'}`);
 
   try {
-    // Handle different synthesis types
-    if (synthesisQuery.type === 'aggregation') {
-      // For general aggregation queries like "create a summary report"
-      // Retrieve chunks from all user documents and generate a comprehensive summary
-      console.log('🔍 [SYNTHESIS] Aggregation query detected - retrieving all documents');
-
-      // Get all user documents
-      const userDocuments = await prisma.documents.findMany({
-        where: {
-          userId,
-          status: 'completed',
-        },
-        select: {
-          id: true,
-          filename: true,
-          createdAt: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-      if (userDocuments.length === 0) {
-        onChunk(`I don't see any documents in your library yet. Upload some documents and I'll help you analyze them!`);
-        return { handled: true, sources: [] };
-      }
-
-      // Retrieve document content from database
-      console.log(`📄 [SYNTHESIS] Retrieving content for ${userDocuments.length} documents`);
-
-      const documentsWithMetadata = await prisma.documents.findMany({
-        where: {
-          id: { in: userDocuments.map(d => d.id) },
-        },
-        select: {
-          id: true,
-          filename: true,
-          renderableContent: true, // For Koda-created documents
-          document_metadata: {
-            select: {
-              extractedText: true,
-              markdownContent: true,
-            },
-          },
-        },
-      });
-
-      // Extract text content from each document
-      const allChunks: Array<{ content: string; documentId: string; documentName: string }> = [];
-
-      for (const doc of documentsWithMetadata) {
-        // Check multiple sources for content:
-        // 1. document_metadata (for uploaded files)
-        // 2. renderableContent (for Koda-created markdown files)
-        const content =
-          doc.document_metadata?.markdownContent ||
-          doc.document_metadata?.extractedText ||
-          doc.renderableContent;
-
-        if (content) {
-          // Split into chunks (first 3000 chars to keep context manageable)
-          const chunk = content.substring(0, 3000);
-          allChunks.push({
-            content: chunk,
-            documentId: doc.id,
-            documentName: doc.filename || 'Unknown',
-          });
-          console.log(`✅ Retrieved content from ${doc.filename} (${chunk.length} chars)`);
-        } else {
-          console.log(`⚠️  No content found for ${doc.filename}`);
-        }
-      }
-
-      if (allChunks.length === 0) {
-        onChunk(`I found **${userDocuments.length}** documents in your library, but couldn't retrieve their content. This might be a temporary issue. Please try again.`);
-        return { handled: true, sources: [] };
-      }
-
-      // Generate comprehensive summary using LLM
-      console.log(`📝 [SYNTHESIS] Generating summary from ${allChunks.length} chunks across ${userDocuments.length} documents`);
-
-      const summaryPrompt = `You are creating a comprehensive summary report of the user's document library.
-
-User's request: "${query}"
-
-Documents in library (${userDocuments.length} total):
-${userDocuments.map((d, i) => `${i + 1}. ${d.filename}`).join('\n')}
-
-Document content excerpts:
-${allChunks.map((chunk, i) => `
---- Excerpt ${i + 1} from "${chunk.documentName}" ---
-${chunk.content}
-`).join('\n\n')}
-
-Create a comprehensive summary report that:
-1. Provides an overview of the document collection
-2. Identifies key themes and topics across documents
-3. Highlights important findings or insights
-4. Organizes information in a clear, structured format
-
-Use markdown formatting with headers, bullet points, and bold text for emphasis.`;
-
-      const aiResponse = await callAI(summaryPrompt);
-
-      // Stream the response
-      onChunk(aiResponse);
-
-      // Build sources
-      const sources = allChunks
-        .map(chunk => chunk.documentId)
-        .filter((id, index, self) => self.indexOf(id) === index)
-        .map(documentId => ({
-          documentId,
-          type: 'synthesis',
-        }));
-
-      return {
-        handled: true,
-        sources,
-      };
-    }
-
-    // For methodology-specific queries, use the existing service
+    // Call the cross-document synthesis service
     const result = await crossDocumentSynthesisService.synthesizeMethodologies(
       userId,
       synthesisQuery.topic
@@ -4248,6 +4348,13 @@ Use markdown formatting with headers, bullet points, and bold text for emphasis.
 
     if (result.methodologies.length === 0 && result.totalDocuments === 0) {
       // No documents found
+      console.log('   ⚠️ No documents found for synthesis');
+      return { handled: false };
+    }
+
+    // ✅ FIX: If no methodologies found but documents exist, fall back to regular RAG
+    if (result.methodologies.length === 0 && result.totalDocuments > 0) {
+      console.log(`   ⚠️ No methodologies extracted from ${result.totalDocuments} documents, falling back to RAG pipeline`);
       return { handled: false };
     }
 
@@ -4265,6 +4372,7 @@ Use markdown formatting with headers, bullet points, and bold text for emphasis.
         type: 'synthesis',
       }));
 
+    console.log(`   ✅ Synthesis complete: ${result.methodologies.length} methodologies across ${result.totalDocuments} documents`);
 
     return {
       handled: true,
@@ -4317,6 +4425,7 @@ async function handleRegularQuery(
   const cached = queryResultCache.get(cacheKey);
 
   if (cached && (Date.now() - cached.timestamp) < QUERY_CACHE_TTL) {
+    console.log(`âœ… [CACHE HIT] Query result for "${query.substring(0, 50)}..."`);
 
     // Stream cached response
     onChunk(cached.response);
@@ -4325,6 +4434,7 @@ async function handleRegularQuery(
   }
 
   perfTimer.measure('Cache Check', 'cacheCheck');
+  console.log(`âŒ [CACHE MISS] Query result for "${query.substring(0, 50)}..."`);
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // FAST PATH: Skip reasoning for simple document queries
@@ -4347,7 +4457,9 @@ async function handleRegularQuery(
   perfTimer.measure('Query Complexity Analysis', 'queryAnalysis');
 
   if (queryAnalysis.isComplex) {
+    console.log(`ðŸ§© [COMPLEX QUERY] Detected ${queryAnalysis.queryType} query with ${queryAnalysis.subQueries?.length || 0} sub-queries`);
   } else {
+    console.log(`âš¡ [SIMPLE QUERY] Using standard retrieval`);
   }
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -4376,16 +4488,20 @@ async function handleRegularQuery(
       if (attachedDocumentId.length === 1) {
         // Single document in array - use direct equality
         filter.documentId = attachedDocumentId[0];
+        console.log(`ðŸ” [FILTER] Searching in 1 attached document: ${attachedDocumentId[0]}`);
       } else if (attachedDocumentId.length > 1) {
         // Multiple documents - use $in operator
         filter.documentId = { $in: attachedDocumentId };
+        console.log(`ðŸ” [FILTER] Searching in ${attachedDocumentId.length} attached documents:`, attachedDocumentId);
       }
       // else: empty array, search all documents (no filter)
     } else {
       // Single document ID (string) - backward compatibility
       filter.documentId = attachedDocumentId;
+      console.log(`ðŸ” [FILTER] Searching in 1 attached document: ${attachedDocumentId}`);
     }
   } else {
+    console.log(`ðŸ” [FILTER] Searching across all user documents`);
   }
   perfTimer.measure('Filter Construction', 'filterConstruction');
 
@@ -4393,6 +4509,7 @@ async function handleRegularQuery(
 
   if (queryAnalysis.isComplex && queryAnalysis.subQueries && queryAnalysis.subQueries.length > 1) {
     // Complex query - use multi-step handler
+    console.log(`ðŸ§© [AGENT LOOP] Complex ${queryAnalysis.queryType} query detected - decomposing...`);
 
     // Initialize Pinecone before calling multi-step handler
     perfTimer.mark('complexQueryInit');
@@ -4406,8 +4523,8 @@ async function handleRegularQuery(
     // âœ… DISABLED BM25: document_chunks table doesn't exist, using pure vector search
     // Convert to hybrid result format for consistency
     const hybridResults = (searchResults.matches || []).map((match: any) => ({
-      content: match.document_metadata?.content || match.document_metadata?.text || '',
-      metadata: match.document_metadata,
+      content: match.metadata?.content || match.metadata?.text || '',
+      metadata: match.metadata,
       vectorScore: match.score || 0,
       bm25Score: 0,
       hybridScore: match.score || 0,
@@ -4417,16 +4534,17 @@ async function handleRegularQuery(
     const COMPARISON_MIN_SCORE = 0.65;
     const filteredChunks = hybridResults.filter(c => (c.hybridScore || c.vectorScore || 0) >= COMPARISON_MIN_SCORE);
 
+    console.log(`âœ… [FILTER] ${filteredChunks.length}/${hybridResults.length} chunks above threshold (${COMPARISON_MIN_SCORE})`);
 
     // Build context from all chunks with document type labels for multi-document queries
     const contextChunks = filteredChunks.slice(0, 20).map((chunk: any, index: number) => {
-      const content = chunk.document_metadata?.content || '';
-      const page = chunk.document_metadata?.page || 0;
+      const content = chunk.metadata?.content || '';
+      const page = chunk.metadata?.page || 0;
 
       // Get document type/name for context (helps with cross-document synthesis)
       let docLabel = 'Document';
-      if (chunk.document_metadata?.filename) {
-        const filename = chunk.document_metadata.filename.toLowerCase();
+      if (chunk.metadata?.filename) {
+        const filename = chunk.metadata.filename.toLowerCase();
         if (filename.includes('financial') || filename.includes('report') || filename.includes('statement')) {
           docLabel = 'Financial Report';
         } else if (filename.includes('lease') || filename.includes('agreement') || filename.includes('contract')) {
@@ -4438,7 +4556,7 @@ async function handleRegularQuery(
         } else if (filename.includes('policy') || filename.includes('insurance')) {
           docLabel = 'Insurance Policy';
         } else {
-          docLabel = chunk.document_metadata.filename;
+          docLabel = chunk.metadata.filename;
         }
       }
 
@@ -4529,9 +4647,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     // Build sources from chunks
     const sources = filteredChunks.slice(0, 10).map((chunk: any) => ({
-      documentId: chunk.document_metadata?.documentId || null,  // âœ… CRITICAL: Frontend needs this to display sources
-      documentName: chunk.document_metadata?.filename || 'Unknown',
-      pageNumber: chunk.document_metadata?.page || null,
+      documentId: chunk.metadata?.documentId || null,  // âœ… CRITICAL: Frontend needs this to display sources
+      documentName: chunk.metadata?.filename || 'Unknown',
+      pageNumber: chunk.metadata?.page || null,
       score: chunk.score || 0,
     }));
 
@@ -4540,7 +4658,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const sourceDocumentIds: string[] = sources.map(s => s.documentId).filter((id): id is string => Boolean(id));
     const uniqueDocumentIds = [...new Set(sourceDocumentIds)];
     if (uniqueDocumentIds.length > 0) {
-      const documents = await prisma.documents.findMany({
+      const documents = await prisma.document.findMany({
         where: { id: { in: uniqueDocumentIds } },
         select: { id: true, filename: true, mimeType: true }
       });
@@ -4557,20 +4675,24 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
     perfTimer.measure('Complex Query Doc Metadata Fetch', 'complexDocMetadata');
 
+    console.log(`âœ… [DECOMPOSE] Generated answer from ${sources.length} sources`);
     perfTimer.printSummary(); // Print timing for complex query path
     return { sources };
   } else {
     // Simple query - proceed with normal flow
+    console.log(`âœ… [AGENT LOOP] Simple query - using standard retrieval`);
   }
 
   // âœ… NEW: Detect query complexity for answer length mapping
   // Map complexity detection to answer length system
   perfTimer.mark('complexityDetection');
   const complexity = detectQueryComplexity(query);
+  console.log(`ðŸ“Š [COMPLEXITY] Detected complexity: ${complexity} for query: "${query.substring(0, 50)}..."`);
 
   // âœ… Issue #4 Fix: Detect comparison queries for better table formatting
   const isComparisonQuery = /\b(compare|difference|versus|vs\.?|contrast|similarities|between)\b/i.test(query);
   if (isComparisonQuery) {
+    console.log(`ðŸ“Š [COMPARISON] Detected comparison query - will use comparison rules`);
   }
 
   // Map complexity to answer length for unified system
@@ -4593,6 +4715,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
   const shouldShowGreeting = isFirstMessage !== undefined
     ? isFirstMessage
     : (!conversationHistory || conversationHistory.length === 0);
+  console.log(`ðŸ‘‹ [GREETING] shouldShowGreeting: ${shouldShowGreeting} (isFirstMessage param: ${isFirstMessage})`);
 
   // âš¡ SPEED OPTIMIZATION: Limit conversation history to last 3 messages (saves ~500ms)
   // REASON: Large context slows down LLM generation
@@ -4605,13 +4728,14 @@ Provide a comprehensive answer addressing all parts of the query.`;
       .slice(-3)  // âš¡ Only use last 3 messages (was unlimited)
       .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
       .join('\n\n');
+    console.log(`âš¡ [CONTEXT] Using last 3 of ${conversationHistory.length} messages for context`);
   }
   perfTimer.measure('Conversation Context Build', 'conversationContext');
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // âš¡ MAJOR PARALLELIZATION FIX: Run ALL independent operations in parallel
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  // REASON: folders fetch, query enhancement, terminology expansion, Pinecone init,
+  // REASON: Folder fetch, query enhancement, terminology expansion, Pinecone init,
   //         and embedding generation are ALL independent operations
   // IMPACT: 5-7s â†’ 2-3s (saves 3-4s by running in parallel instead of sequential)
   //
@@ -4635,11 +4759,14 @@ Provide a comprehensive answer addressing all parts of the query.`;
                        queryLang === 'es' ? 'Buscando en tus documentos...' :
                        queryLang === 'fr' ? 'Recherche dans vos documents...' :
                        'Searching your documents...';
+  console.log('[PROGRESS STREAM] Sending searching message');
   onStage?.('searching', searchingMsg);
 
   // Simple query enhancement (instant, no LLM call)
   const enhancedQueryText = queryEnhancementService.enhanceQuerySimple(query);
+  console.log(`ðŸ” [QUERY ENHANCE] Enhanced: "${query}" â†’ "${enhancedQueryText}"`);
 
+  console.log('âš¡ [PARALLEL] Starting all independent operations in parallel...');
   perfTimer.mark('parallelOperations');
   if (requestTimer) requestTimer.start('Parallel Operations (Folder + Terminology + Pinecone + Embedding)');
 
@@ -4652,7 +4779,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // 1. Folder tree fetch (expected: 300ms)
     (async () => {
       const t0 = Date.now();
-      const result = await prisma.folders.findMany({
+      const result = await prisma.folder.findMany({
         where: { userId },
         select: {
           id: true,
@@ -4662,12 +4789,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
           _count: {
             select: {
               documents: true,
-              other_folders: true
+              subfolders: true
             }
           }
         },
         orderBy: { name: 'asc' }
       });
+      console.log(`  âœ… [PARALLEL] Folder fetch: ${Date.now() - t0}ms`);
       return result;
     })(),
 
@@ -4679,8 +4807,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
           userId,
           maxSynonymsPerTerm: 2
         });
+        console.log(`  âœ… [PARALLEL] Terminology expansion: ${Date.now() - t0}ms`);
         return result;
       } catch (termError) {
+        console.warn(`  âš ï¸ [PARALLEL] Terminology failed (${Date.now() - t0}ms):`, termError);
         return { searchTerms: [], detectedDomains: [], synonymsUsed: {} };
       }
     })(),
@@ -4689,12 +4819,14 @@ Provide a comprehensive answer addressing all parts of the query.`;
     (async () => {
       const t0 = Date.now();
       await initializePinecone();
+      console.log(`  âœ… [PARALLEL] Pinecone init: ${Date.now() - t0}ms`);
     })(),
 
     // 4. Embedding generation with original query (expected: 300-500ms)
     (async () => {
       const t0 = Date.now();
       const result = await embeddingService.generateEmbedding(enhancedQueryText);
+      console.log(`  âœ… [PARALLEL] Embedding generation: ${Date.now() - t0}ms`);
       return result;
     })()
   ]);
@@ -4702,11 +4834,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
   const parallelTime = Date.now() - parallelStart;
   if (requestTimer) requestTimer.end('Parallel Operations (Folder + Terminology + Pinecone + Embedding)');
   perfTimer.measure('Parallel Operations (Folder + Terminology + Pinecone + Embedding)', 'parallelOperations');
+  console.log(`âœ… [PARALLEL] All independent operations completed in ${parallelTime}ms`);
 
   // Process folder tree context
   perfTimer.mark('folderTree');
   const folderTreeContext = buildFolderTreeContext(folders);
   perfTimer.measure('Folder Tree Fetch', 'folderTree');
+  console.log(`ðŸ“ [FOLDER CONTEXT] Built context for ${folders.length} folders`);
 
   // Process terminology results
   perfTimer.mark('queryEnhancement');
@@ -4720,22 +4854,28 @@ Provide a comprehensive answer addressing all parts of the query.`;
     detectedDomains = terminologyResult.detectedDomains?.map((d: any) => d.domain) || [];
 
     if (terminologyResult.synonymsUsed && Object.keys(terminologyResult.synonymsUsed).length > 0) {
+      console.log(`ðŸ“š [TERMINOLOGY] Expanded query with synonyms:`);
       for (const [term, synonyms] of Object.entries(terminologyResult.synonymsUsed)) {
+        console.log(`   "${term}" â†’ [${(synonyms as string[]).slice(0, 3).join(', ')}]`);
       }
 
       // If terminology added significant terms, regenerate embedding (fast, ~300ms)
       if (terminologyEnhancedQuery !== enhancedQueryText) {
+        console.log(`ðŸ”„ [EMBEDDING] Regenerating embedding with terminology-enhanced query`);
         const enhancedEmbeddingResult = await embeddingService.generateEmbedding(terminologyEnhancedQuery);
         earlyEmbedding = enhancedEmbeddingResult.embedding;
       }
     }
 
     if (detectedDomains.length > 0) {
+      console.log(`ðŸ“š [TERMINOLOGY] Detected domains: ${detectedDomains.join(', ')}`);
     }
   }
   perfTimer.measure('Query Enhancement + Terminology', 'queryEnhancement');
 
   // All queries now use the fast path (AgentLoop was removed as it used pgvector which isn't set up)
+  console.log('âš¡ [FAST PATH] Using direct Pinecone retrieval');
+  console.log(`ðŸ” [EMBEDDING] Generated embedding for: "${terminologyEnhancedQuery.substring(0, 100)}..."`);
 
     // filter already declared at top of function, just use it
 
@@ -4757,6 +4897,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
     let hybridResults: any[] = [];
     let rawResults: any; // Declare here so it's available for graceful degradation later
 
+    // ✅ FIX: Detect summary/aggregation queries and increase topK
+    const isSummaryQuery = /(?:create|make|generate|summarize|summary|overview).*(?:report|summary|analysis|all|documents?|files?)/i.test(query);
+    const retrievalTopK = isSummaryQuery ? 20 : 5;
+    if (isSummaryQuery) {
+      console.log(`📊 [SUMMARY QUERY] Detected summary query, increasing topK to ${retrievalTopK}`);
+    }
+
     if (requestTimer) requestTimer.start(`Retrieval Strategy: ${strategy}`);
 
     if (strategy === 'keyword') {
@@ -4769,8 +4916,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       // Convert to hybrid result format
       hybridResults = (bm25Results.matches || []).map((match: any) => ({
-        content: match.document_metadata?.content || match.document_metadata?.text || match.content || '',
-        metadata: match.document_metadata,
+        content: match.metadata?.content || match.metadata?.text || match.content || '',
+        metadata: match.metadata,
         vectorScore: 0,
         bm25Score: match.score || 0,
         hybridScore: match.score || 0,
@@ -4779,30 +4926,34 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // Set rawResults for graceful degradation fallback
       rawResults = bm25Results;
 
+      console.log(`âœ… [KEYWORD] Pure BM25 search: ${hybridResults.length} chunks`);
 
       // âœ… FIX: Fallback to vector search if BM25 returns no results
       // This handles cases where document_chunks table doesn't exist or BM25 fails
+      console.log(`ðŸ” [KEYWORD CHECK] BM25 results length: ${hybridResults.length}`);
       if (hybridResults.length === 0) {
+         console.log(`âš ï¸  [KEYWORDâ†'VECTOR FALLBACK] BM25 returned 0 results, falling back to Pinecone vector search...`);
         const queryEmbedding = earlyEmbedding;
 
-        // âš¡ PERFORMANCE: Reduced from 20 to 5 chunks
+        // âœ… FIX: Use retrievalTopK for summary queries
         if (requestTimer) requestTimer.start('Pinecone Query (keyword fallback)');
         rawResults = await pineconeIndex.query({
           vector: queryEmbedding,
-          topK: 5,
+          topK: retrievalTopK,
           filter,
           includeMetadata: true,
         });
         if (requestTimer) requestTimer.end('Pinecone Query (keyword fallback)');
 
         hybridResults = (rawResults.matches || []).map((match: any) => ({
-          content: match.document_metadata?.content || match.document_metadata?.text || '',
-          metadata: match.document_metadata,
+          content: match.metadata?.content || match.metadata?.text || '',
+          metadata: match.metadata,
           vectorScore: match.score || 0,
           bm25Score: 0,
           hybridScore: match.score || 0,
         }));
 
+        console.log(`âœ… [KEYWORDâ†’VECTOR] Fallback vector search: ${hybridResults.length} chunks`);
       }
 
     } else if (strategy === 'hybrid') {
@@ -4813,27 +4964,29 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // FIX #6: Use pre-computed embedding from parallel init
       const queryEmbedding = earlyEmbedding;
 
-      // âš¡ PERFORMANCE: Reduced from 20 to 5 chunks
+      // âœ… FIX: Use retrievalTopK for summary queries
       if (requestTimer) requestTimer.start('Pinecone Query (hybrid)');
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
-        topK: 5,
+        topK: retrievalTopK,
         filter,
         includeMetadata: true,
       });
       if (requestTimer) requestTimer.end('Pinecone Query (hybrid)');
 
+      console.log(`ðŸ” [HYBRID] Vector results: ${rawResults.matches?.length || 0} chunks`);
 
       // âœ… DISABLED BM25: document_chunks table doesn't exist, using pure vector search
       // Convert to hybrid result format for consistency (same as pure vector path)
       hybridResults = (rawResults.matches || []).map((match: any) => ({
-        content: match.document_metadata?.content || match.document_metadata?.text || '',
-        metadata: match.document_metadata,
+        content: match.metadata?.content || match.metadata?.text || '',
+        metadata: match.metadata,
         vectorScore: match.score || 0,
         bm25Score: 0,
         hybridScore: match.score || 0,
       }));
 
+      console.log(`âœ… [HYBRID] Using pure vector search: ${hybridResults.length} chunks`);
 
     } else {
       // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -4842,11 +4995,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // FIX #6: Use pre-computed embedding from parallel init
       const queryEmbedding = earlyEmbedding;
 
-      // âš¡ PERFORMANCE: Reduced from 20 to 5 chunks
+      // âœ… FIX: Use retrievalTopK for summary queries
       if (requestTimer) requestTimer.start('Pinecone Query (vector)');
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
-        topK: 5,
+        topK: retrievalTopK,
         filter,
         includeMetadata: true,
       });
@@ -4854,13 +5007,14 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       // Convert to hybrid result format for consistency
       hybridResults = (rawResults.matches || []).map((match: any) => ({
-        content: match.document_metadata?.content || match.document_metadata?.text || '',
-        metadata: match.document_metadata,
+        content: match.metadata?.content || match.metadata?.text || '',
+        metadata: match.metadata,
         vectorScore: match.score || 0,
         bm25Score: 0,
         hybridScore: match.score || 0,
       }));
 
+      console.log(`âœ… [VECTOR] Pure vector search: ${hybridResults.length} chunks`);
     }
 
     if (requestTimer) requestTimer.end(`Retrieval Strategy: ${strategy}`);
@@ -4869,13 +5023,27 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // DEBUG LOGGING - Diagnose retrieval issues
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    console.log('ðŸ” [DEBUG] Pinecone Query Results:');
+    console.log(`   Total results: ${hybridResults.length}`);
     if (hybridResults.length > 0) {
+      console.log(`   Top 5 results:`, hybridResults.slice(0, 5).map((r: any) => ({
+        filename: r.metadata?.filename,
+        score: r.vectorScore || r.hybridScore,
+        contentPreview: (r.metadata?.text || r.metadata?.content || r.content || '').substring(0, 80),
+        sourceType: r.metadata?.sourceType
+      })));
     } else {
-      console.error('❌ [DEBUG] NO RESULTS FROM PINECONE - Falling back to database retrieval');
-
-      // 🔄 DATABASE FALLBACK: Retrieve documents directly from database
+      console.error('❌ [DEBUG] NO RESULTS FROM PINECONE - This is the root cause!');
+      console.log('🔍 [DEBUG] Query:', query);
+      console.log('🔍 [DEBUG] User ID:', userId);
+      console.log('🔍 [DEBUG] Filter:', JSON.stringify(filter));
+      
+      // ✅ FIX: Fallback to database when Pinecone returns no results
+      console.log('🔄 [FALLBACK] Attempting to retrieve documents directly from database...');
+      
       try {
-        const userDocuments = await prisma.documents.findMany({
+        // Get all user documents from database
+        const documents = await prisma.document.findMany({
           where: {
             userId,
             status: 'completed'
@@ -4883,75 +5051,47 @@ Provide a comprehensive answer addressing all parts of the query.`;
           select: {
             id: true,
             filename: true,
-            renderableContent: true, // For Koda-created documents
-            document_metadata: {
-              select: {
-                extractedText: true,
-                markdownContent: true,
-              },
-            },
+            content: true,
+            createdAt: true
           },
           orderBy: { createdAt: 'desc' },
-          take: 5, // Limit to recent 5 documents
+          take: 10 // Limit to 10 most recent documents
         });
-
-        console.log(`📄 [DATABASE FALLBACK] Found ${userDocuments.length} documents`);
-
-        if (userDocuments.length > 0) {
-          // Convert database documents to hybridResults format
-          for (const doc of userDocuments) {
-            // Check multiple sources: document_metadata OR renderableContent (for Koda-created docs)
-            const content =
-              doc.document_metadata?.markdownContent ||
-              doc.document_metadata?.extractedText ||
-              doc.renderableContent;
-
-            if (content) {
-              // Split content into chunks (2000 chars each)
-              const chunkSize = 2000;
-              const chunks = [];
-              for (let i = 0; i < content.length && chunks.length < 3; i += chunkSize) {
-                chunks.push(content.substring(i, i + chunkSize));
-              }
-
-              // Add each chunk as a hybrid result
-              chunks.forEach((chunk, index) => {
-                hybridResults.push({
-                  chunkId: `${doc.id}-db-chunk-${index}`,
-                  documentId: doc.id,
-                  content: chunk,
-                  vectorScore: 0.5, // Default score for database fallback
-                  bm25Score: 0,
-                  hybridScore: 0.5,
-                  metadata: {
-                    filename: doc.filename || 'Unknown',
-                    documentId: doc.id,
-                    source: 'database-fallback',
-                  },
-                });
-              });
-
-              console.log(`✅ [DATABASE FALLBACK] Retrieved ${chunks.length} chunks from ${doc.filename}`);
-            }
-          }
-
-          // Also update rawResults for consistency
-          rawResults = hybridResults.map(hr => ({
-            id: hr.chunkId,
-            score: hr.hybridScore,
-            metadata: {
-              documentId: hr.documentId,
-              content: hr.content,
-              filename: hr.metadata?.filename || 'Unknown',
-            },
-          }));
-
-          console.log(`✅ [DATABASE FALLBACK] Created ${hybridResults.length} hybrid results from database`);
+        
+        if (documents.length > 0) {
+          console.log(`✅ [FALLBACK] Retrieved ${documents.length} documents from database`);
+          
+          // Convert documents to hybrid result format
+          hybridResults = documents
+            .filter(doc => doc.content && doc.content.trim().length > 0)
+            .map(doc => ({
+              content: doc.content || '',
+              metadata: {
+                documentId: doc.id,
+                filename: doc.filename,
+                text: doc.content || '',
+                sourceType: 'database_fallback'
+              },
+              vectorScore: 0.5, // Default score for database fallback
+              bm25Score: 0,
+              hybridScore: 0.5
+            }));
+          
+          console.log(`✅ [FALLBACK] Created ${hybridResults.length} chunks from database documents`);
+          
+          // Update rawResults for consistency
+          rawResults = {
+            matches: hybridResults.map(hr => ({
+              id: hr.metadata.documentId,
+              score: hr.hybridScore,
+              metadata: hr.metadata
+            }))
+          };
         } else {
-          console.log('⚠️ [DATABASE FALLBACK] No documents found in database');
+          console.log('⚠️ [FALLBACK] No documents found in database either');
         }
-      } catch (dbError) {
-        console.error('❌ [DATABASE FALLBACK] Error retrieving from database:', dbError);
+      } catch (error) {
+        console.error('❌ [FALLBACK] Database retrieval failed:', error);
       }
     }
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -4987,6 +5127,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
       const initialObservation = observeRetrievalResults(searchResults, query);
 
       if (initialObservation.needsRefinement) {
+        console.log(`ðŸ”„ [AGENT LOOP] Complex query needs refinement: ${initialObservation.reason}`);
+        console.log(`ðŸ”„ [AGENT LOOP] Starting iterative refinement...`);
 
         // Use iterative retrieval instead of single refinement
         const iterativeResults = await iterativeRetrieval(query, userId, filter);
@@ -4994,8 +5136,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
         // âœ… DISABLED BM25: document_chunks table doesn't exist, using pure vector search
         // Convert to hybrid result format for consistency
         const iterativeHybridResults = (iterativeResults.matches || []).map((match: any) => ({
-          content: match.document_metadata?.content || match.document_metadata?.text || '',
-          metadata: match.document_metadata,
+          content: match.metadata?.content || match.metadata?.text || '',
+          metadata: match.metadata,
           vectorScore: match.score || 0,
           bm25Score: 0,
           hybridScore: match.score || 0,
@@ -5003,14 +5145,18 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
         // Update results if iterative refinement improved them
         if (iterativeHybridResults.length > 0) {
+          console.log(`âœ… [AGENT LOOP] Iterative refinement completed - using best results`);
           searchResults = { matches: iterativeHybridResults };
           hybridResults = iterativeHybridResults;
         } else {
+          console.log(`âš ï¸  [AGENT LOOP] Iterative refinement didn't improve results, using original`);
           // Keep original searchResults and hybridResults
         }
       } else {
+        console.log(`âœ… [AGENT LOOP] Complex query results are satisfactory - no refinement needed`);
       }
     } else {
+      console.log(`âš¡ [SPEED] Simple query - skipping iterative refinement (saved ~2s)`);
     }
     perfTimer.measure('Iterative Refinement Check', 'iterativeRefinement');
 
@@ -5019,6 +5165,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
                          queryLang === 'es' ? `Analizando ${hybridResults.length} fragmentos encontrados...` :
                          queryLang === 'fr' ? `Analyse de ${hybridResults.length} extraits trouvÃ©s...` :
                          `Analyzing ${hybridResults.length} chunks found...`;
+    console.log(`[PROGRESS STREAM] Sending analyzing message (${hybridResults.length} chunks)`);
     onStage?.('analyzing', analyzingMsg);
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -5066,28 +5213,36 @@ Provide a comprehensive answer addressing all parts of the query.`;
         return scoreB - scoreA;
       });
 
+    console.log(`ðŸ” [VECTOR FILTER] Sorting ${sortedChunks.length} chunks by similarity score`);
 
     // Log score range for debugging
     if (sortedChunks.length > 0) {
       const allScores = sortedChunks.map((c: any) => c.hybridScore || c.vectorScore || 0);
       const maxScore = Math.max(...allScores);
       const minScore = Math.min(...allScores);
+      console.log(`ðŸ“Š [SCORE RANGE] Min: ${minScore.toFixed(3)}, Max: ${maxScore.toFixed(3)}`);
     }
 
     // Take top N chunks directly (no threshold filtering - vector scores vary too much)
     const filteredChunks = sortedChunks.slice(0, MAX_CHUNKS_FOR_ANSWER);
     perfTimer.measure('Chunk Sorting + Selection', 'chunkSorting');
 
+    console.log(`âœ… [VECTOR FILTER] Taking top ${filteredChunks.length} chunks (no threshold filter)`)
+
+    console.log(`âš¡ [SPEED] LLM chunk filtering DISABLED (saved 3-5 seconds)`);
+    console.log(`âœ… [FAST PATH] Using ${filteredChunks.length} chunks based on vector scores`);
 
     // Log score distribution for debugging
     if (filteredChunks.length > 0) {
       const scores = filteredChunks.map((c: any) => (c.hybridScore || c.vectorScore || 0).toFixed(2));
+      console.log(`ðŸ“Š [SCORES] Top chunks: [${scores.join(', ')}]`);
     }
 
     // Filter deleted documents
     perfTimer.mark('filterDeleted');
     const finalSearchResults = await filterDeletedDocuments(filteredChunks, userId);
     perfTimer.measure('Filter Deleted Documents', 'filterDeleted');
+    console.log(`â±ï¸ [PERF] Retrieval took ${Date.now() - startTime}ms`);
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // âš¡ SPEED OPTIMIZATION: Disable full document retrieval (saves ~1000ms)
@@ -5099,6 +5254,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     const useFullDocuments = false;  // âš¡ DISABLED for speed
 
+    console.log(`âš¡ [SPEED] Full document retrieval DISABLED (saved ~1000ms)`);
 
     let fullDocuments: fullDocRetrieval.FullDocument[] = [];
     let documentContext = '';
@@ -5108,7 +5264,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       fullDocuments = await fullDocRetrieval.retrieveFullDocuments(
         userId,
         query,
-        Array.isArray(attachedDocumentId) ? attachedDocumentId[0] : attachedDocumentId,
+        attachedDocumentId,
         {
           maxDocuments: complexity === 'complex' ? 3 : 2,
           minRelevanceScore: 0.7,
@@ -5118,6 +5274,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       if (fullDocuments.length > 0) {
         documentContext = fullDocRetrieval.buildDocumentContext(fullDocuments);
+        console.log(`ðŸ“„ [FULL DOCS] Using ${fullDocuments.length} full documents for ${complexity} query`);
+        console.log(`â±ï¸ [PERF] Document loading took ${Date.now() - startTime}ms`);
       }
     }
 
@@ -5131,6 +5289,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // NOTE: Can be re-enabled for specific use cases if needed
 
     let contradictionResult: any = null;
+    console.log(`âš¡ [SPEED] Contradiction detection disabled for speed optimization`);
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // GRACEFUL DEGRADATION (Week 3-4 - Critical Feature)
@@ -5146,6 +5305,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     if (!finalSearchResults || finalSearchResults.length === 0 ||
         (finalSearchResults.every((chunk: any) => chunk.llmScore?.finalScore < 0.5))) {
 
+      console.log('âš ï¸  [FAST PATH] No relevant chunks found, using graceful degradation');
 
       perfTimer.mark('gracefulDegradation');
       const fallback = await gracefulDegradationService.handleFailedQuery(
@@ -5167,6 +5327,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       onChunk(response.trim());
       perfTimer.measure('Graceful Degradation', 'gracefulDegradation');
 
+      console.log(`âœ… [FAST PATH] Graceful degradation complete (strategy: ${fallback.type})`);
       perfTimer.printSummary(); // Print timing for graceful degradation path
       return { sources: [] };
     }
@@ -5199,8 +5360,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // Use Pinecone's native ordering (already sorted by similarity)
     perfTimer.mark('reranking');
     const rerankedChunks = finalSearchResults.map((chunk: any, index: number) => ({
-      content: chunk.content || chunk.document_metadata?.content || '',
-      metadata: chunk.document_metadata,
+      content: chunk.content || chunk.metadata?.content || '',
+      metadata: chunk.metadata,
       originalScore: chunk.hybridScore || chunk.vectorScore || chunk.score || 0,
       rerankScore: chunk.hybridScore || chunk.vectorScore || chunk.score || 0, // Same as original
       finalPosition: index,
@@ -5208,10 +5369,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }));
     perfTimer.measure('Reranking (disabled - just mapping)', 'reranking');
 
+    console.log(`âš¡ [SPEED] Cohere reranking DISABLED (saved 2-3 seconds)`);
+    console.log(`âœ… [FAST PATH] Using ${rerankedChunks.length} chunks in Pinecone order`);
 
     // Log score distribution for debugging
     if (rerankedChunks.length > 0) {
       const scores = rerankedChunks.slice(0, 5).map((c: any) => c.rerankScore.toFixed(2));
+      console.log(`ðŸ“Š [SCORES] Top 5 chunks: [${scores.join(', ')}]`);
     }
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -5231,12 +5395,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const enableComplexReasoning = false;
 
     if (enableComplexReasoning && queryDecomposition.needsDecomposition(query)) {
+      console.log('ðŸ§  [COMPLEX REASONING] Query requires complex reasoning');
 
       // Extract document information for claim extraction
       const documentChunks = rerankedChunks.slice(0, 5).map((chunk: any) => ({
-        document_id: chunk.document_metadata?.documentId || 'unknown',
-        document_title: chunk.document_metadata?.filename || 'Unknown',
-        content: chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || ''
+        document_id: chunk.metadata?.documentId || 'unknown',
+        document_title: chunk.metadata?.filename || 'Unknown',
+        content: chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
       }));
 
       // Extract claims from documents
@@ -5246,20 +5411,23 @@ Provide a comprehensive answer addressing all parts of the query.`;
       const contradictions = await contradictionDetection.detectContradictions(claims);
 
       if (contradictions.length > 0) {
+        console.log(`âš ï¸  [COMPLEX REASONING] Found ${contradictions.length} contradictions`);
         contradictions.forEach(c => {
+          console.log(`   - ${c.contradiction_type}: ${c.explanation}`);
         });
       }
     } else {
+      console.log(`âš¡ [SPEED] Complex reasoning disabled for speed optimization`);
 
       // Build evidence for confidence scoring (simplified without contradiction detection)
       perfTimer.mark('evidenceScoring');
       const evidence = rerankedChunks.map((chunk: any) => ({
-        document_id: chunk.document_metadata?.documentId || 'unknown',
-        document_title: chunk.document_metadata?.filename || 'Unknown',
-        relevant_passage: chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '',
+        document_id: chunk.metadata?.documentId || 'unknown',
+        document_title: chunk.metadata?.filename || 'Unknown',
+        relevant_passage: chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
         support_strength: confidenceScoring.scoreEvidence(
           query,
-          chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '',
+          chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
           chunk.rerankScore || chunk.originalScore || 0
         ),
         relevance_score: chunk.rerankScore || chunk.originalScore || 0
@@ -5274,13 +5442,14 @@ Provide a comprehensive answer addressing all parts of the query.`;
       conflictingEvidence = conflicting;
       perfTimer.measure('Evidence Scoring', 'evidenceScoring');
 
+      console.log(`ðŸ“Š [CONFIDENCE] Score: ${answerConfidence.toFixed(2)} (speed-optimized path)`);
     }
 
     // Build context WITHOUT source labels (prevents Gemini from numbering documents)
     // âœ… NEW: Include folder location information for file navigation awareness
     const uniqueDocuments = new Map<string, { filename: string; folderPath?: string }>();
     rerankedChunks.forEach((result: any) => {
-      const meta = result.document_metadata || {};
+      const meta = result.metadata || {};
       const filename = meta.filename || 'Unknown';
       const folderPath = meta.folderPath || meta.folderName || 'Library';
       if (!uniqueDocuments.has(filename)) {
@@ -5305,11 +5474,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
 4. Provide a summary comparison if the query asks for it
 
 `;
+      console.log(`ðŸ”€ [MULTI-DOC] Added comparison instructions for ${documentCount} documents`);
     }
 
     perfTimer.mark('contextBuilding');
     const context = rerankedChunks.map((result: any, idx: number) => {
-      const meta = result.document_metadata || {};
+      const meta = result.metadata || {};
       const documentId = meta.documentId || 'unknown';
       const filename = meta.filename || 'Unknown';
       const page = meta.page || meta.pageNumber || 'N/A';
@@ -5318,23 +5488,29 @@ Provide a comprehensive answer addressing all parts of the query.`;
       return `[Document ${idx + 1}] ${filename} (documentId: ${documentId}, Page: ${page}):\n${meta.text || meta.content || result.content || ''}`;
     }).join('\n\n---\n\n');
 
+    console.log(`ðŸ“š [CONTEXT] Built context from ${rerankedChunks.length} chunks with folder locations`);
 
     // STREAM PROGRESS: Generating answer
     const generatingMsg = queryLang === 'pt' ? 'Gerando resposta...' :
                           queryLang === 'es' ? 'Generando respuesta...' :
                           queryLang === 'fr' ? 'GÃ©nÃ©ration de la rÃ©ponse...' :
                           'Generating answer...';
+    console.log('[PROGRESS STREAM] Sending generating message');
     onStage?.('generating', generatingMsg);
 
     // Removed nextStepText - using natural endings instead
 
     // âœ… NEW: Build document context from search results
     const documentContextFromChunks = rerankedChunks.map((chunk: any) =>
-      chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || ''
+      chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
     ).join('\n\n---\n\n');
 
     // DEBUG: Log what's in the chunks
-    if (rerankedChunks[0]?.document_metadata) {
+    console.log(`ðŸ” [DEBUG] documentContextFromChunks length: ${documentContextFromChunks.length}`);
+    console.log(`ðŸ” [DEBUG] rerankedChunks[0] keys:`, rerankedChunks[0] ? Object.keys(rerankedChunks[0]) : 'no chunks');
+    if (rerankedChunks[0]?.metadata) {
+      console.log(`ðŸ” [DEBUG] rerankedChunks[0].metadata keys:`, Object.keys(rerankedChunks[0].metadata));
+      console.log(`ðŸ” [DEBUG] Sample text (first 200 chars):`, (rerankedChunks[0].metadata.text || rerankedChunks[0].metadata.content || 'EMPTY').substring(0, 200));
     }
 
     // âœ… NEW: Choose context based on query complexity and document availability
@@ -5345,6 +5521,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // âœ… FIX #8: Prepend multi-document instruction if multiple documents
     const finalDocumentContext = multiDocInstruction + baseDocumentContext;
 
+    console.log(`ðŸ“ [PROMPT] Using ${complexity} complexity prompt with ${documentContext && fullDocuments.length > 0 ? 'full documents' : 'chunks'}`);
+    console.log(`ðŸ” [DEBUG] finalDocumentContext length: ${finalDocumentContext.length}`);
     perfTimer.measure('Context Building', 'contextBuilding');
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -5360,11 +5538,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     // Prepare chunks for causal extraction
     const chunksForCausalExtraction = rerankedChunks.map((chunk: any) => ({
-      content: chunk.document_metadata?.text || chunk.document_metadata?.content || chunk.content || '',
-      document_metadata: {
-        documentId: chunk.document_metadata?.documentId || 'unknown',
-        filename: chunk.document_metadata?.filename || 'Unknown',
-        page: chunk.document_metadata?.page || chunk.document_metadata?.pageNumber
+      content: chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
+      metadata: {
+        documentId: chunk.metadata?.documentId || 'unknown',
+        filename: chunk.metadata?.filename || 'Unknown',
+        page: chunk.metadata?.page || chunk.metadata?.pageNumber
       }
     }));
 
@@ -5372,9 +5550,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const causalResult = causalExtractionService.getWhyQueryContext(query, chunksForCausalExtraction);
 
     if (causalResult.isWhyQuery) {
+      console.log(`ðŸ” [CAUSAL] Detected "why" query - subject: "${causalResult.subject}"`);
+      console.log(`ðŸ” [CAUSAL] Found ${causalResult.causes.length} causal relationships`);
+      console.log(`ðŸ” [CAUSAL] Found ${causalResult.context.length} contextual info pieces`);
 
       if (causalResult.promptAddition) {
         causalContext = causalResult.promptAddition;
+        console.log(`âœ… [CAUSAL] Added causal intelligence to prompt context`);
       }
     }
     perfTimer.measure('Causal Extraction', 'causalExtraction');
@@ -5394,9 +5576,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const implicationsResult = practicalImplicationsService.getImplicationsContext(query, chunksForCausalExtraction);
 
     if (implicationsResult.isImplicationsQuery || implicationsResult.categorizedImplications.length > 0) {
+      console.log(`🔍 [IMPLICATIONS] Detected implications query: ${implicationsResult.isImplicationsQuery}`);
+      console.log(`🔍 [IMPLICATIONS] Found ${implicationsResult.categorizedImplications.length} categories`);
 
       if (implicationsResult.promptAddition) {
         implicationsContext = implicationsResult.promptAddition;
+        console.log(`✅ [IMPLICATIONS] Added practical implications to prompt context`);
       }
     }
     perfTimer.measure('Practical Implications', 'practicalImplications');
@@ -5428,6 +5613,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     );
     perfTimer.measure('System Prompt Construction', 'systemPrompt');
 
+    console.log(`ðŸ“ [PROMPT] Generated unified system prompt with ${answerLength} length`);
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // LANGUAGE INSTRUCTION - Add language requirement to prompt
@@ -5449,6 +5635,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     let fullResponse = await streamLLMResponse(finalSystemPrompt, contextWithIntelligence, onChunk);
     if (requestTimer) requestTimer.end('LLM Streaming Response');
     perfTimer.measure('LLM Streaming Response', 'llmStreaming');
+    console.log(`â±ï¸ [PERF] Generation took ${Date.now() - startTime}ms`);
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // NEW: CONFIDENCE SCORING - Calculate answer confidence
@@ -5464,10 +5651,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     // âš¡ SPEED OPTIMIZATION: Use fast regex citation extraction instead of LLM (saves ~1000ms)
     if (useFullDocuments && fullDocuments.length > 0) {
+      console.log(`âš¡ [FAST CITATION] Building sources from full documents (regex-based)`);
 
       // Build "chunks" array from full documents for citation matching
       const pseudoChunks = fullDocuments.map(doc => ({
-        document_metadata: {
+        metadata: {
           documentId: doc.id,
           filename: doc.filename,
           mimeType: doc.mimeType,
@@ -5480,9 +5668,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
       sources = fastCitationExtraction(fullResponse, pseudoChunks);
     } else {
       // For chunks, use fast regex extraction
+      console.log(`âš¡ [FAST CITATION] Building sources from chunks (regex-based)`);
       sources = fastCitationExtraction(fullResponse, rerankedChunks);
     }
 
+    console.log(`âœ… [FAST PATH] Built ${sources.length} sources using fast extraction (saved ~1000ms)`);
     perfTimer.measure('Sources Extraction', 'sourcesExtraction');
 
     // âœ… NEW: Calculate confidence score (for internal tracking only, not displayed to user)
@@ -5493,16 +5683,19 @@ Provide a comprehensive answer addressing all parts of the query.`;
       fullResponse
     );
 
+    console.log(`ðŸŽ¯ [CONFIDENCE] Final confidence: ${confidence.level} (${confidence.score}/100)`);
     perfTimer.measure('Confidence Calculation', 'confidenceCalc');
 
     // âœ… NEW: Append contradiction warnings if detected
     if (contradictionResult && contradictionResult.hasContradictions) {
       const contradictionMessage = contradictionDetectionService.formatContradictionsForUser(contradictionResult);
       onChunk(contradictionMessage);
+      console.log(`ðŸ” [CONTRADICTION] Appended ${contradictionResult.contradictions.length} contradiction warning(s) to response`);
     }
 
     // âœ… NEW: Generate evidence map
     if (evidenceAggregation.shouldAggregateEvidence(complexity, fullDocuments.length)) {
+      console.log(`ðŸ“š [EVIDENCE] Generating evidence map...`);
       const evidenceMap = await evidenceAggregation.generateEvidenceMap(
         fullResponse,
         fullDocuments.map(doc => ({ id: doc.id, filename: doc.filename, content: doc.content }))
@@ -5511,6 +5704,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       const evidenceMessage = evidenceAggregation.formatEvidenceForUser(evidenceMap);
       if (evidenceMessage) {
         onChunk(evidenceMessage);
+        console.log(`ðŸ“š [EVIDENCE] Appended evidence breakdown with ${evidenceMap.claims.length} claims`);
       }
     }
 
@@ -5536,12 +5730,16 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const validation = validateAnswer(fullResponse, query, sources);
 
     if (!validation.isValid) {
+      console.log(`âš ï¸  [AGENT LOOP] Answer validation failed - issues detected`);
       validation.issues?.forEach(issue => console.log(`   - ${issue}`));
 
       // Log for monitoring (could trigger alert in production)
+      console.log(`âš ï¸  [MONITORING] Low quality answer generated for query: "${query}"`);
     }
     perfTimer.measure('Answer Validation', 'answerValidation');
 
+    console.log(`âœ… [FAST PATH] Complete - returning ${sources.length} sources`);
+    console.log(`ðŸ” [DEBUG - RETURN] About to return sources:`, JSON.stringify(sources.slice(0, 2), null, 2));
 
     // Return with confidence scores
     const result: any = {
@@ -5552,7 +5750,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
       result.complexReasoningConfidence = answerConfidence;  // âœ… Renamed to avoid conflict
       result.supporting_evidence = supportingEvidence;
       result.conflicting_evidence = conflictingEvidence;
+      console.log(`ðŸ“Š [COMPLEX REASONING] Returning confidence: ${answerConfidence.toFixed(2)}`);
     }
+    console.log(`â±ï¸ [PERF] Total time: ${Date.now() - startTime}ms`);
 
     // â±ï¸ PERFORMANCE: Print timing summary
     if (requestTimer) {
@@ -5576,6 +5776,7 @@ async function streamLLMResponse(
   context: string,
   onChunk: (chunk: string) => void
 ): Promise<string> {
+  console.log('ðŸŒŠ [STREAMING] Starting Gemini streaming with table fix');
 
   const MAX_RETRIES = 3;
   let fullAnswer = '';
@@ -5585,6 +5786,7 @@ async function streamLLMResponse(
       // Reset for retry
       fullAnswer = '';
 
+      console.log(`ðŸ”„ [STREAMING] Attempt ${attempt}/${MAX_RETRIES}`);
 
       // ðŸ”§ FIX: Accumulate full response, then fix table cells
       fullAnswer = await geminiCache.generateStreamingWithCache({
@@ -5596,13 +5798,16 @@ async function streamLLMResponse(
         onChunk: () => {} // Don't stream - accumulate instead
       });
 
+      console.log(`âœ… [STREAMING] Complete. Total chars: ${fullAnswer.length}`);
 
       // âœ… FIX: Retry on empty response from Gemini (transient API issue)
       if (fullAnswer.length === 0) {
+        console.warn(`âš ï¸ [STREAMING] Gemini returned empty response on attempt ${attempt}`);
 
         if (attempt < MAX_RETRIES) {
           // Wait before retry with exponential backoff
           const delayMs = 1000 * Math.pow(2, attempt - 1); // 1s, 2s, 4s
+          console.log(`â³ [STREAMING] Retrying in ${delayMs}ms...`);
           await new Promise(resolve => setTimeout(resolve, delayMs));
           continue; // Retry
         }
@@ -5616,6 +5821,7 @@ async function streamLLMResponse(
 
       // ðŸ”§ FIX: Apply table cell fix before sending response
       const fixedAnswer = fixMarkdownTableCells(fullAnswer);
+      console.log('ðŸ”§ [TABLE FIX] Applied in streamLLMResponse');
       onChunk(fixedAnswer);
       return fixedAnswer;
 
@@ -5634,6 +5840,7 @@ async function streamLLMResponse(
 
       if (isRetryable && attempt < MAX_RETRIES) {
         const delayMs = 1000 * Math.pow(2, attempt - 1);
+        console.log(`â³ [STREAMING] Retryable error, waiting ${delayMs}ms...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
         continue; // Retry
       }
@@ -5642,6 +5849,7 @@ async function streamLLMResponse(
       if (fullAnswer.length === 0) {
         onChunk('I apologize, but I encountered an error generating the response. Please try again.');
       } else {
+        console.warn('âš ï¸ [STREAMING] Error occurred AFTER successful response. Not sending error message to user.');
       }
 
       return fullAnswer;
@@ -5661,6 +5869,7 @@ async function smartStreamLLMResponse(
   context: string,
   onChunk: (chunk: string) => void
 ): Promise<string> {
+  console.log('ðŸŒŠ [SMART STREAM] Starting with table fix');
 
   let fullAnswer = '';
 
@@ -5677,10 +5886,12 @@ async function smartStreamLLMResponse(
 
     // ðŸ”§ FIX: Apply table cell fix to remove newlines from table cells
     const fixedAnswer = fixMarkdownTableCells(fullAnswer);
+    console.log('ðŸ”§ [TABLE FIX] Applied in smartStreamLLMResponse');
 
     // Send the entire fixed response at once
     onChunk(fixedAnswer);
 
+    console.log('âœ… [SMART STREAM] Complete. Total chars:', fixedAnswer.length);
     return fixedAnswer;
 
   } catch (error: any) {
@@ -5870,6 +6081,7 @@ function postProcessAnswer(answer: string): string {
 
     // If table is incomplete or malformed, convert to bullets
     if (hasTableHeader && (!hasSeparator || hasLongLine)) {
+      console.warn('âš ï¸ [POST-PROCESS] Incomplete/malformed table detected, converting to bullet format');
       processed = convertTableToBullets(processed);
     }
   }
@@ -5963,6 +6175,8 @@ export async function generateAnswer(
   conversationHistory?: Array<{ role: string; content: string }>,
   isFirstMessage?: boolean  // âœ… NEW: Flag to control greeting logic
 ): Promise<{ answer: string; sources: any[] }> {
+  console.log('âš ï¸  [LEGACY] Using non-streaming method (deprecated)');
+  console.log(`ðŸ“ [generateAnswer] answerLength: ${answerLength}, conversationHistory: ${conversationHistory?.length || 0} messages, isFirstMessage: ${isFirstMessage}`);
 
   let fullAnswer = '';
 
@@ -6054,6 +6268,7 @@ async function handleFileLocationQuery(
   userId: string,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
+  console.log('ðŸ“ [FILE LOCATION] Searching database for file...');
 
   // Extract filename from query
   const filenameMatch = query.match(/([a-zA-Z0-9_\-\.]+\.(pdf|docx?|xlsx?|pptx?|txt|csv|png|jpe?g|gif))/i);
@@ -6065,13 +6280,13 @@ async function handleFileLocationQuery(
   }
 
   // Query database for file
-  const documents = await prisma.documents.findMany({
+  const documents = await prisma.document.findMany({
     where: {
       userId,
       filename: { contains: filename, mode: 'insensitive' }
     },
     include: {
-      folders: {
+      folder: {
         select: {
           id: true,
           name: true,
@@ -6089,14 +6304,14 @@ async function handleFileLocationQuery(
 
   if (documents.length === 1) {
     const doc = documents[0];
-    const folderName = doc.folders ? `${doc.folders.emoji || 'ðŸ“'} **${doc.folders.name}**` : '**Library**';
+    const folderName = doc.folder ? `**${doc.folder.name}**` : '**Library**';
     onChunk(`**${doc.filename}** is located in: ${folderName}`);
     return { sources: [{ documentId: doc.id, documentName: doc.filename, score: 1.0 }] };
   }
 
   // Multiple files with same name
   const locations = documents.map(doc => {
-    const folderName = doc.folders ? `${doc.folders.emoji || 'ðŸ“'} **${doc.folders.name}**` : '**Library**';
+    const folderName = doc.folder ? `**${doc.folder.name}**` : '**Library**';
     return `- **${doc.filename}** in ${folderName}`;
   }).join('\n');
 
@@ -6183,6 +6398,7 @@ async function handleFolderContentQuery(
   userId: string,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
+  console.log('ðŸ“ [FOLDER CONTENT] Searching for folder...');
 
   // Extract folder name - try multiple patterns to support both word orders
   const folderMatch =
@@ -6205,7 +6421,7 @@ async function handleFolderContentQuery(
   }
 
   // Query database for folder
-  const folder = await prisma.folders.findFirst({
+  const folder = await prisma.folder.findFirst({
     where: {
       userId,
       name: { contains: folderName, mode: 'insensitive' }
@@ -6220,7 +6436,7 @@ async function handleFolderContentQuery(
         },
         orderBy: { createdAt: 'desc' }
       },
-      other_folders: {
+      subfolders: {
         select: {
           id: true,
           name: true,
@@ -6239,8 +6455,7 @@ async function handleFolderContentQuery(
   }
 
   // Build response
-  const emoji = folder.emoji || 'ðŸ“';
-  let response = `Your ${emoji} **${folder.name}** folder contains:\n\n`;
+  let response = `Your **${folder.name}** folder contains:\n\n`;
 
   // List documents
   if (folder.documents.length === 0) {
@@ -6319,6 +6534,7 @@ function detectFolderListingQuery(query: string): boolean {
   const isMatch = patterns.some(pattern => pattern.test(lower));
 
   if (isMatch) {
+    console.log('ðŸ“‚ [FOLDER LISTING DETECT] Query matched folder listing pattern:', query);
   }
 
   return isMatch;
@@ -6333,7 +6549,7 @@ async function handleFolderListingQuery(
 ): Promise<{ sources: any[] }> {
   try {
     // Fetch all folders for user
-    const folders = await prisma.folders.findMany({
+    const folders = await prisma.folder.findMany({
       where: { userId },
       include: {
         _count: {
@@ -6409,19 +6625,13 @@ function buildFolderTree(folders: any[]): any[] {
 function formatFolderTreeItem(folder: any, depth: number): string {
   const indent = '  '.repeat(depth);
 
-  // Sanitize emoji - replace "FOLDER_SVG", "__FOLDER_SVG__", or invalid values with ðŸ“
-  let emoji = folder.emoji || 'ðŸ“';
-  if (emoji === 'FOLDER_SVG' || emoji === '__FOLDER_SVG__' || emoji.trim() === '') {
-    emoji = 'ðŸ“';
-  }
-
   const docCount = folder._count?.documents || 0;
   const docText = docCount === 1 ? '1 document' : `${docCount} documents`;
 
   // Use proper Markdown list format with dash bullets
   const prefix = depth === 0 ? '-' : '  -';
 
-  let result = `${indent}${prefix} ${emoji} **${folder.name}** (${docText})\n`;
+  let result = `${indent}${prefix} **${folder.name}** (${docText})\n`;ext})\n`;
 
   // Add children recursively
   if (folder.children && folder.children.length > 0) {
@@ -6454,15 +6664,9 @@ function buildFolderTreeContext(folders: any[]): string {
 
   // Recursive function to build tree
   const buildTree = (folder: any, indent: string = ''): string => {
-    // Sanitize emoji - replace "FOLDER_SVG", "__FOLDER_SVG__", or invalid values with ðŸ“
-    let emoji = folder.emoji || 'ðŸ“';
-    if (emoji === 'FOLDER_SVG' || emoji === '__FOLDER_SVG__' || emoji.trim() === '') {
-      emoji = 'ðŸ“';
-    }
+       const docCount = folder._count?.documents || 0;
 
-    const docCount = folder._count?.documents || 0;
-
-    let result = `${indent}${emoji} **${folder.name}** (${docCount} ${docCount === 1 ? 'file' : 'files'})`;
+    let result = `${indent}**${folder.name}** (${docCount} ${docCount === 1 ? 'file' : 'files'})`;s'})`;
 
     // Add subfolders
     const subfolders = folders.filter(f => f.parentFolderId === folder.id);
@@ -6482,20 +6686,10 @@ function buildFolderTreeContext(folders: any[]): string {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // DEFAULT EXPORT (for backward compatibility with default imports)
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Stub for getContext - returns empty context
-const getContext = async (_contextId: string) => {
-  return {
-    sources: [],
-    query: '',
-    timestamp: new Date().toISOString(),
-  };
-};
-
 export default {
   generateAnswer,
   generateAnswerStream,
   generateAnswerStreaming,
-  getContext,
 };
 
 

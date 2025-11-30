@@ -1,360 +1,665 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_DATABASE_URL")
+  url       = env("DATABASE_URL")        // Pooled connection (fast, for app queries)
+  directUrl = env("DIRECT_DATABASE_URL") // Direct connection (slow, for migrations only)
 }
 
-model action_history {
-  id           String   @id @default(uuid())
-  userId       String
-  actionType   String
-  targetPath   String
-  previousPath String?
-  fileContent  String?
-  fileType     String?
-  canUndo      Boolean  @default(true)
-  canRedo      Boolean  @default(false)
-  timestamp    DateTime @default(now())
-  users        users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+// User model
+model User {
+  id               String   @id @default(uuid())
+  email            String   @unique
+  firstName        String?
+  lastName         String?
+  profileImage     String?
+  passwordHash     String? // Null for OAuth users
+  salt             String? // Null for OAuth users
+  googleId         String?  @unique
+  appleId          String?  @unique
+  phoneNumber      String?  @unique
+  isEmailVerified  Boolean  @default(false)
+  isPhoneVerified  Boolean  @default(false)
+  subscriptionTier String   @default("free") // free, personal, premium, business
+  role             String   @default("user") // user, admin, lawyer, paralegal, accountant
+  storageUsedBytes BigInt   @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  @@index([canRedo])
-  @@index([canUndo])
-  @@index([timestamp])
+  // Zero-Knowledge Encryption Recovery
+  recoveryKeyHash  String? // Hashed recovery key for account recovery (bcrypt)
+  masterKeyEncrypted String? // Master encryption key encrypted with recovery key
+
+  // Relations
+  sessions          Session[]
+  twoFactorAuth     TwoFactorAuth?
+  documents         Document[]
+  folders           Folder[]
+  tags              Tag[]
+  verificationCodes VerificationCode[]
+  conversations     Conversation[]
+  reminders         Reminder[]
+  cloudIntegrations CloudIntegration[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  userPreferences   UserPreferences?
+  terminologyMaps   TerminologyMap[]
+  sharedDocuments   DocumentShare[] @relation("SharedWith")
+  ownedShares       DocumentShare[] @relation("Owner")
+  actionHistory     ActionHistory[]
+
+  // Memory system relations
+  profile              UserProfile?
+  preferencesMemory    UserPreference[]
+  conversationTopics   ConversationTopic[]
+  insights             UserInsight[]
+  conversationSummaries ConversationSummary[]
+  interactionMetadata  InteractionMetadata[]
+  memories             Memory[]
+  presentations        Presentation[]
+
+  // Domain knowledge relations
+  domainKnowledge      DomainKnowledge[]
+
+  @@map("users")
+}
+
+// Session model for refresh tokens with advanced security tracking
+model Session {
+  id               String    @id @default(uuid())
+  userId           String
+  refreshTokenHash String
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
+  lastActivityAt   DateTime  @default(now())
+
+  // IP Binding and Device Tracking
+  ipAddress        String?   // IP address where session was created
+  lastIpAddress    String?   // Last IP address used
+  userAgent        String?   // Device and browser information
+  deviceId         String?   // Unique device identifier
+  deviceType       String?   // mobile, desktop, tablet
+  deviceName       String?   // User-friendly device name (e.g., "Chrome on Windows")
+
+  // Security Flags
+  isActive         Boolean   @default(true)
+  isSuspicious     Boolean   @default(false) // Flagged for suspicious activity
+  suspicionReason  String?   // Why flagged as suspicious
+
+  // Geolocation (optional)
+  country          String?
+  city             String?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
-}
-
-model analysis_sessions {
-  id                String              @id @default(uuid())
-  userId            String
-  sessionType       String              @default("document_analysis")
-  status            String              @default("active")
-  documentCount     Int                 @default(0)
-  documentIds       String?
-  createdAt         DateTime            @default(now())
-  expiresAt         DateTime
-  completedAt       DateTime?
-  session_documents session_documents[]
-
-  @@index([expiresAt])
-  @@index([status])
-  @@index([userId])
-}
-
-model api_keys {
-  id          String    @id @default(uuid())
-  userId      String
-  name        String
-  keyHash     String    @unique
-  keyPreview  String
-  scopes      String
-  expiresAt   DateTime?
-  lastUsedAt  DateTime?
-  isActive    Boolean   @default(true)
-  rateLimit   Int       @default(1000)
-  usageCount  Int       @default(0)
-  windowStart DateTime  @default(now())
-  ipWhitelist String?
-  userAgent   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
+  @@index([deviceId])
   @@index([isActive])
-  @@index([keyHash])
-  @@index([userId])
+  @@map("sessions")
 }
 
-model api_usage {
-  id                String   @id @default(uuid())
-  userId            String
-  month             String
-  geminiTokensUsed  Int      @default(0)
-  embeddingRequests Int      @default(0)
-  chatRequests      Int      @default(0)
-  costUSD           Float    @default(0.0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+// Two-Factor Authentication model
+model TwoFactorAuth {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  secret      String // Encrypted TOTP secret
+  backupCodes String // Encrypted backup codes (JSON array)
+  isEnabled   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  @@unique([userId, month])
-  @@index([month])
-  @@index([userId])
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("two_factor_auth")
 }
 
-model audit_logs {
-  id        String   @id @default(uuid())
-  userId    String?
-  action    String
-  resource  String?
-  ipAddress String?
-  userAgent String?
-  status    String
-  details   String?
-  createdAt DateTime @default(now())
-  users     users?   @relation(fields: [userId], references: [id])
+// Folder model for document organization
+model Folder {
+  id             String   @id @default(uuid())
+  userId         String
+  name           String
+  description    String? // Optional description for the folder
+  emoji          String? // Emoji icon for the folder
+  color          String? // Color for UI representation
+  parentFolderId String? // Null for root folders
+  path           String? // Full path for display (e.g., "/Work/Projects/Q1")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@index([action])
-  @@index([createdAt])
+  // Encryption metadata (AES-256-GCM) - Zero-Knowledge Encryption for folder name
+  nameEncrypted     String? // Encrypted folder name
+  encryptionSalt    String? // PBKDF2 salt (base64)
+  encryptionIV      String? // Initialization vector (base64)
+  encryptionAuthTag String? // Authentication tag (base64)
+
+  // Relations
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentFolder Folder?    @relation("FolderHierarchy", fields: [parentFolderId], references: [id], onDelete: Cascade)
+  subfolders   Folder[]   @relation("FolderHierarchy")
+  documents    Document[]
+
   @@index([userId])
+  @@index([parentFolderId])
+  @@index([path])
+  @@index([userId, parentFolderId]) // ✅ Composite index for user's folder tree queries
+  @@index([parentFolderId, name]) // ✅ Composite index for subfolder lookups with sorting
+  @@map("folders")
 }
 
-model categories {
-  id                  String                @id @default(uuid())
-  userId              String
-  name                String
-  description         String?
-  color               String?
-  icon                String?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  document_categories document_categories[]
+// Category model for document classification (tags/labels)
+model Category {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String // e.g., "Financial", "Legal", "Personal", "Work"
+  description String? // Optional description
+  color       String? // Hex color for UI
+  icon        String? // Icon identifier or emoji
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  documents DocumentCategory[]
 
   @@unique([userId, name])
   @@index([userId])
+  @@map("categories")
 }
 
-model causal_relationships {
+// Junction table for Document-Category many-to-many relationship
+model DocumentCategory {
+  id         String   @id @default(uuid())
+  documentId String
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, categoryId])
+  @@index([documentId])
+  @@index([categoryId])
+  @@map("document_categories")
+}
+
+// Document model
+model Document {
   id                String   @id @default(uuid())
   userId            String
-  effect            String
-  causes            String
-  evidence          String?
-  context           String?
-  mechanism         String?
-  domain            String?
-  causalType        String?
-  sourceDocumentIds String?
-  documentCount     Int      @default(1)
-  extractedPatterns String?
-  confidence        Float    @default(0.5)
-  isVerified        Boolean  @default(false)
+  folderId          String?
+  filename          String
+  encryptedFilename String // Actual filename in storage
+  fileSize          Int
+  mimeType          String
+  fileHash          String // SHA-256 hash for integrity
+  status            String   @default("processing") // processing, completed, failed
+  parentVersionId   String? // For version control
+
+  // Encryption metadata (AES-256-GCM) - Zero-Knowledge Encryption
+  isEncrypted          Boolean  @default(false) // Flag for encrypted documents
+  encryptionSalt       String? // PBKDF2 salt (base64)
+  encryptionIV         String? // Initialization vector (base64)
+  encryptionAuthTag    String? // Authentication tag (base64)
+  filenameEncrypted    String? // Encrypted original filename
+  extractedTextEncrypted String? // Encrypted extracted text (JSON with salt, iv, ciphertext, authTag)
+
+  // Advanced Features: Interactive preview
+  renderableContent String? // JSON structure for Manus-style preview (optional)
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  @@index([confidence])
-  @@index([userId, domain])
+  // Relations
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder            Folder?               @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  parentVersion     Document?             @relation("DocumentVersions", fields: [parentVersionId], references: [id], onDelete: SetNull)
+  versions          Document[]            @relation("DocumentVersions")
+  metadata          DocumentMetadata?
+  tags              DocumentTag[]
+  categories        DocumentCategory[]
+  summaries         DocumentSummary[]
+  embeddings        DocumentEmbedding[]
+  generatedDocument GeneratedDocument?
+
   @@index([userId])
+  @@index([folderId])
+  @@index([parentVersionId])
+  @@index([userId, status])
+  @@index([status])
+  @@index([mimeType])
+  @@index([userId, createdAt])
+  @@index([userId, updatedAt])
+  @@index([folderId, status]) // ✅ Composite index for folder contents filtering
+  @@index([userId, folderId, status]) // ✅ Composite index for user's folder document queries
+  @@index([filename]) // ✅ For filename search
+  @@index([userId, filename]) // ✅ For user-specific filename search
+  @@index([fileHash]) // ✅ For duplicate detection
+  @@index([userId, fileHash, filename]) // ✅ For idempotency check (allows identical files with different names)
+  @@map("documents")
 }
 
-model chat_contexts {
-  id              String        @id @default(uuid())
-  conversationId  String
-  messageId       String?
-  sourceDocuments String
-  webSources      String?
-  searchQuery     String?
-  expandedTerms   String?
-  createdAt       DateTime      @default(now())
-  conversations   conversations @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+// Document metadata (extracted text, OCR results, etc.)
+model DocumentMetadata {
+  id             String   @id @default(uuid())
+  documentId     String   @unique
+  extractedText  String? // Long text for extracted content
+  ocrConfidence  Float?
+  pageCount      Int? // Number of pages (for PDFs and multi-page documents)
+  wordCount      Int? // Number of words in extracted text
+  characterCount Int? // Number of characters in extracted text
+  thumbnailUrl   String?
+  entities       String? // JSON string of extracted entities
+  classification String? // invoice, contract, receipt, etc.
+  summary        String? // AI-generated 2-3 sentence summary for quick understanding
+
+  // File properties (Phase 3 Enhancement)
+  author            String? // Extracted from document properties
+  creationDate      DateTime? // From file metadata
+  modificationDate  DateTime? // From file metadata
+  language          String? // Detected language (en, pt, es, etc.)
+
+  // AI-generated metadata (Phase 3 Enhancement)
+  topics            String? // JSON array of main topics
+  keyEntities       String? // JSON array of people, companies, locations
+
+  // Content flags (Phase 3 Enhancement)
+  hasSignature      Boolean  @default(false)
+  hasTables         Boolean  @default(false)
+  hasImages         Boolean  @default(false)
+
+  // Markdown conversion fields for deep linking
+  markdownContent   String? // Full markdown text (for preview and editing)
+  markdownUrl       String? // S3/GCS URL for large markdown files (alternative to storing in DB)
+  markdownStructure String? // JSON: { headings: [...], sections: [...], toc: [...] }
+  sheetCount        Int? // Number of sheets (for Excel documents)
+  slideCount        Int? // Number of slides (for PowerPoint documents)
+
+  // PowerPoint specific fields
+  slidesData        String? // JSON: Array of slide objects with content
+  pptxMetadata      String? // JSON: Presentation metadata (author, title, etc.)
+  slideGenerationStatus String? @default("pending") // 'pending' | 'processing' | 'completed' | 'failed'
+  slideGenerationError  String? // Error message if failed
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("document_metadata")
+}
+
+// Tag model
+model Tag {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  color     String? // Hex color for UI
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents DocumentTag[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("tags")
+}
+
+// Junction table for Document-Tag many-to-many relationship
+model DocumentTag {
+  id         String   @id @default(uuid())
+  documentId String
+  tagId      String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, tagId])
+  @@index([documentId])
+  @@index([tagId])
+  @@map("document_tags")
+}
+
+// Verification codes for email and phone verification
+model VerificationCode {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String // "email" or "phone"
+  code      String // 6-digit verification code
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([code])
+  @@map("verification_codes")
+}
+
+// Pending users waiting for email and phone verification
+model PendingUser {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  salt          String
+  firstName     String?  // User's first name
+  lastName      String?  // User's last name
+  phoneNumber   String?
+  emailCode     String?
+  phoneCode     String?
+  emailVerified Boolean  @default(false)
+  phoneVerified Boolean  @default(false)
+  expiresAt     DateTime // Expires after 24 hours if not verified
+  createdAt     DateTime @default(now())
+
+  // Zero-Knowledge Encryption Recovery
+  recoveryKeyHash  String? // Hashed recovery key for account recovery (bcrypt)
+  masterKeyEncrypted String? // Master encryption key encrypted with recovery key
+
+  @@index([email])
+  @@map("pending_users")
+}
+
+// Conversation model for chat history
+model Conversation {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String   @default("New Chat")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Encryption metadata (AES-256-GCM) - Zero-Knowledge Encryption for title
+  titleEncrypted    String? // Encrypted conversation title
+  encryptionSalt    String? // PBKDF2 salt (base64)
+  encryptionIV      String? // Initialization vector (base64)
+  encryptionAuthTag String? // Authentication tag (base64)
+
+  // Context tracking for folder/category-scoped conversations
+  contextType   String?  // "folder" | "category" | "document" | null
+  contextId     String?  // ID of the folder/category/document
+  contextName   String?  // Display name for user reference
+  contextMeta   Json?    // Additional metadata
+
+  // ✅ NEW: P0 Features - Multi-turn conversation scope
+  scopeDocumentIds String[] @default([])  // Current conversation scope (document IDs)
+  scopeDescription String?                // Description of current scope
+
+  // Relations
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    Message[]
+  chatContexts ChatContext[]
+
+  @@index([userId])
+  @@index([contextType, contextId])
+  @@index([userId, updatedAt])
+  @@map("conversations")
+}
+
+// Message model for chat messages
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  role           String // "user" or "assistant"
+  content        String // The message text
+  metadata       String? // JSON string for additional data (function calls, etc.)
+  createdAt      DateTime @default(now())
+
+  // Encryption metadata (AES-256-GCM) - Zero-Knowledge Encryption
+  isEncrypted       Boolean  @default(false) // Flag for encrypted messages
+  encryptionSalt    String? // PBKDF2 salt (base64)
+  encryptionIV      String? // Initialization vector (base64)
+  encryptionAuthTag String? // Authentication tag (base64)
+
+  // Document generation fields
+  isDocument      Boolean  @default(false) // Flag if this message contains a generated document
+  documentTitle   String? // Title of the generated document
+  documentFormat  String? // Format type: 'summary', 'analysis', 'deep_dive', 'report', 'general'
+  markdownContent String? // Full markdown content of the document
+
+  // ✅ NEW: P0 Features - Calculation and Context Tracking
+  calculationResult Json?   // Stores calculation results (average, sum, growth, etc.)
+  contextEntities   Json?   // Stores tracked entities (countries, years, metrics, topics)
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  attachments  MessageAttachment[]
+  chatDocuments ChatDocument[]
 
   @@index([conversationId])
+  @@index([isDocument])
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// Chat Document model - Stores generated documents from chat with temporary expiry
+model ChatDocument {
+  id                String   @id @default(uuid())
+  messageId         String
+  conversationId    String
+  userId            String
+
+  // Document content
+  title             String // Document title
+  markdownContent   String // Full markdown content
+  documentType      String? // 'summary', 'analysis', 'deep_dive', 'report', 'general'
+
+  // Source information
+  sourceDocumentId  String? // Optional reference to source document from library
+
+  // Export URLs (generated on demand)
+  pdfUrl            String? // S3/GCS URL for PDF export
+  docxUrl           String? // S3/GCS URL for DOCX export
+
+  // Metadata
+  wordCount         Int?
+
+  // Expiry for temporary documents
+  createdAt         DateTime @default(now())
+  expiresAt         DateTime? // Default: 30 days from creation
+
+  // Relations
+  message      Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
   @@index([messageId])
-}
-
-model chat_documents {
-  id               String    @id @default(uuid())
-  messageId        String
-  conversationId   String
-  userId           String
-  title            String
-  markdownContent  String
-  documentType     String?
-  sourceDocumentId String?
-  pdfUrl           String?
-  docxUrl          String?
-  wordCount        Int?
-  createdAt        DateTime  @default(now())
-  expiresAt        DateTime?
-  messages         messages  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-
   @@index([conversationId])
+  @@index([userId])
   @@index([expiresAt])
-  @@index([messageId])
-  @@index([userId])
+  @@map("chat_documents")
 }
 
-model cloud_integrations {
+// Message Attachment model - For documents generated/attached in chat
+model MessageAttachment {
+  id             String   @id @default(uuid())
+  messageId      String
+  conversationId String
+  userId         String
+
+  // Attachment type
+  attachmentType String // 'analysis_document', 'comparison', 'summary', 'essay', 'generated_document'
+
+  // Content
+  title          String // Display name for the attachment
+  content        String // JSON renderable content
+  previewHtml    String? // Pre-generated HTML preview
+  previewCss     String? // CSS for preview
+
+  // Source documents (for analysis attachments)
+  sourceDocumentIds String? // JSON array of source document IDs
+
+  // Metadata
+  analysisType   String? // 'comparison', 'summary', 'analysis', 'essay'
+  metadata       String? // JSON: { options, prompts, etc. }
+
+  // Edit tracking
+  editHistory    String? // JSON array of edit records
+  editCount      Int      @default(0)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  message      Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([conversationId])
+  @@index([userId])
+  @@index([attachmentType])
+  @@map("message_attachments")
+}
+
+// Reminder/Notification model
+model Reminder {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  description String?
+  dueDate     DateTime
+  isCompleted Boolean  @default(false)
+  notified    Boolean  @default(false)
+  documentId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([dueDate])
+  @@map("reminders")
+}
+
+// Document Summary model
+model DocumentSummary {
+  id          String   @id @default(uuid())
+  documentId  String
+  summary     String // The generated summary text
+  summaryType String   @default("standard") // brief, standard, or detailed
+  createdAt   DateTime @default(now())
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_summaries")
+}
+
+// Cloud Integration model for Google Drive, Dropbox, etc.
+model CloudIntegration {
   id             String    @id @default(uuid())
   userId         String
-  provider       String
-  accessToken    String
-  refreshToken   String?
-  tokenExpiry    DateTime?
-  providerUserId String?
-  providerEmail  String?
+  provider       String // "google_drive", "dropbox", etc.
+  accessToken    String // Encrypted OAuth access token
+  refreshToken   String? // Encrypted OAuth refresh token
+  tokenExpiry    DateTime? // Token expiration time
+  providerUserId String? // User ID from the cloud provider
+  providerEmail  String? // Email from the cloud provider
   isActive       Boolean   @default(true)
   lastSyncedAt   DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  users          users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
   @@index([userId])
+  @@map("cloud_integrations")
 }
 
-model comparative_data {
-  id                    String   @id @default(uuid())
-  userId                String
-  conceptA              String
-  conceptB              String
-  attributes            String
-  comparativeStatements String?
-  keyInsight            String?
-  similarities          String?
-  differences           String?
-  sourceDocumentIds     String?
-  documentCount         Int      @default(1)
-  confidence            Float    @default(0.5)
-  isVerified            Boolean  @default(false)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+// Audit Log model for security tracking
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String? // Null for failed auth attempts
+  action    String // login, logout, document_upload, document_download, etc.
+  resource  String? // Resource ID (e.g., document ID)
+  ipAddress String?
+  userAgent String?
+  status    String // success, failure
+  details   String? // Additional JSON details
+  createdAt DateTime @default(now())
 
-  @@unique([userId, conceptA, conceptB])
-  @@index([conceptA])
-  @@index([conceptB])
-  @@index([userId])
-}
-
-model concept_relationships {
-  id                                                                     String           @id @default(uuid())
-  userId                                                                 String
-  fromConceptId                                                          String
-  toConceptId                                                            String
-  relationshipType                                                       String
-  strength                                                               Float            @default(0.5)
-  description                                                            String?
-  sourceDocumentIds                                                      String?
-  documentCount                                                          Int              @default(1)
-  createdAt                                                              DateTime         @default(now())
-  domain_knowledge_concept_relationships_fromConceptIdTodomain_knowledge domain_knowledge @relation("concept_relationships_fromConceptIdTodomain_knowledge", fields: [fromConceptId], references: [id], onDelete: Cascade)
-  domain_knowledge_concept_relationships_toConceptIdTodomain_knowledge   domain_knowledge @relation("concept_relationships_toConceptIdTodomain_knowledge", fields: [toConceptId], references: [id], onDelete: Cascade)
-
-  @@unique([fromConceptId, toConceptId, relationshipType])
-  @@index([fromConceptId])
-  @@index([relationshipType])
-  @@index([toConceptId])
-  @@index([userId])
-}
-
-model conversation_summaries {
-  id             String   @id @default(uuid())
-  userId         String
-  conversationId String
-  summary        String
-  userMessages   String[]
-  timestamp      DateTime
-  users          users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
-  @@index([userId, timestamp])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
-model conversation_topics {
-  id           String   @id @default(uuid())
-  userId       String
-  topicSummary String
-  firstSeen    DateTime
-  lastSeen     DateTime
-  frequency    Int      @default(1)
-  confidence   Float    @default(0.5)
-  users        users    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([userId, lastSeen])
-}
-
-model conversations {
-  id                String          @id @default(uuid())
+// Notification model
+model Notification {
+  id                String   @id @default(uuid())
   userId            String
-  title             String          @default("New Chat")
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  titleEncrypted    String?
-  encryptionSalt    String?
-  encryptionIV      String?
-  encryptionAuthTag String?
-  contextType       String?
-  contextId         String?
-  contextName       String?
-  contextMeta       Json?
-  scopeDescription  String?
-  scopeDocumentIds  String[]        @default([])
-  chat_contexts     chat_contexts[]
-  users             users           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages          messages[]
+  type              String // 'reminder', 'system', 'document_shared', 'storage_warning'
+  title             String
+  message           String
+  relatedDocumentId String?
+  relatedReminderId String?
+  isRead            Boolean  @default(false)
+  createdAt         DateTime @default(now())
 
-  @@index([contextType, contextId])
-  @@index([userId])
-  @@index([userId, updatedAt])
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedReminder Reminder? @relation(fields: [relatedReminderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
 }
 
-model document_categories {
-  id         String     @id @default(uuid())
-  documentId String
-  categoryId String
-  createdAt  DateTime   @default(now())
-  categories categories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  documents  documents  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+// User Preferences model
+model UserPreferences {
+  id                        String   @id @default(uuid())
+  userId                    String   @unique
+  emailNotificationsEnabled Boolean  @default(true)
+  emailNotificationTypes    String? // JSON array of enabled types
+  notificationFrequency     String   @default("immediate") // 'immediate', 'daily_digest', 'weekly_digest'
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
-  @@unique([documentId, categoryId])
-  @@index([categoryId])
-  @@index([documentId])
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
 }
 
-model document_edit_history {
-  id                  String              @id @default(uuid())
-  generatedDocumentId String
-  editNumber          Int
-  editType            String
-  editCommand         String?
-  editDescription     String
-  contentBefore       String
-  contentAfter        String
-  editedBy            String
-  editedAt            DateTime            @default(now())
-  generated_documents generated_documents @relation(fields: [generatedDocumentId], references: [id], onDelete: Cascade)
-
-  @@index([editNumber])
-  @@index([editedBy])
-  @@index([generatedDocumentId])
-}
-
-model document_embeddings {
-  id         String    @id @default(uuid())
-  documentId String
-  chunkIndex Int
-  content    String
-  embedding  String
-  metadata   String
-  createdAt  DateTime  @default(now())
-  documents  documents @relation(fields: [documentId], references: [id], onDelete: Cascade)
-
-  @@index([documentId, chunkIndex])
-  @@index([documentId])
-}
-
-model document_entities {
+// Document Entity model for pre-extracted structured data
+model DocumentEntity {
   id              String   @id @default(uuid())
   documentId      String
-  entityType      String
+  entityType      String // 'email', 'phone', 'address', 'date', 'amount', 'number', 'url', 'name', 'organization', 'location'
   value           String
-  normalizedValue String
+  normalizedValue String // Normalized format for comparison
   pageNumber      Int
   textIndex       Int
-  context         String
-  metadata        String?
+  context         String // Surrounding text
+  metadata        String? // JSON string for additional data
   createdAt       DateTime @default(now())
 
   @@index([documentId, entityType])
   @@index([documentId])
   @@index([entityType])
-  @@index([normalizedValue])
   @@index([value])
+  @@index([normalizedValue])
+  @@map("document_entities")
 }
 
-model document_keywords {
+// Document Keyword model for fast keyword search
+model DocumentKeyword {
   id         String   @id @default(uuid())
   documentId String
   word       String
@@ -363,792 +668,585 @@ model document_keywords {
 
   @@index([documentId])
   @@index([word])
+  @@map("document_keywords")
 }
 
-model document_metadata {
-  id                    String    @id @default(uuid())
-  documentId            String    @unique
-  extractedText         String?
-  ocrConfidence         Float?
-  pageCount             Int?
-  wordCount             Int?
-  characterCount        Int?
-  thumbnailUrl          String?
-  entities              String?
-  classification        String?
-  summary               String?
-  author                String?
-  creationDate          DateTime?
-  modificationDate      DateTime?
-  language              String?
-  topics                String?
-  keyEntities           String?
-  hasSignature          Boolean   @default(false)
-  hasTables             Boolean   @default(false)
-  hasImages             Boolean   @default(false)
-  markdownContent       String?
-  markdownUrl           String?
-  markdownStructure     String?
-  sheetCount            Int?
-  slideCount            Int?
-  slidesData            String?
-  pptxMetadata          String?
-  slideGenerationStatus String?   @default("pending")
-  slideGenerationError  String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  documents             documents @relation(fields: [documentId], references: [id], onDelete: Cascade)
+// Document Embedding model for vector search (RAG)
+model DocumentEmbedding {
+  id          String   @id @default(uuid())
+  documentId  String
+  chunkIndex  Int // Which chunk (0, 1, 2, ...)
+  content     String // The actual text chunk
+
+  // Vector embedding stored as JSON array for SQLite compatibility
+  // Format: [0.123, -0.456, 0.789, ...] (768 dimensions for Gemini)
+  embedding   String // JSON array of floats
+
+  // Metadata for source attribution and deep linking
+  // JSON: {
+  //   page, cell, sheet, slide, paragraph,
+  //   startLine, endLine, sectionId, heading, headingLevel
+  // }
+  metadata    String
+
+  createdAt   DateTime @default(now())
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([documentId, chunkIndex])
+  @@map("document_embeddings")
 }
 
-model document_shares {
-  id                                        String    @id @default(uuid())
-  documentId                                String
-  ownerId                                   String
-  sharedWithId                              String
-  permissionLevel                           String    @default("viewer")
-  canDownload                               Boolean   @default(true)
-  canShare                                  Boolean   @default(false)
-  canDelete                                 Boolean   @default(false)
-  expiresAt                                 DateTime?
-  createdAt                                 DateTime  @default(now())
-  updatedAt                                 DateTime  @updatedAt
-  users_document_shares_ownerIdTousers      users     @relation("document_shares_ownerIdTousers", fields: [ownerId], references: [id], onDelete: Cascade)
-  users_document_shares_sharedWithIdTousers users     @relation("document_shares_sharedWithIdTousers", fields: [sharedWithId], references: [id], onDelete: Cascade)
+// Terminology Map for semantic query expansion
+model TerminologyMap {
+  id        String   @id @default(uuid())
+  userId    String
+  term      String // e.g., "revenue"
+  synonyms  String // JSON array: ["income", "earnings", "sales"]
+  domain    String // "banking", "legal", "general"
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, term, domain])
+  @@index([userId])
+  @@index([term])
+  @@index([domain])
+  @@map("terminology_maps")
+}
+
+// Chat Context for tracking RAG sources
+model ChatContext {
+  id             String   @id @default(uuid())
+  conversationId String
+  messageId      String? // Link to specific message
+
+  // Source documents used in this context
+  sourceDocuments String // JSON: [{ documentId, chunkIndexes, relevanceScore, citation }]
+
+  // Research mode data (web sources)
+  webSources     String? // JSON: [{ url, title, snippet, fetchedContent }]
+
+  // Search metadata
+  searchQuery    String? // Original query
+  expandedTerms  String? // JSON: Terms after expansion
+
+  createdAt      DateTime @default(now())
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([messageId])
+  @@map("chat_contexts")
+}
+
+// Document Sharing model for RBAC
+model DocumentShare {
+  id             String   @id @default(uuid())
+  documentId     String
+  ownerId        String   // User who owns the document
+  sharedWithId   String   // User the document is shared with
+  permissionLevel String  @default("viewer") // viewer, editor, owner
+  canDownload    Boolean  @default(true)
+  canShare       Boolean  @default(false)
+  canDelete      Boolean  @default(false)
+  expiresAt      DateTime? // Optional expiration
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  owner        User @relation("Owner", fields: [ownerId], references: [id], onDelete: Cascade)
+  sharedWith   User @relation("SharedWith", fields: [sharedWithId], references: [id], onDelete: Cascade)
 
   @@unique([documentId, sharedWithId])
   @@index([documentId])
   @@index([ownerId])
   @@index([sharedWithId])
+  @@map("document_shares")
 }
 
-model document_summaries {
+// API Usage Tracking for cost control
+model APIUsage {
+  id                String   @id @default(uuid())
+  userId            String
+  month             String   // Format: "2024-01" for January 2024
+  geminiTokensUsed  Int      @default(0)
+  embeddingRequests Int      @default(0)
+  chatRequests      Int      @default(0)
+  costUSD           Float    @default(0.0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, month])
+  @@index([userId])
+  @@index([month])
+  @@map("api_usage")
+}
+
+// RBAC: Role model
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // admin, editor, viewer, custom
+  description String?
+  priority    Int      @default(0) // Higher priority = more permissions
+  isSystem    Boolean  @default(false) // System roles cannot be deleted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  permissions   RolePermission[]
+  userRoles     UserRole[]
+  childRoles    RoleHierarchy[] @relation("ParentRole")
+  parentRoles   RoleHierarchy[] @relation("ChildRole")
+
+  @@index([name])
+  @@index([priority])
+  @@map("roles")
+}
+
+// RBAC: Permission model
+model Permission {
+  id          String   @id @default(uuid())
+  resource    String // documents, folders, users, settings, etc.
+  action      String // create, read, update, delete, share, download
+  description String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@index([resource])
+  @@map("permissions")
+}
+
+// RBAC: Role-Permission junction table
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// RBAC: User-Role junction table (supports multiple roles per user)
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  grantedBy String? // User ID who granted this role
+  expiresAt DateTime? // Optional role expiration
+  createdAt DateTime @default(now())
+
+  // Relations
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+// RBAC: Role hierarchy for role inheritance
+model RoleHierarchy {
+  id           String   @id @default(uuid())
+  parentRoleId String
+  childRoleId  String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  parentRole Role @relation("ParentRole", fields: [parentRoleId], references: [id], onDelete: Cascade)
+  childRole  Role @relation("ChildRole", fields: [childRoleId], references: [id], onDelete: Cascade)
+
+  @@unique([parentRoleId, childRoleId])
+  @@index([parentRoleId])
+  @@index([childRoleId])
+  @@map("role_hierarchy")
+}
+
+// API Key model for programmatic access
+model APIKey {
   id          String    @id @default(uuid())
-  documentId  String
-  summary     String
-  summaryType String    @default("standard")
+  userId      String
+  name        String // User-friendly name
+  keyHash     String    @unique // Hashed API key
+  keyPreview  String // Last 4 characters for display
+  scopes      String // JSON array of scopes/permissions
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  isActive    Boolean   @default(true)
+
+  // Rate limiting
+  rateLimit   Int       @default(1000) // Requests per hour
+  usageCount  Int       @default(0) // Current usage in window
+  windowStart DateTime  @default(now())
+
+  // Metadata
+  ipWhitelist String? // JSON array of allowed IPs
+  userAgent   String? // User agent that created the key
   createdAt   DateTime  @default(now())
-  documents   documents @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  updatedAt   DateTime  @updatedAt
 
-  @@index([documentId])
+  @@index([userId])
+  @@index([keyHash])
+  @@index([isActive])
+  @@map("api_keys")
 }
 
-model document_tags {
-  id         String    @id @default(uuid())
-  documentId String
-  tagId      String
-  createdAt  DateTime  @default(now())
-  documents  documents @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  tags       tags      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+// ==================== Advanced Features: Document Generation & Editing ====================
 
-  @@unique([documentId, tagId])
+// Generated Document model - For AI-generated and comparison documents
+model GeneratedDocument {
+  id                String   @id @default(uuid())
+  userId            String
+  documentId        String   @unique // Link to the Document record
+  generationType    String // 'comparison', 'summary', 'analysis', 'essay', 'from_prompt', 'template', 'ai_edit'
+
+  // Chat integration
+  conversationId    String? // Link to conversation for chat-based documents
+  isTemporary       Boolean  @default(true) // Temporary until explicitly saved
+  expiresAt         DateTime? // Expiration time for temporary documents (24 hours default)
+
+  // Source information
+  sourceDocumentIds String // JSON array of document IDs used as sources
+  generationPrompt  String? // User's natural language prompt (if applicable)
+  templateId        String? // Template used (if applicable)
+
+  // Renderable content for preview (Manus-style)
+  renderableContent String // JSON structure for real-time preview
+
+  // Metadata
+  metadata          String? // JSON: { comparisonType, templateData, editCommands, etc. }
+  generatedAt       DateTime @default(now())
+  savedAt           DateTime? // When user explicitly saved to Documents
+
+  // Relations
+  document          Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  template          DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  editHistory       DocumentEditHistory[]
+
+  @@index([userId])
   @@index([documentId])
-  @@index([tagId])
+  @@index([generationType])
+  @@index([templateId])
+  @@index([conversationId])
+  @@index([isTemporary])
+  @@index([expiresAt])
+  @@map("generated_documents")
 }
 
-model document_templates {
-  id                  String                @id @default(uuid())
-  userId              String?
-  name                String
-  description         String?
-  category            String
-  structure           String
-  isSystem            Boolean               @default(false)
-  usageCount          Int                   @default(0)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  generated_documents generated_documents[]
+// Document Template model - For structured document generation
+model DocumentTemplate {
+  id          String   @id @default(uuid())
+  userId      String? // Null for system templates
+  name        String
+  description String?
+  category    String // 'contract', 'report', 'invoice', 'letter', 'memo', etc.
 
+  // Template structure
+  structure   String // JSON: { sections: [...], fields: [...], formatting: {...} }
+
+  // Metadata
+  isSystem    Boolean  @default(false) // System templates cannot be deleted
+  usageCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  generatedDocs GeneratedDocument[]
+
+  @@index([userId])
   @@index([category])
   @@index([isSystem])
-  @@index([userId])
+  @@map("document_templates")
 }
 
-model documents {
-  id                     String                @id @default(uuid())
-  userId                 String
-  folderId               String?
-  filename               String
-  encryptedFilename      String
-  fileSize               Int
-  mimeType               String
-  fileHash               String
-  status                 String                @default("processing")
-  parentVersionId        String?
-  isEncrypted            Boolean               @default(false)
-  encryptionSalt         String?
-  encryptionIV           String?
-  encryptionAuthTag      String?
-  filenameEncrypted      String?
-  extractedTextEncrypted String?
-  renderableContent      String?
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @updatedAt
-  document_categories    document_categories[]
-  document_embeddings    document_embeddings[]
-  document_metadata      document_metadata?
-  document_summaries     document_summaries[]
-  document_tags          document_tags[]
-  folders                folders?              @relation(fields: [folderId], references: [id], onDelete: Cascade)
-  documents              documents?            @relation("documentsTodocuments", fields: [parentVersionId], references: [id])
-  other_documents        documents[]           @relation("documentsTodocuments")
-  users                  users                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  generated_documents    generated_documents?
+// Document Edit History - Track AI edits and changes
+model DocumentEditHistory {
+  id                  String   @id @default(uuid())
+  generatedDocumentId String
+  editNumber          Int // Sequential edit counter (1, 2, 3, ...)
 
-  @@index([fileHash])
-  @@index([filename])
-  @@index([folderId])
-  @@index([folderId, status])
-  @@index([mimeType])
-  @@index([parentVersionId])
-  @@index([status])
-  @@index([userId, createdAt])
-  @@index([userId, fileHash, filename])
-  @@index([userId, filename])
-  @@index([userId, folderId, status])
-  @@index([userId])
-  @@index([userId, status])
-  @@index([userId, updatedAt])
+  // Edit details
+  editType            String // 'ai_command', 'manual_edit', 'rollback'
+  editCommand         String? // Natural language edit command (if AI)
+  editDescription     String // Human-readable description of changes
+
+  // Content snapshots
+  contentBefore       String // JSON snapshot before edit
+  contentAfter        String // JSON snapshot after edit
+
+  // Metadata
+  editedBy            String // User ID who made the edit
+  editedAt            DateTime @default(now())
+
+  // Relations
+  generatedDocument GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Cascade)
+
+  @@index([generatedDocumentId])
+  @@index([editNumber])
+  @@index([editedBy])
+  @@map("document_edit_history")
 }
 
-model domain_knowledge {
-  id                                                                          String                  @id @default(uuid())
-  userId                                                                      String
-  term                                                                        String
-  normalizedTerm                                                              String
-  domain                                                                      String
-  definition                                                                  String?
-  formula                                                                     String?
-  interpretation                                                              String?
-  usageContext                                                                String?
-  examples                                                                    String?
-  relatedTerms                                                                String?
-  parentTerm                                                                  String?
-  childTerms                                                                  String?
-  synonyms                                                                    String?
-  sourceDocumentIds                                                           String?
-  documentCount                                                               Int                     @default(1)
-  extractedContext                                                            String?
-  confidence                                                                  Float                   @default(0.5)
-  isVerified                                                                  Boolean                 @default(false)
-  createdAt                                                                   DateTime                @default(now())
-  updatedAt                                                                   DateTime                @updatedAt
-  lastAccessedAt                                                              DateTime                @default(now())
-  accessCount                                                                 Int                     @default(0)
-  concept_relationships_concept_relationships_fromConceptIdTodomain_knowledge concept_relationships[] @relation("concept_relationships_fromConceptIdTodomain_knowledge")
-  concept_relationships_concept_relationships_toConceptIdTodomain_knowledge   concept_relationships[] @relation("concept_relationships_toConceptIdTodomain_knowledge")
-  users                                                                       users                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+// ==================== Advanced Features: Excel Interactive Editing ====================
 
-  @@unique([userId, normalizedTerm, domain])
-  @@index([domain])
-  @@index([normalizedTerm])
-  @@index([term])
-  @@index([userId, domain])
-  @@index([userId])
-}
-
-model excel_cells {
-  id           String       @id @default(uuid())
-  sheetId      String
-  rowIndex     Int
-  colIndex     Int
-  value        String?
-  formula      String?
-  dataType     String
-  style        String?
-  cachedAt     DateTime     @default(now())
-  excel_sheets excel_sheets @relation(fields: [sheetId], references: [id], onDelete: Cascade)
-
-  @@unique([sheetId, rowIndex, colIndex])
-  @@index([sheetId])
-}
-
-model excel_sheets {
-  id          String        @id @default(uuid())
+// Excel Sheet model - Cache sheet metadata for fast loading
+model ExcelSheet {
+  id          String   @id @default(uuid())
   documentId  String
-  sheetIndex  Int
+  sheetIndex  Int // 0-based sheet index
   sheetName   String
+
+  // Sheet metadata
   rowCount    Int
   columnCount Int
-  metadata    String?
-  cachedAt    DateTime      @default(now())
-  expiresAt   DateTime
-  excel_cells excel_cells[]
+  metadata    String? // JSON: { frozenRows, frozenCols, filters, etc. }
+
+  // Cache
+  cachedAt    DateTime @default(now())
+  expiresAt   DateTime // Cache expiration
+
+  // Relations
+  cells       ExcelCell[]
 
   @@unique([documentId, sheetIndex])
   @@index([documentId])
   @@index([expiresAt])
+  @@map("excel_sheets")
 }
 
-model folder_summaries {
-  id                  String    @id @default(uuid())
-  folderId            String    @unique
-  userId              String
-  summary             String
-  documentCount       Int
-  themes              String[]  @default([])
-  lastDocumentAddedAt DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+// Excel Cell model - Cache individual cell data
+model ExcelCell {
+  id          String   @id @default(uuid())
+  sheetId     String
+  rowIndex    Int // 0-based row index
+  colIndex    Int // 0-based column index
 
-  @@index([folderId])
+  // Cell data
+  value       String? // Display value
+  formula     String? // Formula if cell contains one
+  dataType    String // 'string', 'number', 'boolean', 'date', 'formula', 'empty'
+
+  // Formatting (basic)
+  style       String? // JSON: { bold, italic, color, bgColor, alignment, etc. }
+
+  // Cache
+  cachedAt    DateTime @default(now())
+
+  // Relations
+  sheet ExcelSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  @@unique([sheetId, rowIndex, colIndex])
+  @@index([sheetId])
+  @@map("excel_cells")
+}
+
+// ==================== Advanced Features: Session-Based Document Analysis ====================
+
+// AnalysisSession model - For temporary document analysis before saving
+model AnalysisSession {
+  id             String   @id @default(uuid())
+  userId         String
+  sessionType    String   @default("document_analysis") // document_analysis, comparison, research
+  status         String   @default("active") // active, completed, expired
+
+  // Session metadata
+  documentCount  Int      @default(0)
+  documentIds    String? // JSON array of document IDs in this session
+
+  // Timestamps
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime // Auto-expire after 24 hours
+  completedAt    DateTime?
+
+  // Relations
+  documents      SessionDocument[]
+
   @@index([userId])
-}
-
-model folders {
-  id                String      @id @default(uuid())
-  userId            String
-  name              String
-  description       String?
-  emoji             String?
-  color             String?
-  parentFolderId    String?
-  path              String?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  nameEncrypted     String?
-  encryptionSalt    String?
-  encryptionIV      String?
-  encryptionAuthTag String?
-  documents         documents[]
-  folders           folders?    @relation("foldersTofolders", fields: [parentFolderId], references: [id], onDelete: Cascade)
-  other_folders     folders[]   @relation("foldersTofolders")
-  users             users       @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([parentFolderId])
-  @@index([parentFolderId, name])
-  @@index([path])
-  @@index([userId])
-  @@index([userId, parentFolderId])
-}
-
-model generated_documents {
-  id                    String                  @id @default(uuid())
-  userId                String
-  documentId            String                  @unique
-  generationType        String
-  conversationId        String?
-  isTemporary           Boolean                 @default(true)
-  expiresAt             DateTime?
-  sourceDocumentIds     String
-  generationPrompt      String?
-  templateId            String?
-  renderableContent     String
-  metadata              String?
-  generatedAt           DateTime                @default(now())
-  savedAt               DateTime?
-  document_edit_history document_edit_history[]
-  documents             documents               @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  document_templates    document_templates?     @relation(fields: [templateId], references: [id])
-
-  @@index([conversationId])
-  @@index([documentId])
+  @@index([status])
   @@index([expiresAt])
-  @@index([generationType])
-  @@index([isTemporary])
-  @@index([templateId])
-  @@index([userId])
+  @@map("analysis_sessions")
 }
 
-model interaction_metadata {
-  id            String   @id @default(uuid())
-  userId        String
-  metadataType  String
-  metadataValue String
-  updatedAt     DateTime @updatedAt
-  users         users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+// Session Document model - Temporary documents in a session
+model SessionDocument {
+  id             String   @id @default(uuid())
+  sessionId      String
+  userId         String
 
-  @@unique([userId, metadataType])
-  @@index([userId])
-}
+  // Document info
+  filename       String
+  fileSize       Int
+  mimeType       String
+  fileType       String // pdf, docx, xlsx, etc.
 
-model knowledge_entries {
-  id         String   @id @default(uuid())
-  documentId String
-  type       String
-  content    String
-  metadata   Json?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  // Processing status
+  status         String   @default("processing") // processing, completed, failed
 
-  @@index([documentId])
-  @@index([documentId, type])
-  @@index([type])
-}
+  // Extracted content (stored temporarily in Redis, metadata here for reference)
+  extractedText  String? // Could be stored in Redis instead
+  wordCount      Int?
+  pageCount      Int?
 
-model memories {
-  id           String        @id @default(uuid())
-  userId       String
-  section      MemorySection
-  content      String
-  importance   Int           @default(5)
-  createdAt    DateTime      @default(now())
-  lastAccessed DateTime      @default(now())
-  accessCount  Int           @default(0)
-  source       String?
-  metadata     Json?
-  users        users         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Timestamps
+  uploadedAt     DateTime @default(now())
+  processedAt    DateTime?
 
-  @@index([lastAccessed])
-  @@index([userId, importance])
-  @@index([userId, section])
-}
-
-model message_attachments {
-  id                String   @id @default(uuid())
-  messageId         String
-  conversationId    String
-  userId            String
-  attachmentType    String
-  title             String
-  content           String
-  previewHtml       String?
-  previewCss        String?
-  sourceDocumentIds String?
-  analysisType      String?
-  metadata          String?
-  editHistory       String?
-  editCount         Int      @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  messages          messages @relation(fields: [messageId], references: [id], onDelete: Cascade)
-
-  @@index([attachmentType])
-  @@index([conversationId])
-  @@index([messageId])
-  @@index([userId])
-}
-
-model messages {
-  id                  String                @id @default(uuid())
-  conversationId      String
-  role                String
-  content             String
-  metadata            String?
-  createdAt           DateTime              @default(now())
-  isEncrypted         Boolean               @default(false)
-  encryptionSalt      String?
-  encryptionIV        String?
-  encryptionAuthTag   String?
-  isDocument          Boolean               @default(false)
-  documentTitle       String?
-  documentFormat      String?
-  markdownContent     String?
-  calculationResult   Json?
-  contextEntities     Json?
-  chat_documents      chat_documents[]
-  message_attachments message_attachments[]
-  conversations       conversations         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  @@index([conversationId, createdAt])
-  @@index([conversationId])
-  @@index([isDocument])
-}
-
-model methodology_knowledge {
-  id                String   @id @default(uuid())
-  userId            String
-  name              String
-  aliases           String?
-  definition        String?
-  howItWorks        String?
-  whyUsed           String?
-  limitations       String?
-  useCases          String?
-  examples          String?
-  relatedMethods    String?
-  parentMethod      String?
-  childMethods      String?
-  sourceDocumentIds String?
-  documentCount     Int      @default(1)
-  extractedFrom     String?
-  confidence        Float    @default(0.5)
-  isVerified        Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  lastAccessedAt    DateTime @default(now())
-  accessCount       Int      @default(0)
-
-  @@unique([userId, name])
-  @@index([confidence])
-  @@index([documentCount])
-  @@index([name])
-  @@index([userId])
-  @@index([userId, name])
-}
-
-model notifications {
-  id                String     @id @default(uuid())
-  userId            String
-  type              String
-  title             String
-  message           String
-  relatedDocumentId String?
-  relatedReminderId String?
-  isRead            Boolean    @default(false)
-  createdAt         DateTime   @default(now())
-  reminders         reminders? @relation(fields: [relatedReminderId], references: [id])
-  users             users      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([createdAt])
-  @@index([userId, isRead])
-}
-
-model pending_users {
-  id                 String   @id @default(uuid())
-  email              String   @unique
-  passwordHash       String
-  salt               String
-  firstName          String?
-  lastName           String?
-  phoneNumber        String?
-  emailCode          String?
-  phoneCode          String?
-  emailVerified      Boolean  @default(false)
-  phoneVerified      Boolean  @default(false)
-  expiresAt          DateTime
-  createdAt          DateTime @default(now())
-  recoveryKeyHash    String?
-  masterKeyEncrypted String?
-
-  @@index([email])
-}
-
-model permissions {
-  id               String             @id @default(uuid())
-  resource         String
-  action           String
-  description      String?
-  createdAt        DateTime           @default(now())
-  role_permissions role_permissions[]
-
-  @@unique([resource, action])
-  @@index([resource])
-}
-
-model practical_recommendations {
-  id                String   @id @default(uuid())
-  userId            String
-  recommendation    String
-  category          String
-  strength          String
-  evidence          String?
-  rationale         String?
-  thresholds        String?
-  domain            String?
-  applicability     String?
-  sourceDocumentIds String?
-  documentCount     Int      @default(1)
-  consensusLevel    String?
-  confidence        Float    @default(0.5)
-  isVerified        Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@index([category])
-  @@index([consensusLevel])
-  @@index([strength])
-  @@index([userId, category])
-  @@index([userId])
-}
-
-model reminders {
-  id            String          @id @default(uuid())
-  userId        String
-  title         String
-  description   String?
-  dueDate       DateTime
-  isCompleted   Boolean         @default(false)
-  notified      Boolean         @default(false)
-  documentId    String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  notifications notifications[]
-  users         users           @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([dueDate])
-  @@index([userId])
-}
-
-model role_hierarchy {
-  id                                       String   @id @default(uuid())
-  parentRoleId                             String
-  childRoleId                              String
-  createdAt                                DateTime @default(now())
-  roles_role_hierarchy_childRoleIdToroles  roles    @relation("role_hierarchy_childRoleIdToroles", fields: [childRoleId], references: [id], onDelete: Cascade)
-  roles_role_hierarchy_parentRoleIdToroles roles    @relation("role_hierarchy_parentRoleIdToroles", fields: [parentRoleId], references: [id], onDelete: Cascade)
-
-  @@unique([parentRoleId, childRoleId])
-  @@index([childRoleId])
-  @@index([parentRoleId])
-}
-
-model role_permissions {
-  id           String      @id @default(uuid())
-  roleId       String
-  permissionId String
-  createdAt    DateTime    @default(now())
-  permissions  permissions @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  roles        roles       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  @@unique([roleId, permissionId])
-  @@index([permissionId])
-  @@index([roleId])
-}
-
-model roles {
-  id                                                String             @id @default(uuid())
-  name                                              String             @unique
-  description                                       String?
-  priority                                          Int                @default(0)
-  isSystem                                          Boolean            @default(false)
-  createdAt                                         DateTime           @default(now())
-  updatedAt                                         DateTime           @updatedAt
-  role_hierarchy_role_hierarchy_childRoleIdToroles  role_hierarchy[]   @relation("role_hierarchy_childRoleIdToroles")
-  role_hierarchy_role_hierarchy_parentRoleIdToroles role_hierarchy[]   @relation("role_hierarchy_parentRoleIdToroles")
-  role_permissions                                  role_permissions[]
-  user_roles                                        user_roles[]
-
-  @@index([name])
-  @@index([priority])
-}
-
-model session_documents {
-  id                String            @id @default(uuid())
-  sessionId         String
-  userId            String
-  filename          String
-  fileSize          Int
-  mimeType          String
-  fileType          String
-  status            String            @default("processing")
-  extractedText     String?
-  wordCount         Int?
-  pageCount         Int?
-  uploadedAt        DateTime          @default(now())
-  processedAt       DateTime?
-  analysis_sessions analysis_sessions @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  // Relations
+  session        AnalysisSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+  @@index([userId])
   @@index([status])
-  @@index([userId])
+  @@map("session_documents")
 }
 
-model sessions {
-  id               String   @id @default(uuid())
-  userId           String
-  refreshTokenHash String
-  expiresAt        DateTime
-  createdAt        DateTime @default(now())
-  lastActivityAt   DateTime @default(now())
-  ipAddress        String?
-  lastIpAddress    String?
-  userAgent        String?
-  deviceId         String?
-  deviceType       String?
-  deviceName       String?
-  isActive         Boolean  @default(true)
-  isSuspicious     Boolean  @default(false)
-  suspicionReason  String?
-  country          String?
-  city             String?
-  users            users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+// ==================== KODA FIX: Undo/Redo Action History ====================
 
-  @@index([deviceId])
-  @@index([isActive])
+// Action History model for tracking file operations (undo/redo)
+model ActionHistory {
+  id           String   @id @default(uuid())
+  userId       String
+  actionType   String // create, delete, rename, move
+  targetPath   String // The file path affected
+  previousPath String? // For rename/move operations
+  fileContent  String? // For create/delete operations (to restore)
+  fileType     String? // File type/extension
+  canUndo      Boolean  @default(true)
+  canRedo      Boolean  @default(false)
+  timestamp    DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
+  @@index([canUndo])
+  @@index([canRedo])
+  @@index([timestamp])
+  @@map("action_history")
 }
 
-model tags {
-  id            String          @id @default(uuid())
-  userId        String
-  name          String
-  color         String?
-  createdAt     DateTime        @default(now())
-  document_tags document_tags[]
-  users         users           @relation(fields: [userId], references: [id], onDelete: Cascade)
+// ════════════════════════════════════════════════════════════════════════════════
+// CONVERSATIONAL MEMORY SYSTEM - ChatGPT-style Memory
+// ════════════════════════════════════════════════════════════════════════════════
 
-  @@unique([userId, name])
-  @@index([userId])
-}
-
-model terminology_maps {
+// User Profile - Basic user information
+model UserProfile {
   id        String   @id @default(uuid())
-  userId    String
-  term      String
-  synonyms  String
-  domain    String
+  userId    String   @unique
+  name      String?
+  role      String?  // e.g., "lawyer", "accountant", "student"
+  organization String?
+  expertiseLevel String? // "beginner", "intermediate", "expert"
   createdAt DateTime @default(now())
-  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt DateTime @updatedAt
 
-  @@unique([userId, term, domain])
-  @@index([domain])
-  @@index([term])
-  @@index([userId])
-}
-
-model trend_patterns {
-  id                String   @id @default(uuid())
-  userId            String
-  subject           String
-  trendType         String
-  timeframe         String?
-  description       String
-  dataPoints        String?
-  magnitude         String?
-  drivers           String?
-  implications      String?
-  sourceDocumentIds String?
-  documentCount     Int      @default(1)
-  confidence        Float    @default(0.5)
-  isVerified        Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@index([subject])
-  @@index([trendType])
-  @@index([userId])
-  @@index([userId, trendType])
-}
-
-model two_factor_auth {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  secret      String
-  backupCodes String
-  isEnabled   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  users       users    @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model user_insights {
-  id          String   @id @default(uuid())
-  userId      String
-  insightType String
-  insightText String
-  confidence  Float    @default(0.5)
-  evidence    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  users       users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([userId, insightType])
+  @@map("user_profiles")
 }
 
-model user_preferences {
-  id                        String   @id @default(uuid())
-  userId                    String   @unique
-  emailNotificationsEnabled Boolean  @default(true)
-  emailNotificationTypes    String?
-  notificationFrequency     String   @default("immediate")
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
-  users                     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model user_preferences_memory {
+// User Preferences - How user prefers responses
+model UserPreference {
   id              String   @id @default(uuid())
   userId          String
-  preferenceType  String
-  preferenceValue String
-  confidence      Float    @default(0.5)
-  evidence        String?
+  preferenceType  String   // 'response_format', 'detail_level', 'citation_style', 'language'
+  preferenceValue String   // e.g., "bullet_points", "detailed", "apa", "en"
+  confidence      Float    @default(0.5) // 0.0 to 1.0
+  evidence        String?  // JSON: examples that support this preference
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  users           users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([userId, preferenceType])
+  @@map("user_preferences_memory")
 }
 
-model user_profiles {
+// Conversation Topics - High-level topics from past conversations
+model ConversationTopic {
+  id           String   @id @default(uuid())
+  userId       String
+  topicSummary String   // e.g., "User frequently analyzes financial documents"
+  firstSeen    DateTime
+  lastSeen     DateTime
+  frequency    Int      @default(1)
+  confidence   Float    @default(0.5) // 0.0 to 1.0
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, lastSeen])
+  @@map("conversation_topics")
+}
+
+// User Insights - Learned patterns about user
+model UserInsight {
+  id          String   @id @default(uuid())
+  userId      String
+  insightType String   // 'expertise', 'interest', 'pattern', 'goal'
+  insightText String   // e.g., "User is interested in tax optimization"
+  confidence  Float    @default(0.5) // 0.0 to 1.0
+  evidence    String?  // JSON: examples that support this insight
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, insightType])
+  @@map("user_insights")
+}
+
+// Recent Conversation Summaries - Last ~40 conversations
+model ConversationSummary {
   id             String   @id @default(uuid())
-  userId         String   @unique
-  name           String?
-  role           String?
-  organization   String?
-  expertiseLevel String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  users          users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  conversationId String
+  summary        String   // Brief summary of conversation
+  userMessages   String[] // Array of user messages
+  timestamp      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, timestamp])
+  @@map("conversation_summaries")
 }
 
-model user_roles {
-  id        String    @id @default(uuid())
-  userId    String
-  roleId    String
-  grantedBy String?
-  expiresAt DateTime?
-  createdAt DateTime  @default(now())
-  roles     roles     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+// Interaction Metadata - Usage patterns
+model InteractionMetadata {
+  id            String   @id @default(uuid())
+  userId        String
+  metadataType  String   // 'activity_pattern', 'query_length', 'intent_tag', 'complexity'
+  metadataValue String   // JSON or simple value
+  updatedAt     DateTime @updatedAt
 
-  @@unique([userId, roleId])
-  @@index([roleId])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, metadataType])
   @@index([userId])
+  @@map("interaction_metadata")
 }
 
-model users {
-  id                                                  String                    @id @default(uuid())
-  email                                               String                    @unique
-  firstName                                           String?
-  lastName                                            String?
-  profileImage                                        String?
-  passwordHash                                        String?
-  salt                                                String?
-  googleId                                            String?                   @unique
-  appleId                                             String?                   @unique
-  phoneNumber                                         String?                   @unique
-  isEmailVerified                                     Boolean                   @default(false)
-  isPhoneVerified                                     Boolean                   @default(false)
-  subscriptionTier                                    String                    @default("free")
-  role                                                String                    @default("user")
-  storageUsedBytes                                    BigInt                    @default(0)
-  createdAt                                           DateTime                  @default(now())
-  updatedAt                                           DateTime                  @updatedAt
-  recoveryKeyHash                                     String?
-  masterKeyEncrypted                                  String?
-  action_history                                      action_history[]
-  audit_logs                                          audit_logs[]
-  cloud_integrations                                  cloud_integrations[]
-  conversation_summaries                              conversation_summaries[]
-  conversation_topics                                 conversation_topics[]
-  conversations                                       conversations[]
-  document_shares_document_shares_ownerIdTousers      document_shares[]         @relation("document_shares_ownerIdTousers")
-  document_shares_document_shares_sharedWithIdTousers document_shares[]         @relation("document_shares_sharedWithIdTousers")
-  documents                                           documents[]
-  domain_knowledge                                    domain_knowledge[]
-  folders                                             folders[]
-  interaction_metadata                                interaction_metadata[]
-  memories                                            memories[]
-  notifications                                       notifications[]
-  reminders                                           reminders[]
-  sessions                                            sessions[]
-  tags                                                tags[]
-  terminology_maps                                    terminology_maps[]
-  two_factor_auth                                     two_factor_auth?
-  user_insights                                       user_insights[]
-  user_preferences                                    user_preferences?
-  user_preferences_memory                             user_preferences_memory[]
-  user_profiles                                       user_profiles?
-  verification_codes                                  verification_codes[]
-}
-
-model verification_codes {
-  id        String   @id @default(uuid())
-  userId    String
-  type      String
-  code      String
-  expiresAt DateTime
-  isUsed    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([code])
-  @@index([userId])
-}
+// ════════════════════════════════════════════════════════════════════════════════
+// CROSS-SESSION MEMORY SYSTEM - ChatGPT-style Memory (Phase 3 Feature 3.1)
+// ════════════════════════════════════════════════════════════════════════════════
 
 enum MemorySection {
   USER_PREFERENCES
@@ -1157,4 +1255,455 @@ enum MemorySection {
   GOALS
   COMMUNICATION_STYLE
   RELATIONSHIPS
+}
+
+model Memory {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  section       MemorySection
+  content       String        @db.Text
+  importance    Int           @default(5)
+
+  createdAt     DateTime      @default(now())
+  lastAccessed  DateTime      @default(now())
+  accessCount   Int           @default(0)
+
+  source        String?
+  metadata      Json?
+
+  @@index([userId, section])
+  @@index([userId, importance])
+  @@index([lastAccessed])
+  @@map("memories")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// METHODOLOGY KNOWLEDGE BASE - Conceptual Understanding of Methods/Techniques
+// ════════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Store extracted knowledge about methodologies, techniques, and concepts
+// WHY: Enable Koda to explain "what is X" with actual understanding, not just citations
+// EXAMPLE: "What is ensemble learning?" → Full explanation + how user's papers use it
+
+model MethodologyKnowledge {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Core identification
+  name            String        // Normalized methodology name (e.g., "ensemble learning")
+  aliases         String?       // JSON array of alternative names (e.g., ["ensemble methods", "model ensemble"])
+
+  // Knowledge content
+  definition      String?  @db.Text  // What it is (1-2 sentences)
+  howItWorks      String?  @db.Text  // How the method works (step-by-step or explanation)
+  whyUsed         String?  @db.Text  // Why this method is used / advantages
+  limitations     String?  @db.Text  // Known limitations or disadvantages
+  useCases        String?  @db.Text  // Common applications / when to use it
+  examples        String?  @db.Text  // Concrete examples from user's documents
+
+  // Relationships to other methodologies
+  relatedMethods  String?       // JSON array of related methodology names
+  parentMethod    String?       // "is a type of" relationship (e.g., "machine learning")
+  childMethods    String?       // JSON array of sub-methods (e.g., ["bagging", "boosting", "stacking"])
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs where this was found
+  documentCount     Int      @default(1)  // Number of documents mentioning this methodology
+  extractedFrom     String?  @db.Text  // Original text snippets used for extraction
+
+  // Quality metrics
+  confidence      Float    @default(0.5)  // 0-1 confidence score for extracted knowledge
+  isVerified      Boolean  @default(false)  // Manually verified by user
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastAccessedAt  DateTime @default(now())
+  accessCount     Int      @default(0)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([name])
+  @@index([userId, name])
+  @@index([confidence])
+  @@index([documentCount])
+  @@map("methodology_knowledge")
+}
+
+// ==================== Domain Knowledge: Build Expertise from Documents ====================
+
+// Domain Knowledge model - Store domain-specific terms, definitions, formulas
+model DomainKnowledge {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Core identification
+  term            String        // The term/concept (e.g., "Sharpe ratio", "overfitting")
+  normalizedTerm  String        // Lowercase, normalized version for matching
+  domain          String        // Domain category: finance, ml, statistics, economics, etc.
+
+  // Knowledge content
+  definition      String?  @db.Text  // What it is (concise definition)
+  formula         String?  @db.Text  // Mathematical formula if applicable (LaTeX or text)
+  interpretation  String?  @db.Text  // How to interpret/use this (e.g., "higher is better, >1 is good")
+  usageContext    String?  @db.Text  // When/where this is used
+  examples        String?  @db.Text  // Examples from user's documents
+
+  // Relationships
+  relatedTerms    String?       // JSON array of related term names
+  parentTerm      String?       // Broader concept (e.g., "risk-adjusted return" for "Sharpe ratio")
+  childTerms      String?       // JSON array of more specific terms
+  synonyms        String?       // JSON array of synonyms/alternative names
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs where this was found
+  documentCount     Int      @default(1)  // Number of documents mentioning this term
+  extractedContext  String?  @db.Text  // Original context snippets
+
+  // Quality metrics
+  confidence      Float    @default(0.5)  // 0-1 confidence score
+  isVerified      Boolean  @default(false)  // Manually verified by user
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastAccessedAt  DateTime @default(now())
+  accessCount     Int      @default(0)
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outgoingRelations ConceptRelationship[] @relation("FromConcept")
+  incomingRelations ConceptRelationship[] @relation("ToConcept")
+
+  @@unique([userId, normalizedTerm, domain])
+  @@index([userId])
+  @@index([term])
+  @@index([normalizedTerm])
+  @@index([domain])
+  @@index([userId, domain])
+  @@map("domain_knowledge")
+}
+
+// Concept Relationship model - Track relationships between concepts
+model ConceptRelationship {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Relationship endpoints
+  fromConceptId   String
+  toConceptId     String
+
+  // Relationship type
+  relationshipType String  // uses, measures, reduces, causes, requires, etc.
+  strength         Float   @default(0.5)  // 0-1 relationship strength
+  description      String? // Optional description of the relationship
+
+  // Source tracking
+  sourceDocumentIds String?  // JSON array of document IDs where this relationship was found
+  documentCount     Int      @default(1)
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+
+  // Relations
+  fromConcept     DomainKnowledge @relation("FromConcept", fields: [fromConceptId], references: [id], onDelete: Cascade)
+  toConcept       DomainKnowledge @relation("ToConcept", fields: [toConceptId], references: [id], onDelete: Cascade)
+
+  @@unique([fromConceptId, toConceptId, relationshipType])
+  @@index([userId])
+  @@index([fromConceptId])
+  @@index([toConceptId])
+  @@index([relationshipType])
+  @@map("concept_relationships")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// CAUSAL RELATIONSHIPS - Store extracted cause-effect relationships
+// ════════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Store causal relationships for answering "why" questions
+// WHY: "Why did GDP drop?" needs explanation like "due to pandemic lockdowns"
+// EXAMPLE: "GDP decline" was "caused by" "COVID-19 pandemic lockdowns"
+
+model CausalRelationship {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Core causal relationship
+  effect          String   @db.Text  // The effect/outcome (e.g., "GDP dropped 15%")
+  causes          String   @db.Text  // JSON array of causes with confidence scores
+                                     // [{ cause: "pandemic", confidence: 0.9, pattern: "due to" }]
+
+  // Evidence and context
+  evidence        String?  @db.Text  // Supporting evidence (quantitative data, quotes)
+  context         String?  @db.Text  // Contextual information (time period, conditions)
+  mechanism       String?  @db.Text  // How the cause leads to effect (the "how")
+
+  // Classification
+  domain          String?       // Domain: economics, finance, technology, etc.
+  causalType      String?       // Type: direct, indirect, contributing, necessary, sufficient
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs
+  documentCount     Int      @default(1)
+  extractedPatterns String?     // JSON: patterns used to extract (e.g., ["due to", "caused by"])
+
+  // Quality metrics
+  confidence      Float    @default(0.5)  // 0-1 overall confidence
+  isVerified      Boolean  @default(false)  // User verified
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, domain])
+  @@index([confidence])
+  @@map("causal_relationships")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// COMPARATIVE DATA - Store comparison information between concepts
+// ════════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Store structured comparisons for answering "compare X vs Y" questions
+// WHY: "Compare RL and portfolio optimization" needs actual attribute comparison
+// EXAMPLE: Approach: RL uses "trial-and-error", PO uses "mathematical optimization"
+
+model ComparativeData {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Concepts being compared
+  conceptA        String        // First concept (e.g., "reinforcement learning")
+  conceptB        String        // Second concept (e.g., "portfolio optimization")
+
+  // Structured comparison attributes
+  attributes      String   @db.Text  // JSON object: { aspect: { conceptA: value, conceptB: value } }
+                                     // e.g., { "approach": { "rl": "trial-and-error", "po": "optimization" } }
+
+  // Comparative statements found in documents
+  comparativeStatements String? @db.Text  // JSON array of comparative statements
+                                          // [{ pattern: "unlike", text: "Unlike RL, PO uses...", source: "doc123" }]
+
+  // Synthesized insights
+  keyInsight      String?  @db.Text  // Synthesized key insight about the comparison
+  similarities    String?  @db.Text  // JSON array of similarities
+  differences     String?  @db.Text  // JSON array of differences
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs
+  documentCount     Int      @default(1)
+
+  // Quality metrics
+  confidence      Float    @default(0.5)
+  isVerified      Boolean  @default(false)
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, conceptA, conceptB])
+  @@index([userId])
+  @@index([conceptA])
+  @@index([conceptB])
+  @@map("comparative_data")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// PRACTICAL RECOMMENDATIONS - Store extracted actionable recommendations
+// ════════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Store recommendations for answering "what should I do" questions
+// WHY: "What does this mean for my strategy?" needs actionable guidance
+// EXAMPLE: "Use ensemble methods" with evidence "15-20% better Sharpe ratio"
+
+model PracticalRecommendation {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Core recommendation
+  recommendation  String   @db.Text  // The recommendation text
+  category        String        // Category: Strategy Design, Risk Management, Implementation, etc.
+  strength        String        // strong, moderate, weak
+
+  // Supporting data
+  evidence        String?  @db.Text  // Quantitative evidence supporting this
+  rationale       String?  @db.Text  // Why this is recommended
+  thresholds      String?  @db.Text  // JSON: quantitative thresholds { metric, value, direction }
+
+  // Context
+  domain          String?       // Domain this applies to
+  applicability   String?  @db.Text  // When/where this applies
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs
+  documentCount     Int      @default(1)  // Number of documents supporting this
+  consensusLevel    String?      // single, multiple, consensus (if found in many docs)
+
+  // Quality metrics
+  confidence      Float    @default(0.5)
+  isVerified      Boolean  @default(false)
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([category])
+  @@index([userId, category])
+  @@index([strength])
+  @@index([consensusLevel])
+  @@map("practical_recommendations")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// TREND PATTERN - Store extracted trends and patterns from documents
+// ════════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Store temporal trends for answering "what's the trend" questions
+// WHY: "What's the trend in AI adoption?" needs actual trend data, not counts
+
+model TrendPattern {
+  id              String   @id @default(uuid())
+  userId          String
+
+  // Core trend identification
+  subject         String        // What is trending (e.g., "AI adoption", "ESG investing")
+  trendType       String        // increasing, decreasing, stable, cyclical, emerging
+  timeframe       String?       // Time period (e.g., "2020-2024", "last 5 years")
+
+  // Trend details
+  description     String   @db.Text  // Description of the trend
+  dataPoints      String?  @db.Text  // JSON: [{ period, value, source }]
+  magnitude       String?       // Description of magnitude (e.g., "30% growth", "2x increase")
+
+  // Drivers and implications
+  drivers         String?  @db.Text  // What's driving the trend
+  implications    String?  @db.Text  // What this trend means / implications
+
+  // Source tracking
+  sourceDocumentIds String?     // JSON array of document IDs
+  documentCount     Int      @default(1)
+
+  // Quality metrics
+  confidence      Float    @default(0.5)
+  isVerified      Boolean  @default(false)
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([subject])
+  @@index([trendType])
+  @@index([userId, trendType])
+  @@map("trend_patterns")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// P0 FEATURES: Knowledge Base for Academic Intelligence
+// ════════════════════════════════════════════════════════════════════════════════
+
+// Knowledge Entry model - General knowledge extraction storage
+model KnowledgeEntry {
+  id           String   @id @default(uuid())
+  documentId   String
+  type         String   // "definition", "methodology", "trend", "causal", "comparison", "implication"
+  content      String   @db.Text
+  metadata     Json?    // Additional structured data
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([type])
+  @@index([documentId, type])
+  @@map("knowledge_entries")
+}
+
+// Folder Summary model - Cached folder analysis
+model FolderSummary {
+  id           String   @id @default(uuid())
+  folderId     String   @unique
+  userId       String
+  summary      String   @db.Text       // Generated summary of folder contents
+  documentCount Int                    // Number of documents in folder
+  themes       String[] @default([])   // Key themes extracted from folder
+  lastDocumentAddedAt DateTime?        // When last document was added
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([folderId])
+  @@map("folder_summaries")
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════════
+// PRESENTATION GENERATION SYSTEM (Manus-Style Slides)
+// ════════════════════════════════════════════════════════════════════════════════
+
+// Presentation model - Stores presentation metadata and configuration
+model Presentation {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  description String?  @db.Text
+  status      String   @default("draft") // draft, generating, completed, failed
+  
+  // Style configuration (Koda design system)
+  colorPalette        String?  @db.Text // JSON: primary, secondary, accent colors
+  typography          String?  @db.Text // JSON: font families and sizes
+  aestheticDirection  String?  @db.Text // Design direction description
+  
+  // Metadata
+  totalSlides  Int      @default(0)
+  viewCount    Int      @default(0)
+  lastViewedAt DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slides      Slide[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("presentations")
+}
+
+// Slide model - Individual slides within a presentation
+model Slide {
+  id              String   @id @default(uuid())
+  presentationId  String
+  slideNumber     Int      // Order of slide in presentation (1-indexed)
+  
+  // Content
+  title           String
+  summary         String?  @db.Text // Brief description of slide content
+  htmlContent     String   @db.Text // Full HTML content with styling
+  
+  // Layout and design
+  layout          String   // title, content, two-column, chart, image, custom
+  template        String?  // Template variant used
+  
+  // Status
+  status          String   @default("pending") // pending, generating, completed, failed
+  errorMessage    String?  @db.Text
+  
+  // Metadata
+  generatedAt     DateTime?
+  renderTime      Int?     // Time taken to generate (ms)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  presentation    Presentation @relation(fields: [presentationId], references: [id], onDelete: Cascade)
+  
+  @@unique([presentationId, slideNumber])
+  @@index([presentationId])
+  @@index([status])
+  @@map("slides")
 }

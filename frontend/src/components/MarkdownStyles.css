@@ -459,3 +459,25 @@
   background: #dbeafe;
   color: #1e40af;
 }
+
+/* ============================================
+   ChatGPT-Style Streaming Cursor
+   ============================================ */
+
+/* Blinking cursor at end of streaming message */
+.markdown-preview-container.streaming .cursor {
+  display: inline-block;
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+  color: #6366F1; /* Koda primary color */
+  font-weight: 400;
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
