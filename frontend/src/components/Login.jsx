@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationsStore';
 import logo from '../assets/logo.svg';
 import googleIcon from '../assets/Social icon 2.svg';
 import appleIcon from '../assets/Social icon.svg';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { login, loginWithGoogle, loginWithApple } = useAuth();
+  const { addNotification } = useNotifications();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -25,7 +29,7 @@ const Login = () => {
 
     // Basic validation
     if (!email || !password) {
-      setLoginError({ type: 'email', message: 'Please enter a valid email and password.' });
+      setLoginError({ type: 'email', message: t('auth.login.invalidCredentials') });
       return;
     }
 
@@ -47,13 +51,21 @@ const Login = () => {
         return;
       }
 
+      // Add security notification for successful login
+      addNotification({
+        type: 'security',
+        title: t('auth.login.loginSuccess'),
+        text: t('auth.login.loginSecurityNotice'),
+        action: { type: 'navigate', target: '/settings' }
+      });
+
       // Navigate to home page after successful login
       navigate('/home');
     } catch (error) {
       console.error('Login error:', error);
       setLoginError({
         type: 'email',
-        message: error.message || 'Invalid email or password. Please try again.'
+        message: error.message || t('auth.login.loginError')
       });
     } finally {
       setIsLoading(false);
@@ -74,14 +86,14 @@ const Login = () => {
       <div style={{width: '100%', maxWidth: 'var(--container-max-width)', padding: 'var(--container-padding)', borderRadius: 16, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 32, display: 'flex'}}>
         <img style={{width: 120, height: 120, borderRadius: 120, filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))'}} src={logo} alt="Logo" />
         <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
-          <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '40px', wordWrap: 'break-word'}}>Welcome Back!</div>
-          <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', wordWrap: 'break-word'}}>Keep your files safe. Ask questions. Get instant answers—only you have access.</div>
+          <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '40px', wordWrap: 'break-word'}}>{t('auth.login.title')}</div>
+          <div style={{alignSelf: 'stretch', textAlign: 'center', color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', wordWrap: 'break-word'}}>{t('auth.login.subtitle')}</div>
         </div>
         <form onSubmit={handleLogin} style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 20, display: 'flex'}}>
           <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex'}}>
             <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex'}}>
               <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex'}}>
-                <label style={{color: loginError.type === 'email' ? '#D92D20' : '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>Email</label>
+                <label style={{color: loginError.type === 'email' ? '#D92D20' : '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>{t('auth.login.email')}</label>
                 <div style={{
                   alignSelf: 'stretch',
                   height: 52,
@@ -114,7 +126,7 @@ const Login = () => {
                           handleLogin(e);
                         }
                       }}
-                      placeholder="Enter your email"
+                      placeholder={t('auth.login.emailPlaceholder')}
                       style={{flex: '1 1 0', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '24px', background: 'transparent', border: 'none', outline: 'none', width: '100%'}}
                     />
                   </div>
@@ -128,7 +140,7 @@ const Login = () => {
           <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex'}}>
             <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex'}}>
               <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex'}}>
-                <label style={{color: loginError.type === 'password' ? '#D92D20' : '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>Password</label>
+                <label style={{color: loginError.type === 'password' ? '#D92D20' : '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>{t('auth.login.password')}</label>
                 <div style={{
                   alignSelf: 'stretch',
                   height: 52,
@@ -222,7 +234,7 @@ const Login = () => {
               }}>
                 {rememberMe && <span style={{color: 'white', fontSize: 12}}>✓</span>}
               </div>
-              <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '20px', wordWrap: 'break-word'}}>Remember for 30 days</div>
+              <div style={{color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '20px', wordWrap: 'break-word'}}>{t('auth.login.rememberMe')}</div>
             </div>
             <Link
               to="/recover-access"
@@ -238,7 +250,7 @@ const Login = () => {
                 transition: 'transform 0.2s ease'
               }}>
                 <div style={{justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer'}}>
-                  <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>Forgot Password?</div>
+                  <div style={{color: '#181818', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word'}}>{t('auth.login.forgotPassword')}</div>
                 </div>
               </div>
             </Link>
@@ -262,12 +274,12 @@ const Login = () => {
               }}>
               <div style={{flex: '1 1 0', height: 52, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 26, justifyContent: 'center', alignItems: 'center', display: 'flex'}}>
                 <div style={{color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>
-                  {isLoading ? 'Logging in...' : 'Log In'}
+                  {isLoading ? t('auth.login.loggingIn') : t('auth.login.signIn')}
                 </div>
               </div>
             </button>
             <div style={{alignSelf: 'stretch', justifyContent: 'center', alignItems: 'center', gap: 6, display: 'inline-flex'}}>
-              <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '20px', wordWrap: 'break-word'}}>Don't have an account?</div>
+              <div style={{color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '20px', wordWrap: 'break-word'}}>{t('auth.login.noAccount')}</div>
               <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex'}}>
                 <div style={{justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer'}}>
                   <Link
@@ -285,7 +297,7 @@ const Login = () => {
                       wordWrap: 'break-word',
                       transform: signupHover ? 'scale(1.05)' : 'scale(1)',
                       transition: 'transform 0.2s ease'
-                    }}>Sign Up</div>
+                    }}>{t('auth.login.signUp')}</div>
                   </Link>
                 </div>
               </div>
@@ -294,7 +306,7 @@ const Login = () => {
         </div>
         <div style={{alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'inline-flex'}}>
           <div style={{flex: '1 1 0', height: 1, background: '#E6E6EC'}} />
-          <div style={{textAlign: 'center', color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '20px', wordWrap: 'break-word'}}>OR</div>
+          <div style={{textAlign: 'center', color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '20px', wordWrap: 'break-word'}}>{t('auth.login.or')}</div>
           <div style={{flex: '1 1 0', height: 1, background: '#E6E6EC'}} />
         </div>
         <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
@@ -303,7 +315,7 @@ const Login = () => {
             style={{alignSelf: 'stretch', height: 52, borderRadius: 26, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex', border: 'none', cursor: 'pointer', background: 'transparent'}}>
             <div style={{flex: '1 1 0', height: 52, paddingLeft: 20, paddingRight: 20, paddingTop: 10, paddingBottom: 10, background: 'transparent', overflow: 'hidden', borderRadius: 26, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 12, display: 'flex'}}>
               <img src={googleIcon} alt="Google icon" style={{filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))'}} />
-              <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>Log in with Google</div>
+              <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>{t('auth.login.continueWithGoogle')}</div>
             </div>
           </button>
           <button
@@ -311,7 +323,7 @@ const Login = () => {
             style={{alignSelf: 'stretch', height: 52, borderRadius: 26, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex', border: 'none', cursor: 'pointer', background: 'transparent'}}>
             <div style={{flex: '1 1 0', height: 52, paddingLeft: 20, paddingRight: 20, paddingTop: 10, paddingBottom: 10, background: 'transparent', overflow: 'hidden', borderRadius: 26, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 12, display: 'flex'}}>
               <img src={appleIcon} alt="Apple icon" style={{filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))'}} />
-              <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>Log in with Apple</div>
+              <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>{t('auth.login.continueWithApple')}</div>
             </div>
           </button>
         </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, startTransition, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useDropzone } from 'react-dropzone';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
@@ -221,6 +222,7 @@ const formatFileSize = (bytes) => {
 
 const UploadHub = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const { showSuccess, showError, showUploadSuccess, showUploadError, showDeleteSuccess } = useToast();
   // ⚡ PERFORMANCE FIX: Use documents/folders from context (no duplicate API calls)
@@ -1543,7 +1545,7 @@ const UploadHub = () => {
               >
               <input
                 type="text"
-                placeholder="Search any documents..."
+                placeholder={t('common.searchPlaceholder')}
                 value={modalSearchQuery}
                 onChange={(e) => setModalSearchQuery(e.target.value)}
                 autoFocus
@@ -1758,7 +1760,7 @@ const UploadHub = () => {
               <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
               <input
                 type="text"
-                placeholder="Search any documents..."
+                placeholder={t('common.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -1931,7 +1933,7 @@ const UploadHub = () => {
                               onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             >
-                              Add to Category
+                              {t('modals.addToCategory.title')}
                             </button>
                             <button
                               onClick={(e) => {
@@ -3001,7 +3003,7 @@ const UploadHub = () => {
                 textAlign: 'center'
               }}
             >
-              Drop files here to upload
+              {t('upload.dropFilesHere')}
             </div>
             <div
               style={{
@@ -3012,7 +3014,7 @@ const UploadHub = () => {
                 textAlign: 'center'
               }}
             >
-              Release to open upload modal
+              {t('upload.releaseToUpload')}
             </div>
           </div>
         )}
@@ -3032,7 +3034,7 @@ const UploadHub = () => {
             {/* Header */}
             <div style={{alignSelf: 'stretch', paddingLeft: 18, paddingRight: 18, justifyContent: 'space-between', alignItems: 'center', display: 'flex'}}>
               <div style={{width: 30, height: 30, opacity: 0}} />
-              <div style={{textAlign: 'center', color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '26px'}}>Add to Category</div>
+              <div style={{textAlign: 'center', color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '26px'}}>{t('modals.addToCategory.title')}</div>
               <button
                 onClick={() => setShowCategoryModal(null)}
                 style={{width: 30, height: 30, padding: '4px 8px', background: 'white', borderRadius: 100, outline: '1px #E6E6EC solid', outlineOffset: '-1px', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center'}}

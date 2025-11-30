@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -24,6 +25,7 @@ import { ReactComponent as TrashCanIcon } from '../assets/Trash can-red.svg';
 import { ReactComponent as FolderSvgIcon } from '../assets/Folder.svg';
 
 const FileTypeDetail = () => {
+  const { t } = useTranslation();
   const { fileType } = useParams();
   const navigate = useNavigate();
   const { documents, deleteDocument, folders: contextFolders, moveToFolder } = useDocuments();
@@ -62,24 +64,24 @@ const FileTypeDetail = () => {
   }, [openDropdownId]);
 
   const fileTypeConfig = {
-    'png': { label: 'Your PNGs', icon: pngIcon, extensions: ['png'] },
-    'jpg': { label: 'Your JPGs', icon: jpgIcon, extensions: ['jpg', 'jpeg'] },
-    'jpeg': { label: 'Your JPEGs', icon: jpgIcon, extensions: ['jpg', 'jpeg'] },
-    'pdf': { label: 'Your PDFs', icon: pdfIcon, extensions: ['pdf'] },
-    'doc': { label: 'Your Docs', icon: docIcon, extensions: ['doc', 'docx'] },
-    'docx': { label: 'Your Docs', icon: docIcon, extensions: ['doc', 'docx'] },
-    'xls': { label: 'Your Spreadsheets', icon: xlsIcon, extensions: ['xls', 'xlsx'] },
-    'xlsx': { label: 'Your Spreadsheets', icon: xlsIcon, extensions: ['xls', 'xlsx'] },
-    'pptx': { label: 'Your Presentations', icon: pptxIcon, extensions: ['ppt', 'pptx'] },
-    'ppt': { label: 'Your Presentations', icon: pptxIcon, extensions: ['ppt', 'pptx'] },
-    'mp4': { label: 'Your Videos', icon: mp4Icon, extensions: ['mp4'] },
-    'mov': { label: 'Your Videos', icon: movIcon, extensions: ['mov'] }
+    'png': { label: t('fileTypeLabels.yourPNGs'), icon: pngIcon, extensions: ['png'] },
+    'jpg': { label: t('fileTypeLabels.yourJPGs'), icon: jpgIcon, extensions: ['jpg', 'jpeg'] },
+    'jpeg': { label: t('fileTypeLabels.yourJPEGs'), icon: jpgIcon, extensions: ['jpg', 'jpeg'] },
+    'pdf': { label: t('fileTypeLabels.yourPDFs'), icon: pdfIcon, extensions: ['pdf'] },
+    'doc': { label: t('fileTypeLabels.yourDocs'), icon: docIcon, extensions: ['doc', 'docx'] },
+    'docx': { label: t('fileTypeLabels.yourDocs'), icon: docIcon, extensions: ['doc', 'docx'] },
+    'xls': { label: t('fileTypeLabels.yourSpreadsheets'), icon: xlsIcon, extensions: ['xls', 'xlsx'] },
+    'xlsx': { label: t('fileTypeLabels.yourSpreadsheets'), icon: xlsIcon, extensions: ['xls', 'xlsx'] },
+    'pptx': { label: t('fileTypeLabels.yourPresentations'), icon: pptxIcon, extensions: ['ppt', 'pptx'] },
+    'ppt': { label: t('fileTypeLabels.yourPresentations'), icon: pptxIcon, extensions: ['ppt', 'pptx'] },
+    'mp4': { label: t('fileTypeLabels.yourVideos'), icon: mp4Icon, extensions: ['mp4'] },
+    'mov': { label: t('fileTypeLabels.yourVideos'), icon: movIcon, extensions: ['mov'] }
   };
 
-  const config = fileTypeConfig[fileType?.toLowerCase()] || { 
-    label: 'Your ' + (fileType?.toUpperCase() || '') + 's', 
-    icon: null, 
-    extensions: [fileType?.toLowerCase()] 
+  const config = fileTypeConfig[fileType?.toLowerCase()] || {
+    label: t('fileTypeLabels.yourFiles', { type: fileType?.toUpperCase() || '' }),
+    icon: null,
+    extensions: [fileType?.toLowerCase()]
   };
 
   const filteredDocuments = useMemo(() => {
@@ -276,7 +278,7 @@ const FileTypeDetail = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span onClick={() => navigate('/home')} style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = '#111827'} onMouseLeave={(e) => e.currentTarget.style.color = '#6B7280'}>Home</span>
+                <span onClick={() => navigate('/home')} style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = '#111827'} onMouseLeave={(e) => e.currentTarget.style.color = '#6B7280'}>{t('common.home')}</span>
                 <span style={{ color: '#D1D5DB' }}>›</span>
                 <span style={{ fontWeight: '500' }}>{config.label}</span>
               </div>
@@ -293,23 +295,23 @@ const FileTypeDetail = () => {
                 <>
                   <button onClick={handleBulkDelete} disabled={selectedDocuments.size === 0} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: selectedDocuments.size > 0 ? '#FEE2E2' : '#F5F5F5', borderRadius: 100, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 8, cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed', opacity: selectedDocuments.size > 0 ? 1 : 0.5 }}>
                     <TrashCanIcon style={{ width: 18, height: 18 }} />
-                    <span style={{ color: '#D92D20', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>Delete{selectedDocuments.size > 0 ? ' (' + selectedDocuments.size + ')' : ''}</span>
+                    <span style={{ color: '#D92D20', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>{t('common.delete')}{selectedDocuments.size > 0 ? ' (' + selectedDocuments.size + ')' : ''}</span>
                   </button>
                   <button onClick={handleBulkMove} disabled={selectedDocuments.size === 0} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 8, cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed', opacity: selectedDocuments.size > 0 ? 1 : 0.5 }}>
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
-                    <span style={{ color: '#32302C', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>Move{selectedDocuments.size > 0 ? ' (' + selectedDocuments.size + ')' : ''}</span>
+                    <span style={{ color: '#32302C', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>{t('common.move')}{selectedDocuments.size > 0 ? ' (' + selectedDocuments.size + ')' : ''}</span>
                   </button>
-                  <button onClick={() => { clearSelection(); toggleSelectMode(); }} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', fontSize: 15, color: '#111827' }}>Cancel</button>
+                  <button onClick={() => { clearSelection(); toggleSelectMode(); }} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', fontSize: 15, color: '#111827' }}>{t('common.cancel')}</button>
                 </>
               ) : (
                 <>
                   <div style={{ paddingLeft: 12, paddingRight: 12, paddingTop: 10, paddingBottom: 10, background: 'white', borderRadius: 100, border: '1px #E5E7EB solid', display: 'flex', alignItems: 'center', gap: 8, width: isMobile ? '100%' : 280 }}>
                     <SearchIcon style={{ width: 20, height: 20, color: '#6B7280' }} />
-                    <input type="text" placeholder="Search files..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ border: 'none', outline: 'none', background: 'transparent', color: '#111827', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', flex: 1, width: '100%' }} />
+                    <input type="text" placeholder={t('common.searchFilesPlaceholder')} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ border: 'none', outline: 'none', background: 'transparent', color: '#111827', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', flex: 1, width: '100%' }} />
                   </div>
-                  <button onClick={toggleSelectMode} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', fontSize: 15, color: '#111827' }}>Select</button>
+                  <button onClick={toggleSelectMode} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', fontSize: 15, color: '#111827' }}>{t('common.select')}</button>
                 </>
               )}
             </div>
@@ -328,7 +330,7 @@ const FileTypeDetail = () => {
           
           {searchedDocuments.length > 0 ? (
             <div className="card-section" style={{ background: 'white', borderRadius: 20, border: '2px solid #E6E6EC', padding: 24 }}>
-              <h2 style={{ fontSize: 18, fontWeight: '600', color: '#374151', fontFamily: 'Plus Jakarta Sans', margin: '0 0 16px 0' }}>Documents</h2>
+              <h2 style={{ fontSize: 18, fontWeight: '600', color: '#374151', fontFamily: 'Plus Jakarta Sans', margin: '0 0 16px 0' }}>{t('common.documents')}</h2>
               
               {viewMode === 'list' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflow: 'visible' }}>
@@ -413,11 +415,11 @@ const FileTypeDetail = () => {
                           <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #E5E7EB', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
                             <button onClick={() => handleAddToCategory(doc)} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                               <FolderSvgIcon style={{ width: 16, height: 16 }} />
-                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#111827' }}>Move to folder</span>
+                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#111827' }}>{t('common.moveToFolder')}</span>
                             </button>
                             <button onClick={() => handleDelete(doc)} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }} onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                               <TrashCanIcon style={{ width: 16, height: 16 }} />
-                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#D92D20' }}>Delete</span>
+                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#D92D20' }}>{t('common.delete')}</span>
                             </button>
                           </div>
                         )}
@@ -438,11 +440,11 @@ const FileTypeDetail = () => {
                           <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #E5E7EB', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
                             <button onClick={() => handleAddToCategory(doc)} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                               <FolderSvgIcon style={{ width: 16, height: 16 }} />
-                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#111827' }}>Move to folder</span>
+                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#111827' }}>{t('common.moveToFolder')}</span>
                             </button>
                             <button onClick={() => handleDelete(doc)} style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }} onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                               <TrashCanIcon style={{ width: 16, height: 16 }} />
-                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#D92D20' }}>Delete</span>
+                              <span style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#D92D20' }}>{t('common.delete')}</span>
                             </button>
                           </div>
                         )}
@@ -459,11 +461,11 @@ const FileTypeDetail = () => {
             </div>
           ) : (
             <div className="card-section" style={{ background: 'white', borderRadius: 20, border: '2px solid #E6E6EC', padding: 24 }}>
-              <h2 style={{ fontSize: 18, fontWeight: '600', color: '#374151', fontFamily: 'Plus Jakarta Sans', margin: '0 0 16px 0' }}>Documents</h2>
+              <h2 style={{ fontSize: 18, fontWeight: '600', color: '#374151', fontFamily: 'Plus Jakarta Sans', margin: '0 0 16px 0' }}>{t('common.documents')}</h2>
               <div style={{ textAlign: 'center', padding: '40px 20px', color: '#6B7280' }}>
                 {config.icon && <img src={config.icon} alt={fileType} style={{ width: 64, height: 64, objectFit: 'contain', opacity: 0.5, marginBottom: 16 }} />}
-                <p style={{ fontSize: 18, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', margin: '0 0 8px 0', color: '#111827' }}>No {config.label.replace('Your ', '').toLowerCase()} found</p>
-                <p style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', margin: 0 }}>{searchQuery ? 'Try a different search term' : 'Upload some files to get started'}</p>
+                <p style={{ fontSize: 18, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', margin: '0 0 8px 0', color: '#111827' }}>{t('fileTypeLabels.noFilesFound', { type: config.label.replace('Your ', '').replace('Tus ', '').replace('Seus ', '').toLowerCase() })}</p>
+                <p style={{ fontSize: 14, fontFamily: 'Plus Jakarta Sans', margin: 0 }}>{searchQuery ? t('common.tryDifferentSearch') : t('common.uploadSomeFiles')}</p>
               </div>
             </div>
           )}
@@ -475,18 +477,18 @@ const FileTypeDetail = () => {
       {showCategoryModal && (
         <div onClick={() => { setShowCategoryModal(false); setSelectedDocumentForCategory(null); setSelectedCategoryId(null); }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: 16, padding: 24, width: '90%', maxWidth: 400, maxHeight: '80vh', overflow: 'auto' }}>
-            <h3 style={{ fontSize: 20, fontWeight: '700', color: '#111827', fontFamily: 'Plus Jakarta Sans', marginTop: 0, marginBottom: 16 }}>{isSelectMode && selectedDocuments.size > 0 ? 'Move ' + selectedDocuments.size + ' file' + (selectedDocuments.size > 1 ? 's' : '') + ' to folder' : 'Move to folder'}</h3>
+            <h3 style={{ fontSize: 20, fontWeight: '700', color: '#111827', fontFamily: 'Plus Jakarta Sans', marginTop: 0, marginBottom: 16 }}>{isSelectMode && selectedDocuments.size > 0 ? t('modals.moveToFolder.title', { count: selectedDocuments.size, type: selectedDocuments.size > 1 ? t('modals.moveToFolder.documents') : t('modals.moveToFolder.document') }) : t('common.moveToFolder')}</h3>
             <div style={{ marginBottom: 24 }}>
               {availableCategories.length > 0 ? availableCategories.map((folder) => (
                 <div key={folder.id} onClick={() => setSelectedCategoryId(folder.id)} style={{ padding: '12px 16px', borderRadius: 8, border: selectedCategoryId === folder.id ? '2px solid #111827' : '1px solid #E5E7EB', background: selectedCategoryId === folder.id ? '#F3F4F6' : 'white', cursor: 'pointer', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
                   <FolderSvgIcon style={{ width: 20, height: 20, color: '#6B7280' }} />
                   <span style={{ fontSize: 15, fontWeight: '500', color: '#111827', fontFamily: 'Plus Jakarta Sans' }}>{folder.name}</span>
                 </div>
-              )) : <p style={{ color: '#6B7280', fontSize: 14, fontFamily: 'Plus Jakarta Sans', textAlign: 'center', padding: 20 }}>No folders available. Create a folder first.</p>}
+              )) : <p style={{ color: '#6B7280', fontSize: 14, fontFamily: 'Plus Jakarta Sans', textAlign: 'center', padding: 20 }}>{t('common.noFoldersCreateFirst')}</p>}
             </div>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowCategoryModal(false); setSelectedDocumentForCategory(null); setSelectedCategoryId(null); }} style={{ padding: '10px 20px', background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer', fontSize: 15, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#111827' }}>Cancel</button>
-              <button onClick={handleCategorySelection} disabled={!selectedCategoryId} style={{ padding: '10px 20px', background: selectedCategoryId ? '#111827' : '#E5E7EB', border: 'none', borderRadius: 8, cursor: selectedCategoryId ? 'pointer' : 'not-allowed', fontSize: 15, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: 'white' }}>Move</button>
+              <button onClick={() => { setShowCategoryModal(false); setSelectedDocumentForCategory(null); setSelectedCategoryId(null); }} style={{ padding: '10px 20px', background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer', fontSize: 15, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#111827' }}>{t('common.cancel')}</button>
+              <button onClick={handleCategorySelection} disabled={!selectedCategoryId} style={{ padding: '10px 20px', background: selectedCategoryId ? '#111827' : '#E5E7EB', border: 'none', borderRadius: 8, cursor: selectedCategoryId ? 'pointer' : 'not-allowed', fontSize: 15, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: 'white' }}>{t('common.move')}</button>
             </div>
           </div>
         </div>

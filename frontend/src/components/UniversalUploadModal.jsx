@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import fileTypesStackIcon from '../assets/file-types-stack.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
@@ -8,6 +9,8 @@ import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import unifiedUploadService from '../services/unifiedUploadService';
 import { useDocuments } from '../context/DocumentsContext';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationsStore';
+import api from '../services/api';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -21,10 +24,12 @@ import mp3Icon from '../assets/mp3.svg';
 import folderIcon from '../assets/folder_icon.svg';
 
 const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComplete, initialFiles = null }) => {
+  const { t } = useTranslation();
   // ✅ FIX: Get fetchFolders to refresh categories after upload
   const { fetchFolders, invalidateCache } = useDocuments();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotifications();
 
   const [uploadingFiles, setUploadingFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -387,12 +392,35 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       setNotificationType('success');
       setShowNotification(true);
       setTimeout(() => setShowNotification(false), 5000);
+
+      // Add notification to global notification system
+      addNotification({
+        type: 'info',
+        title: 'Upload Complete',
+        text: `${totalSuccessCount} document${totalSuccessCount > 1 ? 's have' : ' has'} been successfully uploaded.`,
+        action: { type: 'navigate', target: '/documents' }
+      });
     }
 
     if (totalFailureCount > 0 && totalSuccessCount === 0) {
       setNotificationType('error');
       setShowNotification(true);
       setTimeout(() => setShowNotification(false), 5000);
+
+      // Add error notification to global notification system
+      addNotification({
+        type: 'error',
+        title: 'Upload Failed',
+        text: `${totalFailureCount} file${totalFailureCount > 1 ? 's' : ''} failed to upload. Please try again.`
+      });
+    } else if (totalFailureCount > 0 && totalSuccessCount > 0) {
+      // Partial success
+      addNotification({
+        type: 'warning',
+        title: 'Upload Partially Complete',
+        text: `${totalSuccessCount} uploaded, ${totalFailureCount} failed.`,
+        action: { type: 'navigate', target: '/documents' }
+      });
     }
 
     // ✅ FIX: Immediately refresh folders after upload to show the new category
@@ -400,6 +428,35 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
     // Invalidate cache and fetch folders immediately
     invalidateCache();
     await fetchFolders();
+
+    // Check storage after upload and warn if approaching limit
+    if (totalSuccessCount > 0) {
+      try {
+        const storageResponse = await api.get('/api/storage');
+        const { used, limit } = storageResponse.data;
+        const usagePercent = (used / limit) * 100;
+
+        if (usagePercent >= 90) {
+          addNotification({
+            type: 'error',
+            title: 'Storage Almost Full',
+            text: `You've used ${Math.round(usagePercent)}% of your storage. Upgrade now to avoid upload failures.`,
+            action: { type: 'navigate', target: '/upgrade' }
+          });
+        } else if (usagePercent >= 70) {
+          addNotification({
+            type: 'warning',
+            title: 'Storage Running Low',
+            text: `You've used ${Math.round(usagePercent)}% of your storage. Consider upgrading your plan.`,
+            action: { type: 'navigate', target: '/upgrade' }
+          });
+        }
+      } catch (storageError) {
+        // Silently fail - storage check is not critical
+        console.warn('Failed to check storage:', storageError);
+      }
+    }
+
     setIsUploading(false);
 
     if (onUploadComplete) {
@@ -496,7 +553,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
             textTransform: 'capitalize',
             lineHeight: '30px'
           }}>
-            Upload Documents
+            {t('upload.uploadDocuments')}
           </div>
         </div>
 
@@ -609,7 +666,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   textTransform: 'capitalize',
                   lineHeight: '30px'
                 }}>
-                  {isDragActive ? 'Drop files here' : 'Upload Documents or Drag-n-drop'}
+                  {isDragActive ? t('upload.dropFilesHere') : t('upload.uploadOrDragDrop')}
                 </div>
               </div>
               <div style={{
@@ -621,7 +678,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                 fontWeight: '500',
                 lineHeight: '24px'
               }}>
-                Upload your documents • All file types supported (max 500MB)
+                {t('upload.uploadDescription')}
               </div>
             </div>
 
@@ -663,7 +720,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   textTransform: 'capitalize',
                   lineHeight: '24px'
                 }}>
-                  Select Files
+                  {t('upload.selectFiles')}
                 </div>
               </div>
 
@@ -697,7 +754,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   textTransform: 'capitalize',
                   lineHeight: '24px'
                 }}>
-                  Select Folder
+                  {t('upload.selectFolder')}
                 </div>
               </div>
             </div>
@@ -837,7 +894,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                     fontFamily: 'Plus Jakarta Sans',
                     fontWeight: '500'
                   }}>
-                    Processing files...
+                    {t('upload.processing')}
                   </span>
                 </div>
               ) : (
@@ -1032,7 +1089,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   textTransform: 'capitalize',
                   lineHeight: '24px'
                 }}>
-                  Cancel
+                  {t('upload.cancel')}
                 </div>
               </button>
 
@@ -1060,7 +1117,7 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   textTransform: 'capitalize',
                   lineHeight: '24px'
                 }}>
-                  {isUploading ? 'Uploading...' : 'Upload'}
+                  {isUploading ? t('upload.uploading') : t('nav.upload')}
                 </div>
               </button>
             </div>

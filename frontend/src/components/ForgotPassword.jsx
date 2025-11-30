@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 function ForgotPassword() {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -31,7 +33,7 @@ function ForgotPassword() {
 
   const handleContinue = async () => {
     if (!selectedMethod) {
-      setError('Please select a verification method');
+      setError(t('auth.forgotPassword.selectMethod'));
       return;
     }
 
@@ -42,7 +44,7 @@ function ForgotPassword() {
       const sessionToken = sessionStorage.getItem('resetSessionToken');
 
       if (!sessionToken) {
-        setError('Session expired. Please start over.');
+        setError(t('auth.forgotPassword.sessionExpired'));
         setTimeout(() => navigate('/recover-access'), 2000);
         return;
       }
@@ -68,7 +70,7 @@ function ForgotPassword() {
       if (error.response?.data?.error) {
         setError(error.response.data.error);
       } else {
-        setError('Failed to send reset link. Please try again.');
+        setError(t('auth.forgotPassword.sendFailed'));
       }
     } finally {
       setLoading(false);
@@ -99,7 +101,7 @@ function ForgotPassword() {
           padding: 0
         }}
       >
-        ← Back
+        ← {t('common.back')}
       </button>
 
       {/* Content Container */}
@@ -131,7 +133,7 @@ function ForgotPassword() {
           margin: 0,
           marginBottom: '16px'
         }}>
-          Forgot Password?
+          {t('auth.forgotPassword.title')}
         </h1>
 
         <p style={{
@@ -142,7 +144,7 @@ function ForgotPassword() {
           marginBottom: '48px',
           lineHeight: '1.5'
         }}>
-          No worries, we'll send you a code via email or message
+          {t('auth.forgotPassword.subtitle')}
         </p>
 
         {/* Email Option */}
@@ -170,10 +172,10 @@ function ForgotPassword() {
           <div style={{ width: '32px', height: '32px', fontSize: '28px', textShadow: '0 2px 6px rgba(0, 0, 0, 0.15)' }}>📧</div>
           <div style={{ flex: 1, textAlign: 'left' }}>
             <div style={{ fontSize: '16px', fontWeight: '600', color: canUseEmail ? '#000' : '#999', marginBottom: '4px' }}>
-              Send Via Email
+              {t('auth.forgotPassword.sendViaEmail')}
             </div>
             <div style={{ fontSize: '14px', color: canUseEmail ? '#666' : '#999' }}>
-              {canUseEmail ? maskedEmail : 'Email not verified'}
+              {canUseEmail ? maskedEmail : t('auth.forgotPassword.emailNotVerified')}
             </div>
           </div>
           {canUseEmail && (
@@ -218,15 +220,15 @@ function ForgotPassword() {
           <div style={{ width: '32px', height: '32px', fontSize: '28px', textShadow: '0 2px 6px rgba(0, 0, 0, 0.15)' }}>💬</div>
           <div style={{ flex: 1, textAlign: 'left' }}>
             <div style={{ fontSize: '16px', fontWeight: '600', color: canUsePhone ? '#000' : '#999', marginBottom: '4px' }}>
-              Send Via Messages
+              {t('auth.forgotPassword.sendViaSms')}
             </div>
             <div style={{ fontSize: '14px', color: canUsePhone ? '#666' : '#999' }}>
               {hasUnverifiedPhone ? (
                 <>
                   <div>{maskedPhone}</div>
-                  <div style={{ fontSize: '12px', color: '#999', marginTop: '2px' }}>Number not verified</div>
+                  <div style={{ fontSize: '12px', color: '#999', marginTop: '2px' }}>{t('auth.forgotPassword.numberNotVerified')}</div>
                 </>
-              ) : canUsePhone ? maskedPhone : 'No phone number linked'}
+              ) : canUsePhone ? maskedPhone : t('auth.forgotPassword.noPhoneLinked')}
             </div>
           </div>
           {canUsePhone && (
@@ -278,7 +280,7 @@ function ForgotPassword() {
             boxSizing: 'border-box'
           }}
         >
-          {loading ? 'Sending...' : 'Continue'}
+          {loading ? t('auth.forgotPassword.sending') : t('auth.signup.continue')}
         </button>
       </div>
     </div>

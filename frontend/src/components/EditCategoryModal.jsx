@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
@@ -14,6 +15,7 @@ import pptxIcon from '../assets/pptx.png';
 import folderIcon from '../assets/folder_icon.svg';
 
 const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
+  const { t } = useTranslation();
   const [categoryName, setCategoryName] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState('__FOLDER_SVG__');
   const [searchQuery, setSearchQuery] = useState('');
@@ -193,7 +195,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
               fontWeight: '700',
               lineHeight: '26px'
             }}>
-              Edit Category
+              {t('modals.editCategory.title')}
             </div>
           </div>
           <button
@@ -249,7 +251,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
               fontWeight: '600',
               lineHeight: '20px'
             }}>
-              Category Name
+              {t('modals.editCategory.categoryName')}
             </div>
             <input
               type="text"
@@ -299,7 +301,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                 fontWeight: '600',
                 lineHeight: '20px'
               }}>
-                Category Emoji
+                {t('modals.editCategory.categoryEmoji')}
               </div>
               <button
                 onClick={() => setShowAllEmojis(!showAllEmojis)}
@@ -318,7 +320,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                 onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
                 onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
               >
-                {showAllEmojis ? 'Show Less' : 'See All'}
+                {showAllEmojis ? t('modals.editCategory.showLess') : t('modals.editCategory.seeAll')}
               </button>
             </div>
             <div style={{
@@ -393,7 +395,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                 textTransform: 'capitalize',
                 lineHeight: '24px'
               }}>
-                Add documents
+                {t('modals.editCategory.addDocuments')}
               </div>
             </div>
 
@@ -419,7 +421,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
               <SearchIcon style={{width: 24, height: 24}} />
               <input
                 type="text"
-                placeholder="Search any documents..."
+                placeholder={t('modals.editCategory.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -578,7 +580,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
               lineHeight: '24px'
             }}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleConfirm}
@@ -601,7 +603,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
               lineHeight: '24px'
             }}
           >
-            Confirm
+            {t('modals.editCategory.confirm')}
           </button>
         </div>
       </div>

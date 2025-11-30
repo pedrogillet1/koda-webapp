@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
@@ -60,6 +61,7 @@ import mp3Icon from '../assets/mp3.svg';
 
 const Documents = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { showSuccess } = useToast();
   const isMobile = useIsMobile();
@@ -697,7 +699,7 @@ const Documents = () => {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search"
+                    placeholder={t('common.search')}
                     style={{
                       height: '100%',
                       width: isMobile ? '100%' : 'auto',
@@ -754,7 +756,7 @@ const Documents = () => {
                         fontFamily: 'Plus Jakarta Sans',
                         fontWeight: '500'
                       }}>
-                        Searching...
+                        {t('common.searching')}
                       </div>
                     </div>
                   )}
@@ -1036,7 +1038,7 @@ const Documents = () => {
                       fontSize: 14,
                       fontFamily: 'Plus Jakarta Sans'
                     }}>
-                      No folders or documents found matching "{searchQuery}"
+                      {t('documents.noResultsMatching', { query: searchQuery })}
                     </div>
                   )}
                 </div>
@@ -1045,7 +1047,7 @@ const Documents = () => {
 
                 <div onClick={() => setShowUniversalUploadModal(true)} style={{height: isMobile ? 44 : 52, width: isMobile ? 44 : 'auto', paddingLeft: isMobile ? 0 : 18, paddingRight: isMobile ? 0 : 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', flexShrink: 0, transition: 'transform 0.2s ease, box-shadow 0.2s ease'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.style.transform = 'translateY(0)')}>
                   <LogoutBlackIcon style={{width: isMobile ? 20 : 24, height: isMobile ? 20 : 24}} />
-                  {!isMobile && <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload a Document</div>}
+                  {!isMobile && <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>{t('documents.uploadDocument')}</div>}
                 </div>
               </>
             )}
@@ -1062,7 +1064,7 @@ const Documents = () => {
                 <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                   <AddIcon style={{ width: isMobile ? 24 : 28, height: isMobile ? 24 : 28 }} />
                 </div>
-                <span style={{color: '#32302C', fontSize: isMobile ? 14 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, whiteSpace: 'nowrap', textAlign: 'left'}}>Add New Smart Category</span>
+                <span style={{color: '#32302C', fontSize: isMobile ? 14 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, whiteSpace: 'nowrap', textAlign: 'left'}}>{t('documents.addNewCategory')}</span>
               </div>
               {categories.slice(0, isMobile ? 4 : 3).map((category, index) => (
                 <div
@@ -2109,7 +2111,7 @@ const Documents = () => {
                 transition: 'opacity 250ms ease-out'
               }}
             >
-              Drop files here to upload
+              {t('upload.dropFilesHere')}
             </div>
             <div
               style={{
@@ -2122,7 +2124,7 @@ const Documents = () => {
                 transition: 'opacity 250ms ease-out'
               }}
             >
-              Release to open upload modal
+              {t('upload.releaseToUpload')}
             </div>
           </div>
         )}

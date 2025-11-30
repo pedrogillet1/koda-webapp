@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import logo from '../assets/logo.svg';
 import googleIcon from '../assets/Social icon 2.svg';
@@ -8,6 +9,7 @@ import hideIcon from '../assets/Hide.svg';
 
 const SignUp = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { register, loginWithGoogle, setAuthState } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -45,12 +47,12 @@ const SignUp = () => {
     e.preventDefault();
 
     if (!name || !email || !password) {
-      setError('Please fill in all fields');
+      setError(t('auth.signup.fillAllFields'));
       return;
     }
 
     if (!passwordCriteria.minLength || !passwordCriteria.hasUppercase || !passwordCriteria.hasLowercase || !passwordCriteria.hasNumber || !passwordCriteria.hasSpecialChar) {
-      setError('Please meet all password requirements');
+      setError(t('auth.signup.meetPasswordRequirements'));
       return;
     }
 
@@ -85,11 +87,11 @@ const SignUp = () => {
       } else {
         // Unknown response format
         console.error('Unexpected response format:', response);
-        setError('Registration successful but unable to proceed. Please try logging in.');
+        setError(t('auth.signup.unexpectedError'));
       }
     } catch (error) {
       console.error('Registration error:', error);
-      setError(error.message || 'Registration failed. Please try again.');
+      setError(error.message || t('auth.signup.registrationFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -123,20 +125,20 @@ const SignUp = () => {
         <img style={{width: 120, height: 120, filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))'}} src={logo} alt="Logo" />
 
         <div style={{alignSelf: 'stretch', textAlign: 'center', flexDirection: 'column', gap: 12}}>
-          <div style={{color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600'}}>Create Your Account</div>
-          <div style={{color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>Fill in the form to create your Koda account.</div>
+          <div style={{color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600'}}>{t('auth.signup.title')}</div>
+          <div style={{color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>{t('auth.signup.subtitle')}</div>
         </div>
 
         <form onSubmit={handleSignUp} style={{alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 20}}>
           <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
-            <label style={{fontWeight: '600', fontSize: 14}}>Name</label>
+            <label style={{fontWeight: '600', fontSize: 14}}>{t('auth.signup.name')}</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               onFocus={() => setNameFocused(true)}
               onBlur={() => setNameFocused(false)}
-              placeholder="Enter your name"
+              placeholder={t('auth.signup.namePlaceholder')}
               style={{
                 height: 52,
                 padding: '0 20px',
@@ -151,14 +153,14 @@ const SignUp = () => {
             />
           </div>
           <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
-            <label style={{fontWeight: '600', fontSize: 14}}>Email</label>
+            <label style={{fontWeight: '600', fontSize: 14}}>{t('auth.signup.email')}</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onFocus={() => setEmailFocused(true)}
               onBlur={() => setEmailFocused(false)}
-              placeholder="Enter your email"
+              placeholder={t('auth.signup.emailPlaceholder')}
               style={{
                 height: 52,
                 padding: '0 20px',
@@ -173,7 +175,7 @@ const SignUp = () => {
             />
           </div>
           <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
-            <label style={{fontWeight: '600', fontSize: 14}}>Password</label>
+            <label style={{fontWeight: '600', fontSize: 14}}>{t('auth.signup.password')}</label>
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -199,22 +201,22 @@ const SignUp = () => {
           </div>
 
           <div style={{display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4}}>
-            <ValidationItem text="At least 8 characters" isValid={passwordCriteria.minLength} />
-            <ValidationItem text="One uppercase letter" isValid={passwordCriteria.hasUppercase} />
-            <ValidationItem text="One lowercase letter" isValid={passwordCriteria.hasLowercase} />
-            <ValidationItem text="One number" isValid={passwordCriteria.hasNumber} />
-            <ValidationItem text="One special character (!@#$%^&*...)" isValid={passwordCriteria.hasSpecialChar} />
+            <ValidationItem text={t('auth.signup.validation.minLength')} isValid={passwordCriteria.minLength} />
+            <ValidationItem text={t('auth.signup.validation.uppercase')} isValid={passwordCriteria.hasUppercase} />
+            <ValidationItem text={t('auth.signup.validation.lowercase')} isValid={passwordCriteria.hasLowercase} />
+            <ValidationItem text={t('auth.signup.validation.number')} isValid={passwordCriteria.hasNumber} />
+            <ValidationItem text={t('auth.signup.validation.specialChar')} isValid={passwordCriteria.hasSpecialChar} />
           </div>
 
           {error && <div style={{color: '#DC2626', background: '#FEE2E2', padding: '12px 16px', borderRadius: 26, marginTop: 8}}>{error}</div>}
 
           <button type="submit" disabled={isLoading} style={{height: 52, background: 'rgba(24, 24, 24, 0.90)', color: 'white', borderRadius: 26, border: 'none', fontSize: 16, fontWeight: '600', cursor: 'pointer', marginTop: 12, opacity: isLoading ? 0.6 : 1}}>
-            {isLoading ? 'Creating account...' : 'Continue'}
+            {isLoading ? t('auth.signup.creatingAccount') : t('auth.signup.continue')}
           </button>
         </form>
 
         <div style={{textAlign: 'center', fontSize: 14}}>
-          <span style={{color: '#6C6B6E'}}>Already Have An Account? </span>
+          <span style={{color: '#6C6B6E'}}>{t('auth.signup.haveAccount')} </span>
           <Link
             to="/login"
             style={{
@@ -227,28 +229,28 @@ const SignUp = () => {
             }}
             onMouseEnter={() => setLoginHover(true)}
             onMouseLeave={() => setLoginHover(false)}
-          >Log In</Link>
+          >{t('auth.signup.logIn')}</Link>
         </div>
 
         <div style={{alignSelf: 'stretch', display: 'flex', alignItems: 'center', gap: 8}}>
           <div style={{flex: 1, height: 1, background: '#E6E6EC'}} />
-          <span style={{color: '#6C6B6E'}}>OR</span>
+          <span style={{color: '#6C6B6E'}}>{t('auth.signup.or')}</span>
           <div style={{flex: 1, height: 1, background: '#E6E6EC'}} />
         </div>
 
         <div style={{alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 16}}>
           <button onClick={handleGoogleSignUp} style={{height: 52, background: 'transparent', borderRadius: 26, border: '1px solid #E6E6EC', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, cursor: 'pointer', fontSize: 16, fontWeight: '500'}}>
             <img src={googleIcon} alt="Google icon" style={{filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))'}} />
-            Sign Up with Google
+            {t('auth.signup.continueWithGoogle')}
           </button>
           <button style={{height: 52, background: 'transparent', borderRadius: 26, border: '1px solid #E6E6EC', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, cursor: 'pointer', fontSize: 16, fontWeight: '500'}}>
             <img src={appleIcon} alt="Apple icon" style={{filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15))'}} />
-            Sign Up with Apple
+            {t('auth.signup.continueWithApple')}
           </button>
         </div>
 
         <div style={{textAlign: 'center', fontSize: 14}}>
-          <span style={{color: '#6C6B6E'}}>By creating an account, you agree to our </span>
+          <span style={{color: '#6C6B6E'}}>{t('auth.signup.termsAgree')} </span>
           <Link
             to="/terms"
             style={{
@@ -261,8 +263,8 @@ const SignUp = () => {
             }}
             onMouseEnter={() => setTermsHover(true)}
             onMouseLeave={() => setTermsHover(false)}
-          >Terms of Service</Link>
-          <span style={{color: '#6C6B6E'}}> and </span>
+          >{t('auth.signup.terms')}</Link>
+          <span style={{color: '#6C6B6E'}}> {t('auth.signup.and')} </span>
           <Link
             to="/privacy"
             style={{
@@ -275,7 +277,7 @@ const SignUp = () => {
             }}
             onMouseEnter={() => setPrivacyHover(true)}
             onMouseLeave={() => setPrivacyHover(false)}
-          >Privacy Policy</Link>.
+          >{t('auth.signup.privacy')}</Link>.
         </div>
       </div>
     </div>

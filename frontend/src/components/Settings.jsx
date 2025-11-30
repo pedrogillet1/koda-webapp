@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import LeftNav from './LeftNav';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
@@ -42,6 +43,7 @@ import crownIcon from '../assets/crown.png';
 import api from '../services/api';
 
 const Settings = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { showSuccess, showError } = useToast();
@@ -648,7 +650,7 @@ const Settings = () => {
           <div style={{ alignSelf: 'stretch', height: 44, justifyContent: 'space-between', alignItems: 'center', display: 'flex' }}>
             <div style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
               <SettingsFilledIcon style={{ width: 20, height: 20 }} />
-              <div style={{ color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '19.80px' }}>Settings</div>
+              <div style={{ color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '19.80px' }}>{t('settings.title')}</div>
             </div>
             <div
               onClick={() => setIsExpanded(false)}
@@ -718,7 +720,7 @@ const Settings = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <LayersIcon style={{ width: 20, height: 20 }} />
-                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>General</div>
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{t('settings.general')}</div>
                 </div>
                 <Right3Icon style={{ width: 20, height: 20 }} />
               </div>
@@ -765,7 +767,7 @@ const Settings = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <UserIcon style={{ width: 20, height: 20 }} />
-                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Profile</div>
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{t('settingsPage.profile')}</div>
                 </div>
                 <Right3Icon style={{ width: 20, height: 20 }} />
               </div>
@@ -812,7 +814,7 @@ const Settings = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <KeyIcon style={{ width: 20, height: 20 }} />
-                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Password</div>
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{t('settingsPage.password')}</div>
                 </div>
                 <Right3Icon style={{ width: 20, height: 20 }} />
               </div>
@@ -945,12 +947,12 @@ const Settings = () => {
             <div style={{ padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 20, border: '2px solid #E6E6EC', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 8 : 12, display: 'flex' }}>
               <img src={crownIcon} alt="Crown" style={{ width: 100, height: 80, objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))' }} />
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 4 : 8, display: 'flex' }}>
-                <div style={{ color: '#32302C', fontSize: isMobile ? 24 : 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: isMobile ? '32px' : '40px' }}>Beta Access</div>
+                <div style={{ color: '#32302C', fontSize: isMobile ? 24 : 32, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: isMobile ? '32px' : '40px' }}>{t('settingsPage.betaAccess')}</div>
                 <div style={{ color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '20px' }}>
-                  Early access · All features unlocked
+                  {t('settingsPage.betaSubtitle')}
                 </div>
                 {!isMobile && <div style={{ color: '#6C6B6E', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '22px', marginTop: 8 }}>
-                  You're part of Koda's early access program. Every search, upload, and note helps refine how Koda thinks — and how secure document intelligence should feel.
+                  {t('settingsPage.betaDescription')}
                 </div>}
               </div>
               <button
@@ -981,7 +983,7 @@ const Settings = () => {
                   fontWeight: '500',
                   lineHeight: '24px'
                 }}>
-                  Send feedback
+                  {t('settingsPage.sendFeedback')}
                 </div>
               </button>
             </div>
@@ -1007,7 +1009,7 @@ const Settings = () => {
               </div>
 
               {/* Header */}
-              <div style={{ color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700' }}>Storage</div>
+              <div style={{ color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700' }}>{t('settingsPage.storage')}</div>
 
               {/* Storage amount */}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
@@ -1041,8 +1043,8 @@ const Settings = () => {
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '500'
                 }}>
-                  <span>{Math.round(storagePercentage)}% used</span>
-                  <span>{formatBytes(storageLimit - totalStorage)} available</span>
+                  <span>{Math.round(storagePercentage)}% {t('settingsPage.used')}</span>
+                  <span>{formatBytes(storageLimit - totalStorage)} {t('settingsPage.available')}</span>
                 </div>
               </div>
             </div>
@@ -1055,7 +1057,7 @@ const Settings = () => {
             {/* Recently Added */}
             <div style={{ padding: isMobile ? 16 : 24, background: 'white', borderRadius: isMobile ? 12 : 20, border: '2px solid #E6E6EC', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)', flexDirection: 'column', display: 'flex' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 12 : 24 }}>
-                <div style={{ color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700' }}>Recently Added</div>
+                <div style={{ color: '#32302C', fontSize: isMobile ? 16 : 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700' }}>{t('settingsPage.recentlyAdded')}</div>
                 <button
                   onClick={() => navigate('/documents')}
                   style={{
@@ -1079,7 +1081,7 @@ const Settings = () => {
                     e.currentTarget.style.color = '#6C6B6E';
                   }}
                 >
-                  See all
+                  {t('settingsPage.seeAll')}
                 </button>
               </div>
 
@@ -1095,10 +1097,10 @@ const Settings = () => {
                       borderBottom: '1px solid #E6E6EC',
                       marginBottom: 4
                     }}>
-                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>Name</div>
-                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>Type</div>
-                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>Size</div>
-                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>Date</div>
+                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>{t('documents.tableHeaders.name')}</div>
+                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>{t('documents.tableHeaders.type')}</div>
+                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>{t('documents.tableHeaders.size')}</div>
+                      <div style={{ color: '#6C6B6E', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'uppercase' }}>{t('documents.tableHeaders.date')}</div>
                     </div>
                   )}
                   {recentDocuments.map((doc) => (
@@ -1168,16 +1170,16 @@ const Settings = () => {
                   <Document2Icon style={{width: 80, height: 80, opacity: 0.3}} />
                   <div style={{flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 4, display: 'flex'}}>
                     <div style={{alignSelf: 'stretch', justifyContent: 'center', alignItems: 'flex-start', gap: 6, display: 'inline-flex'}}>
-                      <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '30px', wordWrap: 'break-word'}}>No document yet</div>
+                      <div style={{color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '30px', wordWrap: 'break-word'}}>{t('settingsPage.noDocumentYet')}</div>
                     </div>
-                    <div style={{width: 366, textAlign: 'center', color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', wordWrap: 'break-word'}}>Upload your first document. All file types supported (max 15MB)</div>
+                    <div style={{width: 366, textAlign: 'center', color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', wordWrap: 'break-word'}}>{t('settingsPage.noDocumentDescription')}</div>
                   </div>
                   <div style={{width: 340, borderRadius: 12, justifyContent: 'center', alignItems: 'flex-start', gap: 8, display: 'inline-flex'}}>
                     <div style={{width: 166, height: 52, borderRadius: 14, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex'}}>
                       <div
                         onClick={() => navigate('/upload-hub')}
                         style={{flex: '1 1 0', alignSelf: 'stretch', paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer'}}>
-                        <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>Select Files</div>
+                        <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px', wordWrap: 'break-word'}}>{t('settingsPage.selectFiles')}</div>
                       </div>
                     </div>
                   </div>
@@ -1226,11 +1228,11 @@ const Settings = () => {
             <div style={{ alignSelf: 'stretch', flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 20, display: 'flex' }}>
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                 <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex' }}>
-                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>First Name</div>
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>{t('settingsPage.firstName')}</div>
                   <div style={{ alignSelf: 'stretch', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 100, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
                     <input
                       type="text"
-                      placeholder="First Name"
+                      placeholder={t('settingsPage.firstName')}
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
                       style={{ flex: '1 1 0', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '24px', border: 'none', outline: 'none', background: 'transparent' }}
@@ -1240,11 +1242,11 @@ const Settings = () => {
               </div>
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                 <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex' }}>
-                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>Last Name</div>
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>{t('settingsPage.lastName')}</div>
                   <div style={{ alignSelf: 'stretch', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 100, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
                     <input
                       type="text"
-                      placeholder="Last Name"
+                      placeholder={t('settingsPage.lastName')}
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
                       style={{ flex: '1 1 0', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '24px', border: 'none', outline: 'none', background: 'transparent' }}
@@ -1254,7 +1256,7 @@ const Settings = () => {
               </div>
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                 <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex' }}>
-                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>Email</div>
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>{t('settingsPage.email')}</div>
                   <div style={{ alignSelf: 'stretch', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 100, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
                     <input
                       type="email"
@@ -1267,11 +1269,11 @@ const Settings = () => {
               </div>
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                 <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex' }}>
-                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>Phone Number</div>
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>{t('settingsPage.phoneNumber')}</div>
                   <div style={{ alignSelf: 'stretch', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 100, border: profileError ? '1px #DC2626 solid' : '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
                     <input
                       type="tel"
-                      placeholder="+ 112 6280 1890"
+                      placeholder={t('settingsPage.phonePlaceholder')}
                       value={phoneNumber}
                       onChange={(e) => {
                         setPhoneNumber(e.target.value);
@@ -1294,7 +1296,7 @@ const Settings = () => {
                   onClick={handleSaveChanges}
                   style={{ flex: '1 1 0', height: 52, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 100, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
                 >
-                  <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>Save changes</div>
+                  <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>{t('settingsPage.saveChanges')}</div>
                 </div>
               </div>
             </div>
@@ -1310,7 +1312,7 @@ const Settings = () => {
                 {/* Current Password */}
                 <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                   <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex' }}>
-                    <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>Current Password (leave empty if you signed in with Google)</div>
+                    <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>{t('settingsPage.currentPassword')}</div>
                     <div style={{ alignSelf: 'stretch', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 100, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
                       <input
                         type={showCurrentPassword ? 'text' : 'password'}
@@ -1332,7 +1334,7 @@ const Settings = () => {
                 {/* New Password */}
                 <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                   <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex' }}>
-                    <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>New Password</div>
+                    <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>{t('settingsPage.newPassword')}</div>
                     <div style={{ alignSelf: 'stretch', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 100, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
                       <input
                         type={showNewPassword ? 'text' : 'password'}
@@ -1354,7 +1356,7 @@ const Settings = () => {
                 {/* Confirm Password */}
                 <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                   <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'flex' }}>
-                    <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>Confirm Password</div>
+                    <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>{t('settingsPage.confirmPassword')}</div>
                     <div style={{ alignSelf: 'stretch', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: 'white', overflow: 'hidden', borderRadius: 100, border: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex' }}>
                       <input
                         type={showConfirmPassword ? 'text' : 'password'}
@@ -1383,7 +1385,7 @@ const Settings = () => {
                         color: !newPassword || (!user?.email?.includes(newPassword) && !user?.firstName?.toLowerCase().includes(newPassword.toLowerCase()) && !user?.lastName?.toLowerCase().includes(newPassword.toLowerCase())) ? '#34A853' : 'rgba(50, 48, 44, 0.30)'
                       }}
                     />
-                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px' }}>Must not contain your name or email</div>
+                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px' }}>{t('settingsPage.mustNotContain')}</div>
                   </div>
                   <div style={{ justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex' }}>
                     <CheckCircleIcon
@@ -1393,7 +1395,7 @@ const Settings = () => {
                         color: newPassword.length >= 8 ? '#34A853' : 'rgba(50, 48, 44, 0.30)'
                       }}
                     />
-                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px' }}>At least 8 characters</div>
+                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px' }}>{t('settingsPage.atLeast8Chars')}</div>
                   </div>
                   <div style={{ justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex' }}>
                     <CheckCircleIcon
@@ -1403,7 +1405,7 @@ const Settings = () => {
                         color: /[!@#$%^&*(),.?":{}|<>0-9]/.test(newPassword) ? '#34A853' : 'rgba(50, 48, 44, 0.30)'
                       }}
                     />
-                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px' }}>Contains a symbol or a number</div>
+                    <div style={{ color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textTransform: 'capitalize', lineHeight: '24px' }}>{t('settingsPage.containsSymbolNumber')}</div>
                   </div>
                 </div>
               </div>
@@ -1416,7 +1418,7 @@ const Settings = () => {
                   onClick={handlePasswordChange}
                   style={{ flex: '1 1 0', height: 52, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 100, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
                 >
-                  <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>Save changes</div>
+                  <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>{t('settingsPage.saveChanges')}</div>
                 </div>
               </div>
             </div>
@@ -1540,15 +1542,15 @@ const Settings = () => {
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
           }}>
             <h2 style={{ fontSize: 24, fontWeight: '600', marginBottom: 8, textAlign: 'center' }}>
-              Verify Your Phone
+              {t('settingsPage.verifyPhone')}
             </h2>
             <p style={{ fontSize: 14, color: '#666', marginBottom: 24, textAlign: 'center' }}>
-              Enter the verification code sent to {phoneNumber}
+              {t('settingsPage.enterVerificationCode')} {phoneNumber}
             </p>
 
             <input
               type="text"
-              placeholder="Enter 6-digit code"
+              placeholder={t('settingsPage.enter6DigitCode')}
               value={verificationCode}
               onChange={(e) => setVerificationCode(e.target.value)}
               maxLength={6}
@@ -1586,7 +1588,7 @@ const Settings = () => {
                   cursor: 'pointer'
                 }}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleVerifyPhone}
@@ -1603,7 +1605,7 @@ const Settings = () => {
                   cursor: verificationCode.length === 6 ? 'pointer' : 'not-allowed'
                 }}
               >
-                Verify
+                {t('settingsPage.verify')}
               </button>
             </div>
           </div>

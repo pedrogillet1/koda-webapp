@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ReactComponent as AttachmentIcon } from '../assets/Paperclip.svg';
@@ -53,6 +54,7 @@ const getMimeTypeFromExtension = (fileType) => {
 };
 
 const ChatInterface = ({ currentConversation, onConversationUpdate, onConversationCreated }) => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const isMobile = useIsMobile();
@@ -85,7 +87,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [notificationType, setNotificationType] = useState('success');
     const [uploadedCount, setUploadedCount] = useState(0);
     const [copiedMessageId, setCopiedMessageId] = useState(null);
-    const [currentStage, setCurrentStage] = useState({ stage: 'searching', message: 'Searching documents...' });
+    const [currentStage, setCurrentStage] = useState({ stage: 'searching', message: t('chat.searchingDocuments') });
     const [researchMode, setResearchMode] = useState(false);
     const [showResearchSuggestion, setShowResearchSuggestion] = useState(false);
     const [expandedSources, setExpandedSources] = useState({});
@@ -582,7 +584,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 console.log('🛑 Message generation aborted:', data.conversationId);
                 setIsLoading(false);
                 setStreamingMessage('');
-                setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+                setCurrentStage({ stage: 'searching', message: t('chat.searchingDocuments') });
 
                 // Add "Stopped Searching" message to chat
                 const stoppedMessage = {
@@ -705,7 +707,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 setPendingFiles([]);
                 setUploadingFiles([]);
                 setAttachedDocuments([]);
-                setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+                setCurrentStage({ stage: 'searching', message: t('chat.searchingDocuments') });
                 pendingMessageRef.current = null;
                 previousConversationIdRef.current = currentId;
             }
@@ -737,7 +739,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 console.log('📡 Joining conversation room:', currentId);
                 chatService.joinConversation(currentId);
                 // Reset stage when switching conversations
-                setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+                setCurrentStage({ stage: 'searching', message: t('chat.searchingDocuments') });
 
                 // Update the previous ID ref
                 previousConversationIdRef.current = currentId;
@@ -754,7 +756,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             setPendingFiles([]);
             setUploadingFiles([]);
             setAttachedDocuments([]);
-            setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+            setCurrentStage({ stage: 'searching', message: t('chat.searchingDocuments') });
             pendingMessageRef.current = null;
             // Clear any cached data to prevent old messages from showing
             justCreatedConversationId.current = null;
@@ -1616,7 +1618,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         // Reset UI state
         setIsLoading(false);
         setStreamingMessage('');
-        setCurrentStage({ stage: 'searching', message: 'Searching documents...' });
+        setCurrentStage({ stage: 'searching', message: t('chat.searchingDocuments') });
 
         // Add "Stopped Searching" message to chat
         const stoppedMessage = {
@@ -1923,7 +1925,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             if (isQuestion) {
                 console.log('🔍 Using RAG with STREAMING (SSE) for question:', messageText);
                 console.log('📊 Socket ready:', socketReady, '| User:', user?.id, '| Conversation:', currentConversation?.id);
-                setCurrentStage({ stage: 'searching', message: researchMode ? 'Searching documents and web...' : 'Searching documents...' });
+                setCurrentStage({ stage: 'searching', message: researchMode ? t('chat.searchingDocumentsWeb') : t('chat.searchingDocuments') });
 
                 // ✅ ALWAYS use SSE for questions (more reliable than WebSocket)
                 // SSE doesn't depend on socket initialization state
@@ -3205,7 +3207,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                     }}
                                                                                     onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                                                                     onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                                                                                    title="Preview Document"
+                                                                                    title={t('chat.previewDocument')}
                                                                                 >
                                                                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#323232" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                                                         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
@@ -3229,7 +3231,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                     }}
                                                                                     onMouseEnter={(e) => e.currentTarget.style.background = '#323232'}
                                                                                     onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(24, 24, 24, 0.90)'}
-                                                                                    title="Download file"
+                                                                                    title={t('chat.downloadFile')}
                                                                                 >
                                                                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                                                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -3623,7 +3625,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                            title="Dismiss"
+                            title={t('chat.dismiss')}
                         >
                             ✕
                         </button>
@@ -3817,7 +3819,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 >
                     <textarea
                         ref={inputRef}
-                        placeholder="Ask KODA anything..."
+                        placeholder={t('chat.placeholder')}
                         value={message}
                         onChange={(e) => {
                             const newValue = e.target.value;
@@ -3884,7 +3886,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         <button
                             type="button"
                             onClick={handleStopGeneration}
-                            title="Stop generation"
+                            title={t('chat.stopGeneration')}
                             style={{
                                 width: 32,
                                 height: 32,
@@ -4084,7 +4086,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             textAlign: 'center'
                         }}
                     >
-                        Drop files here to upload
+                        {t('upload.dropFilesHere')}
                     </div>
                     <div
                         style={{
@@ -4095,7 +4097,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             textAlign: 'center'
                         }}
                     >
-                        Release to attach files to your message
+                        {t('upload.releaseToAttach')}
                     </div>
                 </div>
             )}

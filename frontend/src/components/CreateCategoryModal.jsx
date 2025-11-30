@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
@@ -16,6 +17,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocuments = [], preSelectedDocumentId = null }) => {
+  const { t } = useTranslation();
   const [categoryName, setCategoryName] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState('__FOLDER_SVG__');
   const [documents, setDocuments] = useState([]);
@@ -224,7 +226,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
             fontWeight: '700',
             lineHeight: '26px'
           }}>
-            Create a Category
+            {t('modals.createCategory.title')}
           </div>
           <div
             onClick={onClose}
@@ -263,7 +265,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
             fontWeight: '600',
             lineHeight: '20px'
           }}>
-            Category Name
+            {t('modals.createCategory.nameLabel')}
           </div>
           <input
             type="text"
@@ -274,7 +276,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
                 setNameError(false);
               }
             }}
-            placeholder="Enter category name"
+            placeholder={t('modals.createCategory.namePlaceholder')}
             style={{
               height: 52,
               paddingLeft: 18,
@@ -313,7 +315,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
               fontWeight: '600',
               lineHeight: '20px'
             }}>
-              Category Emoji
+              {t('modals.createCategory.emojiLabel')}
             </div>
             <button
               onClick={() => setShowAllEmojis(!showAllEmojis)}
@@ -332,7 +334,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
               onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
               onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
             >
-              {showAllEmojis ? 'Show Less' : 'See All'}
+              {showAllEmojis ? t('modals.createCategory.showLess') : t('modals.createCategory.seeAll')}
             </button>
           </div>
           <div style={{
@@ -402,7 +404,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
             fontWeight: '600',
             lineHeight: '20px'
           }}>
-            Add documents
+            {t('modals.createCategory.addDocuments')}
           </div>
 
           {/* Search Bar */}
@@ -423,7 +425,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search documents..."
+              placeholder={t('modals.createCategory.searchPlaceholder')}
               style={{
                 width: '100%',
                 height: 42,
@@ -459,7 +461,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
                 fontSize: 14,
                 fontFamily: 'Plus Jakarta Sans'
               }}>
-                Loading documents...
+                {t('modals.createCategory.loading')}
               </div>
             ) : filteredDocuments.length === 0 ? (
               <div style={{
@@ -469,7 +471,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
                 fontSize: 14,
                 fontFamily: 'Plus Jakarta Sans'
               }}>
-                {searchQuery ? 'No documents match your search' : documents.length === 0 ? 'No documents in library. Upload documents first to add them to a category.' : 'No documents available'}
+                {searchQuery ? t('modals.createCategory.noSearchResults') : documents.length === 0 ? t('modals.createCategory.noDocumentsInLibrary') : t('modals.createCategory.noDocuments')}
               </div>
             ) : (
               filteredDocuments.map((doc) => (
@@ -610,7 +612,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
               textTransform: 'capitalize',
               lineHeight: '24px'
             }}>
-              Cancel
+              {t('modals.createCategory.cancel')}
             </div>
           </div>
           <div
@@ -634,7 +636,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
               textTransform: 'capitalize',
               lineHeight: '24px'
             }}>
-              Create
+              {t('modals.createCategory.create')}
             </div>
           </div>
         </div>

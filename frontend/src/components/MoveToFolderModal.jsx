@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Folder, ChevronRight, Search } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
 /**
@@ -7,6 +8,7 @@ import axios from 'axios';
  * Features hierarchical folder structure and search
  */
 export default function MoveToFolderModal({ isOpen, onClose, onMove, selectedCount }) {
+  const { t } = useTranslation();
   const [folders, setFolders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -136,7 +138,7 @@ export default function MoveToFolderModal({ isOpen, onClose, onMove, selectedCou
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-900">
-              Move {selectedCount} {selectedCount === 1 ? 'document' : 'documents'} to folder
+              {t('modals.moveToFolder.title', { count: selectedCount })} {selectedCount === 1 ? t('modals.moveToFolder.document') : t('modals.moveToFolder.documents')}
             </h2>
             <button
               onClick={onClose}
@@ -153,7 +155,7 @@ export default function MoveToFolderModal({ isOpen, onClose, onMove, selectedCou
             </div>
             <input
               type="text"
-              placeholder="Search folders..."
+              placeholder={t('modals.moveToFolder.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -169,7 +171,7 @@ export default function MoveToFolderModal({ isOpen, onClose, onMove, selectedCou
             </div>
           ) : folderTree.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
-              {searchQuery ? 'No folders found' : 'No folders available'}
+              {searchQuery ? t('modals.moveToFolder.noFoldersFound') : t('modals.moveToFolder.noFoldersAvailable')}
             </div>
           ) : (
             <div className="space-y-1">
@@ -182,9 +184,9 @@ export default function MoveToFolderModal({ isOpen, onClose, onMove, selectedCou
         <div className="p-6 border-t border-gray-200 flex items-center justify-between">
           <div className="text-sm text-gray-600">
             {selectedFolder ? (
-              <>Selected: <span className="font-medium">{selectedFolder.name}</span></>
+              <>{t('modals.moveToFolder.selected')}: <span className="font-medium">{selectedFolder.name}</span></>
             ) : (
-              'Select a folder'
+              t('modals.moveToFolder.selectFolder')
             )}
           </div>
           <div className="flex gap-3">
@@ -192,7 +194,7 @@ export default function MoveToFolderModal({ isOpen, onClose, onMove, selectedCou
               onClick={onClose}
               className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-colors"
             >
-              Cancel
+              {t('modals.moveToFolder.cancel')}
             </button>
             <button
               onClick={handleMove}
@@ -203,7 +205,7 @@ export default function MoveToFolderModal({ isOpen, onClose, onMove, selectedCou
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
             >
-              Move
+              {t('modals.moveToFolder.move')}
             </button>
           </div>
         </div>

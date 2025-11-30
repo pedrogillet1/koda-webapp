@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import Modal from './ui/Modal';
 import Input from './ui/Input';
 import { colors, typography, spacing } from '../constants/designTokens';
@@ -9,6 +10,7 @@ import { colors, typography, spacing } from '../constants/designTokens';
  * Uses the canonical Modal component for consistent styling
  */
 const RenameModal = ({ isOpen, onClose, onConfirm, itemName, itemType = 'file' }) => {
+  const { t } = useTranslation();
   const [newName, setNewName] = useState(itemName || '');
 
   // Update newName when itemName changes
@@ -38,11 +40,11 @@ const RenameModal = ({ isOpen, onClose, onConfirm, itemName, itemType = 'file' }
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Rename ${itemType}`}
+      title={t('modals.rename.title', { item: itemType })}
       maxWidth={400}
       actions={[
-        { label: 'Cancel', onClick: onClose, variant: 'secondary' },
-        { label: 'Rename', onClick: handleSubmit, variant: 'primary', disabled: !isValid },
+        { label: t('modals.rename.cancel'), onClick: onClose, variant: 'secondary' },
+        { label: t('modals.rename.confirm'), onClick: handleSubmit, variant: 'primary', disabled: !isValid },
       ]}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
@@ -55,7 +57,7 @@ const RenameModal = ({ isOpen, onClose, onConfirm, itemName, itemType = 'file' }
             lineHeight: typography.lineHeights.sm,
           }}
         >
-          New name
+          {t('modals.rename.newName')}
         </label>
         <Input
           type="text"
@@ -63,7 +65,7 @@ const RenameModal = ({ isOpen, onClose, onConfirm, itemName, itemType = 'file' }
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={handleKeyDown}
           autoFocus
-          placeholder={`Enter new ${itemType} name`}
+          placeholder={t('modals.rename.placeholder', { item: itemType })}
         />
       </div>
     </Modal>

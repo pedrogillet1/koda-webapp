@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStorage } from '../hooks/useStorage';
 import { spacing, radius, typography } from '../design/tokens';
 
@@ -8,6 +9,7 @@ import { spacing, radius, typography } from '../design/tokens';
  * Designed for the sidebar/left nav
  */
 const StorageIndicator = ({ isExpanded = true, style = {} }) => {
+  const { t } = useTranslation();
   const { usedFormatted, limitFormatted, usedPercentage, loading, error } = useStorage();
 
   // Don't render if loading or error
@@ -22,7 +24,7 @@ const StorageIndicator = ({ isExpanded = true, style = {} }) => {
             color: 'rgba(255, 255, 255, 0.5)',
             fontSize: 12,
             fontFamily: typography.body.family
-          }}>Loading storage...</span>
+          }}>{t('storage.loading')}</span>
         ) : null}
       </div>
     );
@@ -103,7 +105,7 @@ const StorageIndicator = ({ isExpanded = true, style = {} }) => {
           fontSize: 11,
           fontWeight: 500,
           fontFamily: typography.body.family
-        }}>Storage</span>
+        }}>{t('storage.storage')}</span>
         <span style={{
           color: 'rgba(255, 255, 255, 0.5)',
           fontSize: 11,
@@ -147,7 +149,7 @@ const StorageIndicator = ({ isExpanded = true, style = {} }) => {
             fontSize: 10,
             fontWeight: 600,
             fontFamily: typography.body.family
-          }}>Almost full!</span>
+          }}>{t('storage.almostFull')}</span>
         )}
       </div>
     </div>

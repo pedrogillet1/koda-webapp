@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import kodaLogoWhite from '../assets/logo-white.svg';
 
 /**
@@ -8,6 +9,7 @@ import kodaLogoWhite from '../assets/logo-white.svg';
  * Dismissible with X button, reappears on refresh
  */
 const WelcomePopup = ({ isOpen }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [isDismissed, setIsDismissed] = useState(false);
 
@@ -117,7 +119,7 @@ const WelcomePopup = ({ isOpen }) => {
             lineHeight: '26px'
           }}
         >
-          Join Koda's Universe
+          {t('welcomePopup.title')}
         </div>
         <div
           style={{
@@ -128,7 +130,7 @@ const WelcomePopup = ({ isOpen }) => {
             lineHeight: '20px'
           }}
         >
-          Sign up to unlock the full power of intelligent document management
+          {t('welcomePopup.subtitle')}
         </div>
       </div>
 
@@ -160,7 +162,7 @@ const WelcomePopup = ({ isOpen }) => {
           e.currentTarget.style.transform = 'scale(1)';
         }}
       >
-        Sign Up Now
+        {t('welcomePopup.signUp')}
       </button>
 
       {/* Animation Keyframes */}

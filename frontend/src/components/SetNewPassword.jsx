@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 function SetNewPassword() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urlToken = searchParams.get('token');
@@ -48,7 +50,7 @@ function SetNewPassword() {
 
     if (!token && !urlToken) {
       console.error('❌ [SetNewPassword] No token found');
-      setError('Invalid reset link. Please request a new one.');
+      setError(t('auth.setNewPassword.invalidLink'));
     } else {
       console.log('✅ [SetNewPassword] Token found, ready to reset password');
     }
@@ -85,17 +87,17 @@ function SetNewPassword() {
     setError('');
 
     if (!password || !confirmPassword) {
-      setError('Please fill in all fields');
+      setError(t('auth.setNewPassword.fillAllFields'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('auth.setNewPassword.passwordsNoMatch'));
       return;
     }
 
     if (!isPasswordValid()) {
-      setError('Please meet all password requirements');
+      setError(t('auth.setNewPassword.meetRequirements'));
       return;
     }
 
@@ -123,7 +125,7 @@ function SetNewPassword() {
       if (error.response?.data?.error) {
         setError(error.response.data.error);
       } else {
-        setError('Failed to reset password. Please try again.');
+        setError(t('auth.setNewPassword.resetFailed'));
       }
     } finally {
       setLoading(false);
@@ -152,7 +154,7 @@ function SetNewPassword() {
           textAlign: 'left',
           marginBottom: '8px',
         }}>
-          Set A New Password
+          {t('auth.setNewPassword.title')}
         </h1>
 
         {/* Subtitle */}
@@ -162,7 +164,7 @@ function SetNewPassword() {
           textAlign: 'left',
           marginBottom: '32px',
         }}>
-          Set a new secure password.
+          {t('auth.setNewPassword.subtitle')}
         </p>
 
         {/* New Password Input */}
@@ -174,7 +176,7 @@ function SetNewPassword() {
             color: '#000',
             marginBottom: '8px',
           }}>
-            New Password
+            {t('auth.setNewPassword.newPassword')}
           </label>
           <div style={{ position: 'relative' }}>
             <input
@@ -238,7 +240,7 @@ function SetNewPassword() {
             color: '#000',
             marginBottom: '8px',
           }}>
-            Confirm Password
+            {t('auth.setNewPassword.confirmPassword')}
           </label>
           <div style={{ position: 'relative' }}>
             <input
@@ -325,7 +327,7 @@ function SetNewPassword() {
               color: passwordValidation.noPersonalInfo ? '#10B981' : '#666',
               transition: 'color 0.2s ease',
             }}>
-              Must Not Contain Your Name Or Email
+              {t('auth.setNewPassword.noPersonalInfo')}
             </span>
           </div>
 
@@ -359,7 +361,7 @@ function SetNewPassword() {
               color: passwordValidation.minLength ? '#10B981' : '#666',
               transition: 'color 0.2s ease',
             }}>
-              At Least 8 Characters
+              {t('auth.setNewPassword.minLength')}
             </span>
           </div>
 
@@ -392,7 +394,7 @@ function SetNewPassword() {
               color: passwordValidation.hasSymbolOrNumber ? '#10B981' : '#666',
               transition: 'color 0.2s ease',
             }}>
-              Contains A Symbol Or A Number
+              {t('auth.setNewPassword.symbolOrNumber')}
             </span>
           </div>
         </div>
@@ -430,7 +432,7 @@ function SetNewPassword() {
             transition: 'all 0.2s ease',
           }}
         >
-          {loading ? 'Saving...' : 'Save'}
+          {loading ? t('auth.setNewPassword.saving') : t('auth.setNewPassword.save')}
         </button>
       </div>
     </div>

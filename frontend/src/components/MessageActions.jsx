@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import './MessageActions.css';
 import copyIcon from '../assets/copy-06.svg';
 import regenerateIcon from '../assets/regenerate.svg';
@@ -11,6 +12,8 @@ import regenerateIcon from '../assets/regenerate.svg';
  * IMPACT: Increases user satisfaction by 40%
  */
 const MessageActions = ({ message, onRegenerate, isRegenerating = false }) => {
+  const { t } = useTranslation();
+
   const handleRegenerate = () => {
     if (onRegenerate && !isRegenerating) {
       onRegenerate(message.id);
@@ -33,17 +36,17 @@ const MessageActions = ({ message, onRegenerate, isRegenerating = false }) => {
         className="message-action-btn"
         onClick={handleRegenerate}
         disabled={isRegenerating}
-        title="Regenerate response"
-        aria-label="Regenerate response"
+        title={t('messageActions.regenerateResponse')}
+        aria-label={t('messageActions.regenerateResponse')}
       >
         {isRegenerating ? (
           <>
-            <span className="action-text">Sending...</span>
+            <span className="action-text">{t('messageActions.sending')}</span>
           </>
         ) : (
           <>
             <img src={regenerateIcon} alt="" className="action-icon" style={{ width: 16, height: 16 }} />
-            <span className="action-text">Regenerate</span>
+            <span className="action-text">{t('messageActions.regenerate')}</span>
           </>
         )}
       </button>
@@ -51,11 +54,11 @@ const MessageActions = ({ message, onRegenerate, isRegenerating = false }) => {
       <button
         className="message-action-btn"
         onClick={handleCopy}
-        title="Copy to clipboard"
-        aria-label="Copy to clipboard"
+        title={t('messageActions.copyToClipboard')}
+        aria-label={t('messageActions.copyToClipboard')}
       >
         <img src={copyIcon} alt="" className="action-icon" style={{ width: 16, height: 16 }} />
-        <span className="action-text">Copy</span>
+        <span className="action-text">{t('messageActions.copy')}</span>
       </button>
     </div>
   );

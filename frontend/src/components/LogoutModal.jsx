@@ -1,8 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 
 const LogoutModal = ({ isOpen, onClose }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   if (!isOpen) return null;
@@ -55,7 +57,7 @@ const LogoutModal = ({ isOpen, onClose }) => {
           <div style={{alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', display: 'flex'}}>
             <div style={{width: 30, height: 30, opacity: 0}} />
             <div style={{flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex'}}>
-              <div style={{textAlign: 'center', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '24px'}}>Log Out</div>
+              <div style={{textAlign: 'center', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '24px'}}>{t('modals.logout.title')}</div>
             </div>
             <div
               onClick={onClose}
@@ -71,8 +73,8 @@ const LogoutModal = ({ isOpen, onClose }) => {
           {/* Message */}
           <div style={{alignSelf: 'stretch', justifyContent: 'center', alignItems: 'center', gap: 10, display: 'flex'}}>
             <div style={{textAlign: 'center', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', lineHeight: '24px'}}>
-              <span style={{fontWeight: '500'}}>Are you sure you want to </span>
-              <span style={{fontWeight: '700'}}>Log Out</span>
+              <span style={{fontWeight: '500'}}>{t('modals.logout.confirmText')} </span>
+              <span style={{fontWeight: '700'}}>{t('modals.logout.title')}</span>
               <span style={{fontWeight: '500'}}>?</span>
             </div>
           </div>
@@ -86,13 +88,13 @@ const LogoutModal = ({ isOpen, onClose }) => {
               onClick={onClose}
               style={{flex: '1 1 0', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer'}}
             >
-              <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '24px'}}>Cancel</div>
+              <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '24px'}}>{t('modals.logout.cancel')}</div>
             </div>
             <div
               onClick={handleLogout}
               style={{flex: '1 1 0', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer'}}
             >
-              <div style={{color: '#D92D20', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '24px'}}>Log Out</div>
+              <div style={{color: '#D92D20', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '24px'}}>{t('modals.logout.confirm')}</div>
             </div>
           </div>
         </div>

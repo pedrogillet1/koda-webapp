@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * StreamingWelcomeMessage - ChatGPT-style smooth character streaming
@@ -6,75 +7,43 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
  * Features:
  * - Character-by-character streaming like ChatGPT
  * - Uses requestAnimationFrame for 60fps smooth rendering
- * - Randomly selects from 50 message variants
+ * - Randomly selects from message variants
  * - Some messages are personalized with userName
+ * - Supports i18n translations
  */
 const StreamingWelcomeMessage = ({ userName, isFirstChat = false }) => {
+  const { t, i18n } = useTranslation();
   const [displayedText, setDisplayedText] = useState('');
   const [isComplete, setIsComplete] = useState(false);
   const animationRef = useRef(null);
   const startTimeRef = useRef(null);
 
-  // 50 message variants - {name} will be replaced with userName
-  const messageVariants = [
-    "Hey {name}, what do you need?",
-    "What are you looking for today?",
-    "What do you want to find?",
-    "What do you need from Koda?",
-    "Tell me what you need now.",
-    "What should I pull up?",
-    "What do you want to open?",
-    "Type what you're looking for.",
-    "What can I find for you?",
-    "What do you need to see?",
-    "What's the first thing you need?",
-    "What can I search for?",
-    "What's on your mind, {name}?",
-    "What do you want to check?",
-    "What do you want to review?",
-    "What answer do you need now?",
-    "What should we work on first?",
-    "Which document do you need now?",
-    "Which client are you working on?",
-    "Which project do you need today?",
-    "What do you need clarity on?",
-    "What do you want to confirm?",
-    "Search your docs. What's the query?",
-    "Ask Koda anything in your files.",
-    "What detail are you chasing now?",
-    "What do you need before your meeting?",
-    "What can I surface for you?",
-    "What should I look up first?",
-    "What's blocking you right now?",
-    "What do you need to decide?",
-    "What number do you need to check?",
-    "What clause should I find?",
-    "What do you want proof for?",
-    "What's the next question, {name}?",
-    "What do you need in seconds?",
-    "Which case are you on now?",
-    "Which deal are you reviewing today?",
-    "Tell me the topic. I'll search.",
-    "Tell me what you're working on.",
-    "Drop your question. I'll handle it.",
-    "What do you want Koda to find?",
-    "What do you want to understand?",
-    "What do you need from your docs?",
-    "What's the key fact you need?",
-    "What can I verify for you?",
-    "What should I double-check for you?",
-    "What do you need to be sure of?",
-    "What's urgent for you right now?",
-    "What should Koda help with first?",
-    "Okay {name}, what do you need next?"
-  ];
+  // Get message variants from translations - {name} will be replaced with userName
+  const messageVariants = useMemo(() => {
+    // Get the array of welcome messages from translations
+    const messages = t('chat.welcomeMessages', { returnObjects: true });
+    // Fallback to English defaults if translation returns a string (not an array)
+    if (!Array.isArray(messages)) {
+      return [
+        "Hey {name}, what do you need?",
+        "What are you looking for today?",
+        "What do you need from Koda?",
+        "What can I find for you?",
+        "What's on your mind, {name}?",
+        "What should we work on first?",
+        "What do you want Koda to find?",
+        "What's urgent for you right now?"
+      ];
+    }
+    return messages;
+  }, [t, i18n.language]);
 
   // Select a random message on component mount and replace {name} with userName
   const selectedMessage = useMemo(() => {
     const randomIndex = Math.floor(Math.random() * messageVariants.length);
     const message = messageVariants[randomIndex];
     return message.replace(/{name}/g, userName || 'there');
-  }, [userName]);
+  }, [userName, messageVariants]);
 
   const fullMessage = selectedMessage;
 

@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import backArrow from '../assets/arrow-narrow-left.svg';
 
 const VerifyEmail = () => {
+    const { t } = useTranslation();
     const [code, setCode] = useState(new Array(6).fill(''));
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -29,7 +31,7 @@ const VerifyEmail = () => {
                     console.log('✅ Initial verification code sent');
                 } catch (error) {
                     console.error('Error sending initial code:', error);
-                    setError('Failed to send verification code. Please try again.');
+                    setError(t('auth.verifyEmail.sendFailed'));
                 }
             }
         };
@@ -53,7 +55,7 @@ const VerifyEmail = () => {
 
         try {
             await resendPendingEmail({ email });
-            setSuccessMessage('Verification code resent! Check your email.');
+            setSuccessMessage(t('auth.verifyEmail.codeResent'));
             setResendCountdown(60); // 60 seconds cooldown
 
             // Clear success message after 5 seconds
@@ -69,7 +71,7 @@ const VerifyEmail = () => {
     const handleVerify = async () => {
         const verificationCode = code.join('');
         if (verificationCode.length !== 6) {
-            setError('Please enter the complete 6-digit code');
+            setError(t('auth.verifyEmail.incompleteCode'));
             return;
         }
 
@@ -150,7 +152,7 @@ const VerifyEmail = () => {
                     padding: 0
                 }}
             >
-                ← Back
+                ← {t('common.back')}
             </button>
 
             {/* Content Container */}
@@ -182,7 +184,7 @@ const VerifyEmail = () => {
                     margin: 0,
                     marginBottom: '16px'
                 }}>
-                    Verify Your Email
+                    {t('auth.verifyEmail.title')}
                 </h1>
 
                 <p style={{
@@ -193,7 +195,7 @@ const VerifyEmail = () => {
                     marginBottom: '32px',
                     lineHeight: '1.5'
                 }}>
-                    Enter the 6-digit code sent to your email address.
+                    {t('auth.verifyEmail.subtitle')}
                 </p>
 
                 {/* Email Display */}
@@ -202,7 +204,7 @@ const VerifyEmail = () => {
                     textAlign: 'left',
                     marginBottom: '24px'
                 }}>
-                    <div style={{color: '#181818', fontSize: 14, fontWeight: '600', marginBottom: '8px'}}>Email</div>
+                    <div style={{color: '#181818', fontSize: 14, fontWeight: '600', marginBottom: '8px'}}>{t('auth.verifyEmail.email')}</div>
                     <div style={{color: '#181818', fontSize: 16, fontWeight: '500'}}>{email}</div>
                 </div>
 
@@ -219,7 +221,7 @@ const VerifyEmail = () => {
                         marginBottom: '12px',
                         textAlign: 'left'
                     }}>
-                        Enter Code
+                        {t('auth.verifyEmail.enterCode')}
                     </label>
                     <div style={{display: 'flex', justifyContent: 'center', gap: 12}}>
                         {code.map((digit, index) => (
@@ -304,13 +306,13 @@ const VerifyEmail = () => {
                         marginBottom: '16px'
                     }}
                 >
-                    {isLoading ? 'Verifying...' : 'Verify & Continue'}
+                    {isLoading ? t('auth.verifyEmail.verifying') : t('auth.verifyEmail.verifyContinue')}
                 </button>
 
                 {/* Resend Code */}
                 <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4}}>
                     <span style={{color: '#6C6B6E', fontSize: 14, fontWeight: '500'}}>
-                        Didn't receive the code?
+                        {t('auth.verifyEmail.didntReceive')}
                     </span>
                     <button
                         onClick={handleResendCode}
@@ -330,7 +332,7 @@ const VerifyEmail = () => {
                             transition: 'transform 0.2s ease'
                         }}
                     >
-                        {isResending ? 'Resending...' : resendCountdown > 0 ? `Resend Code (${resendCountdown}s)` : 'Resend Code'}
+                        {isResending ? t('auth.verifyEmail.resending') : resendCountdown > 0 ? t('auth.verifyEmail.resendCountdown', { seconds: resendCountdown }) : t('auth.verifyEmail.resendCode')}
                     </button>
                 </div>
             </div>

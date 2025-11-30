@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import CategoryIcon from './CategoryIcon';
@@ -27,6 +28,8 @@ export default function MoveToCategoryModal({
   onCreateNew,
   onConfirm
 }) {
+  const { t } = useTranslation();
+
   if (!isOpen) return null;
 
   const getFileIcon = (filename) => {
@@ -88,7 +91,7 @@ export default function MoveToCategoryModal({
             fontWeight: '600',
             lineHeight: '25.20px'
           }}>
-            Move to Category
+            {t('modals.moveToCategory.title')}
           </div>
           <button
             onClick={onClose}
@@ -257,7 +260,7 @@ export default function MoveToCategoryModal({
                     fontWeight: '500',
                     lineHeight: '15.40px'
                   }}>
-                    {fileCount || 0} {fileCount === 1 ? 'File' : 'Files'}
+                    {fileCount || 0} {fileCount === 1 ? t('modals.moveToCategory.file') : t('modals.moveToCategory.files')}
                   </div>
 
                   {/* Checkmark */}
@@ -314,7 +317,7 @@ export default function MoveToCategoryModal({
               fontWeight: '600',
               lineHeight: '24px'
             }}>
-              Create New Category
+              {t('modals.moveToCategory.createNew')}
             </div>
           </button>
         </div>
@@ -357,7 +360,7 @@ export default function MoveToCategoryModal({
               fontWeight: '500',
               lineHeight: '24px'
             }}>
-              Cancel
+              {t('common.cancel')}
             </div>
           </button>
           <button
@@ -395,7 +398,7 @@ export default function MoveToCategoryModal({
               fontWeight: '500',
               lineHeight: '24px'
             }}>
-              Add
+              {t('modals.moveToCategory.add')}
             </div>
           </button>
         </div>

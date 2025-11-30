@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import CategoryIcon from './CategoryIcon';
@@ -10,7 +11,8 @@ const AddToCategoryModal = ({
   uploadedDocuments = [],
   onCategorySelected,
   onCreateNew
-}) => {
+) => {
+  const { t } = useTranslation();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -118,7 +120,7 @@ const AddToCategoryModal = ({
               textTransform: 'capitalize',
               lineHeight: '30px'
             }}>
-              Add to Category
+              {t('modals.addToCategory.title')}
             </div>
           </div>
         </div>
@@ -169,7 +171,7 @@ const AddToCategoryModal = ({
             fontWeight: '500',
             lineHeight: '20px'
           }}>
-            Choose a category for your document
+            {t('modals.addToCategory.subtitle')}
           </div>
 
           {/* Categories grid */}
@@ -189,7 +191,7 @@ const AddToCategoryModal = ({
                 fontSize: 14,
                 fontFamily: 'Plus Jakarta Sans'
               }}>
-                Loading categories...
+                {t('modals.addToCategory.loading')}
               </div>
             ) : categories.length === 0 ? (
               <div style={{
@@ -199,7 +201,7 @@ const AddToCategoryModal = ({
                 fontSize: 14,
                 fontFamily: 'Plus Jakarta Sans'
               }}>
-                No categories yet. Create one below!
+                {t('modals.addToCategory.noCategories')}
               </div>
             ) : (
               categories.map((category) => (
@@ -322,7 +324,7 @@ const AddToCategoryModal = ({
                 fontWeight: '600',
                 lineHeight: '20px'
               }}>
-                Create New
+                {t('modals.addToCategory.createNew')}
               </div>
             </button>
           </div>
@@ -367,7 +369,7 @@ const AddToCategoryModal = ({
               lineHeight: '24px'
             }}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleAddToCategory}
@@ -392,7 +394,7 @@ const AddToCategoryModal = ({
               lineHeight: '24px'
             }}
           >
-            Add to Category
+            {t('modals.addToCategory.addButton')}
           </button>
         </div>
       </div>

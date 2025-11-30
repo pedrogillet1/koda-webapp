@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkEmoji from 'remark-emoji';
@@ -9,6 +10,7 @@ import '../components/MarkdownStyles.css';
  * Displays AI-generated documents in chat with download options (like Manus)
  */
 const GeneratedDocumentCard = ({ chatDocument }) => {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(true);
   const [copyStatus, setCopyStatus] = useState({ copied: false, format: null });
   const [isDownloading, setIsDownloading] = useState(false);
@@ -25,11 +27,11 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
   // Get document type icon and color
   const getDocumentTypeInfo = (type) => {
     const types = {
-      summary: { icon: '📋', label: 'Summary', color: '#3B82F6' },
-      analysis: { icon: '📊', label: 'Analysis', color: '#8B5CF6' },
-      deep_dive: { icon: '📖', label: 'Deep Dive', color: '#EF4444' },
-      report: { icon: '📑', label: 'Report', color: '#10B981' },
-      general: { icon: '📄', label: 'Document', color: '#6B7280' },
+      summary: { icon: '📋', label: t('generatedDocument.summary'), color: '#3B82F6' },
+      analysis: { icon: '📊', label: t('generatedDocument.analysis'), color: '#8B5CF6' },
+      deep_dive: { icon: '📖', label: t('generatedDocument.deepDive'), color: '#EF4444' },
+      report: { icon: '📑', label: t('generatedDocument.report'), color: '#10B981' },
+      general: { icon: '📄', label: t('generatedDocument.document'), color: '#6B7280' },
     };
     return types[type] || types.general;
   };
@@ -162,9 +164,9 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
               >
                 {typeInfo.label}
               </span>
-              <span>{wordCount?.toLocaleString()} words</span>
+              <span>{wordCount?.toLocaleString()} {t('generatedDocument.words')}</span>
               <span>•</span>
-              <span>Generated {new Date(createdAt).toLocaleDateString()}</span>
+              <span>{t('generatedDocument.generated')} {new Date(createdAt).toLocaleDateString()}</span>
             </div>
           </div>
 
@@ -186,7 +188,7 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
             }}
             onMouseEnter={(e) => (e.currentTarget.style.background = '#F5F5F5')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
-            title={isExpanded ? 'Collapse' : 'Expand'}
+            title={isExpanded ? t('generatedDocument.collapse') : t('generatedDocument.expand')}
           >
             <svg
               width="20"
@@ -326,7 +328,7 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
                     >
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
-                    Copied!
+                    {t('generatedDocument.copied')}
                   </>
                 ) : (
                   <>
@@ -343,7 +345,7 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
                       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                     </svg>
-                    Copy
+                    {t('messageActions.copy')}
                   </>
                 )}
               </button>
@@ -375,7 +377,7 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
                 onMouseLeave={(e) => {
                   if (!isDownloading) e.currentTarget.style.background = 'white';
                 }}
-                title="Download as Markdown"
+                title={t('generatedDocument.downloadMarkdown')}
               >
                 <svg
                   width="14"
@@ -418,7 +420,7 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
                 onMouseLeave={(e) => {
                   if (!isDownloading) e.currentTarget.style.background = 'white';
                 }}
-                title="Download as PDF"
+                title={t('generatedDocument.downloadPdf')}
               >
                 <svg
                   width="14"
@@ -461,7 +463,7 @@ const GeneratedDocumentCard = ({ chatDocument }) => {
                 onMouseLeave={(e) => {
                   if (!isDownloading) e.currentTarget.style.background = 'rgba(24, 24, 24, 0.90)';
                 }}
-                title="Download as Word Document"
+                title={t('generatedDocument.downloadDocx')}
               >
                 <svg
                   width="14"

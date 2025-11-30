@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import folderIcon from '../assets/folder_icon.svg';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
 import closeButton from '../assets/close-button.svg';
@@ -141,6 +142,7 @@ const FolderBrowserModal = ({
   files,
   onRemoveFile
 }) => {
+  const { t } = useTranslation();
   const [currentPath, setCurrentPath] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('dateAdded');
@@ -382,7 +384,7 @@ const FolderBrowserModal = ({
             <SearchIcon style={{ width: 16, height: 16 }} />
             <input
               type="text"
-              placeholder="Search documents..."
+              placeholder={t('common.searchDocumentsPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -443,7 +445,7 @@ const FolderBrowserModal = ({
                   margin: '0 0 16px 0'
                 }}
               >
-                Folders
+                {t('common.folders')}
               </h2>
               <div
                 style={{
@@ -522,7 +524,7 @@ const FolderBrowserModal = ({
                         fontWeight: '400'
                       }}
                     >
-                      {folder.fileCount} {folder.fileCount === 1 ? 'item' : 'items'}
+                      {folder.fileCount} {folder.fileCount === 1 ? t('common.item') : t('common.items')}
                     </div>
                   </div>
                 ))}
@@ -542,7 +544,7 @@ const FolderBrowserModal = ({
                   margin: 0
                 }}
               >
-                Your Files
+                {t('common.yourFiles')}
               </h2>
             </div>
 
@@ -559,7 +561,7 @@ const FolderBrowserModal = ({
                   fontFamily: 'Plus Jakarta Sans'
                 }}
               >
-                {searchQuery ? 'No documents match your search' : 'No documents in this folder'}
+                {searchQuery ? t('common.noMatchingSearch') : t('common.noDocumentsInFolder')}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>

@@ -4,6 +4,8 @@ import { AuthProvider } from './context/AuthContext';
 import { DocumentsProvider } from './context/DocumentsContext';
 import { FileProvider } from './context/FileContext';
 import { ToastProvider } from './context/ToastContext';
+import { NotificationsProvider } from './context/NotificationsStore';
+import { ToastStack } from './components/Notifications';
 import { logPerformanceMetrics } from './utils/performance';
 import './i18n/config';
 import './styles/designSystem.css';
@@ -56,9 +58,10 @@ function App() {
       <DocumentsProvider>
         <FileProvider>
           <ToastProvider>
-            <Router>
-              <div style={{ width: '100vw', height: '100vh' }}>
-                <Routes>
+            <NotificationsProvider>
+              <Router>
+                <div style={{ width: '100vw', height: '100vh' }}>
+                  <Routes>
             {/* ✅ DEFAULT ROUTE: Chat screen is the first page users see (protected) */}
             <Route path="/" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />
             <Route path="/chat" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />
@@ -95,9 +98,12 @@ function App() {
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/filetype/:fileType" element={<ProtectedRoute><FileTypeDetail /></ProtectedRoute>} />
             <Route path="/upgrade" element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
-              </Routes>
-              </div>
-            </Router>
+                  </Routes>
+                  {/* Global toast notifications */}
+                  <ToastStack />
+                </div>
+              </Router>
+            </NotificationsProvider>
           </ToastProvider>
         </FileProvider>
       </DocumentsProvider>

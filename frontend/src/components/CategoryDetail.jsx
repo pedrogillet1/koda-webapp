@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
@@ -122,6 +123,7 @@ const CategoryDetail = () => {
   const { categoryName, folderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const { showSuccess, showDeleteSuccess } = useToast();
   const isMobile = useIsMobile();
   const {
@@ -262,7 +264,7 @@ const CategoryDetail = () => {
   const formatCategoryName = (name) => {
     if (!name) return '';
     // Special case for "recently-added" category
-    if (name.toLowerCase() === 'recently-added') return 'Your Files';
+    if (name.toLowerCase() === 'recently-added') return t('common.yourFiles');
     return name
       .split('-')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -1023,7 +1025,7 @@ const CategoryDetail = () => {
               transition: 'opacity 250ms ease-out'
             }}
           >
-            Drop files here to upload
+            {t('upload.dropFilesHere')}
           </div>
           <div
             style={{
@@ -1036,7 +1038,7 @@ const CategoryDetail = () => {
               transition: 'opacity 250ms ease-out'
             }}
           >
-            Release to open upload modal
+            {t('upload.releaseToUpload')}
           </div>
         </div>
       )}
@@ -1087,7 +1089,7 @@ const CategoryDetail = () => {
                   onMouseEnter={(e) => e.currentTarget.style.color = '#111827'}
                   onMouseLeave={(e) => e.currentTarget.style.color = '#6B7280'}
                 >
-                  {folderId ? 'Documents' : 'Home'}
+                  {folderId ? t('common.documents') : t('common.home')}
                 </span>
 
                 {/* Breadcrumb path for nested folders */}
@@ -1312,7 +1314,7 @@ const CategoryDetail = () => {
                       <SearchIcon style={{ width: 24, height: 24 }} />
                       <input
                         type="text"
-                        placeholder="Search any documents..."
+                        placeholder={t('common.searchPlaceholder')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         style={{
@@ -1411,7 +1413,7 @@ const CategoryDetail = () => {
                 >
                   <VectorIcon style={{ width: 15, height: 14 }} />
                   <div style={{justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
-                    <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>New</div>
+                    <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>{t('common.new')}</div>
                   </div>
                 </button>
 
@@ -1635,7 +1637,7 @@ const CategoryDetail = () => {
           background: '#F5F5F5'
         }}>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#6C6B6E' }}>Loading...</div>
+            <div style={{ textAlign: 'center', padding: 40, color: '#6C6B6E' }}>{t('common.loading')}</div>
           ) : (
             <>
               {/* Folders Section (Grid) */}

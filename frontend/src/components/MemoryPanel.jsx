@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { ReactComponent as TrashIcon } from '../assets/Trash can.svg';
 
@@ -21,11 +22,25 @@ const SECTION_EMOJIS = {
 };
 
 const MemoryPanel = ({ showMemoryPanel, setShowMemoryPanel }) => {
+  const { t } = useTranslation();
   const [memories, setMemories] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedSection, setSelectedSection] = useState('all');
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
+  // Get translated section labels
+  const getSectionLabel = (section) => {
+    const labels = {
+      USER_PREFERENCES: t('memory.userPreferences'),
+      WORK_CONTEXT: t('memory.workContext'),
+      PERSONAL_FACTS: t('memory.personalFacts'),
+      GOALS: t('memory.goals'),
+      COMMUNICATION_STYLE: t('memory.communicationStyle'),
+      RELATIONSHIPS: t('memory.relationships')
+    };
+    return labels[section] || section;
+  };
 
   useEffect(() => {
     if (showMemoryPanel) {
@@ -64,7 +79,10 @@ const MemoryPanel = ({ showMemoryPanel, setShowMemoryPanel }) => {
   };
 
   const handleClearAll = async () => {
-    if (!window.confirm(`Are you sure you want to delete ${selectedSection !== 'all' ? 'all memories in this section' : 'ALL memories'}? This action cannot be undone.`)) {
+    const confirmMessage = selectedSection !== 'all'
+      ? t('memory.confirmClearSection')
+      : t('memory.confirmClearAll');
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
@@ -136,11 +154,11 @@ const MemoryPanel = ({ showMemoryPanel, setShowMemoryPanel }) => {
             </div>
             <div>
               <div style={{ color: '#32302C', fontSize: 18, fontFamily: 'Plus Jakarta Sans', fontWeight: '700' }}>
-                Memory System
+                {t('memory.memorySystem')}
               </div>
               {stats && (
                 <div style={{ color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500' }}>
-                  {stats.total} memories across {stats.bySection ? Object.keys(stats.bySection).length : 0} sections
+                  {t('memory.memoriesAcrossSections', { count: stats.total, sections: stats.bySection ? Object.keys(stats.bySection).length : 0 })}
                 </div>
               )}
             </div>
@@ -176,12 +194,12 @@ const MemoryPanel = ({ showMemoryPanel, setShowMemoryPanel }) => {
               outline: 'none'
             }}
           >
-            <option value="all">All Sections ({memories.length})</option>
+            <option value="all">{t('memory.allSections')} ({memories.length})</option>
             {sections.map(section => {
               const count = stats?.bySection?.[section] || 0;
               return (
                 <option key={section} value={section}>
-                  {SECTION_EMOJIS[section]} {SECTION_LABELS[section]} ({count})
+                  {SECTION_EMOJIS[section]} {getSectionLabel(section)} ({count})
                 </option>
               );
             })}
@@ -211,7 +229,7 @@ const MemoryPanel = ({ showMemoryPanel, setShowMemoryPanel }) => {
               }}
             >
               <TrashIcon style={{ width: 14, height: 14, fill: '#D92D20' }} />
-              Clear {selectedSection !== 'all' ? 'Section' : 'All'}
+              {selectedSection !== 'all' ? t('memory.clearSection') : t('memory.clearAll')}
             </button>
           </div>
         )}
@@ -220,16 +238,16 @@ const MemoryPanel = ({ showMemoryPanel, setShowMemoryPanel }) => {
         <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }}>
           {loading ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-              <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans' }}>Loading memories...</div>
+              <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans' }}>{t('memory.loadingMemories')}</div>
             </div>
           ) : memories.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: 16 }}>
               <div style={{ fontSize: 64, opacity: 0.3 }}>🧠</div>
               <div style={{ color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textAlign: 'center' }}>
-                No memories yet
+                {t('memory.noMemoriesYet')}
               </div>
               <div style={{ color: '#B9B9B9', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textAlign: 'center', maxWidth: 320 }}>
-                As you chat with KODA, we'll automatically remember important facts about you, your preferences, and your work context.
+                {t('memory.noMemoriesDescription')}
               </div>
             </div>
           ) : (
@@ -252,7 +270,7 @@ const MemoryPanel = ({ showMemoryPanel, setShowMemoryPanel }) => {
                         gap: 6
                       }}>
                         <span>{SECTION_EMOJIS[section]}</span>
-                        <span>{SECTION_LABELS[section]}</span>
+                        <span>{getSectionLabel(section)}</span>
                         <span style={{ color: '#6C6B6E', fontWeight: '600' }}>({sectionMemories.length})</span>
                       </div>
                       {sectionMemories.map(memory => (
@@ -261,6 +279,7 @@ const MemoryPanel = ({ showMemoryPanel, setShowMemoryPanel }) => {
                           memory={memory}
                           onDelete={handleDeleteMemory}
                           deleteConfirmId={deleteConfirmId}
+                          t={t}
                         />
                       ))}
                     </div>
@@ -273,6 +292,7 @@ const MemoryPanel = ({ showMemoryPanel, setShowMemoryPanel }) => {
                     memory={memory}
                     onDelete={handleDeleteMemory}
                     deleteConfirmId={deleteConfirmId}
+                    t={t}
                   />
                 ))
               )}
@@ -284,7 +304,7 @@ const MemoryPanel = ({ showMemoryPanel, setShowMemoryPanel }) => {
   );
 };
 
-const MemoryItem = ({ memory, onDelete, deleteConfirmId }) => {
+const MemoryItem = ({ memory, onDelete, deleteConfirmId, t }) => {
   const isDeleteConfirm = deleteConfirmId === memory.id;
   const createdDate = new Date(memory.createdAt).toLocaleDateString('en-US', {
     month: 'short',
@@ -346,7 +366,7 @@ const MemoryItem = ({ memory, onDelete, deleteConfirmId }) => {
             fontFamily: 'Plus Jakarta Sans',
             fontWeight: '500'
           }}>
-            Used {memory.accessCount || 0}x
+            {t('memory.usedCount', { count: memory.accessCount || 0 })}
           </div>
 
           {/* Created Date */}

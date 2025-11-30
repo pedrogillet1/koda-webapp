@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import { ReactComponent as Right3Icon } from '../assets/Right 3.svg';
 import { ReactComponent as CheckCircleIcon } from '../assets/check-circle.svg';
 
 const Upgrade = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [billingPeriod, setBillingPeriod] = useState('monthly'); // 'monthly' or 'yearly'
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
@@ -26,15 +28,15 @@ const Upgrade = () => {
                   onClick={() => navigate('/settings')}
                   style={{ paddingTop: 4, paddingBottom: 4, borderRadius: 6, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
                 >
-                  <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>Settings</div>
+                  <div style={{ color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px' }}>{t('settings.title')}</div>
                 </div>
                 <Right3Icon style={{ width: 16, height: 16 }} />
                 <div style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 4, paddingBottom: 4, background: '#F9FAFB', borderRadius: 6, justifyContent: 'center', alignItems: 'center', display: 'flex' }}>
-                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '20px' }}>Upgrade plan</div>
+                  <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '20px' }}>{t('upgrade.upgradePlan')}</div>
                 </div>
               </div>
             </div>
-            <div style={{ textAlign: 'center', color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px' }}>Choose your plan</div>
+            <div style={{ textAlign: 'center', color: '#32302C', fontSize: 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '30px' }}>{t('upgrade.choosePlan')}</div>
           </div>
 
           {/* Billing Toggle */}
@@ -43,15 +45,15 @@ const Upgrade = () => {
               onClick={() => setBillingPeriod('monthly')}
               style={{ flex: '1 1 0', height: 36, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: billingPeriod === 'monthly' ? 'white' : 'transparent', borderRadius: 100, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer' }}
             >
-              <div style={{ color: billingPeriod === 'monthly' ? '#32302C' : '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Pay monthly</div>
+              <div style={{ color: billingPeriod === 'monthly' ? '#32302C' : '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{t('upgrade.payMonthly')}</div>
             </div>
             <div
               onClick={() => setBillingPeriod('yearly')}
               style={{ flex: '1 1 0', paddingLeft: 12, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderRadius: 6, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer', background: billingPeriod === 'yearly' ? 'white' : 'transparent' }}
             >
-              <div style={{ color: billingPeriod === 'yearly' ? '#32302C' : '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>Pay yearly</div>
+              <div style={{ color: billingPeriod === 'yearly' ? '#32302C' : '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{t('upgrade.payYearly')}</div>
               <div style={{ height: 22, paddingLeft: 12, paddingRight: 12, paddingTop: 6, paddingBottom: 6, background: '#FBBC04', borderRadius: 100, justifyContent: 'center', alignItems: 'center', gap: 6, display: 'flex' }}>
-                <div style={{ color: 'black', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>Save 20%</div>
+                <div style={{ color: 'black', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>{t('upgrade.save20')}</div>
               </div>
             </div>
           </div>
@@ -63,10 +65,10 @@ const Upgrade = () => {
           <div style={{ alignSelf: 'stretch', paddingLeft: 60, paddingRight: 60, paddingTop: 70, paddingBottom: 70, position: 'relative', background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 20, justifyContent: 'space-between', alignItems: 'center', gap: 10, display: 'flex' }}>
             <div style={{ flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 40, display: 'flex', zIndex: 1 }}>
               <div style={{ alignSelf: 'stretch', color: '#F8F8F8', fontSize: 40, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '50px' }}>
-                Upgrade your plan and alleviate your work with KODA.
+                {t('upgrade.heroTitle')}
               </div>
               <div style={{ color: 'rgba(255, 255, 255, 0.80)', fontSize: 24, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '34px', maxWidth: 594 }}>
-                Get Enhanced AI, Advanced Features, Priority Support.
+                {t('upgrade.heroSubtitle')}
               </div>
             </div>
 
@@ -86,42 +88,46 @@ const Upgrade = () => {
           <div style={{ alignSelf: 'stretch', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 20, display: 'flex' }}>
             {/* Free Plan */}
             <PricingCard
-              title="Free Plan"
+              t={t}
+              title={t('upgrade.freePlan')}
               price="$0"
-              period="month"
-              description="Secure Storage, Basic Search, Ltd AI Qrys."
-              features={['1 GB Storage', '1 User', 'Ltd AI Qrys']}
+              period={t('upgrade.month')}
+              description={t('upgrade.freeDescription')}
+              features={[t('upgrade.storage1GB'), t('upgrade.user1'), t('upgrade.ltdAI')]}
               isCurrent={true}
             />
 
             {/* Personal Plan */}
             <PricingCard
-              title="Personal Plan"
+              t={t}
+              title={t('upgrade.personalPlan')}
               price={billingPeriod === 'monthly' ? '$4.99' : '$59.99'}
-              period={billingPeriod === 'monthly' ? 'month' : 'year'}
-              description="Full Search, Standard AI, Reminders."
-              features={['5 GB Storage', '1 User', 'Standard AI']}
+              period={billingPeriod === 'monthly' ? t('upgrade.month') : t('upgrade.year')}
+              description={t('upgrade.personalDescription')}
+              features={[t('upgrade.storage5GB'), t('upgrade.user1'), t('upgrade.standardAI')]}
               isCurrent={false}
             />
 
             {/* Premium Plan */}
             <PricingCard
-              title="Premium Plan"
+              t={t}
+              title={t('upgrade.premiumPlan')}
               price={billingPeriod === 'monthly' ? '$9.99' : '$119.88'}
-              period={billingPeriod === 'monthly' ? 'month' : 'year'}
-              description="Enhanced AI, Advanced Features, Priority Support."
-              features={['50 GB Storage', '1 User', 'Enhanced AI']}
+              period={billingPeriod === 'monthly' ? t('upgrade.month') : t('upgrade.year')}
+              description={t('upgrade.premiumDescription')}
+              features={[t('upgrade.storage50GB'), t('upgrade.user1'), t('upgrade.enhancedAI')]}
               isCurrent={false}
-              badge="Save 20%"
+              badge={t('upgrade.save20')}
             />
 
             {/* Family Plan */}
             <PricingCard
-              title="Family Plan"
+              t={t}
+              title={t('upgrade.familyPlan')}
               price={billingPeriod === 'monthly' ? '$14.99' : '$179.99'}
-              period={billingPeriod === 'monthly' ? 'month' : 'year'}
-              description="Up to 5 users, All Features, Shared Vaults."
-              features={['100 GB Storage', '5 Users', 'Enhanced AI']}
+              period={billingPeriod === 'monthly' ? t('upgrade.month') : t('upgrade.year')}
+              description={t('upgrade.familyDescription')}
+              features={[t('upgrade.storage100GB'), t('upgrade.users5'), t('upgrade.enhancedAI')]}
               isCurrent={false}
             />
           </div>
@@ -129,7 +135,7 @@ const Upgrade = () => {
           {/* Footer */}
           <div style={{ alignSelf: 'stretch', padding: 20, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 12, display: 'flex' }}>
             <div style={{ textAlign: 'center', color: '#6C6B6E', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '20px' }}>
-              By continuing you accept our <span style={{ color: '#181818', fontWeight: '600' }}>Terms</span> and <span style={{ color: '#181818', fontWeight: '600' }}>Privacy Policy</span>
+              {t('upgrade.termsFooter')} <span style={{ color: '#181818', fontWeight: '600' }}>{t('upgrade.terms')}</span> {t('upgrade.and')} <span style={{ color: '#181818', fontWeight: '600' }}>{t('upgrade.privacyPolicy')}</span>
             </div>
           </div>
         </div>
@@ -145,7 +151,7 @@ const Upgrade = () => {
 };
 
 // Pricing Card Component
-const PricingCard = ({ title, price, period, description, features, isCurrent, badge }) => {
+const PricingCard = ({ t, title, price, period, description, features, isCurrent, badge }) => {
   return (
     <div style={{ flex: '1 1 0', background: 'white', overflow: 'hidden', borderRadius: 16, outline: '1px #E6E6EC solid', outlineOffset: '-1px', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>
       {/* Header */}
@@ -169,11 +175,11 @@ const PricingCard = ({ title, price, period, description, features, isCurrent, b
         {/* Button */}
         {isCurrent ? (
           <div style={{ alignSelf: 'stretch', height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 14, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex' }}>
-            <div style={{ color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>Current</div>
+            <div style={{ color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>{t('upgrade.current')}</div>
           </div>
         ) : (
           <div style={{ alignSelf: 'stretch', height: 52, background: 'rgba(24, 24, 24, 0.90)', borderRadius: 14, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}>
-            <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>Upgrade Now</div>
+            <div style={{ color: 'white', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textTransform: 'capitalize', lineHeight: '24px' }}>{t('upgrade.upgradeNow')}</div>
           </div>
         )}
       </div>

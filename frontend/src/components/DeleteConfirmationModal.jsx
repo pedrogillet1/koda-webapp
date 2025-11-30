@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import { useAuth } from '../context/AuthContext';
 
@@ -8,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
  * Matches LogoutModal design exactly
  */
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemType = 'item' }) => {
+  const { t } = useTranslation();
   const [cancelHover, setCancelHover] = useState(false);
   const [deleteHover, setDeleteHover] = useState(false);
   const { isAuthenticated } = useAuth();
@@ -71,7 +73,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemTyp
           <div style={{alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', display: 'flex'}}>
             <div style={{width: 30, height: 30, opacity: 0}} />
             <div style={{flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex'}}>
-              <div style={{textAlign: 'center', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '24px'}}>Delete</div>
+              <div style={{textAlign: 'center', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', lineHeight: '24px'}}>{t('modals.delete.title')}</div>
             </div>
             <div
               onClick={onClose}
@@ -87,8 +89,8 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemTyp
           {/* Message */}
           <div style={{alignSelf: 'stretch', justifyContent: 'center', alignItems: 'center', gap: 10, display: 'flex'}}>
             <div style={{textAlign: 'center', color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', lineHeight: '24px'}}>
-              <span style={{fontWeight: '500'}}>Are you sure you want to </span>
-              <span style={{fontWeight: '700'}}>delete {getDisplayName()}</span>
+              <span style={{fontWeight: '500'}}>{t('modals.delete.confirmText')} </span>
+              <span style={{fontWeight: '700'}}>{getDisplayName()}</span>
               <span style={{fontWeight: '500'}}>?</span>
             </div>
           </div>
@@ -121,7 +123,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemTyp
                 transition: 'background 0.2s ease'
               }}
             >
-              <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '24px'}}>Cancel</div>
+              <div style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '24px'}}>{t('modals.delete.cancel')}</div>
             </div>
             <div
               onClick={handleDelete}
@@ -146,7 +148,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemTyp
                 transition: 'background 0.2s ease'
               }}
             >
-              <div style={{color: '#D92D20', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '24px'}}>Delete</div>
+              <div style={{color: '#D92D20', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: '24px'}}>{t('modals.delete.confirm')}</div>
             </div>
           </div>
         </div>

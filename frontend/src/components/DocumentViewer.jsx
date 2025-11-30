@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Document, Page, pdfjs } from 'react-pdf';
 import api from '../services/api';
 import LeftNav from './LeftNav';
@@ -68,7 +69,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Text/Code Preview Component
-const TextCodePreview = ({ url, document, zoom }) => {
+const TextCodePreview = ({ url, document, zoom, t }) => {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -85,7 +86,7 @@ const TextCodePreview = ({ url, document, zoom }) => {
   }, [url]);
 
   if (loading) {
-    return <div style={{ color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans' }}>Loading content...</div>;
+    return <div style={{ color: '#6C6B6E', fontFamily: 'Plus Jakarta Sans' }}>{t ? t('documentViewer.loadingContent') : 'Loading content...'}</div>;
   }
 
   return (
@@ -129,6 +130,7 @@ const TextCodePreview = ({ url, document, zoom }) => {
 };
 
 const DocumentViewer = () => {
+  const { t } = useTranslation();
   const { documentId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -705,7 +707,7 @@ const DocumentViewer = () => {
   if (loading) {
     return (
       <div style={{ width: '100%', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans' }}>Loading document...</div>
+        <div style={{ color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans' }}>{t('documentViewer.loadingDocument')}</div>
       </div>
     );
   }
@@ -713,7 +715,7 @@ const DocumentViewer = () => {
   if (!document) {
     return (
       <div style={{ width: '100%', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans' }}>Document not found</div>
+        <div style={{ color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans' }}>{t('documentViewer.documentNotFound')}</div>
       </div>
     );
   }
@@ -968,7 +970,7 @@ const DocumentViewer = () => {
                   ...getImageRenderingCSS()
                 }}
               />
-              <div style={{ color: '#181818', fontSize: 13, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '18px' }}>Ask Koda</div>
+              <div style={{ color: '#181818', fontSize: 13, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '18px' }}>{t('documentViewer.askKoda')}</div>
             </button>
             <button
               onClick={() => setShowShareModal(true)}
@@ -989,7 +991,7 @@ const DocumentViewer = () => {
               }}
             >
               <DownloadWhiteIcon style={{ width: 18, height: 18 }} />
-              <div style={{ color: 'white', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '22px' }}>Download</div>
+              <div style={{ color: 'white', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '22px' }}>{t('documentViewer.download')}</div>
             </button>
           </div>
           ) : (
@@ -1809,7 +1811,7 @@ const DocumentViewer = () => {
                   flexShrink: 0
                 }}
               />
-              <div style={{ color: 'white', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>Need help finding something?</div>
+              <div style={{ color: 'white', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '20px', wordWrap: 'break-word' }}>{t('documentViewer.needHelpFindingSomething')}</div>
             </div>
           </button>
           <div style={{ width: 7, height: 7, right: 33, top: 0, position: 'absolute', background: '#171717', borderRadius: 9999 }} />

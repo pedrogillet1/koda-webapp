@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { useDocuments } from '../context/DocumentsContext';
 import { useDocumentSelection } from '../hooks/useDocumentSelection.js';
@@ -44,6 +45,7 @@ import DocumentsLoadingSkeleton from './DocumentsLoadingSkeleton';
 import filesIcon from '../assets/files-icon.svg';
 
 const DocumentsPage = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showSuccess, showDeleteSuccess } = useToast();
@@ -440,7 +442,7 @@ const DocumentsPage = () => {
             textTransform: 'capitalize',
             lineHeight: typography.lineHeights.xl
           }}>
-            Documents
+            {t('documents.title')}
           </div>
           {/* Hide search and select controls on mobile */}
           {!isMobile && (
@@ -476,7 +478,7 @@ const DocumentsPage = () => {
                 >
                   <TrashCanLightIcon style={{ width: 18, height: 18 }} />
                   <span style={{ color: '#D92D20', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>
-                    Delete{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
+                    {t('documents.delete')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
                   </span>
                 </button>
 
@@ -505,7 +507,7 @@ const DocumentsPage = () => {
                     <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                   <span style={{ color: '#32302C', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600' }}>
-                    Move{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
+                    {t('documents.move')}{selectedDocuments.size > 0 ? ` (${selectedDocuments.size})` : ''}
                   </span>
                 </button>
 
@@ -529,7 +531,7 @@ const DocumentsPage = () => {
                     color: '#111827'
                   }}
                 >
-                  Cancel
+                  {t('documents.cancel')}
                 </button>
               </>
             ) : (
@@ -551,7 +553,7 @@ const DocumentsPage = () => {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search any documents..."
+                    placeholder={t('documents.search')}
                     style={{
                       height: '100%',
                       minWidth: 250,
@@ -690,13 +692,13 @@ const DocumentsPage = () => {
                     lineHeight: '24px',
                     wordWrap: 'break-word'
                   }}>
-                    Select
+                    {t('documents.select')}
                   </div>
                 </button>
 
                 <div onClick={() => setShowUniversalUploadModal(true)} style={{height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, border: '1px #E6E6EC solid', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', transition: 'transform 0.2s ease, box-shadow 0.2s ease'}} onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
                   <LogoutBlackIcon style={{width: 24, height: 24}} />
-                  <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>Upload a Document</div>
+                  <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px'}}>{t('dashboard.uploadDocument')}</div>
                 </div>
               </>
             )}
@@ -726,7 +728,7 @@ const DocumentsPage = () => {
                 <div style={{width: 40, height: 40, background: colors.gray[100], borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                   <AddIcon style={{ width: 20, height: 20 }} />
                 </div>
-                <span style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0}}>Add New Smart Category</span>
+                <span style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0}}>{t('documents.newFolder')}</span>
               </div>
               {categories.map((category, index) => (
                 <div
@@ -793,7 +795,7 @@ const DocumentsPage = () => {
                     <div style={{display: 'flex', flexDirection: 'column', gap: spacing.xs, flex: 1, minWidth: 0}}>
                       <div style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: '19.60px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{category.name}</div>
                       <div style={{color: colors.gray[500], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.medium, lineHeight: '15.40px'}}>
-                        {category.fileCount || 0} {category.fileCount === 1 ? 'File' : 'Files'}
+                        {t('documents.filesCount', { count: category.fileCount || 0 })}
                       </div>
                     </div>
                   </div>
@@ -879,7 +881,7 @@ const DocumentsPage = () => {
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
                           <EditIcon style={{width: 16, height: 16}} />
-                          Edit
+                          {t('common.edit')}
                         </button>
                         <button
                           onClick={(e) => {
@@ -909,7 +911,7 @@ const DocumentsPage = () => {
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
                           <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
-                          Upload
+                          {t('nav.upload')}
                         </button>
                         <button
                           onClick={(e) => {
@@ -937,7 +939,7 @@ const DocumentsPage = () => {
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
                           <TrashCanIcon style={{width: 16, height: 16}} />
-                          Delete
+                          {t('documents.delete')}
                         </button>
                       </div>
                     )}
@@ -957,12 +959,12 @@ const DocumentsPage = () => {
             flexDirection: 'column'
           }}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xxl}}>
-              <div style={{color: colors.gray[900], fontSize: typography.sizes.lg, fontFamily: typography.fontFamily, fontWeight: typography.weights.bold}}>Your Files</div>
+              <div style={{color: colors.gray[900], fontSize: typography.sizes.lg, fontFamily: typography.fontFamily, fontWeight: typography.weights.bold}}>{t('documents.allDocuments')}</div>
               <div
                 onClick={() => navigate('/category/recently-added')}
                 style={{color: colors.gray[900], fontSize: typography.sizes.md, fontFamily: typography.fontFamily, fontWeight: typography.weights.bold, lineHeight: '22.40px', cursor: 'pointer'}}
               >
-                See All
+                {t('documents.seeAll')}
               </div>
             </div>
 
@@ -1025,10 +1027,10 @@ const DocumentsPage = () => {
                   marginBottom: 8
                 }}>
                   {[
-                    { key: 'name', label: 'Name' },
-                    { key: 'type', label: 'Type' },
-                    { key: 'size', label: 'Size' },
-                    { key: 'date', label: 'Date' }
+                    { key: 'name', label: t('documents.tableHeaders.name') },
+                    { key: 'type', label: t('documents.tableHeaders.type') },
+                    { key: 'size', label: t('documents.tableHeaders.size') },
+                    { key: 'date', label: t('documents.tableHeaders.date') }
                   ].map(col => (
                     <div
                       key={col.key}
@@ -1120,7 +1122,7 @@ const DocumentsPage = () => {
                                 {item.name}
                               </div>
                             </div>
-                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>Folder</div>
+                            <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{t('documents.folder')}</div>
                             <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{item.fileCount || 0} items</div>
                             <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans'}}>{new Date(item.createdAt).toLocaleDateString()}</div>
                             <div></div>
@@ -1463,7 +1465,7 @@ const DocumentsPage = () => {
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
                                 <DownloadIcon style={{width: 16, height: 16}} />
-                                Download
+                                {t('documents.download')}
                               </button>
 
                               <button
@@ -1490,7 +1492,7 @@ const DocumentsPage = () => {
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
                                 <EditIcon style={{width: 16, height: 16}} />
-                                Rename
+                                {t('documents.rename')}
                               </button>
 
                               <button
@@ -1519,7 +1521,7 @@ const DocumentsPage = () => {
                                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                                   <path d="M10.6263 4.1665C10.6263 3.82133 10.3465 3.5415 10.0013 3.5415C9.65612 3.5415 9.3763 3.82133 9.3763 4.1665V9.37484H4.16797C3.82279 9.37484 3.54297 9.65466 3.54297 9.99984C3.54297 10.345 3.82279 10.6248 4.16797 10.6248H9.3763V15.8332C9.3763 16.1783 9.65612 16.4582 10.0013 16.4582C10.3465 16.4582 10.6263 16.1783 10.6263 15.8332V10.6248H15.8346C16.1798 10.6248 16.4596 10.345 16.4596 9.99984C16.4596 9.65466 16.1798 9.37484 15.8346 9.37484H10.6263V4.1665Z" fill="#32302C"/>
                                 </svg>
-                                Category
+                                {t('documents.categories')}
                               </button>
 
                               <button
@@ -1547,7 +1549,7 @@ const DocumentsPage = () => {
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
                                 <TrashCanIcon style={{width: 16, height: 16}} />
-                                Delete
+                                {t('documents.delete')}
                               </button>
                             </div>
                           </div>
@@ -1560,7 +1562,7 @@ const DocumentsPage = () => {
               </div>
             ) : (
               <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: 200}}>
-                <div style={{color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>No documents yet</div>
+                <div style={{color: '#6C6B6E', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500'}}>{t('documents.noDocuments')}</div>
               </div>
             );
             })()}
@@ -1615,7 +1617,7 @@ const DocumentsPage = () => {
                 textAlign: 'center'
               }}
             >
-              Drop files here to upload
+              {t('upload.dropFiles')}
             </div>
             <div
               style={{
@@ -1626,7 +1628,7 @@ const DocumentsPage = () => {
                 textAlign: 'center'
               }}
             >
-              Release to open upload modal
+              {t('upload.releaseToUpload')}
             </div>
           </div>
         )}

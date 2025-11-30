@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 
 /**
@@ -7,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
  * Simple modal with folder name input
  */
 const CreateFolderModal = ({ isOpen, onClose, onConfirm }) => {
+  const { t } = useTranslation();
   const [folderName, setFolderName] = useState('');
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -78,7 +80,7 @@ const CreateFolderModal = ({ isOpen, onClose, onConfirm }) => {
             marginBottom: 16,
           }}
         >
-          Create New Folder
+          {t('modals.createFolder.title')}
         </h2>
 
         <form onSubmit={handleSubmit}>
@@ -87,7 +89,7 @@ const CreateFolderModal = ({ isOpen, onClose, onConfirm }) => {
             value={folderName}
             onChange={(e) => setFolderName(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Folder name"
+            placeholder={t('modals.createFolder.placeholder')}
             autoFocus
             style={{
               width: '100%',
@@ -123,7 +125,7 @@ const CreateFolderModal = ({ isOpen, onClose, onConfirm }) => {
                 cursor: 'pointer',
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
@@ -140,7 +142,7 @@ const CreateFolderModal = ({ isOpen, onClose, onConfirm }) => {
                 cursor: folderName.trim() ? 'pointer' : 'not-allowed',
               }}
             >
-              Create
+              {t('modals.createFolder.create')}
             </button>
           </div>
         </form>
