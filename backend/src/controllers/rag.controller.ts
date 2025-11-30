@@ -14,6 +14,7 @@ import cacheService from '../services/cache.service'; // ✅ FIX: Cache invalida
 import p0FeaturesService from '../services/p0Features.service';
 import clarificationService from '../services/clarification.service';
 import chatDocumentGenerationService from '../services/chatDocumentGeneration.service';
+import * as languageDetectionService from '../services/languageDetection.service';
 import Anthropic from '@anthropic-ai/sdk';
 
 // Initialize Anthropic client for document generation
@@ -1398,27 +1399,37 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     // ✅ FIX #1: INTENT CLASSIFICATION
     // ========================================
+    // 🌍 LANGUAGE DETECTION
+    // ========================================
+    // Detect user's language from query
+    const detectedLanguage = languageDetectionService.detectLanguage(query);
+    console.log(`🌍 [LANGUAGE] Detected: ${detectedLanguage}`);
+
+    // ========================================
     // ⚡ PERFORMANCE: Do fast keyword detection FIRST, only fetch conversation history if needed
     const lowerQuery = query.toLowerCase();
     let intentResult: any = null;
     let conversationHistoryForIntent: any[] = [];
 
     // Simple greetings - skip LLM and skip conversation history fetch
-    if (/^(hi|hello|hey|good morning|good afternoon|good evening|olá|hola|bonjour)[\s!?]*$/i.test(lowerQuery.trim())) {
+    // ✅ FIX: Use language detection service for better multilingual support
+    if (languageDetectionService.isGreeting(query)) {
       intentResult = {
         intent: 'greeting',
         confidence: 1.0,
-        parameters: {}
+        parameters: { language: detectedLanguage }
       };
-      console.log(`⚡ [FAST KEYWORD] Detected greeting (skipped LLM + DB)`);
+      console.log(`⚡ [FAST KEYWORD] Detected greeting in ${detectedLanguage} (skipped LLM + DB)`);
     }
     // List files - skip LLM and skip conversation history fetch
-    else if (/\b(list|show|what|which)\b.*\b(files?|documents?|pdfs?|docx|xlsx)\b/i.test(lowerQuery)) {
-      // Extract file types if present
+    // ✅ FIX: Added natural language file type names (excel, word, powerpoint)
+    else if (/\b(list|show|what|which|how many|quantos|cuantos)\b.*\b(files?|documents?|pdfs?|docx|xlsx|excel|word|powerpoint|ppt|txt)\b/i.test(lowerQuery)) {
+      // Extract file types if present (support both technical and natural language terms)
       const fileTypes: string[] = [];
       if (/\bpdf/i.test(lowerQuery)) fileTypes.push('pdf');
-      if (/\bdocx?\b/i.test(lowerQuery)) fileTypes.push('docx');
-      if (/\bxlsx?\b/i.test(lowerQuery)) fileTypes.push('xlsx');
+      if (/\b(docx?|word)\b/i.test(lowerQuery)) fileTypes.push('docx');
+      if (/\b(xlsx?|excel|spreadsheet)\b/i.test(lowerQuery)) fileTypes.push('xlsx');
+      if (/\b(pptx?|powerpoint|presentation)\b/i.test(lowerQuery)) fileTypes.push('pptx');
       if (/\btxt\b/i.test(lowerQuery)) fileTypes.push('txt');
 
       intentResult = {
@@ -2219,7 +2230,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.error('❌ RAG Streaming Error:', ragError);
 
       // Sanitize error message - show user-friendly message instead of technical details
-      const userFriendlyMessage = 'I apologize, but I encountered an issue while processing your question. Please try rephrasing your question or try again in a moment.';
+      // ✅ FIX: Use localized error message based on detected language
+      const userFriendlyMessage = languageDetectionService.getLocalizedError('general_error', detectedLanguage);
 
       // Stream user-friendly message
       res.write(`data: ${JSON.stringify({ type: 'content', content: userFriendlyMessage })}\n\n`);
