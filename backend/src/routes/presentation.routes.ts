@@ -4,7 +4,7 @@
 
 import express from 'express';
 import * as presentationController from '../controllers/presentation.controller';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth.middleware';
 
 const router = express.Router();
 

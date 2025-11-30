@@ -510,13 +510,32 @@ export const sendMessageStreaming = async (
   const fullConversationContext = await buildConversationContext(conversationId, userId);
 
   // Call hybrid RAG service with streaming
+  let isDocumentGeneration = false;
+  let documentType: 'summary' | 'report' | 'analysis' | 'general' = 'general';
+
   await ragService.generateAnswerStream(
     userId,
     content,
     conversationId,
     (chunk: string) => {
+      // Check the chunk content BEFORE adding to fullResponse or sending
+      if (chunk.includes('__DOCUMENT_GENERATION_REQUESTED__:') || isDocumentGeneration) {
+        if (!isDocumentGeneration) {
+          // First time seeing marker - extract type
+          isDocumentGeneration = true;
+          const parts = chunk.split(':');
+          if (parts[1]) {
+            documentType = parts[1].trim() as 'summary' | 'report' | 'analysis' | 'general';
+          }
+          console.log(`📝 [CHAT] Intercepted document generation marker: ${documentType}`);
+        }
+        fullResponse += chunk;
+        return; // Don't send marker or any subsequent chunks
+      }
+
+      // Normal chunk - add and send
       fullResponse += chunk;
-      onChunk(chunk); // Send chunk to client
+      onChunk(chunk);
     },
     attachedDocumentId,
     conversationHistory,  // ✅ Pass conversation history for context
@@ -525,6 +544,109 @@ export const sendMessageStreaming = async (
     fullConversationContext // ✅ NEW: Pass full conversation history
   );
 
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // DOCUMENT GENERATION HANDLER
+  // ════════════════════════════════════════════════════════════════════════════════
+  // Check if RAG returned document generation marker
+  if (isDocumentGeneration) {
+    console.log(`📝 [CHAT] Triggering document generation: ${documentType}`);
+
+    // Import document generation service
+    const { generateDocument } = await import('./chatDocumentGeneration.service');
+
+    // Stream progress message
+    const progressMessage = `\n\n📝 Generating your ${documentType}...\n\n`;
+    onChunk(progressMessage);
+    fullResponse = progressMessage;
+
+    // Create temporary assistant message for attaching chatDocument
+    const assistantMessage = await prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: progressMessage,
+        createdAt: new Date(),
+      },
+    });
+
+    try {
+      // ✅ FIX: Retrieve source content from RAG before generating document
+      console.log('📚 [CHAT] Retrieving source content for document generation...');
+      const ragResult = await ragService.generateAnswer(
+        userId,
+        content,
+        conversationId,
+        'long', // Use long answer for comprehensive content
+        attachedDocumentId
+      );
+
+      // Extract source content and document IDs
+      let sourceContent = '';
+      let sourceDocumentIds: string[] = [];
+
+      if (ragResult.sources && ragResult.sources.length > 0) {
+        sourceContent = ragResult.sources
+          .map(s => `Document: ${s.documentName || 'Unknown'}\n\n${s.content}`)
+          .join('\n\n---\n\n');
+        sourceDocumentIds = ragResult.sources
+          .map(s => s.documentId)
+          .filter((id): id is string => id !== undefined);
+
+        console.log(`📚 [CHAT] Retrieved ${ragResult.sources.length} source documents for generation`);
+      } else {
+        console.log('⚠️  [CHAT] No source documents found - generating from query only');
+      }
+
+      // Generate document
+      const docResult = await generateDocument({
+        userId,
+        conversationId,
+        messageId: assistantMessage.id,
+        query: content,
+        documentType,
+        sourceContent,
+        sourceDocumentIds,
+      });
+
+      // Update message with final content and chatDocument
+      await prisma.message.update({
+        where: { id: assistantMessage.id },
+        data: {
+          content: docResult.message,
+        },
+      });
+
+      fullResponse = docResult.message;
+
+      // Stream final message
+      onChunk('\n' + docResult.message);
+
+      console.log(`✅ [CHAT] Document generated successfully: ${docResult.chatDocument.id}`);
+
+      // Return early - document generation complete
+      return {
+        userMessage: await userMessagePromise,
+        assistantMessage,
+      };
+    } catch (error) {
+      console.error('❌ [CHAT] Document generation failed:', error);
+      const errorMessage = '\n\n❌ Failed to generate document. Please try again.';
+      await prisma.message.update({
+        where: { id: assistantMessage.id },
+        data: {
+          content: progressMessage + errorMessage,
+        },
+      });
+      onChunk(errorMessage);
+      fullResponse = progressMessage + errorMessage;
+
+      return {
+        userMessage: await userMessagePromise,
+        assistantMessage,
+      };
+    }
+  }
   console.log(`✅ Streaming complete. Total response length: ${fullResponse.length} chars`);
 
   // Note: Hybrid RAG includes sources inline within the response

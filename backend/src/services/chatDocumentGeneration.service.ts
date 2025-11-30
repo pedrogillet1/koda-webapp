@@ -77,8 +77,6 @@ export async function generateDocument(params: GenerateDocumentParams): Promise<
       documentType,
       wordCount,
       sourceDocumentId: sourceDocumentIds?.[0] || null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
     },
   });
 
