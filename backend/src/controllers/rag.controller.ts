@@ -2217,7 +2217,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         undefined,  // onStage
         undefined,  // memoryContext
         undefined,  // fullConversationContext
-        isFirstMessage  // ✅ Pass first message flag for greeting logic
+        isFirstMessage,  // ✅ Pass first message flag for greeting logic
+        detectedLanguage  // ✅ FIX: Pass detected language to RAG service
       );
 
       console.log('🚀 [DEBUG] generateAnswerStream completed');

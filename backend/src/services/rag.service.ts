@@ -1981,12 +1981,13 @@ export async function generateAnswerStream(
   query: string,
   conversationId: string,
   onChunk: (chunk: string) => void,
-  attachedDocumentId?: string | string[],  // âœ… FIX #8: Accept array for multi-document support
+  attachedDocumentId?: string | string[],  // ✅ FIX #8: Accept array for multi-document support
   conversationHistory?: Array<{ role: string; content: string }>,
   onStage?: (stage: string, message: string) => void,
   memoryContext?: string,
   fullConversationContext?: string,
-  isFirstMessage?: boolean  // âœ… NEW: Flag to control greeting logic
+  isFirstMessage?: boolean,  // ✅ NEW: Flag to control greeting logic
+  detectedLanguage?: string  // ✅ FIX: Accept pre-detected language from controller
 ): Promise<{ sources: any[] }> {
   console.log('ðŸš€ [DEBUG] generateAnswerStream called');
   console.log('ðŸš€ [DEBUG] onChunk is function:', typeof onChunk === 'function');
@@ -3226,8 +3227,8 @@ async function handleConceptComparison(
     console.log(`âœ… [COMPARATIVE] Added comparative intelligence to prompt context`);
   }
 
-  // Detect language
-  const queryLang = detectLanguage(query);
+  // Use pre-detected language from controller, or detect if not provided
+  const queryLang = detectedLanguage || detectLanguage(query);
   const queryLangName = queryLang === 'pt' ? 'Portuguese' : queryLang === 'es' ? 'Spanish' : queryLang === 'fr' ? 'French' : 'English';
 
   // Check if this is the first message
@@ -3351,8 +3352,8 @@ async function handleDocumentComparison(
   // Build sources array - Will be updated after LLM response
   let sources: any[] = [];
 
-  // Detect language
-  const queryLang = detectLanguage(query);
+  // Use pre-detected language from controller, or detect if not provided
+  const queryLang = detectedLanguage || detectLanguage(query);
   const queryLangName = queryLang === 'pt' ? 'Portuguese' : queryLang === 'es' ? 'Spanish' : queryLang === 'fr' ? 'French' : 'English';
 
   // Check if this is the first message
@@ -4750,8 +4751,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
   // AFTER (Parallel - FAST):
   //   All operations run concurrently, total time = max(all operations) â‰ˆ 2-3s
 
-  // Detect language first (instant, needed for progress messages)
-  const queryLang = detectLanguage(query);
+  // Use pre-detected language from controller, or detect if not provided
+  const queryLang = detectedLanguage || detectLanguage(query);
   const queryLangName = queryLang === 'pt' ? 'Portuguese' : queryLang === 'es' ? 'Spanish' : queryLang === 'fr' ? 'French' : 'English';
 
   // STREAM PROGRESS: Searching (immediate feedback)
