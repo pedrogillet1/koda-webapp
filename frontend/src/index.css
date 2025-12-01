@@ -1066,7 +1066,7 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   /* Active state - white text and icon */
   .mobile-bottom-nav-item.active .mobile-bottom-nav-item-icon svg {
     fill: #FFFFFF !important;
-    stroke: #FFFFFF !important;
+    color: #FFFFFF !important;
   }
 
   .mobile-bottom-nav-item.active .mobile-bottom-nav-item-label {
@@ -1076,7 +1076,7 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   /* Inactive state - gray text and icon */
   .mobile-bottom-nav-item:not(.active) .mobile-bottom-nav-item-icon svg {
     fill: #6C6B6E !important;
-    stroke: #6C6B6E !important;
+    color: #6C6B6E !important;
   }
 
   .mobile-bottom-nav-item:not(.active) .mobile-bottom-nav-item-label {

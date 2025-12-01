@@ -26,7 +26,7 @@ const MobileBottomNav = () => {
   // Don't render on desktop
   if (!isMobile) return null;
 
-  // Navigation items configuration
+  // Navigation items configuration - order matches desktop sidebar
   const navItems = [
     {
       id: 'documents',
@@ -37,20 +37,20 @@ const MobileBottomNav = () => {
       matchPaths: ['/home', '/documents', '/folder', '/file-type', '/category']
     },
     {
-      id: 'chat',
-      path: '/chat',
-      label: t('nav.chat'),
-      icon: MessageIcon,
-      iconFilled: MessageFilledIcon,
-      matchPaths: ['/chat']
-    },
-    {
       id: 'upload',
       path: '/upload-hub',
       label: t('nav.upload'),
       icon: UploadIcon,
       iconFilled: UploadIcon, // Same icon for both states
       matchPaths: ['/upload-hub', '/upload']
+    },
+    {
+      id: 'chat',
+      path: '/chat',
+      label: t('nav.chat'),
+      icon: MessageIcon,
+      iconFilled: MessageFilledIcon,
+      matchPaths: ['/chat']
     },
     {
       id: 'settings',
@@ -128,7 +128,7 @@ const MobileBottomNav = () => {
                   width: '24px',
                   height: '24px',
                   fill: active ? '#FFFFFF' : '#6C6B6E',
-                  stroke: active ? '#FFFFFF' : '#6C6B6E'
+                  color: active ? '#FFFFFF' : '#6C6B6E'
                 }}
               />
             </div>
