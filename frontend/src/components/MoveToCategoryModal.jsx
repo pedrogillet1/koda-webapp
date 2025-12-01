@@ -69,7 +69,7 @@ export default function MoveToCategoryModal({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: isMobile ? '100%' : '100%',
+          width: '100%',
           maxWidth: isMobile ? '100%' : 480,
           maxHeight: isMobile ? '90vh' : '85vh',
           paddingTop: 18,
@@ -79,12 +79,14 @@ export default function MoveToCategoryModal({
           outline: '1px #E6E6EC solid',
           outlineOffset: '-1px',
           flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
+          justifyContent: 'flex-start',
+          alignItems: 'stretch',
           gap: 18,
           display: 'flex',
           overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch'
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          boxSizing: 'border-box'
         }}>
         {/* Header */}
         <div style={{
@@ -93,7 +95,8 @@ export default function MoveToCategoryModal({
           paddingRight: 24,
           justifyContent: 'space-between',
           alignItems: 'center',
-          display: 'flex'
+          display: 'flex',
+          boxSizing: 'border-box'
         }}>
           <div style={{
             color: '#32302C',
@@ -130,7 +133,8 @@ export default function MoveToCategoryModal({
           <div style={{
             width: '100%',
             paddingLeft: 24,
-            paddingRight: 24
+            paddingRight: 24,
+            boxSizing: 'border-box'
           }}>
             <div style={{
               padding: 12,
@@ -186,19 +190,14 @@ export default function MoveToCategoryModal({
           paddingRight: 24,
           paddingTop: 8,
           paddingBottom: 8,
-          flexDirection: 'column',
-          justifyContent: 'flex-start',
-          alignItems: 'flex-start',
-          gap: 12,
-          display: 'flex',
           maxHeight: '280px',
-          overflowY: 'auto'
+          overflowY: 'auto',
+          boxSizing: 'border-box'
         }}>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 12,
-            width: '100%'
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: 12
           }}>
             {categories.map((category) => {
               const fileCount = category._count?.documents || category.fileCount || 0;
@@ -207,20 +206,20 @@ export default function MoveToCategoryModal({
                   key={category.id}
                   onClick={() => onCategorySelect(category.id)}
                   style={{
-                    paddingLeft: 12,
-                    paddingRight: 12,
-                    paddingTop: 12,
-                    paddingBottom: 12,
+                    padding: 12,
                     background: selectedCategoryId === category.id ? '#F5F5F5' : 'white',
                     borderRadius: 12,
                     border: selectedCategoryId === category.id ? '2px #32302C solid' : '1px #E6E6EC solid',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: 8,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
-                    position: 'relative'
+                    position: 'relative',
+                    boxSizing: 'border-box',
+                    minWidth: 0
                   }}
                   onMouseEnter={(e) => {
                     if (selectedCategoryId !== category.id) {
@@ -297,7 +296,8 @@ export default function MoveToCategoryModal({
         <div style={{
           width: '100%',
           paddingLeft: 24,
-          paddingRight: 24
+          paddingRight: 24,
+          boxSizing: 'border-box'
         }}>
           <button
             onClick={onCreateNew}
@@ -341,7 +341,8 @@ export default function MoveToCategoryModal({
           justifyContent: 'flex-start',
           alignItems: 'flex-start',
           gap: 10,
-          display: 'flex'
+          display: 'flex',
+          boxSizing: 'border-box'
         }}>
           <button
             onClick={onClose}

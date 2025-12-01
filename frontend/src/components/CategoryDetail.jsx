@@ -971,6 +971,8 @@ const CategoryDetail = () => {
 
   return (
     <div
+      data-page="category"
+      className="category-page"
       style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex' }}
       onDragOver={handleFileDragOver}
       onDragLeave={handleFileDragLeave}
@@ -1048,7 +1050,7 @@ const CategoryDetail = () => {
 
       <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Header with Breadcrumb, Search, and Controls */}
-        <div style={{
+        <div data-category-header="true" className="category-header" style={{
           background: 'white',
           padding: isMobile ? '16px 16px 16px 70px' : '20px 32px',
           borderBottom: '1px solid #E5E7EB'
@@ -1655,11 +1657,12 @@ const CategoryDetail = () => {
         </div>
 
         {/* Content Area with Folder Grid + Document List */}
-        <div style={{
+        <div className="category-content scrollable-content" style={{
           flex: 1,
           padding: 24,
           overflowY: 'auto',
-          background: '#F5F5F5'
+          background: '#F5F5F5',
+          WebkitOverflowScrolling: 'touch'
         }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#6C6B6E' }}>{t('common.loading')}</div>

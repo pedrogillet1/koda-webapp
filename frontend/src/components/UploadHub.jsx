@@ -1693,7 +1693,7 @@ const UploadHub = () => {
   };
 
   return (
-    <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
+    <div data-page="upload-hub" className="upload-hub-page" style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Left Sidebar - Library - Hidden on mobile */}
@@ -2401,14 +2401,15 @@ const UploadHub = () => {
         </div>
 
         {/* Content */}
-        <div style={{
+        <div className="upload-hub-content scrollable-content" style={{
           flex: 1,
           overflowY: 'auto',
           padding: isMobile ? 16 : '24px 24px 24px 24px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: uploadingFiles.length > 0 ? 'flex-start' : 'center',
-          alignItems: uploadingFiles.length > 0 ? 'stretch' : 'center'
+          alignItems: uploadingFiles.length > 0 ? 'stretch' : 'center',
+          WebkitOverflowScrolling: 'touch'
         }}>
           {/* Drag-drop zone */}
           <div {...getRootProps()} style={{

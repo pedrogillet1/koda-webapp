@@ -394,12 +394,20 @@ const Documents = () => {
 
   // INSTANT UPDATE: Move document to category
   const handleCategorySelection = async () => {
-    if (!selectedCategoryId || !selectedDocumentForCategory) return;
+    if (!selectedCategoryId) return;
 
     try {
-      // Move document to folder (UI updates INSTANTLY via context!)
-      await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
-      // Document moves immediately, counts update automatically!
+      // Handle bulk move when in select mode
+      if (isSelectMode && selectedDocuments.size > 0) {
+        await Promise.all(Array.from(selectedDocuments).map(docId => moveToFolder(docId, selectedCategoryId)));
+        showSuccess(t('toasts.filesMovedSuccessfully', { count: selectedDocuments.size }));
+        clearSelection();
+        toggleSelectMode();
+      } else if (selectedDocumentForCategory) {
+        // Move single document to folder (UI updates INSTANTLY via context!)
+        await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
+        showSuccess(t('toasts.fileMovedSuccessfully'));
+      }
 
       setShowCategoryModal(false);
       setSelectedDocumentForCategory(null);
@@ -413,16 +421,19 @@ const Documents = () => {
   // Handle create category from move modal
   const handleCreateCategoryFromMove = async (category) => {
     try {
-      console.log('Creating category from move modal:', category);
-
       // Create folder
       const newFolder = await createFolder(category.name, category.emoji);
-      console.log('New folder created:', newFolder);
 
-      // If we have a selected document, move it to the new folder
-      if (selectedDocumentForCategory) {
+      // Handle bulk move when in select mode
+      if (isSelectMode && selectedDocuments.size > 0) {
+        await Promise.all(Array.from(selectedDocuments).map(docId => moveToFolder(docId, newFolder.id)));
+        showSuccess(t('toasts.filesMovedSuccessfully', { count: selectedDocuments.size }));
+        clearSelection();
+        toggleSelectMode();
+      } else if (selectedDocumentForCategory) {
+        // Move single document to the new folder
         await moveToFolder(selectedDocumentForCategory.id, newFolder.id);
-        console.log('Document moved to new category');
+        showSuccess(t('toasts.fileMovedSuccessfully'));
       }
 
       // Close both modals
@@ -630,9 +641,9 @@ const Documents = () => {
 
                 {/* Move Button - White style matching FileTypeDetail */}
                 <button
-                  onClick={async () => {
+                  onClick={() => {
                     if (selectedDocuments.size === 0) return;
-                    showSuccess(t('toasts.moveComingSoon'));
+                    setShowCategoryModal(true);
                   }}
                   disabled={selectedDocuments.size === 0}
                   style={{

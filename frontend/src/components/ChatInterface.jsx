@@ -2453,7 +2453,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const userName = capitalizeFirst(user?.firstName) || 'there';
 
     return (
-        <div style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column', background: '#F5F5F7', position: 'relative'}}>
+        <div data-chat-container="true" style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column', background: '#F5F5F7', position: 'relative'}}>
             {/* Header */}
             <div style={{
                 height: isMobile ? 70 : 84,
@@ -2487,6 +2487,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             {/* Messages Area */}
             <div
                 ref={messagesContainerRef}
+                data-messages-container="true"
+                className="messages-container"
                 onScroll={handleScroll}  // ✅ SMART SCROLL: Detect scroll position
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
@@ -2497,8 +2499,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     padding: 20,
-                    paddingBottom: 20,
+                    paddingBottom: isMobile ? 100 : 20, // Extra padding on mobile for bottom nav
                     position: 'relative',
+                    WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
                 }}
             >
             {/* Centered Content Container */}
@@ -3836,6 +3839,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 )}
 
                 <form
+                    data-chat-input="true"
+                    className="chat-input-wrapper"
                     onSubmit={(e) => {
                         e.preventDefault();
                         handleSendMessage();
@@ -3873,6 +3878,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 >
                     <textarea
                         ref={inputRef}
+                        data-chat-textarea="true"
                         placeholder={t('chat.placeholder')}
                         value={message}
                         onChange={(e) => {

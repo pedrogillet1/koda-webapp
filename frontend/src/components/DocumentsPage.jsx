@@ -266,11 +266,20 @@ const DocumentsPage = () => {
   };
 
   const handleCategorySelection = async () => {
-    if (!selectedCategoryId || !selectedDocumentForCategory) return;
+    if (!selectedCategoryId) return;
 
     try {
-      // Use context to move document (instant UI update!)
-      await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
+      // Handle bulk move when in select mode
+      if (isSelectMode && selectedDocuments.size > 0) {
+        await Promise.all(Array.from(selectedDocuments).map(docId => moveToFolder(docId, selectedCategoryId)));
+        showSuccess(t('toasts.filesMovedSuccessfully', { count: selectedDocuments.size }));
+        clearSelection();
+        toggleSelectMode();
+      } else if (selectedDocumentForCategory) {
+        // Use context to move single document (instant UI update!)
+        await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
+        showSuccess(t('toasts.fileMovedSuccessfully'));
+      }
 
       setShowCategoryModal(false);
       setSelectedDocumentForCategory(null);
@@ -402,7 +411,7 @@ const DocumentsPage = () => {
   }
 
   return (
-    <div style={{width: '100%', height: '100vh', background: '#F4F4F6', overflow: 'hidden', display: 'flex'}}>
+    <div data-page="documents" className="documents-page" style={{width: '100%', height: '100vh', background: '#F4F4F6', overflow: 'hidden', display: 'flex'}}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Main Content */}
@@ -483,7 +492,7 @@ const DocumentsPage = () => {
                 <button
                   onClick={() => {
                     if (selectedDocuments.size === 0) return;
-                    showError(t('alerts.moveComingSoon'));
+                    setShowCategoryModal(true);
                   }}
                   disabled={selectedDocuments.size === 0}
                   style={{
@@ -704,7 +713,7 @@ const DocumentsPage = () => {
         </div>
 
         {/* Scrollable Content */}
-        <div style={{flex: 1, padding: spacing.xl, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: spacing.xl}}>
+        <div className="documents-content scrollable-content" style={{flex: 1, padding: spacing.xl, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: spacing.xl, WebkitOverflowScrolling: 'touch'}}>
           {/* Smart Categories */}
           <div style={{display: 'flex', flexDirection: 'column', gap: spacing.md}}>
             <div style={{display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gridTemplateColumns: isMobile ? undefined : 'repeat(4, 1fr)', gap: spacing.md}}>

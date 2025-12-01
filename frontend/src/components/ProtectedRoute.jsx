@@ -1,12 +1,14 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import MobileBottomNav from './MobileBottomNav';
 
 /**
  * Protected Route Component
  *
  * Redirects unauthenticated users to login page.
  * Only authenticated users can access protected routes.
+ * Includes mobile bottom navigation for authenticated users.
  */
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated, loading } = useAuth();
@@ -38,8 +40,13 @@ const ProtectedRoute = ({ children }) => {
         return <Navigate to="/login" replace />;
     }
 
-    // If authenticated, show content normally
-    return children;
+    // If authenticated, show content with mobile bottom navigation
+    return (
+        <>
+            {children}
+            <MobileBottomNav />
+        </>
+    );
 };
 
 export default ProtectedRoute;

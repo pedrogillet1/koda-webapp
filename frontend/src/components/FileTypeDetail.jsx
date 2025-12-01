@@ -327,11 +327,11 @@ const FileTypeDetail = () => {
   };
 
   return (
-    <div style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex' }}>
+    <div data-page="file-type" className="file-type-page" style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex' }}>
       <LeftNav />
       <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
-        <div style={{ background: 'white', padding: '20px 32px', borderBottom: '1px solid #E5E7EB' }}>
+        <div data-file-type-header="true" className="file-type-header" style={{ background: 'white', padding: '20px 32px', borderBottom: '1px solid #E5E7EB' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -376,7 +376,7 @@ const FileTypeDetail = () => {
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '20px 32px' }}>
+        <div className="file-type-content scrollable-content" style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '20px 32px', WebkitOverflowScrolling: 'touch' }}>
           <style>{`
             @keyframes cardFadeIn {
               from { opacity: 0; transform: translateY(10px); }
