@@ -62,3 +62,8 @@ nul
 
 # Test files
 koda_test_files/
+
+# Security: Never commit backup env files
+*.env.backup
+.env.backup
+.env.*.backup
