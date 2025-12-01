@@ -156,29 +156,26 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
         style={{
           width: '100%',
           maxWidth: 450,
-          height: 'auto',
           maxHeight: '90vh',
-          paddingTop: 18,
-          paddingBottom: 18,
           background: 'white',
           borderRadius: 14,
           outline: '1px #E6E6EC solid',
           outlineOffset: '-1px',
-        flexDirection: 'column',
-        justifyContent: 'flex-start',
-        alignItems: 'center',
-        gap: 18,
-        display: 'flex',
-        overflow: 'hidden'
+          flexDirection: 'column',
+          display: 'flex',
+          overflow: 'hidden'
       }}>
         {/* Header */}
         <div style={{
           alignSelf: 'stretch',
           paddingLeft: 18,
           paddingRight: 18,
+          paddingTop: 18,
+          paddingBottom: 18,
           justifyContent: 'space-between',
           alignItems: 'center',
-          display: 'flex'
+          display: 'flex',
+          flexShrink: 0
         }}>
           <div style={{width: 30, height: 30, opacity: 0}} />
           <div style={{
@@ -224,7 +221,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
           </button>
         </div>
 
-        <div style={{alignSelf: 'stretch', height: 1, background: '#E6E6EC'}} />
+        <div style={{alignSelf: 'stretch', height: 1, background: '#E6E6EC', flexShrink: 0}} />
 
         {/* Scrollable Content */}
         <div style={{
@@ -262,13 +259,13 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
               style={{
                 alignSelf: 'stretch',
                 height: 52,
-                paddingLeft: 18,
-                paddingRight: 18,
+                paddingLeft: 24,
+                paddingRight: 24,
                 paddingTop: 10,
                 paddingBottom: 10,
                 background: '#F5F5F5',
                 overflow: 'hidden',
-                borderRadius: 14,
+                borderRadius: 100,
                 outline: '1px #E6E6EC solid',
                 outlineOffset: '-1px',
                 border: 'none',
@@ -339,10 +336,10 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
                   key={emoji}
                   onClick={() => setSelectedEmoji(emoji)}
                   style={{
-                    width: 44,
-                    height: 44,
-                    background: selectedEmoji === emoji ? '#E4E4E8' : 'transparent',
-                    borderRadius: 12,
+                    width: 52,
+                    height: 52,
+                    background: selectedEmoji === emoji ? '#E6E6EC' : 'transparent',
+                    borderRadius: 100,
                     border: 'none',
                     justifyContent: 'center',
                     alignItems: 'center',
@@ -544,17 +541,20 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
           </div>
         </div>
 
-        <div style={{alignSelf: 'stretch', height: 1, background: '#E6E6EC'}} />
+        <div style={{alignSelf: 'stretch', height: 1, background: '#E6E6EC', flexShrink: 0}} />
 
         {/* Footer Buttons */}
         <div style={{
           alignSelf: 'stretch',
           paddingLeft: 18,
           paddingRight: 18,
+          paddingTop: 18,
+          paddingBottom: 18,
           justifyContent: 'flex-start',
           alignItems: 'flex-start',
           gap: 8,
-          display: 'flex'
+          display: 'flex',
+          flexShrink: 0
         }}>
           <button
             onClick={onClose}
@@ -566,7 +566,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
               paddingTop: 10,
               paddingBottom: 10,
               background: '#F5F5F5',
-              borderRadius: 14,
+              borderRadius: 100,
               outline: '1px #E6E6EC solid',
               outlineOffset: '-1px',
               justifyContent: 'center',
@@ -591,7 +591,7 @@ const EditCategoryModal = ({ isOpen, onClose, category, onUpdate }) => {
               height: 52,
               background: 'rgba(24, 24, 24, 0.90)',
               overflow: 'hidden',
-              borderRadius: 14,
+              borderRadius: 100,
               justifyContent: 'center',
               alignItems: 'center',
               display: 'flex',
