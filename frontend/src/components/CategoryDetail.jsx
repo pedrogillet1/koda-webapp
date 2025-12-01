@@ -1761,7 +1761,7 @@ const CategoryDetail = () => {
                               borderRadius: 12,
                               border: '1px solid #E6E6EC',
                               minWidth: 150,
-                              zIndex: 90001,
+                              zIndex: 999991,
                               overflow: 'hidden',
                               padding: 8
                             }}>
@@ -2118,7 +2118,7 @@ const CategoryDetail = () => {
                             position: 'absolute',
                             top: 12,
                             right: 12,
-                            zIndex: 9000
+                            zIndex: 99999
                           }}
                           data-dropdown
                         >
@@ -2180,7 +2180,7 @@ const CategoryDetail = () => {
                                 border: '1px solid #E6E6EC',
                                 borderRadius: 12,
                                 boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                                zIndex: 9000,
+                                zIndex: 99999,
                                 minWidth: 160,
                                 overflow: 'hidden',
                                 padding: 8
@@ -2524,7 +2524,7 @@ const CategoryDetail = () => {
                                     border: '1px solid #E6E6EC',
                                     borderRadius: 12,
                                     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                                    zIndex: 9000,
+                                    zIndex: 99999,
                                     minWidth: 160,
                                     overflow: 'hidden',
                                     padding: 8

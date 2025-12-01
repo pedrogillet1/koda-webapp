@@ -1544,7 +1544,7 @@ const Documents = () => {
               </div>
 
               {contextDocuments.length > 0 ? (
-                <div style={{display: 'flex', flexDirection: 'column', gap: 0, flex: 1, overflowY: 'visible', overflow: 'visible', minHeight: 0}}>
+                <div style={{display: 'flex', flexDirection: 'column', gap: 0, flex: 1, overflowY: 'auto', overflow: 'visible', minHeight: 0, position: 'relative'}}>
                   {/* Table Header */}
                   {!isMobile && (
                     <div style={{
@@ -1907,7 +1907,7 @@ const Documents = () => {
                                 boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                                 borderRadius: 12,
                                 border: '1px solid #E6E6EC',
-                                zIndex: 9000,
+                                zIndex: 99999,
                                 minWidth: 160,
                                 overflow: 'hidden'
                               }}

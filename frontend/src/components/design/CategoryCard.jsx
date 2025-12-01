@@ -96,7 +96,7 @@ const CategoryCard = ({
         minHeight: '72px',
         width: '100%',
         boxSizing: 'border-box',
-        zIndex: isMenuOpen ? 9000 : 1,
+        zIndex: isMenuOpen ? 99999 : 1,
         transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
         ...style
       }}
