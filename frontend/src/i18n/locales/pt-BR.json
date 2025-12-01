@@ -504,6 +504,10 @@
     "saved": "Alterações salvas",
     "copied": "Copiado para a área de transferência"
   },
+  "category": {
+    "uploadDocument": "Enviar um Documento",
+    "createFolder": "Criar uma Pasta"
+  },
   "common": {
     "loading": "Carregando...",
     "save": "Salvar",

@@ -525,6 +525,10 @@
     "saved": "Changes saved",
     "copied": "Copied to clipboard"
   },
+  "category": {
+    "uploadDocument": "Upload a Document",
+    "createFolder": "Create a Folder"
+  },
   "common": {
     "loading": "Loading...",
     "unknownError": "Unknown error",

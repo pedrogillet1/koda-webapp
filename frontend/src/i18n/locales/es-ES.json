@@ -504,6 +504,10 @@
     "saved": "Cambios guardados",
     "copied": "Copiado al portapapeles"
   },
+  "category": {
+    "uploadDocument": "Subir un Documento",
+    "createFolder": "Crear una Carpeta"
+  },
   "common": {
     "loading": "Cargando...",
     "save": "Guardar",

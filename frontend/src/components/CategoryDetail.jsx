@@ -1524,7 +1524,7 @@ const CategoryDetail = () => {
                                 fontWeight: '500',
                                 lineHeight: '24px'
                               }}>
-                                Upload a Document
+                                {t('category.uploadDocument')}
                               </div>
                             </div>
                           </div>
@@ -1577,7 +1577,7 @@ const CategoryDetail = () => {
                                 fontWeight: '500',
                                 lineHeight: '24px'
                               }}>
-                                Create a Folder
+                                {t('category.createFolder')}
                               </div>
                             </div>
                           </div>
