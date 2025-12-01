@@ -109,15 +109,24 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
               setTimeout(() => reject(new Error('DOCX preview timeout')), 60000)
             );
 
-            const previewResponse = await Promise.race([
+            // First, trigger DOCX to PDF conversion and get the preview-pdf endpoint
+            await Promise.race([
               api.get(`/api/documents/${document.id}/preview`),
               timeoutPromise
             ]);
 
-            const { previewUrl: pdfUrl } = previewResponse.data;
-            // ✅ Cache the preview URL
-            previewCache.set(document.id, pdfUrl);
-            setPreviewUrl(pdfUrl);
+            // Now fetch the actual PDF as a blob (includes auth headers)
+            const pdfResponse = await api.get(`/api/documents/${document.id}/preview-pdf`, {
+              responseType: 'blob'
+            });
+
+            // Create blob URL for PDF.js
+            const pdfBlob = pdfResponse.data;
+            const url = URL.createObjectURL(pdfBlob);
+
+            // ✅ Cache the blob URL
+            previewCache.set(document.id, url);
+            setPreviewUrl(url);
           } catch (docxError) {
             // Set previewUrl to null so it shows error state
             setPreviewUrl(null);
