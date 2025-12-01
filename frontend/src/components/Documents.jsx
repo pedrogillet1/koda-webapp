@@ -543,12 +543,12 @@ const Documents = () => {
   }
 
   return (
-    <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
+    <div data-page="documents" className="documents-page" style={{width: '100%', height: '100%', minHeight: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} hamburgerTop={isMobile ? 48 : 16} />
 
       {/* Main Content */}
       <div
-        style={{flex: 1, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden', maxWidth: '100%'}}
+        style={{flex: 1, height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden', maxWidth: '100%'}}
         onDrop={handlePageDrop}
         onDragOver={handlePageDragOver}
         onDragLeave={handlePageDragLeave}
@@ -1070,7 +1070,7 @@ const Documents = () => {
         </div>
 
         {/* Scrollable Content */}
-        <div style={{flex: 1, padding: isMobile ? 12 : 20, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20, maxWidth: '100%', boxSizing: 'border-box'}}>
+        <div className="scrollable-content documents-content" style={{flex: 1, minHeight: 0, padding: isMobile ? 12 : 20, paddingBottom: isMobile ? 100 : 20, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20, maxWidth: '100%', boxSizing: 'border-box', WebkitOverflowScrolling: 'touch'}}>
           {/* Smart Categories */}
           <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
             {/* Categories - vertical list on mobile, 4-column grid on desktop */}

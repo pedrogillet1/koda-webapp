@@ -2453,7 +2453,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const userName = capitalizeFirst(user?.firstName) || 'there';
 
     return (
-        <div data-chat-container="true" style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column', background: '#F5F5F7', position: 'relative'}}>
+        <div data-chat-container="true" style={{flex: '1 1 0', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', background: '#F5F5F7', position: 'relative'}}>
             {/* Header */}
             <div style={{
                 height: isMobile ? 70 : 84,
@@ -2488,7 +2488,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             <div
                 ref={messagesContainerRef}
                 data-messages-container="true"
-                className="messages-container"
+                className="messages-container scrollable-content"
                 onScroll={handleScroll}  // ✅ SMART SCROLL: Detect scroll position
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
@@ -2496,6 +2496,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 onDrop={handleDrop}
                 style={{
                     flex: '1 1 0',
+                    minHeight: 0, // Critical for flex child scrolling on mobile
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     padding: 20,
@@ -3626,6 +3627,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             {/* Message Input */}
             <div
+                data-input-area="true"
+                className="chat-input-area"
                 style={{
                     padding: isMobile ? '8px 12px calc(12px + env(safe-area-inset-bottom, 0px)) 12px' : '8px 20px 20px 20px',
                     background: '#F5F5F7',
@@ -3633,7 +3636,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 16
+                    gap: 16,
+                    flexShrink: 0 // Prevent input from shrinking on mobile
                 }}
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
