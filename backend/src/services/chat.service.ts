@@ -99,6 +99,13 @@ export const createConversation = async (params: CreateConversationParams) => {
   });
 
   console.log('✅ Conversation created:', conversation.id);
+
+  // ⚡ FIX #1: Invalidate conversations list cache after creating new conversation
+  // This ensures the new conversation appears in the sidebar immediately
+  // The key matches the format in getUserConversations: `conversations:${userId}`
+  await cacheService.del(`conversations:${userId}`);
+  console.log(`🗑️  [Cache] Invalidated conversations list for user ${userId.substring(0, 8)}...`);
+
   return conversation;
 };
 
@@ -396,6 +403,9 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
   await cacheService.invalidateConversationCache(userId, conversationId);
   console.log(`🗑️  [Cache] Invalidated conversation cache for ${conversationId.substring(0, 8)}...`);
 
+  // ⚡ FIX #2: Also invalidate the conversations list cache (correct key format)
+  await cacheService.del(`conversations:${userId}`);
+
   return {
     userMessage,
     assistantMessage,
@@ -690,6 +700,11 @@ export const sendMessageStreaming = async (
   cacheService.invalidateConversationCache(userId, conversationId)
     .then(() => console.log(`🗑️  [Cache] Invalidated conversation cache for ${conversationId.substring(0, 8)}...`))
     .catch(err => console.error('❌ Error invalidating cache:', err));
+
+  // ⚡ FIX #2: Also invalidate the conversations list cache (correct key format)
+  // This ensures updated conversations appear in sidebar immediately
+  cacheService.del(`conversations:${userId}`)
+    .catch(err => console.error('❌ Error invalidating conversations list:', err));
 
   // Wait for critical promises before returning
   const [userMessage, assistantMessage] = await Promise.all([

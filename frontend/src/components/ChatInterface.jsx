@@ -1976,6 +1976,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 console.log('✅ Conversation created:', newConversation);
                 justCreatedConversationId.current = newConversation.id;
                 isNewlyCreatedConversation.current = true; // Mark as newly created
+
+                // ⚡ FIX #3 & #4: Clear sessionStorage cache and force sidebar refresh
+                // This ensures the new conversation appears in the sidebar immediately
+                sessionStorage.removeItem('koda_chat_conversations');
+                console.log('🗑️ [Cache] Cleared frontend conversations cache');
+
                 onConversationCreated?.(newConversation);
                 conversationId = newConversation.id;
             }

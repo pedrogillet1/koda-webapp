@@ -70,11 +70,13 @@ export const NotificationsProvider = ({ children }) => {
       setNotifications(prev => [newNotification, ...prev]);
     }
 
-    // Add to toasts (max 3)
-    setToasts(prev => {
-      const updated = [newNotification, ...prev].slice(0, 3);
-      return updated;
-    });
+    // Add to toasts (max 3) unless skipToast is set
+    if (!notification.skipToast) {
+      setToasts(prev => {
+        const updated = [newNotification, ...prev].slice(0, 3);
+        return updated;
+      });
+    }
 
     // If has undo action, add to undo stack
     if (notification.action?.type === 'undo') {

@@ -51,12 +51,13 @@ const Login = () => {
         return;
       }
 
-      // Add security notification for successful login
+      // Add security notification for successful login (only in notification panel, not as toast)
       addNotification({
         type: 'security',
         title: t('auth.login.loginSuccess'),
         text: t('auth.login.loginSecurityNotice'),
-        action: { type: 'navigate', target: '/settings' }
+        action: { type: 'navigate', target: '/settings' },
+        skipToast: true  // Don't show on-screen toast, only in notification panel
       });
 
       // Navigate to home page after successful login
