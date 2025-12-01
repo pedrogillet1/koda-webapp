@@ -140,6 +140,7 @@ const CategoryDetail = () => {
   // State declarations
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [dropdownDirection, setDropdownDirection] = useState('down'); // 'up' or 'down'
   const [dropdownMenuPosition, setDropdownMenuPosition] = useState({ top: 0, left: 0 });
   const [renamingDocId, setRenamingDocId] = useState(null);
   const [newFileName, setNewFileName] = useState('');
@@ -2130,18 +2131,11 @@ const CategoryDetail = () => {
                                 setOpenDropdownId(null);
                               } else {
                                 const buttonRect = e.currentTarget.getBoundingClientRect();
-                                const dropdownHeight = 180;
-                                const dropdownWidth = 160;
+                                const dropdownHeight = 200;
                                 const spaceBelow = window.innerHeight - buttonRect.bottom;
-                                const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
-                                // Calculate left position with bounds checking
-                                let leftPos = buttonRect.right - dropdownWidth;
-                                leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - dropdownWidth - 8));
-                                setDropdownMenuPosition(prev => ({
-                                  ...prev,
-                                  top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
-                                  left: leftPos
-                                }));
+                                const spaceAbove = buttonRect.top;
+                                // Open upward if not enough space below and more space above
+                                setDropdownDirection(spaceBelow < dropdownHeight && spaceAbove > spaceBelow ? 'up' : 'down');
                                 setOpenDropdownId(doc.id);
                               }
                             }}
@@ -2174,8 +2168,9 @@ const CategoryDetail = () => {
                               style={{
                                 position: 'absolute',
                                 right: 0,
-                                top: '100%',
-                                marginTop: 4,
+                                ...(dropdownDirection === 'up'
+                                  ? { bottom: '100%', marginBottom: 4 }
+                                  : { top: '100%', marginTop: 4 }),
                                 background: 'white',
                                 border: '1px solid #E6E6EC',
                                 borderRadius: 12,
@@ -2375,7 +2370,9 @@ const CategoryDetail = () => {
                           borderRadius: 14,
                           background: isSelected(doc.id) ? '#E8E8EC' : '#F5F5F5',
                           cursor: 'pointer',
-                          marginBottom: 8
+                          marginBottom: 8,
+                          position: 'relative',
+                          zIndex: openDropdownId === doc.id ? 99999 : 1
                         } : {
                           display: 'grid',
                           gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
@@ -2387,7 +2384,9 @@ const CategoryDetail = () => {
                           border: isSelected(doc.id) ? '2px solid #D1D1D6' : '2px solid #E6E6EC',
                           cursor: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 'move' : 'pointer',
                           transition: 'all 0.2s ease',
-                          opacity: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 0.5 : 1
+                          opacity: draggedItem?.type === 'document' && draggedItem?.id === doc.id ? 0.5 : 1,
+                          position: 'relative',
+                          zIndex: openDropdownId === doc.id ? 99999 : 1
                         }}
                         onMouseEnter={(e) => {
                           if (isMobile) return;
@@ -2401,6 +2400,7 @@ const CategoryDetail = () => {
                             e.currentTarget.style.background = 'white';
                           }
                         }}
+                        data-row-id={doc.id}
                       >
                         {isMobile ? (
                           <>
@@ -2478,18 +2478,11 @@ const CategoryDetail = () => {
                                 setOpenDropdownId(null);
                               } else {
                                 const buttonRect = e.currentTarget.getBoundingClientRect();
-                                const dropdownHeight = 180;
-                                const dropdownWidth = 160;
+                                const dropdownHeight = 200;
                                 const spaceBelow = window.innerHeight - buttonRect.bottom;
-                                const openUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight;
-                                // Calculate left position with bounds checking
-                                let leftPos = buttonRect.right - dropdownWidth;
-                                leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - dropdownWidth - 8));
-                                setDropdownMenuPosition(prev => ({
-                                  ...prev,
-                                  top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
-                                  left: leftPos
-                                }));
+                                const spaceAbove = buttonRect.top;
+                                // Open upward if not enough space below and more space above
+                                setDropdownDirection(spaceBelow < dropdownHeight && spaceAbove > spaceBelow ? 'up' : 'down');
                                 setOpenDropdownId(doc.id);
                               }
                             }}
@@ -2518,8 +2511,9 @@ const CategoryDetail = () => {
                                   style={{
                                     position: 'absolute',
                                     right: 0,
-                                    top: '100%',
-                                    marginTop: 4,
+                                    ...(dropdownDirection === 'up'
+                                      ? { bottom: '100%', marginBottom: 4 }
+                                      : { top: '100%', marginTop: 4 }),
                                     background: 'white',
                                     border: '1px solid #E6E6EC',
                                     borderRadius: 12,

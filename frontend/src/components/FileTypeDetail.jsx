@@ -42,6 +42,7 @@ const FileTypeDetail = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [dropdownDirection, setDropdownDirection] = useState('down'); // 'up' or 'down'
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -430,7 +431,9 @@ const FileTypeDetail = () => {
                         background: isSelected(doc.id) ? '#F3F3F5' : 'white',
                         border: '2px solid #E6E6EC',
                         cursor: 'pointer',
-                        marginBottom: 8
+                        marginBottom: 8,
+                        position: 'relative',
+                        zIndex: openDropdownId === doc.id ? 99999 : 1
                       }}
                     >
                       {/* Name Column */}
@@ -446,11 +449,22 @@ const FileTypeDetail = () => {
                         </>
                       )}
                       <div data-dropdown style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => setOpenDropdownId(openDropdownId === doc.id ? null : doc.id)} style={{ width: 32, height: 32, background: 'transparent', borderRadius: '50%', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                        <button onClick={(e) => {
+                          if (openDropdownId === doc.id) {
+                            setOpenDropdownId(null);
+                          } else {
+                            const buttonRect = e.currentTarget.getBoundingClientRect();
+                            const dropdownHeight = 200;
+                            const spaceBelow = window.innerHeight - buttonRect.bottom;
+                            const spaceAbove = buttonRect.top;
+                            setDropdownDirection(spaceBelow < dropdownHeight && spaceAbove > spaceBelow ? 'up' : 'down');
+                            setOpenDropdownId(doc.id);
+                          }
+                        }} style={{ width: 32, height: 32, background: 'transparent', borderRadius: '50%', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
                           <DotsIcon style={{ width: 24, height: 24, pointerEvents: 'auto' }} />
                         </button>
                         {openDropdownId === doc.id && (
-                          <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 99999, minWidth: 160, overflow: 'hidden' }}>
+                          <div style={{ position: 'absolute', right: 0, ...(dropdownDirection === 'up' ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }), background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 99999, minWidth: 160, overflow: 'hidden' }}>
                             <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
                               <button onClick={() => handleDownload(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                                 <DownloadIcon style={{ width: 20, height: 20 }} />
@@ -481,11 +495,22 @@ const FileTypeDetail = () => {
                     <div key={doc.id} onClick={() => { if (isSelectMode) toggleDocument(doc.id); else navigate('/document/' + doc.id); }} style={{ background: 'white', borderRadius: 16, border: isSelected(doc.id) ? '2px solid #32302C' : '1px solid #E6E6EC', padding: 16, cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }} onMouseEnter={(e) => { if (!isSelected(doc.id)) { e.currentTarget.style.transform = 'translateY(-2px)'; } }} onMouseLeave={(e) => { if (!isSelected(doc.id)) { e.currentTarget.style.transform = 'translateY(0)'; } }}>
                       {isSelectMode && <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}><input type="checkbox" checked={isSelected(doc.id)} onChange={() => toggleDocument(doc.id)} onClick={(e) => e.stopPropagation()} style={{ width: 20, height: 20, cursor: 'pointer', accentColor: '#111827' }} /></div>}
                       <div data-dropdown style={{ position: 'absolute', top: 12, right: 12, zIndex: 99999 }} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => setOpenDropdownId(openDropdownId === doc.id ? null : doc.id)} style={{ width: 32, height: 32, background: 'white', border: '1px solid #E5E7EB', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                        <button onClick={(e) => {
+                          if (openDropdownId === doc.id) {
+                            setOpenDropdownId(null);
+                          } else {
+                            const buttonRect = e.currentTarget.getBoundingClientRect();
+                            const dropdownHeight = 200;
+                            const spaceBelow = window.innerHeight - buttonRect.bottom;
+                            const spaceAbove = buttonRect.top;
+                            setDropdownDirection(spaceBelow < dropdownHeight && spaceAbove > spaceBelow ? 'up' : 'down');
+                            setOpenDropdownId(doc.id);
+                          }
+                        }} style={{ width: 32, height: 32, background: 'white', border: '1px solid #E5E7EB', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
                           <DotsIcon style={{ width: 20, height: 20, pointerEvents: 'auto' }} />
                         </button>
                         {openDropdownId === doc.id && (
-                          <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 99999, minWidth: 160, overflow: 'hidden' }}>
+                          <div style={{ position: 'absolute', right: 0, ...(dropdownDirection === 'up' ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }), background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 99999, minWidth: 160, overflow: 'hidden' }}>
                             <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
                               <button onClick={() => handleDownload(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                                 <DownloadIcon style={{ width: 20, height: 20 }} />

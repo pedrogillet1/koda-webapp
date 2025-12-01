@@ -1168,7 +1168,9 @@
     "previewNotAvailable": "Vista previa no disponible",
     "fullView": "Vista Completa",
     "openFullPreview": "Abrir Vista Previa Completa",
-    "closeAndAttach": "Cerrar y Adjuntar"
+    "closeAndAttach": "Cerrar y Adjuntar",
+    "browserNotSupportVideo": "Tu navegador no soporta la etiqueta de video.",
+    "browserNotSupportAudio": "Tu navegador no soporta la etiqueta de audio."
   },
   "verification": {
     "twoStepVerification": "Verificación en 2 Pasos",

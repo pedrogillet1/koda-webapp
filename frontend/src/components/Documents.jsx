@@ -99,6 +99,7 @@ const Documents = () => {
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [dropdownDirection, setDropdownDirection] = useState('down'); // 'up' or 'down'
   const dropdownRefs = useRef({});
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
@@ -1110,7 +1111,8 @@ const Documents = () => {
                     gap: isMobile ? 12 : 12,
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease',
                     position: 'relative',
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    zIndex: categoryMenuOpen === category.id ? 99999 : 1
                   }}
                 >
                   <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: isMobile ? 12 : 12, flex: 1, cursor: 'pointer', minWidth: 0, textAlign: 'left'}} onMouseEnter={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => !isMobile && (e.currentTarget.parentElement.style.transform = 'translateY(0)')}>
@@ -1166,18 +1168,21 @@ const Documents = () => {
                       <DotsIcon style={{width: 24, height: 24}} />
                     </button>
                     {categoryMenuOpen === category.id && (
-                      <div data-dropdown style={{
-                        position: 'fixed',
-                        top: categoryMenuPosition.top,
-                        left: categoryMenuPosition.left,
-                        background: 'white',
-                        borderRadius: 12,
-                        border: '1px solid #E6E6EC',
-                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                        zIndex: 1001,
-                        minWidth: 160,
-                        overflow: 'hidden'
-                      }}>
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: '100%',
+                          marginTop: 4,
+                          background: 'white',
+                          borderRadius: 12,
+                          border: '1px solid #E6E6EC',
+                          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                          zIndex: 100,
+                          minWidth: 160,
+                          overflow: 'hidden'
+                        }}>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1332,7 +1337,8 @@ const Documents = () => {
                       gap: 12,
                       transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border 0.2s ease',
                       position: 'relative',
-                      boxSizing: 'border-box'
+                      boxSizing: 'border-box',
+                      zIndex: categoryMenuOpen === category.id ? 99999 : 1
                     }}
                   >
                     <div onClick={() => navigate(`/category/${category.name.toLowerCase().replace(/\s+/g, '-')}`)} style={{display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
@@ -1388,18 +1394,21 @@ const Documents = () => {
                         <DotsIcon style={{width: 24, height: 24}} />
                       </button>
                       {categoryMenuOpen === category.id && (
-                        <div data-dropdown style={{
-                          position: 'fixed',
-                          top: categoryMenuPosition.top,
-                          left: categoryMenuPosition.left,
-                          background: 'white',
-                          borderRadius: 12,
-                          border: '1px solid #E6E6EC',
-                          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                          zIndex: 1001,
-                          minWidth: 160,
-                          overflow: 'hidden'
-                        }}>
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            position: 'absolute',
+                            right: 0,
+                            top: '100%',
+                            marginTop: 4,
+                            background: 'white',
+                            borderRadius: 12,
+                            border: '1px solid #E6E6EC',
+                            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                            zIndex: 100,
+                            minWidth: 160,
+                            overflow: 'hidden'
+                          }}>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1760,7 +1769,8 @@ const Documents = () => {
                           cursor: 'grab',
                           marginBottom: 12,
                           position: 'relative',
-                          overflow: 'hidden'
+                          overflow: openDropdownId === doc.id ? 'visible' : 'hidden',
+                          zIndex: openDropdownId === doc.id ? 99999 : 1
                         } : {
                           display: 'grid',
                           gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
@@ -1774,7 +1784,8 @@ const Documents = () => {
                           transition: 'background 0.15s ease',
                           marginBottom: 8,
                           position: 'relative',
-                          overflow: 'hidden'
+                          overflow: openDropdownId === doc.id ? 'visible' : 'hidden',
+                          zIndex: openDropdownId === doc.id ? 99999 : 1
                         }}
                         onMouseEnter={(e) => {
                           if (!isUploading && !isMobile) {
@@ -1873,6 +1884,18 @@ const Documents = () => {
                               if (openDropdownId === doc.id) {
                                 setOpenDropdownId(null);
                               } else {
+                                // Calculate if dropdown should open up or down
+                                const buttonRect = e.currentTarget.getBoundingClientRect();
+                                const dropdownHeight = 200; // Approximate dropdown height
+                                const spaceBelow = window.innerHeight - buttonRect.bottom;
+                                const spaceAbove = buttonRect.top;
+
+                                // Open upward if not enough space below and more space above
+                                if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+                                  setDropdownDirection('up');
+                                } else {
+                                  setDropdownDirection('down');
+                                }
                                 setOpenDropdownId(doc.id);
                               }
                             }}
@@ -1901,8 +1924,9 @@ const Documents = () => {
                               style={{
                                 position: 'absolute',
                                 right: 0,
-                                top: '100%',
-                                marginTop: 4,
+                                ...(dropdownDirection === 'up'
+                                  ? { bottom: '100%', marginBottom: 4 }
+                                  : { top: '100%', marginTop: 4 }),
                                 background: 'white',
                                 boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                                 borderRadius: 12,

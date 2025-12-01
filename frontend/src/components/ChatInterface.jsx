@@ -1048,11 +1048,39 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         console.log('✅ Document loaded:', data);
 
                         // Create a File-like object to set as attached document
+                        // Derive MIME type from filename extension
+                        const filename = data.filename || '';
+                        const ext = filename.toLowerCase().split('.').pop();
+                        const mimeTypes = {
+                            'pdf': 'application/pdf',
+                            'doc': 'application/msword',
+                            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            'xls': 'application/vnd.ms-excel',
+                            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            'ppt': 'application/vnd.ms-powerpoint',
+                            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                            'txt': 'text/plain',
+                            'csv': 'text/csv',
+                            'jpg': 'image/jpeg',
+                            'jpeg': 'image/jpeg',
+                            'png': 'image/png',
+                            'gif': 'image/gif',
+                            'webp': 'image/webp',
+                            'svg': 'image/svg+xml',
+                            'mov': 'video/quicktime',
+                            'mp4': 'video/mp4',
+                            'mp3': 'audio/mpeg',
+                            'wav': 'audio/wav',
+                            'm4a': 'audio/mp4'
+                        };
+                        const derivedType = mimeTypes[ext] || 'application/octet-stream';
+
                         setAttachedDocuments([{
-                            id: data.documentId,
+                            id: data.id || data.documentId,
                             name: data.filename,
-                            type: 'application/pdf', // Default type since it's not in status response
-                            size: 0 // Size not available in status response
+                            type: derivedType,
+                            mimeType: derivedType,
+                            size: data.fileSize || 0
                         }]);
 
                         // Remove documentId from URL to avoid re-attaching on refresh
@@ -1817,6 +1845,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         // ✅ NEW FLOW: Only use attachedDocuments (files were already uploaded on attach)
         const documentsToAttach = [...attachedDocuments]; // Store reference before clearing
 
+        // ✅ FIX: Clear attachedDocuments immediately so banner disappears
+        setAttachedDocuments([]);
+
         console.log(`📤 handleSendMessage: Preparing to send with ${documentsToAttach.length} attached document(s)`);
         console.log(`📤 Attached documents:`, documentsToAttach.map(d => `${d.name} (ID: ${d.id})`).join(', '));
 
@@ -1828,8 +1859,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
         // ✅ FIX: Clear draft from localStorage when message is sent
         localStorage.removeItem(`koda_draft_${currentConversation?.id || 'new'}`);
-        // DON'T clear attachedDocuments - they're needed for the API request
-        // The banner will be hidden by checking isLoading state in the JSX
 
         // Store original message text for UI display (files will be shown visually, not as text)
         const displayMessageText = messageText || '';
@@ -3320,7 +3349,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             }}
                                                             onClick={() => {
                                                                 if (attachedFile.id) {
-                                                                    // DocumentPreviewModal expects 'filename' property
                                                                     setPreviewDocument({
                                                                         id: attachedFile.id,
                                                                         filename: attachedFile.name || attachedFile.filename,
@@ -3329,61 +3357,49 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 }
                                                             }}
                                                             style={{
-                                                                padding: 12,
+                                                                padding: '12px 16px',
                                                                 background: '#FFFFFF',
                                                                 border: '1px solid #E6E6EC',
-                                                                borderRadius: 100,
+                                                                borderRadius: 14,
                                                                 display: 'flex',
                                                                 alignItems: 'center',
                                                                 gap: 12,
-                                                                minWidth: 280,
                                                                 cursor: attachedFile.id ? 'pointer' : 'default',
                                                                 transition: 'all 0.2s',
-                                                                pointerEvents: 'auto',
-                                                                WebkitTapHighlightColor: 'transparent',
-                                                                userSelect: 'none',
+                                                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
                                                             }}
                                                             onMouseEnter={(e) => {
                                                                 if (attachedFile.id) {
                                                                     e.currentTarget.style.background = '#F9F9F9';
-                                                                    e.currentTarget.style.transform = 'translateY(-1px)';
                                                                 }
                                                             }}
                                                             onMouseLeave={(e) => {
                                                                 if (attachedFile.id) {
                                                                     e.currentTarget.style.background = '#FFFFFF';
-                                                                    e.currentTarget.style.transform = 'translateY(0)';
                                                                 }
                                                             }}
                                                         >
-                                                            {/* File icon - using proper getFileIcon function */}
+                                                            {/* File icon */}
                                                             <img
                                                                 src={getFileIcon(attachedFile.name || attachedFile.filename || 'file', attachedFile.type || attachedFile.mimeType)}
                                                                 alt="File icon"
                                                                 style={{
-                                                                    width: 40,
-                                                                    height: 40,
-                                                                    imageRendering: '-webkit-optimize-contrast',
+                                                                    width: 36,
+                                                                    height: 36,
                                                                     objectFit: 'contain',
-                                                                    shapeRendering: 'geometricPrecision',
                                                                     flexShrink: 0,
-                                                                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                                                                 }}
                                                             />
 
-                                                            {/* File info */}
-                                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                                <div style={{
-                                                                    fontSize: 14,
-                                                                    fontWeight: '600',
-                                                                    color: '#32302C',
-                                                                    whiteSpace: 'nowrap',
-                                                                    overflow: 'hidden',
-                                                                    textOverflow: 'ellipsis',
-                                                                }}>
-                                                                    {attachedFile.name || attachedFile.filename || 'Attached file'}
-                                                                </div>
-                                                            </div>
+                                                            {/* File name */}
+                                                            <span style={{
+                                                                fontSize: 15,
+                                                                fontWeight: '500',
+                                                                color: '#32302C',
+                                                                fontFamily: 'Plus Jakarta Sans',
+                                                            }}>
+                                                                {attachedFile.name || attachedFile.filename || 'Attached file'}
+                                                            </span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -3664,46 +3680,26 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     </div>
                 )}
 
-                {/* Document Attachments Banner - Hide when loading/streaming */}
-                {(attachedDocuments.length > 0 || (messages.length > 0 && messages[messages.length - 1]?.role === 'user' && messages[messages.length - 1]?.attachedFiles?.length > 0)) && !isLoading && !isStreaming && uploadingFiles.length === 0 && (
+                {/* Document Attachments Banner - Only show for PENDING attachments (not yet sent) */}
+                {attachedDocuments.length > 0 && uploadingFiles.length === 0 && (
                     <div
                         onMouseEnter={() => {
-                            const docs = attachedDocuments.length > 0
-                                ? attachedDocuments
-                                : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                            if (docs.length > 0 && docs[0].id) {
+                            if (attachedDocuments.length > 0 && attachedDocuments[0].id) {
                                 preloadPreview({
-                                    id: docs[0].id,
-                                    filename: docs[0].name,
-                                    mimeType: docs[0].type
+                                    id: attachedDocuments[0].id,
+                                    filename: attachedDocuments[0].name,
+                                    mimeType: attachedDocuments[0].type
                                 });
                             }
                         }}
                         onClick={() => {
-                            // ✅ FIX #2: Make banner clickable to preview document
-                            console.log('🖱️ [BANNER CLICK] Attachment banner clicked');
-                            console.log('📎 [BANNER CLICK] attachedDocuments:', attachedDocuments);
-                            console.log('💬 [BANNER CLICK] Last message attachedFiles:', messages.length > 0 && messages[messages.length - 1]?.attachedFiles);
-
-                            const docs = attachedDocuments.length > 0
-                                ? attachedDocuments
-                                : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-
-                            console.log('📋 [BANNER CLICK] Resolved docs array:', docs);
-
-                            if (docs.length > 0 && docs[0].id) {
-                                console.log('✅ [BANNER CLICK] Opening preview for document:', {
-                                    id: docs[0].id,
-                                    filename: docs[0].name,
-                                    mimeType: docs[0].type
-                                });
+                            // Make banner clickable to preview document
+                            if (attachedDocuments.length > 0 && attachedDocuments[0].id) {
                                 setPreviewDocument({
-                                    id: docs[0].id,
-                                    filename: docs[0].name,
-                                    mimeType: docs[0].type
+                                    id: attachedDocuments[0].id,
+                                    filename: attachedDocuments[0].name,
+                                    mimeType: attachedDocuments[0].type
                                 });
-                            } else {
-                                console.warn('⚠️ [BANNER CLICK] No valid document found to preview');
                             }
                         }}
                         style={{
@@ -3731,12 +3727,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     >
                         <img
                             src={(() => {
-                                const docs = attachedDocuments.length > 0
-                                    ? attachedDocuments
-                                    : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                                if (docs.length > 0) {
-                                    const filename = docs[0].name || docs[0].filename || docs[0].originalName || '';
-                                    const mimeType = docs[0].type || docs[0].mimeType || '';
+                                if (attachedDocuments.length > 0) {
+                                    const filename = attachedDocuments[0].name || attachedDocuments[0].filename || attachedDocuments[0].originalName || '';
+                                    const mimeType = attachedDocuments[0].type || attachedDocuments[0].mimeType || '';
                                     return getFileIcon(filename, mimeType);
                                 }
                                 return getFileIcon('', '');
@@ -3754,25 +3747,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         />
                         <div style={{flex: 1}}>
                             <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>
-                                {(() => {
-                                    const docs = attachedDocuments.length > 0
-                                        ? attachedDocuments
-                                        : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                                    if (docs.length === 1) {
-                                        // Get filename from name, filename, or originalName property
-                                        return docs[0].name || docs[0].filename || docs[0].originalName || 'Document';
-                                    }
-                                    return `${docs.length} documents attached`;
-                                })()}
+                                {attachedDocuments.length === 1
+                                    ? (attachedDocuments[0].name || attachedDocuments[0].filename || attachedDocuments[0].originalName || 'Document')
+                                    : `${attachedDocuments.length} documents attached`}
                             </div>
                             <div style={{fontSize: 12, color: '#8E8E93'}}>
                                 {(() => {
-                                    const docs = attachedDocuments.length > 0
-                                        ? attachedDocuments
-                                        : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                                    if (docs.length === 1) {
-                                        // Show file size if available
-                                        const size = docs[0].size;
+                                    if (attachedDocuments.length === 1) {
+                                        const size = attachedDocuments[0].size;
                                         if (size) {
                                             const formatSize = (bytes) => {
                                                 if (bytes < 1024) return bytes + ' B';
@@ -3783,7 +3765,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         }
                                         return 'Ready to chat';
                                     }
-                                    return `${docs.length} files attached`;
+                                    return `${attachedDocuments.length} files attached`;
                                 })()}
                             </div>
                         </div>

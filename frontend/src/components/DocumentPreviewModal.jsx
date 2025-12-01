@@ -38,6 +38,14 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
     if (mimeType?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(extension)) {
       return 'image';
     }
+    // Check for video
+    if (mimeType?.startsWith('video/') || ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(extension)) {
+      return 'video';
+    }
+    // Check for audio
+    if (mimeType?.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'aac'].includes(extension)) {
+      return 'audio';
+    }
     // Check for PDF
     if (mimeType === 'application/pdf' || extension === 'pdf') {
       return 'pdf';
@@ -90,6 +98,10 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                        extension === 'docx' || extension === 'doc';
         const isImage = mimeType?.startsWith('image/') ||
                         ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(extension);
+        const isVideo = mimeType?.startsWith('video/') ||
+                        ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(extension);
+        const isAudio = mimeType?.startsWith('audio/') ||
+                        ['mp3', 'wav', 'ogg', 'm4a', 'aac'].includes(extension);
         if (isDocx) {
           try {
             // Get PDF preview for DOCX with timeout
@@ -376,8 +388,8 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
             )}
           </div>
 
-          {/* Center Section - Page Indicator (hidden on mobile and for images) */}
-          {!isMobile && getDocumentType() !== 'image' && (
+          {/* Center Section - Page Indicator (hidden on mobile and for images/video/audio) */}
+          {!isMobile && !['image', 'video', 'audio'].includes(getDocumentType()) && (
             <div style={{
               position: 'absolute',
               left: '50%',
@@ -650,6 +662,51 @@ const DocumentPreviewModal = ({ isOpen, onClose, document, attachOnClose = false
                       }}
                     />
                   )}
+                </div>
+              ) : getDocumentType() === 'video' ? (
+                /* Video Preview */
+                <div style={{
+                  display: 'inline-block',
+                  maxWidth: '100%',
+                  maxHeight: '70vh'
+                }}>
+                  <video
+                    src={previewUrl}
+                    controls
+                    preload="metadata"
+                    playsInline
+                    style={{
+                      width: 'auto',
+                      height: 'auto',
+                      maxWidth: '100%',
+                      maxHeight: '70vh',
+                      borderRadius: 8,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      background: 'black'
+                    }}
+                  >
+                    <source src={previewUrl} type={document.mimeType || 'video/mp4'} />
+                    {t('documentPreview.browserNotSupportVideo')}
+                  </video>
+                </div>
+              ) : getDocumentType() === 'audio' ? (
+                /* Audio Preview */
+                <div style={{
+                  background: 'white',
+                  padding: 40,
+                  borderRadius: 12,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  textAlign: 'center',
+                  maxWidth: '500px',
+                  width: '100%'
+                }}>
+                  <div style={{ fontSize: 48, marginBottom: 20 }}>🎵</div>
+                  <div style={{ fontSize: 18, fontWeight: '600', color: '#32302C', fontFamily: 'Plus Jakarta Sans', marginBottom: 20 }}>
+                    {document.filename}
+                  </div>
+                  <audio src={previewUrl} controls style={{ width: '100%' }}>
+                    {t('documentPreview.browserNotSupportAudio')}
+                  </audio>
                 </div>
               ) : (
                 /* PDF Preview (for PDF, DOCX, etc.) */

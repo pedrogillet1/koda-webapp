@@ -1129,7 +1129,9 @@
     "previewNotAvailable": "Visualização não disponível",
     "fullView": "Visualização Completa",
     "openFullPreview": "Abrir Visualização Completa",
-    "closeAndAttach": "Fechar e Anexar"
+    "closeAndAttach": "Fechar e Anexar",
+    "browserNotSupportVideo": "Seu navegador não suporta a tag de vídeo.",
+    "browserNotSupportAudio": "Seu navegador não suporta a tag de áudio."
   },
   "verification": {
     "twoStepVerification": "Verificação em 2 Etapas",
