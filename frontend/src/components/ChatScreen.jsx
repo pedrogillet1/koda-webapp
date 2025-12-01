@@ -192,7 +192,7 @@ const ChatScreen = () => {
     };
 
     return (
-        <div style={{width: '100%', height: '100%', background: '#F5F5F5', display: 'flex', overflow: 'hidden'}}>
+        <div data-chat-container="true" className="chat-container" style={{width: '100%', height: '100%', background: '#F5F5F5', display: 'flex', overflow: 'hidden', flexDirection: 'row'}}>
             <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
             {/* Mobile: Hide ChatHistory, show full-width ChatInterface */}
