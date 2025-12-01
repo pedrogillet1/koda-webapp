@@ -115,7 +115,7 @@ export const getInitialData = async (req: Request, res: Response) => {
           status: { in: ['completed', 'processing', 'uploading'] }
         },
         include: {
-          folders: {
+          folder: {
             select: {
               id: true,
               name: true,
@@ -158,7 +158,7 @@ export const getInitialData = async (req: Request, res: Response) => {
           _count: {
             select: {
               documents: true,
-              other_folders: true,
+              subfolders: true,
             }
           }
         },
@@ -173,7 +173,7 @@ export const getInitialData = async (req: Request, res: Response) => {
           status: { in: ['completed', 'processing', 'uploading'] }
         },
         include: {
-          folders: true,
+          folder: true,
         },
         orderBy: { createdAt: 'desc' },
         take: recentLimit,

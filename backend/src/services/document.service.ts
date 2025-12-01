@@ -160,7 +160,7 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
     return await prisma.documents.findUnique({
       where: { id: existingDoc.id },
-      include: { folders: true },
+      include: { folder: true },
     });
   }
 
@@ -232,7 +232,7 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
       }),
     },
     include: {
-      folders: true,
+      folder: true,
     },
   });
 
@@ -1178,7 +1178,7 @@ async function processDocumentWithTimeout(
     // This allows frontend to update document status in state
     const completedDocument = await prisma.documents.findUnique({
       where: { id: documentId },
-      include: { folders: { select: { id: true, name: true, emoji: true } } }
+      include: { folder: { select: { id: true, name: true, emoji: true } } }
     });
     if (completedDocument) {
       emitToUser(userId, 'processing-complete', completedDocument);
@@ -1238,7 +1238,7 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
 
     return await prisma.documents.findUnique({
       where: { id: existingDoc.id },
-      include: { folders: true },
+      include: { folder: true },
     });
   }
 
@@ -1268,7 +1268,7 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
       status: 'processing',
     },
     include: {
-      folders: true,
+      folder: true,
     },
   });
 
@@ -2432,14 +2432,14 @@ export const listDocuments = async (
     prisma.documents.findMany({
       where,
       include: {
-        folders: true,
-        document_tags: {
+        folder: true,
+        tags: {
           include: {
-            tags: true,
+            tag: true,
           },
         },
         // Only include minimal metadata fields for list view (not the huge content fields)
-        document_metadata: {
+        metadata: {
           select: {
             documentId: true,
             pageCount: true,
