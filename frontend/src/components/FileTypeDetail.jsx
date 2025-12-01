@@ -7,6 +7,8 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { useToast } from '../context/ToastContext';
 import LeftNav from './LeftNav';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
+import MoveToCategoryModal from './MoveToCategoryModal';
+import CreateCategoryModal from './CreateCategoryModal';
 
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
@@ -22,7 +24,6 @@ import mp3Icon from '../assets/mp3.svg';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
 import { ReactComponent as DotsIcon } from '../assets/dots.svg';
 import { ReactComponent as TrashCanIcon } from '../assets/Trash can-red.svg';
-import { ReactComponent as FolderSvgIcon } from '../assets/Folder.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
 import { ReactComponent as EditIcon } from '../assets/Edit 5.svg';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
@@ -31,7 +32,7 @@ const FileTypeDetail = () => {
   const { t } = useTranslation();
   const { fileType } = useParams();
   const navigate = useNavigate();
-  const { documents, deleteDocument, folders: contextFolders, moveToFolder, renameDocument, downloadDocument } = useDocuments();
+  const { documents, deleteDocument, folders, moveToFolder, renameDocument, downloadDocument, createFolder } = useDocuments();
   const isMobile = useIsMobile();
   const { showSuccess, showError } = useToast();
   
@@ -42,10 +43,11 @@ const FileTypeDetail = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [openDropdownId, setOpenDropdownId] = useState(null);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
+  const [dropdownDirection, setDropdownDirection] = useState('down'); // 'up' or 'down'
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [documentToMove, setDocumentToMove] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
-  const [availableCategories, setAvailableCategories] = useState([]);
+  const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [itemToRename, setItemToRename] = useState(null);
   const [newName, setNewName] = useState('');
@@ -234,14 +236,12 @@ const FileTypeDetail = () => {
   };
 
   const handleAddToCategory = (doc) => {
-    const availableFolders = contextFolders.filter(f => f.name?.toLowerCase() !== 'recently added');
-    setSelectedDocumentForCategory(doc);
-    setAvailableCategories(availableFolders);
-    setShowCategoryModal(true);
+    setDocumentToMove(doc);
+    setShowMoveModal(true);
     setOpenDropdownId(null);
   };
 
-  const handleCategorySelection = async () => {
+  const handleMoveConfirm = async () => {
     if (!selectedCategoryId) return;
     try {
       if (isSelectMode && selectedDocuments.size > 0) {
@@ -249,17 +249,38 @@ const FileTypeDetail = () => {
         clearSelection();
         toggleSelectMode();
         showSuccess(t('toasts.filesMovedSuccessfully', { count: selectedDocuments.size }));
-      } else if (selectedDocumentForCategory) {
-        await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
+      } else if (documentToMove) {
+        await moveToFolder(documentToMove.id, selectedCategoryId);
         showSuccess(t('toasts.fileMovedSuccessfully'));
       }
-      setShowCategoryModal(false);
-      setSelectedDocumentForCategory(null);
+      setShowMoveModal(false);
+      setDocumentToMove(null);
       setSelectedCategoryId(null);
     } catch (error) {
       console.error('Error moving item:', error);
       showError(t('alerts.failedToMoveItem'));
     }
+  };
+
+  const handleCreateCategory = async (categoryData) => {
+    try {
+      const newFolder = await createFolder(categoryData.name, categoryData.emoji);
+      if (newFolder && documentToMove) {
+        await moveToFolder(documentToMove.id, newFolder.id);
+        showSuccess(t('toasts.fileMovedSuccessfully'));
+      }
+      setShowCreateCategoryModal(false);
+      setShowMoveModal(false);
+      setDocumentToMove(null);
+      setSelectedCategoryId(null);
+    } catch (error) {
+      console.error('Error creating category:', error);
+      showError(t('alerts.failedToCreateCategory'));
+    }
+  };
+
+  const getRootFolders = () => {
+    return folders.filter(f => !f.parentId && f.name?.toLowerCase() !== 'recently added');
   };
 
   const handleBulkDelete = () => {
@@ -270,9 +291,7 @@ const FileTypeDetail = () => {
 
   const handleBulkMove = () => {
     if (selectedDocuments.size === 0) return;
-    const availableFolders = contextFolders.filter(f => f.name?.toLowerCase() !== 'recently added');
-    setAvailableCategories(availableFolders);
-    setShowCategoryModal(true);
+    setShowMoveModal(true);
   };
 
   const handleDownload = async (doc) => {
@@ -308,11 +327,11 @@ const FileTypeDetail = () => {
   };
 
   return (
-    <div style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex' }}>
+    <div data-page="file-type" className="file-type-page" style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex' }}>
       <LeftNav />
       <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
-        <div style={{ background: 'white', padding: '20px 32px', borderBottom: '1px solid #E5E7EB' }}>
+        <div data-file-type-header="true" className="file-type-header" style={{ background: 'white', padding: '20px 32px', borderBottom: '1px solid #E5E7EB' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -357,7 +376,7 @@ const FileTypeDetail = () => {
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '20px 32px' }}>
+        <div className="file-type-content scrollable-content" style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '20px 32px', WebkitOverflowScrolling: 'touch' }}>
           <style>{`
             @keyframes cardFadeIn {
               from { opacity: 0; transform: translateY(10px); }
@@ -430,7 +449,9 @@ const FileTypeDetail = () => {
                         background: isSelected(doc.id) ? '#F3F3F5' : 'white',
                         border: '2px solid #E6E6EC',
                         cursor: 'pointer',
-                        marginBottom: 8
+                        marginBottom: 8,
+                        position: 'relative',
+                        zIndex: openDropdownId === doc.id ? 99999 : 1
                       }}
                     >
                       {/* Name Column */}
@@ -446,11 +467,22 @@ const FileTypeDetail = () => {
                         </>
                       )}
                       <div data-dropdown style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => setOpenDropdownId(openDropdownId === doc.id ? null : doc.id)} style={{ width: 32, height: 32, background: 'transparent', borderRadius: '50%', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-                          <DotsIcon style={{ width: 24, height: 24 }} />
+                        <button onClick={(e) => {
+                          if (openDropdownId === doc.id) {
+                            setOpenDropdownId(null);
+                          } else {
+                            const buttonRect = e.currentTarget.getBoundingClientRect();
+                            const dropdownHeight = 200;
+                            const spaceBelow = window.innerHeight - buttonRect.bottom;
+                            const spaceAbove = buttonRect.top;
+                            setDropdownDirection(spaceBelow < dropdownHeight && spaceAbove > spaceBelow ? 'up' : 'down');
+                            setOpenDropdownId(doc.id);
+                          }
+                        }} style={{ width: 32, height: 32, background: 'transparent', borderRadius: '50%', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                          <DotsIcon style={{ width: 24, height: 24, pointerEvents: 'auto' }} />
                         </button>
                         {openDropdownId === doc.id && (
-                          <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
+                          <div style={{ position: 'absolute', right: 0, ...(dropdownDirection === 'up' ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }), background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 99999, minWidth: 160, overflow: 'hidden' }}>
                             <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
                               <button onClick={() => handleDownload(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                                 <DownloadIcon style={{ width: 20, height: 20 }} />
@@ -480,12 +512,23 @@ const FileTypeDetail = () => {
                   {searchedDocuments.map((doc) => (
                     <div key={doc.id} onClick={() => { if (isSelectMode) toggleDocument(doc.id); else navigate('/document/' + doc.id); }} style={{ background: 'white', borderRadius: 16, border: isSelected(doc.id) ? '2px solid #32302C' : '1px solid #E6E6EC', padding: 16, cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }} onMouseEnter={(e) => { if (!isSelected(doc.id)) { e.currentTarget.style.transform = 'translateY(-2px)'; } }} onMouseLeave={(e) => { if (!isSelected(doc.id)) { e.currentTarget.style.transform = 'translateY(0)'; } }}>
                       {isSelectMode && <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}><input type="checkbox" checked={isSelected(doc.id)} onChange={() => toggleDocument(doc.id)} onClick={(e) => e.stopPropagation()} style={{ width: 20, height: 20, cursor: 'pointer', accentColor: '#111827' }} /></div>}
-                      <div data-dropdown style={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => setOpenDropdownId(openDropdownId === doc.id ? null : doc.id)} style={{ width: 32, height: 32, background: 'white', border: '1px solid #E5E7EB', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-                          <DotsIcon style={{ width: 20, height: 20 }} />
+                      <div data-dropdown style={{ position: 'absolute', top: 12, right: 12, zIndex: 99999 }} onClick={(e) => e.stopPropagation()}>
+                        <button onClick={(e) => {
+                          if (openDropdownId === doc.id) {
+                            setOpenDropdownId(null);
+                          } else {
+                            const buttonRect = e.currentTarget.getBoundingClientRect();
+                            const dropdownHeight = 200;
+                            const spaceBelow = window.innerHeight - buttonRect.bottom;
+                            const spaceAbove = buttonRect.top;
+                            setDropdownDirection(spaceBelow < dropdownHeight && spaceAbove > spaceBelow ? 'up' : 'down');
+                            setOpenDropdownId(doc.id);
+                          }
+                        }} style={{ width: 32, height: 32, background: 'white', border: '1px solid #E5E7EB', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                          <DotsIcon style={{ width: 20, height: 20, pointerEvents: 'auto' }} />
                         </button>
                         {openDropdownId === doc.id && (
-                          <div style={{ position: 'absolute', right: 0, top: '100%', background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
+                          <div style={{ position: 'absolute', right: 0, ...(dropdownDirection === 'up' ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }), background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #E6E6EC', zIndex: 99999, minWidth: 160, overflow: 'hidden' }}>
                             <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
                               <button onClick={() => handleDownload(doc)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C', transition: 'background 0.2s ease', textAlign: 'left', width: '100%' }} onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                                 <DownloadIcon style={{ width: 20, height: 20 }} />
@@ -532,25 +575,22 @@ const FileTypeDetail = () => {
 
       <DeleteConfirmationModal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setItemToDelete(null); }} onConfirm={handleConfirmDelete} itemName={itemToDelete?.type === 'bulk-documents' ? itemToDelete?.count : itemToDelete?.name} itemType={itemToDelete?.type === 'bulk-documents' ? 'multiple' : 'document'} />
 
-      {showCategoryModal && (
-        <div onClick={() => { setShowCategoryModal(false); setSelectedDocumentForCategory(null); setSelectedCategoryId(null); }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: 16, padding: 24, width: '90%', maxWidth: 400, maxHeight: '80vh', overflow: 'auto' }}>
-            <h3 style={{ fontSize: 20, fontWeight: '700', color: '#111827', fontFamily: 'Plus Jakarta Sans', marginTop: 0, marginBottom: 16 }}>{isSelectMode && selectedDocuments.size > 0 ? t('modals.moveToFolder.title', { count: selectedDocuments.size, type: selectedDocuments.size > 1 ? t('modals.moveToFolder.documents') : t('modals.moveToFolder.document') }) : t('common.moveToFolder')}</h3>
-            <div style={{ marginBottom: 24 }}>
-              {availableCategories.length > 0 ? availableCategories.map((folder) => (
-                <div key={folder.id} onClick={() => setSelectedCategoryId(folder.id)} style={{ padding: '12px 16px', borderRadius: 8, border: selectedCategoryId === folder.id ? '2px solid #111827' : '1px solid #E5E7EB', background: selectedCategoryId === folder.id ? '#F3F4F6' : 'white', cursor: 'pointer', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <FolderSvgIcon style={{ width: 20, height: 20, color: '#6B7280' }} />
-                  <span style={{ fontSize: 15, fontWeight: '500', color: '#111827', fontFamily: 'Plus Jakarta Sans' }}>{folder.name}</span>
-                </div>
-              )) : <p style={{ color: '#6B7280', fontSize: 14, fontFamily: 'Plus Jakarta Sans', textAlign: 'center', padding: 20 }}>{t('common.noFoldersCreateFirst')}</p>}
-            </div>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowCategoryModal(false); setSelectedDocumentForCategory(null); setSelectedCategoryId(null); }} style={{ padding: '10px 20px', background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer', fontSize: 15, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: '#111827' }}>{t('common.cancel')}</button>
-              <button onClick={handleCategorySelection} disabled={!selectedCategoryId} style={{ padding: '10px 20px', background: selectedCategoryId ? '#111827' : '#E5E7EB', border: 'none', borderRadius: 8, cursor: selectedCategoryId ? 'pointer' : 'not-allowed', fontSize: 15, fontWeight: '600', fontFamily: 'Plus Jakarta Sans', color: 'white' }}>{t('common.move')}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <MoveToCategoryModal
+        isOpen={showMoveModal}
+        onClose={() => { setShowMoveModal(false); setDocumentToMove(null); setSelectedCategoryId(null); }}
+        selectedDocument={documentToMove}
+        categories={getRootFolders()}
+        selectedCategoryId={selectedCategoryId}
+        onCategorySelect={setSelectedCategoryId}
+        onCreateNew={() => { setShowMoveModal(false); setShowCreateCategoryModal(true); }}
+        onConfirm={handleMoveConfirm}
+      />
+
+      <CreateCategoryModal
+        isOpen={showCreateCategoryModal}
+        onClose={() => setShowCreateCategoryModal(false)}
+        onSubmit={handleCreateCategory}
+      />
 
       {showRenameModal && (
         <div onClick={() => { setShowRenameModal(false); setItemToRename(null); setNewName(''); }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>

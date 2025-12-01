@@ -1015,7 +1015,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 isNewlyCreatedConversation.current = false;
             }
 
-            console.log('🔄 [CONVERSATION CHANGE] conversation:', currentConversation.id.substring(0, 8), 'hasMessages:', realMessages.length > 0, 'isNew:', isNewlyCreatedConversation.current);
+            console.log('🔄 [CONVERSATION CHANGE] conversation:', currentConversation.id?.substring(0, 8), 'hasMessages:', realMessages.length > 0, 'isNew:', isNewlyCreatedConversation.current);
         }
     }, [currentConversation?.id, messages.length]); // Re-run when conversation or messages change
 
@@ -1048,11 +1048,39 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         console.log('✅ Document loaded:', data);
 
                         // Create a File-like object to set as attached document
+                        // Derive MIME type from filename extension
+                        const filename = data.filename || '';
+                        const ext = filename.toLowerCase().split('.').pop();
+                        const mimeTypes = {
+                            'pdf': 'application/pdf',
+                            'doc': 'application/msword',
+                            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            'xls': 'application/vnd.ms-excel',
+                            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            'ppt': 'application/vnd.ms-powerpoint',
+                            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                            'txt': 'text/plain',
+                            'csv': 'text/csv',
+                            'jpg': 'image/jpeg',
+                            'jpeg': 'image/jpeg',
+                            'png': 'image/png',
+                            'gif': 'image/gif',
+                            'webp': 'image/webp',
+                            'svg': 'image/svg+xml',
+                            'mov': 'video/quicktime',
+                            'mp4': 'video/mp4',
+                            'mp3': 'audio/mpeg',
+                            'wav': 'audio/wav',
+                            'm4a': 'audio/mp4'
+                        };
+                        const derivedType = mimeTypes[ext] || 'application/octet-stream';
+
                         setAttachedDocuments([{
-                            id: data.documentId,
+                            id: data.id || data.documentId,
                             name: data.filename,
-                            type: 'application/pdf', // Default type since it's not in status response
-                            size: 0 // Size not available in status response
+                            type: derivedType,
+                            mimeType: derivedType,
+                            size: data.fileSize || 0
                         }]);
 
                         // Remove documentId from URL to avoid re-attaching on refresh
@@ -1116,8 +1144,27 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     const cachedMessages = JSON.parse(cached);
                     console.log(`⚡ Cache HIT for ${conversationId}: ${cachedMessages.length} cached messages`);
 
-                    // ✅ Show cached messages IMMEDIATELY (they're keyed by conversationId so they're the right ones)
-                    setMessages(cachedMessages);
+                    // ✅ FIX #5: Normalize cached messages to ensure attachedFiles have full info
+                    const normalizedMessages = cachedMessages.map(msg => {
+                        // For user messages, ensure attachedFiles have name/type from metadata if missing
+                        if (msg.role === 'user' && msg.metadata) {
+                            const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
+                            if (metadata?.attachedFiles && (!msg.attachedFiles || msg.attachedFiles.length === 0)) {
+                                msg.attachedFiles = metadata.attachedFiles.map(file => ({
+                                    id: file.id,
+                                    name: file.name || file.filename || 'Unknown File',
+                                    filename: file.filename || file.name || 'Unknown File',
+                                    type: file.type || file.mimeType || 'application/octet-stream',
+                                    mimeType: file.mimeType || file.type || 'application/octet-stream'
+                                }));
+                                console.log(`📎 [CACHE-NORMALIZE] Restored ${msg.attachedFiles.length} attachments for cached message`);
+                            }
+                        }
+                        return msg;
+                    });
+
+                    // ✅ Show normalized cached messages IMMEDIATELY
+                    setMessages(normalizedMessages);
 
                     // 2. Check if cache is fresh (< 30 seconds old)
                     const cacheAge = Date.now() - parseInt(cacheTimestamp || '0');
@@ -1178,10 +1225,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 }
                             }
 
-                            // ✅ FIX #1: Parse attachedFiles for user messages to persist on refresh
+                            // ✅ FIX #4: Parse attachedFiles for user messages with full info for display
                             if (msg.role === 'user' && metadata.attachedFiles) {
-                                msg.attachedFiles = metadata.attachedFiles;
-                                console.log(`📎 [LOAD] Restored ${metadata.attachedFiles.length} attached files for user message`);
+                                // Ensure attachedFiles have name and type for proper display
+                                msg.attachedFiles = metadata.attachedFiles.map(file => ({
+                                    id: file.id,
+                                    name: file.name || file.filename || 'Unknown File',
+                                    filename: file.filename || file.name || 'Unknown File',
+                                    type: file.type || file.mimeType || 'application/octet-stream',
+                                    mimeType: file.mimeType || file.type || 'application/octet-stream'
+                                }));
+                                console.log(`📎 [LOAD] Restored ${msg.attachedFiles.length} attached files for message ${msg.id}`);
                             }
                         } catch (e) {
                             console.error('Error parsing message metadata:', e);
@@ -1817,6 +1871,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         // ✅ NEW FLOW: Only use attachedDocuments (files were already uploaded on attach)
         const documentsToAttach = [...attachedDocuments]; // Store reference before clearing
 
+        // ✅ FIX: Clear attachedDocuments immediately so banner disappears
+        setAttachedDocuments([]);
+
         console.log(`📤 handleSendMessage: Preparing to send with ${documentsToAttach.length} attached document(s)`);
         console.log(`📤 Attached documents:`, documentsToAttach.map(d => `${d.name} (ID: ${d.id})`).join(', '));
 
@@ -1828,8 +1885,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
         // ✅ FIX: Clear draft from localStorage when message is sent
         localStorage.removeItem(`koda_draft_${currentConversation?.id || 'new'}`);
-        // DON'T clear attachedDocuments - they're needed for the API request
-        // The banner will be hidden by checking isLoading state in the JSX
 
         // Store original message text for UI display (files will be shown visually, not as text)
         const displayMessageText = messageText || '';
@@ -1921,6 +1976,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 console.log('✅ Conversation created:', newConversation);
                 justCreatedConversationId.current = newConversation.id;
                 isNewlyCreatedConversation.current = true; // Mark as newly created
+
+                // ⚡ FIX #3 & #4: Clear sessionStorage cache and force sidebar refresh
+                // This ensures the new conversation appears in the sidebar immediately
+                sessionStorage.removeItem('koda_chat_conversations');
+                console.log('🗑️ [Cache] Cleared frontend conversations cache');
+
                 onConversationCreated?.(newConversation);
                 conversationId = newConversation.id;
             }
@@ -2392,7 +2453,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const userName = capitalizeFirst(user?.firstName) || 'there';
 
     return (
-        <div style={{flex: '1 1 0', height: '100%', display: 'flex', flexDirection: 'column', background: '#F5F5F7', position: 'relative'}}>
+        <div data-chat-container="true" style={{flex: '1 1 0', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', background: '#F5F5F7', position: 'relative'}}>
             {/* Header */}
             <div style={{
                 height: isMobile ? 70 : 84,
@@ -2426,6 +2487,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             {/* Messages Area */}
             <div
                 ref={messagesContainerRef}
+                data-messages-container="true"
+                className="messages-container scrollable-content"
                 onScroll={handleScroll}  // ✅ SMART SCROLL: Detect scroll position
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
@@ -2433,11 +2496,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 onDrop={handleDrop}
                 style={{
                     flex: '1 1 0',
+                    minHeight: 0, // Critical for flex child scrolling on mobile
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     padding: 20,
-                    paddingBottom: 20,
+                    paddingBottom: isMobile ? 100 : 20, // Extra padding on mobile for bottom nav
                     position: 'relative',
+                    WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
                 }}
             >
             {/* Centered Content Container */}
@@ -3138,6 +3203,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
                                                             if (metadata?.result?.fileType === 'document_location') {
                                                                 const filename = metadata.result.filename || '';
+                                                                const mimeType = metadata.result.mimeType || '';
                                                                 const extension = filename.split('.').pop()?.toLowerCase() || '';
 
                                                                 const handleDownload = async () => {
@@ -3178,7 +3244,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                             gap: 12,
                                                                         }}>
                                                                             <img
-                                                                                src={getFileIcon(filename)}
+                                                                                src={getFileIcon(filename, mimeType)}
                                                                                 alt="File icon"
                                                                                 style={{
                                                                                     width: 40,
@@ -3293,10 +3359,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 try {
                                                     const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
                                                     if (metadata?.attachedFiles) {
-                                                        attachedFiles = metadata.attachedFiles;
+                                                        // ✅ FIX #3: Ensure restored attachments have name and type for display
+                                                        attachedFiles = metadata.attachedFiles.map(file => ({
+                                                            id: file.id,
+                                                            name: file.name || file.filename || 'Unknown File',
+                                                            filename: file.filename || file.name || 'Unknown File',
+                                                            type: file.type || file.mimeType || 'application/octet-stream',
+                                                            mimeType: file.mimeType || file.type || 'application/octet-stream'
+                                                        }));
+                                                        console.log(`📎 [RESTORE] Restored ${attachedFiles.length} attachments from metadata`);
                                                     } else if (metadata?.attachedFile) {
                                                         // Backward compatibility with old single file format
-                                                        attachedFiles = [metadata.attachedFile];
+                                                        const file = metadata.attachedFile;
+                                                        attachedFiles = [{
+                                                            id: file.id,
+                                                            name: file.name || file.filename || 'Unknown File',
+                                                            filename: file.filename || file.name || 'Unknown File',
+                                                            type: file.type || file.mimeType || 'application/octet-stream',
+                                                            mimeType: file.mimeType || file.type || 'application/octet-stream'
+                                                        }];
                                                     }
                                                 } catch (e) {
                                                     console.error('Error parsing message metadata:', e);
@@ -3304,7 +3385,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             }
 
                                             return attachedFiles.length > 0 ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'row', gap: 8, width: '100%', flexWrap: 'wrap', alignItems: 'flex-start' }}>
                                                     {attachedFiles.map((attachedFile, fileIndex) => (
                                                         <div
                                                             key={fileIndex}
@@ -3319,7 +3400,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             }}
                                                             onClick={() => {
                                                                 if (attachedFile.id) {
-                                                                    // DocumentPreviewModal expects 'filename' property
                                                                     setPreviewDocument({
                                                                         id: attachedFile.id,
                                                                         filename: attachedFile.name || attachedFile.filename,
@@ -3328,61 +3408,49 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 }
                                                             }}
                                                             style={{
-                                                                padding: 12,
+                                                                padding: '12px 16px',
                                                                 background: '#FFFFFF',
                                                                 border: '1px solid #E6E6EC',
-                                                                borderRadius: 100,
+                                                                borderRadius: 14,
                                                                 display: 'flex',
                                                                 alignItems: 'center',
                                                                 gap: 12,
-                                                                minWidth: 280,
                                                                 cursor: attachedFile.id ? 'pointer' : 'default',
                                                                 transition: 'all 0.2s',
-                                                                pointerEvents: 'auto',
-                                                                WebkitTapHighlightColor: 'transparent',
-                                                                userSelect: 'none',
+                                                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
                                                             }}
                                                             onMouseEnter={(e) => {
                                                                 if (attachedFile.id) {
                                                                     e.currentTarget.style.background = '#F9F9F9';
-                                                                    e.currentTarget.style.transform = 'translateY(-1px)';
                                                                 }
                                                             }}
                                                             onMouseLeave={(e) => {
                                                                 if (attachedFile.id) {
                                                                     e.currentTarget.style.background = '#FFFFFF';
-                                                                    e.currentTarget.style.transform = 'translateY(0)';
                                                                 }
                                                             }}
                                                         >
-                                                            {/* File icon - using proper getFileIcon function */}
+                                                            {/* File icon */}
                                                             <img
                                                                 src={getFileIcon(attachedFile.name || attachedFile.filename || 'file', attachedFile.type || attachedFile.mimeType)}
                                                                 alt="File icon"
                                                                 style={{
-                                                                    width: 40,
-                                                                    height: 40,
-                                                                    imageRendering: '-webkit-optimize-contrast',
+                                                                    width: 36,
+                                                                    height: 36,
                                                                     objectFit: 'contain',
-                                                                    shapeRendering: 'geometricPrecision',
                                                                     flexShrink: 0,
-                                                                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
                                                                 }}
                                                             />
 
-                                                            {/* File info */}
-                                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                                <div style={{
-                                                                    fontSize: 14,
-                                                                    fontWeight: '600',
-                                                                    color: '#32302C',
-                                                                    whiteSpace: 'nowrap',
-                                                                    overflow: 'hidden',
-                                                                    textOverflow: 'ellipsis',
-                                                                }}>
-                                                                    {attachedFile.name || attachedFile.filename || 'Attached file'}
-                                                                </div>
-                                                            </div>
+                                                            {/* File name */}
+                                                            <span style={{
+                                                                fontSize: 15,
+                                                                fontWeight: '500',
+                                                                color: '#32302C',
+                                                                fontFamily: 'Plus Jakarta Sans',
+                                                            }}>
+                                                                {attachedFile.name || attachedFile.filename || 'Attached file'}
+                                                            </span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -3559,14 +3627,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
             {/* Message Input */}
             <div
+                data-input-area="true"
+                className="chat-input-area"
                 style={{
-                    padding: '8px 20px 20px 20px',
+                    padding: isMobile ? '8px 12px calc(12px + env(safe-area-inset-bottom, 0px)) 12px' : '8px 20px 20px 20px',
                     background: '#F5F5F7',
                     borderTop: 'none',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 16
+                    gap: 16,
+                    flexShrink: 0 // Prevent input from shrinking on mobile
                 }}
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
@@ -3652,7 +3723,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
                 {/* File Attachments Preview */}
                 {uploadingFiles.length > 0 && (
-                    <div style={{marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
+                    <div style={{marginBottom: 12, display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
                         {uploadingFiles.map((file, index) => (
                             <FileUploadPreview
                                 key={`uploading-${index}`}
@@ -3663,46 +3734,26 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     </div>
                 )}
 
-                {/* Document Attachments Banner - Hide when loading/streaming */}
-                {(attachedDocuments.length > 0 || (messages.length > 0 && messages[messages.length - 1]?.role === 'user' && messages[messages.length - 1]?.attachedFiles?.length > 0)) && !isLoading && !isStreaming && uploadingFiles.length === 0 && (
+                {/* Document Attachments Banner - Only show for PENDING attachments (not yet sent) */}
+                {attachedDocuments.length > 0 && uploadingFiles.length === 0 && (
                     <div
                         onMouseEnter={() => {
-                            const docs = attachedDocuments.length > 0
-                                ? attachedDocuments
-                                : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                            if (docs.length > 0 && docs[0].id) {
+                            if (attachedDocuments.length > 0 && attachedDocuments[0].id) {
                                 preloadPreview({
-                                    id: docs[0].id,
-                                    filename: docs[0].name,
-                                    mimeType: docs[0].type
+                                    id: attachedDocuments[0].id,
+                                    filename: attachedDocuments[0].name,
+                                    mimeType: attachedDocuments[0].type
                                 });
                             }
                         }}
                         onClick={() => {
-                            // ✅ FIX #2: Make banner clickable to preview document
-                            console.log('🖱️ [BANNER CLICK] Attachment banner clicked');
-                            console.log('📎 [BANNER CLICK] attachedDocuments:', attachedDocuments);
-                            console.log('💬 [BANNER CLICK] Last message attachedFiles:', messages.length > 0 && messages[messages.length - 1]?.attachedFiles);
-
-                            const docs = attachedDocuments.length > 0
-                                ? attachedDocuments
-                                : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-
-                            console.log('📋 [BANNER CLICK] Resolved docs array:', docs);
-
-                            if (docs.length > 0 && docs[0].id) {
-                                console.log('✅ [BANNER CLICK] Opening preview for document:', {
-                                    id: docs[0].id,
-                                    filename: docs[0].name,
-                                    mimeType: docs[0].type
-                                });
+                            // Make banner clickable to preview document
+                            if (attachedDocuments.length > 0 && attachedDocuments[0].id) {
                                 setPreviewDocument({
-                                    id: docs[0].id,
-                                    filename: docs[0].name,
-                                    mimeType: docs[0].type
+                                    id: attachedDocuments[0].id,
+                                    filename: attachedDocuments[0].name,
+                                    mimeType: attachedDocuments[0].type
                                 });
-                            } else {
-                                console.warn('⚠️ [BANNER CLICK] No valid document found to preview');
                             }
                         }}
                         style={{
@@ -3729,15 +3780,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }}
                     >
                         <img
-                            src={getFileIcon((() => {
-                                const docs = attachedDocuments.length > 0
-                                    ? attachedDocuments
-                                    : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                                if (docs.length > 0) {
-                                    return docs[0].name || docs[0].filename || docs[0].originalName || '';
+                            src={(() => {
+                                if (attachedDocuments.length > 0) {
+                                    const filename = attachedDocuments[0].name || attachedDocuments[0].filename || attachedDocuments[0].originalName || '';
+                                    const mimeType = attachedDocuments[0].type || attachedDocuments[0].mimeType || '';
+                                    return getFileIcon(filename, mimeType);
                                 }
-                                return '';
-                            })())}
+                                return getFileIcon('', '');
+                            })()}
                             alt="File icon"
                             style={{
                                 width: 40,
@@ -3751,25 +3801,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         />
                         <div style={{flex: 1}}>
                             <div style={{fontSize: 14, fontWeight: '600', color: '#32302C'}}>
-                                {(() => {
-                                    const docs = attachedDocuments.length > 0
-                                        ? attachedDocuments
-                                        : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                                    if (docs.length === 1) {
-                                        // Get filename from name, filename, or originalName property
-                                        return docs[0].name || docs[0].filename || docs[0].originalName || 'Document';
-                                    }
-                                    return `${docs.length} documents attached`;
-                                })()}
+                                {attachedDocuments.length === 1
+                                    ? (attachedDocuments[0].name || attachedDocuments[0].filename || attachedDocuments[0].originalName || 'Document')
+                                    : `${attachedDocuments.length} documents attached`}
                             </div>
                             <div style={{fontSize: 12, color: '#8E8E93'}}>
                                 {(() => {
-                                    const docs = attachedDocuments.length > 0
-                                        ? attachedDocuments
-                                        : (messages.length > 0 && messages[messages.length - 1]?.attachedFiles) || [];
-                                    if (docs.length === 1) {
-                                        // Show file size if available
-                                        const size = docs[0].size;
+                                    if (attachedDocuments.length === 1) {
+                                        const size = attachedDocuments[0].size;
                                         if (size) {
                                             const formatSize = (bytes) => {
                                                 if (bytes < 1024) return bytes + ' B';
@@ -3780,7 +3819,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         }
                                         return 'Ready to chat';
                                     }
-                                    return `${docs.length} files attached`;
+                                    return `${attachedDocuments.length} files attached`;
                                 })()}
                             </div>
                         </div>
@@ -3804,6 +3843,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 )}
 
                 <form
+                    data-chat-input="true"
+                    className="chat-input-wrapper"
                     onSubmit={(e) => {
                         e.preventDefault();
                         handleSendMessage();
@@ -3827,16 +3868,21 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         transition: 'transform 0.2s ease, box-shadow 0.2s ease'
                     }}
                     onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08)';
+                        if (!isMobile) {
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08)';
+                        }
                     }}
                     onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)';
+                        if (!isMobile) {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)';
+                        }
                     }}
                 >
                     <textarea
                         ref={inputRef}
+                        data-chat-textarea="true"
                         placeholder={t('chat.placeholder')}
                         value={message}
                         onChange={(e) => {
@@ -3861,6 +3907,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             // Always allow focus, even if disabled
                             if (e.target.disabled) {
                                 e.target.disabled = false;
+                            }
+                            // Mobile: Scroll input into view when keyboard appears
+                            if (isMobile) {
+                                setTimeout(() => {
+                                    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }, 300);
                             }
                         }}
                         autoFocus

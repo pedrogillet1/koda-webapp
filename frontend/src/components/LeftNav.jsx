@@ -208,7 +208,7 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                             {location.pathname === '/settings' ? <SettingsFilledIcon style={{width: 20, height: 20, fill: 'white'}} /> : <SettingsIcon style={{width: 20, height: 20, fill: 'white'}} />}
                             <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>{t('nav.settings')}</span>
                         </div>
-                        <div onClick={handleAuthButtonClick} style={{padding: 8, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'transparent'; }}>
+                        <div data-action="logout" className="logout-button" onClick={handleAuthButtonClick} style={{padding: 8, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'transparent'; }}>
                             <SignoutIcon style={{width: 20, height: 20, fill: 'white'}} />
                             <span style={{color: 'white', fontSize: 14, fontWeight: '500'}}>
                                 {user ? t('nav.signOut') : t('nav.signIn')}
@@ -285,6 +285,8 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                     {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.settings')}</span>}
                 </div>
                 <div
+                    data-action="logout"
+                    className="logout-button"
                     onClick={handleAuthButtonClick}
                     style={{padding: spacing.sm, borderRadius: 100, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36, transition: 'background 0.2s ease, transform 0.15s ease'}}
                     onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }}

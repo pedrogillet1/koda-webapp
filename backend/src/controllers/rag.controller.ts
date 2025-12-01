@@ -79,6 +79,8 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     // ✅ MULTI-ATTACHMENT SUPPORT: Handle both single documentId and attachedDocuments array
     let attachedDocumentIds: string[] = [];
+    // ✅ FIX: Store full attachment info (id, name, type) for metadata persistence
+    let attachedDocumentsArray: Array<{id: string, name?: string, type?: string}> = [];
 
     // Priority 1: Use attachedDocuments array if provided
     if (attachedDocuments && attachedDocuments.length > 0) {
@@ -86,11 +88,24 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         typeof doc === 'string' ? doc : doc.id
       ).filter(Boolean);
 
+      // ✅ FIX: Preserve full document info for metadata
+      attachedDocumentsArray = attachedDocuments.map((doc: any) => {
+        if (typeof doc === 'string') {
+          return { id: doc };
+        }
+        return {
+          id: doc.id,
+          name: doc.name || doc.filename || 'Unknown File',
+          type: doc.type || doc.mimeType || 'application/octet-stream'
+        };
+      });
+
       console.log(`📎 [MULTI-ATTACHMENT] ${attachedDocumentIds.length} documents attached:`, attachedDocumentIds);
     }
     // Priority 2: Fall back to single documentId for backward compatibility
     else if (documentId && documentId !== null) {
       attachedDocumentIds = [documentId];
+      attachedDocumentsArray = [{ id: documentId }];
       console.log(`📎 [SINGLE-ATTACHMENT] 1 document attached: ${documentId}`);
     }
     // Priority 3: No attachments
@@ -112,9 +127,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     if (isComparisonQuery) {
       console.log(`🔀 [COMPARISON] Detected comparison query across ${attachedDocumentIds.length} documents`);
     }
-    // Prepare metadata for user message with attached files info
-    const userMessageMetadata = attachedDocumentIds.length > 0 ? {
-      attachedFiles: attachedDocumentIds.map((id: string) => ({ id }))
+    // ✅ FIX: Prepare metadata with full file info (id, name, type) for display persistence
+    const userMessageMetadata = attachedDocumentsArray.length > 0 ? {
+      attachedFiles: attachedDocumentsArray
     } : null;
 
 

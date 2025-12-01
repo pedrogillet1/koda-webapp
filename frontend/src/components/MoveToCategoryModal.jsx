@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import CategoryIcon from './CategoryIcon';
+import { useIsMobile } from '../hooks/useIsMobile';
 import pdfIcon from '../assets/pdf-icon.png';
 import docIcon from '../assets/doc-icon.png';
 import txtIcon from '../assets/txt-icon.png';
@@ -29,6 +30,7 @@ export default function MoveToCategoryModal({
   onConfirm
 }) {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
 
   if (!isOpen) return null;
 
@@ -48,33 +50,44 @@ export default function MoveToCategoryModal({
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: 480,
-        paddingTop: 18,
-        paddingBottom: 18,
-        background: 'white',
-        borderRadius: 14,
-        outline: '1px #E6E6EC solid',
-        outlineOffset: '-1px',
-        flexDirection: 'column',
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: isMobile ? 'flex-end' : 'center',
         justifyContent: 'center',
-        alignItems: 'center',
-        gap: 18,
-        display: 'flex'
+        zIndex: 1000,
+        padding: isMobile ? 0 : 16,
+        paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 16
       }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: isMobile ? '100%' : 480,
+          maxHeight: isMobile ? '90vh' : '85vh',
+          paddingTop: 18,
+          paddingBottom: isMobile ? 'calc(18px + env(safe-area-inset-bottom, 0px))' : 18,
+          background: 'white',
+          borderRadius: isMobile ? '14px 14px 0 0' : 14,
+          outline: '1px #E6E6EC solid',
+          outlineOffset: '-1px',
+          flexDirection: 'column',
+          justifyContent: 'flex-start',
+          alignItems: 'stretch',
+          gap: 18,
+          display: 'flex',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          boxSizing: 'border-box'
+        }}>
         {/* Header */}
         <div style={{
           width: '100%',
@@ -82,7 +95,8 @@ export default function MoveToCategoryModal({
           paddingRight: 24,
           justifyContent: 'space-between',
           alignItems: 'center',
-          display: 'flex'
+          display: 'flex',
+          boxSizing: 'border-box'
         }}>
           <div style={{
             color: '#32302C',
@@ -119,7 +133,8 @@ export default function MoveToCategoryModal({
           <div style={{
             width: '100%',
             paddingLeft: 24,
-            paddingRight: 24
+            paddingRight: 24,
+            boxSizing: 'border-box'
           }}>
             <div style={{
               padding: 12,
@@ -175,19 +190,14 @@ export default function MoveToCategoryModal({
           paddingRight: 24,
           paddingTop: 8,
           paddingBottom: 8,
-          flexDirection: 'column',
-          justifyContent: 'flex-start',
-          alignItems: 'flex-start',
-          gap: 12,
-          display: 'flex',
           maxHeight: '280px',
-          overflowY: 'auto'
+          overflowY: 'auto',
+          boxSizing: 'border-box'
         }}>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 12,
-            width: '100%'
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: 12
           }}>
             {categories.map((category) => {
               const fileCount = category._count?.documents || category.fileCount || 0;
@@ -196,20 +206,20 @@ export default function MoveToCategoryModal({
                   key={category.id}
                   onClick={() => onCategorySelect(category.id)}
                   style={{
-                    paddingLeft: 12,
-                    paddingRight: 12,
-                    paddingTop: 12,
-                    paddingBottom: 12,
+                    padding: 12,
                     background: selectedCategoryId === category.id ? '#F5F5F5' : 'white',
                     borderRadius: 12,
                     border: selectedCategoryId === category.id ? '2px #32302C solid' : '1px #E6E6EC solid',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: 8,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
-                    position: 'relative'
+                    position: 'relative',
+                    boxSizing: 'border-box',
+                    minWidth: 0
                   }}
                   onMouseEnter={(e) => {
                     if (selectedCategoryId !== category.id) {
@@ -286,7 +296,8 @@ export default function MoveToCategoryModal({
         <div style={{
           width: '100%',
           paddingLeft: 24,
-          paddingRight: 24
+          paddingRight: 24,
+          boxSizing: 'border-box'
         }}>
           <button
             onClick={onCreateNew}
@@ -330,7 +341,8 @@ export default function MoveToCategoryModal({
           justifyContent: 'flex-start',
           alignItems: 'flex-start',
           gap: 10,
-          display: 'flex'
+          display: 'flex',
+          boxSizing: 'border-box'
         }}>
           <button
             onClick={onClose}

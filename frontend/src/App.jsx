@@ -60,7 +60,7 @@ function App() {
           <ToastProvider>
             <NotificationsProvider>
               <Router>
-                <div style={{ width: '100vw', height: '100vh' }}>
+                <div style={{ width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
                   <Routes>
             {/* ✅ DEFAULT ROUTE: Chat screen is the first page users see (protected) */}
             <Route path="/" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />

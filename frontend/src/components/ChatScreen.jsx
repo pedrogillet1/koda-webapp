@@ -118,11 +118,11 @@ const ChatScreen = () => {
         if (updateConversationInList && !initialConversationAddedRef.current) {
             // Only add if there was NO conversation on mount (meaning it was newly created)
             if (!hadInitialConversationRef.current) {
-                console.log('📋 [ChatScreen] Adding conversation to history list:', currentConversation.id.substring(0, 8));
+                console.log('📋 [ChatScreen] Adding conversation to history list:', currentConversation.id?.substring(0, 8));
                 console.log('📋 [ChatScreen] Conversation to add:', currentConversation);
                 updateConversationInList(currentConversation);
             } else {
-                console.log('⏭️ [ChatScreen] Skipping add - conversation existed on mount:', currentConversation.id.substring(0, 8));
+                console.log('⏭️ [ChatScreen] Skipping add - conversation existed on mount:', currentConversation.id?.substring(0, 8));
             }
 
             initialConversationAddedRef.current = true; // Mark as handled to prevent duplicate checks
@@ -179,7 +179,7 @@ const ChatScreen = () => {
 
         // Add to conversation list
         if (updateConversationInList) {
-            console.log('📋 [ChatScreen] Adding newly created conversation to history list:', newConversation.id.substring(0, 8));
+            console.log('📋 [ChatScreen] Adding newly created conversation to history list:', newConversation.id?.substring(0, 8));
             updateConversationInList(newConversation);
             // Prevent the useEffect from trying to add the initial conversation later
             initialConversationAddedRef.current = true;

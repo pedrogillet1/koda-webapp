@@ -82,6 +82,7 @@ const DocumentsPage = () => {
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [dropdownDirection, setDropdownDirection] = useState('down'); // 'up' or 'down'
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -265,11 +266,20 @@ const DocumentsPage = () => {
   };
 
   const handleCategorySelection = async () => {
-    if (!selectedCategoryId || !selectedDocumentForCategory) return;
+    if (!selectedCategoryId) return;
 
     try {
-      // Use context to move document (instant UI update!)
-      await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
+      // Handle bulk move when in select mode
+      if (isSelectMode && selectedDocuments.size > 0) {
+        await Promise.all(Array.from(selectedDocuments).map(docId => moveToFolder(docId, selectedCategoryId)));
+        showSuccess(t('toasts.filesMovedSuccessfully', { count: selectedDocuments.size }));
+        clearSelection();
+        toggleSelectMode();
+      } else if (selectedDocumentForCategory) {
+        // Use context to move single document (instant UI update!)
+        await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
+        showSuccess(t('toasts.fileMovedSuccessfully'));
+      }
 
       setShowCategoryModal(false);
       setSelectedDocumentForCategory(null);
@@ -401,7 +411,7 @@ const DocumentsPage = () => {
   }
 
   return (
-    <div style={{width: '100%', height: '100vh', background: '#F4F4F6', overflow: 'hidden', display: 'flex'}}>
+    <div data-page="documents" className="documents-page" style={{width: '100%', height: '100vh', background: '#F4F4F6', overflow: 'hidden', display: 'flex'}}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Main Content */}
@@ -482,7 +492,7 @@ const DocumentsPage = () => {
                 <button
                   onClick={() => {
                     if (selectedDocuments.size === 0) return;
-                    showError(t('alerts.moveComingSoon'));
+                    setShowCategoryModal(true);
                   }}
                   disabled={selectedDocuments.size === 0}
                   style={{
@@ -703,7 +713,7 @@ const DocumentsPage = () => {
         </div>
 
         {/* Scrollable Content */}
-        <div style={{flex: 1, padding: spacing.xl, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: spacing.xl}}>
+        <div className="documents-content scrollable-content" style={{flex: 1, padding: spacing.xl, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: spacing.xl, WebkitOverflowScrolling: 'touch'}}>
           {/* Smart Categories */}
           <div style={{display: 'flex', flexDirection: 'column', gap: spacing.md}}>
             <div style={{display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gridTemplateColumns: isMobile ? undefined : 'repeat(4, 1fr)', gap: spacing.md}}>
@@ -833,19 +843,21 @@ const DocumentsPage = () => {
                       onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
                       onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                     >
-                      <DotsIcon style={{width: 24, height: 24}} />
+                      <DotsIcon style={{width: 24, height: 24, pointerEvents: 'auto'}} />
                     </button>
                     {categoryMenuOpen === category.id && (
                       <div
+                        onClick={(e) => e.stopPropagation()}
                         style={{
-                          position: 'fixed',
-                          top: categoryMenuPosition.top,
-                          left: categoryMenuPosition.left,
+                          position: 'absolute',
+                          right: 0,
+                          top: '100%',
+                          marginTop: 4,
                           background: 'white',
                           borderRadius: 12,
                           border: '1px solid #E6E6EC',
                           boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                          zIndex: 10000,
+                          zIndex: 100,
                           minWidth: 160,
                           overflow: 'hidden'
                         }}
@@ -1279,7 +1291,9 @@ const DocumentsPage = () => {
                         background: isSelectMode && isSelected(doc.id) ? '#E8E8EC' : '#F5F5F5',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
-                        marginBottom: 8
+                        marginBottom: 8,
+                        position: 'relative',
+                        zIndex: openDropdownId === doc.id ? 99999 : 1
                       } : {
                         display: 'grid',
                         gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
@@ -1290,7 +1304,9 @@ const DocumentsPage = () => {
                         background: isSelectMode && isSelected(doc.id) ? '#F3F3F5' : 'white',
                         border: '2px solid #E6E6EC',
                         cursor: isSelectMode ? 'pointer' : 'pointer',
-                        transition: 'background 0.2s ease'
+                        transition: 'background 0.2s ease',
+                        position: 'relative',
+                        zIndex: openDropdownId === doc.id ? 99999 : 1
                       }}
                       onMouseEnter={(e) => {
                         if (isMobile) return;
@@ -1401,7 +1417,17 @@ const DocumentsPage = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setOpenDropdownId(openDropdownId === doc.id ? null : doc.id);
+                            if (openDropdownId === doc.id) {
+                              setOpenDropdownId(null);
+                            } else {
+                              // Calculate space above/below to determine dropdown direction
+                              const buttonRect = e.currentTarget.getBoundingClientRect();
+                              const dropdownHeight = 200;
+                              const spaceBelow = window.innerHeight - buttonRect.bottom;
+                              const spaceAbove = buttonRect.top;
+                              setDropdownDirection(spaceBelow < dropdownHeight && spaceAbove > spaceBelow ? 'up' : 'down');
+                              setOpenDropdownId(doc.id);
+                            }
                           }}
                           onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
                           onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
@@ -1418,21 +1444,22 @@ const DocumentsPage = () => {
                             transition: 'transform 0.2s ease'
                           }}
                         >
-                          <DotsIcon style={{width: 24, height: 24}} />
+                          <DotsIcon style={{width: 24, height: 24, pointerEvents: 'auto'}} />
                         </button>
 
                         {openDropdownId === doc.id && (
                           <div
                             style={{
                               position: 'absolute',
-                              top: '100%',
                               right: 0,
-                              marginTop: 4,
+                              ...(dropdownDirection === 'up'
+                                ? { bottom: '100%', marginBottom: 4 }
+                                : { top: '100%', marginTop: 4 }),
                               background: 'white',
-                              boxShadow: '0px 4px 6px -2px rgba(16, 24, 40, 0.03)',
+                              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                               borderRadius: 12,
                               border: '1px solid #E6E6EC',
-                              zIndex: 1000,
+                              zIndex: 100,
                               minWidth: 160
                             }}
                           >

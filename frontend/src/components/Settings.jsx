@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import LeftNav from './LeftNav';
+import NotificationPanel from './NotificationPanel';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import FeedbackModal from './FeedbackModal';
 import RecoveryVerificationBanner from './RecoveryVerificationBanner';
@@ -627,7 +628,7 @@ const Settings = () => {
   };
 
   return (
-    <div style={{ width: '100%', height: '100vh', background: '#F4F4F6', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>
+    <div data-page="settings" className="settings-page" style={{ width: '100%', height: '100%', minHeight: '100vh', background: '#F4F4F6', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} hamburgerTop={isMobile ? 22 : 16} />
 
       {/* Settings Sidebar - Hidden on mobile */}
@@ -844,7 +845,7 @@ const Settings = () => {
       </div>}
 
       {/* Main Content */}
-      <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
+      <div className="settings-content" style={{ flex: '1 1 0', height: '100%', minHeight: 0, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
         {/* Header */}
         <div style={{ alignSelf: 'stretch', height: isMobile ? 76 : 84, paddingLeft: isMobile ? 70 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
           <div style={{ textAlign: isMobile ? 'left' : 'center', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px' }}>
@@ -880,7 +881,7 @@ const Settings = () => {
 
         {/* Content */}
         {activeSection === 'general' && (
-        <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 16 : 32, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 16, display: 'flex' }}>
+        <div className="settings-form scrollable-content" style={{ alignSelf: 'stretch', flex: '1 1 0', minHeight: 0, padding: isMobile ? 16 : 32, paddingBottom: isMobile ? 100 : 32, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 16, display: 'flex', WebkitOverflowScrolling: 'touch' }}>
           {/* Recovery Verification Banner */}
           <RecoveryVerificationBanner />
 
@@ -1192,7 +1193,7 @@ const Settings = () => {
 
         {/* Profile Section */}
         {activeSection === 'profile' && (
-          <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 16 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 16 : 20, display: 'flex' }}>
+          <div data-settings-form="true" className="settings-form scrollable-content" style={{ alignSelf: 'stretch', flex: '1 1 0', minHeight: 0, padding: isMobile ? 16 : 20, paddingBottom: isMobile ? 100 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 16 : 20, display: 'flex', WebkitOverflowScrolling: 'touch' }}>
             <div style={{ alignSelf: 'stretch', position: 'relative', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 12, display: 'flex' }}>
               {profileImage ? (
                 <img
@@ -1293,6 +1294,8 @@ const Settings = () => {
             <div style={{ alignSelf: 'stretch', borderRadius: 12, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 24, display: 'flex' }}>
               <div style={{ alignSelf: 'stretch', height: 52, borderRadius: 100, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                 <div
+                  data-settings-submit="true"
+                  className="save-button"
                   onClick={handleSaveChanges}
                   style={{ flex: '1 1 0', height: 52, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 100, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
                 >
@@ -1305,7 +1308,7 @@ const Settings = () => {
 
         {/* Password Section */}
         {activeSection === 'password' && (
-          <div style={{ alignSelf: 'stretch', flex: '1 1 0', padding: isMobile ? 16 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 16 : 20, display: 'flex' }}>
+          <div data-settings-form="true" className="settings-form scrollable-content" style={{ alignSelf: 'stretch', flex: '1 1 0', minHeight: 0, padding: isMobile ? 16 : 20, paddingBottom: isMobile ? 100 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 16 : 20, display: 'flex', WebkitOverflowScrolling: 'touch' }}>
             <div style={{ alignSelf: 'stretch', flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 20 : 32, display: 'flex' }}>
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 20, display: 'flex' }}>
 
@@ -1415,6 +1418,8 @@ const Settings = () => {
             <div style={{ alignSelf: 'stretch', borderRadius: 12, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 24, display: 'flex' }}>
               <div style={{ alignSelf: 'stretch', height: 52, borderRadius: 100, justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
                 <div
+                  data-settings-submit="true"
+                  className="save-button"
                   onClick={handlePasswordChange}
                   style={{ flex: '1 1 0', height: 52, background: 'rgba(24, 24, 24, 0.90)', overflow: 'hidden', borderRadius: 100, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer' }}
                 >
@@ -1426,78 +1431,11 @@ const Settings = () => {
         )}
       </div>
 
-      {/* Notifications Popup Overlay */}
-      {showNotificationsPopup && (
-        <>
-          {/* Dark Overlay */}
-          <div
-            onClick={() => setShowNotificationsPopup(false)}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              background: 'linear-gradient(180deg, rgba(17, 19, 21, 0.50) 0%, rgba(17, 19, 21, 0.90) 100%)',
-              zIndex: 999
-            }}
-          />
-
-          {/* Notifications Panel */}
-          <div style={{
-            width: isMobile ? '100%' : 440,
-            height: isMobile ? '100%' : 824,
-            position: 'fixed',
-            left: isMobile ? 0 : 84,
-            top: isMobile ? 0 : 68,
-            bottom: isMobile ? 0 : 'auto',
-            right: isMobile ? 0 : 'auto',
-            background: 'white',
-            borderRadius: isMobile ? 0 : 14,
-            zIndex: 1000,
-            paddingLeft: isMobile ? 16 : 20,
-            paddingRight: isMobile ? 16 : 20,
-            paddingTop: isMobile ? 20 : 32,
-            paddingBottom: isMobile ? 20 : 32,
-            overflow: 'auto',
-            flexDirection: 'column',
-            justifyContent: 'flex-start',
-            alignItems: 'center',
-            gap: isMobile ? 16 : 24,
-            display: 'flex'
-          }}>
-            {/* Header with tabs and close button */}
-            <div style={{ alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', gap: 10, display: 'flex' }}>
-              <div style={{ flex: '1 1 0', justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-                <div style={{ height: 36, paddingLeft: isMobile ? 14 : 18, paddingRight: isMobile ? 14 : 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', borderRadius: 100, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex' }}>
-                  <div style={{ color: '#32302C', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{t('notifications.all')} (0)</div>
-                </div>
-                <div style={{ paddingLeft: isMobile ? 8 : 12, paddingRight: isMobile ? 8 : 12, paddingTop: 8, paddingBottom: 8, borderRadius: 6, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer' }}>
-                  <div style={{ color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{t('notifications.unread')}</div>
-                </div>
-                <div style={{ paddingLeft: isMobile ? 8 : 12, paddingRight: isMobile ? 8 : 12, paddingTop: 8, paddingBottom: 8, borderRadius: 6, justifyContent: 'center', alignItems: 'center', gap: 8, display: 'flex', cursor: 'pointer' }}>
-                  <div style={{ color: '#6C6B6E', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', lineHeight: '19.60px' }}>{t('notifications.read')}</div>
-                </div>
-              </div>
-              <div
-                onClick={() => setShowNotificationsPopup(false)}
-                style={{ width: isMobile ? 44 : 52, height: isMobile ? 44 : 52, padding: 8, background: '#171717', borderRadius: 100, justifyContent: 'center', alignItems: 'center', display: 'flex', cursor: 'pointer', flexShrink: 0 }}
-              >
-                <CheckDoubleIcon style={{ width: 20, height: 20 }} />
-              </div>
-            </div>
-
-            {/* No notifications message */}
-            <div style={{ alignSelf: 'stretch', flex: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 16, display: 'flex' }}>
-              <BellIcon style={{ width: isMobile ? 48 : 64, height: isMobile ? 48 : 64, opacity: 0.3 }} />
-              <div style={{ color: '#6C6B6E', fontSize: isMobile ? 14 : 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', textAlign: 'center' }}>{t('notifications.noNotificationsYet')}</div>
-              <div style={{ color: '#B9B9B9', fontSize: isMobile ? 13 : 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', textAlign: 'center', maxWidth: 300, padding: isMobile ? '0 16px' : 0 }}>
-                {t('notifications.allCaughtUp')}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      {/* Notifications Panel */}
+      <NotificationPanel
+        showNotificationsPopup={showNotificationsPopup}
+        setShowNotificationsPopup={setShowNotificationsPopup}
+      />
 
       <DeleteConfirmationModal
         isOpen={showDeleteModal}

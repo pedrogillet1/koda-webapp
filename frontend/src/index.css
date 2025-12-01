@@ -10,19 +10,18 @@
   box-sizing: border-box;
 }
 
-/* Ensure html and body allow scrolling */
+/* Mobile-first approach: prevent body scroll, content areas scroll */
 html {
   height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  min-height: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -35,12 +34,13 @@ code {
     monospace;
 }
 
-/* Root container - CRITICAL: Use min-height and allow scrolling */
+/* Root container - Fixed height, flex layout for mobile */
 #root {
-  min-height: 100vh;
   width: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ========================================
@@ -107,6 +107,24 @@ code {
     --font-size-title: 22px;
     --font-size-body: 14px;
     --font-size-small: 12px;
+  }
+}
+
+/* ========================================
+   MOMENTUM SCROLLING (iOS Safari)
+   ======================================== */
+.scrollable-content {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Mobile-specific scrolling optimizations */
+@media (max-width: 768px) {
+  .scrollable-content {
+    /* Hardware acceleration for smooth scroll */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
   }
 }
 
@@ -688,4 +706,640 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
 
   .mobile-gap-base { gap: 14px !important; }
   .mobile-gap-lg { gap: 20px !important; }
+}
+
+/* ========================================
+   MOBILE-ONLY: VIEWPORT HEIGHT FIX
+   Use 100dvh instead of 100vh on mobile
+   Only applies to max-width: 768px
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* Use dynamic viewport height for mobile */
+  @supports (height: 100dvh) {
+    html, body, #root {
+      height: 100dvh;
+    }
+  }
+}
+
+/* ========================================
+   MOBILE-ONLY: INPUT ZOOM PREVENTION
+   Ensure all inputs are 16px+ to prevent iOS zoom
+   Only applies to max-width: 768px
+   ======================================== */
+
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  textarea,
+  select {
+    font-size: 16px !important;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
+
+/* ========================================
+   MOBILE-ONLY: MOMENTUM SCROLLING
+   Enable smooth scrolling on iOS
+   Only applies to max-width: 768px
+   ======================================== */
+
+@media (max-width: 768px) {
+  .scrollable,
+  [role="log"],
+  .messages-container,
+  .modal-content {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* ========================================
+   MOBILE-ONLY: DISABLE HOVER EFFECTS
+   Prevent scale transforms on touch devices
+   Only applies to max-width: 768px
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* Disable all hover-based scale transforms on mobile */
+  button:hover,
+  a:hover,
+  [role="button"]:hover {
+    transform: none !important;
+  }
+}
+
+/* ========================================
+   MOBILE-ONLY: MODAL FIXES
+   Ensure modals don't clip buttons
+   Only applies to max-width: 768px
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* Modal wrapper should be scrollable, not fixed height */
+  [role="dialog"],
+  .modal-overlay {
+    max-height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Modal content should flex properly */
+  .modal-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* Action buttons should not be pushed out of view */
+  .modal-buttons,
+  .modal-actions {
+    flex-shrink: 0;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+/* ========================================
+   KODA MOBILE LAYOUT FIXES - 7 CRITICAL ISSUES
+   ALL changes are mobile-only (@media max-width: 768px)
+   Desktop remains completely unchanged
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* ========================================
+     ISSUE #1: CHAT KEYBOARD COVERS INPUT
+     Fix: Add proper padding and use dvh
+     ======================================== */
+
+  /* Chat container needs keyboard-aware spacing */
+  .chat-container,
+  [data-chat-container="true"] {
+    padding-bottom: max(env(safe-area-inset-bottom), 16px) !important;
+    min-height: 100dvh !important;
+    height: auto !important;
+  }
+
+  /* Chat input area should stay above keyboard */
+  .chat-input-area,
+  [data-chat-input="true"] {
+    padding-bottom: max(env(safe-area-inset-bottom), 12px) !important;
+    position: relative !important;
+    z-index: 10 !important;
+  }
+
+  /* ========================================
+     ISSUE #2: CHAT MESSAGE TEXT WRAPS TO 2 LINES
+     Fix: Reduce font size and constrain textarea
+     ======================================== */
+
+  /* Chat textarea optimization */
+  .chat-input-wrapper textarea,
+  [data-chat-textarea="true"] {
+    font-size: 14px !important;
+    line-height: 1.3 !important;
+    padding: 10px 12px !important;
+    resize: none !important;
+  }
+
+  /* ========================================
+     ISSUE #3: FILE TYPE PAGE HEADER CUTTING
+     Fix: Make header responsive with flex-wrap
+     ======================================== */
+
+  /* File type detail header */
+  .file-type-header,
+  [data-file-type-header="true"] {
+    padding: 12px 8px !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .file-type-header button,
+  [data-file-type-header="true"] button {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    min-width: auto !important;
+    flex: 0 1 auto !important;
+    white-space: nowrap !important;
+  }
+
+  /* ========================================
+     ISSUE #4: UPLOAD MODAL TOO LARGE
+     Fix: Constrain modal size and enable scroll
+     ======================================== */
+
+  /* Upload modal and all modals */
+  .upload-modal,
+  [data-upload-modal="true"],
+  [role="dialog"] > div:last-child {
+    width: calc(100% - 32px) !important;
+    max-width: calc(100% - 32px) !important;
+    max-height: calc(100dvh - 80px) !important;
+    padding: 16px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Modal buttons container */
+  .upload-modal .modal-buttons,
+  .upload-modal .button-container,
+  [data-upload-modal="true"] button {
+    padding: 10px 14px !important;
+    font-size: 14px !important;
+  }
+
+  /* ========================================
+     ISSUE #5: CATEGORY/FOLDER HEADER CUTTING
+     Fix: Responsive header with proper wrapping
+     ======================================== */
+
+  /* Category/folder header */
+  .category-header,
+  .folder-header,
+  [data-category-header="true"],
+  [data-folder-header="true"] {
+    padding: 12px 8px !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+
+  /* Category header search input */
+  .category-header input,
+  .folder-header input,
+  [data-category-header="true"] input,
+  [data-folder-header="true"] input {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+    padding: 8px 10px !important;
+    font-size: 14px !important;
+    order: -1 !important;
+  }
+
+  /* Category header buttons */
+  .category-header button,
+  .folder-header button,
+  [data-category-header="true"] button,
+  [data-folder-header="true"] button {
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    flex: 0 1 auto !important;
+  }
+
+  /* ========================================
+     ISSUE #6: SETTINGS BUTTONS CUT AT BOTTOM
+     Fix: Add bottom padding and fixed button
+     ======================================== */
+
+  /* Settings form container */
+  .settings-form,
+  .settings-content,
+  [data-settings-form="true"] {
+    padding-bottom: 100px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Settings save button - fixed at bottom */
+  .settings-form button[type="submit"],
+  .settings-form .save-button,
+  .settings-content .save-button,
+  [data-settings-submit="true"] {
+    position: fixed !important;
+    bottom: max(16px, env(safe-area-inset-bottom)) !important;
+    left: 16px !important;
+    right: 16px !important;
+    width: calc(100% - 32px) !important;
+    z-index: 100 !important;
+    margin: 0 !important;
+  }
+
+  /* ========================================
+     ISSUE #7: LOGOUT BUTTON NOT CENTERED
+     Fix: Center and full-width on mobile
+     ======================================== */
+
+  /* Logout button */
+  .logout-button,
+  [data-logout-button="true"],
+  button[data-action="logout"] {
+    width: calc(100% - 32px) !important;
+    max-width: 100% !important;
+    margin: 0 16px !important;
+    display: block !important;
+    text-align: center !important;
+  }
+
+  /* Logout button container */
+  .settings-logout-container,
+  .logout-container,
+  [data-logout-container="true"] {
+    display: flex !important;
+    justify-content: center !important;
+    padding: 16px !important;
+    width: 100% !important;
+  }
+}
+
+/* ========================================
+   SMALL PHONES (320px - 374px) EXTRA FIXES
+   ======================================== */
+
+@media (max-width: 374px) {
+  /* Even smaller spacing for tiny phones */
+  .file-type-header,
+  .category-header,
+  .folder-header {
+    padding: 8px 6px !important;
+    gap: 4px !important;
+  }
+
+  .file-type-header button,
+  .category-header button,
+  .folder-header button {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+  }
+
+  /* Smaller modal padding */
+  .upload-modal,
+  [role="dialog"] > div:last-child {
+    padding: 12px !important;
+    max-height: calc(100dvh - 60px) !important;
+  }
+
+  /* Chat textarea even smaller */
+  .chat-input-wrapper textarea {
+    font-size: 13px !important;
+    padding: 8px 10px !important;
+  }
+}
+
+/* ========================================
+   MOBILE BOTTOM NAVIGATION BAR
+   Only visible on mobile (max-width: 768px)
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* Mobile Bottom Navigation */
+  .mobile-bottom-nav {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background-color: #181818 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+    display: flex !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    z-index: 1000 !important;
+    padding-bottom: max(env(safe-area-inset-bottom), 12px) !important;
+    padding-top: 8px !important;
+  }
+
+  .mobile-bottom-nav-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    padding: 8px 12px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    flex: 1 !important;
+    text-decoration: none !important;
+    color: inherit !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .mobile-bottom-nav-item:active {
+    transform: scale(0.95) !important;
+  }
+
+  .mobile-bottom-nav-item-icon {
+    width: 24px !important;
+    height: 24px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .mobile-bottom-nav-item-label {
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    white-space: nowrap !important;
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+  }
+
+  /* Active state - white text and icon */
+  .mobile-bottom-nav-item.active .mobile-bottom-nav-item-icon svg {
+    fill: #FFFFFF !important;
+    color: #FFFFFF !important;
+  }
+
+  .mobile-bottom-nav-item.active .mobile-bottom-nav-item-label {
+    color: #FFFFFF !important;
+  }
+
+  /* Inactive state - gray text and icon */
+  .mobile-bottom-nav-item:not(.active) .mobile-bottom-nav-item-icon svg {
+    fill: #6C6B6E !important;
+    color: #6C6B6E !important;
+  }
+
+  .mobile-bottom-nav-item:not(.active) .mobile-bottom-nav-item-label {
+    color: #6C6B6E !important;
+  }
+
+  /* Add padding to main content to account for bottom nav */
+  .chat-container,
+  [data-chat-container="true"] {
+    padding-bottom: 80px !important;
+  }
+
+  /* Messages container should have space for bottom nav */
+  .messages-container,
+  [data-messages-container="true"] {
+    padding-bottom: 100px !important;
+  }
+}
+
+/* Desktop: Hide mobile bottom nav */
+@media (min-width: 769px) {
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+}
+
+/* ========================================
+   SMOOTH SCROLLING OPTIMIZATION
+   Hardware acceleration and momentum scrolling
+   ======================================== */
+
+/* Hardware acceleration for smooth rendering */
+.chat-interface,
+.messages-container,
+.message-item,
+.chat-input-area {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Optimize message layout */
+.message-item {
+  contain: layout style paint;
+}
+
+/* Mobile-specific scroll optimizations */
+@media (max-width: 768px) {
+  /* Enable native momentum scrolling on iOS */
+  .chat-messages-container,
+  .messages-container,
+  [data-messages-container="true"],
+  [role="region"][aria-label*="messages"] {
+    -webkit-overflow-scrolling: touch !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Remove tap highlight on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Chat interface layout with dvh */
+  .chat-interface,
+  [data-chat-container="true"] {
+    height: 100dvh !important;
+    height: 100vh !important; /* Fallback */
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Messages container with safe area and bottom nav space */
+  .messages-container,
+  [data-messages-container="true"] {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* Input area with safe area */
+  .chat-input-area,
+  [data-chat-input="true"] {
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* Smooth transitions */
+  .chat-input-area,
+  [data-chat-input="true"] {
+    transition: padding 0.2s ease !important;
+  }
+
+  /* Scroll container optimization */
+  .scroll-container {
+    -webkit-overflow-scrolling: touch !important;
+    scroll-behavior: smooth !important;
+  }
+
+  /* ========================================
+     BOTTOM PADDING FOR ALL PAGES
+     Ensures content is not hidden behind bottom nav
+     ======================================== */
+
+  /* Documents/Home page main content area */
+  .documents-content,
+  .documents-main,
+  .home-content,
+  [data-page="documents"] > div:last-child,
+  [data-page="home"] > div:last-child {
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* Settings page content */
+  .settings-content,
+  .settings-page,
+  .settings-form,
+  [data-settings-form="true"],
+  [data-page="settings"] {
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* Upload Hub page content */
+  .upload-hub-content,
+  .upload-content,
+  .upload-hub,
+  [data-page="upload"],
+  [data-page="upload-hub"] {
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* Category Detail page content */
+  .category-detail-content,
+  .category-content,
+  [data-category-header="true"] ~ div,
+  [data-page="category"] {
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* File Type Detail page content */
+  .file-type-content,
+  .file-type-detail-content,
+  [data-file-type-header="true"] ~ div,
+  [data-page="file-type"] {
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* Folder Detail page content */
+  .folder-detail-content,
+  .folder-content,
+  [data-page="folder"] {
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* Generic scrollable content areas */
+  .page-content,
+  .main-content,
+  .content-area,
+  .scrollable-content {
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* Document grid/list containers */
+  .documents-grid,
+  .documents-list,
+  .file-grid,
+  .file-list,
+  .category-grid,
+  .folder-grid {
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+}
+
+/* ========================================
+   MOBILE KEYBOARD HANDLING
+   Prevents input from being hidden by keyboard
+   ======================================== */
+@media (max-width: 768px) {
+  /* When keyboard is visible, hide bottom nav */
+  body.keyboard-visible .mobile-bottom-nav {
+    display: none !important;
+  }
+
+  /* Input focus styles */
+  input:focus,
+  textarea:focus {
+    outline: none;
+  }
+
+  /* Prevent iOS zoom on input focus */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  textarea {
+    font-size: 16px !important; /* Prevents iOS zoom */
+  }
+
+  /* Smooth keyboard transition for input area */
+  .chat-input-area {
+    transition: transform 0.3s ease, padding 0.3s ease;
+  }
+
+  /* When keyboard is visible, adjust chat input position */
+  body.keyboard-visible .chat-input-area {
+    padding-bottom: 12px !important;
+  }
+}
+
+/* ========================================
+   MOBILE PERFORMANCE OPTIMIZATIONS
+   ======================================== */
+@media (max-width: 768px) {
+  /* Hardware acceleration for scrolling elements */
+  .scrollable-content,
+  .messages-container,
+  .documents-content,
+  .settings-form {
+    will-change: scroll-position;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  /* Optimize touch interactions */
+  button,
+  a,
+  [role="button"],
+  .clickable {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Reduce repaints on scroll */
+  [data-messages-container="true"],
+  [data-chat-container="true"] {
+    contain: layout style paint;
+  }
+
+  /* Smooth animations */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 }

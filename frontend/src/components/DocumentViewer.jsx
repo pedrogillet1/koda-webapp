@@ -42,14 +42,11 @@ import {
   isMacOS,
   isIOS,
   downloadFile as safariDownloadFile,
-  getOptimalPDFScale,
   getImageRenderingCSS,
   logBrowserInfo
 } from '../utils/browserUtils';
 import {
-  getOptimalPDFWidth,
-  getScrollbarWidth,
-  getOptimalPDFScaleNew
+  getOptimalPDFWidth
 } from '../utils/pdfRenderingUtils';
 
 // ⚡ PERFORMANCE: Code-split MarkdownEditor to reduce initial bundle size
@@ -1316,7 +1313,6 @@ const DocumentViewer = () => {
                             <Page
                               pageNumber={index + 1}
                               width={getPdfPageWidth()}
-                              scale={getOptimalPDFScaleNew(isSafari(), isMacOS())}
                               renderTextLayer={true}
                               renderAnnotationLayer={true}
                               loading={
@@ -1461,7 +1457,6 @@ const DocumentViewer = () => {
                             <Page
                               pageNumber={index + 1}
                               width={getPdfPageWidth()}
-                              scale={getOptimalPDFScaleNew(isSafari(), isMacOS())}
                               renderTextLayer={true}
                               renderAnnotationLayer={true}
                               loading={

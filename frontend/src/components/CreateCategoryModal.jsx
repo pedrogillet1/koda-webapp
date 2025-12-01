@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
 import { ReactComponent as SearchIcon } from '../assets/Search.svg';
+import { useIsMobile } from '../hooks/useIsMobile';
 import CategoryIcon from './CategoryIcon';
 import folderIcon from '../assets/folder_icon.svg';
 import pdfIcon from '../assets/pdf-icon.png';
@@ -18,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 
 const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocuments = [], preSelectedDocumentId = null }) => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [categoryName, setCategoryName] = useState('');
   const [selectedEmoji, setSelectedEmoji] = useState('__FOLDER_SVG__');
   const [documents, setDocuments] = useState([]);
@@ -189,32 +191,37 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
         background: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
         justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000
+        alignItems: isMobile ? 'flex-end' : 'center',
+        zIndex: 1000,
+        padding: isMobile ? 0 : 16,
+        paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 16
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: 500,
+          maxWidth: isMobile ? '100%' : 500,
+          maxHeight: isMobile ? '90vh' : '85vh',
           background: 'white',
-          borderRadius: 14,
+          borderRadius: isMobile ? '14px 14px 0 0' : 14,
           outline: '1px #E6E6EC solid',
           outlineOffset: '-1px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 18,
-          padding: '18px 0'
+          overflow: 'hidden'
         }}
       >
         {/* Header */}
         <div style={{
           paddingLeft: 18,
           paddingRight: 18,
+          paddingTop: 18,
+          paddingBottom: 18,
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          flexShrink: 0
         }}>
           <div style={{ width: 30, height: 30, opacity: 0 }} />
           <div style={{
@@ -248,16 +255,28 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
         </div>
 
         {/* Divider */}
-        <div style={{ height: 1, background: '#E6E6EC' }} />
+        <div style={{ height: 1, background: '#E6E6EC', flexShrink: 0 }} />
 
-        {/* Category Name Input */}
+        {/* Scrollable Content Area */}
         <div style={{
-          paddingLeft: 18,
-          paddingRight: 18,
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          gap: 6
+          gap: 18,
+          paddingTop: 18,
+          paddingBottom: 18,
+          WebkitOverflowScrolling: 'touch'
         }}>
+          {/* Category Name Input */}
+          <div style={{
+            paddingLeft: 18,
+            paddingRight: 18,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6
+          }}>
           <div style={{
             color: '#32302C',
             fontSize: 14,
@@ -279,10 +298,10 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
             placeholder={t('modals.createCategory.namePlaceholder')}
             style={{
               height: 52,
-              paddingLeft: 18,
-              paddingRight: 18,
+              paddingLeft: 24,
+              paddingRight: 24,
               background: '#F5F5F5',
-              borderRadius: 14,
+              borderRadius: 100,
               outline: nameError ? '2px #DC2626 solid' : '1px #E6E6EC solid',
               outlineOffset: '-1px',
               border: 'none',
@@ -321,18 +340,18 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
               onClick={() => setShowAllEmojis(!showAllEmojis)}
               style={{
                 padding: '6px 12px',
-                background: '#F5F5F5',
-                border: '1px solid #E6E6EC',
+                background: 'transparent',
+                border: 'none',
                 borderRadius: 8,
                 cursor: 'pointer',
-                fontSize: 12,
+                fontSize: 14,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '600',
                 color: '#32302C',
-                transition: 'background 0.2s ease'
+                transition: 'opacity 0.2s ease'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#E6E6EC'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#F5F5F5'}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             >
               {showAllEmojis ? t('modals.createCategory.showLess') : t('modals.createCategory.seeAll')}
             </button>
@@ -341,46 +360,33 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
             alignSelf: 'stretch',
             display: 'flex',
             flexWrap: showAllEmojis ? 'wrap' : 'nowrap',
-            gap: 8,
+            gap: 12,
             maxHeight: showAllEmojis ? 200 : 'auto',
             overflowY: showAllEmojis ? 'auto' : 'visible',
-            padding: 4
+            overflowX: showAllEmojis ? 'visible' : 'hidden'
           }}>
-            {(showAllEmojis ? emojis : emojis.slice(0, 8)).map((emoji) => (
+            {(showAllEmojis ? emojis : emojis.slice(0, 7)).map((emoji) => (
               <button
                 key={emoji}
                 onClick={() => setSelectedEmoji(emoji)}
                 style={{
-                  width: 44,
-                  height: 44,
-                  paddingTop: 10,
-                  paddingBottom: 10,
-                  background: selectedEmoji === emoji ? '#171717' : '#F5F5F5',
-                  boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)',
+                  width: 52,
+                  height: 52,
+                  background: selectedEmoji === emoji ? '#E6E6EC' : 'transparent',
                   borderRadius: 100,
-                  outline: `1px ${selectedEmoji === emoji ? '#171717' : '#E6E6EC'} solid`,
-                  outlineOffset: '-1px',
                   border: 'none',
                   justifyContent: 'center',
                   alignItems: 'center',
                   display: 'flex',
                   cursor: 'pointer',
-                  fontSize: 20,
+                  fontSize: 32,
                   flexShrink: 0,
-                  transition: 'all 0.2s ease'
+                  transition: 'transform 0.2s ease, background 0.2s ease'
                 }}
-                onMouseEnter={(e) => {
-                  if (selectedEmoji !== emoji) {
-                    e.currentTarget.style.background = '#EBEBEB';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedEmoji !== emoji) {
-                    e.currentTarget.style.background = '#F5F5F5';
-                  }
-                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
               >
-                <CategoryIcon emoji={emoji} size={20} />
+                <CategoryIcon emoji={emoji} size={32} />
               </button>
             ))}
           </div>
@@ -428,16 +434,16 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
               placeholder={t('modals.createCategory.searchPlaceholder')}
               style={{
                 width: '100%',
-                height: 42,
-                paddingLeft: 40,
-                paddingRight: 12,
+                height: 48,
+                paddingLeft: 44,
+                paddingRight: 20,
                 background: '#F5F5F5',
-                borderRadius: 10,
+                borderRadius: 100,
                 outline: documentsError ? '2px #DC2626 solid' : '1px #E6E6EC solid',
                 outlineOffset: '-1px',
                 border: 'none',
                 color: '#32302C',
-                fontSize: 14,
+                fontSize: 16,
                 fontFamily: 'Plus Jakarta Sans',
                 fontWeight: '400',
                 lineHeight: '20px'
@@ -578,16 +584,21 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
             )}
           </div>
         </div>
+        {/* End of Scrollable Content Area */}
+        </div>
 
         {/* Divider */}
-        <div style={{ height: 1, background: '#E6E6EC' }} />
+        <div style={{ height: 1, background: '#E6E6EC', flexShrink: 0 }} />
 
         {/* Action Buttons */}
         <div style={{
           paddingLeft: 18,
           paddingRight: 18,
+          paddingTop: 18,
+          paddingBottom: 18,
           display: 'flex',
-          gap: 8
+          gap: 8,
+          flexShrink: 0
         }}>
           <div
             onClick={onClose}
@@ -595,7 +606,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
               flex: 1,
               height: 52,
               background: '#F5F5F5',
-              borderRadius: 14,
+              borderRadius: 100,
               outline: '1px #E6E6EC solid',
               outlineOffset: '-1px',
               display: 'flex',
@@ -621,7 +632,7 @@ const CreateCategoryModal = ({ isOpen, onClose, onCreateCategory, uploadedDocume
               flex: 1,
               height: 52,
               background: 'rgba(24, 24, 24, 0.90)',
-              borderRadius: 14,
+              borderRadius: 100,
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',

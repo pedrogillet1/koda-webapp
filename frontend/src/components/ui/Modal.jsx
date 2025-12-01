@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { colors, spacing, radius, zIndex, typography, transitions } from '../../constants/designTokens';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 /**
  * Canonical Modal Component
@@ -22,6 +23,8 @@ export default function Modal({
   maxWidth = 400,
   showCloseButton = true,
 }) {
+  const isMobile = useIsMobile();
+
   // Handle escape key
   useEffect(() => {
     const handleEscape = (e) => {
@@ -55,27 +58,32 @@ export default function Modal({
         background: colors.overlay,
         display: 'flex',
         justifyContent: 'center',
-        alignItems: 'center',
+        alignItems: isMobile ? 'flex-end' : 'center',
         zIndex: zIndex.modal,
         animation: 'fadeIn 0.2s ease-out',
+        padding: isMobile ? 0 : spacing.lg,
+        paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : spacing.lg,
       }}
       onClick={onClose}
     >
       <div
         style={{
-          width: '100%',
-          maxWidth: maxWidth,
-          margin: spacing.lg,
+          width: isMobile ? '100%' : '100%',
+          maxWidth: isMobile ? '100%' : maxWidth,
+          margin: isMobile ? 0 : spacing.lg,
+          maxHeight: isMobile ? '90vh' : '85vh',
           background: colors.white,
-          borderRadius: radius.xl,
+          borderRadius: isMobile ? '14px 14px 0 0' : radius.xl,
           border: `1px solid ${colors.gray[300]}`,
           display: 'flex',
           flexDirection: 'column',
           gap: spacing.lg,
           paddingTop: spacing.lg,
-          paddingBottom: spacing.lg,
+          paddingBottom: isMobile ? `calc(${spacing.lg}px + env(safe-area-inset-bottom, 0px))` : spacing.lg,
           animation: 'slideUp 0.2s ease-out',
           boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
         }}
         onClick={(e) => e.stopPropagation()}
       >

@@ -1165,7 +1165,9 @@
     "previewNotAvailable": "Preview not available",
     "fullView": "Full View",
     "openFullPreview": "Open Full Preview",
-    "closeAndAttach": "Close & Attach"
+    "closeAndAttach": "Close & Attach",
+    "browserNotSupportVideo": "Your browser does not support the video tag.",
+    "browserNotSupportAudio": "Your browser does not support the audio tag."
   },
   "verification": {
     "twoStepVerification": "2-Step Verification",

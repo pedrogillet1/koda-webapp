@@ -84,9 +84,11 @@ export const shadows = {
 };
 
 export const zIndex = {
-  dropdown: 1000,
+  dropdown: 99999,
   modal: 10000,
   toast: 99999,
+  popover: 8000,
+  tooltip: 7000,
 };
 
 export const transitions = {
