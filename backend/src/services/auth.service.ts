@@ -142,7 +142,7 @@ export const loginUser = async ({ email, password, rememberMe }: LoginInput) => 
   // Find user
   const user = await prisma.users.findUnique({
     where: { email: email.toLowerCase() },
-    include: { two_factor_auth: true },
+    include: { twoFactorAuth: true },
   });
 
   console.log('🔐 Login attempt for:', email);

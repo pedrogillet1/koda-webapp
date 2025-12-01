@@ -500,7 +500,7 @@ export const kodaFunctions: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       parameters: {
         type: 'object',
         properties: {
-          document_document_tags: {
+          tag: {
             type: 'string',
             description: 'The tag to search for (without #)',
           },
@@ -521,7 +521,7 @@ export const kodaFunctions: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             type: 'string',
             description: 'ID of the document',
           },
-          document_document_tags: {
+          tag: {
             type: 'string',
             description: 'Tag to add (lowercase, without #)',
           },

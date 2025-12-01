@@ -2383,7 +2383,7 @@ export const getDocumentById = async (documentId: string, userId: string) => {
       document_metadata: true,
       document_tags: {
         include: {
-          document_document_tags: true,
+          tags: true,
         },
       },
     },
@@ -2435,7 +2435,7 @@ export const listDocuments = async (
         folders: true,
         document_tags: {
           include: {
-            document_document_tags: true,
+            tags: true,
           },
         },
         // Only include minimal metadata fields for list view (not the huge content fields)
@@ -3157,7 +3157,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
     // 1. Get document and verify ownership
     const document = await prisma.documents.findUnique({
       where: { id: documentId },
-      include: { document_metadata: true }
+      include: { documentMetadata: true }
     });
 
     if (!document) {
@@ -3373,7 +3373,7 @@ export const retryDocument = async (documentId: string, userId: string) => {
     // 1. Get document and verify ownership
     const document = await prisma.documents.findUnique({
       where: { id: documentId },
-      include: { document_metadata: true }
+      include: { documentMetadata: true }
     });
 
     if (!document) {
@@ -3424,7 +3424,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
     // 1. Get document and verify ownership
     const document = await prisma.documents.findUnique({
       where: { id: documentId },
-      include: { document_metadata: true }
+      include: { documentMetadata: true }
     });
 
     if (!document) {

@@ -284,7 +284,7 @@ export const getFolder = async (folderId: string, userId: string) => {
         include: {
           document_tags: {
             include: {
-              document_document_tags: true,
+              tags: true,
             },
           },
         },

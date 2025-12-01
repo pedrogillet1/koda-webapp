@@ -83,7 +83,7 @@ export const addTagToDocument = async (documentId: string, tagId: string, userId
       tagId,
     },
     include: {
-      document_document_tags: true,
+      tags: true,
     },
   });
 
@@ -165,7 +165,7 @@ export const searchDocumentsByTag = async (tagId: string, userId: string) => {
     include: {
       document_tags: {
         include: {
-          document_document_tags: true,
+          tags: true,
         },
       },
       folders: true,

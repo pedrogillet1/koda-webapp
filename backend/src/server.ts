@@ -444,6 +444,12 @@ httpServer.listen(portConfig.httpsPort, () => {
       return;
     }
 
+    // Guard: Wait for Prisma to be ready
+    if (!prisma?.documents) {
+      console.log('⏳ Waiting for Prisma to initialize...');
+      return;
+    }
+
     try {
       isProcessing = true;
 
