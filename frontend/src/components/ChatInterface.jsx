@@ -1144,8 +1144,27 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     const cachedMessages = JSON.parse(cached);
                     console.log(`⚡ Cache HIT for ${conversationId}: ${cachedMessages.length} cached messages`);
 
-                    // ✅ Show cached messages IMMEDIATELY (they're keyed by conversationId so they're the right ones)
-                    setMessages(cachedMessages);
+                    // ✅ FIX #5: Normalize cached messages to ensure attachedFiles have full info
+                    const normalizedMessages = cachedMessages.map(msg => {
+                        // For user messages, ensure attachedFiles have name/type from metadata if missing
+                        if (msg.role === 'user' && msg.metadata) {
+                            const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
+                            if (metadata?.attachedFiles && (!msg.attachedFiles || msg.attachedFiles.length === 0)) {
+                                msg.attachedFiles = metadata.attachedFiles.map(file => ({
+                                    id: file.id,
+                                    name: file.name || file.filename || 'Unknown File',
+                                    filename: file.filename || file.name || 'Unknown File',
+                                    type: file.type || file.mimeType || 'application/octet-stream',
+                                    mimeType: file.mimeType || file.type || 'application/octet-stream'
+                                }));
+                                console.log(`📎 [CACHE-NORMALIZE] Restored ${msg.attachedFiles.length} attachments for cached message`);
+                            }
+                        }
+                        return msg;
+                    });
+
+                    // ✅ Show normalized cached messages IMMEDIATELY
+                    setMessages(normalizedMessages);
 
                     // 2. Check if cache is fresh (< 30 seconds old)
                     const cacheAge = Date.now() - parseInt(cacheTimestamp || '0');
@@ -1206,10 +1225,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 }
                             }
 
-                            // ✅ FIX #1: Parse attachedFiles for user messages to persist on refresh
+                            // ✅ FIX #4: Parse attachedFiles for user messages with full info for display
                             if (msg.role === 'user' && metadata.attachedFiles) {
-                                msg.attachedFiles = metadata.attachedFiles;
-                                console.log(`📎 [LOAD] Restored ${metadata.attachedFiles.length} attached files for user message`);
+                                // Ensure attachedFiles have name and type for proper display
+                                msg.attachedFiles = metadata.attachedFiles.map(file => ({
+                                    id: file.id,
+                                    name: file.name || file.filename || 'Unknown File',
+                                    filename: file.filename || file.name || 'Unknown File',
+                                    type: file.type || file.mimeType || 'application/octet-stream',
+                                    mimeType: file.mimeType || file.type || 'application/octet-stream'
+                                }));
+                                console.log(`📎 [LOAD] Restored ${msg.attachedFiles.length} attached files for message ${msg.id}`);
                             }
                         } catch (e) {
                             console.error('Error parsing message metadata:', e);
@@ -3323,10 +3349,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 try {
                                                     const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
                                                     if (metadata?.attachedFiles) {
-                                                        attachedFiles = metadata.attachedFiles;
+                                                        // ✅ FIX #3: Ensure restored attachments have name and type for display
+                                                        attachedFiles = metadata.attachedFiles.map(file => ({
+                                                            id: file.id,
+                                                            name: file.name || file.filename || 'Unknown File',
+                                                            filename: file.filename || file.name || 'Unknown File',
+                                                            type: file.type || file.mimeType || 'application/octet-stream',
+                                                            mimeType: file.mimeType || file.type || 'application/octet-stream'
+                                                        }));
+                                                        console.log(`📎 [RESTORE] Restored ${attachedFiles.length} attachments from metadata`);
                                                     } else if (metadata?.attachedFile) {
                                                         // Backward compatibility with old single file format
-                                                        attachedFiles = [metadata.attachedFile];
+                                                        const file = metadata.attachedFile;
+                                                        attachedFiles = [{
+                                                            id: file.id,
+                                                            name: file.name || file.filename || 'Unknown File',
+                                                            filename: file.filename || file.name || 'Unknown File',
+                                                            type: file.type || file.mimeType || 'application/octet-stream',
+                                                            mimeType: file.mimeType || file.type || 'application/octet-stream'
+                                                        }];
                                                     }
                                                 } catch (e) {
                                                     console.error('Error parsing message metadata:', e);
