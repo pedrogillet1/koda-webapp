@@ -843,9 +843,28 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   .chat-input-wrapper textarea,
   [data-chat-textarea="true"] {
     font-size: 14px !important;
-    line-height: 1.3 !important;
-    padding: 10px 12px !important;
+    line-height: 20px !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    max-height: 20px !important;
+    padding: 0 !important;
     resize: none !important;
+  }
+
+  /* Chat input form wrapper - single line height */
+  .chat-input-wrapper,
+  [data-chat-input="true"] {
+    min-height: auto !important;
+    height: auto !important;
+    padding: 8px 12px !important;
+  }
+
+  /* Reduce grey space below input area */
+  .chat-input-area,
+  [data-input-area="true"] {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+    gap: 4px !important;
   }
 
   /* ========================================
