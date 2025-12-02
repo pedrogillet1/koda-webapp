@@ -1422,8 +1422,9 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.log(`⚡ [FAST KEYWORD] Detected greeting in ${detectedLanguage} (skipped LLM + DB)`);
     }
     // List files - skip LLM and skip conversation history fetch
+    // ✅ FIX: Multilingual support (English, Portuguese, Spanish, French)
     // ✅ FIX: Added natural language file type names (excel, word, powerpoint, images)
-    else if (/\b(list|show|what|which|how many|quantos|cuantos)\b.*\b(files?|documents?|pdfs?|docx|xlsx|excel|word|powerpoint|ppt|txt|png|jpe?g|images?|pictures?|photos?)\b/i.test(lowerQuery)) {
+    else if (/\b(list|show|what|which|how many|listar|mostrar|quais?|quantos?|quantas?|cuáles?|cuántos?|cuántas?|lister|montrer|quels?|combien)\b.*\b(files?|documents?|pdfs?|docx?|xlsx?|excel|word|powerpoint|pptx?|txt|png|jpe?g|images?|pictures?|photos?|arquivos?|documentos?|imagens?|archivos?|imágenes?|fichiers?)\b/i.test(lowerQuery)) {
       // Extract file types if present (support both technical and natural language terms)
       const fileTypes: string[] = [];
       if (/\bpdf/i.test(lowerQuery)) fileTypes.push('pdf');
@@ -1589,8 +1590,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
 
+
+// CRITICAL: Set response charset explicitly to prevent character doubling
+(res as any).charset = 'utf-8';
       // Send "connected" event immediately
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`), 'utf8');
 
       // Now execute the action
       const result = await fileActionsService.createFolder({
@@ -1638,16 +1642,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           message: result.message,
           folderName: intentResult.parameters.folderName
         }
-      })}\n\n`);
+      })}\n\n`), 'utf8');
 
       // Send the response content
-      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`), 'utf8');
       res.write(`data: ${JSON.stringify({
         type: 'done',
         userMessage,
         assistantMessage,
         sources: []
-      })}\n\n`);
+      })}\n\n`), 'utf8');
       res.end();
       console.timeEnd('⚡ RAG Streaming Response Time');
       return;
@@ -1664,8 +1668,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
 
+
+// CRITICAL: Set response charset explicitly to prevent character doubling
+(res as any).charset = 'utf-8';
       // Send "connected" event immediately
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`), 'utf8');
 
       // Now execute the action (this may take a few seconds)
       const result = await fileActionsService.executeAction(query, userId);
@@ -1710,16 +1717,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           filename: intentResult.parameters.filename,
           targetFolder: intentResult.parameters.targetFolder
         }
-      })}\n\n`);
+      })}\n\n`), 'utf8');
 
       // Send the response content
-      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`), 'utf8');
       res.write(`data: ${JSON.stringify({
         type: 'done',
         userMessage,
         assistantMessage,
         sources: []
-      })}\n\n`);
+      })}\n\n`), 'utf8');
       res.end();
       console.timeEnd('⚡ RAG Streaming Response Time');
       return;
@@ -1735,8 +1742,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
 
+
+// CRITICAL: Set response charset explicitly to prevent character doubling
+(res as any).charset = 'utf-8';
       // Send "connected" event immediately
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`), 'utf8');
 
       // Now execute the action
       const result = await fileActionsService.executeAction(query, userId);
@@ -1782,16 +1792,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           oldName: intentResult.parameters.oldFilename,
           newName: intentResult.parameters.newFilename
         }
-      })}\n\n`);
+      })}\n\n`), 'utf8');
 
       // Send the response content
-      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`), 'utf8');
       res.write(`data: ${JSON.stringify({
         type: 'done',
         userMessage,
         assistantMessage,
         sources: []
-      })}\n\n`);
+      })}\n\n`), 'utf8');
       res.end();
       console.timeEnd('⚡ RAG Streaming Response Time');
       return;
@@ -1807,8 +1817,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
 
+
+// CRITICAL: Set response charset explicitly to prevent character doubling
+(res as any).charset = 'utf-8';
       // Send "connected" event immediately
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`), 'utf8');
 
       // Now execute the action
       const result = await fileActionsService.executeAction(
@@ -1855,16 +1868,16 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           message: result.message,
           filename: intentResult.parameters.filename
         }
-      })}\n\n`);
+      })}\n\n`), 'utf8');
 
       // Send the response content
-      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`), 'utf8');
       res.write(`data: ${JSON.stringify({
         type: 'done',
         userMessage,
         assistantMessage,
         sources: []
-      })}\n\n`);
+      })}\n\n`), 'utf8');
       res.end();
       console.timeEnd('⚡ RAG Streaming Response Time');
       return;
@@ -1880,8 +1893,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
 
+
+// CRITICAL: Set response charset explicitly to prevent character doubling
+(res as any).charset = 'utf-8';
       // Send "connected" event immediately
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`), 'utf8');
 
       // Now execute the action
       const result = await fileActionsService.showFile({
@@ -1928,17 +1944,17 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           success: true,
           document: result.data.document,
           attachOnClose: true  // Flag to attach file when modal closes
-        })}\n\n`);
+        })}\n\n`), 'utf8');
       }
 
       // Send the response content
-      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`), 'utf8');
       res.write(`data: ${JSON.stringify({
         type: 'done',
         userMessage,
         assistantMessage,
         sources: []
-      })}\n\n`);
+      })}\n\n`), 'utf8');
       res.end();
       console.timeEnd('⚡ RAG Streaming Response Time');
       return;
@@ -1954,8 +1970,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
 
+
+// CRITICAL: Set response charset explicitly to prevent character doubling
+(res as any).charset = 'utf-8';
       // Send "connected" event immediately
-      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`), 'utf8');
 
       // Now execute the action
       const systemMetadataService = require('../services/systemMetadata.service').default;
@@ -1998,7 +2017,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       });
 
       // Send the response content
-      res.write(`data: ${JSON.stringify({ type: 'content', content: responseMessage })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: responseMessage })}\n\n`), 'utf8');
       res.write(`data: ${JSON.stringify({
         type: 'done',
         formattedAnswer: responseMessage,
@@ -2006,7 +2025,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         assistantMessageId: assistantMessage.id,
         sources: [],
         conversationId
-      })}\n\n`);
+      })}\n\n`), 'utf8');
       res.end();
       console.timeEnd('⚡ RAG Streaming Response Time');
       return;
@@ -2029,8 +2048,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         res.setHeader('Connection', 'keep-alive');
         res.setHeader('X-Accel-Buffering', 'no');
 
+
+// CRITICAL: Set response charset explicitly to prevent character doubling
+(res as any).charset = 'utf-8';
         // Send connected event
-        res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`), 'utf8');
 
         // Ensure conversation exists before creating messages
         await ensureConversationExists(conversationId, userId);
@@ -2062,13 +2084,13 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         });
 
         // Send the response content
-        res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'content', content: result.message })}\n\n`), 'utf8');
         res.write(`data: ${JSON.stringify({
           type: 'done',
           userMessage,
           assistantMessage,
           sources: []
-        })}\n\n`);
+        })}\n\n`), 'utf8');
         res.end();
         console.timeEnd('⚡ RAG Streaming Response Time');
         return;
@@ -2118,8 +2140,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
+
+// CRITICAL: Set response charset explicitly to prevent character doubling
+(res as any).charset = 'utf-8';
     // Send initial connection confirmation
-    res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`), 'utf8');
     console.log('🚀 [DEBUG] Sent connected event');
 
     // Add keepalive pings every 15 seconds to prevent timeout
@@ -2208,7 +2233,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           fullAnswer += chunk;
           // Stream each chunk to client
           console.log('🚀 [DEBUG] Writing chunk to SSE stream...');
-          res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`), 'utf8');
           if (res.flush) res.flush(); // Force immediate send
           console.log('🚀 [DEBUG] Chunk written and flushed');
         },
@@ -2239,7 +2264,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       const userFriendlyMessage = languageDetectionService.getLocalizedError('general_error', detectedLanguage);
 
       // Stream user-friendly message
-      res.write(`data: ${JSON.stringify({ type: 'content', content: userFriendlyMessage })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'content', content: userFriendlyMessage })}\n\n`), 'utf8');
 
       // Save user-friendly message to database
       const assistantMessage = await prisma.message.create({
@@ -2258,7 +2283,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         assistantMessageId: assistantMessage.id,
         sources: [],
         conversationId
-      })}\n\n`);
+      })}\n\n`), 'utf8');
 
       res.end();
       console.timeEnd('⚡ RAG Streaming Response Time');
@@ -2399,7 +2424,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
         // Stream progress message to client
         const progressMessage = `\n\n📝 Generating your ${documentType}...\n\n`;
-        res.write(`data: ${JSON.stringify({ type: 'content', content: progressMessage })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'content', content: progressMessage })}\n\n`), 'utf8');
         if (res.flush) res.flush();
 
         // Generate document
@@ -2428,7 +2453,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         console.log(`✅ [RAG CONTROLLER] Document generated successfully: ${docResult.chatDocument.id}`);
 
         // Stream final message
-        res.write(`data: ${JSON.stringify({ type: 'content', content: '\n' + docResult.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'content', content: '\n' + docResult.message })}\n\n`), 'utf8');
         if (res.flush) res.flush();
       } catch (docGenError: any) {
         console.error('❌ [RAG CONTROLLER] Document generation failed:', docGenError);
@@ -2445,7 +2470,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
         cleanedAnswer += errorMessage;
 
-        res.write(`data: ${JSON.stringify({ type: 'content', content: errorMessage })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'content', content: errorMessage })}\n\n`), 'utf8');
         if (res.flush) res.flush();
       }
     }
@@ -2580,7 +2605,7 @@ Format the document using markdown with proper structure. Do NOT include the tit
       conversationId,
       generatedDocument: generatedDocument || undefined, // ✅ Include generated document info
       chatDocument: generatedChatDocument || undefined, // ✅ Include chat document for display
-    })}\n\n`);
+    })}\n\n`), 'utf8');
     console.log('🚀 [DEBUG] Done event sent');
 
     clearInterval(keepaliveInterval); // Clean up keepalive
@@ -2600,7 +2625,7 @@ Format the document using markdown with proper structure. Do NOT include the tit
       retryable: error.retryable !== false, // Default to true
     };
 
-    res.write(`data: ${JSON.stringify(errorResponse)}\n\n`);
+    res.write(`data: ${JSON.stringify(errorResponse)}\n\n`), 'utf8');
     res.end();
   }
 };
