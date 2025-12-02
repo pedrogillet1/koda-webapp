@@ -19,6 +19,9 @@ prisma/migrations/
 logs/
 *.log
 
+# Backups (created by fix scripts)
+backups/
+
 # Build output
 dist/
 build/

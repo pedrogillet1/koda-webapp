@@ -26,7 +26,29 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch",
+    "typecheck:chat": "tsc --noEmit src/controllers/chat.controller.ts src/controllers/rag.controller.ts src/services/chat.service.ts src/services/rag.service.ts",
+    "check:all": "npm run typecheck && npm run lint && npm run format:check",
+    "fix:all": "npm run lint:fix && npm run format",
+    "check:deploy": "bash scripts/check-types.sh",
+    "check:deploy:win": "pwsh scripts/check-types.ps1",
+    "deploy": "bash scripts/deploy.sh",
+    "deploy:win": "pwsh scripts/deploy.ps1",
+    "deploy:guaranteed": "bash scripts/GUARANTEED_DEPLOY.sh",
+    "deploy:guaranteed:win": "pwsh scripts/GUARANTEED_DEPLOY.ps1",
+    "test:functionality": "bash scripts/test-functionality.sh",
+    "test:functionality:win": "pwsh scripts/test-functionality.ps1",
+    "test:chat": "bash scripts/test-chat-complete.sh",
+    "test:chat:win": "pwsh scripts/test-chat-complete.ps1",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "eslint --fix --max-warnings=50",
+      "prettier --write"
+    ]
   },
   "keywords": [],
   "author": "",
@@ -143,7 +165,9 @@
     "eslint": "^9.36.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "husky": "^9.1.7",
     "jest": "^30.2.0",
+    "lint-staged": "^16.2.7",
     "nodemon": "^3.1.10",
     "pg": "^8.16.3",
     "prettier": "^3.6.2",

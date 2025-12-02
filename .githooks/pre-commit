@@ -1,0 +1,126 @@
+#!/bin/bash
+
+# Pre-commit hook for TypeScript error checking
+# This hook runs before each commit to ensure code quality
+
+echo "🔍 Running pre-commit TypeScript checks..."
+echo ""
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Determine project root
+HOOK_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$( cd "$HOOK_DIR/.." && pwd )"
+
+cd "$PROJECT_ROOT"
+
+# Function to check TypeScript in a directory
+check_typescript() {
+    local dir=$1
+    local name=$2
+
+    if [ ! -d "$dir" ]; then
+        return 0
+    fi
+
+    echo -e "${CYAN}Checking $name...${NC}"
+
+    cd "$dir"
+
+    # Check if TypeScript is installed
+    if [ ! -f "node_modules/.bin/tsc" ]; then
+        echo -e "${YELLOW}⚠️  TypeScript not installed in $name, skipping${NC}"
+        cd "$PROJECT_ROOT"
+        return 0
+    fi
+
+    # Get list of staged TypeScript files
+    STAGED_TS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.tsx\?$' || true)
+
+    if [ -z "$STAGED_TS_FILES" ]; then
+        echo -e "${CYAN}No TypeScript files staged in $name${NC}"
+        cd "$PROJECT_ROOT"
+        return 0
+    fi
+
+    echo -e "${CYAN}Staged files:${NC}"
+    echo "$STAGED_TS_FILES" | sed 's/^/  /'
+    echo ""
+
+    # Run TypeScript compiler
+    echo -e "${CYAN}Running TypeScript compiler...${NC}"
+    ERRORS=$(./node_modules/.bin/tsc --noEmit 2>&1 | grep "error TS" || true)
+
+    if [ -z "$ERRORS" ]; then
+        echo -e "${GREEN}✅ No TypeScript errors in $name${NC}"
+        cd "$PROJECT_ROOT"
+        return 0
+    else
+        ERROR_COUNT=$(echo "$ERRORS" | wc -l)
+        echo -e "${RED}❌ Found $ERROR_COUNT TypeScript errors in $name:${NC}"
+        echo ""
+        echo "$ERRORS" | head -20
+        echo ""
+
+        # Check if errors are in staged files
+        STAGED_ERRORS=0
+        for file in $STAGED_TS_FILES; do
+            if echo "$ERRORS" | grep -q "$file"; then
+                ((STAGED_ERRORS++))
+            fi
+        done
+
+        if [ "$STAGED_ERRORS" -gt 0 ]; then
+            echo -e "${RED}❌ TypeScript errors found in staged files!${NC}"
+            cd "$PROJECT_ROOT"
+            return 1
+        else
+            echo -e "${YELLOW}⚠️  TypeScript errors found, but not in staged files${NC}"
+            echo -e "${YELLOW}Consider fixing these errors eventually${NC}"
+            cd "$PROJECT_ROOT"
+            return 0
+        fi
+    fi
+}
+
+# Check if we should skip hooks
+if [ "$SKIP_HOOKS" = "1" ] || [ "$NO_VERIFY" = "1" ]; then
+    echo -e "${YELLOW}⚠️  Skipping pre-commit hooks (SKIP_HOOKS or NO_VERIFY set)${NC}"
+    exit 0
+fi
+
+# Initialize error counter
+ERRORS=0
+
+# Check backend
+if [ -d "backend" ]; then
+    check_typescript "backend" "Backend" || ((ERRORS++))
+    echo ""
+fi
+
+# Check frontend
+if [ -d "frontend" ]; then
+    check_typescript "frontend" "Frontend" || ((ERRORS++))
+    echo ""
+fi
+
+# Final result
+if [ $ERRORS -eq 0 ]; then
+    echo -e "${GREEN}✅ All pre-commit checks passed!${NC}"
+    echo ""
+    exit 0
+else
+    echo -e "${RED}❌ Pre-commit checks failed with $ERRORS error(s)${NC}"
+    echo ""
+    echo -e "${YELLOW}To commit anyway, use:${NC}"
+    echo "  git commit --no-verify"
+    echo ""
+    echo -e "${YELLOW}Or fix the errors and try again${NC}"
+    echo ""
+    exit 1
+fi

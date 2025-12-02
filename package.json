@@ -9,7 +9,14 @@
     "test:speed:simple": "node scripts/testChatSpeed.js type simple",
     "test:speed:factual": "node scripts/testChatSpeed.js type factual",
     "test:speed:explanation": "node scripts/testChatSpeed.js type explanation",
-    "test:speed:comprehensive": "node scripts/testChatSpeed.js type comprehensive"
+    "test:speed:comprehensive": "node scripts/testChatSpeed.js type comprehensive",
+    "typecheck": "npm run typecheck:backend && npm run typecheck:frontend",
+    "typecheck:backend": "cd backend && npm run typecheck",
+    "typecheck:frontend": "cd frontend && npm run build",
+    "typecheck:chat": "cd backend && npm run typecheck:chat",
+    "setup:hooks": "bash scripts/setup-git-hooks.sh",
+    "check:typescript": "bash scripts/check_chat_typescript_errors.sh",
+    "fix:typescript": "bash scripts/fix_chat_typescript_errors.sh"
   },
   "dependencies": {
     "axios": "^1.12.2",
