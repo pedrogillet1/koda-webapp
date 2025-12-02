@@ -2469,7 +2469,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                flexShrink: 0
+                flexShrink: 0,
+                position: isMobile ? 'sticky' : 'relative',
+                top: isMobile ? 0 : 'auto',
+                zIndex: isMobile ? 10 : 'auto'
             }}>
                 <h2 style={{
                     fontSize: isMobile ? 18 : 24,

@@ -331,7 +331,7 @@ const FileTypeDetail = () => {
       <LeftNav />
       <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
-        <div data-file-type-header="true" className="file-type-header" style={{ background: 'white', padding: isMobile ? '16px 16px 16px 70px' : '20px 32px', borderBottom: '1px solid #E5E7EB' }}>
+        <div data-file-type-header="true" className="file-type-header" style={{ background: 'white', padding: isMobile ? '16px 16px 16px 70px' : '20px 32px', borderBottom: '1px solid #E5E7EB', position: isMobile ? 'sticky' : 'relative', top: isMobile ? 0 : 'auto', zIndex: isMobile ? 10 : 'auto' }}>
           <div style={{ display: 'flex', justifyContent: isMobile ? 'center' : 'space-between', alignItems: isMobile ? 'center' : 'flex-start', gap: isMobile ? 12 : 24, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

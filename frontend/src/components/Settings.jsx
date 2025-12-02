@@ -869,7 +869,7 @@ const Settings = () => {
         overflow: isMobile ? 'visible' : 'hidden'
       }}>
         {/* Header */}
-        <div style={{ alignSelf: 'stretch', height: isMobile ? 56 : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'space-between', alignItems: 'center', gap: 12, display: 'flex' }}>
+        <div style={{ alignSelf: 'stretch', height: isMobile ? 56 : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'space-between', alignItems: 'center', gap: 12, display: 'flex', position: isMobile ? 'sticky' : 'relative', top: isMobile ? 0 : 'auto', zIndex: isMobile ? 10 : 'auto' }}>
           <div style={{ textAlign: 'left', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', flex: isMobile ? 1 : 'auto' }}>
             {activeSection}
           </div>

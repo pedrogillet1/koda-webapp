@@ -2700,7 +2700,11 @@ const CategoryDetail = () => {
               paddingRight: 24,
               justifyContent: 'space-between',
               alignItems: 'center',
-              display: 'flex'
+              display: 'flex',
+              position: isMobile ? 'sticky' : 'relative',
+              top: isMobile ? 0 : 'auto',
+              zIndex: isMobile ? 10 : 'auto',
+              background: 'white'
             }}>
               <div style={{
                 color: '#32302C',

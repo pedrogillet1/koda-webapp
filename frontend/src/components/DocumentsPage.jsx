@@ -438,7 +438,10 @@ const DocumentsPage = () => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
+          position: isMobile ? 'sticky' : 'relative',
+          top: isMobile ? 0 : 'auto',
+          zIndex: isMobile ? 10 : 'auto'
         }}>
           <div style={{
             color: colors.gray[900],
