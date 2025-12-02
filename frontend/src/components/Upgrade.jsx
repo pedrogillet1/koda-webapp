@@ -21,7 +21,7 @@ const Upgrade = () => {
       {/* Main Content */}
       <div style={{ flex: '1 1 0', height: '100vh', width: isMobile ? '100%' : 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
         {/* Header */}
-        <div style={{ alignSelf: 'stretch', height: isMobile ? 'auto' : 120, paddingLeft: isMobile ? 70 : 20, paddingRight: 20, paddingTop: isMobile ? 16 : 20, paddingBottom: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+        <div style={{ alignSelf: 'stretch', height: isMobile ? 56 : 120, paddingLeft: isMobile ? 16 : 20, paddingRight: 20, paddingTop: isMobile ? 16 : 20, paddingBottom: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'space-between', alignItems: 'center', gap: 12, display: 'flex', flexDirection: isMobile ? 'row' : 'row' }}>
           <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex' }}>
             {/* Breadcrumb */}
             <div style={{ justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>

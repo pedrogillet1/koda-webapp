@@ -430,13 +430,13 @@ const DocumentsPage = () => {
       >
         {/* Header */}
         <div style={{
-          height: isMobile ? 76 : 84,
-          paddingLeft: isMobile ? 70 : spacing.xl,
+          height: isMobile ? 56 : 84,
+          paddingLeft: isMobile ? 16 : spacing.xl,
           paddingRight: isMobile ? 16 : spacing.xl,
           background: colors.white,
           borderBottom: `1px solid ${colors.gray[300]}`,
           display: 'flex',
-          justifyContent: isMobile ? 'flex-start' : 'space-between',
+          justifyContent: 'space-between',
           alignItems: 'center',
           boxSizing: 'border-box'
         }}>
@@ -446,7 +446,9 @@ const DocumentsPage = () => {
             fontFamily: typography.fontFamily,
             fontWeight: typography.weights.bold,
             textTransform: 'capitalize',
-            lineHeight: typography.lineHeights.xl
+            lineHeight: typography.lineHeights.xl,
+            textAlign: 'left',
+            flex: isMobile ? 1 : 'auto'
           }}>
             {t('documents.title')}
           </div>

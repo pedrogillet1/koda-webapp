@@ -554,7 +554,7 @@ const Documents = () => {
         onDragLeave={handlePageDragLeave}
       >
         {/* Header */}
-        <div style={{minHeight: isMobile ? 'auto' : 84, paddingLeft: isMobile ? 70 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 12 : 0, paddingBottom: isMobile ? 12 : 0, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'center' : 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 12 : 0}}>
+        <div style={{minHeight: isMobile ? 'auto' : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 12 : 0, paddingBottom: isMobile ? 12 : 0, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', flexDirection: isMobile ? 'row' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: isMobile ? 12 : 0}}>
           {isSelectMode ? (
             <>
               {/* Left: Back arrow + Documents title */}
@@ -598,7 +598,7 @@ const Documents = () => {
               </div>
             </>
           ) : (
-            <div style={{color: '#32302C', fontSize: isMobile ? 16 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', textAlign: isMobile ? 'center' : 'left', width: isMobile ? '100%' : 'auto'}}>
+            <div style={{color: '#32302C', fontSize: isMobile ? 16 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', textAlign: 'left', flex: isMobile ? 1 : 'auto'}}>
               {t('documents.welcomeBack', { name: user && (user.firstName || user.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.email?.split('@')[0] || t('common.user') })}
             </div>
           )}

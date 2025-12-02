@@ -2461,13 +2461,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         <div data-chat-container="true" style={{flex: '1 1 0', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', background: '#F5F5F7', position: 'relative'}}>
             {/* Header */}
             <div style={{
-                height: isMobile ? 70 : 84,
-                paddingLeft: isMobile ? 70 : 24,
+                height: isMobile ? 56 : 84,
+                paddingLeft: isMobile ? 16 : 24,
                 paddingRight: isMobile ? 16 : 24,
                 background: 'white',
                 borderBottom: '1px solid #E6E6EC',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'space-between',
                 flexShrink: 0
             }}>
                 <h2 style={{
@@ -2476,7 +2477,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     color: '#111827',
                     margin: 0,
                     fontFamily: 'Plus Jakarta Sans',
-                    lineHeight: '30px'
+                    lineHeight: '30px',
+                    textAlign: 'left',
+                    flex: isMobile ? 1 : 'auto'
                 }}>
                     Chat
                 </h2>
@@ -3635,13 +3638,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 data-input-area="true"
                 className="chat-input-area"
                 style={{
-                    padding: isMobile ? '8px 12px calc(12px + env(safe-area-inset-bottom, 0px)) 12px' : '8px 20px 20px 20px',
+                    padding: isMobile
+                      ? '8px 12px calc(20px + max(env(safe-area-inset-bottom), 16px)) 12px'
+                      : '8px 20px 20px 20px',
                     background: '#F5F5F7',
                     borderTop: 'none',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 16,
+                    gap: isMobile ? 8 : 16,
                     flexShrink: 0 // Prevent input from shrinking on mobile
                 }}
                 onDragEnter={handleDragEnter}
@@ -3861,14 +3866,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }}
                     style={{
-                        padding: '10px 14px',
+                        padding: isMobile ? '8px 10px' : '10px 14px',
                         background: 'white',
                         borderRadius: 24,
                         border: '2px solid #E6E6EC',
                         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 12,
+                        gap: isMobile ? 8 : 12,
                         cursor: 'text',
                         transition: 'transform 0.2s ease, box-shadow 0.2s ease'
                     }}
@@ -3895,9 +3900,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             setMessage(newValue);
                             // ✅ FIX: Save draft to localStorage
                             localStorage.setItem(`koda_draft_${currentConversation?.id || 'new'}`, newValue);
-                            // Auto-resize textarea
+                            // Auto-resize textarea - but limit on mobile
                             e.target.style.height = 'auto';
-                            e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+                            const maxHeight = isMobile ? 24 : 200; // Mobile: single line only, Desktop: up to 200px
+                            e.target.style.height = Math.min(e.target.scrollHeight, maxHeight) + 'px';
                         }}
                         onPaste={handlePaste}
                         onKeyDown={(e) => {
@@ -3934,7 +3940,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             overflow: 'hidden',
                             overflowY: 'auto',
                             minHeight: '24px',
-                            maxHeight: '200px',
+                            maxHeight: isMobile ? '24px' : '200px',
                             height: '24px',
                             lineHeight: '24px',
                             fontFamily: 'inherit',

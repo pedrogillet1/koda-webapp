@@ -2378,13 +2378,14 @@ const UploadHub = () => {
       >
         {/* Header */}
         <div style={{
-          height: isMobile ? 70 : 84,
-          paddingLeft: isMobile ? 70 : 24,
+          height: isMobile ? 56 : 84,
+          paddingLeft: isMobile ? 16 : 24,
           paddingRight: isMobile ? 16 : 24,
           background: 'white',
           borderBottom: '1px solid #E6E6EC',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
           flexShrink: 0
         }}>
           <h2 style={{
@@ -2394,7 +2395,9 @@ const UploadHub = () => {
             margin: 0,
             fontFamily: 'Plus Jakarta Sans',
             lineHeight: '30px',
-            textTransform: 'capitalize'
+            textTransform: 'capitalize',
+            textAlign: 'left',
+            flex: isMobile ? 1 : 'auto'
           }}>
             Upload Hub
           </h2>

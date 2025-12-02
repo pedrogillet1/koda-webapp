@@ -628,7 +628,7 @@ const Settings = () => {
   };
 
   return (
-    <div data-page="settings" className="settings-page" style={{ width: '100%', height: isMobile ? '100%' : '100%', minHeight: isMobile ? 'auto' : '100vh', background: '#F4F4F6', overflow: isMobile ? 'auto' : 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>
+    <div data-page="settings" className="settings-page" style={{ width: '100%', height: isMobile ? 'auto' : '100vh', minHeight: '100vh', background: '#F4F4F6', overflow: isMobile ? 'visible' : 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Settings Sidebar - Hidden on mobile */}
@@ -846,9 +846,9 @@ const Settings = () => {
 
       {/* Main Content */}
       <div className="settings-content" style={{
-        flex: '1 1 0',
+        flex: isMobile ? '0 0 auto' : '1 1 0',
         height: isMobile ? 'auto' : '100vh',
-        minHeight: isMobile ? 'calc(100vh - 160px)' : '100vh',
+        minHeight: isMobile ? 'calc(100vh - 140px)' : '100vh',
         flexDirection: 'column',
         justifyContent: 'flex-start',
         alignItems: 'flex-start',
@@ -856,8 +856,8 @@ const Settings = () => {
         overflow: isMobile ? 'visible' : 'hidden'
       }}>
         {/* Header */}
-        <div style={{ alignSelf: 'stretch', height: isMobile ? 76 : 84, paddingLeft: isMobile ? 70 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
-          <div style={{ textAlign: isMobile ? 'left' : 'center', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px' }}>
+        <div style={{ alignSelf: 'stretch', height: isMobile ? 56 : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'space-between', alignItems: 'center', gap: 12, display: 'flex' }}>
+          <div style={{ textAlign: 'left', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', flex: isMobile ? 1 : 'auto' }}>
             {activeSection}
           </div>
         </div>

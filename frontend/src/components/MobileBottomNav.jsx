@@ -3,16 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-// Import icons - matching desktop sidebar
+// Import icons - outline only
 import { ReactComponent as HouseIcon } from '../assets/House.svg';
-import { ReactComponent as HouseFilledIcon } from '../assets/House-filled.svg';
 import { ReactComponent as Folder1Icon } from '../assets/Folder1.svg';
-import { ReactComponent as Folder1FilledIcon } from '../assets/Folder1-filled.svg';
 import { ReactComponent as UploadIcon } from '../assets/upload.svg';
 import { ReactComponent as MessageIcon } from '../assets/Message circle.svg';
-import { ReactComponent as MessageFilledIcon } from '../assets/Message circle - filled.svg';
 import { ReactComponent as SettingsIcon } from '../assets/Settings.svg';
-import { ReactComponent as SettingsFilledIcon } from '../assets/Settings-filled.svg';
 
 /**
  * Mobile Bottom Navigation Bar
@@ -29,13 +25,13 @@ const MobileBottomNav = () => {
   if (!isMobile) return null;
 
   // Navigation items configuration - 5 items: Home, Documents, Upload, Chat, Settings
+  // Using outline icons only (no filled variants)
   const navItems = [
     {
       id: 'home',
       path: '/home',
       label: t('nav.home'),
       icon: HouseIcon,
-      iconFilled: HouseFilledIcon,
       matchPaths: ['/home']
     },
     {
@@ -43,7 +39,6 @@ const MobileBottomNav = () => {
       path: '/documents',
       label: t('nav.documents'),
       icon: Folder1Icon,
-      iconFilled: Folder1FilledIcon,
       matchPaths: ['/documents', '/folder', '/filetype', '/category']
     },
     {
@@ -51,7 +46,6 @@ const MobileBottomNav = () => {
       path: '/upload-hub',
       label: t('nav.upload'),
       icon: UploadIcon,
-      iconFilled: UploadIcon,
       matchPaths: ['/upload-hub', '/upload']
     },
     {
@@ -59,7 +53,6 @@ const MobileBottomNav = () => {
       path: '/chat',
       label: t('nav.chat'),
       icon: MessageIcon,
-      iconFilled: MessageFilledIcon,
       matchPaths: ['/chat', '/']
     },
     {
@@ -67,7 +60,6 @@ const MobileBottomNav = () => {
       path: '/settings',
       label: t('nav.settings'),
       icon: SettingsIcon,
-      iconFilled: SettingsFilledIcon,
       matchPaths: ['/settings']
     }
   ];
@@ -104,7 +96,7 @@ const MobileBottomNav = () => {
     >
       {navItems.map((item) => {
         const active = isActive(item);
-        const Icon = active ? item.iconFilled : item.icon;
+        const Icon = item.icon;
 
         return (
           <div
@@ -126,19 +118,21 @@ const MobileBottomNav = () => {
             <div
               className="mobile-bottom-nav-item-icon"
               style={{
-                width: '24px',
-                height: '24px',
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                background: active ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                transition: 'background 0.2s ease'
               }}
             >
               <Icon
                 style={{
-                  width: '24px',
-                  height: '24px',
-                  fill: active ? '#FFFFFF' : '#6C6B6E',
-                  color: active ? '#FFFFFF' : '#6C6B6E'
+                  width: '20px',
+                  height: '20px',
+                  color: '#FFFFFF'
                 }}
               />
             </div>
@@ -149,7 +143,7 @@ const MobileBottomNav = () => {
                 fontWeight: '500',
                 fontFamily: 'Plus Jakarta Sans, sans-serif',
                 whiteSpace: 'nowrap',
-                color: active ? '#FFFFFF' : '#6C6B6E'
+                color: '#FFFFFF'
               }}
             >
               {item.label}
