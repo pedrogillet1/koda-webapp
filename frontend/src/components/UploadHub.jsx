@@ -2376,7 +2376,7 @@ const UploadHub = () => {
         }}
       >
         {/* Header */}
-        <div style={{
+        <div data-upload-header="true" className="mobile-sticky-header" style={{
           height: isMobile ? 56 : 84,
           paddingLeft: isMobile ? 16 : 24,
           paddingRight: isMobile ? 16 : 24,

@@ -1050,7 +1050,7 @@ const CategoryDetail = () => {
 
       <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Header with Breadcrumb, Search, and Controls */}
-        <div data-category-header="true" className="category-header" style={{
+        <div data-category-header="true" className="category-header mobile-sticky-header" style={{
           background: 'white',
           padding: isMobile ? '16px 16px 16px 70px' : '20px 32px',
           borderBottom: '1px solid #E5E7EB'

@@ -2460,7 +2460,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     return (
         <div data-chat-container="true" style={{flex: '1 1 0', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', background: '#F5F5F7', position: 'relative'}}>
             {/* Header */}
-            <div style={{
+            <div data-chat-header="true" className="mobile-sticky-header" style={{
                 height: isMobile ? 56 : 84,
                 paddingLeft: isMobile ? 16 : 24,
                 paddingRight: isMobile ? 16 : 24,

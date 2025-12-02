@@ -1081,30 +1081,17 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     font-family: 'Plus Jakarta Sans', sans-serif !important;
   }
 
-  /* Active state - white text and icon (outline only, no fill) */
-  .mobile-bottom-nav-item.active .mobile-bottom-nav-item-icon svg {
+  /* All icons and labels are white (outline only, no fill) */
+  .mobile-bottom-nav-item .mobile-bottom-nav-item-icon svg {
     color: #FFFFFF !important;
   }
-  .mobile-bottom-nav-item.active .mobile-bottom-nav-item-icon svg path {
+  .mobile-bottom-nav-item .mobile-bottom-nav-item-icon svg path {
     fill: none !important;
     stroke: #FFFFFF !important;
   }
 
-  .mobile-bottom-nav-item.active .mobile-bottom-nav-item-label {
+  .mobile-bottom-nav-item .mobile-bottom-nav-item-label {
     color: #FFFFFF !important;
-  }
-
-  /* Inactive state - gray text and icon (outline only, no fill) */
-  .mobile-bottom-nav-item:not(.active) .mobile-bottom-nav-item-icon svg {
-    color: #6C6B6E !important;
-  }
-  .mobile-bottom-nav-item:not(.active) .mobile-bottom-nav-item-icon svg path {
-    fill: none !important;
-    stroke: #6C6B6E !important;
-  }
-
-  .mobile-bottom-nav-item:not(.active) .mobile-bottom-nav-item-label {
-    color: #6C6B6E !important;
   }
 
   /* Add padding to main content to account for bottom nav */
@@ -1124,6 +1111,34 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
 @media (min-width: 769px) {
   .mobile-bottom-nav {
     display: none !important;
+  }
+}
+
+/* ========================================
+   UNIFIED MOBILE STICKY HEADER
+   Applies safe-area padding to prevent iOS notch/dynamic island clipping
+   ======================================== */
+
+@supports (padding: max(0px)) {
+  @media (max-width: 768px) {
+    /* Unified mobile sticky header - prevents clipping under iOS notch/dynamic island */
+    .mobile-sticky-header {
+      position: sticky !important;
+      top: 0 !important;
+      z-index: 10 !important;
+      padding-top: max(0px, env(safe-area-inset-top)) !important;
+      box-sizing: border-box !important;
+    }
+
+    /* Target all sticky headers on mobile pages by data attribute */
+    [data-chat-header="true"],
+    [data-documents-header="true"],
+    [data-settings-header="true"],
+    [data-file-type-header="true"],
+    [data-category-header="true"],
+    [data-upload-header="true"] {
+      padding-top: max(0px, env(safe-area-inset-top)) !important;
+    }
   }
 }
 

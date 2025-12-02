@@ -429,7 +429,7 @@ const DocumentsPage = () => {
         onDragLeave={handlePageDragLeave}
       >
         {/* Header */}
-        <div style={{
+        <div data-documents-header="true" className="mobile-sticky-header" style={{
           height: isMobile ? 56 : 84,
           paddingLeft: isMobile ? 16 : spacing.xl,
           paddingRight: isMobile ? 16 : spacing.xl,
