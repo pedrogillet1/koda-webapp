@@ -839,28 +839,47 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
      Fix: Allow textarea to auto-resize with proper constraints
      ======================================== */
 
-  /* Chat textarea - default 24px height, JS inline style can override for multiline */
+  /* MOBILE CHAT INPUT FIX - Force compact single-line appearance */
+
+  /* Textarea: Force exact 24px height, prevent expansion */
   .chat-input-wrapper textarea,
   [data-chat-textarea="true"] {
     font-size: 14px !important;
     line-height: 24px !important;
-    height: 24px;
+    height: 24px !important;
     min-height: 24px !important;
-    max-height: 200px !important;
+    max-height: 24px !important;
     padding: 0 !important;
+    margin: 0 !important;
     resize: none !important;
     overflow: hidden !important;
+    flex: 0 0 24px !important;
+    box-sizing: border-box !important;
   }
 
-  /* Chat input form wrapper - constrain height, no extra padding */
+  /* Form wrapper: Force compact height */
   .chat-input-wrapper,
   [data-chat-input="true"] {
-    min-height: unset !important;
+    min-height: 36px !important;
+    height: 36px !important;
+    max-height: 36px !important;
+    padding: 6px 10px !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Allow expansion when user types multiple lines */
+  .chat-input-wrapper:focus-within textarea,
+  [data-chat-input="true"]:focus-within textarea {
+    max-height: 200px !important;
+    flex: 1 1 auto !important;
+  }
+
+  .chat-input-wrapper:focus-within,
+  [data-chat-input="true"]:focus-within {
     height: auto !important;
     max-height: none !important;
-    padding: 6px 10px !important;
-    padding-bottom: 6px !important;
-    align-items: center !important;
   }
 
   /* ========================================
