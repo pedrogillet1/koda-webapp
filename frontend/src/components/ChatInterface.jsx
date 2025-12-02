@@ -2606,7 +2606,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     padding: isMobile ? 16 : 20,
-                    paddingBottom: isMobile ? 120 : 20, // Extra padding on mobile for fixed input form
+                    paddingBottom: isMobile ? 16 : 20, // Extra padding on mobile for fixed input form
                     position: 'relative',
                     WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
                     willChange: 'transform' // Optimize scrolling performance
@@ -3737,9 +3737,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 data-input-area="true"
                 className="chat-input-area"
                 style={{
-                    padding: isMobile ? '12px 16px' : '8px 20px 20px 20px',
-                    paddingBottom: isMobile ? 'calc(env(safe-area-inset-bottom) + 12px)' : '20px',
-                    paddingTop: isMobile ? 12 : 8,
+                    padding: isMobile ? '8px 12px 8px 12px' : '8px 20px 20px 20px',
+                    paddingBottom: isMobile ? 'calc(env(safe-area-inset-bottom) + 8px)' : '20px',
+                    paddingTop: isMobile ? 8 : 8,
                     background: isMobile ? 'white' : '#F5F5F7',
                     borderTop: isMobile ? '1px solid #E6E6EC' : 'none',
                     display: 'flex',
@@ -3973,9 +3973,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }}
                     style={{
-                        padding: isMobile ? '6px 10px' : '10px 14px',
+                        padding: isMobile ? '8px 10px' : '10px 14px',
                         background: 'white',
-                        borderRadius: isMobile ? 20 : 24,
+                        borderRadius: isMobile ? 16 : 24,
                         border: '2px solid #E6E6EC',
                         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                         display: 'flex',

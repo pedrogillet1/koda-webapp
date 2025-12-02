@@ -192,7 +192,21 @@ const ChatScreen = () => {
     };
 
     return (
-        <div data-chat-container="true" className="chat-container" style={{width: '100%', height: '100%', background: '#F5F5F5', display: 'flex', overflow: 'hidden', flexDirection: 'row'}}>
+        <div data-chat-container="true" className="chat-container" style={{
+            width: '100%',
+            height: isMobile ? '100vh' : '100%',
+            background: '#F5F5F5',
+            display: 'flex',
+            overflow: 'hidden',
+            flexDirection: 'row',
+            // ✅ MOBILE KEYBOARD FIX: position fixed prevents URL bar from pushing down
+            position: isMobile ? 'fixed' : 'relative',
+            top: isMobile ? 0 : 'auto',
+            left: isMobile ? 0 : 'auto',
+            right: isMobile ? 0 : 'auto',
+            bottom: isMobile ? 0 : 'auto',
+            zIndex: isMobile ? 1 : 'auto'
+        }}>
             <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
             {/* Mobile: Hide ChatHistory, show full-width ChatInterface */}

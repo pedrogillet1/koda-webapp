@@ -1407,3 +1407,32 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+/* ========================================
+   MOBILE CHAT SCREEN KEYBOARD FIX
+   DESKTOP PROTECTED - Only applies to mobile
+   ======================================== */
+@media (max-width: 768px) {
+  /* Prevent zoom on input focus */
+  input, textarea, select {
+    font-size: 16px;
+  }
+
+  /* Smooth scrolling in messages */
+  div[style*="-webkit-overflow-scrolling"] {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Support for notch/dynamic island */
+  @supports (padding: max(0px)) {
+    div[style*="position: fixed"] {
+      padding-left: max(0px, env(safe-area-inset-left));
+      padding-right: max(0px, env(safe-area-inset-right));
+    }
+  }
+}
+
+/* Desktop - NO CHANGES */
+@media (min-width: 769px) {
+  /* Desktop layout unchanged */
+}
