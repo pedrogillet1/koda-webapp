@@ -702,7 +702,7 @@ const Documents = () => {
                     display: 'flex',
                     alignItems: 'center',
                     flex: isMobile ? 1 : 'none',
-                    marginLeft: isMobile ? 54 : 0,
+                    marginLeft: 0,
                     transition: 'transform 0.15s ease',
                     cursor: 'text'
                   }}

@@ -1058,7 +1058,7 @@ const CategoryDetail = () => {
           {/* Main Header Row */}
           <div style={{
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: isMobile ? 'center' : 'space-between',
             alignItems: isMobile ? 'center' : 'flex-start',
             gap: isMobile ? 12 : 24,
             flexWrap: 'wrap',
@@ -1192,8 +1192,8 @@ const CategoryDetail = () => {
               gap: isMobile ? 8 : 12,
               flexShrink: 0,
               flexWrap: 'wrap',
-              width: isMobile && isSelectMode ? '100%' : 'auto',
-              justifyContent: isMobile && isSelectMode ? 'space-between' : 'flex-end'
+              width: isMobile ? '100%' : 'auto',
+              justifyContent: isMobile ? 'center' : 'flex-end'
             }}>
               {isSelectMode ? (
                 <>
