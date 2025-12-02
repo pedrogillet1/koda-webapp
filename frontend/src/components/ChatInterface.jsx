@@ -104,7 +104,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [error, setError] = useState(null); // Track current error for ErrorBanner
     const [showShortcutsModal, setShowShortcutsModal] = useState(false); // Keyboard shortcuts modal
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false); // Track mobile keyboard state
-    const [keyboardOffset, setKeyboardOffset] = useState(0); // Track iOS keyboard offset for positioning
+    const [inputTopPosition, setInputTopPosition] = useState(null); // Track iOS keyboard position for input
     // ✅ SMART SCROLL: Track scroll position and unread messages
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -385,20 +385,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     useEffect(() => {
         if (!isMobile) return;
 
+        const INPUT_HEIGHT = 70; // Approximate height of input area
+
         const updateKeyboardState = () => {
             if (window.visualViewport) {
                 const vv = window.visualViewport;
                 const windowHeight = window.innerHeight;
-                const viewportBottom = vv.offsetTop + vv.height;
-                // Calculate how much the keyboard is covering
-                const offset = windowHeight - viewportBottom;
+                // Check if keyboard is open (viewport significantly smaller than window)
+                const keyboardHeight = windowHeight - vv.height;
 
-                if (offset > 150) {
+                if (keyboardHeight > 150) {
                     setIsKeyboardOpen(true);
-                    setKeyboardOffset(offset);
+                    // Position input at bottom of visual viewport
+                    // vv.offsetTop = scroll offset from top of document
+                    // vv.height = visible height
+                    // We want input at: vv.offsetTop + vv.height - INPUT_HEIGHT
+                    setInputTopPosition(vv.offsetTop + vv.height - INPUT_HEIGHT);
                 } else {
                     setIsKeyboardOpen(false);
-                    setKeyboardOffset(0);
+                    setInputTopPosition(null);
                 }
             }
         };
@@ -3719,14 +3724,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     alignItems: 'center',
                     gap: isMobile ? 8 : 16,
                     flexShrink: 0,
-                    // iOS keyboard fix: use transform to position above keyboard
-                    ...(isMobile && isKeyboardOpen ? {
+                    // iOS keyboard fix: position directly at bottom of visual viewport
+                    ...(isMobile && isKeyboardOpen && inputTopPosition !== null ? {
                         position: 'fixed',
-                        bottom: 0,
+                        top: `${inputTopPosition}px`,
                         left: 0,
                         right: 0,
-                        zIndex: 1001,
-                        transform: `translateY(-${keyboardOffset}px)`
+                        bottom: 'auto',
+                        zIndex: 1001
                     } : {})
                 }}
                 onDragEnter={handleDragEnter}
