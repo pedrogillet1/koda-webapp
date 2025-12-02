@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -20,9 +20,63 @@ const MobileBottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
-  // Don't render on desktop
-  if (!isMobile) return null;
+  // ✅ MOBILE KEYBOARD DETECTION: Hide nav when keyboard opens
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const handleResize = () => {
+      // Use visualViewport API for accurate keyboard detection on iOS/Android
+      if (window.visualViewport) {
+        const viewportHeight = window.visualViewport.height;
+        const windowHeight = window.innerHeight;
+        // If viewport is significantly smaller than window, keyboard is open
+        // Threshold of 150px to avoid false positives from address bar changes
+        setIsKeyboardOpen(windowHeight - viewportHeight > 150);
+      }
+    };
+
+    // Also detect focus/blur on input for more reliable detection
+    const handleFocus = () => setIsKeyboardOpen(true);
+    const handleBlur = () => {
+      // Small delay to allow visualViewport to update
+      setTimeout(() => {
+        if (window.visualViewport) {
+          const viewportHeight = window.visualViewport.height;
+          const windowHeight = window.innerHeight;
+          setIsKeyboardOpen(windowHeight - viewportHeight > 150);
+        } else {
+          setIsKeyboardOpen(false);
+        }
+      }, 100);
+    };
+
+    // Listen to visualViewport resize events
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+    }
+
+    // Listen to input focus/blur
+    const inputs = document.querySelectorAll('input, textarea');
+    inputs.forEach(input => {
+      input.addEventListener('focus', handleFocus);
+      input.addEventListener('blur', handleBlur);
+    });
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+      }
+      inputs.forEach(input => {
+        input.removeEventListener('focus', handleFocus);
+        input.removeEventListener('blur', handleBlur);
+      });
+    };
+  }, [isMobile]);
+
+  // Don't render on desktop or when keyboard is open
+  if (!isMobile || isKeyboardOpen) return null;
 
   // Navigation items configuration - 5 items: Home, Documents, Upload, Chat, Settings
   // Using outline icons only (no filled variants)

@@ -103,6 +103,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [regeneratingMessageId, setRegeneratingMessageId] = useState(null); // Track which message is being regenerated
     const [error, setError] = useState(null); // Track current error for ErrorBanner
     const [showShortcutsModal, setShowShortcutsModal] = useState(false); // Keyboard shortcuts modal
+    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false); // Track mobile keyboard state
     // ✅ SMART SCROLL: Track scroll position and unread messages
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -378,6 +379,59 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             </button>
         );
     };
+
+    // ✅ MOBILE KEYBOARD DETECTION: Hide footer when keyboard opens
+    useEffect(() => {
+        if (!isMobile) return;
+
+        const handleResize = () => {
+            // Use visualViewport API for accurate keyboard detection on iOS/Android
+            if (window.visualViewport) {
+                const viewportHeight = window.visualViewport.height;
+                const windowHeight = window.innerHeight;
+                // If viewport is significantly smaller than window, keyboard is open
+                // Threshold of 150px to avoid false positives from address bar changes
+                setIsKeyboardOpen(windowHeight - viewportHeight > 150);
+            }
+        };
+
+        // Also detect focus/blur on input for more reliable detection
+        const handleFocus = () => setIsKeyboardOpen(true);
+        const handleBlur = () => {
+            // Small delay to allow visualViewport to update
+            setTimeout(() => {
+                if (window.visualViewport) {
+                    const viewportHeight = window.visualViewport.height;
+                    const windowHeight = window.innerHeight;
+                    setIsKeyboardOpen(windowHeight - viewportHeight > 150);
+                } else {
+                    setIsKeyboardOpen(false);
+                }
+            }, 100);
+        };
+
+        // Listen to visualViewport resize events
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', handleResize);
+        }
+
+        // Listen to input focus/blur
+        const inputs = document.querySelectorAll('input, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('focus', handleFocus);
+            input.addEventListener('blur', handleBlur);
+        });
+
+        return () => {
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', handleResize);
+            }
+            inputs.forEach(input => {
+                input.removeEventListener('focus', handleFocus);
+                input.removeEventListener('blur', handleBlur);
+            });
+        };
+    }, [isMobile]);
 
     useEffect(() => {
         // ✅ OPTIMISTIC LOADING: Fetch fresh user info in background (non-blocking)
@@ -4048,26 +4102,28 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     )}
                 </form>
 
-                {/* TASK #10: Trust & Security Footer */}
-                <div style={{
-                    marginTop: isMobile ? 8 : 16,
-                    paddingTop: isMobile ? 8 : 16,
-                    marginBottom: isMobile ? 8 : 0,
-                    borderTop: '2px solid #E6E6EC',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    fontSize: isMobile ? 10 : 12,
-                    color: '#B9B9BD',
-                    fontFamily: 'Plus Jakarta Sans',
-                    whiteSpace: 'nowrap'
-                }}>
-                    <svg width={isMobile ? 14 : 16} height={isMobile ? 14 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink: 0}}>
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    </svg>
-                    <span>{t('fileBreakdown.encryptionMessage')}</span>
-                </div>
+                {/* TASK #10: Trust & Security Footer - Hidden when keyboard is open on mobile */}
+                {!(isMobile && isKeyboardOpen) && (
+                    <div style={{
+                        marginTop: isMobile ? 8 : 16,
+                        paddingTop: isMobile ? 8 : 16,
+                        marginBottom: isMobile ? 8 : 0,
+                        borderTop: '2px solid #E6E6EC',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        fontSize: isMobile ? 10 : 12,
+                        color: '#B9B9BD',
+                        fontFamily: 'Plus Jakarta Sans',
+                        whiteSpace: 'nowrap'
+                    }}>
+                        <svg width={isMobile ? 14 : 16} height={isMobile ? 14 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink: 0}}>
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        <span>{t('fileBreakdown.encryptionMessage')}</span>
+                    </div>
+                )}
             </div>
             </div>
 
