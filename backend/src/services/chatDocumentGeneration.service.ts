@@ -18,7 +18,7 @@ interface GenerateDocumentParams {
   conversationId: string;
   messageId: string;
   query: string;
-  documentType: 'summary' | 'report' | 'analysis' | 'general';
+  documentType: 'summary' | 'report' | 'analysis' | 'general' | 'presentation';
   sourceContent?: string; // Content from RAG retrieval
   sourceDocumentIds?: string[]; // IDs of source documents
 }
@@ -180,6 +180,18 @@ Requirements:
 - Well-organized content
 - Use bullet points and formatting
 - Comprehensive coverage`,
+
+    presentation: `You are an expert at creating professional presentations. Create a presentation document in Markdown format that can be converted to slides.
+
+Requirements:
+- Each slide should be a ## heading (Slide 1, Slide 2, etc.)
+- Title slide with main topic
+- Bullet points for key information (3-5 per slide)
+- Clear, concise content per slide
+- Include sections: Introduction, Key Points, Details, Conclusion
+- Professional tone, suitable for business presentations
+- 5-10 slides recommended
+- Use ### for sub-sections within slides if needed`,
   };
 
   const systemPrompt = systemPrompts[documentType as keyof typeof systemPrompts] || systemPrompts.general;
@@ -227,6 +239,7 @@ function generateConfirmationMessage(title: string, documentType: string, wordCo
     report: '📑',
     analysis: '📊',
     general: '📄',
+    presentation: '📽️',
   };
 
   const emoji = typeEmojis[documentType as keyof typeof typeEmojis] || '📄';

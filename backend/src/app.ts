@@ -24,6 +24,8 @@ import devRoutes from './routes/dev.routes';
 import presentationRoutes from './routes/presentation.routes';
 import presignedUrlRoutes from './routes/presigned-url.routes';
 import storageRoutes from './routes/storage.routes';
+import agentRoutes from './routes/agent.routes';
+import { explanationController } from './controllers/explanation.controller';
 // TODO: Temporarily disabled routes with deleted service dependencies
 // import dataProtectionRoutes from './routes/dataProtection.routes';
 // import documentGenerationRoutes from './routes/documentGeneration.routes';
@@ -205,6 +207,12 @@ app.use('/api/memories', memoryRoutes); // Cross-session memory management endpo
 app.use('/api/presigned-urls', presignedUrlRoutes); // Presigned URL generation for direct-to-S3 uploads
 app.use('/api/storage', storageRoutes); // Storage usage and limits (5GB beta)
 app.use('/api/presentations', presentationRoutes); // Manus-style presentation generation
+app.use('/api/agent', agentRoutes); // Problem-solving agent with ReAct reasoning
+
+// Explanation Pipeline endpoint (Chain of Thought + Fact-Checking)
+app.post('/api/explain', explanationController.generate.bind(explanationController));
+app.post('/api/explain/full', explanationController.generateFull.bind(explanationController));
+
 // DEV ONLY: Development endpoints
 if (config.NODE_ENV === 'development') {
   app.use('/api/dev', devRoutes);

@@ -80,7 +80,10 @@ function getReconnectDelay() {
  * Attempt to reconnect WebSocket
  */
 function attemptReconnect() {
-  if (isManualDisconnect || !currentToken) {
+  // Get fresh token from localStorage (may have been refreshed)
+  const freshToken = localStorage.getItem('accessToken');
+
+  if (isManualDisconnect || !freshToken) {
     console.log('⏩ [WEBSOCKET] Manual disconnect or no token, skipping reconnection');
     return;
   }
@@ -91,7 +94,13 @@ function attemptReconnect() {
 
   reconnectTimer = setTimeout(() => {
     console.log(`📡 [WEBSOCKET] Attempting to reconnect...`);
-    initializeSocket(currentToken);
+    // Use fresh token from localStorage instead of potentially stale currentToken
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      initializeSocket(token);
+    } else {
+      console.log('⏩ [WEBSOCKET] No token available, stopping reconnection');
+    }
   }, delay);
 }
 

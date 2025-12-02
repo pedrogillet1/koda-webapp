@@ -1639,6 +1639,42 @@ model FolderSummary {
 
 
 // ════════════════════════════════════════════════════════════════════════════════
+// TRUSTED SOURCES - For Fact-Checking in Explanation Pipeline
+// ════════════════════════════════════════════════════════════════════════════════
+
+model TrustedSource {
+  id          String   @id @default(uuid())
+  domain      String   @unique  // e.g., "wikipedia.org", "britannica.com"
+  name        String             // Display name: "Wikipedia", "Britannica"
+  category    String?            // "encyclopedia", "academic", "news", "government"
+  priority    Int      @default(5)  // 1-10, higher = more trusted
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([domain])
+  @@index([category])
+  @@index([isActive])
+  @@map("trusted_sources")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// CULTURAL CONTEXT ENGINE - Multilingual & Multicultural Support
+// ════════════════════════════════════════════════════════════════════════════════
+
+model CulturalProfile {
+  id           String   @id @default(cuid())
+  languageCode String   @unique // e.g., 'en', 'pt', 'es', 'fr'
+  systemPrompt String   @db.Text // The culturally-aware system prompt
+  tone         String   @default("helpful") // e.g., 'formal', 'friendly'
+  currency     String? // e.g., 'USD', 'BRL', 'EUR'
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("cultural_profiles")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // PRESENTATION GENERATION SYSTEM (Manus-Style Slides)
 // ════════════════════════════════════════════════════════════════════════════════
 

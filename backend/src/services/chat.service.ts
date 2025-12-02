@@ -1293,7 +1293,7 @@ export const handleFileActionsIfNeeded = async (
       orderBy: { createdAt: 'desc' },
       take: 50, // Limit to 50 files
       include: {
-        folders: {
+        folder: {
           select: { name: true }
         }
       }
@@ -1549,3 +1549,4 @@ export default {
   regenerateConversationTitles,
   buildConversationContext,
 };
+

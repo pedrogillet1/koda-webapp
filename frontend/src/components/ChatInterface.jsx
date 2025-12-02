@@ -119,6 +119,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const isNewlyCreatedConversation = useRef(false); // Track if this is a NEW conversation created in this session
     const previousConversationIdRef = useRef(null); // ✅ FIX: Track previous conversation ID to prevent unnecessary reloads
     const searchInputRef = useRef(null); // For focusing search via keyboard shortcut
+    const conversationCache = useRef({}); // ✅ FIX: Cache messages for instant conversation switching
 
     // Display streaming chunks immediately without animation for smoother UX (like ChatGPT)
     // ✅ ChatGPT-style streaming animation
@@ -772,14 +773,31 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     // DON'T clear messages - they're already there from the send operation
                 } else {
                     // ONLY clear messages when switching to an EXISTING conversation
-                    console.log('🧹 Clearing old messages - switching from', previousId, 'to', currentId);
-                    setMessages([]);
-                    setStreamingMessage('');
-                    setIsLoading(false);
-                    pendingMessageRef.current = null;
+                    console.log('🔄 Switching conversations from', previousId, 'to', currentId);
 
-                    console.log('🔃 Loading conversation from server...');
-                    loadConversation(currentId);
+                    // Save current messages to cache before switching
+                    if (previousId && messages.length > 0) {
+                        conversationCache.current[previousId] = [...messages]; // Clone array
+                        console.log(`💾 Cached ${messages.length} messages for conversation ${previousId}`);
+                    }
+
+                    // Try to load from cache first
+                    const cachedMessages = conversationCache.current[currentId];
+                    if (cachedMessages && cachedMessages.length > 0) {
+                        console.log(`💾 Loading ${cachedMessages.length} messages from cache`);
+                        setMessages([...cachedMessages]); // Clone array
+                        setStreamingMessage('');
+                        setIsLoading(false);
+                        pendingMessageRef.current = null;
+                    } else {
+                        // No cache - load from server
+                        console.log('🔃 Loading conversation from server...');
+                        setMessages([]);
+                        setStreamingMessage('');
+                        setIsLoading(false);
+                        pendingMessageRef.current = null;
+                        loadConversation(currentId);
+                    }
                 }
 
                 console.log('📡 Joining conversation room:', currentId);

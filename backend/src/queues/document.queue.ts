@@ -151,22 +151,17 @@ let documentQueue: Queue<DocumentProcessingJob> | null = null;
 let documentWorker: Worker<DocumentProcessingJob> | null = null;
 
 // Only initialize if Redis is available
-if (redisConnection) {
+if (redisConnection && process.env.REDIS_URL) {
   try {
-    // Use Upstash Redis connection settings from environment
+    // Use REDIS_URL for BullMQ (standard Redis protocol with TLS)
     const redisConfig = {
-      host: 'exciting-bluegill-41801.upstash.io',
-      port: 6379,
-      password: process.env.UPSTASH_REDIS_REST_TOKEN,
-      tls: {
-        rejectUnauthorized: false,
-      },
+      connection: process.env.REDIS_URL,
       maxRetriesPerRequest: null, // Required by BullMQ
     };
 
     // Create document processing queue
     documentQueue = new Queue<DocumentProcessingJob>('document-processing', {
-      connection: redisConfig,
+      connection: process.env.REDIS_URL,
       defaultJobOptions: {
         attempts: 3,
         backoff: {
@@ -745,24 +740,13 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 };
 
 // Create worker only if queue is available
-if (documentQueue && redisConnection) {
+if (documentQueue && redisConnection && process.env.REDIS_URL) {
   try {
-    // Use Upstash Redis connection settings from environment
-    const redisConfig = {
-      host: 'exciting-bluegill-41801.upstash.io',
-      port: 6379,
-      password: process.env.UPSTASH_REDIS_REST_TOKEN,
-      tls: {
-        rejectUnauthorized: false,
-      },
-      maxRetriesPerRequest: null, // Required by BullMQ
-    };
-
     documentWorker = new Worker<DocumentProcessingJob>(
       'document-processing',
       processDocument,
       {
-        connection: redisConfig,
+        connection: process.env.REDIS_URL,
         concurrency: 10, // Process 10 documents simultaneously for 10x throughput
       }
     );

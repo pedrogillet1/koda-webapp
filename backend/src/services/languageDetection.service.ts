@@ -11,37 +11,89 @@
 export function detectLanguage(text: string): string {
   const lowerText = text.toLowerCase().trim();
 
-  // Portuguese patterns
+  // Helper function to count matches
+  const countMatches = (text: string, words: string[]): number => {
+    return words.filter(word => text.includes(word)).length;
+  };
+
+  // Portuguese patterns (comprehensive list)
   const portuguesePatterns = [
-    'olá', 'oi', 'bom dia', 'boa tarde', 'boa noite',
-    'como está', 'tudo bem', 'obrigado', 'obrigada',
-    'por favor', 'arquivo', 'documento', 'pasta'
+    // Greetings
+    'olá', 'ola', 'oi', 'bom dia', 'boa tarde', 'boa noite',
+    'como está', 'como esta', 'tudo bem', 'como vai',
+    'obrigado', 'obrigada', 'por favor',
+    // Question words
+    'quantos', 'quantas', 'quais', 'qual', 'onde', 'quando', 'como', 'porque', 'por que', 'quem',
+    // Common verbs
+    'tenho', 'posso', 'pode', 'preciso', 'quero', 'gostaria',
+    'ajudar', 'mostrar', 'explicar', 'encontrar', 'buscar', 'procurar',
+    // File/document terms
+    'arquivo', 'arquivos', 'documento', 'documentos', 'pasta', 'pastas',
+    // Actions
+    'criar', 'deletar', 'apagar', 'mover', 'renomear',
+    // Common words
+    'sobre', 'para', 'isso', 'este', 'esta', 'esse', 'essa',
+    'meu', 'minha', 'meus', 'minhas', 'seu', 'sua',
+    'não', 'nao', 'sim', 'muito', 'mais', 'menos', 'também', 'tambem',
+    // Portuguese-specific characters
+    'ção', 'ões', 'ã', 'õ'
   ];
 
-  // Spanish patterns
+  // Spanish patterns (comprehensive list)
   const spanishPatterns = [
-    'hola', 'buenos días', 'buenas tardes', 'buenas noches',
-    'cómo estás', 'gracias', 'por favor', 'archivo', 'documento', 'carpeta'
+    // Greetings
+    'hola', 'buenos días', 'buenos dias', 'buenas tardes', 'buenas noches',
+    'cómo estás', 'como estas', 'gracias', 'por favor',
+    // Question words
+    'cuántos', 'cuantos', 'cuántas', 'cuantas', 'cuáles', 'cuales', 'cuál', 'cual',
+    'dónde', 'donde', 'cuándo', 'cuando', 'cómo', 'por qué', 'quién', 'quien',
+    // Common verbs
+    'tengo', 'puedo', 'necesito', 'quiero', 'quisiera',
+    'ayudar', 'mostrar', 'explicar', 'buscar', 'encontrar',
+    // File/document terms
+    'archivo', 'archivos', 'documento', 'documentos', 'carpeta', 'carpetas',
+    // Actions
+    'crear', 'borrar', 'eliminar', 'mover', 'renombrar',
+    // Common words
+    'esto', 'mi', 'mis', 'tu', 'tus', 'sí', 'mucho', 'más', 'mas', 'menos',
+    // Spanish-specific
+    'ñ', '¿', '¡'
   ];
 
-  // French patterns
+  // French patterns (comprehensive list)
   const frenchPatterns = [
-    'bonjour', 'bonsoir', 'salut', 'comment allez-vous',
-    'merci', 's\'il vous plaît', 'fichier', 'document', 'dossier'
+    // Greetings
+    'bonjour', 'bonsoir', 'salut', 'merci', 's\'il vous plaît', 'sil vous plait',
+    'comment allez-vous', 'comment vas-tu', 'ça va', 'ca va',
+    // Question words
+    'combien', 'quels', 'quelles', 'quel', 'quelle', 'où', 'quand', 'comment', 'pourquoi', 'qui',
+    // Common verbs
+    'avoir', 'être', 'etre', 'pouvoir', 'vouloir', 'faire',
+    'montrer', 'expliquer', 'chercher', 'trouver', 'aider',
+    // File/document terms
+    'fichier', 'fichiers', 'document', 'documents', 'dossier', 'dossiers',
+    // Actions
+    'créer', 'creer', 'supprimer', 'déplacer', 'deplacer', 'renommer',
+    // Common words
+    'sur', 'pour', 'ceci', 'cela', 'ce', 'cette', 'mon', 'ma', 'mes',
+    'non', 'oui', 'très', 'tres', 'plus', 'moins', 'aussi',
+    // French-specific characters
+    'è', 'ê', 'ë', 'ç', 'î', 'ï', 'ô', 'û', 'ù', 'œ'
   ];
 
-  // Check for Portuguese
-  if (portuguesePatterns.some(pattern => lowerText.includes(pattern))) {
+  // Count matches for each language
+  const ptCount = countMatches(lowerText, portuguesePatterns);
+  const esCount = countMatches(lowerText, spanishPatterns);
+  const frCount = countMatches(lowerText, frenchPatterns);
+
+  // Return language with most matches
+  if (ptCount > esCount && ptCount > frCount && ptCount > 0) {
     return 'pt';
   }
-
-  // Check for Spanish
-  if (spanishPatterns.some(pattern => lowerText.includes(pattern))) {
+  if (esCount > ptCount && esCount > frCount && esCount > 0) {
     return 'es';
   }
-
-  // Check for French
-  if (frenchPatterns.some(pattern => lowerText.includes(pattern))) {
+  if (frCount > ptCount && frCount > esCount && frCount > 0) {
     return 'fr';
   }
 
@@ -173,4 +225,84 @@ export function getLocalizedCapabilities(language: string): string {
   };
 
   return capabilities[language] || capabilities.en;
+}
+
+// ============================================================================
+// Cultural Profile System
+// ============================================================================
+
+interface CulturalContext {
+  languageCode: string;
+  systemPrompt: string;
+  tone: string;
+  currency: string | null;
+}
+
+const CULTURAL_PROFILES: Record<string, CulturalContext> = {
+  en: {
+    languageCode: 'en',
+    systemPrompt:
+      'You are Koda, a helpful and efficient AI assistant. Your tone should be professional yet friendly.',
+    tone: 'friendly',
+    currency: 'USD',
+  },
+  pt: {
+    languageCode: 'pt',
+    systemPrompt:
+      'Você é a KODA, uma assistente de IA prestativa e eficiente. Seu tom deve ser formal e respeitoso. Use a moeda BRL para exemplos financeiros.',
+    tone: 'formal',
+    currency: 'BRL',
+  },
+  es: {
+    languageCode: 'es',
+    systemPrompt:
+      'Eres KODA, un asistente de IA servicial y eficiente. Tu tono debe ser amigable. Utiliza la moneda EUR para ejemplos financieros.',
+    tone: 'friendly',
+    currency: 'EUR',
+  },
+  fr: {
+    languageCode: 'fr',
+    systemPrompt:
+      'Vous êtes KODA, un assistant IA serviable et efficace. Votre ton doit être poli et professionnel. Utilisez la monnaie EUR pour les exemples financiers.',
+    tone: 'formal',
+    currency: 'EUR',
+  },
+};
+
+/**
+ * Get cultural profile for a language
+ */
+export function getCulturalProfile(languageCode: string): CulturalContext {
+  return CULTURAL_PROFILES[languageCode] || CULTURAL_PROFILES.en;
+}
+
+/**
+ * Build a culturally-aware system prompt
+ */
+export async function buildCulturalSystemPrompt(
+  languageCode: string,
+  additionalContext?: string
+): Promise<string> {
+  const profile = getCulturalProfile(languageCode);
+
+  let systemPrompt = profile.systemPrompt;
+
+  // Add tone guidance
+  if (profile.tone === 'formal') {
+    systemPrompt += ' Maintain a formal and respectful tone throughout the conversation.';
+  } else if (profile.tone === 'friendly') {
+    systemPrompt += ' Keep your responses warm and approachable.';
+  }
+
+  // Add currency context if available
+  if (profile.currency) {
+    systemPrompt += ` When discussing monetary values, use ${profile.currency} as the default currency.`;
+  }
+
+  // Add any additional context
+  if (additionalContext) {
+    systemPrompt += ` ${additionalContext}`;
+  }
+
+  return systemPrompt;
 }

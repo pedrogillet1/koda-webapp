@@ -6,7 +6,7 @@
 export interface DocumentGenerationIntent {
   isDocumentGeneration: boolean;
   type: 'document' | 'presentation' | null;
-  documentType?: 'summary' | 'report' | 'analysis' | 'general';
+  documentType?: 'summary' | 'report' | 'analysis' | 'general' | 'presentation';
   confidence: number;
 }
 
@@ -36,6 +36,7 @@ export function detectDocumentGenerationIntent(query: string): DocumentGeneratio
       return {
         isDocumentGeneration: true,
         type: 'presentation',
+        documentType: 'presentation',  // Fixed: Add documentType for presentations
         confidence: 0.95,
       };
     }

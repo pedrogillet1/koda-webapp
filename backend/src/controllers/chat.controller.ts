@@ -4,6 +4,9 @@ import { transcribeAudioWithWhisper } from '../services/gemini.service';
 import { emitToUser } from '../services/websocket.service';
 import prisma from '../config/database';
 import cacheService from '../services/cache.service';
+import { conversationManager } from '../services/conversationManager.service';
+import { detectLanguage, buildCulturalSystemPrompt } from '../services/languageDetection.service';
+import { llmProvider } from '../services/llm.provider';
 
 /**
  * Create a new conversation
@@ -659,5 +662,79 @@ export const deleteEmptyConversations = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error deleting empty conversations:', error);
     res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Handle message with ConversationManager
+ * Uses Redis caching, auto-summarization, and culturally-aware responses
+ * This endpoint demonstrates the new conversation memory system
+ */
+export const handleMessageWithMemory = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { query, conversationId } = req.body;
+
+    if (!query || typeof query !== 'string') {
+      res.status(400).json({ error: 'Query is required' });
+      return;
+    }
+
+    let conversationState = null;
+    let finalConversationId = conversationId;
+
+    // Get or create conversation
+    if (conversationId) {
+      conversationState = await conversationManager.getConversationState(conversationId);
+
+      // Verify ownership
+      if (conversationState && conversationState.userId !== userId) {
+        res.status(403).json({ error: 'Not authorized to access this conversation' });
+        return;
+      }
+
+      // Add user message if conversation exists
+      if (conversationState) {
+        conversationState = await conversationManager.addMessage(conversationId, 'user', query);
+      }
+    }
+
+    // Create new conversation if needed
+    if (!conversationState) {
+      conversationState = await conversationManager.createConversation(userId, query);
+      finalConversationId = conversationState.id;
+    }
+
+    // Detect language and build cultural system prompt
+    const detectedLanguage = detectLanguage(query);
+    const systemPrompt = await buildCulturalSystemPrompt(detectedLanguage);
+
+    // Build prompt with conversation context (includes summary if available)
+    const messages = conversationManager.buildPromptWithContext(systemPrompt, conversationState);
+
+    // Generate response using LLM
+    const llmResponse = await llmProvider.createChatCompletion({
+      model: 'gemini-2.5-flash',
+      messages,
+    });
+
+    const responseContent = llmResponse.choices[0].message.content ||
+      'Sorry, I could not generate a response.';
+
+    // Add AI response to conversation history
+    await conversationManager.addMessage(finalConversationId, 'assistant', responseContent);
+
+    // Invalidate cache for conversation list
+    const conversationsListCacheKey = cacheService.generateKey('conversations_list', userId);
+    await cacheService.set(conversationsListCacheKey, null, { ttl: 0 });
+
+    res.json({
+      response: responseContent,
+      conversationId: finalConversationId,
+      language: detectedLanguage
+    });
+  } catch (error: any) {
+    console.error('Chat error:', error);
+    res.status(500).json({ error: 'An error occurred during the chat.' });
   }
 };
