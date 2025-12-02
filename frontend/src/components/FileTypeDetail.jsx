@@ -340,11 +340,13 @@ const FileTypeDetail = () => {
                 <span style={{ fontWeight: '500' }}>{config.label}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button onClick={() => navigate(-1)} style={{ width: 40, height: 40, background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', padding: 0 }} onMouseEnter={(e) => e.currentTarget.style.background = '#E5E7EB'} onMouseLeave={(e) => e.currentTarget.style.background = '#F3F4F6'}>
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="#111827" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </button>
-                {config.icon && <img src={config.icon} alt={fileType} style={{ width: 32, height: 32, objectFit: 'contain' }} />}
-                <h1 style={{ fontSize: 32, fontWeight: '600', color: '#111827', fontFamily: 'Plus Jakarta Sans', margin: 0 }}>{config.label}</h1>
+                {!isMobile && (
+                  <button onClick={() => navigate(-1)} style={{ width: 40, height: 40, background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', padding: 0 }} onMouseEnter={(e) => e.currentTarget.style.background = '#E5E7EB'} onMouseLeave={(e) => e.currentTarget.style.background = '#F3F4F6'}>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="#111827" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                )}
+                {config.icon && <img src={config.icon} alt={fileType} style={{ width: isMobile ? 24 : 32, height: isMobile ? 24 : 32, objectFit: 'contain' }} />}
+                <h1 style={{ fontSize: isMobile ? 22 : 32, fontWeight: '600', color: '#111827', fontFamily: 'Plus Jakarta Sans', margin: 0 }}>{config.label}</h1>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexShrink: 0, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'center' : 'flex-end' }}>
@@ -376,7 +378,7 @@ const FileTypeDetail = () => {
         </div>
 
         {/* Content */}
-        <div className="file-type-content scrollable-content" style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '20px 32px', WebkitOverflowScrolling: 'touch' }}>
+        <div className="file-type-content scrollable-content" style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '20px 32px', paddingBottom: isMobile ? 100 : 32, WebkitOverflowScrolling: 'touch' }}>
           <style>{`
             @keyframes cardFadeIn {
               from { opacity: 0; transform: translateY(10px); }

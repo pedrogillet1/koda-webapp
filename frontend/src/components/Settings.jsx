@@ -628,8 +628,8 @@ const Settings = () => {
   };
 
   return (
-    <div data-page="settings" className="settings-page" style={{ width: '100%', height: '100%', minHeight: '100vh', background: '#F4F4F6', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>
-      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} hamburgerTop={isMobile ? 22 : 16} />
+    <div data-page="settings" className="settings-page" style={{ width: '100%', height: isMobile ? '100%' : '100%', minHeight: isMobile ? 'auto' : '100vh', background: '#F4F4F6', overflow: isMobile ? 'auto' : 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>
+      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Settings Sidebar - Hidden on mobile */}
       {!isMobile && <div style={{
@@ -845,7 +845,7 @@ const Settings = () => {
       </div>}
 
       {/* Main Content */}
-      <div className="settings-content" style={{ flex: '1 1 0', height: '100%', minHeight: 0, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
+      <div className="settings-content" style={{ flex: '1 1 0', height: isMobile ? 'auto' : '100%', minHeight: 0, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
         {/* Header */}
         <div style={{ alignSelf: 'stretch', height: isMobile ? 76 : 84, paddingLeft: isMobile ? 70 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
           <div style={{ textAlign: isMobile ? 'left' : 'center', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px' }}>

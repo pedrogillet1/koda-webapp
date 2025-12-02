@@ -24,7 +24,8 @@ const Header = () => {
       <div style={{
         alignSelf: 'stretch',
         height: headerHeight,
-        padding: headerPadding,
+        paddingLeft: 70,
+        paddingRight: mobile.padding.base,
         background: 'white',
         borderBottom: '1px #E6E6EC solid',
         justifyContent: 'space-between',

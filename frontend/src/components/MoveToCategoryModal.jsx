@@ -60,22 +60,22 @@ export default function MoveToCategoryModal({
         bottom: 0,
         background: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
-        alignItems: isMobile ? 'flex-end' : 'center',
+        alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1000,
-        padding: isMobile ? 0 : 16,
-        paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 16
+        padding: isMobile ? 16 : 16,
+        paddingBottom: isMobile ? 'calc(80px + env(safe-area-inset-bottom, 0px))' : 16
       }}>
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: isMobile ? '100%' : 480,
-          maxHeight: isMobile ? '90vh' : '85vh',
+          maxWidth: isMobile ? 'calc(100% - 32px)' : 480,
+          maxHeight: isMobile ? 'calc(100vh - 160px)' : '85vh',
           paddingTop: 18,
-          paddingBottom: isMobile ? 'calc(18px + env(safe-area-inset-bottom, 0px))' : 18,
+          paddingBottom: 18,
           background: 'white',
-          borderRadius: isMobile ? '14px 14px 0 0' : 14,
+          borderRadius: 14,
           outline: '1px #E6E6EC solid',
           outlineOffset: '-1px',
           flexDirection: 'column',

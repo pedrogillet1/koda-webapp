@@ -5,21 +5,23 @@ import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
 import { ReactComponent as Right3Icon } from '../assets/Right 3.svg';
 import { ReactComponent as CheckCircleIcon } from '../assets/check-circle.svg';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const Upgrade = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [billingPeriod, setBillingPeriod] = useState('monthly'); // 'monthly' or 'yearly'
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
 
   return (
-    <div style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>
+    <div style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Main Content */}
-      <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
+      <div style={{ flex: '1 1 0', height: '100vh', width: isMobile ? '100%' : 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
         {/* Header */}
-        <div style={{ alignSelf: 'stretch', height: 120, padding: 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
+        <div style={{ alignSelf: 'stretch', height: isMobile ? 'auto' : 120, paddingLeft: isMobile ? 70 : 20, paddingRight: 20, paddingTop: isMobile ? 16 : 20, paddingBottom: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
           <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 8, display: 'flex' }}>
             {/* Breadcrumb */}
             <div style={{ justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>

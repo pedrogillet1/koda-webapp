@@ -2405,6 +2405,7 @@ const UploadHub = () => {
           flex: 1,
           overflowY: 'auto',
           padding: isMobile ? 16 : '24px 24px 24px 24px',
+          paddingBottom: isMobile ? 100 : 24,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: uploadingFiles.length > 0 ? 'flex-start' : 'center',

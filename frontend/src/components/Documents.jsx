@@ -210,7 +210,7 @@ const Documents = () => {
       if (mimeType.includes('sheet') || mimeType.includes('excel') || filename.match(/\.(xls|xlsx|csv)$/)) {
         breakdown.spreadsheet.count++;
         breakdown.spreadsheet.size += size;
-      } else if (filename.match(/\.(pdf|doc|docx|txt|rtf|odt)$/)) {
+      } else if (filename.match(/\.(pdf|doc|docx|rtf|odt)$/)) {
         breakdown.document.count++;
         breakdown.document.size += size;
       } else if (filename.match(/\.(jpg|jpeg|png|gif|bmp|svg|webp)$/)) {
@@ -544,7 +544,7 @@ const Documents = () => {
 
   return (
     <div data-page="documents" className="documents-page" style={{width: '100%', height: '100%', minHeight: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
-      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} hamburgerTop={isMobile ? 48 : 16} />
+      <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Main Content */}
       <div

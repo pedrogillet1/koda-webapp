@@ -1143,32 +1143,34 @@ const CategoryDetail = () => {
                 alignItems: 'center',
                 gap: 12
               }}>
-                <button
-                  onClick={() => navigate(-1)}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    background: '#F3F4F6',
-                    border: '1px solid #E5E7EB',
-                    borderRadius: 8,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    padding: 0
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#E5E7EB';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#F3F4F6';
-                  }}
-                >
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12.5 15L7.5 10L12.5 5" stroke="#111827" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
+                {!isMobile && (
+                  <button
+                    onClick={() => navigate(-1)}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      background: '#F3F4F6',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      padding: 0
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#E5E7EB';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#F3F4F6';
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12.5 15L7.5 10L12.5 5" stroke="#111827" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                )}
                 <h1 style={{
                   fontSize: isMobile ? 22 : 32,
                   fontWeight: '600',
@@ -1659,7 +1661,8 @@ const CategoryDetail = () => {
         {/* Content Area with Folder Grid + Document List */}
         <div className="category-content scrollable-content" style={{
           flex: 1,
-          padding: 24,
+          padding: isMobile ? 16 : 24,
+          paddingBottom: isMobile ? 100 : 24,
           overflowY: 'auto',
           background: '#F5F5F5',
           WebkitOverflowScrolling: 'touch'

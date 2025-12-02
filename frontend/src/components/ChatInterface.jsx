@@ -1879,9 +1879,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         // Clear input immediately
         setMessage('');
-        // Reset textarea height
+        // Reset textarea height and keep keyboard open on mobile
         if (inputRef.current) {
             inputRef.current.style.height = '24px';
+            // ✅ Keep keyboard open after sending (ChatGPT-like behavior)
+            // Use setTimeout to ensure focus happens after state updates
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 10);
         }
         // ✅ FIX: Clear draft from localStorage when message is sent
         localStorage.removeItem(`koda_draft_${currentConversation?.id || 'new'}`);
@@ -3883,7 +3888,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     <textarea
                         ref={inputRef}
                         data-chat-textarea="true"
-                        placeholder={t('chat.placeholder')}
+                        placeholder={isMobile ? 'Ask Koda anything...' : t('chat.placeholder')}
                         value={message}
                         onChange={(e) => {
                             const newValue = e.target.value;
@@ -3915,14 +3920,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 }, 300);
                             }
                         }}
-                        autoFocus
+                        autoFocus={!isMobile}
                         rows={1}
                         style={{
                             flex: '1 1 0',
                             background: 'transparent',
                             border: 'none',
                             outline: 'none',
-                            fontSize: 16,
+                            fontSize: isMobile ? 15 : 16,
                             color: '#32302C',
                             cursor: 'text',
                             resize: 'none',
