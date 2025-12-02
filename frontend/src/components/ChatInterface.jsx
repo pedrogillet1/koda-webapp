@@ -4057,11 +4057,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
-                    fontSize: 12,
+                    fontSize: isMobile ? 10 : 12,
                     color: '#B9B9BD',
-                    fontFamily: 'Plus Jakarta Sans'
+                    fontFamily: 'Plus Jakarta Sans',
+                    whiteSpace: 'nowrap'
                 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width={isMobile ? 14 : 16} height={isMobile ? 14 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink: 0}}>
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                     </svg>
                     <span>{t('fileBreakdown.encryptionMessage')}</span>
