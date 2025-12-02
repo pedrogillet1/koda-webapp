@@ -598,7 +598,7 @@ const Documents = () => {
               </div>
             </>
           ) : (
-            <div style={{color: '#32302C', fontSize: isMobile ? 16 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', textAlign: isMobile ? 'center' : 'left'}}>
+            <div style={{color: '#32302C', fontSize: isMobile ? 16 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', textAlign: isMobile ? 'center' : 'left', width: isMobile ? '100%' : 'auto'}}>
               {t('documents.welcomeBack', { name: user && (user.firstName || user.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.email?.split('@')[0] || t('common.user') })}
             </div>
           )}
