@@ -9,6 +9,7 @@ import FeedbackModal from './FeedbackModal';
 import RecoveryVerificationBanner from './RecoveryVerificationBanner';
 import FileBreakdownDonut from './FileBreakdownDonut';
 import LanguageCard from './LanguageCard';
+import LogoutModal from './LogoutModal';
 import { useToast } from '../context/ToastContext';
 import { useDocuments } from '../context/DocumentsContext';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -43,6 +44,17 @@ import mp3Icon from '../assets/mp3.svg';
 import crownIcon from '../assets/crown.png';
 import api from '../services/api';
 
+// Log Out Icon (SVG component)
+const LogOutIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M9 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H9M16 17L21 12M21 12L16 7M21 12H9"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round" />
+  </svg>
+);
+
 const Settings = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -51,6 +63,7 @@ const Settings = () => {
   const { documents: contextDocuments } = useDocuments();
   const [activeSection, setActiveSection] = useState('general');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [documents, setDocuments] = useState(() => {
     // Load from cache for instant display
     const cached = sessionStorage.getItem('koda_settings_documents');
@@ -1209,6 +1222,52 @@ const Settings = () => {
                 </div>
               )}
             </div>
+
+            {/* Log Out Card - Mobile Only */}
+            {isMobile && (
+              <button
+                onClick={() => setShowLogoutModal(true)}
+                style={{
+                  alignSelf: 'stretch',
+                  padding: '16px 20px',
+                  background: 'white',
+                  borderRadius: 12,
+                  border: '2px solid #E6E6EC',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
+                  display: 'flex',
+                  flexDirection: 'row',
+                  justifyContent: 'flex-start',
+                  alignItems: 'center',
+                  gap: 12,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#FEF2F2';
+                  e.currentTarget.style.borderColor = '#FFEBEE';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.borderColor = '#E6E6EC';
+                }}
+              >
+                {/* Log Out Icon */}
+                <div style={{ color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <LogOutIcon />
+                </div>
+
+                {/* Log Out Text */}
+                <div style={{
+                  color: '#EF4444',
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '600',
+                  lineHeight: '24px'
+                }}>
+                  {t('nav.signOut')}
+                </div>
+              </button>
+            )}
           </div>
         </div>
         )}
@@ -1483,6 +1542,12 @@ const Settings = () => {
       <FeedbackModal
         isOpen={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
+      />
+
+      {/* Logout Modal */}
+      <LogoutModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
       />
 
       {/* Phone Verification Modal */}
