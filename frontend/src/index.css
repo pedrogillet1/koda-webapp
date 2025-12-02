@@ -1437,6 +1437,12 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   #root {
     height: auto !important;
     min-height: 100vh;
+    overflow-y: visible;
+  }
+
+  html, body {
+    height: auto;
+    overflow-y: visible;
   }
 }
 

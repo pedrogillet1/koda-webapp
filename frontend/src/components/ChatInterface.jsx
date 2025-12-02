@@ -2540,7 +2540,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             position: 'relative',
             width: isMobile ? '100%' : 'auto',
             height: isMobile ? 'auto' : '100%',
-            overflow: isMobile ? 'visible' : 'visible'
+            overflow: isMobile ? 'hidden' : 'visible'
         }}>
             {/* Header - sticky with safe-area padding for notch/dynamic island */}
             <div data-chat-header="true" className="mobile-sticky-header" style={{
@@ -2599,7 +2599,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     padding: isMobile ? 16 : 20,
-                    paddingBottom: isMobile ? 80 : 20, // Extra padding on mobile for fixed input form
+                    paddingBottom: isMobile ? 'calc(120px + env(safe-area-inset-bottom))' : 20, // Extra padding on mobile for fixed input form
                     position: 'relative',
                     WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
                     willChange: 'transform' // Optimize scrolling performance
@@ -3746,8 +3746,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     left: isMobile ? 0 : 'auto',
                     right: isMobile ? 0 : 'auto',
                     width: isMobile ? '100%' : 'auto',
-                    zIndex: isMobile ? 20 : 'auto',
-                    boxSizing: 'border-box'
+                    zIndex: isMobile ? 100 : 'auto',
+                    boxSizing: 'border-box',
+                    transition: 'all 0.2s ease'
                 }}
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
