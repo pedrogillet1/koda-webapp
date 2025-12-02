@@ -145,7 +145,17 @@ const Upload = () => {
     };
 
     return (
-        <div style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex'}}>
+        <div style={{
+        width: '100%',
+        height: isMobile ? 'auto' : '100vh',
+        minHeight: isMobile ? '100vh' : 'auto',
+        background: '#F5F5F5',
+        overflow: isMobile ? 'visible' : 'hidden',
+        justifyContent: 'flex-start',
+        alignItems: 'center',
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row'
+      }}>
             {!isMobile && <LeftNav />}
 
             {/* Main Content */}

@@ -401,7 +401,15 @@ const DocumentsPage = () => {
   // ✅ Show loading skeleton on first load (when loading and no data)
   if (loading && contextDocuments.length === 0 && contextFolders.length === 0) {
     return (
-      <div style={{width: '100%', height: '100vh', background: '#F4F4F6', overflow: 'hidden', display: 'flex'}}>
+      <div style={{
+        width: '100%',
+        height: isMobile ? 'auto' : '100vh',
+        minHeight: isMobile ? '100vh' : 'auto',
+        background: '#F4F4F6',
+        overflow: isMobile ? 'visible' : 'hidden',
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row'
+      }}>
         <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
         <div style={{flex: 1, overflow: 'hidden'}}>
           <DocumentsLoadingSkeleton />
@@ -411,7 +419,15 @@ const DocumentsPage = () => {
   }
 
   return (
-    <div data-page="documents" className="documents-page" style={{width: '100%', height: '100vh', background: '#F4F4F6', overflow: 'hidden', display: 'flex'}}>
+    <div data-page="documents" className="documents-page" style={{
+      width: '100%',
+      height: isMobile ? 'auto' : '100vh',
+      minHeight: isMobile ? '100vh' : 'auto',
+      background: '#F4F4F6',
+      overflow: isMobile ? 'visible' : 'hidden',
+      display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row'
+    }}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Main Content */}

@@ -1692,7 +1692,15 @@ const UploadHub = () => {
   };
 
   return (
-    <div data-page="upload-hub" className="upload-hub-page" style={{width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex'}}>
+    <div data-page="upload-hub" className="upload-hub-page" style={{
+      width: '100%',
+      height: isMobile ? 'auto' : '100vh',
+      minHeight: isMobile ? '100vh' : 'auto',
+      background: '#F5F5F5',
+      overflow: isMobile ? 'visible' : 'hidden',
+      display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row'
+    }}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Left Sidebar - Library - Hidden on mobile */}

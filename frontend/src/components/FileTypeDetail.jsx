@@ -327,7 +327,15 @@ const FileTypeDetail = () => {
   };
 
   return (
-    <div data-page="file-type" className="file-type-page" style={{ width: '100%', height: '100vh', background: '#F5F5F5', overflow: 'hidden', display: 'flex' }}>
+    <div data-page="file-type" className="file-type-page" style={{
+      width: '100%',
+      height: isMobile ? 'auto' : '100vh',
+      minHeight: isMobile ? '100vh' : 'auto',
+      background: '#F5F5F5',
+      overflow: isMobile ? 'visible' : 'hidden',
+      display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row'
+    }}>
       <LeftNav />
       <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}

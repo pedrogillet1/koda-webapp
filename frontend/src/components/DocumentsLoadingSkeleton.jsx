@@ -6,7 +6,7 @@ import React from 'react';
  */
 const DocumentsLoadingSkeleton = () => {
   return (
-    <div style={{padding: '24px', height: '100vh', overflow: 'hidden', background: '#F5F5F5'}}>
+    <div style={{padding: '24px', minHeight: '100vh', background: '#F5F5F5'}}>
       {/* Header skeleton */}
       <div style={{marginBottom: '32px'}}>
         <div style={{
