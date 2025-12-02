@@ -1432,6 +1432,14 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   }
 }
 
+/* Mobile viewport fix for #root - prevents 100vh issues on iOS */
+@media (max-width: 768px) {
+  #root {
+    height: auto !important;
+    min-height: 100vh;
+  }
+}
+
 /* Desktop - NO CHANGES */
 @media (min-width: 769px) {
   /* Desktop layout unchanged */

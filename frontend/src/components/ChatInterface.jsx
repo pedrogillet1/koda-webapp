@@ -2532,22 +2532,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     return (
         <div data-chat-container="true" style={{
-            flex: isMobile ? '0 0 auto' : '1 1 0',
-            minHeight: 0,
+            flex: isMobile ? '1 1 auto' : '1 1 0',
+            minHeight: isMobile ? '100vh' : 0,
             display: 'flex',
             flexDirection: 'column',
             background: '#F5F5F7',
-            // ✅ MOBILE KEYBOARD FIX: position fixed prevents URL bar from pushing down
-            // height: 100vh fills viewport, prevents dynamic island from appearing
-            position: isMobile ? 'fixed' : 'relative',
-            top: isMobile ? 0 : 'auto',
-            left: isMobile ? 0 : 'auto',
-            right: isMobile ? 0 : 'auto',
-            bottom: isMobile ? 0 : 'auto',
+            position: 'relative',
             width: isMobile ? '100%' : 'auto',
-            height: isMobile ? '100vh' : '100%',
-            zIndex: isMobile ? 1 : 'auto',
-            overflow: isMobile ? 'hidden' : 'visible'
+            height: isMobile ? 'auto' : '100%',
+            overflow: isMobile ? 'visible' : 'visible'
         }}>
             {/* Header - sticky with safe-area padding for notch/dynamic island */}
             <div data-chat-header="true" className="mobile-sticky-header" style={{
@@ -2606,7 +2599,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     padding: isMobile ? 16 : 20,
-                    paddingBottom: isMobile ? 16 : 20, // Extra padding on mobile for fixed input form
+                    paddingBottom: isMobile ? 80 : 20, // Extra padding on mobile for fixed input form
                     position: 'relative',
                     WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
                     willChange: 'transform' // Optimize scrolling performance

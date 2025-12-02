@@ -7,6 +7,7 @@ import { ToastProvider } from './context/ToastContext';
 import { NotificationsProvider } from './context/NotificationsStore';
 import { ToastStack } from './components/Notifications';
 import { logPerformanceMetrics } from './utils/performance';
+import { useIsMobile } from './hooks/useIsMobile';
 import './i18n/config';
 import './styles/designSystem.css';
 import './styles/safari-fixes.css';
@@ -42,6 +43,8 @@ import FileTypeDetail from './components/FileTypeDetail';
 import Upgrade from './components/Upgrade';
 
 function App() {
+  const isMobile = useIsMobile();
+
   // Log performance metrics on mount (development only)
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
@@ -60,7 +63,13 @@ function App() {
           <ToastProvider>
             <NotificationsProvider>
               <Router>
-                <div style={{ width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+                <div style={{
+                  width: isMobile ? '100%' : '100vw',
+                  height: isMobile ? 'auto' : '100vh',
+                  minHeight: isMobile ? '100vh' : 'auto',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
                   <Routes>
             {/* ✅ DEFAULT ROUTE: Chat screen is the first page users see (protected) */}
             <Route path="/" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />
