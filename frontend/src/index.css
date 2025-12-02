@@ -839,26 +839,16 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
      Fix: Allow textarea to auto-resize with proper constraints
      ======================================== */
 
-  /* MOBILE CHAT INPUT FIX - Force compact textarea height on Safari */
-  /* Safari returns wrong scrollHeight, so we force the initial height with CSS */
-  [data-chat-textarea="true"]:placeholder-shown {
+  /* MOBILE CHAT INPUT FIX - Force compact textarea on Safari */
+  /* Base styles - always 24px unless JS explicitly overrides with !important */
+  [data-chat-textarea="true"] {
     height: 24px !important;
     min-height: 24px !important;
-    max-height: 24px !important;
-    overflow: hidden !important;
-  }
-
-  /* When focused or has content, allow normal auto-resize behavior */
-  [data-chat-textarea="true"]:not(:placeholder-shown) {
-    min-height: 24px !important;
-    max-height: 200px !important;
-  }
-
-  /* Ensure padding is 0 to match inline styles */
-  [data-chat-textarea="true"] {
     font-size: 14px !important;
     line-height: 24px !important;
     padding: 0 !important;
+    box-sizing: border-box !important;
+    -webkit-appearance: none !important;
   }
 
   /* ========================================

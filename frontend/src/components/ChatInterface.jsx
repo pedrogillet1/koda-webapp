@@ -935,21 +935,36 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             const minHeight = 24; // Single line height
             const maxHeight = 200;
 
-            // For empty textarea, use minimum height (prevents Safari scrollHeight bug)
+            // For empty textarea, let CSS handle height (prevents Safari scrollHeight bug)
             if (!message || message.trim() === '') {
-                textarea.style.height = `${minHeight}px`;
+                // On mobile, CSS sets height with !important, so we need to match
+                if (isMobile) {
+                    textarea.style.setProperty('height', `${minHeight}px`, 'important');
+                } else {
+                    textarea.style.height = `${minHeight}px`;
+                }
                 return;
             }
 
             // Temporarily set to minHeight to get accurate scrollHeight
-            textarea.style.height = `${minHeight}px`;
+            if (isMobile) {
+                textarea.style.setProperty('height', `${minHeight}px`, 'important');
+            } else {
+                textarea.style.height = `${minHeight}px`;
+            }
 
             // Calculate needed height based on content
             const scrollHeight = textarea.scrollHeight;
             const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
-            textarea.style.height = `${newHeight}px`;
+
+            // Use setProperty with important on mobile to override CSS !important
+            if (isMobile) {
+                textarea.style.setProperty('height', `${newHeight}px`, 'important');
+            } else {
+                textarea.style.height = `${newHeight}px`;
+            }
         }
-    }, [message]);
+    }, [message, isMobile]);
 
     // Load draft message when conversation changes
     useEffect(() => {
