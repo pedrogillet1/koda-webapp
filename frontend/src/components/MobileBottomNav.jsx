@@ -5,7 +5,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 
 // Import icons - outline only
 import { ReactComponent as HouseIcon } from '../assets/House.svg';
-import { ReactComponent as Folder1Icon } from '../assets/Folder1.svg';
+import { ReactComponent as FolderIcon } from '../assets/Folder.svg';
 import { ReactComponent as UploadIcon } from '../assets/Logout-white.svg';
 import { ReactComponent as MessageIcon } from '../assets/Message circle.svg';
 import { ReactComponent as SettingsIcon } from '../assets/Settings.svg';
@@ -38,7 +38,7 @@ const MobileBottomNav = () => {
       id: 'documents',
       path: '/documents',
       label: t('nav.documents'),
-      icon: Folder1Icon,
+      icon: FolderIcon,
       matchPaths: ['/documents', '/folder', '/filetype', '/category']
     },
     {
