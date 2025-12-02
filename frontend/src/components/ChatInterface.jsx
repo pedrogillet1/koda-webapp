@@ -931,12 +931,23 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     // Auto-resize textarea as user types
     useEffect(() => {
         if (inputRef.current) {
-            // Reset height to auto to get the correct scrollHeight
-            inputRef.current.style.height = 'auto';
+            const textarea = inputRef.current;
+            const minHeight = 24; // Single line height
+            const maxHeight = 200;
 
-            // Set height based on scrollHeight, with max limit
-            const newHeight = Math.min(inputRef.current.scrollHeight, 200);
-            inputRef.current.style.height = `${newHeight}px`;
+            // For empty textarea, use minimum height (prevents Safari scrollHeight bug)
+            if (!message || message.trim() === '') {
+                textarea.style.height = `${minHeight}px`;
+                return;
+            }
+
+            // Temporarily set to minHeight to get accurate scrollHeight
+            textarea.style.height = `${minHeight}px`;
+
+            // Calculate needed height based on content
+            const scrollHeight = textarea.scrollHeight;
+            const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
+            textarea.style.height = `${newHeight}px`;
         }
     }, [message]);
 
@@ -3905,14 +3916,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         onChange={(e) => {
                             const newValue = e.target.value;
                             setMessage(newValue);
-                            // ✅ FIX: Save draft to localStorage
+                            // Save draft to localStorage
                             localStorage.setItem(`koda_draft_${currentConversation?.id || 'new'}`, newValue);
-                            // Auto-resize textarea - only on desktop, mobile stays single line
-                            if (!isMobile) {
-                                e.target.style.height = 'auto';
-                                const maxHeight = 200;
-                                e.target.style.height = Math.min(e.target.scrollHeight, maxHeight) + 'px';
-                            }
+                            // Auto-resize is handled by useEffect when message changes
                         }}
                         onPaste={handlePaste}
                         onKeyDown={(e) => {
@@ -3938,7 +3944,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         autoFocus={!isMobile}
                         rows={1}
                         style={{
-                            flex: isMobile ? '1 1 auto' : '1 1 0',
+                            flex: '1 1 auto',
                             background: 'transparent',
                             border: 'none',
                             outline: 'none',
@@ -3947,10 +3953,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             cursor: 'text',
                             resize: 'none',
                             overflow: 'hidden',
-                            minHeight: isMobile ? '20px' : '24px',
-                            maxHeight: isMobile ? '20px' : '200px',
-                            height: isMobile ? '20px' : '24px',
-                            lineHeight: isMobile ? '20px' : '24px',
+                            minHeight: '24px',
+                            maxHeight: '200px',
+                            lineHeight: '24px',
                             fontFamily: 'inherit',
                             padding: 0,
                             margin: 0

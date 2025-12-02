@@ -835,29 +835,27 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   }
 
   /* ========================================
-     ISSUE #2: CHAT MESSAGE TEXT WRAPS TO 2 LINES
-     Fix: Reduce font size and constrain textarea
+     ISSUE #2: CHAT MESSAGE AUTO-RESIZE
+     Fix: Allow textarea to auto-resize with proper constraints
      ======================================== */
 
-  /* Chat textarea optimization - single line only */
+  /* Chat textarea - allow auto-resize with proper line height */
   .chat-input-wrapper textarea,
   [data-chat-textarea="true"] {
     font-size: 14px !important;
-    line-height: 20px !important;
-    height: 20px !important;
-    min-height: 20px !important;
-    max-height: 20px !important;
+    line-height: 24px !important;
+    min-height: 24px !important;
+    max-height: 200px !important;
     padding: 0 !important;
     resize: none !important;
-    overflow: hidden !important;
   }
 
-  /* Chat input form wrapper - single line height */
+  /* Chat input form wrapper - flexible height */
   .chat-input-wrapper,
   [data-chat-input="true"] {
     min-height: auto !important;
     height: auto !important;
-    padding: 8px 12px !important;
+    padding: 6px 10px !important;
   }
 
   /* ========================================
