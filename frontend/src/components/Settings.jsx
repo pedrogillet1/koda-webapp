@@ -641,7 +641,17 @@ const Settings = () => {
   };
 
   return (
-    <div data-page="settings" className="settings-page" style={{ width: '100%', height: isMobile ? 'auto' : '100vh', minHeight: '100vh', background: '#F4F4F6', overflow: isMobile ? 'visible' : 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'flex' }}>
+    <div data-page="settings" className="settings-page" style={{
+  width: '100%',
+  height: isMobile ? 'auto' : '100vh',
+  minHeight: '100vh',
+  background: '#F4F4F6',
+  overflow: isMobile ? 'visible' : 'hidden',
+  justifyContent: 'flex-start',
+  alignItems: isMobile ? 'stretch' : 'center',
+  display: 'flex',
+  flexDirection: isMobile ? 'column' : 'row'
+}}>
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       {/* Settings Sidebar - Hidden on mobile */}
@@ -862,6 +872,7 @@ const Settings = () => {
         flex: isMobile ? '0 0 auto' : '1 1 0',
         height: isMobile ? 'auto' : '100vh',
         minHeight: isMobile ? 'calc(100vh - 140px)' : '100vh',
+        width: isMobile ? '100%' : 'auto',
         flexDirection: 'column',
         justifyContent: 'flex-start',
         alignItems: 'flex-start',

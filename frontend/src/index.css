@@ -1307,6 +1307,49 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
 }
 
 /* ========================================
+   MOBILE SETTINGS SCROLLING - DESKTOP PROTECTED
+   ======================================== */
+@media (max-width: 768px) {
+  /* Enable smooth scrolling on mobile */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Ensure Settings page scrolls properly */
+  .settings-page,
+  [data-page="settings"] {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    height: auto !important;
+    min-height: 100dvh !important;
+  }
+
+  /* Settings content area scrolling */
+  .settings-content {
+    overflow-y: visible !important;
+    height: auto !important;
+  }
+
+  /* Ensure sticky headers work */
+  .settings-content > div:first-child {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10 !important;
+    background: white !important;
+  }
+}
+
+/* Desktop - NO CHANGES */
+@media (min-width: 769px) {
+  /* Desktop layout unchanged */
+  .settings-page,
+  [data-page="settings"] {
+    overflow: hidden;
+  }
+}
+
+/* ========================================
    MOBILE PERFORMANCE OPTIMIZATIONS
    ======================================== */
 @media (max-width: 768px) {
