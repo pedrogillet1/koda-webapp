@@ -7,7 +7,6 @@ import { ReactComponent as Folder1Icon } from '../assets/Folder1.svg';
 import { ReactComponent as HouseIcon } from '../assets/House.svg';
 import { ReactComponent as MessageIcon } from '../assets/Message circle.svg';
 import { ReactComponent as LogoutIcon } from '../assets/Logout-white.svg';
-import { ReactComponent as UploadIcon } from '../assets/upload.svg';
 import { ReactComponent as NotificationIcon } from '../assets/Bell-white.svg';
 import { ReactComponent as SettingsIcon } from '../assets/Settings.svg';
 import { ReactComponent as SignoutIcon } from '../assets/signout.svg';
@@ -109,7 +108,7 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
                         {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.chat')}</span>}
                     </div>
                     <div onClick={() => navigate('/upload-hub')} style={{padding: spacing.sm, borderRadius: 100, cursor: 'pointer', background: location.pathname === '/upload-hub' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: 'flex-start', width: isExpanded ? '100%' : 'auto', transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/upload-hub') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/upload-hub') e.currentTarget.style.background = 'transparent'; }}>
-                        <UploadIcon style={{width: 20, height: 20, flexShrink: 0, color: 'white'}} />
+                        <LogoutIcon style={{width: 20, height: 20, flexShrink: 0}} />
                         {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.upload')}</span>}
                     </div>
                 </div>

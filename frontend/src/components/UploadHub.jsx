@@ -13,7 +13,6 @@ import { useToast } from '../context/ToastContext';
 import { useDocuments } from '../context/DocumentsContext';
 import { ReactComponent as SearchIcon} from '../assets/Search.svg';
 import { ReactComponent as CheckIcon} from '../assets/check.svg';
-import { ReactComponent as LogoutBlackIcon } from '../assets/Logout-black.svg';
 import { ReactComponent as ExpandIcon } from '../assets/expand.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
 import { ReactComponent as RenameIcon } from '../assets/Edit 5.svg';
