@@ -14,6 +14,7 @@ import ragService from './rag.service';
 import cacheService from './cache.service';
 import { getIO } from './websocket.service';
 import * as memoryService from './memory.service';
+import languageDetectionService from './languageDetection.service';
 import OpenAI from 'openai';
 import { config } from '../config/env';
 
@@ -959,6 +960,12 @@ export const handleFileActionsIfNeeded = async (
   const fileActionsService = require('./fileActions.service').default;
 
   // ========================================
+  // 🌍 LANGUAGE DETECTION
+  // ========================================
+  const detectedLanguage = languageDetectionService.detectLanguage(message);
+  console.log(`🌍 [LANGUAGE] Detected: ${detectedLanguage}`);
+
+  // ========================================
   // Use LLM for flexible intent detection
   // ========================================
   const intentResult = await llmIntentDetectorService.detectIntent(message);
@@ -1191,7 +1198,7 @@ export const handleFileActionsIfNeeded = async (
       try {
         const result = await fileTypeHandler.handle(userId, fileTypeQuery, {
           folderId: folderName ? undefined : undefined // TODO: resolve folder by name
-        });
+        }, detectedLanguage);
 
         if (result) {
           return {

@@ -442,13 +442,13 @@ export class FileTypeHandler {
 
     // If multiple types requested, group by file type
     if (fileTypeInfos.length > 1) {
-      return this.formatMultipleTypes(formattedDocs, fileTypeInfos);
+      return this.formatMultipleTypes(formattedDocs, fileTypeInfos, templates);
     }
 
     // Single type - use existing format
     const fileTypeInfo = fileTypeInfos[0];
     let answer = `**${fileTypeInfo.label.charAt(0).toUpperCase() + fileTypeInfo.label.slice(1)}s**\n\n`;
-    answer += `Found **${documents.length}** ${fileTypeInfo.label}${documents.length === 1 ? '' : 's'}:\n\n`;
+    answer += templates.found(documents.length, fileTypeInfo.label) + '\n\n';
 
     // Group by folder for better organization
     const grouped = this.groupByFolder(formattedDocs);
@@ -465,7 +465,7 @@ export class FileTypeHandler {
         if (folderLabel !== 'No folder') {
           answer += `**${folderLabel}:**\n`;
         } else {
-          answer += `**Root:**\n`;
+          answer += `**${templates.root}:**\n`;
         }
         docs.forEach((doc, idx) => {
           const fileSize = doc.fileSize ? ` (${this.formatFileSize(doc.fileSize)})` : '';
@@ -478,7 +478,7 @@ export class FileTypeHandler {
     // Calculate total size
     const totalSize = formattedDocs.reduce((sum, doc) => sum + (doc.fileSize || 0), 0);
     if (totalSize > 0) {
-      answer += `\n*Total size: ${this.formatFileSize(totalSize)}*`;
+      answer += `\n*${templates.totalSize}: ${this.formatFileSize(totalSize)}*`;
     }
 
     return {
@@ -494,9 +494,10 @@ export class FileTypeHandler {
    */
   private formatMultipleTypes(
     documents: FileTypeDocument[],
-    fileTypeInfos: Array<{ mimeTypes: string[], emoji: string, label: string, detectedTerm: string }>
+    fileTypeInfos: Array<{ mimeTypes: string[], emoji: string, label: string, detectedTerm: string }>,
+    templates: LocalizedTemplates
   ): FileTypeResult {
-    let answer = `**Found ${documents.length} file${documents.length === 1 ? '' : 's'}:**\n\n`;
+    let answer = `**${templates.found(documents.length, templates.file)}**\n\n`;
 
     // Group documents by file type
     const groupedByType: Record<string, FileTypeDocument[]> = {};
@@ -528,7 +529,7 @@ export class FileTypeHandler {
       const docs = groupedByType[typeInfo.label] || [];
 
       if (docs.length > 0) {
-        answer += `**${typeInfo.label.toUpperCase()} (${docs.length} file${docs.length === 1 ? '' : 's'}):**\n`;
+        answer += `**${typeInfo.label.toUpperCase()} (${templates.files(docs.length)}):**\n`;
 
         docs.forEach(doc => {
           const fileSize = doc.fileSize ? ` (${this.formatFileSize(doc.fileSize)})` : '';
@@ -537,14 +538,14 @@ export class FileTypeHandler {
 
         answer += `\n`;
       } else {
-        answer += `**${typeInfo.label.toUpperCase()}:** No files\n\n`;
+        answer += `**${typeInfo.label.toUpperCase()}:** ${templates.noFiles(typeInfo.label)}\n\n`;
       }
     }
 
     // Calculate total size
     const totalSize = documents.reduce((sum, doc) => sum + (doc.fileSize || 0), 0);
     if (totalSize > 0) {
-      answer += `*Total size: ${this.formatFileSize(totalSize)}*`;
+      answer += `*${templates.totalSize}: ${this.formatFileSize(totalSize)}*`;
     }
 
     const typeLabels = fileTypeInfos.map(f => f.label).join(' and ');
