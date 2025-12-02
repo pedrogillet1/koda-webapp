@@ -921,10 +921,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     }, [messages.length]); // Only depend on message count, not content
 
-    // Focus input on mount
+    // Focus input on mount (desktop only - avoid opening keyboard on mobile)
     useEffect(() => {
-        inputRef.current?.focus();
-    }, []);
+        if (!isMobile) {
+            inputRef.current?.focus();
+        }
+    }, [isMobile]);
 
     // Auto-resize textarea as user types
     useEffect(() => {
@@ -945,21 +947,23 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         setMessage(savedDraft || '');
     }, [currentConversation?.id]);
 
-    // Focus input when conversation changes
+    // Focus input when conversation changes (desktop only - avoid opening keyboard on mobile)
     useEffect(() => {
-        setTimeout(() => {
-            inputRef.current?.focus();
-        }, 100);
-    }, [currentConversation]);
-
-    // Focus input when loading state changes (after receiving response)
-    useEffect(() => {
-        if (!isLoading) {
+        if (!isMobile) {
             setTimeout(() => {
                 inputRef.current?.focus();
             }, 100);
         }
-    }, [isLoading]);
+    }, [currentConversation, isMobile]);
+
+    // Focus input when loading state changes (after receiving response - desktop only)
+    useEffect(() => {
+        if (!isLoading && !isMobile) {
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 100);
+        }
+    }, [isLoading, isMobile]);
 
     // REMOVED: Research mode detection - popup disabled per user request
     // useEffect(() => {
