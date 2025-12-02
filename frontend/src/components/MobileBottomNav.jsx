@@ -23,55 +23,37 @@ const MobileBottomNav = () => {
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   // ✅ MOBILE KEYBOARD DETECTION: Hide nav when keyboard opens
+  // Uses document-level focus/blur events with capture phase to detect ANY input focus
   useEffect(() => {
     if (!isMobile) return;
 
-    const handleResize = () => {
-      // Use visualViewport API for accurate keyboard detection on iOS/Android
-      if (window.visualViewport) {
-        const viewportHeight = window.visualViewport.height;
-        const windowHeight = window.innerHeight;
-        // If viewport is significantly smaller than window, keyboard is open
-        // Threshold of 150px to avoid false positives from address bar changes
-        setIsKeyboardOpen(windowHeight - viewportHeight > 150);
+    const handleFocusIn = (e) => {
+      // Check if the focused element is an input or textarea
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        setIsKeyboardOpen(true);
       }
     };
 
-    // Also detect focus/blur on input for more reliable detection
-    const handleFocus = () => setIsKeyboardOpen(true);
-    const handleBlur = () => {
-      // Small delay to allow visualViewport to update
-      setTimeout(() => {
-        if (window.visualViewport) {
-          const viewportHeight = window.visualViewport.height;
-          const windowHeight = window.innerHeight;
-          setIsKeyboardOpen(windowHeight - viewportHeight > 150);
-        } else {
-          setIsKeyboardOpen(false);
-        }
-      }, 100);
+    const handleFocusOut = (e) => {
+      // Check if the blurred element is an input or textarea
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        // Small delay to check if focus moved to another input
+        setTimeout(() => {
+          const activeEl = document.activeElement;
+          if (!activeEl || (activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA')) {
+            setIsKeyboardOpen(false);
+          }
+        }, 100);
+      }
     };
 
-    // Listen to visualViewport resize events
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleResize);
-    }
-
-    // Listen to input focus/blur
-    const inputs = document.querySelectorAll('input, textarea');
-    inputs.forEach(input => {
-      input.addEventListener('focus', handleFocus);
-      input.addEventListener('blur', handleBlur);
-    });
+    // Use focusin/focusout which bubble (unlike focus/blur)
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
 
     return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleResize);
-      }
-      inputs.forEach(input => {
-        input.removeEventListener('focus', handleFocus);
-        input.removeEventListener('blur', handleBlur);
-      });
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
     };
   }, [isMobile]);
 

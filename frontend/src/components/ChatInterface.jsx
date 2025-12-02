@@ -104,7 +104,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [error, setError] = useState(null); // Track current error for ErrorBanner
     const [showShortcutsModal, setShowShortcutsModal] = useState(false); // Keyboard shortcuts modal
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false); // Track mobile keyboard state
-    const [inputTopPosition, setInputTopPosition] = useState(null); // Track iOS keyboard position for input
+    // visualViewportHeight removed - using focus-based keyboard detection instead
     // ✅ SMART SCROLL: Track scroll position and unread messages
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -381,46 +381,45 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         );
     };
 
-    // ✅ MOBILE KEYBOARD DETECTION: Position input above keyboard on iOS
-    // On iOS Safari, we must use visualViewport height directly for reliable positioning
+    // ✅ MOBILE KEYBOARD DETECTION: Use document-level focus events (same as MobileBottomNav)
+    // This is more reliable than relying on the textarea's inline onFocus handler
+    // Uses focusin/focusout which bubble (unlike focus/blur)
     useEffect(() => {
         if (!isMobile) return;
 
-        const INPUT_AREA_HEIGHT = 80; // Height of input container
-
-        const updateKeyboardState = () => {
-            if (window.visualViewport) {
-                const vv = window.visualViewport;
-                const windowHeight = window.innerHeight;
-                // Calculate keyboard height from visual viewport
-                const kbHeight = windowHeight - vv.height;
-
-                if (kbHeight > 150) {
-                    setIsKeyboardOpen(true);
-                    // On iOS Safari, position:fixed top uses the visual viewport
-                    // Position input at: visualViewport.height - inputHeight
-                    // This places it at the bottom of the visible area (just above keyboard)
-                    setInputTopPosition(vv.height - INPUT_AREA_HEIGHT);
-                } else {
-                    setIsKeyboardOpen(false);
-                    setInputTopPosition(null);
-                }
+        const handleFocusIn = (e) => {
+            // Check if the focused element is an input or textarea
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                setIsKeyboardOpen(true);
             }
         };
 
-        // Listen to visualViewport resize and scroll events
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', updateKeyboardState);
-            window.visualViewport.addEventListener('scroll', updateKeyboardState);
-        }
+        const handleFocusOut = (e) => {
+            // Check if the blurred element is an input or textarea
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                // Small delay to check if focus moved to another input
+                setTimeout(() => {
+                    const activeEl = document.activeElement;
+                    if (!activeEl || (activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA')) {
+                        setIsKeyboardOpen(false);
+                    }
+                }, 100);
+            }
+        };
+
+        document.addEventListener('focusin', handleFocusIn);
+        document.addEventListener('focusout', handleFocusOut);
 
         return () => {
-            if (window.visualViewport) {
-                window.visualViewport.removeEventListener('resize', updateKeyboardState);
-                window.visualViewport.removeEventListener('scroll', updateKeyboardState);
-            }
+            document.removeEventListener('focusin', handleFocusIn);
+            document.removeEventListener('focusout', handleFocusOut);
         };
     }, [isMobile]);
+
+    // Keep handleInputBlur for the textarea's onBlur handler (still needed for scrollIntoView cleanup)
+    const handleInputBlur = useCallback(() => {
+        // The keyboard state is now handled by document-level events above
+    }, []);
 
     useEffect(() => {
         // ✅ OPTIMISTIC LOADING: Fetch fresh user info in background (non-blocking)
@@ -2531,7 +2530,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const userName = capitalizeFirst(user?.firstName) || 'there';
 
     return (
-        <div data-chat-container="true" style={{flex: '1 1 0', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', background: '#F5F5F7', position: 'relative'}}>
+        <div data-chat-container="true" style={{
+            flex: '1 1 0',
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#F5F5F7',
+            // ✅ iOS KEYBOARD FIX: Use 100dvh (dynamic viewport height) which automatically
+            // adjusts for the keyboard. Works with interactive-widget=resizes-content
+            position: 'relative',
+            height: isMobile ? '100dvh' : '100%'
+        }}>
             {/* Header */}
             <div data-chat-header="true" className="mobile-sticky-header" style={{
                 height: isMobile ? 56 : 84,
@@ -2568,7 +2577,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 onRetry={error?.retryable ? handleRetryError : null}
             />
 
-            {/* Messages Area */}
+            {/* Messages Area - Hidden when keyboard is open on mobile to maximize input visibility */}
             <div
                 ref={messagesContainerRef}
                 data-messages-container="true"
@@ -2587,6 +2596,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     paddingBottom: isMobile ? 100 : 20, // Extra padding on mobile for bottom nav
                     position: 'relative',
                     WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
+                    // ✅ iOS KEYBOARD FIX: Hide messages area when keyboard is open
+                    // This ensures the input is prominent and no empty space appears
+                    ...(isMobile && isKeyboardOpen ? { display: 'none' } : {})
                 }}
             >
             {/* Centered Content Container */}
@@ -3723,20 +3735,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: isMobile ? 8 : 16,
-                    flexShrink: 0,
-                    // iOS keyboard fix: use top positioning with visualViewport.height
-                    // This pins the input at the bottom of the visible area (above keyboard)
-                    ...(isMobile && isKeyboardOpen && inputTopPosition !== null ? {
-                        position: 'fixed',
-                        top: `${inputTopPosition}px`,
-                        left: 0,
-                        right: 0,
-                        bottom: 'auto',
-                        zIndex: 1001,
-                        background: '#F5F5F7',
-                        paddingLeft: 16,
-                        paddingRight: 16
-                    } : {})
+                    flexShrink: 0
                 }}
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
@@ -3991,6 +3990,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             localStorage.setItem(`koda_draft_${currentConversation?.id || 'new'}`, newValue);
                             // Auto-resize is handled by useEffect when message changes
                         }}
+                        onFocus={(e) => {
+                            // Keyboard detection is handled by document-level focusin/focusout events
+                            // This handler just ensures disabled state is cleared and scrolls into view
+                            if (e.target.disabled) {
+                                e.target.disabled = false;
+                            }
+                            // Scroll input into view on mobile
+                            if (isMobile) {
+                                setTimeout(() => {
+                                    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }, 300);
+                            }
+                        }}
+                        onBlur={handleInputBlur}
                         onPaste={handlePaste}
                         onKeyDown={(e) => {
                             // Submit on Enter (without Shift)
@@ -3999,18 +4012,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                 handleSendMessage();
                             }
                             // Allow Shift+Enter for new lines (default behavior)
-                        }}
-                        onFocus={(e) => {
-                            // Always allow focus, even if disabled
-                            if (e.target.disabled) {
-                                e.target.disabled = false;
-                            }
-                            // Mobile: Scroll input into view when keyboard appears
-                            if (isMobile) {
-                                setTimeout(() => {
-                                    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                }, 300);
-                            }
                         }}
                         autoFocus={!isMobile}
                         rows={1}
