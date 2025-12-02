@@ -1081,20 +1081,26 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     font-family: 'Plus Jakarta Sans', sans-serif !important;
   }
 
-  /* Active state - white text and icon */
+  /* Active state - white text and icon (outline only, no fill) */
   .mobile-bottom-nav-item.active .mobile-bottom-nav-item-icon svg {
-    fill: #FFFFFF !important;
     color: #FFFFFF !important;
+  }
+  .mobile-bottom-nav-item.active .mobile-bottom-nav-item-icon svg path {
+    fill: none !important;
+    stroke: #FFFFFF !important;
   }
 
   .mobile-bottom-nav-item.active .mobile-bottom-nav-item-label {
     color: #FFFFFF !important;
   }
 
-  /* Inactive state - gray text and icon */
+  /* Inactive state - gray text and icon (outline only, no fill) */
   .mobile-bottom-nav-item:not(.active) .mobile-bottom-nav-item-icon svg {
-    fill: #6C6B6E !important;
     color: #6C6B6E !important;
+  }
+  .mobile-bottom-nav-item:not(.active) .mobile-bottom-nav-item-icon svg path {
+    fill: none !important;
+    stroke: #6C6B6E !important;
   }
 
   .mobile-bottom-nav-item:not(.active) .mobile-bottom-nav-item-label {
