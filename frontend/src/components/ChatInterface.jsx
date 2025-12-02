@@ -2557,7 +2557,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 justifyContent: 'space-between',
                 flexShrink: 0,
                 position: isMobile ? 'sticky' : 'relative',
-                top: isMobile ? 0 : 'auto',
+                top: isMobile ? 'env(safe-area-inset-top)' : 'auto',
                 zIndex: isMobile ? 10 : 'auto',
                 width: isMobile ? '100%' : 'auto',
                 boxSizing: 'border-box'
