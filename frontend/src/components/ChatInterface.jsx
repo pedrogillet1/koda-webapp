@@ -382,25 +382,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     };
 
     // ✅ MOBILE KEYBOARD DETECTION: Position input above keyboard on iOS
+    // On iOS Safari, we must use visualViewport height directly for reliable positioning
     useEffect(() => {
         if (!isMobile) return;
 
-        const INPUT_HEIGHT = 70; // Approximate height of input area
+        const INPUT_AREA_HEIGHT = 80; // Height of input container
 
         const updateKeyboardState = () => {
             if (window.visualViewport) {
                 const vv = window.visualViewport;
                 const windowHeight = window.innerHeight;
-                // Check if keyboard is open (viewport significantly smaller than window)
-                const keyboardHeight = windowHeight - vv.height;
+                // Calculate keyboard height from visual viewport
+                const kbHeight = windowHeight - vv.height;
 
-                if (keyboardHeight > 150) {
+                if (kbHeight > 150) {
                     setIsKeyboardOpen(true);
-                    // Position input at bottom of visual viewport
-                    // vv.offsetTop = scroll offset from top of document
-                    // vv.height = visible height
-                    // We want input at: vv.offsetTop + vv.height - INPUT_HEIGHT
-                    setInputTopPosition(vv.offsetTop + vv.height - INPUT_HEIGHT);
+                    // On iOS Safari, position:fixed top uses the visual viewport
+                    // Position input at: visualViewport.height - inputHeight
+                    // This places it at the bottom of the visible area (just above keyboard)
+                    setInputTopPosition(vv.height - INPUT_AREA_HEIGHT);
                 } else {
                     setIsKeyboardOpen(false);
                     setInputTopPosition(null);
@@ -3724,14 +3724,18 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     alignItems: 'center',
                     gap: isMobile ? 8 : 16,
                     flexShrink: 0,
-                    // iOS keyboard fix: position directly at bottom of visual viewport
+                    // iOS keyboard fix: use top positioning with visualViewport.height
+                    // This pins the input at the bottom of the visible area (above keyboard)
                     ...(isMobile && isKeyboardOpen && inputTopPosition !== null ? {
                         position: 'fixed',
                         top: `${inputTopPosition}px`,
                         left: 0,
                         right: 0,
                         bottom: 'auto',
-                        zIndex: 1001
+                        zIndex: 1001,
+                        background: '#F5F5F7',
+                        paddingLeft: 16,
+                        paddingRight: 16
                     } : {})
                 }}
                 onDragEnter={handleDragEnter}
