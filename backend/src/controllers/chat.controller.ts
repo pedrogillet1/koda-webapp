@@ -185,7 +185,7 @@ export const sendMessageStreaming = async (req: Request, res: Response) => {
     }
 
     // ✅ FIX: Set up SSE headers IMMEDIATELY (before any async operations)
-    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
@@ -454,7 +454,7 @@ export const sendAdaptiveMessageStreaming = async (req: Request, res: Response) 
     }
 
     // Set up SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');

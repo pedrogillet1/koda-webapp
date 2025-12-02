@@ -596,14 +596,94 @@ class FileActionsService {
         'show_folder'
       ];
 
-      // Only process if it's a file action intent with high confidence
-      if (!fileActionIntents.includes(intentResult.intent)) {
-        console.log(`❌ [parseFileAction] Intent "${intentResult.intent}" not in fileActionIntents`);
-        return null;
-      }
+      // Only process if it's a file action intent with sufficient confidence
+      if (!fileActionIntents.includes(intentResult.intent) || intentResult.confidence < 0.5) {
+        console.log(`⚠️ [parseFileAction] LLM confidence too low or wrong intent, trying regex fallback...`);
 
-      if (intentResult.confidence < 0.7) {
-        console.log(`❌ [parseFileAction] Confidence ${intentResult.confidence.toFixed(2)} is below 0.7 threshold`);
+        // ═══════════════════════════════════════════════════════════════════════════
+        // REGEX FALLBACK: Try pattern matching for common file actions
+        // ═══════════════════════════════════════════════════════════════════════════
+        const lowerQuery = query.toLowerCase();
+
+        // Move file patterns (EN, PT, ES, FR)
+        const movePatterns = [
+          /move\s+["']?([^"']+?)["']?\s+to\s+["']?([^"']+?)["']?$/i,
+          /put\s+["']?([^"']+?)["']?\s+in\s+["']?([^"']+?)["']?$/i,
+          /mover?\s+["']?([^"']+?)["']?\s+(?:para|a)\s+["']?([^"']+?)["']?$/i,
+          /colocar?\s+["']?([^"']+?)["']?\s+(?:em|na)\s+["']?([^"']+?)["']?$/i,
+        ];
+
+        for (const pattern of movePatterns) {
+          const match = query.match(pattern);
+          if (match) {
+            console.log(`✅ [parseFileAction] REGEX FALLBACK: Matched move pattern`);
+            return {
+              action: 'moveFile',
+              params: { filename: match[1].trim(), targetFolder: match[2].trim() }
+            };
+          }
+        }
+
+        // Delete file patterns (EN, PT, ES, FR)
+        const deletePatterns = [
+          /delete\s+(?:the\s+)?(?:file\s+)?["']?([^"']+?)["']?$/i,
+          /remove\s+(?:the\s+)?(?:file\s+)?["']?([^"']+?)["']?$/i,
+          /excluir?\s+(?:o\s+)?(?:arquivo\s+)?["']?([^"']+?)["']?$/i,
+          /apagar?\s+(?:o\s+)?(?:arquivo\s+)?["']?([^"']+?)["']?$/i,
+          /eliminar?\s+(?:el\s+)?(?:archivo\s+)?["']?([^"']+?)["']?$/i,
+          /supprimer?\s+(?:le\s+)?(?:fichier\s+)?["']?([^"']+?)["']?$/i,
+        ];
+
+        for (const pattern of deletePatterns) {
+          const match = query.match(pattern);
+          if (match) {
+            console.log(`✅ [parseFileAction] REGEX FALLBACK: Matched delete pattern`);
+            return {
+              action: 'deleteFile',
+              params: { filename: match[1].trim() }
+            };
+          }
+        }
+
+        // Rename file patterns (EN, PT, ES, FR)
+        const renamePatterns = [
+          /rename\s+["']?([^"']+?)["']?\s+to\s+["']?([^"']+?)["']?$/i,
+          /renomear?\s+["']?([^"']+?)["']?\s+(?:para|como)\s+["']?([^"']+?)["']?$/i,
+          /renombrar?\s+["']?([^"']+?)["']?\s+(?:a|como)\s+["']?([^"']+?)["']?$/i,
+          /renommer?\s+["']?([^"']+?)["']?\s+(?:en|comme)\s+["']?([^"']+?)["']?$/i,
+        ];
+
+        for (const pattern of renamePatterns) {
+          const match = query.match(pattern);
+          if (match) {
+            console.log(`✅ [parseFileAction] REGEX FALLBACK: Matched rename pattern`);
+            return {
+              action: 'renameFile',
+              params: { filename: match[1].trim(), newName: match[2].trim() }
+            };
+          }
+        }
+
+        // Create folder patterns (EN, PT, ES, FR)
+        const createFolderPatterns = [
+          /create\s+(?:a\s+)?(?:new\s+)?folder\s+(?:called\s+|named\s+)?["']?([^"']+?)["']?$/i,
+          /criar?\s+(?:uma?\s+)?(?:nova?\s+)?pasta\s+(?:chamad[ao]\s+)?["']?([^"']+?)["']?$/i,
+          /crear?\s+(?:una?\s+)?(?:nueva?\s+)?carpeta\s+(?:llamad[ao]\s+)?["']?([^"']+?)["']?$/i,
+          /créer?\s+(?:un\s+)?(?:nouveau\s+)?dossier\s+(?:appelé\s+)?["']?([^"']+?)["']?$/i,
+        ];
+
+        for (const pattern of createFolderPatterns) {
+          const match = query.match(pattern);
+          if (match) {
+            console.log(`✅ [parseFileAction] REGEX FALLBACK: Matched create folder pattern`);
+            return {
+              action: 'createFolder',
+              params: { folderName: match[1].trim() }
+            };
+          }
+        }
+
+        console.log(`❌ [parseFileAction] No regex pattern matched, returning null`);
         return null;
       }
 

@@ -1,14 +1,17 @@
 /**
  * System Prompts Service
- * Phase 3: Adaptive Prompt System
+ * Phase 3: Adaptive Prompt System + Cultural Context Engine
  *
  * ARCHITECTURE CHANGE:
  * - OLD: 8 intents → 6 system prompts → 6 format templates (hardcoded, rigid)
  * - NEW: 5 psychological goals → 1 adaptive prompt (flexible, natural)
+ * - ENHANCED: Database-driven cultural profiles for multilingual/multicultural support
  *
  * This eliminates the need to edit 3 files for every new query type.
  * The AI naturally adapts its response based on psychological user needs.
  */
+
+import * as languageDetectionService from './languageDetection.service';
 
 export type AnswerLength = 'short' | 'medium' | 'summary' | 'long';
 
@@ -38,7 +41,7 @@ interface LengthConfiguration {
  * Implements: Contextual bridging, implicit reasoning, confidence indicators,
  * proactive suggestions, error handling, sentence variation, and more.
  */
-const ADAPTIVE_SYSTEM_PROMPT = `You are KODA, an intelligent document assistant with file creation capabilities. Provide precise, enhanced answers in a professional style.
+const ADAPTIVE_SYSTEM_PROMPT = `You are KODA, an intelligent document assistant with file creation capabilities. Respond naturally and conversationally, like a knowledgeable friend who happens to be an expert. Be warm, helpful, and direct - not robotic or overly formal.
 
 **WHAT YOU CAN DO:**
 
@@ -468,7 +471,7 @@ DELETE:
 - You CAN converse naturally
 - You CAN calculate
 
-Be helpful, professional, and proactive!`;
+Be helpful, friendly, and proactive - like a knowledgeable colleague!`;
 
 /**
  * COMPARISON_RULES - Special formatting rules for comparison queries
@@ -518,6 +521,7 @@ export interface PromptOptions {
   documentLocations?: string;
   memoryContext?: string;
   folderTreeContext?: string;
+  detectedLanguage?: string; // Language code (en, pt, es, fr) for cultural context
 }
 
 class SystemPromptsService {
@@ -653,7 +657,7 @@ class SystemPromptsService {
 - Include minor details unless requested
 - Make assumptions about missing information
 
-**Tone**: Professional, clear, and concise.`,
+**Tone**: Friendly, clear, and helpful - like a knowledgeable colleague.`,
           temperature: 0.3,
         };
 
@@ -846,7 +850,7 @@ Cell B1 in Sheet 1 'ex1' is empty."
 - Do NOT make assumptions or infer information
 - Distinguish between related topics (verify exact match)
 
-**Tone**: Professional, helpful, and concise.`,
+**Tone**: Friendly, helpful, and conversational - like a knowledgeable colleague.`,
           temperature: 0.4,
         };
     }
@@ -1023,12 +1027,123 @@ ${context}
       systemPrompt += '\n\n**NO GREETING**: This is a follow-up message in an ongoing conversation. Jump straight to answering.';
     }
 
+    // Add language instruction based on detected language
+    if (options.detectedLanguage && options.detectedLanguage !== 'en') {
+      const languageInstruction = languageDetectionService.createLanguageInstruction(options.detectedLanguage);
+      systemPrompt += `\n\n**LANGUAGE REQUIREMENT**: ${languageInstruction}`;
+      console.log(`🌍 [CULTURAL] Adding language instruction for: ${options.detectedLanguage}`);
+    }
+
     // Add comparison rules if needed
     if (options.isComparison) {
       console.log('📊 [COMPARISON RULES] Adding table formatting rules to system prompt');
       systemPrompt += '\n\n' + COMPARISON_RULES;
     } else {
       console.log('📊 [COMPARISON] isComparison=false, skipping table rules');
+    }
+
+    // Add document context section
+    if (options.documentContext) {
+      systemPrompt += '\n\n**Retrieved Document Content**:\n' + options.documentContext;
+    }
+
+    // Add document locations section
+    if (options.documentLocations) {
+      systemPrompt += '\n\n**Document Sources**:\n' + options.documentLocations;
+    }
+
+    // Add memory context section
+    if (options.memoryContext) {
+      systemPrompt += '\n\n**Relevant Memory Context**:\n' + options.memoryContext;
+    }
+
+    // Add folder tree context section
+    if (options.folderTreeContext) {
+      systemPrompt += '\n\n**Folder Structure**:\n' + options.folderTreeContext;
+    }
+
+    // Add conversation history section
+    if (options.conversationHistory) {
+      systemPrompt += '\n\n**Conversation History**:\n' + options.conversationHistory;
+    }
+
+    // Add user query at the end
+    systemPrompt += '\n\n**User Query**: ' + query;
+
+    return systemPrompt;
+  }
+
+  /**
+   * Get adaptive system prompt with cultural context from database (ASYNC VERSION)
+   *
+   * This method fetches the cultural profile from the database and builds
+   * a culturally-aware system prompt. Use this when you need full cultural
+   * customization including tone, currency, and culturally-adapted base prompt.
+   *
+   * @param query - User's question
+   * @param answerLength - Desired answer length (short/medium/summary/long)
+   * @param options - Additional context and flags (must include detectedLanguage)
+   * @returns Promise<string> Complete system prompt with cultural context
+   */
+  async getSystemPromptWithCulturalContext(
+    query: string,
+    answerLength: AnswerLength = 'medium',
+    options: PromptOptions = {}
+  ): Promise<string> {
+    const language = options.detectedLanguage || 'en';
+
+    // Fetch cultural profile from database (with caching)
+    const culturalProfile = await languageDetectionService.getCulturalProfile(language);
+    console.log(`🌍 [CULTURAL] Loaded profile for ${language}: tone=${culturalProfile.tone}, currency=${culturalProfile.currency}`);
+
+    // Build cultural system prompt prefix
+    let culturalPrefix = culturalProfile.systemPrompt;
+
+    // Add tone guidance
+    if (culturalProfile.tone === 'formal') {
+      culturalPrefix += ' Maintain a formal and respectful tone throughout the conversation.';
+    } else if (culturalProfile.tone === 'friendly') {
+      culturalPrefix += ' Keep your responses warm and approachable.';
+    }
+
+    // Add currency context
+    if (culturalProfile.currency) {
+      culturalPrefix += ` When discussing monetary values, use ${culturalProfile.currency} as the default currency.`;
+    }
+
+    // Build base prompt with personality and capabilities
+    let systemPrompt = ADAPTIVE_SYSTEM_PROMPT;
+
+    // Prepend cultural context
+    systemPrompt = `**Cultural Context**:\n${culturalPrefix}\n\n` + systemPrompt;
+
+    // Add answer length configuration
+    const lengthConfig = this.getLengthConfiguration(answerLength);
+    systemPrompt += '\n\n' + lengthConfig.instruction;
+
+    // Add greeting logic
+    const hasAnyMessages = options.conversationHistory && options.conversationHistory.length > 0;
+    const shouldGreet = options.isFirstMessage !== undefined
+      ? options.isFirstMessage === true
+      : !hasAnyMessages;
+
+    if (shouldGreet) {
+      // Use culturally appropriate greeting
+      const localizedGreeting = languageDetectionService.getLocalizedGreeting(language);
+      systemPrompt += `\n\n**GREETING REQUIRED**: This is the user's FIRST message. Greet them naturally. Suggested: "${localizedGreeting.split('.')[0]}."`;
+    } else {
+      systemPrompt += '\n\n**NO GREETING**: This is a follow-up message in an ongoing conversation. Jump straight to answering.';
+    }
+
+    // Add language instruction
+    if (language !== 'en') {
+      const languageInstruction = languageDetectionService.createLanguageInstruction(language);
+      systemPrompt += `\n\n**LANGUAGE REQUIREMENT**: ${languageInstruction}`;
+    }
+
+    // Add comparison rules if needed
+    if (options.isComparison) {
+      systemPrompt += '\n\n' + COMPARISON_RULES;
     }
 
     // Add document context section

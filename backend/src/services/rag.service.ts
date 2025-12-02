@@ -37,6 +37,7 @@ import { synthesisQueryDetectionService } from './synthesisQueryDetection.servic
 import { comparativeAnalysisService } from './comparativeAnalysis.service';
 import { practicalImplicationsService } from './practicalImplications.service';
 import { terminologyIntelligenceService } from './terminologyIntelligence.service';
+import * as languageDetectionService from './languageDetection.service';
 
 // ============================================================================
 // PERFORMANCE TIMING INSTRUMENTATION
@@ -2266,8 +2267,8 @@ export async function generateAnswerStream(
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 7: Regular Queries - Standard RAG
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  console.log('âœ… [QUERY ROUTING] Routed to: REGULAR QUERY (RAG)');
-  return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage, memoryPromptContext, isFirstMessage);
+  console.log('✅ [QUERY ROUTING] Routed to: REGULAR QUERY (RAG)');
+  return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage, memoryPromptContext, isFirstMessage, detectedLanguage);
 }
 
 // ============================================================================
@@ -3026,13 +3027,15 @@ async function handleComparison(
 /**
  * Handle concept comparison (e.g., "Compare Maslow vs SDT")
  * Searches for each concept across all documents and generates structured comparison
+ * ✅ Cultural Context Engine: Added language support
  */
 async function handleConceptComparison(
   userId: string,
   query: string,
   concepts: string[],
   onChunk: (chunk: string) => void,
-  conversationHistory?: Array<{ role: string; content: string }>
+  conversationHistory?: Array<{ role: string; content: string }>,
+  detectedLanguage?: string
 ): Promise<{ sources: any[] }> {
   // â±ï¸ TIMING: Initialize timer for concept comparison
   const comparisonTimer = new PerformanceTimer();
@@ -3243,6 +3246,7 @@ async function handleConceptComparison(
   }
 
   // Build system prompt using unified SystemPrompts service
+  // ✅ Cultural Context Engine: Pass detected language for multilingual support
   const systemPrompt = systemPromptsService.getSystemPrompt(
     query,
     'medium', // Comparison queries use medium length
@@ -3251,6 +3255,7 @@ async function handleConceptComparison(
       isFirstMessage,
       conversationHistory: conversationHistoryText,
       documentContext: context,
+      detectedLanguage: queryLang, // ✅ Cultural Context: Pass detected language
     }
   );
 
@@ -3272,13 +3277,15 @@ async function handleConceptComparison(
 /**
  * Handle document comparison (e.g., "Compare Document A vs Document B")
  * Original comparison logic for specific documents
+ * ✅ Cultural Context Engine: Added language support
  */
 async function handleDocumentComparison(
   userId: string,
   query: string,
   documentIds: string[],
   onChunk: (chunk: string) => void,
-  conversationHistory?: Array<{ role: string; content: string }>
+  conversationHistory?: Array<{ role: string; content: string }>,
+  detectedLanguage?: string
 ): Promise<{ sources: any[] }> {
   console.log('ðŸ”„ [DOCUMENT COMPARISON] Retrieving content for comparison');
   console.log('ðŸ“„ [DOCUMENT COMPARISON] Specific documents:', documentIds.length);
@@ -3368,6 +3375,7 @@ async function handleDocumentComparison(
   }
 
   // Build system prompt using unified SystemPrompts service
+  // ✅ Cultural Context Engine: Pass detected language for multilingual support
   const systemPrompt = systemPromptsService.getSystemPrompt(
     query,
     'medium', // Document comparisons use medium length
@@ -3376,6 +3384,7 @@ async function handleDocumentComparison(
       isFirstMessage,
       conversationHistory: conversationHistoryText,
       documentContext: context,
+      detectedLanguage: queryLang, // ✅ Cultural Context: Pass detected language
     }
   );
 
@@ -3835,8 +3844,8 @@ function isMetaQuery(query: string): boolean {
 
   // Enhanced capability detection patterns - more natural and comprehensive
   const metaPatterns = [
-    // Greetings
-    /^(hi|hey|hello|greetings)/,
+    // Greetings - Multilingual (EN, PT, ES, FR, DE, IT)
+    /^(hi|hey|hello|greetings|ola|olá|oi|hola|bonjour|salut|bom dia|boa tarde|boa noite|buenos dias|buenas tardes|buenas noches|bonsoir|guten tag|ciao|buongiorno)/i,
 
     // Existing capability patterns
     /what (can|do) you (do|help)/,
@@ -3905,16 +3914,39 @@ function isNavigationQuery(query: string): boolean {
 /**
  * Handle meta-queries about KODA's capabilities
  * Now context-aware and natural
+ * ✅ Cultural Context Engine: Added language support
  */
 async function handleMetaQuery(
   query: string,
   onChunk: (chunk: string) => void,
-  conversationHistory?: Array<{ role: string; content: string }>
+  conversationHistory?: Array<{ role: string; content: string }>,
+  detectedLanguage?: string
 ): Promise<void> {
-  console.log(`âš¡ FAST PATH: Meta-query detected`);
+  console.log(`⚡ FAST PATH: Meta-query detected`);
+
+  // ✅ FIX: Check if this is a simple greeting - use INSTANT response (no LLM)
+  const isSimpleGreeting = languageDetectionService.isGreeting(query);
+
+  if (isSimpleGreeting) {
+    console.log(`👋 INSTANT GREETING: Detected simple greeting, bypassing LLM`);
+
+    // Detect language from the greeting
+    const language = languageDetectionService.detectLanguage(query);
+    console.log(`🌍 Detected language: ${language}`);
+
+    // Get localized greeting response - INSTANT (no LLM call)
+    const greetingResponse = languageDetectionService.getLocalizedGreeting(language);
+
+    // Stream the greeting response
+    onChunk(greetingResponse);
+    return;
+  }
 
   // Check if this is the first message in conversation
   const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
+
+  // Detect language if not provided
+  const queryLang = detectedLanguage || detectLanguage(query);
 
   // Build conversation context
   let conversationContext = '';
@@ -3926,6 +3958,7 @@ async function handleMetaQuery(
   }
 
   // Use SystemPrompts service (it already has capabilities section)
+  // ✅ Cultural Context Engine: Pass detected language for multilingual support
   const systemPrompt = systemPromptsService.getSystemPrompt(
     query,
     'short', // Meta queries should be brief
@@ -3936,7 +3969,8 @@ async function handleMetaQuery(
       documentContext: '', // No document context for meta queries
       documentLocations: '',
       memoryContext: '',
-      folderTreeContext: ''
+      folderTreeContext: '',
+      detectedLanguage: queryLang, // ✅ Cultural Context: Pass detected language
     }
   );
 
@@ -3950,11 +3984,13 @@ async function handleMetaQuery(
 /**
  * Handle navigation queries about using the app
  * Provides guidance on app features and how to use them
+ * ✅ Cultural Context Engine: Added language support
  */
 async function handleNavigationQuery(
   query: string,
   userId: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  detectedLanguage?: string
 ): Promise<void> {
   console.log(`ðŸ§­ [NAVIGATION] Handling app navigation question`);
 
@@ -4033,7 +4069,11 @@ async function handleNavigationQuery(
 - **PERSONALIZE**: Reference the user's actual folders when relevant (e.g., "You can upload to your Finance folder")
 `;
 
+  // Detect language if not provided
+  const queryLang = detectedLanguage || detectLanguage(query);
+
   // Use SystemPrompts service for consistent formatting
+  // ✅ Cultural Context Engine: Pass detected language for multilingual support
   const systemPrompt = systemPromptsService.getSystemPrompt(
     query,
     'short', // Navigation answers should be concise
@@ -4044,7 +4084,8 @@ async function handleNavigationQuery(
       documentContext: personalizationContext,
       documentLocations: '',
       memoryContext: '',
-      folderTreeContext: ''
+      folderTreeContext: '',
+      detectedLanguage: queryLang, // ✅ Cultural Context: Pass detected language
     }
   );
 
@@ -4394,11 +4435,12 @@ async function handleRegularQuery(
   query: string,
   conversationId: string,
   onChunk: (chunk: string) => void,
-  attachedDocumentId?: string | string[],  // âœ… FIX #8: Accept array for multi-document support
+  attachedDocumentId?: string | string[],  // ✅ FIX #8: Accept array for multi-document support
   conversationHistory?: Array<{ role: string; content: string; metadata?: any }>,
   onStage?: (stage: string, message: string) => void,
   memoryContext?: string,
-  isFirstMessage?: boolean  // âœ… NEW: Flag to control greeting logic
+  isFirstMessage?: boolean,  // ✅ NEW: Flag to control greeting logic
+  detectedLanguage?: string  // ✅ Cultural Context Engine: Language for multilingual support
 ): Promise<{ sources: any[] }> {
 
   // â±ï¸ PERFORMANCE: Start timing with instrumentation
@@ -5597,19 +5639,21 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
 
     // ✅ UNIFIED: Use SystemPrompts service for consistent prompting across all query types
-    // âœ… Issue #4 Fix: Pass isComparison flag to get comparison table rules
+    // ✅ Issue #4 Fix: Pass isComparison flag to get comparison table rules
+    // ✅ Cultural Context Engine: Pass detected language for multilingual support
     perfTimer.mark('systemPrompt');
     const systemPrompt = systemPromptsService.getSystemPrompt(
       query,
       answerLength, // Use mapped answer length (short/medium/long)
       {
-        isComparison: isComparisonQuery, // âœ… Issue #4: Apply comparison rules for comparison queries
-        isFirstMessage: shouldShowGreeting, // âœ… Use shouldShowGreeting instead of raw isFirstMessage
+        isComparison: isComparisonQuery, // ✅ Issue #4: Apply comparison rules for comparison queries
+        isFirstMessage: shouldShowGreeting, // ✅ Use shouldShowGreeting instead of raw isFirstMessage
         conversationHistory: conversationContext,
         documentContext: finalDocumentContext,
         documentLocations,
         memoryContext,
         folderTreeContext,
+        detectedLanguage: queryLang, // ✅ Cultural Context: Pass detected language
       }
     );
     perfTimer.measure('System Prompt Construction', 'systemPrompt');
