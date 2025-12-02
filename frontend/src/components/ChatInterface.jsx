@@ -2562,14 +2562,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     return (
         <div data-chat-container="true" style={{
             flex: isMobile ? '1 1 auto' : '1 1 0',
-            minHeight: isMobile ? '100vh' : 0,
+            minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
             background: '#F5F5F7',
             position: 'relative',
             width: isMobile ? '100%' : 'auto',
-            height: isMobile ? 'auto' : '100%',
-            overflow: isMobile ? 'hidden' : 'visible'
+            height: isMobile ? '100dvh' : '100%',
+            overflow: 'hidden'
         }}>
             {/* Header - sticky with safe-area padding for notch/dynamic island */}
             <div data-chat-header="true" className="mobile-sticky-header" style={{
@@ -2628,10 +2628,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     padding: isMobile ? 16 : 20,
-                    paddingBottom: isMobile ? 'calc(120px + env(safe-area-inset-bottom))' : 20, // Extra padding on mobile for fixed input form
+                    // Dynamic padding: when keyboard opens, we need space for the fixed input
+                    paddingBottom: isMobile
+                        ? `calc(${Math.max(120, keyboardHeight + 80)}px + env(safe-area-inset-bottom))`
+                        : 20,
                     position: 'relative',
                     WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
-                    willChange: 'transform' // Optimize scrolling performance
+                    willChange: 'transform', // Optimize scrolling performance
+                    transition: 'padding-bottom 0.25s ease-out' // Smooth keyboard animation
                 }}
             >
             {/* Centered Content Container */}
@@ -3777,7 +3781,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     width: isMobile ? '100%' : 'auto',
                     zIndex: isMobile ? 100 : 'auto',
                     boxSizing: 'border-box',
-                    transition: 'all 0.2s ease'
+                    transition: 'bottom 0.25s ease-out, transform 0.25s ease-out'
                 }}
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
