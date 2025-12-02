@@ -845,7 +845,16 @@ const Settings = () => {
       </div>}
 
       {/* Main Content */}
-      <div className="settings-content" style={{ flex: '1 1 0', height: isMobile ? 'auto' : '100%', minHeight: 0, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'flex' }}>
+      <div className="settings-content" style={{
+        flex: '1 1 0',
+        height: isMobile ? 'auto' : '100vh',
+        minHeight: isMobile ? 'calc(100vh - 160px)' : '100vh',
+        flexDirection: 'column',
+        justifyContent: 'flex-start',
+        alignItems: 'flex-start',
+        display: 'flex',
+        overflow: isMobile ? 'visible' : 'hidden'
+      }}>
         {/* Header */}
         <div style={{ alignSelf: 'stretch', height: isMobile ? 76 : 84, paddingLeft: isMobile ? 70 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'flex-start', alignItems: 'center', gap: 12, display: 'flex' }}>
           <div style={{ textAlign: isMobile ? 'left' : 'center', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px' }}>
@@ -881,7 +890,20 @@ const Settings = () => {
 
         {/* Content */}
         {activeSection === 'general' && (
-        <div className="settings-form scrollable-content" style={{ alignSelf: 'stretch', flex: '1 1 0', minHeight: 0, padding: isMobile ? 16 : 32, paddingBottom: isMobile ? 100 : 32, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 16, display: 'flex', WebkitOverflowScrolling: 'touch' }}>
+        <div className="settings-form scrollable-content" style={{
+          alignSelf: 'stretch',
+          flex: isMobile ? '0 0 auto' : '1 1 0',
+          minHeight: 0,
+          padding: isMobile ? 16 : 32,
+          paddingBottom: isMobile ? 100 : 32,
+          overflow: isMobile ? 'visible' : 'auto',
+          flexDirection: 'column',
+          justifyContent: 'flex-start',
+          alignItems: 'flex-start',
+          gap: isMobile ? 12 : 16,
+          display: 'flex',
+          WebkitOverflowScrolling: 'touch'
+        }}>
           {/* Recovery Verification Banner */}
           <RecoveryVerificationBanner />
 
@@ -1193,7 +1215,20 @@ const Settings = () => {
 
         {/* Profile Section */}
         {activeSection === 'profile' && (
-          <div data-settings-form="true" className="settings-form scrollable-content" style={{ alignSelf: 'stretch', flex: '1 1 0', minHeight: 0, padding: isMobile ? 16 : 20, paddingBottom: isMobile ? 100 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 16 : 20, display: 'flex', WebkitOverflowScrolling: 'touch' }}>
+          <div data-settings-form="true" className="settings-form scrollable-content" style={{
+            alignSelf: 'stretch',
+            flex: isMobile ? '0 0 auto' : '1 1 0',
+            minHeight: 0,
+            padding: isMobile ? 16 : 20,
+            paddingBottom: isMobile ? 100 : 20,
+            overflow: isMobile ? 'visible' : 'auto',
+            flexDirection: 'column',
+            justifyContent: 'flex-start',
+            alignItems: 'center',
+            gap: isMobile ? 16 : 20,
+            display: 'flex',
+            WebkitOverflowScrolling: 'touch'
+          }}>
             <div style={{ alignSelf: 'stretch', position: 'relative', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 12, display: 'flex' }}>
               {profileImage ? (
                 <img
@@ -1308,7 +1343,7 @@ const Settings = () => {
 
         {/* Password Section */}
         {activeSection === 'password' && (
-          <div data-settings-form="true" className="settings-form scrollable-content" style={{ alignSelf: 'stretch', flex: '1 1 0', minHeight: 0, padding: isMobile ? 16 : 20, paddingBottom: isMobile ? 100 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 16 : 20, display: 'flex', WebkitOverflowScrolling: 'touch' }}>
+          <div style={{ alignSelf: 'stretch', flex: isMobile ? '0 0 auto' : '1 1 0', padding: isMobile ? 16 : 20, paddingBottom: isMobile ? '100px' : 20, overflow: isMobile ? 'visible' : 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 20, display: 'flex' }}>
             <div style={{ alignSelf: 'stretch', flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 20 : 32, display: 'flex' }}>
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 20, display: 'flex' }}>
 
