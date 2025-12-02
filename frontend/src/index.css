@@ -839,7 +839,7 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
      Fix: Reduce font size and constrain textarea
      ======================================== */
 
-  /* Chat textarea optimization */
+  /* Chat textarea optimization - single line only */
   .chat-input-wrapper textarea,
   [data-chat-textarea="true"] {
     font-size: 14px !important;
@@ -849,6 +849,7 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     max-height: 20px !important;
     padding: 0 !important;
     resize: none !important;
+    overflow: hidden !important;
   }
 
   /* Chat input form wrapper - single line height */
@@ -857,14 +858,6 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     min-height: auto !important;
     height: auto !important;
     padding: 8px 12px !important;
-  }
-
-  /* Reduce grey space below input area */
-  .chat-input-area,
-  [data-input-area="true"] {
-    padding-top: 8px !important;
-    padding-bottom: 8px !important;
-    gap: 4px !important;
   }
 
   /* ========================================
