@@ -9,6 +9,61 @@
 
 import prisma from '../../config/database';
 
+// ============================================================================
+// LOCALIZED RESPONSE TEMPLATES
+// ============================================================================
+
+interface LocalizedTemplates {
+  found: (count: number, type: string) => string;
+  noFiles: (type: string) => string;
+  totalSize: string;
+  root: string;
+  files: (count: number) => string;
+  file: string;
+}
+
+const responseTemplates: Record<string, LocalizedTemplates> = {
+  pt: {
+    found: (count: number, type: string) => `Encontrei **${count}** ${type}${count === 1 ? '' : 's'}:`,
+    noFiles: (type: string) => `**Nenhum ${type} encontrado**\n\nNão foram encontrados ${type}s na sua biblioteca.\n\nTente fazer upload de alguns arquivos!`,
+    totalSize: 'Tamanho total',
+    root: 'Raiz',
+    files: (count: number) => `${count} arquivo${count === 1 ? '' : 's'}`,
+    file: 'arquivo'
+  },
+  es: {
+    found: (count: number, type: string) => `Encontré **${count}** ${type}${count === 1 ? '' : 's'}:`,
+    noFiles: (type: string) => `**No se encontraron ${type}s**\n\nNo se encontraron ${type}s en tu biblioteca.\n\n¡Intenta subir algunos archivos!`,
+    totalSize: 'Tamaño total',
+    root: 'Raíz',
+    files: (count: number) => `${count} archivo${count === 1 ? '' : 's'}`,
+    file: 'archivo'
+  },
+  fr: {
+    found: (count: number, type: string) => `J'ai trouvé **${count}** ${type}${count === 1 ? '' : 's'}:`,
+    noFiles: (type: string) => `**Aucun ${type} trouvé**\n\nAucun ${type} trouvé dans votre bibliothèque.\n\nEssayez de télécharger des fichiers!`,
+    totalSize: 'Taille totale',
+    root: 'Racine',
+    files: (count: number) => `${count} fichier${count === 1 ? '' : 's'}`,
+    file: 'fichier'
+  },
+  en: {
+    found: (count: number, type: string) => `Found **${count}** ${type}${count === 1 ? '' : 's'}:`,
+    noFiles: (type: string) => `**No ${type}s found**\n\nNo ${type}s found in your library.\n\nTry uploading some files!`,
+    totalSize: 'Total size',
+    root: 'Root',
+    files: (count: number) => `${count} file${count === 1 ? '' : 's'}`,
+    file: 'file'
+  }
+};
+
+/**
+ * Get localized templates for the given language
+ */
+function getTemplates(language: string): LocalizedTemplates {
+  return responseTemplates[language] || responseTemplates.en;
+}
+
 export interface FileTypeDocument {
   id: string;
   filename: string;
@@ -303,9 +358,13 @@ export class FileTypeHandler {
       folderId?: string;
       createdAfter?: Date;
       createdBefore?: Date;
-    }
+    },
+    language: string = 'en'
   ): Promise<FileTypeResult | null> {
-    console.log(`\n📁 FILE TYPE QUERY: "${query}"`);
+    console.log(`\n📁 FILE TYPE QUERY: "${query}" (Language: ${language})`);
+
+    // Get localized templates
+    const templates = getTemplates(language);
 
     // Detect ALL file types in query
     const fileTypeInfos = this.detectFileTypes(query);
@@ -363,7 +422,7 @@ export class FileTypeHandler {
     if (documents.length === 0) {
       const typeLabels = fileTypeInfos.map(f => f.label).join(' and ');
       return {
-        answer: `**No ${typeLabels}s found**\n\nNo ${typeLabels}s found in your library.\n\nTry uploading some files!`,
+        answer: templates.noFiles(typeLabels),
         documents: [],
         totalCount: 0,
         fileType: typeLabels
