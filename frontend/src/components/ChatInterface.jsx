@@ -104,6 +104,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [error, setError] = useState(null); // Track current error for ErrorBanner
     const [showShortcutsModal, setShowShortcutsModal] = useState(false); // Keyboard shortcuts modal
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false); // Track mobile keyboard state
+    const [keyboardOffset, setKeyboardOffset] = useState(0); // Track iOS keyboard offset for positioning
     // ✅ SMART SCROLL: Track scroll position and unread messages
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -380,56 +381,39 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         );
     };
 
-    // ✅ MOBILE KEYBOARD DETECTION: Hide footer when keyboard opens
+    // ✅ MOBILE KEYBOARD DETECTION: Position input above keyboard on iOS
     useEffect(() => {
         if (!isMobile) return;
 
-        const handleResize = () => {
-            // Use visualViewport API for accurate keyboard detection on iOS/Android
+        const updateKeyboardState = () => {
             if (window.visualViewport) {
-                const viewportHeight = window.visualViewport.height;
+                const vv = window.visualViewport;
                 const windowHeight = window.innerHeight;
-                // If viewport is significantly smaller than window, keyboard is open
-                // Threshold of 150px to avoid false positives from address bar changes
-                setIsKeyboardOpen(windowHeight - viewportHeight > 150);
+                const viewportBottom = vv.offsetTop + vv.height;
+                // Calculate how much the keyboard is covering
+                const offset = windowHeight - viewportBottom;
+
+                if (offset > 150) {
+                    setIsKeyboardOpen(true);
+                    setKeyboardOffset(offset);
+                } else {
+                    setIsKeyboardOpen(false);
+                    setKeyboardOffset(0);
+                }
             }
         };
 
-        // Also detect focus/blur on input for more reliable detection
-        const handleFocus = () => setIsKeyboardOpen(true);
-        const handleBlur = () => {
-            // Small delay to allow visualViewport to update
-            setTimeout(() => {
-                if (window.visualViewport) {
-                    const viewportHeight = window.visualViewport.height;
-                    const windowHeight = window.innerHeight;
-                    setIsKeyboardOpen(windowHeight - viewportHeight > 150);
-                } else {
-                    setIsKeyboardOpen(false);
-                }
-            }, 100);
-        };
-
-        // Listen to visualViewport resize events
+        // Listen to visualViewport resize and scroll events
         if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', handleResize);
+            window.visualViewport.addEventListener('resize', updateKeyboardState);
+            window.visualViewport.addEventListener('scroll', updateKeyboardState);
         }
-
-        // Listen to input focus/blur
-        const inputs = document.querySelectorAll('input, textarea');
-        inputs.forEach(input => {
-            input.addEventListener('focus', handleFocus);
-            input.addEventListener('blur', handleBlur);
-        });
 
         return () => {
             if (window.visualViewport) {
-                window.visualViewport.removeEventListener('resize', handleResize);
+                window.visualViewport.removeEventListener('resize', updateKeyboardState);
+                window.visualViewport.removeEventListener('scroll', updateKeyboardState);
             }
-            inputs.forEach(input => {
-                input.removeEventListener('focus', handleFocus);
-                input.removeEventListener('blur', handleBlur);
-            });
         };
     }, [isMobile]);
 
@@ -3734,14 +3718,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: isMobile ? 8 : 16,
-                    flexShrink: 0, // Prevent input from shrinking on mobile
-                    // When keyboard is open on mobile, fix to bottom of visual viewport
+                    flexShrink: 0,
+                    // iOS keyboard fix: use transform to position above keyboard
                     ...(isMobile && isKeyboardOpen ? {
                         position: 'fixed',
                         bottom: 0,
                         left: 0,
                         right: 0,
-                        zIndex: 1001
+                        zIndex: 1001,
+                        transform: `translateY(-${keyboardOffset}px)`
                     } : {})
                 }}
                 onDragEnter={handleDragEnter}
