@@ -3953,6 +3953,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             cursor: 'text',
                             resize: 'none',
                             overflow: 'hidden',
+                            height: '24px',
                             minHeight: '24px',
                             maxHeight: '200px',
                             lineHeight: '24px',
