@@ -199,7 +199,7 @@ const ChatScreen = () => {
             background: '#F5F5F5',
             display: 'flex',
             overflow: isMobile ? 'visible' : 'hidden',
-            flexDirection: 'row',
+            flexDirection: isMobile ? 'column' : 'row',
             position: 'relative'
         }}>
             <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
