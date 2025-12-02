@@ -826,9 +826,9 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     height: auto !important;
   }
 
-  /* Chat input area should stay above keyboard */
+  /* Chat input area (outer container) should stay above keyboard */
   .chat-input-area,
-  [data-chat-input="true"] {
+  [data-input-area="true"] {
     padding-bottom: max(env(safe-area-inset-bottom), 12px) !important;
     position: relative !important;
     z-index: 10 !important;
@@ -846,16 +846,21 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     line-height: 24px !important;
     min-height: 24px !important;
     max-height: 200px !important;
+    height: auto !important;
     padding: 0 !important;
     resize: none !important;
+    overflow: hidden !important;
   }
 
-  /* Chat input form wrapper - flexible height */
+  /* Chat input form wrapper - constrain height, no extra padding */
   .chat-input-wrapper,
   [data-chat-input="true"] {
-    min-height: auto !important;
+    min-height: unset !important;
     height: auto !important;
+    max-height: none !important;
     padding: 6px 10px !important;
+    padding-bottom: 6px !important;
+    align-items: center !important;
   }
 
   /* ========================================
