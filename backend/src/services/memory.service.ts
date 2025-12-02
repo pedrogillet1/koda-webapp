@@ -28,9 +28,9 @@ export interface UpdateMemoryInput {
 export async function createMemory(input: CreateMemoryInput): Promise<Memory> {
   const { userId, section, content, importance = 5, source, metadata } = input;
 
-  console.log(`=¾ [MEMORY] Creating memory for user ${userId.substring(0, 8)}... (${section})`);
+  console.log(`=ï¿½ [MEMORY] Creating memory for user ${userId.substring(0, 8)}... (${section})`);
 
-  const memory = await prisma.user_preferences_memory.create({
+  const memory = await prisma.memory.create({
     data: {
       userId,
       section,
@@ -54,9 +54,9 @@ export async function getUserMemories(
   section?: MemorySection,
   limit = 100
 ): Promise<Memory[]> {
-  console.log(`=Ú [MEMORY] Fetching memories for user ${userId.substring(0, 8)}...${section ? ` (${section})` : ''}`);
+  console.log(`=ï¿½ [MEMORY] Fetching memories for user ${userId.substring(0, 8)}...${section ? ` (${section})` : ''}`);
 
-  const memories = await prisma.user_preferences_memory.findMany({
+  const memories = await prisma.memory.findMany({
     where: {
       userId,
       ...(section && { section }),
@@ -68,7 +68,7 @@ export async function getUserMemories(
     take: limit,
   });
 
-  console.log(`=Ú [MEMORY] Found ${memories.length} memories`);
+  console.log(`=ï¿½ [MEMORY] Found ${memories.length} memories`);
 
   return memories;
 }
@@ -92,7 +92,7 @@ export async function getRelevantMemories(
   }
 
   // Fetch memories ordered by importance and recency
-  const memories = await prisma.user_preferences_memory.findMany({
+  const memories = await prisma.memory.findMany({
     where,
     orderBy: [
       { importance: 'desc' },
@@ -136,7 +136,7 @@ export async function getRelevantMemories(
   // Update access count and last accessed time
   const memoryIds = relevantMemories.map(m => m.id);
   if (memoryIds.length > 0) {
-    await prisma.user_preferences_memory.updateMany({
+    await prisma.memory.updateMany({
       where: { id: { in: memoryIds } },
       data: {
         lastAccessed: new Date(),
@@ -159,13 +159,13 @@ export async function updateMemory(
 ): Promise<Memory> {
   console.log(` [MEMORY] Updating memory ${memoryId}`);
 
-  const memory = await prisma.user_preferences_memory.update({
+  const memory = await prisma.memory.update({
     where: { id: memoryId },
     data: {
       ...(updates.content !== undefined && { content: updates.content }),
       ...(updates.importance !== undefined && { importance: updates.importance }),
-      ...(updates.document_metadata !== undefined && {
-        metadata: updates.document_metadata ? JSON.parse(JSON.stringify(updates.document_metadata)) : null
+      ...(updates.metadata !== undefined && {
+        metadata: updates.metadata ? JSON.parse(JSON.stringify(updates.metadata)) : null
       }),
     },
   });
@@ -179,9 +179,9 @@ export async function updateMemory(
  * Delete a memory
  */
 export async function deleteMemory(memoryId: string): Promise<void> {
-  console.log(`=Ñ [MEMORY] Deleting memory ${memoryId}`);
+  console.log(`=ï¿½ [MEMORY] Deleting memory ${memoryId}`);
 
-  await prisma.user_preferences_memory.delete({
+  await prisma.memory.delete({
     where: { id: memoryId },
   });
 
@@ -195,9 +195,9 @@ export async function deleteUserMemories(
   userId: string,
   section?: MemorySection
 ): Promise<number> {
-  console.log(`=Ñ [MEMORY] Deleting memories for user ${userId.substring(0, 8)}...${section ? ` (${section})` : ''}`);
+  console.log(`=ï¿½ [MEMORY] Deleting memories for user ${userId.substring(0, 8)}...${section ? ` (${section})` : ''}`);
 
-  const result = await prisma.user_preferences_memory.deleteMany({
+  const result = await prisma.memory.deleteMany({
     where: {
       userId,
       ...(section && { section }),
@@ -263,7 +263,7 @@ export async function getMemoryStats(userId: string): Promise<{
   avgImportance: number;
   mostAccessed: Memory[];
 }> {
-  const memories = await prisma.user_preferences_memory.findMany({
+  const memories = await prisma.memory.findMany({
     where: { userId },
   });
 
@@ -275,7 +275,7 @@ export async function getMemoryStats(userId: string): Promise<{
     totalImportance += memory.importance;
   }
 
-  const mostAccessed = await prisma.user_preferences_memory.findMany({
+  const mostAccessed = await prisma.memory.findMany({
     where: { userId },
     orderBy: [{ importance: 'desc' }, { updatedAt: 'desc' }],
     take: 5,
