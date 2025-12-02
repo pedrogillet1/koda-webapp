@@ -204,8 +204,8 @@ export const getConversation = async (conversationId: string, userId: string) =>
           createdAt: true,
           conversationId: true,
           // Load attachments and documents with essential fields only
-          message_attachments: true,
-          chat_documents: {
+          attachments: true,
+          chatDocuments: {
             select: {
               id: true,
               sourceDocumentId: true,
