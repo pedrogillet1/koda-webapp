@@ -3,12 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-// Import icons
+// Import icons - matching desktop sidebar
 import { ReactComponent as HouseIcon } from '../assets/House.svg';
 import { ReactComponent as HouseFilledIcon } from '../assets/House-filled.svg';
+import { ReactComponent as Folder1Icon } from '../assets/Folder1.svg';
+import { ReactComponent as Folder1FilledIcon } from '../assets/Folder1-filled.svg';
+import { ReactComponent as UploadIcon } from '../assets/upload.svg';
 import { ReactComponent as MessageIcon } from '../assets/Message circle.svg';
 import { ReactComponent as MessageFilledIcon } from '../assets/Message circle - filled.svg';
-import { ReactComponent as UploadIcon } from '../assets/upload.svg';
 import { ReactComponent as SettingsIcon } from '../assets/Settings.svg';
 import { ReactComponent as SettingsFilledIcon } from '../assets/Settings-filled.svg';
 
@@ -26,22 +28,30 @@ const MobileBottomNav = () => {
   // Don't render on desktop
   if (!isMobile) return null;
 
-  // Navigation items configuration - order matches desktop sidebar
+  // Navigation items configuration - 5 items: Home, Documents, Upload, Chat, Settings
   const navItems = [
     {
-      id: 'documents',
+      id: 'home',
       path: '/home',
-      label: t('nav.documents'),
+      label: t('nav.home'),
       icon: HouseIcon,
       iconFilled: HouseFilledIcon,
-      matchPaths: ['/home', '/documents', '/folder', '/file-type', '/category']
+      matchPaths: ['/home']
+    },
+    {
+      id: 'documents',
+      path: '/documents',
+      label: t('nav.documents'),
+      icon: Folder1Icon,
+      iconFilled: Folder1FilledIcon,
+      matchPaths: ['/documents', '/folder', '/filetype', '/category']
     },
     {
       id: 'upload',
       path: '/upload-hub',
       label: t('nav.upload'),
       icon: UploadIcon,
-      iconFilled: UploadIcon, // Same icon for both states
+      iconFilled: UploadIcon,
       matchPaths: ['/upload-hub', '/upload']
     },
     {
@@ -50,7 +60,7 @@ const MobileBottomNav = () => {
       label: t('nav.chat'),
       icon: MessageIcon,
       iconFilled: MessageFilledIcon,
-      matchPaths: ['/chat']
+      matchPaths: ['/chat', '/']
     },
     {
       id: 'settings',
