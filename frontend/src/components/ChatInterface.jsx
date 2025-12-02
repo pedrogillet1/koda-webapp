@@ -975,7 +975,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         if (inputRef.current) {
             const textarea = inputRef.current;
             const minHeight = 24; // Single line height
-            const maxHeight = 200;
+            // ✅ MOBILE KEYBOARD FIX: Single-line on mobile (like ChatGPT), multi-line on desktop
+            const maxHeight = isMobile ? 24 : 200;
 
             // For empty textarea, let CSS handle height (prevents Safari scrollHeight bug)
             if (!message || message.trim() === '') {
@@ -2531,21 +2532,31 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
     return (
         <div data-chat-container="true" style={{
-            flex: '1 1 0',
+            flex: isMobile ? '0 0 auto' : '1 1 0',
             minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
             background: '#F5F5F7',
-            // ✅ iOS KEYBOARD FIX: Use 100dvh (dynamic viewport height) which automatically
-            // adjusts for the keyboard. Works with interactive-widget=resizes-content
-            position: 'relative',
-            height: isMobile ? '100dvh' : '100%'
+            // ✅ MOBILE KEYBOARD FIX: position fixed prevents URL bar from pushing down
+            // height: 100vh fills viewport, prevents dynamic island from appearing
+            position: isMobile ? 'fixed' : 'relative',
+            top: isMobile ? 0 : 'auto',
+            left: isMobile ? 0 : 'auto',
+            right: isMobile ? 0 : 'auto',
+            bottom: isMobile ? 0 : 'auto',
+            width: isMobile ? '100%' : 'auto',
+            height: isMobile ? '100vh' : '100%',
+            zIndex: isMobile ? 1 : 'auto',
+            overflow: isMobile ? 'hidden' : 'visible'
         }}>
-            {/* Header */}
+            {/* Header - sticky with safe-area padding for notch/dynamic island */}
             <div data-chat-header="true" className="mobile-sticky-header" style={{
-                height: isMobile ? 56 : 84,
+                height: isMobile ? 'auto' : 84,
+                minHeight: isMobile ? 56 : 84,
                 paddingLeft: isMobile ? 16 : 24,
                 paddingRight: isMobile ? 16 : 24,
+                paddingTop: isMobile ? 'calc(env(safe-area-inset-top) + 12px)' : 0,
+                paddingBottom: isMobile ? 12 : 0,
                 background: 'white',
                 borderBottom: '1px solid #E6E6EC',
                 display: 'flex',
@@ -2554,7 +2565,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 flexShrink: 0,
                 position: isMobile ? 'sticky' : 'relative',
                 top: isMobile ? 0 : 'auto',
-                zIndex: isMobile ? 10 : 'auto'
+                zIndex: isMobile ? 10 : 'auto',
+                width: isMobile ? '100%' : 'auto',
+                boxSizing: 'border-box'
             }}>
                 <h2 style={{
                     fontSize: isMobile ? 18 : 24,
@@ -2592,13 +2605,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     minHeight: 0, // Critical for flex child scrolling on mobile
                     overflowY: 'auto',
                     overflowX: 'hidden',
-                    padding: 20,
-                    paddingBottom: isMobile ? 100 : 20, // Extra padding on mobile for bottom nav
+                    padding: isMobile ? 16 : 20,
+                    paddingBottom: isMobile ? 120 : 20, // Extra padding on mobile for fixed input form
                     position: 'relative',
                     WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
-                    // ✅ iOS KEYBOARD FIX: Hide messages area when keyboard is open
-                    // This ensures the input is prominent and no empty space appears
-                    ...(isMobile && isKeyboardOpen ? { display: 'none' } : {})
+                    willChange: 'transform' // Optimize scrolling performance
                 }}
             >
             {/* Centered Content Container */}
@@ -3721,21 +3732,29 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 <ScrollToBottomButton />
             </div>
 
-            {/* Message Input */}
+            {/* Message Input - Fixed at bottom on mobile */}
             <div
                 data-input-area="true"
                 className="chat-input-area"
                 style={{
-                    padding: isMobile
-                      ? (isKeyboardOpen ? '8px 12px 8px 12px' : '8px 12px calc(20px + max(env(safe-area-inset-bottom), 16px)) 12px')
-                      : '8px 20px 20px 20px',
-                    background: '#F5F5F7',
-                    borderTop: 'none',
+                    padding: isMobile ? '12px 16px' : '8px 20px 20px 20px',
+                    paddingBottom: isMobile ? 'calc(env(safe-area-inset-bottom) + 12px)' : '20px',
+                    paddingTop: isMobile ? 12 : 8,
+                    background: isMobile ? 'white' : '#F5F5F7',
+                    borderTop: isMobile ? '1px solid #E6E6EC' : 'none',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: isMobile ? 8 : 16,
-                    flexShrink: 0
+                    flexShrink: 0,
+                    // ✅ MOBILE KEYBOARD FIX: Fixed position at bottom on mobile
+                    position: isMobile ? 'fixed' : 'relative',
+                    bottom: isMobile ? 0 : 'auto',
+                    left: isMobile ? 0 : 'auto',
+                    right: isMobile ? 0 : 'auto',
+                    width: isMobile ? '100%' : 'auto',
+                    zIndex: isMobile ? 20 : 'auto',
+                    boxSizing: 'border-box'
                 }}
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
@@ -4027,7 +4046,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             overflow: 'hidden',
                             height: '24px',
                             minHeight: '24px',
-                            maxHeight: '200px',
+                            // ✅ MOBILE KEYBOARD FIX: Single-line on mobile, multi-line on desktop
+                            maxHeight: isMobile ? '24px' : '200px',
                             lineHeight: '24px',
                             fontFamily: 'inherit',
                             padding: 0,
