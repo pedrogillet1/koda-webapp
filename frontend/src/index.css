@@ -44,6 +44,34 @@ code {
 }
 
 /* ========================================
+   MOBILE SCROLLING FIX
+   Enable scrolling on mobile devices (iOS Safari fix)
+   ======================================== */
+@media (max-width: 768px) {
+  html {
+    height: auto;
+    min-height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body {
+    height: auto;
+    min-height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #root {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh; /* Dynamic viewport height for iOS */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ========================================
    RESPONSIVE VARIABLES
    ======================================== */
 :root {

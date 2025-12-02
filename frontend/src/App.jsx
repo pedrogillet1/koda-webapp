@@ -66,9 +66,11 @@ function App() {
                 <div style={{
                   width: isMobile ? '100%' : '100vw',
                   height: isMobile ? 'auto' : '100vh',
-                  minHeight: isMobile ? '100vh' : 'auto',
+                  minHeight: isMobile ? '100dvh' : 'auto',
                   display: 'flex',
-                  flexDirection: 'column'
+                  flexDirection: 'column',
+                  overflowY: isMobile ? 'auto' : 'hidden',
+                  WebkitOverflowScrolling: 'touch'
                 }}>
                   <Routes>
             {/* ✅ DEFAULT ROUTE: Chat screen is the first page users see (protected) */}

@@ -195,12 +195,14 @@ const ChatScreen = () => {
         <div data-chat-container="true" className="chat-container" style={{
             width: '100%',
             height: isMobile ? 'auto' : '100%',
-            minHeight: isMobile ? '100vh' : 'auto',
+            minHeight: isMobile ? '100dvh' : 'auto',
             background: '#F5F5F5',
             display: 'flex',
-            overflow: isMobile ? 'visible' : 'hidden',
+            overflowY: isMobile ? 'auto' : 'hidden',
+            overflowX: 'hidden',
             flexDirection: isMobile ? 'column' : 'row',
-            position: 'relative'
+            position: 'relative',
+            WebkitOverflowScrolling: 'touch'
         }}>
             <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
