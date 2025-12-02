@@ -3726,7 +3726,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 className="chat-input-area"
                 style={{
                     padding: isMobile
-                      ? '8px 12px calc(20px + max(env(safe-area-inset-bottom), 16px)) 12px'
+                      ? (isKeyboardOpen ? '8px 12px 8px 12px' : '8px 12px calc(20px + max(env(safe-area-inset-bottom), 16px)) 12px')
                       : '8px 20px 20px 20px',
                     background: '#F5F5F7',
                     borderTop: 'none',
@@ -3734,7 +3734,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: isMobile ? 8 : 16,
-                    flexShrink: 0 // Prevent input from shrinking on mobile
+                    flexShrink: 0, // Prevent input from shrinking on mobile
+                    // When keyboard is open on mobile, fix to bottom of visual viewport
+                    ...(isMobile && isKeyboardOpen ? {
+                        position: 'fixed',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        zIndex: 1001
+                    } : {})
                 }}
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
