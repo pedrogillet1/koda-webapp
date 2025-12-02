@@ -104,7 +104,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const [error, setError] = useState(null); // Track current error for ErrorBanner
     const [showShortcutsModal, setShowShortcutsModal] = useState(false); // Keyboard shortcuts modal
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false); // Track mobile keyboard state
-    // visualViewportHeight removed - using focus-based keyboard detection instead
+    const [keyboardHeight, setKeyboardHeight] = useState(0); // Track keyboard height for iOS Safari
     // ✅ SMART SCROLL: Track scroll position and unread messages
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -968,6 +968,35 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         if (!isMobile) {
             inputRef.current?.focus();
         }
+    }, [isMobile]);
+
+    // ✅ iOS KEYBOARD FIX: Detect keyboard height using visualViewport API
+    useEffect(() => {
+        if (!isMobile) return;
+
+        const viewport = window.visualViewport;
+        if (!viewport) return;
+
+        const handleResize = () => {
+            // Calculate keyboard height as difference between window height and viewport height
+            const keyboardH = window.innerHeight - viewport.height;
+            // Only set if keyboard is actually showing (height > 100px threshold)
+            if (keyboardH > 100) {
+                setKeyboardHeight(keyboardH);
+                setIsKeyboardOpen(true);
+            } else {
+                setKeyboardHeight(0);
+                setIsKeyboardOpen(false);
+            }
+        };
+
+        viewport.addEventListener('resize', handleResize);
+        viewport.addEventListener('scroll', handleResize);
+
+        return () => {
+            viewport.removeEventListener('resize', handleResize);
+            viewport.removeEventListener('scroll', handleResize);
+        };
     }, [isMobile]);
 
     // Auto-resize textarea as user types
@@ -3742,7 +3771,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     flexShrink: 0,
                     // ✅ MOBILE KEYBOARD FIX: Fixed position at bottom on mobile
                     position: isMobile ? 'fixed' : 'relative',
-                    bottom: isMobile ? 0 : 'auto',
+                    bottom: isMobile ? keyboardHeight : 'auto',
                     left: isMobile ? 0 : 'auto',
                     right: isMobile ? 0 : 'auto',
                     width: isMobile ? '100%' : 'auto',
