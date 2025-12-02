@@ -3907,10 +3907,12 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             setMessage(newValue);
                             // ✅ FIX: Save draft to localStorage
                             localStorage.setItem(`koda_draft_${currentConversation?.id || 'new'}`, newValue);
-                            // Auto-resize textarea - but limit on mobile
-                            e.target.style.height = 'auto';
-                            const maxHeight = isMobile ? 24 : 200; // Mobile: single line only, Desktop: up to 200px
-                            e.target.style.height = Math.min(e.target.scrollHeight, maxHeight) + 'px';
+                            // Auto-resize textarea - only on desktop, mobile stays single line
+                            if (!isMobile) {
+                                e.target.style.height = 'auto';
+                                const maxHeight = 200;
+                                e.target.style.height = Math.min(e.target.scrollHeight, maxHeight) + 'px';
+                            }
                         }}
                         onPaste={handlePaste}
                         onKeyDown={(e) => {
@@ -3936,20 +3938,19 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         autoFocus={!isMobile}
                         rows={1}
                         style={{
-                            flex: '1 1 0',
+                            flex: isMobile ? '1 1 auto' : '1 1 0',
                             background: 'transparent',
                             border: 'none',
                             outline: 'none',
-                            fontSize: isMobile ? 15 : 16,
+                            fontSize: isMobile ? 14 : 16,
                             color: '#32302C',
                             cursor: 'text',
                             resize: 'none',
                             overflow: 'hidden',
-                            overflowY: 'auto',
-                            minHeight: '24px',
-                            maxHeight: isMobile ? '24px' : '200px',
-                            height: '24px',
-                            lineHeight: '24px',
+                            minHeight: isMobile ? '20px' : '24px',
+                            maxHeight: isMobile ? '20px' : '200px',
+                            height: isMobile ? '20px' : '24px',
+                            lineHeight: isMobile ? '20px' : '24px',
                             fontFamily: 'inherit',
                             padding: 0,
                             margin: 0
