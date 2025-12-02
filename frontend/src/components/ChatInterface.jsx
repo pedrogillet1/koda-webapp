@@ -3873,9 +3873,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         }
                     }}
                     style={{
-                        padding: isMobile ? '8px 10px' : '10px 14px',
+                        padding: isMobile ? '6px 10px' : '10px 14px',
                         background: 'white',
-                        borderRadius: 24,
+                        borderRadius: isMobile ? 20 : 24,
                         border: '2px solid #E6E6EC',
                         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                         display: 'flex',
@@ -4028,8 +4028,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
                 {/* TASK #10: Trust & Security Footer */}
                 <div style={{
-                    marginTop: 16,
-                    paddingTop: 16,
+                    marginTop: isMobile ? 8 : 16,
+                    paddingTop: isMobile ? 8 : 16,
                     borderTop: '2px solid #E6E6EC',
                     display: 'flex',
                     alignItems: 'center',
