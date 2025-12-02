@@ -1199,17 +1199,15 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
-  /* Input area with safe area */
-  .chat-input-area,
-  [data-chat-input="true"] {
+  /* Input area with safe area - ONLY target the container, NOT the form */
+  .chat-input-area {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
     padding-left: 16px !important;
     padding-right: 16px !important;
   }
 
   /* Smooth transitions */
-  .chat-input-area,
-  [data-chat-input="true"] {
+  .chat-input-area {
     transition: padding 0.2s ease !important;
   }
 
