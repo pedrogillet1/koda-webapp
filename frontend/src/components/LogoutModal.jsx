@@ -32,24 +32,22 @@ const LogoutModal = ({ isOpen, onClose }) => {
           width: '100%',
           height: '100%',
           background: 'linear-gradient(180deg, rgba(17, 19, 21, 0.50) 0%, rgba(17, 19, 21, 0.90) 100%)',
-          zIndex: 999,
+          zIndex: 1100,
           display: 'flex',
-          alignItems: isMobile ? 'flex-end' : 'center',
+          alignItems: 'center',
           justifyContent: 'center',
-          padding: isMobile ? 0 : 16,
-          paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 16
+          padding: isMobile ? 16 : 16
         }}
       >
         {/* Modal */}
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
-            width: isMobile ? '100%' : 400,
-            maxWidth: isMobile ? '100%' : 400,
+            width: isMobile ? 'calc(100% - 32px)' : 400,
+            maxWidth: 400,
             padding: 18,
-            paddingBottom: isMobile ? 'calc(18px + env(safe-area-inset-bottom, 0px))' : 18,
             background: 'white',
-            borderRadius: isMobile ? '14px 14px 0 0' : 14,
+            borderRadius: 14,
             outline: '1px #E6E6EC solid',
             outlineOffset: '-1px',
             flexDirection: 'column',
