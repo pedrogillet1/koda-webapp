@@ -4101,15 +4101,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         marginBottom: 0,
                         borderTop: '2px solid #E6E6EC',
                         display: 'flex',
-                        alignItems: 'center',
+                        alignItems: isMobile ? 'flex-start' : 'center',
                         justifyContent: 'center',
                         gap: 8,
                         fontSize: isMobile ? 10 : 12,
                         color: '#B9B9BD',
                         fontFamily: 'Plus Jakarta Sans',
-                        whiteSpace: 'nowrap'
+                        whiteSpace: isMobile ? 'normal' : 'nowrap',
+                        textAlign: 'center',
+                        lineHeight: isMobile ? 1.4 : 1
                     }}>
-                        <svg width={isMobile ? 14 : 16} height={isMobile ? 14 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink: 0}}>
+                        <svg width={isMobile ? 14 : 16} height={isMobile ? 14 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink: 0, marginTop: isMobile ? 2 : 0}}>
                             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                         </svg>
                         <span>{t('fileBreakdown.encryptionMessage')}</span>
