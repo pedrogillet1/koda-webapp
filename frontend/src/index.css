@@ -1308,9 +1308,9 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     padding-bottom: 16px !important;
   }
 
-  /* Input area with safe area - MUST account for MobileBottomNav height (~60px + safe-area) */
+  /* Input area - minimal padding, no MobileBottomNav compensation needed */
   .chat-input-area {
-    padding-bottom: calc(60px + max(env(safe-area-inset-bottom), 12px)) !important;
+    padding-bottom: 8px !important;
     padding-left: 16px !important;
     padding-right: 16px !important;
   }
