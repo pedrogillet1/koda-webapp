@@ -4115,6 +4115,16 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         <span>{t('fileBreakdown.encryptionMessage')}</span>
                     </div>
                 )}
+                {/* MOBILE BOTTOM SPACER - White background fills gap above MobileBottomNav */}
+                {isMobile && !isKeyboardOpen && (
+                    <div style={{
+                        height: 'calc(60px + env(safe-area-inset-bottom, 12px))',
+                        minHeight: '72px',
+                        background: 'white',
+                        width: '100%',
+                        flexShrink: 0
+                    }} />
+                )}
             </div>
             </div>
 
