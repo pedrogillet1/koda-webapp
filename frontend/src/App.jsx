@@ -69,11 +69,12 @@ function App() {
                   display: 'flex',
                   flexDirection: 'column',
                   overflow: 'hidden',
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0
+                  position: isMobile ? 'fixed' : 'relative',
+                  top: isMobile ? 0 : 'auto',
+                  left: isMobile ? 0 : 'auto',
+                  right: isMobile ? 0 : 'auto',
+                  bottom: isMobile ? 0 : 'auto',
+                  zIndex: 1
                 }}>
                   <Routes>
             {/* ✅ DEFAULT ROUTE: Chat screen is the first page users see (protected) */}

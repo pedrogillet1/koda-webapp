@@ -1542,17 +1542,71 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   }
 }
 
-/* Mobile viewport fix for #root - prevents 100vh issues on iOS */
+/* ========================================
+   CHATGPT-STYLE MOBILE COMPOSER FIX
+   Prevents page scroll, composer stays at bottom
+   ======================================== */
 @media (max-width: 768px) {
-  #root {
-    height: auto !important;
-    min-height: 100vh;
-    overflow-y: visible;
+  /* Force fixed layout to prevent page scrolling */
+  html, body, #root {
+    position: fixed !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+    top: 0 !important;
+    left: 0 !important;
   }
 
-  html, body {
-    height: auto;
-    overflow-y: visible;
+  /* Messages container should scroll, not page */
+  [data-chat-container="true"],
+  .chat-messages,
+  .messages-container {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    min-height: 0 !important;
+  }
+
+  /* MobileComposer specific styles */
+  .mobile-composer {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 9999 !important;
+    background: white !important;
+    border-top: 1px solid #E6E6EC !important;
+  }
+
+  /* Ensure inputs don't zoom */
+  input,
+  textarea {
+    font-size: 16px !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+
+  /* Messages padding to avoid composer overlap */
+  .chat-messages-container,
+  [data-messages-container="true"] {
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+}
+
+/* ========================================
+   SAFE AREA SUPPORT
+   Handle notch, dynamic island, home indicator
+   ======================================== */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+
+  #root {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
   }
 }
 
