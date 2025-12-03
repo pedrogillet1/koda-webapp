@@ -1205,17 +1205,8 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     color: #FFFFFF !important;
   }
 
-  /* Add padding to main content to account for bottom nav */
-  .chat-container,
-  [data-chat-container="true"] {
-    padding-bottom: 80px !important;
-  }
-
-  /* Messages container should have space for bottom nav */
-  .messages-container,
-  [data-messages-container="true"] {
-    padding-bottom: 100px !important;
-  }
+  /* REMOVED: Excessive padding for bottom nav - causes grey gap */
+  /* Chat container and messages container no longer need padding */
 }
 
 /* Desktop: Hide mobile bottom nav */
