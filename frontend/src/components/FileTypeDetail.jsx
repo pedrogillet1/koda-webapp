@@ -338,15 +338,18 @@ const FileTypeDetail = () => {
     }}>
       <LeftNav />
       <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
-        <div data-file-type-header="true" className="file-type-header mobile-sticky-header" style={{ background: 'white', padding: isMobile ? '16px 16px 16px 70px' : '20px 32px', borderBottom: '1px solid #E5E7EB', position: isMobile ? 'sticky' : 'relative', top: isMobile ? 0 : 'auto', zIndex: isMobile ? 10 : 'auto' }}>
-          <div style={{ display: 'flex', justifyContent: isMobile ? 'center' : 'space-between', alignItems: isMobile ? 'center' : 'flex-start', gap: isMobile ? 12 : 24, flexWrap: 'wrap' }}>
+        {/* Header - Title Row */}
+        <div data-file-type-header="true" className="file-type-header mobile-sticky-header" style={{ background: 'white', padding: isMobile ? '16px' : '20px 32px', paddingTop: isMobile ? 'max(env(safe-area-inset-top), 16px)' : '20px', borderBottom: '1px solid #E5E7EB', position: isMobile ? 'sticky' : 'relative', top: isMobile ? 0 : 'auto', zIndex: isMobile ? 10 : 'auto', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'center' : 'flex-start', gap: isMobile ? 12 : 24, flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span onClick={() => navigate('/home')} style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = '#111827'} onMouseLeave={(e) => e.currentTarget.style.color = '#6B7280'}>{t('common.home')}</span>
-                <span style={{ color: '#D1D5DB' }}>›</span>
-                <span style={{ fontWeight: '500' }}>{config.label}</span>
-              </div>
+              {/* Breadcrumb - desktop only */}
+              {!isMobile && (
+                <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span onClick={() => navigate('/home')} style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = '#111827'} onMouseLeave={(e) => e.currentTarget.style.color = '#6B7280'}>{t('common.home')}</span>
+                  <span style={{ color: '#D1D5DB' }}>›</span>
+                  <span style={{ fontWeight: '500' }}>{config.label}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {!isMobile && (
                   <button onClick={() => navigate(-1)} style={{ width: 40, height: 40, background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', padding: 0 }} onMouseEnter={(e) => e.currentTarget.style.background = '#E5E7EB'} onMouseLeave={(e) => e.currentTarget.style.background = '#F3F4F6'}>
@@ -354,10 +357,11 @@ const FileTypeDetail = () => {
                   </button>
                 )}
                 {config.icon && <img src={config.icon} alt={fileType} style={{ width: isMobile ? 24 : 32, height: isMobile ? 24 : 32, objectFit: 'contain' }} />}
-                <h1 style={{ fontSize: isMobile ? 22 : 32, fontWeight: '600', color: '#111827', fontFamily: 'Plus Jakarta Sans', margin: 0 }}>{config.label}</h1>
+                <h1 style={{ fontSize: isMobile ? 18 : 32, fontWeight: '600', color: '#111827', fontFamily: 'Plus Jakarta Sans', margin: 0 }}>{config.label}</h1>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexShrink: 0, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'center' : 'flex-end' }}>
+            {/* Desktop: Search + Select in header / Mobile Select Mode: Action buttons */}
+            <div style={{ display: (isMobile && !isSelectMode) ? 'none' : 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexShrink: 0, flexWrap: 'wrap', width: isMobile ? 'auto' : 'auto', justifyContent: 'flex-end' }}>
               {isSelectMode ? (
                 <>
                   <button onClick={handleBulkDelete} disabled={selectedDocuments.size === 0} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: selectedDocuments.size > 0 ? '#FEE2E2' : '#F5F5F5', borderRadius: 100, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 8, cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed', opacity: selectedDocuments.size > 0 ? 1 : 0.5, whiteSpace: 'nowrap' }}>
@@ -374,7 +378,7 @@ const FileTypeDetail = () => {
                 </>
               ) : (
                 <>
-                  <div style={{ paddingLeft: 12, paddingRight: 12, paddingTop: 10, paddingBottom: 10, background: 'white', borderRadius: 100, border: '1px #E5E7EB solid', display: 'flex', alignItems: 'center', gap: 8, width: isMobile ? '100%' : 280 }}>
+                  <div style={{ paddingLeft: 12, paddingRight: 12, paddingTop: 10, paddingBottom: 10, background: 'white', borderRadius: 100, border: '1px #E5E7EB solid', display: 'flex', alignItems: 'center', gap: 8, width: 280 }}>
                     <SearchIcon style={{ width: 20, height: 20, color: '#6B7280' }} />
                     <input type="text" placeholder={t('common.searchFilesPlaceholder')} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ border: 'none', outline: 'none', background: 'transparent', color: '#111827', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', flex: 1, width: '100%' }} />
                   </div>
@@ -385,8 +389,76 @@ const FileTypeDetail = () => {
           </div>
         </div>
 
+        {/* Mobile Tab Bar - Search + Select */}
+        {isMobile && !isSelectMode && (
+          <div style={{
+            padding: '12px 16px',
+            background: 'white',
+            borderBottom: '1px solid #E5E7EB',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexShrink: 0
+          }}>
+            {/* Search Bar */}
+            <div style={{
+              flex: 1,
+              paddingLeft: 12,
+              paddingRight: 12,
+              paddingTop: 10,
+              paddingBottom: 10,
+              background: 'white',
+              borderRadius: 100,
+              border: '1px #E5E7EB solid',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <SearchIcon style={{ width: 20, height: 20, color: '#6B7280' }} />
+              <input
+                type="text"
+                placeholder={t('common.searchFilesPlaceholder')}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  color: '#111827',
+                  fontSize: 15,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500',
+                  flex: 1,
+                  width: '100%'
+                }}
+              />
+            </div>
+            {/* Select Button */}
+            <button
+              onClick={toggleSelectMode}
+              style={{
+                height: 42,
+                paddingLeft: 18,
+                paddingRight: 18,
+                background: 'white',
+                borderRadius: 100,
+                border: '1px solid #E6E6EC',
+                cursor: 'pointer',
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '600',
+                fontSize: 15,
+                color: '#111827',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
+              }}
+            >
+              {t('common.select')}
+            </button>
+          </div>
+        )}
+
         {/* Content */}
-        <div className="file-type-content scrollable-content" style={{ flex: 1, overflow: 'auto', padding: isMobile ? '16px' : '20px 32px', paddingBottom: isMobile ? 100 : 32, WebkitOverflowScrolling: 'touch' }}>
+        <div className="file-type-content scrollable-content" style={{ flex: 1, overflow: 'auto', padding: isMobile ? '8px 16px' : '20px 32px', paddingBottom: isMobile ? 100 : 32, WebkitOverflowScrolling: 'touch' }}>
           <style>{`
             @keyframes cardFadeIn {
               from { opacity: 0; transform: translateY(10px); }
