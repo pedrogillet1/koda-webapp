@@ -1064,17 +1064,13 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     -webkit-overflow-scrolling: touch !important;
   }
 
-  /* Settings save button - fixed at bottom */
+  /* Settings save button - flows naturally below form fields */
   .settings-form button[type="submit"],
   .settings-form .save-button,
   .settings-content .save-button,
   [data-settings-submit="true"] {
-    position: fixed !important;
-    bottom: max(16px, env(safe-area-inset-bottom)) !important;
-    left: 16px !important;
-    right: 16px !important;
-    width: calc(100% - 32px) !important;
-    z-index: 100 !important;
+    position: relative !important;
+    width: 100% !important;
     margin: 0 !important;
   }
 

@@ -561,8 +561,8 @@ const Documents = () => {
         onDragOver={handlePageDragOver}
         onDragLeave={handlePageDragLeave}
       >
-        {/* Header */}
-        <div style={{minHeight: isMobile ? 'auto' : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 12 : 0, paddingBottom: isMobile ? 12 : 0, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', flexDirection: isMobile ? 'row' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: isMobile ? 12 : 0}}>
+        {/* Header - Title Row */}
+        <div style={{minHeight: isMobile ? 56 : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 'max(env(safe-area-inset-top), 0px)' : 0, paddingBottom: 0, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexShrink: 0}}>
           {isSelectMode ? (
             <>
               {/* Left: Back arrow + Documents title */}
@@ -606,11 +606,11 @@ const Documents = () => {
               </div>
             </>
           ) : (
-            <div style={{color: '#32302C', fontSize: isMobile ? 16 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', textAlign: 'left', flex: isMobile ? 1 : 'auto'}}>
+            <div style={{color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', textAlign: 'left', flex: 1}}>
               {t('documents.welcomeBack', { name: user && (user.firstName || user.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.email?.split('@')[0] || t('common.user') })}
             </div>
           )}
-          <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
+          <div style={{display: isMobile && !isSelectMode ? 'none' : 'flex', alignItems: 'center', gap: 12}}>
             {isSelectMode ? (
               <>
                 {/* Delete Button - Red style matching FileTypeDetail */}
@@ -1076,6 +1076,69 @@ const Documents = () => {
             )}
           </div>
         </div>
+
+        {/* Mobile Tab Bar - Search + Upload */}
+        {isMobile && !isSelectMode && (
+          <div style={{
+            padding: '12px 16px',
+            background: 'white',
+            borderBottom: '1px #E6E6EC solid',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexShrink: 0
+          }}>
+            {/* Search Bar */}
+            <div style={{
+              position: 'relative',
+              height: 44,
+              display: 'flex',
+              alignItems: 'center',
+              flex: 1
+            }}>
+              <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('common.search')}
+                style={{
+                  height: '100%',
+                  width: '100%',
+                  paddingLeft: 46,
+                  paddingRight: 16,
+                  background: '#F5F5F5',
+                  borderRadius: 100,
+                  border: '1px #E6E6EC solid',
+                  outline: 'none',
+                  color: '#32302C',
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500',
+                  lineHeight: '24px'
+                }}
+              />
+            </div>
+            {/* Upload Button */}
+            <div
+              onClick={() => setShowUniversalUploadModal(true)}
+              style={{
+                height: 44,
+                width: 44,
+                background: '#F5F5F5',
+                borderRadius: 100,
+                border: '1px #E6E6EC solid',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+            >
+              <LogoutBlackIcon style={{width: 20, height: 20}} />
+            </div>
+          </div>
+        )}
 
         {/* Scrollable Content */}
         <div className="scrollable-content documents-content" style={{flex: 1, minHeight: 0, padding: isMobile ? 12 : 20, paddingBottom: isMobile ? 100 : 20, overflowY: isMobile ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20, maxWidth: '100%', boxSizing: 'border-box', WebkitOverflowScrolling: 'touch'}}>
