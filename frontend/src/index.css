@@ -1337,12 +1337,26 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
-  /* Settings page content */
-  .settings-content,
+  /* Settings page content - enable scrolling on mobile */
   .settings-page,
-  .settings-form,
-  [data-settings-form="true"],
   [data-page="settings"] {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* Settings content area scrolling */
+  .settings-content {
+    padding-bottom: calc(72px + max(env(safe-area-inset-bottom), 12px)) !important;
+    overflow-y: auto !important;
+    height: 100dvh !important;
+  }
+
+  .settings-form,
+  [data-settings-form="true"] {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
