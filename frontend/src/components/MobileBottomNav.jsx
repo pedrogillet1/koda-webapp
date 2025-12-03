@@ -154,9 +154,9 @@ const MobileBottomNav = () => {
             <div
               className="mobile-bottom-nav-item-icon"
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
+                width: active ? '36px' : 'auto',
+                height: active ? '36px' : 'auto',
+                borderRadius: active ? '50%' : '0',
                 background: active ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
                 display: 'flex',
                 alignItems: 'center',
