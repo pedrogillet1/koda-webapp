@@ -26,10 +26,10 @@
  * - Especially impactful for large contexts
  */
 
-import { GoogleGenerativeAI, CachedContent, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { CachedContent, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { retryStreamingWithBackoff } from '../utils/retryUtils';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+// ✅ FIX: Use singleton client instead of creating new instance
+import geminiClient from './geminiClient.service';
 
 // Safety settings to prevent empty responses from safety filters
 const SAFETY_SETTINGS = [
@@ -82,18 +82,19 @@ class GeminiCacheService {
     } = params;
 
     try {
+      // ✅ FIX: Use singleton client instead of new GoogleGenerativeAI()
       // Create model with systemInstruction for implicit caching
       // Gemini 2.5+ automatically caches this - no manual cache management needed
       // ⚡ SPEED FIX #1: Reduced maxOutputTokens for faster generation
       // Most answers are 200-500 tokens, 1000 is enough for 95% of queries
-      const model = genAI.getGenerativeModel({
+      const model = geminiClient.getModel({
         model: 'gemini-2.5-flash',
+        systemInstruction: systemPrompt, // AUTO-CACHED by Gemini 2.5+
         generationConfig: {
           temperature,
           maxOutputTokens: maxTokens,
           stopSequences: ['\n\n\n\n', '---END---'], // ⚡ Early stopping when done
         },
-        systemInstruction: systemPrompt, // AUTO-CACHED by Gemini 2.5+
       });
 
       // Build full prompt with document context and conversation history
@@ -138,7 +139,20 @@ class GeminiCacheService {
           const apiCallStart = Date.now();
           console.log(`⏱️ [TIMING] Starting Gemini API call...`);
 
-          const result = await model.generateContentStream(fullPrompt);
+          let result;
+          try {
+            result = await model.generateContentStream(fullPrompt);
+          } catch (error: any) {
+            console.error('❌ [CACHE] Error creating stream:', error);
+            // ✅ FIX: Enhanced error logging for diagnosis
+            console.error('📊 [CRASH-DEBUG] Stream creation failed:', {
+              errorMessage: error?.message,
+              errorCode: error?.code,
+              errorType: error?.constructor?.name,
+              promptSize: fullPrompt.length
+            });
+            throw error; // Re-throw to trigger retry
+          }
 
           const streamStartTime = Date.now();
           console.log(`⏱️ [TIMING] Stream created in ${streamStartTime - apiCallStart}ms`);
@@ -147,19 +161,47 @@ class GeminiCacheService {
           let firstChunkReceived = false;
           let chunkCount = 0;
 
-          for await (const chunk of result.stream) {
-            const chunkText = chunk.text();
-            fullResponse += chunkText;
-            chunkCount++;
+          // ✅ FIX: Add try-catch INSIDE streaming loop
+          try {
+            for await (const chunk of result.stream) {
+              try {
+                const chunkText = chunk.text();
+                fullResponse += chunkText;
+                chunkCount++;
 
-            // ⏱️ TIMING: Log time to first chunk (TTFC)
-            if (!firstChunkReceived) {
-              console.log(`⏱️ [TIMING] TIME TO FIRST CHUNK: ${Date.now() - apiCallStart}ms`);
-              firstChunkReceived = true;
+                // ⏱️ TIMING: Log time to first chunk (TTFC)
+                if (!firstChunkReceived) {
+                  console.log(`⏱️ [TIMING] TIME TO FIRST CHUNK: ${Date.now() - apiCallStart}ms`);
+                  firstChunkReceived = true;
+                }
+
+                // Stream to client in real-time via callback
+                chunkCallback(chunkText);
+              } catch (chunkError: any) {
+                // ✅ FIX: Handle individual chunk errors
+                console.error('⚠️ [CACHE] Error processing chunk:', chunkError);
+                console.error('📊 [CRASH-DEBUG] Chunk processing error:', {
+                  errorMessage: chunkError?.message,
+                  chunkCount,
+                  partialResponseLength: fullResponse.length
+                });
+                // Continue to next chunk (don't break the loop)
+                continue;
+              }
             }
-
-            // Stream to client in real-time via callback
-            chunkCallback(chunkText);
+          } catch (streamError: any) {
+            // ✅ FIX: Handle stream-level errors (connection drops, rate limits, etc.)
+            console.error('❌ [CACHE] Stream iteration error:', streamError);
+            console.error('📊 [CRASH-DEBUG] Stream failed mid-generation:', {
+              errorMessage: streamError?.message,
+              errorCode: streamError?.code,
+              errorType: streamError?.constructor?.name,
+              chunksReceived: chunkCount,
+              partialResponseLength: fullResponse.length,
+              firstChunkReceived
+            });
+            // ✅ CRITICAL: Throw error to trigger retry logic
+            throw new Error(`Stream failed after ${chunkCount} chunks: ${streamError.message}`);
           }
 
           const totalTime = Date.now() - apiCallStart;
@@ -170,6 +212,11 @@ class GeminiCacheService {
           // Log warning if response is empty
           if (fullResponse.length === 0) {
             console.warn('⚠️ [CACHE] Gemini returned empty response - possible safety filter or content issue');
+            console.warn('📊 [CRASH-DEBUG] Empty response details:', {
+              chunksReceived: chunkCount,
+              promptSize: fullPrompt.length,
+              systemPromptSize: systemPrompt.length
+            });
           }
 
           return fullResponse;
@@ -177,15 +224,25 @@ class GeminiCacheService {
         onChunk || (() => {}), // Pass onChunk or no-op function
         {
           maxAttempts: 3,
-          initialDelayMs: 1000,
+          initialDelayMs: 2000, // ✅ FIX: Increased from 1000 to 2000
           backoffMultiplier: 2,
         }
       );
 
       // Race between streaming and timeout
       return await Promise.race([streamingPromise, timeoutPromise]);
-    } catch (error) {
-      console.error('❌ [CACHE] Error generating with implicit cache:', error);
+    } catch (error: any) {
+      console.error('❌ [CACHE] Fatal error in generateStreamingWithCache:', error);
+      // ✅ FIX: Enhanced error logging for crash diagnosis
+      console.error('📊 [CRASH-DEBUG] Fatal cache error:', {
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        errorType: error?.constructor?.name,
+        errorStack: error?.stack?.split('\n').slice(0, 5).join('\n'),
+        queryLength: query.length,
+        documentContextLength: documentContext.length,
+        conversationHistoryLength: conversationHistory.length
+      });
       throw error;
     }
   }
@@ -211,8 +268,9 @@ class GeminiCacheService {
       console.log(`📊 [CACHE] Content length: ${content.length} chars`);
       console.log(`⏱️ [CACHE] TTL: ${ttlSeconds} seconds`);
       // @ts-ignore - cacheManager not available in current version
-
-      const cachedContent = await genAI.cacheManager.create({
+      // ✅ FIX: Use singleton client
+      const rawClient = geminiClient.getRawClient();
+      const cachedContent = await rawClient.cacheManager.create({
         model: 'gemini-2.5-flash',
         contents: [
           {
@@ -259,8 +317,10 @@ class GeminiCacheService {
 
       console.log(`🔄 [CACHE] Using explicit cache: ${cacheName}`);
 
+      // ✅ FIX: Use singleton client
       // Create model from cached content
-      const model = genAI.getGenerativeModel({
+      const rawClient = geminiClient.getRawClient();
+      const model = rawClient.getGenerativeModel({
         model: 'gemini-2.5-flash',
         cachedContent: cachedContent,
       });
@@ -298,8 +358,9 @@ class GeminiCacheService {
 
       const caches: CachedContent[] = [];
       // @ts-ignore - cacheManager not available in current version
-
-      for await (const cache of genAI.cacheManager.list()) {
+      // ✅ FIX: Use singleton client
+      const rawClient = geminiClient.getRawClient();
+      for await (const cache of rawClient.cacheManager.list()) {
         caches.push(cache);
         console.log(`   - ${cache.name} (expires: ${cache.expireTime})`);
       }
@@ -320,8 +381,9 @@ class GeminiCacheService {
     try {
       console.log(`🗑️ [CACHE] Deleting cache: ${cacheName}`);
       // @ts-ignore - cacheManager not available in current version
-
-      await genAI.cacheManager.delete(cacheName);
+      // ✅ FIX: Use singleton client
+      const rawClient = geminiClient.getRawClient();
+      await rawClient.cacheManager.delete(cacheName);
 
       // Remove from memory store
       cacheStore.delete(cacheName);

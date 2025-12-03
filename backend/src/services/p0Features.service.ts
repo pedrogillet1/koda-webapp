@@ -15,6 +15,8 @@ import contextTrackerService from './contextTracker.service';
 import queryRewriterService from './queryRewriter.service';
 import conversationStateService from './conversationState.service';
 import calculationService from './calculation.service';
+// New 3-layer calculation engine (Math.js + Formula.js + HyperFormula + Python)
+import calculationEngine, { CalculationType } from './calculation';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ✅ ACADEMIC INTELLIGENCE SERVICES
@@ -160,11 +162,21 @@ class P0FeaturesService {
     // ✅ ERROR HANDLING: System continues without calculation if detection fails
     // ═══════════════════════════════════════════════════════════════════════════
     try {
-      if (calculationService.requiresCalculation(result.processedQuery)) {
-        result.requiresCalculation = true;
-        result.calculationType = calculationService.detectCalculationType(result.processedQuery);
+      // Use new calculation engine for detection
+      const calcDetection = calculationEngine.detectCalculation(result.processedQuery);
 
-        console.log(`🧮 [P0] Calculation required: ${result.calculationType}`);
+      if (calcDetection.isCalculation && calcDetection.type !== CalculationType.NONE) {
+        result.requiresCalculation = true;
+        result.calculationType = calcDetection.type;
+
+        console.log(`🧮 [P0] Calculation required: ${result.calculationType} (confidence: ${calcDetection.confidence})`);
+      } else {
+        // Fallback to legacy detection for backward compatibility
+        if (calculationService.requiresCalculation(result.processedQuery)) {
+          result.requiresCalculation = true;
+          result.calculationType = calculationService.detectCalculationType(result.processedQuery);
+          console.log(`🧮 [P0] Calculation required (legacy): ${result.calculationType}`);
+        }
       }
     } catch (error) {
       console.error('❌ [P0] Calculation detection failed:', error);
@@ -261,25 +273,49 @@ class P0FeaturesService {
     // ═══════════════════════════════════════════════════════════════════════════
     if (preProcessResult.requiresCalculation) {
       try {
-        console.log(`🧮 [P0] Performing calculation...`);
+        console.log(`🧮 [P0] Performing calculation with new engine...`);
 
-        const calcResult = await calculationService.performCalculation(
+        // Try new calculation engine first
+        const engineResult = await calculationEngine.calculate(
           preProcessResult.processedQuery,
-          answer
+          { contextData: answer, fallbackEnabled: true }
         );
 
-        if (calcResult) {
+        if (engineResult.success) {
           result.calculationResult = {
-            type: calcResult.type,
-            result: calcResult.result,
-            explanation: calcResult.explanation,
-            formula: calcResult.formula,
+            type: String(preProcessResult.calculationType),
+            result: engineResult.result,
+            explanation: engineResult.formatted || String(engineResult.result),
+            formula: engineResult.steps?.join(' -> '),
           };
 
           // Enhance answer with calculation result
-          result.answer = this.enhanceAnswerWithCalculation(answer, calcResult);
+          result.answer = this.enhanceAnswerWithCalculation(answer, {
+            type: preProcessResult.calculationType,
+            result: engineResult.result,
+            explanation: engineResult.formatted || String(engineResult.result),
+            formula: engineResult.steps?.join(' -> ')
+          });
 
-          console.log(`✅ [P0] Calculation complete: ${calcResult.explanation}`);
+          console.log(`✅ [P0] Calculation complete (${engineResult.method}): ${engineResult.formatted}`);
+        } else {
+          // Fallback to legacy calculation service
+          console.log(`🔄 [P0] Falling back to legacy calculation...`);
+          const calcResult = await calculationService.performCalculation(
+            preProcessResult.processedQuery,
+            answer
+          );
+
+          if (calcResult) {
+            result.calculationResult = {
+              type: calcResult.type,
+              result: calcResult.result,
+              explanation: calcResult.explanation,
+              formula: calcResult.formula,
+            };
+            result.answer = this.enhanceAnswerWithCalculation(answer, calcResult);
+            console.log(`✅ [P0] Calculation complete (legacy): ${calcResult.explanation}`);
+          }
         }
       } catch (error) {
         console.error('❌ [P0] Calculation failed:', error);
