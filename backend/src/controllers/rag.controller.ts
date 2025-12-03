@@ -1114,6 +1114,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     // ========================================
     console.log(`🔍 Executing full RAG pipeline for complex query`);
 
+    // Ensure conversation exists before creating messages
+    await ensureConversationExists(conversationId, userId);
+
     // Get conversation history (last 5 messages) for context
     const conversationHistory = await prisma.message.findMany({
       where: { conversationId },

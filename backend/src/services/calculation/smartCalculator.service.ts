@@ -706,6 +706,162 @@ class SmartCalculatorService {
     };
   }
 
+  // ==================== WORD PROBLEM FUNCTIONS ====================
+
+  /**
+   * Solve discount word problems
+   * Pattern: "A product costs $X. If there's a Y% discount, what's the final price?"
+   */
+  async solveDiscountProblem(originalPrice: number, discountPercent: number): Promise<CalculationResult> {
+    const startTime = Date.now();
+
+    const discountAmount = originalPrice * (discountPercent / 100);
+    const finalPrice = originalPrice - discountAmount;
+
+    return {
+      success: true,
+      result: finalPrice,
+      formatted: this.formatCurrency(finalPrice),
+      executionTime: Date.now() - startTime,
+      method: 'native',
+      steps: [
+        `Original Price: ${this.formatCurrency(originalPrice)}`,
+        `Discount: ${discountPercent}%`,
+        `Discount Amount: ${this.formatCurrency(originalPrice)} × ${discountPercent}% = ${this.formatCurrency(discountAmount)}`,
+        `Final Price: ${this.formatCurrency(originalPrice)} - ${this.formatCurrency(discountAmount)} = ${this.formatCurrency(finalPrice)}`
+      ]
+    };
+  }
+
+  /**
+   * Solve profit margin problems
+   * Pattern: "Revenue is $X and costs are $Y. What's the profit?"
+   */
+  async solveProfitProblem(revenue: number, costs: number): Promise<CalculationResult> {
+    const startTime = Date.now();
+
+    const profit = revenue - costs;
+    const profitMarginPercent = (profit / revenue) * 100;
+
+    return {
+      success: true,
+      result: profit,
+      formatted: this.formatCurrency(profit),
+      executionTime: Date.now() - startTime,
+      method: 'native',
+      steps: [
+        `Revenue: ${this.formatCurrency(revenue)}`,
+        `Costs: ${this.formatCurrency(costs)}`,
+        `Profit: ${this.formatCurrency(revenue)} - ${this.formatCurrency(costs)} = ${this.formatCurrency(profit)}`,
+        `Profit Margin: ${profitMarginPercent.toFixed(2)}%`
+      ]
+    };
+  }
+
+  /**
+   * Solve percentage change problems
+   * Pattern: "Value changed from X to Y. What's the percentage change?"
+   */
+  async solvePercentageChange(oldValue: number, newValue: number): Promise<CalculationResult> {
+    const startTime = Date.now();
+
+    const change = newValue - oldValue;
+    const percentChange = (change / oldValue) * 100;
+
+    return {
+      success: true,
+      result: percentChange,
+      formatted: `${percentChange >= 0 ? '+' : ''}${percentChange.toFixed(2)}%`,
+      executionTime: Date.now() - startTime,
+      method: 'native',
+      steps: [
+        `Old Value: ${this.formatResult(oldValue)}`,
+        `New Value: ${this.formatResult(newValue)}`,
+        `Change: ${this.formatResult(newValue)} - ${this.formatResult(oldValue)} = ${this.formatResult(change)}`,
+        `Percentage Change: (${this.formatResult(change)} / ${this.formatResult(oldValue)}) × 100 = ${percentChange.toFixed(2)}%`
+      ]
+    };
+  }
+
+  /**
+   * Solve tax calculation problems
+   * Pattern: "Price is $X with Y% tax"
+   */
+  async solveTaxProblem(basePrice: number, taxPercent: number): Promise<CalculationResult> {
+    const startTime = Date.now();
+
+    const taxAmount = basePrice * (taxPercent / 100);
+    const totalPrice = basePrice + taxAmount;
+
+    return {
+      success: true,
+      result: totalPrice,
+      formatted: this.formatCurrency(totalPrice),
+      executionTime: Date.now() - startTime,
+      method: 'native',
+      steps: [
+        `Base Price: ${this.formatCurrency(basePrice)}`,
+        `Tax Rate: ${taxPercent}%`,
+        `Tax Amount: ${this.formatCurrency(basePrice)} × ${taxPercent}% = ${this.formatCurrency(taxAmount)}`,
+        `Total Price: ${this.formatCurrency(basePrice)} + ${this.formatCurrency(taxAmount)} = ${this.formatCurrency(totalPrice)}`
+      ]
+    };
+  }
+
+  /**
+   * Parse and solve a word problem from natural language
+   */
+  async solveWordProblem(query: string): Promise<CalculationResult> {
+    const startTime = Date.now();
+    const lowerQuery = query.toLowerCase();
+
+    // Extract numbers from the query
+    const numbers = query.match(/\$?\s*(\d+(?:,\d{3})*(?:\.\d+)?)/g)?.map(n =>
+      parseFloat(n.replace(/[$,\s]/g, ''))
+    ) || [];
+
+    // Discount problem detection
+    const discountMatch = query.match(/(\d+(?:\.\d+)?)\s*%\s*(?:discount|off)/i);
+    const priceMatch = query.match(/\$?\s*(\d+(?:,\d{3})*(?:\.\d+)?)/);
+
+    if (discountMatch && priceMatch) {
+      const price = parseFloat(priceMatch[1].replace(/,/g, ''));
+      const discount = parseFloat(discountMatch[1]);
+      return this.solveDiscountProblem(price, discount);
+    }
+
+    // Profit problem detection
+    if (/revenue|sales/i.test(lowerQuery) && /cost|expense/i.test(lowerQuery)) {
+      if (numbers.length >= 2) {
+        const revenue = Math.max(...numbers);
+        const costs = Math.min(...numbers);
+        return this.solveProfitProblem(revenue, costs);
+      }
+    }
+
+    // Tax problem detection
+    const taxMatch = query.match(/(\d+(?:\.\d+)?)\s*%\s*(?:tax|vat|gst)/i);
+    if (taxMatch && priceMatch) {
+      const price = parseFloat(priceMatch[1].replace(/,/g, ''));
+      const tax = parseFloat(taxMatch[1]);
+      return this.solveTaxProblem(price, tax);
+    }
+
+    // Percentage change detection
+    if (/change|increase|decrease|grew|fell|from.*to/i.test(lowerQuery)) {
+      if (numbers.length >= 2) {
+        return this.solvePercentageChange(numbers[0], numbers[1]);
+      }
+    }
+
+    return {
+      success: false,
+      error: 'Could not parse the word problem',
+      executionTime: Date.now() - startTime,
+      method: 'native'
+    };
+  }
+
   // ==================== HELPER FUNCTIONS ====================
 
   /**
@@ -1138,6 +1294,346 @@ class SmartCalculatorService {
     }
 
     return rate;
+  }
+
+  // ============================================================================
+  // ✅ NEW: UNIT CONVERSION FUNCTIONS
+  // ============================================================================
+
+  /**
+   * Execute unit conversion
+   */
+  executeUnitConversion(value: number, fromUnit: string, toUnit: string): CalculationResult {
+    const startTime = Date.now();
+
+    // Normalize units
+    const from = fromUnit.toLowerCase().replace(/[°\s]/g, '');
+    const to = toUnit.toLowerCase().replace(/[°\s]/g, '');
+
+    // Temperature conversions (special case)
+    if (this.isTemperatureUnit(from) && this.isTemperatureUnit(to)) {
+      return this.convertTemperature(value, from, to, startTime);
+    }
+
+    // Standard conversions
+    const result = this.convertUnits(value, from, to);
+
+    if (result === null) {
+      return {
+        success: false,
+        error: `Conversion from ${fromUnit} to ${toUnit} not supported`,
+        executionTime: Date.now() - startTime,
+        method: 'native'
+      };
+    }
+
+    return {
+      success: true,
+      result,
+      formatted: `${value} ${fromUnit} = ${result.toFixed(4)} ${toUnit}`,
+      executionTime: Date.now() - startTime,
+      method: 'native',
+      steps: [
+        `Value: ${value} ${fromUnit}`,
+        `Conversion factor: 1 ${fromUnit} = ${(result / value).toFixed(6)} ${toUnit}`,
+        `Result: ${result.toFixed(4)} ${toUnit}`
+      ]
+    };
+  }
+
+  /**
+   * Check if unit is temperature
+   */
+  private isTemperatureUnit(unit: string): boolean {
+    return ['c', 'celsius', 'f', 'fahrenheit', 'k', 'kelvin'].includes(unit);
+  }
+
+  /**
+   * Convert temperature units
+   */
+  private convertTemperature(value: number, from: string, to: string, startTime: number): CalculationResult {
+    let result: number;
+    let formula: string;
+
+    // Celsius to Fahrenheit
+    if ((from === 'c' || from === 'celsius') && (to === 'f' || to === 'fahrenheit')) {
+      result = (value * 9/5) + 32;
+      formula = '(°C × 9/5) + 32';
+    }
+    // Fahrenheit to Celsius
+    else if ((from === 'f' || from === 'fahrenheit') && (to === 'c' || to === 'celsius')) {
+      result = (value - 32) * 5/9;
+      formula = '(°F - 32) × 5/9';
+    }
+    // Celsius to Kelvin
+    else if ((from === 'c' || from === 'celsius') && (to === 'k' || to === 'kelvin')) {
+      result = value + 273.15;
+      formula = '°C + 273.15';
+    }
+    // Kelvin to Celsius
+    else if ((from === 'k' || from === 'kelvin') && (to === 'c' || to === 'celsius')) {
+      result = value - 273.15;
+      formula = 'K - 273.15';
+    }
+    // Fahrenheit to Kelvin
+    else if ((from === 'f' || from === 'fahrenheit') && (to === 'k' || to === 'kelvin')) {
+      result = (value - 32) * 5/9 + 273.15;
+      formula = '(°F - 32) × 5/9 + 273.15';
+    }
+    // Kelvin to Fahrenheit
+    else if ((from === 'k' || from === 'kelvin') && (to === 'f' || to === 'fahrenheit')) {
+      result = (value - 273.15) * 9/5 + 32;
+      formula = '(K - 273.15) × 9/5 + 32';
+    }
+    else {
+      return {
+        success: false,
+        error: `Temperature conversion from ${from} to ${to} not supported`,
+        executionTime: Date.now() - startTime,
+        method: 'native'
+      };
+    }
+
+    return {
+      success: true,
+      result,
+      formatted: `${value}°${from.charAt(0).toUpperCase()} = ${result.toFixed(2)}°${to.charAt(0).toUpperCase()}`,
+      executionTime: Date.now() - startTime,
+      method: 'native',
+      steps: [
+        `Input: ${value}°${from.charAt(0).toUpperCase()}`,
+        `Formula: ${formula}`,
+        `Result: ${result.toFixed(2)}°${to.charAt(0).toUpperCase()}`
+      ]
+    };
+  }
+
+  /**
+   * Convert standard units
+   */
+  private convertUnits(value: number, from: string, to: string): number | null {
+    // Conversion factors (to base unit)
+    const conversions: { [key: string]: { base: string; factor: number } } = {
+      // Distance (base: meters)
+      'km': { base: 'meters', factor: 1000 },
+      'kilometers': { base: 'meters', factor: 1000 },
+      'miles': { base: 'meters', factor: 1609.34 },
+      'mi': { base: 'meters', factor: 1609.34 },
+      'meters': { base: 'meters', factor: 1 },
+      'm': { base: 'meters', factor: 1 },
+      'feet': { base: 'meters', factor: 0.3048 },
+      'ft': { base: 'meters', factor: 0.3048 },
+      'inches': { base: 'meters', factor: 0.0254 },
+      'in': { base: 'meters', factor: 0.0254 },
+      'cm': { base: 'meters', factor: 0.01 },
+      'centimeters': { base: 'meters', factor: 0.01 },
+      'yards': { base: 'meters', factor: 0.9144 },
+      'yd': { base: 'meters', factor: 0.9144 },
+
+      // Weight (base: kg)
+      'kg': { base: 'kg', factor: 1 },
+      'kilograms': { base: 'kg', factor: 1 },
+      'pounds': { base: 'kg', factor: 0.453592 },
+      'lbs': { base: 'kg', factor: 0.453592 },
+      'lb': { base: 'kg', factor: 0.453592 },
+      'grams': { base: 'kg', factor: 0.001 },
+      'g': { base: 'kg', factor: 0.001 },
+      'ounces': { base: 'kg', factor: 0.0283495 },
+      'oz': { base: 'kg', factor: 0.0283495 },
+
+      // Volume (base: liters)
+      'liters': { base: 'liters', factor: 1 },
+      'l': { base: 'liters', factor: 1 },
+      'gallons': { base: 'liters', factor: 3.78541 },
+      'gal': { base: 'liters', factor: 3.78541 },
+      'ml': { base: 'liters', factor: 0.001 },
+      'milliliters': { base: 'liters', factor: 0.001 },
+      'cups': { base: 'liters', factor: 0.236588 },
+      'pints': { base: 'liters', factor: 0.473176 },
+      'quarts': { base: 'liters', factor: 0.946353 },
+    };
+
+    const fromConversion = conversions[from];
+    const toConversion = conversions[to];
+
+    if (!fromConversion || !toConversion) {
+      return null; // Unsupported unit
+    }
+
+    if (fromConversion.base !== toConversion.base) {
+      return null; // Different measurement types
+    }
+
+    // Convert: value → base unit → target unit
+    const baseValue = value * fromConversion.factor;
+    const result = baseValue / toConversion.factor;
+
+    return result;
+  }
+
+  // ============================================================================
+  // ✅ NEW: RATIO PROBLEM SOLVER
+  // ============================================================================
+
+  /**
+   * Solve ratio problems
+   */
+  solveRatioProblem(ratio1: number, ratio2: number, knownValue: number, isFirstKnown: boolean): CalculationResult {
+    const startTime = Date.now();
+
+    let result: number;
+    let explanation: string;
+
+    if (isFirstKnown) {
+      // ratio1 : ratio2 = knownValue : result
+      result = (knownValue * ratio2) / ratio1;
+      explanation = `If the ratio is ${ratio1}:${ratio2} and the first value is ${knownValue}, then:\n` +
+        `${knownValue} ÷ ${ratio1} = ${(knownValue / ratio1).toFixed(2)} (unit value)\n` +
+        `${(knownValue / ratio1).toFixed(2)} × ${ratio2} = ${result.toFixed(2)}`;
+    } else {
+      // ratio1 : ratio2 = result : knownValue
+      result = (knownValue * ratio1) / ratio2;
+      explanation = `If the ratio is ${ratio1}:${ratio2} and the second value is ${knownValue}, then:\n` +
+        `${knownValue} ÷ ${ratio2} = ${(knownValue / ratio2).toFixed(2)} (unit value)\n` +
+        `${(knownValue / ratio2).toFixed(2)} × ${ratio1} = ${result.toFixed(2)}`;
+    }
+
+    return {
+      success: true,
+      result,
+      formatted: result.toFixed(2),
+      executionTime: Date.now() - startTime,
+      method: 'native',
+      steps: [
+        `Ratio: ${ratio1}:${ratio2}`,
+        `Known Value: ${knownValue}`,
+        explanation,
+        `Result: ${result.toFixed(2)}`,
+        `Verification: ${ratio1}:${ratio2} = ${isFirstKnown ? knownValue : result.toFixed(2)}:${isFirstKnown ? result.toFixed(2) : knownValue}`
+      ]
+    };
+  }
+
+  // ============================================================================
+  // ✅ NEW: ENHANCED LOAN PAYMENT CALCULATION
+  // ============================================================================
+
+  /**
+   * Calculate loan payment with detailed breakdown
+   */
+  calculateLoanPaymentDetailed(principal: number, annualRate: number, years: number): CalculationResult {
+    const startTime = Date.now();
+
+    const monthlyRate = annualRate / 12 / 100;  // Convert annual % to monthly decimal
+    const numPayments = years * 12;
+
+    let monthlyPayment: number;
+
+    if (monthlyRate === 0) {
+      monthlyPayment = principal / numPayments;
+    } else {
+      monthlyPayment = principal *
+        (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
+        (Math.pow(1 + monthlyRate, numPayments) - 1);
+    }
+
+    const totalPaid = monthlyPayment * numPayments;
+    const totalInterest = totalPaid - principal;
+
+    return {
+      success: true,
+      result: monthlyPayment,
+      formatted: this.formatCurrency(monthlyPayment),
+      executionTime: Date.now() - startTime,
+      method: 'native',
+      steps: [
+        `Principal: ${this.formatCurrency(principal)}`,
+        `Interest Rate: ${annualRate}% per year`,
+        `Loan Term: ${years} years (${numPayments} monthly payments)`,
+        `Monthly Payment: ${this.formatCurrency(monthlyPayment)}`,
+        `Total Amount Paid: ${this.formatCurrency(totalPaid)}`,
+        `Total Interest: ${this.formatCurrency(totalInterest)}`,
+        `Interest as % of Principal: ${((totalInterest / principal) * 100).toFixed(1)}%`
+      ]
+    };
+  }
+
+  // ============================================================================
+  // ✅ NEW: FIXED FUTURE VALUE CALCULATION
+  // ============================================================================
+
+  /**
+   * Calculate future value with correct compounding period detection
+   */
+  calculateFutureValueEnhanced(principal: number, ratePercent: number, years: number, query: string = ''): CalculationResult {
+    const startTime = Date.now();
+
+    const lowerQuery = query.toLowerCase();
+    let periodsPerYear = 1;  // Default: annual compounding
+    let compoundingType = 'Annual';
+
+    // Detect compounding frequency from query
+    if (lowerQuery.includes('monthly') || lowerQuery.includes('per month')) {
+      periodsPerYear = 12;
+      compoundingType = 'Monthly';
+    } else if (lowerQuery.includes('quarterly')) {
+      periodsPerYear = 4;
+      compoundingType = 'Quarterly';
+    } else if (lowerQuery.includes('semi-annual') || lowerQuery.includes('twice a year')) {
+      periodsPerYear = 2;
+      compoundingType = 'Semi-Annual';
+    } else if (lowerQuery.includes('daily')) {
+      periodsPerYear = 365;
+      compoundingType = 'Daily';
+    } else if (lowerQuery.includes('continuous')) {
+      // Continuous compounding: FV = P * e^(rt)
+      const rate = ratePercent / 100;
+      const futureValue = principal * Math.exp(rate * years);
+      const interest = futureValue - principal;
+
+      return {
+        success: true,
+        result: futureValue,
+        formatted: this.formatCurrency(futureValue),
+        executionTime: Date.now() - startTime,
+        method: 'native',
+        steps: [
+          `Principal: ${this.formatCurrency(principal)}`,
+          `Interest Rate: ${ratePercent}% per year`,
+          `Time Period: ${years} years`,
+          `Compounding: Continuous`,
+          `Future Value: ${this.formatCurrency(futureValue)}`,
+          `Interest Earned: ${this.formatCurrency(interest)}`,
+          `Total Return: ${((interest / principal) * 100).toFixed(2)}%`,
+          `Formula: FV = P × e^(rt)`
+        ]
+      };
+    }
+
+    // Standard compounding: FV = P * (1 + r/n)^(nt)
+    const rate = ratePercent / 100;
+    const ratePerPeriod = rate / periodsPerYear;
+    const totalPeriods = years * periodsPerYear;
+    const futureValue = principal * Math.pow(1 + ratePerPeriod, totalPeriods);
+    const interest = futureValue - principal;
+
+    return {
+      success: true,
+      result: futureValue,
+      formatted: this.formatCurrency(futureValue),
+      executionTime: Date.now() - startTime,
+      method: 'native',
+      steps: [
+        `Principal: ${this.formatCurrency(principal)}`,
+        `Interest Rate: ${ratePercent}% per year`,
+        `Time Period: ${years} years`,
+        `Compounding: ${compoundingType} (${periodsPerYear}x/year)`,
+        `Future Value: ${this.formatCurrency(futureValue)}`,
+        `Interest Earned: ${this.formatCurrency(interest)}`,
+        `Total Return: ${((interest / principal) * 100).toFixed(2)}%`,
+        `Formula: FV = P × (1 + r/n)^(nt)`
+      ]
+    };
   }
 }
 

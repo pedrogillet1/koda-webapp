@@ -7,9 +7,33 @@
 /**
  * Detect language from user input
  * Uses keyword-based detection for common patterns
+ * ✅ FIX: English is the default, only switch if strong non-English signals
  */
 export function detectLanguage(text: string): string {
   const lowerText = text.toLowerCase().trim();
+
+  // ✅ FIX: Check for explicit English patterns first
+  // If the text is clearly English, return early
+  const strongEnglishPatterns = [
+    /\bwhat\s+is\b/i,
+    /\bhow\s+(many|much|is|are|does|do)\b/i,
+    /\bwhy\s+(is|are|does|do)\b/i,
+    /\bwhat\s+are\b/i,
+    /\bwhich\s+(is|are|property|properties)\b/i,
+    /\bshould\s+i\b/i,
+    /\bcan\s+(you|i)\b/i,
+    /\bif\s+i\s+have\b/i,
+    /\bbased\s+on\b/i,
+    /\baccording\s+to\b/i,
+    /\bplease\b/i,
+    /\bthe\s+(total|average|sum|revenue|investment|budget)\b/i,
+    /\b(calculate|compare|analyze|explain|show|find|get)\b/i,
+  ];
+
+  // If query matches strong English patterns, return English
+  if (strongEnglishPatterns.some(pattern => pattern.test(lowerText))) {
+    return 'en';
+  }
 
   // Helper function to count matches
   const countMatches = (text: string, words: string[]): number => {
@@ -86,14 +110,21 @@ export function detectLanguage(text: string): string {
   const esCount = countMatches(lowerText, spanishPatterns);
   const frCount = countMatches(lowerText, frenchPatterns);
 
-  // Return language with most matches
-  if (ptCount > esCount && ptCount > frCount && ptCount > 0) {
+  // ✅ FIX: Require MINIMUM of 2 strong matches to switch from English
+  // This prevents false positives from partial word matches
+  const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 2;
+
+  // Return language with most matches, only if above threshold
+  if (ptCount > esCount && ptCount > frCount && ptCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+    console.log(`🌐 [LANG] Detected Portuguese (${ptCount} matches)`);
     return 'pt';
   }
-  if (esCount > ptCount && esCount > frCount && esCount > 0) {
+  if (esCount > ptCount && esCount > frCount && esCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+    console.log(`🌐 [LANG] Detected Spanish (${esCount} matches)`);
     return 'es';
   }
-  if (frCount > ptCount && frCount > esCount && frCount > 0) {
+  if (frCount > ptCount && frCount > esCount && frCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+    console.log(`🌐 [LANG] Detected French (${frCount} matches)`);
     return 'fr';
   }
 

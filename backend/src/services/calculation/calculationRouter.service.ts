@@ -9,6 +9,7 @@ import codeGenerator from './codeGenerator.service';
 import pythonExecutor from './pythonExecutor.service';
 import excelFormulaEngine from './excelFormulaEngine.service';
 import { CalculationType } from './calculationTypes';
+import { QueryNormalizer } from '../../utils/queryNormalizer';
 
 export interface RoutingResult {
   handled: boolean;
@@ -57,8 +58,16 @@ class CalculationRouterService {
       await this.initialize();
     }
 
-    // Step 1: Detect calculation type
-    const detection = calculationDetector.detect(query);
+    // =========================================
+    // STEP 0: NORMALIZE QUERY FIRST
+    // =========================================
+    // This fixes: × → *, ÷ → /, $10M → 10000000, 2,547 → 2547
+    const normalizedQuery = QueryNormalizer.normalize(query);
+    console.log(`🧮 [ROUTER] Original: "${query}"`);
+    console.log(`🧮 [ROUTER] Normalized: "${normalizedQuery}"`);
+
+    // Step 1: Detect calculation type (using normalized query)
+    const detection = calculationDetector.detect(normalizedQuery);
 
     if (!detection.isCalculation) {
       return { handled: false };
@@ -72,29 +81,41 @@ class CalculationRouterService {
     let result: any;
 
     try {
-      switch (detection.type) {
-        case CalculationType.SIMPLE_MATH:
-          ({ response, method, result } = await this.handleSimpleMath(detection));
-          break;
+      // ✅ NEW: Check for special calculation types FIRST
+      const calcType = detection.parameters?.calculationType;
 
-        case CalculationType.FINANCIAL:
-          ({ response, method, result } = await this.handleFinancial(detection));
-          break;
+      if (calcType === 'unit_conversion') {
+        console.log('🔄 [ROUTER] Handling unit conversion');
+        ({ response, method, result } = await this.handleUnitConversion(detection));
+      } else if (calcType === 'ratio') {
+        console.log('📊 [ROUTER] Handling ratio problem');
+        ({ response, method, result } = await this.handleRatioProblem(detection));
+      } else {
+        // Standard routing based on calculation type
+        switch (detection.type) {
+          case CalculationType.SIMPLE_MATH:
+            ({ response, method, result } = await this.handleSimpleMath(detection));
+            break;
 
-        case CalculationType.STATISTICAL:
-          ({ response, method, result } = await this.handleStatistical(detection));
-          break;
+          case CalculationType.FINANCIAL:
+            ({ response, method, result } = await this.handleFinancial(detection));
+            break;
 
-        case CalculationType.EXCEL_FORMULA:
-          ({ response, method, result } = await this.handleExcelFormula(query, context));
-          break;
+          case CalculationType.STATISTICAL:
+            ({ response, method, result } = await this.handleStatistical(detection));
+            break;
 
-        case CalculationType.COMPLEX:
-          ({ response, method, result } = await this.handleComplex(query));
-          break;
+          case CalculationType.EXCEL_FORMULA:
+            ({ response, method, result } = await this.handleExcelFormula(normalizedQuery, context));
+            break;
 
-        default:
-          return { handled: false };
+          case CalculationType.COMPLEX:
+            ({ response, method, result } = await this.handleComplex(normalizedQuery));
+            break;
+
+          default:
+            return { handled: false };
+        }
       }
 
       return {
@@ -106,9 +127,24 @@ class CalculationRouterService {
       };
     } catch (error: any) {
       console.error('[ROUTER] Calculation error:', error);
+
+      // ✅ FIX: Provide more user-friendly error messages
+      let userMessage = error.message || 'Unknown error';
+
+      // Handle common error types with friendly messages
+      if (userMessage.includes('Infinity') || userMessage.includes('NaN')) {
+        userMessage = 'I could not complete this calculation. The result is undefined (possibly due to division by zero or missing data).';
+      } else if (userMessage.includes('initialization') || userMessage.includes('3221225794')) {
+        userMessage = 'The calculation engine is temporarily unavailable. Please try again in a moment.';
+      } else if (userMessage.includes('timeout') || userMessage.includes('timed out')) {
+        userMessage = 'This calculation took too long to complete. Try breaking it into smaller parts.';
+      } else if (userMessage.includes('Process exited')) {
+        userMessage = 'The calculation engine encountered an unexpected error. Please try again.';
+      }
+
       return {
         handled: true,
-        response: `I encountered an error while calculating: ${error.message}`,
+        response: `I encountered an issue while calculating: ${userMessage}`,
         error: error.message,
         executionTime: Date.now() - startTime
       };
@@ -177,6 +213,19 @@ class CalculationRouterService {
     const functionName = this.extractFinancialFunction(detection.expression);
 
     console.log(`💰 [FINANCIAL] Function: ${functionName}, Params:`, params);
+
+    // ✅ NEW: Check for loan payment queries - use enhanced handler
+    const lowerExpr = detection.expression.toLowerCase();
+    if (/(?:loan|mortgage).*payment|monthly payment.*(?:loan|mortgage)|payment on.*\$[\d,]+.*loan/i.test(detection.expression)) {
+      console.log('💰 [FINANCIAL] Using enhanced loan payment calculation');
+      return await this.handleEnhancedLoanPayment(detection.expression);
+    }
+
+    // ✅ NEW: Check for future value queries with "years" - use enhanced handler
+    if (/future value.*\d+\s*years|fv.*\d+\s*years/i.test(detection.expression)) {
+      console.log('💰 [FINANCIAL] Using enhanced future value calculation');
+      return await this.handleEnhancedFutureValue(detection.expression);
+    }
 
     // Validate we have required parameters
     const hasRequiredParams = this.validateFinancialParams(functionName, params);
@@ -628,6 +677,162 @@ class CalculationRouterService {
       excelEngineStatus: excelFormulaEngine.getStatus(),
       pythonAvailable: pythonExecutor.checkPythonAvailable()
     };
+  }
+
+  // ============================================================================
+  // ✅ NEW: UNIT CONVERSION HANDLER
+  // ============================================================================
+
+  /**
+   * Handle unit conversion calculations
+   */
+  private async handleUnitConversion(detection: any): Promise<{ response: string; method: string; result: any }> {
+    const params = detection.parameters || {};
+    const { value, fromUnit, toUnit } = params;
+
+    // If we have all parameters, use direct calculation
+    if (value !== undefined && fromUnit && toUnit) {
+      const calcResult = smartCalculator.executeUnitConversion(value, fromUnit, toUnit);
+
+      if (calcResult.success) {
+        const response = `**${calcResult.formatted}**\n\n` +
+          `${calcResult.steps?.join('\n')}\n\n` +
+          `⚡ Calculated in ${calcResult.executionTime}ms`;
+
+        return {
+          response,
+          method: 'Smart Calculator (Unit Conversion)',
+          result: calcResult.result
+        };
+      }
+    }
+
+    // Fallback to Python for complex or unrecognized conversions
+    console.log('🔄 [UNIT-CONV] Falling back to Python');
+    return await this.handleComplex(detection.expression);
+  }
+
+  // ============================================================================
+  // ✅ NEW: RATIO PROBLEM HANDLER
+  // ============================================================================
+
+  /**
+   * Handle ratio problem calculations
+   */
+  private async handleRatioProblem(detection: any): Promise<{ response: string; method: string; result: any }> {
+    const params = detection.parameters || {};
+    const { ratio1, ratio2, knownValue, isFirstKnown } = params;
+
+    // If we have all parameters, use direct calculation
+    if (ratio1 !== undefined && ratio2 !== undefined && knownValue !== undefined) {
+      const calcResult = smartCalculator.solveRatioProblem(ratio1, ratio2, knownValue, isFirstKnown);
+
+      if (calcResult.success) {
+        const response = `**Ratio Problem Solution**\n\n` +
+          `${calcResult.steps?.join('\n')}\n\n` +
+          `⚡ Calculated in ${calcResult.executionTime}ms`;
+
+        return {
+          response,
+          method: 'Smart Calculator (Ratio Solver)',
+          result: calcResult.result
+        };
+      }
+    }
+
+    // Fallback to Python for complex ratio problems
+    console.log('📊 [RATIO] Falling back to Python');
+    return await this.handleComplex(detection.expression);
+  }
+
+  // ============================================================================
+  // ✅ NEW: ENHANCED LOAN PAYMENT HANDLER
+  // ============================================================================
+
+  /**
+   * Handle enhanced loan payment calculations
+   */
+  private async handleEnhancedLoanPayment(query: string): Promise<{ response: string; method: string; result: any }> {
+    // Extract: principal, rate, years
+    const principalMatch = query.match(/\$?([\d,]+(?:\.\d+)?)[kKmM]?/);
+    const rateMatch = query.match(/([\d.]+)%/);
+    const yearsMatch = query.match(/(\d+)\s*years?/i);
+
+    if (!principalMatch || !rateMatch || !yearsMatch) {
+      // Fallback to Python
+      return await this.handleComplex(query);
+    }
+
+    let principal = parseFloat(principalMatch[1].replace(/,/g, ''));
+    const annualRate = parseFloat(rateMatch[1]);
+    const years = parseInt(yearsMatch[1]);
+
+    // Handle K/M abbreviations
+    const principalStr = principalMatch[0].toLowerCase();
+    if (principalStr.includes('k')) principal *= 1000;
+    if (principalStr.includes('m')) principal *= 1000000;
+
+    const calcResult = smartCalculator.calculateLoanPaymentDetailed(principal, annualRate, years);
+
+    if (calcResult.success) {
+      const response = `**Loan Payment Calculation**\n\n` +
+        `${calcResult.steps?.join('\n')}\n\n` +
+        `⚡ Calculated in ${calcResult.executionTime}ms`;
+
+      return {
+        response,
+        method: 'Smart Calculator (Loan Payment)',
+        result: calcResult.result
+      };
+    }
+
+    // Fallback to Python
+    return await this.handleComplex(query);
+  }
+
+  // ============================================================================
+  // ✅ NEW: ENHANCED FUTURE VALUE HANDLER
+  // ============================================================================
+
+  /**
+   * Handle enhanced future value calculations
+   */
+  private async handleEnhancedFutureValue(query: string): Promise<{ response: string; method: string; result: any }> {
+    // Extract: principal, rate, years
+    const principalMatch = query.match(/\$?([\d,]+(?:\.\d+)?)[kKmM]?/);
+    const rateMatch = query.match(/([\d.]+)%/);
+    const yearsMatch = query.match(/(\d+)\s*years?/i);
+
+    if (!principalMatch || !rateMatch || !yearsMatch) {
+      // Fallback to Python
+      return await this.handleComplex(query);
+    }
+
+    let principal = parseFloat(principalMatch[1].replace(/,/g, ''));
+    const ratePercent = parseFloat(rateMatch[1]);
+    const years = parseInt(yearsMatch[1]);
+
+    // Handle K/M abbreviations
+    const principalStr = principalMatch[0].toLowerCase();
+    if (principalStr.includes('k')) principal *= 1000;
+    if (principalStr.includes('m')) principal *= 1000000;
+
+    const calcResult = smartCalculator.calculateFutureValueEnhanced(principal, ratePercent, years, query);
+
+    if (calcResult.success) {
+      const response = `**Future Value Calculation**\n\n` +
+        `${calcResult.steps?.join('\n')}\n\n` +
+        `⚡ Calculated in ${calcResult.executionTime}ms`;
+
+      return {
+        response,
+        method: 'Smart Calculator (Future Value)',
+        result: calcResult.result
+      };
+    }
+
+    // Fallback to Python
+    return await this.handleComplex(query);
   }
 }
 

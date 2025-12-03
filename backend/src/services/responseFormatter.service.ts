@@ -81,8 +81,16 @@ export class ResponseFormatterService {
     // CRITICAL FIX 8: Format comparison responses
     formatted = this.formatComparison(formatted);
 
-    // CRITICAL FIX 9: Clean up excessive whitespace (final polish)
+    // CRITICAL FIX 9: Fix inline markdown headings (## without line breaks)
+    formatted = this.fixInlineMarkdownHeadings(formatted);
+
+    // CRITICAL FIX 10: Clean up excessive whitespace (before paragraph breaking)
     formatted = this.cleanWhitespace(formatted);
+
+    // CRITICAL FIX 11: ALWAYS enforce 2-3 sentence paragraphs with blank lines
+    // The function internally skips bullets, tables, headings - so safe to always run
+    console.log(`📝 [ResponseFormatter] Enforcing 2-3 sentence paragraph breaks`);
+    formatted = this.enforceStrictParagraphBreaks(formatted);
 
     return formatted;
   }
@@ -755,6 +763,156 @@ EXAMPLE:
     console.log(`✅ [COMPARISON] Formatted comparison (${text.length} → ${formatted.length} chars)`);
 
     return formatted.trim();
+  }
+
+  /**
+   * Fix inline markdown headings that appear without line breaks
+   *
+   * Problem: AI generates "text ## Heading more text" instead of proper headings
+   * Solution: Insert line breaks before and after ## headings
+   *
+   * Example:
+   * Before: "some text. ## Understanding MoIC is a key metric"
+   * After:  "some text.\n\n## Understanding MoIC\n\nis a key metric"
+   */
+  fixInlineMarkdownHeadings(text: string): string {
+    let fixed = text;
+
+    // Pattern: text followed by ## (inline heading without newline before)
+    // Add double newline before ##
+    fixed = fixed.replace(/([^\n])(\s*)(#{1,6}\s)/g, '$1\n\n$3');
+
+    // Pattern: ## heading text followed by more text without newline
+    // This is tricky - we need to find where the heading ends
+    // Headings typically end at the next sentence or after a few words
+    // For now, let's ensure there's a newline after short heading-like phrases
+
+    // Match ## followed by 2-6 words, then ensure newline
+    fixed = fixed.replace(/(#{1,6}\s+[A-Z][^\n.!?]{10,60})([.!?]?\s+)(?=[A-Z])/g, '$1\n\n');
+
+    return fixed;
+  }
+
+  /**
+   * Enforce STRICT paragraph breaks - max 2-3 sentences per paragraph
+   * Matches user's example spacing exactly
+   *
+   * Rules:
+   * 1. Break after 2-3 sentences
+   * 2. Add blank line (\n\n) between paragraphs
+   * 3. Don't break inside bullets, tables, or headings
+   * 4. Preserve existing breaks
+   */
+  enforceStrictParagraphBreaks(text: string): string {
+    // Split by existing double newlines (preserve existing structure)
+    const blocks = text.split('\n\n');
+    const result: string[] = [];
+
+    console.log(`📝 [ParagraphBreak] Processing ${blocks.length} blocks`);
+
+    for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+      const block = blocks[blockIndex];
+
+      // Skip if this is a bullet list, table, heading, or short block
+      if (
+        block.trim().startsWith('•') ||
+        block.trim().startsWith('|') ||
+        block.trim().startsWith('#') ||
+        block.trim().startsWith('-') ||
+        block.trim().startsWith('*') ||
+        block.trim().startsWith('**') ||
+        block.length < 50 // Very short blocks don't need breaking
+      ) {
+        console.log(`📝 [ParagraphBreak] Block ${blockIndex}: SKIPPED (special or short, ${block.length} chars)`);
+        result.push(block);
+        continue;
+      }
+
+      // This is a prose paragraph - split into sentences
+      const sentences = this.splitIntoSentences(block);
+      console.log(`📝 [ParagraphBreak] Block ${blockIndex}: ${sentences.length} sentences, ${block.length} chars`);
+
+      if (sentences.length <= 3) {
+        // Already 3 sentences or less - keep as-is
+        result.push(block);
+      } else {
+        // Too long - break into chunks of 2-3 sentences
+        console.log(`📝 [ParagraphBreak] Block ${blockIndex}: BREAKING into chunks (${sentences.length} sentences)`);
+        const chunks: string[] = [];
+
+        for (let i = 0; i < sentences.length; i += 2) {
+          // Take 2-3 sentences per chunk
+          const chunkSize = (i + 3 <= sentences.length) ? 2 : Math.min(3, sentences.length - i);
+          const chunk = sentences.slice(i, i + chunkSize).join(' ');
+          chunks.push(chunk.trim());
+        }
+
+        // Join chunks with blank lines
+        result.push(chunks.join('\n\n'));
+      }
+    }
+
+    console.log(`📝 [ParagraphBreak] Result: ${result.length} blocks`);
+    return result.join('\n\n');
+  }
+
+  /**
+   * Split text into sentences intelligently
+   * Handles abbreviations, decimals, and edge cases
+   */
+  private splitIntoSentences(text: string): string[] {
+    // Replace common abbreviations with placeholders
+    let processed = text;
+    const abbreviations = [
+      'e.g.', 'i.e.', 'Dr.', 'Mr.', 'Mrs.', 'Ms.', 'Prof.',
+      'Inc.', 'Ltd.', 'Co.', 'etc.', 'vs.', 'approx.', 'est.'
+    ];
+
+    const placeholders: Map<string, string> = new Map();
+    abbreviations.forEach((abbr, index) => {
+      const placeholder = `__ABBR${index}__`;
+      placeholders.set(placeholder, abbr);
+      const escapedAbbr = abbr.replace(/\./g, '\\.');
+      processed = processed.replace(new RegExp(escapedAbbr, 'g'), placeholder);
+    });
+
+    // Protect decimal numbers (e.g., "3.14", "$1,234.56")
+    processed = processed.replace(/(\d+)\.(\d+)/g, '$1__DOT__$2');
+
+    // Split on sentence endings: . ! ? followed by space and capital letter OR end of string
+    const sentenceRegex = /([.!?])\s+(?=[A-Z])|([.!?])$/g;
+    const parts = processed.split(sentenceRegex).filter(part => part && part.trim().length > 0);
+
+    // Reconstruct sentences
+    const sentences: string[] = [];
+    let currentSentence = '';
+
+    for (const part of parts) {
+      if (part === '.' || part === '!' || part === '?') {
+        currentSentence += part;
+        if (currentSentence.trim().length > 0) {
+          sentences.push(currentSentence.trim());
+        }
+        currentSentence = '';
+      } else {
+        currentSentence += part;
+      }
+    }
+
+    // Add remaining text as last sentence
+    if (currentSentence.trim().length > 0) {
+      sentences.push(currentSentence.trim());
+    }
+
+    // Restore abbreviations and decimals
+    return sentences.map(sentence => {
+      let restored = sentence;
+      placeholders.forEach((abbr, placeholder) => {
+        restored = restored.replace(new RegExp(placeholder, 'g'), abbr);
+      });
+      restored = restored.replace(/__DOT__/g, '.');
+      return restored;
+    });
   }
 
   /**

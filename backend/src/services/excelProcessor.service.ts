@@ -26,6 +26,8 @@ interface ExcelChunk {
     // ✅ Formula metadata for better RAG retrieval (Issue #2 fix)
     hasFormula?: boolean;
     formulas?: string[];  // Array of formulas in the row (e.g., ["=SUM(B2:B4)", "=A1*B1"])
+    // ✅ Entity metadata for property/investment name extraction
+    entities?: string[];  // Array of entity names found in the row (e.g., ["Carlyle", "Lone Mountain Ranch"])
   };
 }
 
@@ -172,8 +174,9 @@ class ExcelProcessorService {
   }
 
   /**
-   * Process sheet as tables with semantic understanding
-   * Creates chunks like: "Sheet 2 'Revenue' table data: Month: February, Revenue: $450,000, Growth: 12.5%"
+   * Process sheet as tables with ENTITY-AWARE semantic understanding
+   * Detects and labels entities like property names, investment names, etc.
+   * Creates chunks like: "[Entities: Carlyle, Lone Mountain Ranch] Sheet 2 'Revenue' table data: Property: Carlyle, Revenue: $450,000"
    */
   private processSheetAsTables(
     sheet: XLSX.WorkSheet,
@@ -208,25 +211,46 @@ class ExcelProcessorService {
     const headers = firstRow.map((h: any) => String(h || '').trim());
     let chunkIndex = startChunkIndex;
 
+    // ✅ NEW: Detect entity columns (property names, investment names, etc.)
+    const entityColumnIndices = this.detectEntityColumns(headers);
+
     // Process each data row with column context
     for (let i = 1; i < jsonData.length; i++) {
       const row = jsonData[i];
       const rowItems: string[] = [];
+      const entities: string[] = []; // ✅ NEW: Track entities in this row
 
       for (let j = 0; j < Math.min(row.length, headers.length); j++) {
         const header = headers[j];
         const value = row[j];
 
         if (header && value !== null && value !== undefined && value !== '') {
-          rowItems.push(`${header}: ${this.formatCellValue(value)}`);
+          const formattedValue = this.formatCellValue(value);
+
+          // ✅ NEW: Mark entities with special labels for better RAG retrieval
+          if (entityColumnIndices.includes(j) && typeof value === 'string' && value.trim().length > 0) {
+            rowItems.push(`**${header}**: ${formattedValue}`);
+            // Only add meaningful entity names (not numbers, not too short)
+            const trimmedValue = String(value).trim();
+            if (trimmedValue.length >= 3 && !/^[\d.,\-$%]+$/.test(trimmedValue)) {
+              entities.push(trimmedValue);
+            }
+          } else {
+            rowItems.push(`${header}: ${formattedValue}`);
+          }
         }
       }
 
       if (rowItems.length > 0) {
         const semanticText = rowItems.join(', ');
 
+        // ✅ NEW: Add entity prefix for better retrieval of property/investment names
+        const entityPrefix = entities.length > 0
+          ? `[Entities: ${entities.join(', ')}] `
+          : '';
+
         chunks.push({
-          content: `Sheet ${sheetNumber} '${sheetName}' table data: ${semanticText}`,
+          content: `${entityPrefix}Sheet ${sheetNumber} '${sheetName}' table data: ${semanticText}`,
           metadata: {
             sheetName,
             sheetNumber,
@@ -234,13 +258,48 @@ class ExcelProcessorService {
             cells: [],
             chunkIndex: chunkIndex++,
             sourceType: 'excel_table',
-            tableHeaders: headers.filter(h => h.length > 0)
+            tableHeaders: headers.filter(h => h.length > 0),
+            // ✅ NEW: Store entities in metadata for filtering
+            ...(entities.length > 0 && { entities }),
           }
         });
       }
     }
 
     return chunks;
+  }
+
+  /**
+   * ✅ NEW: Detect columns that likely contain entity names
+   * (property names, investment names, company names, etc.)
+   */
+  private detectEntityColumns(headers: string[]): number[] {
+    const entityKeywords = [
+      'name', 'property', 'investment', 'company', 'fund', 'asset',
+      'project', 'portfolio', 'entity', 'client', 'customer', 'vendor',
+      'hotel', 'ranch', 'building', 'facility', 'location', 'site',
+      'description', 'title', 'label', 'category', 'type'
+    ];
+
+    const entityIndices: number[] = [];
+
+    headers.forEach((header, index) => {
+      const lowerHeader = header.toLowerCase();
+
+      // Check if header contains entity keywords
+      const isEntity = entityKeywords.some(keyword =>
+        lowerHeader.includes(keyword)
+      );
+
+      // Also check if it's the first column with text (often contains names)
+      const isFirstTextColumn = index === 0 && header.length > 0;
+
+      if (isEntity || isFirstTextColumn) {
+        entityIndices.push(index);
+      }
+    });
+
+    return entityIndices;
   }
 
   /**

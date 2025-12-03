@@ -382,7 +382,7 @@ class CrossDocumentSynthesisService {
           name: m.name,
           documentId: doc.id,
           documentName: doc.filename,
-          year: result.document_metadata.year,
+          year: result.metadata.year,
           isPrimary: m.isPrimary,
           category: m.categories,
         });
@@ -413,7 +413,7 @@ class CrossDocumentSynthesisService {
       const documents = await prisma.documents.findMany({
         where,
         include: {
-          document_metadata: {
+          metadata: {
             select: {
               extractedText: true,
               topics: true,
@@ -429,8 +429,8 @@ class CrossDocumentSynthesisService {
         const topicLower = topic.toLowerCase();
         return documents.filter(doc => {
           const filename = doc.filename.toLowerCase();
-          const text = doc.document_metadata?.extractedText?.toLowerCase() || '';
-          const topics = doc.document_metadata?.topics?.toLowerCase() || '';
+          const text = doc.metadata?.extractedText?.toLowerCase() || '';
+          const topics = doc.metadata?.topics?.toLowerCase() || '';
 
           return filename.includes(topicLower) ||
                  text.includes(topicLower) ||
@@ -441,7 +441,7 @@ class CrossDocumentSynthesisService {
       return documents.map(doc => ({
         id: doc.id,
         filename: doc.filename,
-        extractedText: doc.document_metadata?.extractedText,
+        extractedText: doc.metadata?.extractedText,
         createdAt: doc.createdAt,
       }));
     } catch (error) {
@@ -474,7 +474,7 @@ class CrossDocumentSynthesisService {
           id: true,
           filename: true,
           createdAt: true,
-          document_metadata: {
+          metadata: {
             select: {
               topics: true,
               creationDate: true,
@@ -487,7 +487,7 @@ class CrossDocumentSynthesisService {
       return documents.map(doc => ({
         id: doc.id,
         filename: doc.filename,
-        year: doc.document_metadata?.creationDate?.getFullYear() || doc.createdAt.getFullYear(),
+        year: doc.metadata?.creationDate?.getFullYear() || doc.createdAt.getFullYear(),
       }));
     } catch (error) {
       console.error(`❌ [SYNTHESIS] Error fetching document metadata:`, error);
