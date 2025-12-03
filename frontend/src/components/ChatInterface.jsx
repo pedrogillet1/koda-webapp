@@ -3708,7 +3708,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 className="chat-input-area"
                 style={{
                     padding: isMobile ? '8px 12px 8px 12px' : '8px 20px 20px 20px',
-                    paddingBottom: isMobile ? 'calc(env(safe-area-inset-bottom) + 8px)' : '20px',
+                    paddingBottom: isMobile ? 0 : '20px',
                     paddingTop: isMobile ? 8 : 8,
                     background: isMobile ? 'white' : '#F5F5F7',
                     borderTop: isMobile ? '1px solid #E6E6EC' : 'none',
@@ -3719,7 +3719,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     flexShrink: 0,
                     // ✅ MOBILE KEYBOARD FIX: Fixed position at bottom on mobile
                     position: isMobile ? 'fixed' : 'relative',
-                    bottom: isMobile ? keyboardHeight : 'auto',
+                    bottom: isMobile ? 70 : 'auto',
                     left: isMobile ? 0 : 'auto',
                     right: isMobile ? 0 : 'auto',
                     width: isMobile ? '100%' : 'auto',
@@ -4120,7 +4120,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 )}
             </div>
             </div>
-            )}
 
             {/* Upload Notification - Matches UniversalUploadModal */}
             {showNotification && (uploadedCount > 0 || notificationType === 'error') && (
