@@ -64,7 +64,7 @@ Return empty array if no contradictions found.
 `;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4-turbo-preview',
+    model: 'gpt-4o',
     messages: [{ role: 'user', content: prompt }],
     response_format: { type: 'json_object' }
   });
@@ -116,7 +116,7 @@ Do not extract opinions or subjective statements.
 `;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-4o',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' }
     });

@@ -75,7 +75,7 @@ class TrendAnalysisService {
     if (apiKey) {
       this.genAI = new GoogleGenerativeAI(apiKey);
       this.model = this.genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           temperature: 0.3,
           maxOutputTokens: 4096,
@@ -152,7 +152,7 @@ class TrendAnalysisService {
         status: 'completed',
       },
       include: {
-        document_metadata: true,
+        metadata: true,
       },
     });
 
@@ -181,8 +181,8 @@ class TrendAnalysisService {
       let year: number | null = null;
 
       // Try metadata first
-      if (doc.document_metadata?.creationDate) {
-        year = new Date(doc.document_metadata.creationDate).getFullYear();
+      if (doc.metadata?.creationDate) {
+        year = new Date(doc.metadata.creationDate).getFullYear();
       }
 
       // Try to extract from filename or content
@@ -191,9 +191,9 @@ class TrendAnalysisService {
       }
 
       // Try to extract from topics/keywords
-      if (!year && doc.document_metadata?.topics) {
+      if (!year && doc.metadata?.topics) {
         try {
-          const topics = JSON.parse(doc.document_metadata.topics);
+          const topics = JSON.parse(doc.metadata.topics);
           // Look for year patterns in topics
           for (const topic of topics) {
             const yearMatch = topic.match(/\b(19\d{2}|20[0-2]\d)\b/);
@@ -207,20 +207,20 @@ class TrendAnalysisService {
 
       // Extract topics from metadata
       let topics: string[] = [];
-      if (doc.document_metadata?.topics) {
+      if (doc.metadata?.topics) {
         try {
-          topics = JSON.parse(doc.document_metadata.topics);
+          topics = JSON.parse(doc.metadata.topics);
         } catch (e) { /* ignore */ }
       }
-      if (doc.document_metadata?.keyEntities) {
+      if (doc.metadata?.keyEntities) {
         try {
-          const entities = JSON.parse(doc.document_metadata.keyEntities);
+          const entities = JSON.parse(doc.metadata.keyEntities);
           topics = [...topics, ...entities];
         } catch (e) { /* ignore */ }
       }
 
       // Detect data types from content
-      const dataTypes = this.detectDataTypes(doc.document_metadata?.extractedText || '');
+      const dataTypes = this.detectDataTypes(doc.metadata?.extractedText || '');
 
       result.push({
         documentId: doc.id,

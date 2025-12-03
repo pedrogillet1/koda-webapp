@@ -14,6 +14,9 @@ import ragService from './rag.service';
 import cacheService from './cache.service';
 import { getIO } from './websocket.service';
 import * as memoryService from './memory.service';
+import { detectLanguage } from './languageDetection.service';
+import { profileService } from './profile.service';
+import historyService from './history.service';
 import OpenAI from 'openai';
 import { config } from '../config/env';
 
@@ -519,6 +522,22 @@ export const sendMessageStreaming = async (
   console.log('📚 Building conversation context...');
   const fullConversationContext = await buildConversationContext(conversationId, userId);
 
+  // ✅ LANGUAGE DETECTION: Detect user's language for proper response
+  console.log('🌍 Detecting query language...');
+  const detectedLanguage = detectLanguage(content);
+  console.log(`🌍 Detected language: ${detectedLanguage}`);
+
+  // ✅ USER PROFILE: Load user profile for personalized responses
+  console.log('👤 Loading user profile for personalization...');
+  const userProfile = await profileService.getProfile(userId);
+  const profilePrompt = profileService.buildProfileSystemPrompt(userProfile);
+
+  if (userProfile) {
+    console.log(`✅ Profile loaded - Writing Style: ${userProfile.writingStyle}, Tone: ${userProfile.preferredTone}`);
+  } else {
+    console.log('ℹ️ No user profile found - using default settings');
+  }
+
   // Call hybrid RAG service with streaming
   let isDocumentGeneration = false;
   let documentType: 'summary' | 'report' | 'analysis' | 'general' = 'general';
@@ -551,7 +570,10 @@ export const sendMessageStreaming = async (
     conversationHistory,  // ✅ Pass conversation history for context
     undefined,            // onStage callback (not used here)
     memoryContext,        // ✅ NEW: Pass memory context
-    fullConversationContext // ✅ NEW: Pass full conversation history
+    fullConversationContext, // ✅ NEW: Pass full conversation history
+    undefined,            // isFirstMessage (9th parameter)
+    detectedLanguage,     // ✅ FIX: Pass detected language (10th parameter)
+    profilePrompt         // ✅ USER PROFILE: Pass user profile prompt (11th parameter)
   );
 
 
@@ -687,6 +709,11 @@ export const sendMessageStreaming = async (
     console.log('🏷️ [TITLE] Triggering animated title generation for first message');
     autoGenerateTitle(conversationId, userId, content, fullResponse)
       .catch(err => console.error('❌ Error generating title:', err));
+  } else if (userMessageCount === 2) {
+    // ✅ Chat History UX: Auto-title after 3rd message (using history service)
+    console.log('🏷️ [HISTORY] Auto-titling conversation after 3rd message');
+    historyService.autoTitleConversation(conversationId)
+      .catch(err => console.error('❌ Error auto-titling conversation:', err));
   }
 
   // ✅ NEW: Extract memory insights after sufficient conversation (fire-and-forget)
@@ -694,6 +721,13 @@ export const sendMessageStreaming = async (
   if (userMessageCount >= 5) {
     console.log(`🧠 Extracting memory insights (${userMessageCount} messages) - TODO: implement`);
     // TODO: Implement extractMemoryFromConversation in memory.service
+  }
+
+  // ✅ Chat History UX: Generate summary for long conversations (fire-and-forget)
+  if (userMessageCount === 10) {
+    console.log('📝 [HISTORY] Generating conversation summary');
+    historyService.generateConversationSummary(conversationId)
+      .catch(err => console.error('❌ Error generating summary:', err));
   }
 
   // ⚡ CACHE: Invalidate conversation cache after new message (fire-and-forget)

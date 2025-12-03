@@ -2058,7 +2058,8 @@ export async function generateAnswerStream(
   memoryContext?: string,
   fullConversationContext?: string,
   isFirstMessage?: boolean,  // ? NEW: Flag to control greeting logic
-  detectedLanguage?: string  // ? FIX: Accept pre-detected language from controller
+  detectedLanguage?: string,  // ? FIX: Accept pre-detected language from controller
+  profilePrompt?: string  // ? USER PROFILE: Custom prompt from user profile for personalization
 ): Promise<{ sources: any[] }> {
   console.log('🚀 [DEBUG] generateAnswerStream called');
   console.log('🚀 [DEBUG] onChunk is function:', typeof onChunk === 'function');

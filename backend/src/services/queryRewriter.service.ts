@@ -214,7 +214,7 @@ class QueryRewriterService {
   private async rewriteWithLLM(query: string, contextSummary: string): Promise<string> {
     try {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           temperature: 0.3,
           maxOutputTokens: 150,

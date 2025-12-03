@@ -48,7 +48,7 @@ IMPORTANT: Only decompose if the query is actually complex. Simple queries shoul
 `;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4-turbo-preview',
+    model: 'gpt-4o',
     messages: [{ role: 'user', content: prompt }],
     response_format: { type: 'json_object' }
   });

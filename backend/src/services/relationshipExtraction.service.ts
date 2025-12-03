@@ -235,7 +235,7 @@ async function extractWithLLM(
   existingEntities: Entity[] = [],
   domain?: string
 ): Promise<{ entities: Entity[]; relationships: Relationship[] }> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const existingEntityNames = existingEntities.map(e => e.name).join(', ');
 

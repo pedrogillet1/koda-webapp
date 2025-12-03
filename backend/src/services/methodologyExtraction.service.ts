@@ -178,7 +178,7 @@ class MethodologyExtractionService {
     if (apiKey) {
       this.genAI = new GoogleGenerativeAI(apiKey);
       this.model = this.genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           temperature: 0.1,
           maxOutputTokens: 4096,

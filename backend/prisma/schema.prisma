@@ -396,6 +396,12 @@ model Conversation {
   scopeDocumentIds String[] @default([])  // Current conversation scope (document IDs)
   scopeDescription String?                // Description of current scope
 
+  // ✅ Chat History UX Features (Manus AI Guide #8)
+  summary     String?  @db.Text // AI-generated summary of conversation
+  isPinned    Boolean  @default(false) // Pin important conversations to the top
+  isDeleted   Boolean  @default(false) // Soft delete flag
+  deletedAt   DateTime? // Timestamp of deletion
+
   // Relations
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages    Message[]
@@ -404,6 +410,7 @@ model Conversation {
   @@index([userId])
   @@index([contextType, contextId])
   @@index([userId, updatedAt])
+  @@index([userId, isDeleted, isPinned, updatedAt]) // For efficient history queries
   @@map("conversations")
 }
 
@@ -1151,6 +1158,13 @@ model UserProfile {
   role      String?  // e.g., "lawyer", "accountant", "student"
   organization String?
   expertiseLevel String? // "beginner", "intermediate", "expert"
+
+  // Knowledge gathering fields
+  customInstructions String? @db.Text // User-provided general instructions
+  writingStyle       String?          // e.g., 'concise', 'detailed', 'bullet-points'
+  preferredTone      String?          // e.g., 'formal', 'casual', 'humorous'
+  coreGoals          String? @db.Text // Key goals the user is working on
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1675,6 +1689,39 @@ model CulturalProfile {
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// AI CREATIVITY ENGINE - Persona System
+// ════════════════════════════════════════════════════════════════════════════════
+
+// Persona model - Custom AI personas with different personalities and styles
+model Persona {
+  id              String   @id @default(uuid())
+  userId          String?  // Null for system personas
+  name            String   // Unique name identifier (e.g., "comedian", "academic")
+  displayName     String   // User-friendly display name
+  description     String?  @db.Text // Description of the persona
+  systemPrompt    String   @db.Text // The system prompt for this persona
+
+  // Personality configuration
+  recommendedTemperature Float   @default(0.7) // Recommended temperature (0.0-2.0)
+  tags            String[] @default([]) // Tags for categorization (e.g., ["funny", "creative"])
+
+  // Metadata
+  isSystem        Boolean  @default(false) // System personas cannot be deleted
+  usageCount      Int      @default(0) // Number of times used
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([name])
+  @@index([isSystem])
+  @@index([isActive])
+  @@map("personas")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // PRESENTATION GENERATION SYSTEM (Manus-Style Slides)
 // ════════════════════════════════════════════════════════════════════════════════
 
@@ -1685,24 +1732,24 @@ model Presentation {
   title       String
   description String?  @db.Text
   status      String   @default("draft") // draft, generating, completed, failed
-  
+
   // Style configuration (Koda design system)
   colorPalette        String?  @db.Text // JSON: primary, secondary, accent colors
   typography          String?  @db.Text // JSON: font families and sizes
   aestheticDirection  String?  @db.Text // Design direction description
-  
+
   // Metadata
   totalSlides  Int      @default(0)
   viewCount    Int      @default(0)
   lastViewedAt DateTime?
-  
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   // Relations
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   slides      Slide[]
-  
+
   @@index([userId])
   @@index([status])
   @@index([createdAt])

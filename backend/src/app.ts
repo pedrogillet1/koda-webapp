@@ -25,7 +25,11 @@ import presentationRoutes from './routes/presentation.routes';
 import presignedUrlRoutes from './routes/presigned-url.routes';
 import storageRoutes from './routes/storage.routes';
 import agentRoutes from './routes/agent.routes';
+import creativityRoutes from './routes/creativity.routes';
+import profileRoutes from './routes/profile.routes';
+import historyRoutes from './routes/history.routes';
 import { explanationController } from './controllers/explanation.controller';
+import { profileController } from './controllers/profile.controller';
 // TODO: Temporarily disabled routes with deleted service dependencies
 // import dataProtectionRoutes from './routes/dataProtection.routes';
 // import documentGenerationRoutes from './routes/documentGeneration.routes';
@@ -192,6 +196,7 @@ app.use('/api/folders', folderRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/history', historyRoutes); // Chat history UX: search, pin, smart filtering
 // app.use('/api/sessions', sessionRoutes); // Session-based multi-document analysis (temporarily disabled - missing file)
 // TODO: Temporarily disabled route with deleted service dependencies
 // app.use('/api/chat', chatDocumentAnalysisRoutes); // Advanced: Chat-based document analysis (temporary documents)
@@ -208,6 +213,12 @@ app.use('/api/presigned-urls', presignedUrlRoutes); // Presigned URL generation 
 app.use('/api/storage', storageRoutes); // Storage usage and limits (5GB beta)
 app.use('/api/presentations', presentationRoutes); // Manus-style presentation generation
 app.use('/api/agent', agentRoutes); // Problem-solving agent with ReAct reasoning
+app.use('/api/creativity', creativityRoutes); // AI Creativity Engine: temperature and persona controls
+app.use('/api/profile', profileRoutes); // User profile and knowledge gathering
+
+// Additional profile endpoints with userId parameter (for admin/testing purposes)
+app.get('/api/profiles/:userId', profileController.getProfileByParam.bind(profileController));
+app.put('/api/profiles/:userId', profileController.updateProfileByParam.bind(profileController));
 
 // Explanation Pipeline endpoint (Chain of Thought + Fact-Checking)
 app.post('/api/explain', explanationController.generate.bind(explanationController));
