@@ -1358,6 +1358,7 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
+
   /* Folder Detail page content */
   .folder-detail-content,
   .folder-content,

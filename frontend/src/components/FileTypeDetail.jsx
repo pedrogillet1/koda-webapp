@@ -458,7 +458,7 @@ const FileTypeDetail = () => {
         )}
 
         {/* Content */}
-        <div className="file-type-content scrollable-content" style={{ flex: 1, overflow: 'auto', padding: isMobile ? '8px 16px' : '20px 32px', paddingBottom: isMobile ? 100 : 32, WebkitOverflowScrolling: 'touch' }}>
+        <div className="file-type-content scrollable-content" style={{ flex: 1, overflow: 'auto', padding: isMobile ? '0 16px' : '20px 32px', paddingTop: isMobile ? 0 : 20, paddingBottom: isMobile ? 100 : 32, WebkitOverflowScrolling: 'touch' }}>
           <style>{`
             @keyframes cardFadeIn {
               from { opacity: 0; transform: translateY(10px); }
