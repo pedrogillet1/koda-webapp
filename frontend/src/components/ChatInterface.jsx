@@ -2536,7 +2536,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             background: '#F5F5F7',
             position: 'relative',
             width: isMobile ? '100%' : 'auto',
-            height: isMobile ? 'calc(100dvh - 70px)' : '100%',
+            height: isMobile ? 'calc(100dvh - 70px - env(safe-area-inset-bottom))' : '100%',
             overflow: 'hidden'
         }}>
             {/* Header - sticky with safe-area padding for notch/dynamic island */}
