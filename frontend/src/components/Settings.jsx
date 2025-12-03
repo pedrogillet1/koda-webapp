@@ -643,10 +643,9 @@ const Settings = () => {
   return (
     <div data-page="settings" className="settings-page" style={{
   width: '100%',
-  height: isMobile ? 'auto' : '100vh',
-  minHeight: '100vh',
+  height: '100%',
   background: '#F4F4F6',
-  overflow: isMobile ? 'visible' : 'hidden',
+  overflow: 'hidden',
   justifyContent: 'flex-start',
   alignItems: isMobile ? 'stretch' : 'center',
   display: 'flex',
@@ -869,18 +868,18 @@ const Settings = () => {
 
       {/* Main Content */}
       <div className="settings-content" style={{
-        flex: isMobile ? '0 0 auto' : '1 1 0',
-        height: isMobile ? 'auto' : '100vh',
-        minHeight: isMobile ? 'calc(100vh - 140px)' : '100vh',
+        flex: '1 1 0',
+        height: '100%',
+        minHeight: 0,
         width: isMobile ? '100%' : 'auto',
         flexDirection: 'column',
         justifyContent: 'flex-start',
         alignItems: 'flex-start',
         display: 'flex',
-        overflow: isMobile ? 'visible' : 'hidden'
+        overflow: 'hidden'
       }}>
         {/* Header */}
-        <div data-settings-header="true" className="mobile-sticky-header" style={{ alignSelf: 'stretch', height: isMobile ? 56 : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'space-between', alignItems: 'center', gap: 12, display: 'flex', position: isMobile ? 'sticky' : 'relative', top: isMobile ? 0 : 'auto', zIndex: isMobile ? 10 : 'auto' }}>
+        <div data-settings-header="true" className="mobile-sticky-header" style={{ alignSelf: 'stretch', minHeight: isMobile ? 56 : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 'max(env(safe-area-inset-top), 0px)' : 0, background: 'white', borderBottom: '1px #E6E6EC solid', justifyContent: 'space-between', alignItems: 'center', gap: 12, display: 'flex', position: isMobile ? 'sticky' : 'relative', top: isMobile ? 0 : 'auto', zIndex: isMobile ? 10 : 'auto', flexShrink: 0 }}>
           <div style={{ textAlign: 'left', color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', flex: isMobile ? 1 : 'auto' }}>
             {activeSection}
           </div>
@@ -888,7 +887,7 @@ const Settings = () => {
 
         {/* Mobile Section Tabs */}
         {isMobile && (
-          <div style={{ alignSelf: 'stretch', padding: 12, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', gap: 8, overflowX: 'auto' }}>
+          <div style={{ alignSelf: 'stretch', padding: 12, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', gap: 8, overflowX: 'auto', flexShrink: 0 }}>
             {['general', 'profile', 'password'].map((section) => (
               <div
                 key={section}
@@ -916,11 +915,12 @@ const Settings = () => {
         {activeSection === 'general' && (
         <div className="settings-form scrollable-content" style={{
           alignSelf: 'stretch',
-          flex: isMobile ? '0 0 auto' : '1 1 0',
+          flex: '1 1 0',
           minHeight: 0,
           padding: isMobile ? 16 : 32,
-          paddingBottom: isMobile ? 100 : 32,
-          overflow: isMobile ? 'visible' : 'auto',
+          paddingBottom: isMobile ? 80 : 32,
+          overflow: 'auto',
+          overflowX: 'hidden',
           flexDirection: 'column',
           justifyContent: 'flex-start',
           alignItems: 'flex-start',
@@ -1287,11 +1287,11 @@ const Settings = () => {
         {activeSection === 'profile' && (
           <div data-settings-form="true" className="settings-form scrollable-content" style={{
             alignSelf: 'stretch',
-            flex: isMobile ? '0 0 auto' : '1 1 0',
+            flex: '1 1 0',
             minHeight: 0,
             padding: isMobile ? 16 : 20,
-            paddingBottom: isMobile ? 100 : 20,
-            overflow: isMobile ? 'visible' : 'auto',
+            paddingBottom: isMobile ? 80 : 20,
+            overflow: 'auto',
             flexDirection: 'column',
             justifyContent: 'flex-start',
             alignItems: 'center',
@@ -1413,7 +1413,7 @@ const Settings = () => {
 
         {/* Password Section */}
         {activeSection === 'password' && (
-          <div style={{ alignSelf: 'stretch', flex: isMobile ? '0 0 auto' : '1 1 0', padding: isMobile ? 16 : 20, paddingBottom: isMobile ? '100px' : 20, overflow: isMobile ? 'visible' : 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 20, display: 'flex' }}>
+          <div style={{ alignSelf: 'stretch', flex: '1 1 0', minHeight: 0, padding: isMobile ? 16 : 20, paddingBottom: isMobile ? 80 : 20, overflow: 'auto', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 20, display: 'flex' }}>
             <div style={{ alignSelf: 'stretch', flex: '1 1 0', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: isMobile ? 20 : 32, display: 'flex' }}>
               <div style={{ alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: isMobile ? 12 : 20, display: 'flex' }}>
 
