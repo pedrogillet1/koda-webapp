@@ -36,7 +36,6 @@ import './StreamingAnimation.css';
 import StreamingMarkdown from './StreamingMarkdown';
 import StreamingWelcomeMessage from './StreamingWelcomeMessage';
 import { useToast } from '../context/ToastContext';
-import MobileComposer from './MobileComposer';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
 let globalSocketInitialized = false;
@@ -3703,43 +3702,30 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 <ScrollToBottomButton />
             </div>
 
-            {/* Message Input - ChatGPT-style Composer on Mobile */}
-            {isMobile ? (
-                <MobileComposer
-                    message={message}
-                    onMessageChange={setMessage}
-                    onSendMessage={handleSendMessage}
-                    onAttachFile={handleFileSelect}
-                    isLoading={isLoading}
-                    onStopGeneration={handleStopGeneration}
-                    attachedDocuments={attachedDocuments}
-                    onRemoveAttachment={handleRemoveAttachment}
-                    isMobile={isMobile}
-                    fileInputRef={fileInputRef}
-                    placeholder={t('chat.placeholder')}
-                />
-            ) : (
+            {/* Message Input - Fixed at bottom on mobile */}
             <div
                 data-input-area="true"
                 className="chat-input-area"
                 style={{
-                    padding: '8px 20px 20px 20px',
-                    paddingBottom: '20px',
-                    paddingTop: 8,
-                    background: '#F5F5F7',
-                    borderTop: 'none',
+                    padding: isMobile ? '8px 12px 8px 12px' : '8px 20px 20px 20px',
+                    paddingBottom: isMobile ? 'calc(env(safe-area-inset-bottom) + 8px)' : '20px',
+                    paddingTop: isMobile ? 8 : 8,
+                    background: isMobile ? 'white' : '#F5F5F7',
+                    borderTop: isMobile ? '1px solid #E6E6EC' : 'none',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 16,
+                    gap: isMobile ? 8 : 16,
                     flexShrink: 0,
-                    position: 'relative',
-                    bottom: 'auto',
-                    left: 'auto',
-                    right: 'auto',
-                    width: 'auto',
-                    zIndex: 'auto',
+                    // ✅ MOBILE KEYBOARD FIX: Fixed position at bottom on mobile
+                    position: isMobile ? 'fixed' : 'relative',
+                    bottom: isMobile ? keyboardHeight : 'auto',
+                    left: isMobile ? 0 : 'auto',
+                    right: isMobile ? 0 : 'auto',
+                    width: isMobile ? '100%' : 'auto',
+                    zIndex: isMobile ? 100 : 'auto',
                     boxSizing: 'border-box',
+                    transition: 'bottom 0.25s ease-out, transform 0.25s ease-out'
                 }}
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
