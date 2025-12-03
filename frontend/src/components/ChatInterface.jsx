@@ -2598,7 +2598,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     padding: isMobile ? 16 : 20,
                     // Dynamic padding: when keyboard opens, we need space for the fixed input
                     paddingBottom: isMobile
-                        ? `calc(${Math.max(120, keyboardHeight + 80)}px + env(safe-area-inset-bottom))`
+                        ? 'calc(20px + env(safe-area-inset-bottom))'
                         : 20,
                     position: 'relative',
                     WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
@@ -4099,9 +4099,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 {/* TASK #10: Trust & Security Footer - Hidden when keyboard is open on mobile */}
                 {!(isMobile && isKeyboardOpen) && (
                     <div style={{
-                        marginTop: isMobile ? 8 : 16,
-                        paddingTop: isMobile ? 8 : 16,
-                        marginBottom: isMobile ? 8 : 0,
+                        marginTop: isMobile ? 4 : 16,
+                        paddingTop: isMobile ? 4 : 16,
+                        marginBottom: 0,
                         borderTop: '2px solid #E6E6EC',
                         display: 'flex',
                         alignItems: 'center',
