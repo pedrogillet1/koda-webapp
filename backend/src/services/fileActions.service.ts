@@ -2028,7 +2028,7 @@ class FileActionsService {
       // Group by folder
       const byFolder: Record<string, typeof documents> = {};
       documents.forEach(doc => {
-        const folder = doc.folders?.name || 'Library';
+        const folder = doc.folder?.name || 'Library';
         if (!byFolder[folder]) byFolder[folder] = [];
         byFolder[folder].push(doc);
       });

@@ -73,11 +73,12 @@ export const invalidateUserCache = async (userId: string) => {
  * Before: 3 sequential requests (600-900ms total)
  * After: 1 batched request (200-300ms total)
  */
-export const getInitialData = async (req: Request, res: Response) => {
+export const getInitialData = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
     }
 
     // ✅ FIX: Remove 50-file limit - load ALL documents by default
@@ -95,7 +96,8 @@ export const getInitialData = async (req: Request, res: Response) => {
         if (cached) {
           const cachedData = JSON.parse(cached as string);
           console.log(`⚡ [CACHE HIT] Loaded initial data from cache in <10ms (${cachedData.meta.counts.documents} docs, ${cachedData.meta.counts.folders} folders)`);
-          return res.json(cachedData);
+          res.json(cachedData);
+          return;
         }
       } catch (cacheError: any) {
         console.warn('⚠️  Redis cache read failed, falling back to database:', cacheError.message);
@@ -263,9 +265,11 @@ export const getInitialData = async (req: Request, res: Response) => {
     }
 
     res.json(response);
+    return;
   } catch (error: any) {
     console.error('❌ [BATCH] Error loading initial data:', error);
     res.status(500).json({ error: error.message || 'Failed to load initial data' });
+    return;
   }
 };
 
@@ -273,21 +277,24 @@ export const getInitialData = async (req: Request, res: Response) => {
  * Batch update multiple documents
  * Useful for bulk operations (delete, move, tag)
  */
-export const batchUpdateDocuments = async (req: Request, res: Response) => {
+export const batchUpdateDocuments = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
     }
 
     const { documentIds, operation, data } = req.body;
 
     if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
-      return res.status(400).json({ error: 'documentIds array is required' });
+      res.status(400).json({ error: 'documentIds array is required' });
+      return;
     }
 
     if (!operation) {
-      return res.status(400).json({ error: 'operation is required' });
+      res.status(400).json({ error: 'operation is required' });
+      return;
     }
 
     console.log(`📦 [BATCH] ${operation} for ${documentIds.length} documents`);
@@ -307,7 +314,8 @@ export const batchUpdateDocuments = async (req: Request, res: Response) => {
 
       case 'move':
         if (!data?.folderId) {
-          return res.status(400).json({ error: 'folderId is required for move operation' });
+          res.status(400).json({ error: 'folderId is required for move operation' });
+          return;
         }
         result = await prisma.documents.updateMany({
           where: {
@@ -320,7 +328,8 @@ export const batchUpdateDocuments = async (req: Request, res: Response) => {
 
       case 'tag':
         if (!data?.tagId) {
-          return res.status(400).json({ error: 'tagId is required for tag operation' });
+          res.status(400).json({ error: 'tagId is required for tag operation' });
+          return;
         }
         // Create document-tag relations for all documents
         result = await prisma.document_tags.createMany({
@@ -333,7 +342,8 @@ export const batchUpdateDocuments = async (req: Request, res: Response) => {
         break;
 
       default:
-        return res.status(400).json({ error: `Unknown operation: ${operation}` });
+        res.status(400).json({ error: `Unknown operation: ${operation}` });
+        return;
     }
 
     console.log(`✅ [BATCH] ${operation} completed: ${result.count} documents affected`);
@@ -346,8 +356,10 @@ export const batchUpdateDocuments = async (req: Request, res: Response) => {
       operation,
       affected: result.count,
     });
+    return;
   } catch (error: any) {
     console.error(`❌ [BATCH] Error in batch update:`, error);
     res.status(500).json({ error: error.message || 'Batch update failed' });
+    return;
   }
 };

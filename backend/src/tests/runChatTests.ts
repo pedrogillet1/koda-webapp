@@ -96,7 +96,7 @@ class ChatTestRunner {
         status: 'completed',
       },
       include: {
-        document_metadata: true,
+        metadata: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 10,

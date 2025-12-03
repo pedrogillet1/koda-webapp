@@ -32,6 +32,8 @@ import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts';
 import useStreamingAnimation from '../hooks/useStreamingAnimation';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import './MarkdownStyles.css';
+import './StreamingAnimation.css';
+import StreamingMarkdown from './StreamingMarkdown';
 import StreamingWelcomeMessage from './StreamingWelcomeMessage';
 import { useToast } from '../context/ToastContext';
 
@@ -64,7 +66,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     // Message state - draft is loaded via useEffect when conversation changes
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
-    const [hasMessages, setHasMessages] = useState(false); // ✅ FIX #4: Track if any messages were sent
     const [isLoading, setIsLoading] = useState(false);
     // ✅ OPTIMISTIC LOADING: Load user from localStorage immediately (synchronous, < 10ms)
     // This makes greeting appear instantly, then fetch fresh data in background
@@ -116,14 +117,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     const abortControllerRef = useRef(null);
     const manuallyRemovedDocumentRef = useRef(false);
     const pendingMessageRef = useRef(null); // Queue final message data until animation completes
-    const isNewlyCreatedConversation = useRef(false); // Track if this is a NEW conversation created in this session
     const previousConversationIdRef = useRef(null); // ✅ FIX: Track previous conversation ID to prevent unnecessary reloads
     const searchInputRef = useRef(null); // For focusing search via keyboard shortcut
     const conversationCache = useRef({}); // ✅ FIX: Cache messages for instant conversation switching
 
     // Display streaming chunks immediately without animation for smoother UX (like ChatGPT)
-    // ✅ ChatGPT-style streaming animation
-    const animatedStreamingMessage = useStreamingAnimation(streamingMessage, 2, 30);
+    // ✅ ENHANCED ChatGPT-style streaming animation with improved performance
+    const animatedStreamingMessage = useStreamingAnimation(streamingMessage, 3, 60);
     const displayedText = animatedStreamingMessage;
     const isStreaming = isLoading && streamingMessage.length > 0;
 
@@ -954,17 +954,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         }
     }, [messages, currentConversation]);
 
-    // ✅ FIX #4: Track if any messages were sent (to prevent incorrect cleanup)
-    useEffect(() => {
-        // Don't count optimistic messages
-        const realMessages = messages.filter(m => !m.isOptimistic);
-        if (realMessages.length > 0) {
-            setHasMessages(true);
-            // Once messages exist, this is no longer a "new" conversation
-            isNewlyCreatedConversation.current = false;
-        }
-    }, [messages]);
-
     // ✅ SMART SCROLL: Auto-scroll while streaming (only if user is at bottom)
     useEffect(() => {
         if (displayedText && messagesContainerRef.current) {
@@ -1100,44 +1089,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     //     const needsWeb = researchKeywords.some(keyword => messageLower.includes(keyword));
     //     setShowResearchSuggestion(needsWeb);
     // }, [message, researchMode]);
-
-    // ✅ FIX #4: Auto-delete empty conversations when navigating away
-    // Only delete if this is a NEWLY CREATED conversation AND no messages were sent
-    useEffect(() => {
-        return () => {
-            // Only delete if this was a NEW conversation created in this session AND no messages were sent
-            if (currentConversation?.id && isNewlyCreatedConversation.current && !hasMessages) {
-                console.log('🗑️ [CLEANUP] Deleting newly created empty conversation:', currentConversation.id, 'hasMessages:', hasMessages, 'isNew:', isNewlyCreatedConversation.current);
-                chatService.deleteConversation(currentConversation.id)
-                    .catch(err => {
-                        if (err.response?.status !== 404) {
-                            console.error('Failed to delete empty conversation:', err);
-                        }
-                    });
-            } else if (currentConversation?.id) {
-                console.log('✅ [CLEANUP] Keeping conversation:', currentConversation.id, 'hasMessages:', hasMessages, 'isNew:', isNewlyCreatedConversation.current);
-            }
-        };
-    }, [currentConversation?.id, hasMessages]); // Re-run when conversation or hasMessages changes
-
-    // Track whether this is a newly created conversation or loaded from database
-    useEffect(() => {
-        if (currentConversation?.id) {
-            // Check if loaded messages exist for this conversation
-            const realMessages = messages.filter(m => !m.isOptimistic);
-            setHasMessages(realMessages.length > 0);
-
-            // If this conversation was just created in this component, it's marked as "newly created"
-            if (currentConversation.id === justCreatedConversationId.current) {
-                isNewlyCreatedConversation.current = true;
-            } else if (realMessages.length > 0) {
-                // If this conversation has messages already, it's not "newly created"
-                isNewlyCreatedConversation.current = false;
-            }
-
-            console.log('🔄 [CONVERSATION CHANGE] conversation:', currentConversation.id?.substring(0, 8), 'hasMessages:', realMessages.length > 0, 'isNew:', isNewlyCreatedConversation.current);
-        }
-    }, [currentConversation?.id, messages.length]); // Re-run when conversation or messages change
 
     // Handle documentId from URL parameter (Ask Koda feature)
     useEffect(() => {
@@ -2100,7 +2051,6 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 const newConversation = await chatService.createConversation();
                 console.log('✅ Conversation created:', newConversation);
                 justCreatedConversationId.current = newConversation.id;
-                isNewlyCreatedConversation.current = true; // Mark as newly created
 
                 // ⚡ FIX #3 & #4: Clear sessionStorage cache and force sidebar refresh
                 // This ensures the new conversation appears in the sidebar immediately
@@ -3686,37 +3636,13 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     <div style={{overflow: 'hidden', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
                                         <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
                                                 <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4, display: 'flex'}}>
-                                                    <div className="markdown-preview-container streaming" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', whiteSpace: 'pre-wrap', overflowWrap: 'break-word'}}>
-                                                        <ReactMarkdown
-                                                            remarkPlugins={[remarkGfm]}
-                                                            components={{
-                                                                a: DocumentLink,
-                                                                table: ({node, ...props}) => <table className="markdown-table" {...props} />,
-                                                                thead: ({node, ...props}) => <thead {...props} />,
-                                                                tbody: ({node, ...props}) => <tbody {...props} />,
-                                                                tr: ({node, ...props}) => <tr {...props} />,
-                                                                th: ({node, ...props}) => <th {...props} />,
-                                                                td: ({node, ...props}) => <td {...props} />,
-                                                                h1: ({node, ...props}) => <h1 className="markdown-h1" {...props} />,
-                                                                h2: ({node, ...props}) => <h2 className="markdown-h2" {...props} />,
-                                                                h3: ({node, ...props}) => <h3 className="markdown-h3" {...props} />,
-                                                                h4: ({node, ...props}) => <h4 className="markdown-h4" {...props} />,
-                                                                h5: ({node, ...props}) => <h5 className="markdown-h5" {...props} />,
-                                                                h6: ({node, ...props}) => <h6 className="markdown-h6" {...props} />,
-                                                                p: ({node, ...props}) => <p className="markdown-paragraph" {...props} />,
-                                                                ul: ({node, ...props}) => <ul className="markdown-ul" {...props} />,
-                                                                ol: ({node, ...props}) => <ol className="markdown-ol" {...props} />,
-                                                                code: ({node, inline, ...props}) =>
-                                                                    inline ? <code className="markdown-inline-code" {...props} /> : <code className="markdown-code-block" {...props} />,
-                                                                blockquote: ({node, ...props}) => <blockquote className="markdown-blockquote" {...props} />,
-                                                                hr: ({node, ...props}) => <hr className="markdown-hr" {...props} />,
-                                                                img: ({node, ...props}) => <img className="markdown-image" {...props} alt={props.alt || ''} />,
-                                                            }}
-                                                        >
-                                                            {displayedText}
-                                                        </ReactMarkdown>
-                                                        {isStreaming && <span className="cursor">▋</span>}
-                                                    </div>
+                                                    <StreamingMarkdown
+                                                        content={displayedText}
+                                                        isStreaming={isStreaming}
+                                                        customComponents={{
+                                                            a: DocumentLink,
+                                                        }}
+                                                    />
                                                 </div>
                                         </div>
                                     </div>

@@ -1,0 +1,222 @@
+/**
+ * ✨ ChatGPT-Style Streaming Animation Styles
+ *
+ * Features:
+ * - Blinking cursor animation
+ * - Smooth markdown rendering
+ * - Sub-section fade-in effects
+ * - Performance optimized animations
+ */
+
+/* ═══════════════════════════════════════════════════════════════
+   CURSOR ANIMATION
+   ═══════════════════════════════════════════════════════════════ */
+
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background-color: #10a37f; /* ChatGPT green */
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  50.01%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Alternative pulsing cursor (smoother) */
+.streaming-cursor-pulse {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background-color: #10a37f;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STREAMING CONTAINER
+   ═══════════════════════════════════════════════════════════════ */
+
+.streaming-message-container {
+  position: relative;
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MARKDOWN ELEMENT ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Smooth appearance for new markdown elements */
+.markdown-preview-container.streaming * {
+  animation: elementFadeIn 0.2s ease-out;
+}
+
+@keyframes elementFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Code blocks appear with subtle slide */
+.markdown-preview-container.streaming pre {
+  animation: codeBlockSlide 0.3s ease-out;
+}
+
+@keyframes codeBlockSlide {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Tables appear with fade */
+.markdown-preview-container.streaming table {
+  animation: tableFadeIn 0.4s ease-out;
+}
+
+@keyframes tableFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Headings appear with subtle emphasis */
+.markdown-preview-container.streaming h1,
+.markdown-preview-container.streaming h2,
+.markdown-preview-container.streaming h3,
+.markdown-preview-container.streaming h4,
+.markdown-preview-container.streaming h5,
+.markdown-preview-container.streaming h6 {
+  animation: headingAppear 0.3s ease-out;
+}
+
+@keyframes headingAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* List items appear sequentially */
+.markdown-preview-container.streaming li {
+  animation: listItemSlide 0.2s ease-out;
+}
+
+@keyframes listItemSlide {
+  from {
+    opacity: 0;
+    transform: translateX(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PERFORMANCE OPTIMIZATIONS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Use GPU acceleration for animations */
+.streaming-message-container,
+.streaming-cursor,
+.streaming-cursor-pulse {
+  will-change: opacity, transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .streaming-cursor,
+  .streaming-cursor-pulse,
+  .streaming-message-container,
+  .markdown-preview-container.streaming * {
+    animation: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TYPING INDICATOR (Optional - for "Thinking..." state)
+   ═══════════════════════════════════════════════════════════════ */
+
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10a37f;
+  animation: typingBounce 1.4s infinite ease-in-out;
+}
+
+.typing-indicator span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  30% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+}

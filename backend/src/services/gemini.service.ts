@@ -807,7 +807,9 @@ export const sendMessageToGeminiStreaming = async (
   documentContext?: string,
   onChunk?: (chunk: string) => void,
   detectedLanguage?: string,
-  useResearch?: boolean
+  useResearch?: boolean,
+  customTemperature?: number,
+  customPersonaPrompt?: string
 ): Promise<GeminiResponse> => {
   // 🔍 DIAGNOSTIC: Track overall timing
   const startTime = Date.now();
@@ -816,9 +818,11 @@ export const sendMessageToGeminiStreaming = async (
   try {
     // Build system prompt
     console.time('⏱️ [1] Build Prompt');
-    let systemPrompt = userName
+
+    // Use custom persona prompt if provided, otherwise use default KODA prompt
+    let systemPrompt = customPersonaPrompt || (userName
       ? KODA_SYSTEM_PROMPT.replace('the user', userName)
-      : KODA_SYSTEM_PROMPT;
+      : KODA_SYSTEM_PROMPT);
 
     // Add language instruction if language detected
     if (detectedLanguage) {
@@ -889,6 +893,19 @@ export const sendMessageToGeminiStreaming = async (
     // Detect if this is a document analysis request
     const isDocumentAnalysis = documentContext && documentContext.length > 0;
 
+    // Determine temperature to use
+    // Priority: customTemperature > document analysis (0) > default (0.7)
+    let temperature = 0.7; // Default
+    if (customTemperature !== undefined) {
+      temperature = customTemperature;
+      console.log(`🎨 [CREATIVITY ENGINE] Using custom temperature: ${temperature}`);
+    } else if (isDocumentAnalysis) {
+      temperature = 0; // Precise for document analysis
+      console.log(`📄 [DOCUMENT MODE] Using temperature: 0 (precise)`);
+    } else {
+      console.log(`💬 [CHAT MODE] Using default temperature: 0.7`);
+    }
+
     // Filter functions based on research mode - remove web_search if research is disabled
     const availableFunctions = useResearch === false
       ? kodaFunctions.filter(fn => fn.type === 'function' && fn.function.name !== 'web_search')
@@ -910,7 +927,7 @@ export const sendMessageToGeminiStreaming = async (
         model: 'gpt-4o-mini',
         messages,
         tools: availableFunctions,
-        temperature: isDocumentAnalysis ? 0 : 0.7,
+        temperature: temperature,
         max_tokens: 16000, // Maximize output tokens
         stream: true, // Enable streaming
       }),

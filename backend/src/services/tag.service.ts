@@ -168,8 +168,8 @@ export const searchDocumentsByTag = async (tagId: string, userId: string) => {
           tags: true,
         },
       },
-      folders: true,
-      document_metadata: true,
+      folder: true,
+      metadata: true,
     },
     orderBy: { createdAt: 'desc' },
   });

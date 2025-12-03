@@ -167,7 +167,7 @@ export const loginUser = async ({ email, password, rememberMe }: LoginInput) => 
   }
 
   // Check if 2FA is enabled
-  const requires2FA = user.two_factor_auth?.isEnabled || false;
+  const requires2FA = user.twoFactorAuth?.isEnabled || false;
 
   // Generate tokens with custom expiration if rememberMe is true
   // Remember Me: 30 days, Normal: default expiry (15 minutes for access, 7 days for refresh)

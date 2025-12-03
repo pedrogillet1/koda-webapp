@@ -124,8 +124,8 @@ class FolderContentsHandler {
    */
   private async handleFolderContents(folder: any, userId: string): Promise<RAGResponse> {
     const folderPath = await getFolderPath(folder.id);
-    const categoryName = folder.categories?.name || 'Uncategorized';
-    const categoryEmoji = folder.categories?.emoji || '📁';
+    // Note: Folders don't have categories in the schema, using folder emoji/name instead
+    const categoryEmoji = folder.emoji || '📁';
 
     // Get documents in this folder
     const documents = await prisma.documents.findMany({

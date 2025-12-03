@@ -399,7 +399,7 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
         isEmailVerified: true,
         phoneNumber: true,
         isPhoneVerified: true,
-        two_factor_auth: {
+        twoFactorAuth: {
           select: {
             isEnabled: true,
           },
@@ -422,7 +422,7 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
         emailVerified: user.isEmailVerified,
         phoneNumber: user.phoneNumber,
         phoneVerified: user.isPhoneVerified,
-        twoFactorEnabled: user.two_factor_auth?.isEnabled || false,
+        twoFactorEnabled: user.twoFactorAuth?.isEnabled || false,
       }
     });
   } catch (error) {

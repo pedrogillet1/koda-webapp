@@ -55,7 +55,7 @@ export interface DocumentChunk {
   section?: string;
   heading?: string;
   embedding?: number[]; // Vector embedding (3072 dimensions for text-embedding-3-large)
-  document_metadata: {
+  metadata: {
     type?: 'heading' | 'paragraph' | 'list' | 'table' | 'code' | 'quote';
     heading?: string;
     section?: string;
@@ -226,7 +226,7 @@ export class UnifiedDocumentBuilder {
       hasCode: false,
       hasImages: false,
     },
-    document_metadata: {
+    metadata: {
       title: '',
       language: 'en',
       fileSize: 0,
@@ -267,7 +267,7 @@ export class UnifiedDocumentBuilder {
   }
 
   setMetadata(metadata: Partial<DocumentMetadata>): this {
-    this.document.document_metadata = { ...this.document.document_metadata!, ...document_metadata };
+    this.document.metadata = { ...this.document.metadata!, ...metadata };
     return this;
   }
 

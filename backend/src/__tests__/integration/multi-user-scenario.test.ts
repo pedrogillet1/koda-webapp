@@ -99,7 +99,7 @@ describe('Multi-User Scenario Integration Test', () => {
       data: {
         ...comprovanteDoc,
         status: 'processed',
-        document_metadata: {
+        metadata: {
           create: {
             extractedText: 'Comprovante de Pagamento\nValor: R$ 1.500,00\nData: 15/01/2025\nBeneficiário: João Silva',
           },
@@ -111,7 +111,7 @@ describe('Multi-User Scenario Integration Test', () => {
       data: {
         ...businessPlanDoc,
         status: 'processed',
-        document_metadata: {
+        metadata: {
           create: {
             extractedText: 'Koda Business Plan Version 12\nExecutive Summary...',
           },
@@ -124,7 +124,7 @@ describe('Multi-User Scenario Integration Test', () => {
       data: {
         ...psychiatricDoc,
         status: 'processed',
-        document_metadata: {
+        metadata: {
           create: {
             extractedText: 'CONFIDENTIAL - Psychiatric Evaluation Report\nPatient Name: Confidential\nDiagnosis: ...',
           },
@@ -170,15 +170,15 @@ describe('Multi-User Scenario Integration Test', () => {
           OR: [
             { filename: { contains: searchQuery } },
             {
-              document_metadata: {
+              metadata: {
                 extractedText: { contains: searchQuery },
               },
             },
           ],
         },
         include: {
-          folders: true,
-          document_metadata: true,
+          folder: true,
+          metadata: true,
         },
         orderBy: { createdAt: 'desc' },
       });

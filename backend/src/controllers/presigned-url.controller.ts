@@ -88,9 +88,9 @@ async function createFolderHierarchy(
       // Create new folder
       const newFolder = await prisma.folders.create({
         data: {
-          users: { connect: { id: userId } },
+          user: { connect: { id: userId } },
           name: folderName,
-          folders: parentFolderId ? { connect: { id: parentFolderId } } : undefined,
+          parentFolderId: parentFolderId,
           path: fullPath
         }
       });
@@ -211,8 +211,8 @@ export const generateBulkPresignedUrls = async (
           // Folder structure is preserved via targetFolderId
           const document = await prisma.documents.create({
             data: {
-              users: { connect: { id: userId } },
-              folders: targetFolderId ? { connect: { id: targetFolderId } } : undefined,
+              user: { connect: { id: userId } },
+              folder: targetFolderId ? { connect: { id: targetFolderId } } : undefined,
               filename: fileName,
               encryptedFilename,
               fileSize,

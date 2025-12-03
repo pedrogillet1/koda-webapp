@@ -406,7 +406,7 @@ async function processDocumentWithTimeout(
         if (result.success) {
           extractedText = result.fullText || '';
           const extractedSlides = result.slides || [];
-          pptxMetadata = result.document_metadata || {};
+          pptxMetadata = result.metadata || {};
           pageCount = result.totalSlides || null;
 
           // Store slide text data immediately (even without images)
@@ -971,19 +971,19 @@ async function processDocumentWithTimeout(
             // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
             chunks = excelChunks.map(chunk => ({
               content: `📄 File: ${filename} | ${chunk.content}`,
-              document_metadata: {
+              metadata: {
                 // ⚡ Document identification (CRITICAL for proper retrieval)
                 documentId: documentId,
                 filename: filename,
 
                 // ⚡ Excel-specific metadata
-                sheet: chunk.document_metadata.sheetName,
-                sheetNumber: chunk.document_metadata.sheetNumber,
-                row: chunk.document_metadata.rowNumber,
-                cells: chunk.document_metadata.cells,
-                chunkIndex: chunk.document_metadata.chunkIndex,
-                sourceType: chunk.document_metadata.sourceType,
-                tableHeaders: chunk.document_metadata.tableHeaders
+                sheet: chunk.metadata.sheetName,
+                sheetNumber: chunk.metadata.sheetNumber,
+                row: chunk.metadata.rowNumber,
+                cells: chunk.metadata.cells,
+                chunkIndex: chunk.metadata.chunkIndex,
+                sourceType: chunk.metadata.sourceType,
+                tableHeaders: chunk.metadata.tableHeaders
               }
             }));
 
@@ -1006,12 +1006,12 @@ async function processDocumentWithTimeout(
             if (isPowerPoint && pptxSlideChunks && pptxSlideChunks.length > 0) {
               chunks = pptxSlideChunks.map(slideChunk => ({
                 content: slideChunk.content,
-                document_metadata: {
+                metadata: {
                   filename,
-                  slideNumber: slideChunk.document_metadata.slideNumber,
-                  totalSlides: slideChunk.document_metadata.totalSlides,
-                  slideTitle: slideChunk.document_metadata.slideTitle,
-                  hasNotes: slideChunk.document_metadata.hasNotes,
+                  slideNumber: slideChunk.metadata.slideNumber,
+                  totalSlides: slideChunk.metadata.totalSlides,
+                  slideTitle: slideChunk.metadata.slideTitle,
+                  hasNotes: slideChunk.metadata.hasNotes,
                   sourceType: 'powerpoint',
                   chunkType: 'slide'
                 }
@@ -1408,7 +1408,7 @@ async function processDocumentAsync(
         if (result.success) {
           extractedText = result.fullText || '';
           const extractedSlides = result.slides || [];
-          pptxMetadata = result.document_metadata || {};
+          pptxMetadata = result.metadata || {};
           pageCount = result.totalSlides || null;
 
           // Store slide text data immediately (even without images)
@@ -1823,19 +1823,19 @@ async function processDocumentAsync(
             // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
             chunks = excelChunks.map(chunk => ({
               content: `📄 File: ${filename} | ${chunk.content}`,
-              document_metadata: {
+              metadata: {
                 // ⚡ Document identification (CRITICAL for proper retrieval)
                 documentId: documentId,
                 filename: filename,
 
                 // ⚡ Excel-specific metadata
-                sheet: chunk.document_metadata.sheetName,
-                sheetNumber: chunk.document_metadata.sheetNumber,
-                row: chunk.document_metadata.rowNumber,
-                cells: chunk.document_metadata.cells,
-                chunkIndex: chunk.document_metadata.chunkIndex,
-                sourceType: chunk.document_metadata.sourceType,
-                tableHeaders: chunk.document_metadata.tableHeaders
+                sheet: chunk.metadata.sheetName,
+                sheetNumber: chunk.metadata.sheetNumber,
+                row: chunk.metadata.rowNumber,
+                cells: chunk.metadata.cells,
+                chunkIndex: chunk.metadata.chunkIndex,
+                sourceType: chunk.metadata.sourceType,
+                tableHeaders: chunk.metadata.tableHeaders
               }
             }));
 
@@ -1858,12 +1858,12 @@ async function processDocumentAsync(
             if (isPowerPoint && pptxSlideChunks && pptxSlideChunks.length > 0) {
               chunks = pptxSlideChunks.map(slideChunk => ({
                 content: slideChunk.content,
-                document_metadata: {
+                metadata: {
                   filename,
-                  slideNumber: slideChunk.document_metadata.slideNumber,
-                  totalSlides: slideChunk.document_metadata.totalSlides,
-                  slideTitle: slideChunk.document_metadata.slideTitle,
-                  hasNotes: slideChunk.document_metadata.hasNotes,
+                  slideNumber: slideChunk.metadata.slideNumber,
+                  totalSlides: slideChunk.metadata.totalSlides,
+                  slideTitle: slideChunk.metadata.slideTitle,
+                  hasNotes: slideChunk.metadata.hasNotes,
                   sourceType: 'powerpoint',
                   chunkType: 'slide'
                 }
@@ -2379,11 +2379,11 @@ export const getDocumentById = async (documentId: string, userId: string) => {
   const document = await prisma.documents.findUnique({
     where: { id: documentId },
     include: {
-      folders: true,
-      document_metadata: true,
-      document_tags: {
+      folder: true,
+      metadata: true,
+      tags: {
         include: {
-          tags: true,
+          tag: true,
         },
       },
     },
@@ -2530,7 +2530,7 @@ export const updateDocument = async (
     where: { id: documentId },
     data: updateData,
     include: {
-      folders: true,
+      folder: true,
     },
   });
 

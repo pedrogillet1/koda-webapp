@@ -14,7 +14,7 @@ interface CellData {
 
 interface ExcelChunk {
   content: string;
-  document_metadata: {
+  metadata: {
     sheetName: string;
     sheetNumber: number;
     rowNumber: number;
@@ -152,7 +152,7 @@ class ExcelProcessorService {
 
         chunks.push({
           content: `Sheet ${sheetNumber} '${sheetName}', Row ${rowNum + 1}: ${rowText}`,
-          document_metadata: {
+          metadata: {
             sheetName,
             sheetNumber,
             rowNumber: rowNum + 1,
@@ -227,7 +227,7 @@ class ExcelProcessorService {
 
         chunks.push({
           content: `Sheet ${sheetNumber} '${sheetName}' table data: ${semanticText}`,
-          document_metadata: {
+          metadata: {
             sheetName,
             sheetNumber,
             rowNumber: i + 1,

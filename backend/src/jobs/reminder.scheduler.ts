@@ -81,7 +81,7 @@ export const checkOverdueReminders = async () => {
     // You could send notifications or cleanup here
     // For now, just log them
     for (const reminder of overdueReminders) {
-      console.log(`⚠️  Overdue reminder: ${reminder.title} (User: ${reminder.users.email})`);
+      console.log(`⚠️  Overdue reminder: ${reminder.title} (User: ${reminder.user.email})`);
     }
   } catch (error) {
     console.error('Error checking overdue reminders:', error);

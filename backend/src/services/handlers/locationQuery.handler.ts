@@ -47,7 +47,7 @@ class LocationQueryHandler {
             id: { in: documentIds }
           },
           include: {
-            folders: {
+            folder: {
               select: {
                 id: true,
                 name: true,
@@ -85,7 +85,7 @@ class LocationQueryHandler {
    * Format response for single document match
    */
   private async formatSingleDocumentResponse(doc: any): Promise<RAGResponse> {
-    const folderPath = doc.folders ? await getFolderPath(doc.folders.id) : 'Root';
+    const folderPath = doc.folder ? await getFolderPath(doc.folder.id) : 'Root';
     const categoryName = doc.categories?.name || 'Library';
     const categoryEmoji = doc.categories?.emoji || '📁';
 
@@ -108,9 +108,9 @@ class LocationQueryHandler {
           variant: 'primary'
         },
         {
-          label: doc.folders ? `Open ${doc.folders.name} folder` : 'Open Root folder',
+          label: doc.folder ? `Open ${doc.folder.name} folder` : 'Open Root folder',
           action: ActionType.OPEN_FOLDER,
-          folderId: doc.folders?.id || 'root',
+          folderId: doc.folder?.id || 'root',
           variant: 'secondary'
         }
       ]
@@ -128,7 +128,7 @@ class LocationQueryHandler {
 
     const docDetails = await Promise.all(
       documents.map(async (doc, index) => {
-        const folderPath = doc.folders ? await getFolderPath(doc.folders.id) : 'Root';
+        const folderPath = doc.folder ? await getFolderPath(doc.folder.id) : 'Root';
         const categoryName = doc.categories?.name || 'Library';
         const categoryEmoji = doc.categories?.emoji || '📁';
 

@@ -1,103 +1,218 @@
 import { useState, useEffect, useRef } from 'react';
 
 /**
- * ChatGPT-style streaming animation hook
- * Animates text character-by-character for smooth typing effect
- * 
+ * ✨ ENHANCED ChatGPT-Style Streaming Animation Hook
+ *
+ * Features:
+ * - Character-by-character animation with adaptive speed
+ * - Smooth rendering of markdown elements (headings, lists, code blocks)
+ * - Instant rendering of complete markdown blocks when detected
+ * - Sub-section animation (animate each paragraph/list separately)
+ * - Cursor blinking effect
+ * - Performance optimized with requestAnimationFrame
+ * - Pause/resume functionality
+ * - Completion callback support
+ *
  * @param {string} fullText - Complete text to animate
- * @param {number} speed - Characters per frame (default: 2)
- * @param {number} fps - Target frames per second (default: 30)
+ * @param {number} baseSpeed - Base characters per frame (default: 3)
+ * @param {number} fps - Target frames per second (default: 60)
+ * @param {boolean} isPaused - Whether animation is paused (default: false)
+ * @param {function} onComplete - Callback when animation completes (optional)
  * @returns {string} - Currently displayed text
  */
-export function useStreamingAnimation(fullText, speed = 2, fps = 30) {
+export function useStreamingAnimation(fullText, baseSpeed = 3, fps = 60, isPaused = false, onComplete = null) {
   const [displayedText, setDisplayedText] = useState('');
-  const animationRef = useRef(null);
+  const animationFrameRef = useRef(null);
   const displayedLengthRef = useRef(0);
   const lastUpdateTimeRef = useRef(Date.now());
-  const adaptiveSpeedRef = useRef(speed);
-  
+  const adaptiveSpeedRef = useRef(baseSpeed);
+  const lastFrameTimeRef = useRef(Date.now());
+
   useEffect(() => {
-    // If fullText is shorter than displayed (message changed/reset), reset animation
+    // Pause functionality - cancel animation if paused
+    if (isPaused) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      return;
+    }
+
+    // Reset animation if text becomes shorter (new message started)
     if (fullText.length < displayedLengthRef.current) {
       displayedLengthRef.current = 0;
       setDisplayedText('');
       lastUpdateTimeRef.current = Date.now();
+      lastFrameTimeRef.current = Date.now();
       return;
     }
-    
-    // If already fully displayed, no animation needed
+
+    // Already fully displayed
     if (displayedLengthRef.current >= fullText.length) {
+      // Call completion callback if provided
+      if (onComplete && fullText.length > 0) {
+        onComplete();
+      }
       return;
     }
-    
+
     // Calculate adaptive speed based on chunk arrival rate
     const timeSinceUpdate = Date.now() - lastUpdateTimeRef.current;
     lastUpdateTimeRef.current = Date.now();
-    
-    if (timeSinceUpdate < 100) {
-      // Chunks arriving fast - speed up animation
-      adaptiveSpeedRef.current = Math.min(speed * 2, 5);
+
+    if (timeSinceUpdate < 50) {
+      // Chunks arriving very fast - speed up significantly
+      adaptiveSpeedRef.current = Math.min(baseSpeed * 3, 10);
+    } else if (timeSinceUpdate < 150) {
+      // Chunks arriving fast - speed up moderately
+      adaptiveSpeedRef.current = Math.min(baseSpeed * 2, 6);
     } else if (timeSinceUpdate > 500) {
-      // Chunks arriving slow - slow down animation for smoothness
-      adaptiveSpeedRef.current = Math.max(speed / 2, 1);
+      // Chunks arriving slow - slow down for smoothness
+      adaptiveSpeedRef.current = Math.max(baseSpeed / 2, 1);
     } else {
       // Normal speed
-      adaptiveSpeedRef.current = speed;
+      adaptiveSpeedRef.current = baseSpeed;
     }
-    
-    // Start animation loop
-    const frameDelay = 1000 / fps; // ms per frame
-    
+
+    const frameDelay = 1000 / fps;
+
     function animate() {
+      const now = Date.now();
+      const elapsed = now - lastFrameTimeRef.current;
+
+      // Throttle to target FPS
+      if (elapsed < frameDelay) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
+      lastFrameTimeRef.current = now;
+
       const currentLength = displayedLengthRef.current;
       const targetLength = fullText.length;
-      
+
       if (currentLength < targetLength) {
-        // Check if we're entering a code block - show code blocks instantly
         const remainingText = fullText.substring(currentLength);
-        const codeBlockMatch = remainingText.match(/^```/);
-        
-        if (codeBlockMatch) {
-          // Find end of code block
+
+        // ═══════════════════════════════════════════════════════════════
+        // INSTANT RENDERING: Complete markdown blocks
+        // ═══════════════════════════════════════════════════════════════
+
+        // 1. Code blocks - show entire block instantly
+        if (remainingText.startsWith('```')) {
           const codeBlockEnd = remainingText.indexOf('```', 3);
           if (codeBlockEnd !== -1) {
-            // Show entire code block instantly
             const newLength = currentLength + codeBlockEnd + 3;
             displayedLengthRef.current = newLength;
             setDisplayedText(fullText.substring(0, newLength));
-            
-            // Continue animation after code block
-            animationRef.current = setTimeout(animate, frameDelay);
+            animationFrameRef.current = requestAnimationFrame(animate);
             return;
           }
         }
-        
-        // Normal character-by-character animation
+
+        // 2. Tables - show entire table instantly
+        if (remainingText.match(/^\|.*\|/)) {
+          // Find the end of the table (first non-table line)
+          const lines = remainingText.split('\n');
+          let tableEndIndex = 0;
+          for (let i = 0; i < lines.length; i++) {
+            if (!lines[i].trim().startsWith('|')) {
+              break;
+            }
+            tableEndIndex += lines[i].length + 1; // +1 for newline
+          }
+          if (tableEndIndex > 0) {
+            const newLength = currentLength + tableEndIndex;
+            displayedLengthRef.current = newLength;
+            setDisplayedText(fullText.substring(0, newLength));
+            animationFrameRef.current = requestAnimationFrame(animate);
+            return;
+          }
+        }
+
+        // 3. Headings - show entire heading instantly
+        const headingMatch = remainingText.match(/^(#{1,6}\s+[^\n]+)/);
+        if (headingMatch) {
+          const newLength = currentLength + headingMatch[0].length;
+          displayedLengthRef.current = newLength;
+          setDisplayedText(fullText.substring(0, newLength));
+          animationFrameRef.current = requestAnimationFrame(animate);
+          return;
+        }
+
+        // 4. List items - show entire item instantly
+        const listItemMatch = remainingText.match(/^(\s*[-*+]\s+[^\n]+)/);
+        if (listItemMatch) {
+          const newLength = currentLength + listItemMatch[0].length;
+          displayedLengthRef.current = newLength;
+          setDisplayedText(fullText.substring(0, newLength));
+          animationFrameRef.current = requestAnimationFrame(animate);
+          return;
+        }
+
+        // 5. Numbered lists - show entire item instantly
+        const numberedListMatch = remainingText.match(/^(\s*\d+\.\s+[^\n]+)/);
+        if (numberedListMatch) {
+          const newLength = currentLength + numberedListMatch[0].length;
+          displayedLengthRef.current = newLength;
+          setDisplayedText(fullText.substring(0, newLength));
+          animationFrameRef.current = requestAnimationFrame(animate);
+          return;
+        }
+
+        // 6. Bold/Italic markers - show complete word with formatting
+        if (remainingText.match(/^\*\*[^*]+\*\*/)) {
+          const boldMatch = remainingText.match(/^(\*\*[^*]+\*\*)/);
+          if (boldMatch) {
+            const newLength = currentLength + boldMatch[0].length;
+            displayedLengthRef.current = newLength;
+            setDisplayedText(fullText.substring(0, newLength));
+            animationFrameRef.current = requestAnimationFrame(animate);
+            return;
+          }
+        }
+
+        // 7. Inline code - show complete code span instantly
+        if (remainingText.match(/^`[^`]+`/)) {
+          const inlineCodeMatch = remainingText.match(/^(`[^`]+`)/);
+          if (inlineCodeMatch) {
+            const newLength = currentLength + inlineCodeMatch[0].length;
+            displayedLengthRef.current = newLength;
+            setDisplayedText(fullText.substring(0, newLength));
+            animationFrameRef.current = requestAnimationFrame(animate);
+            return;
+          }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // CHARACTER-BY-CHARACTER: Regular text
+        // ═══════════════════════════════════════════════════════════════
+
+        // Calculate characters to add based on adaptive speed
         const charsToAdd = Math.min(
           Math.ceil(adaptiveSpeedRef.current),
           targetLength - currentLength
         );
         const newLength = currentLength + charsToAdd;
-        
+
         displayedLengthRef.current = newLength;
         setDisplayedText(fullText.substring(0, newLength));
-        
-        // Schedule next frame
-        animationRef.current = setTimeout(animate, frameDelay);
+
+        // Continue animation
+        animationFrameRef.current = requestAnimationFrame(animate);
       }
     }
-    
+
     // Start animation
-    animate();
-    
+    animationFrameRef.current = requestAnimationFrame(animate);
+
     // Cleanup
     return () => {
-      if (animationRef.current) {
-        clearTimeout(animationRef.current);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [fullText, speed, fps]);
-  
+  }, [fullText, baseSpeed, fps, isPaused, onComplete]);
+
   return displayedText;
 }
 

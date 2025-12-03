@@ -86,7 +86,7 @@ describe('Document Isolation Security Tests', () => {
       data: {
         ...user1Document,
         status: 'processed',
-        document_metadata: {
+        metadata: {
           create: {
             extractedText: 'Receipt for $500.00 payment',
           },
@@ -98,7 +98,7 @@ describe('Document Isolation Security Tests', () => {
       data: {
         ...user2Document,
         status: 'processed',
-        document_metadata: {
+        metadata: {
           create: {
             extractedText: 'Confidential psychiatric evaluation report',
           },
@@ -191,14 +191,14 @@ describe('Document Isolation Security Tests', () => {
           OR: [
             { filename: { contains: 'pdf' } }, // Generic search that would match both
             {
-              document_metadata: {
+              metadata: {
                 extractedText: { contains: 'pdf' },
               },
             },
           ],
         },
         include: {
-          document_metadata: true,
+          metadata: true,
         },
       });
 
@@ -218,14 +218,14 @@ describe('Document Isolation Security Tests', () => {
           OR: [
             { filename: { contains: 'pdf' } },
             {
-              document_metadata: {
+              metadata: {
                 extractedText: { contains: 'pdf' },
               },
             },
           ],
         },
         include: {
-          document_metadata: true,
+          metadata: true,
         },
       });
 
@@ -252,12 +252,12 @@ describe('Document Isolation Security Tests', () => {
       const searchResults = await prisma.documents.findMany({
         where: {
           userId: testUser1.id, // ✅ CRITICAL: Filter by userId
-          document_metadata: {
+          metadata: {
             extractedText: { contains: 'psychiatric' }, // User 2's content
           },
         },
         include: {
-          document_metadata: true,
+          metadata: true,
         },
       });
 
@@ -301,7 +301,7 @@ describe('Document Isolation Security Tests', () => {
           userId: testUser1.id, // ✅ CRITICAL: Verify ownership
         },
         include: {
-          document_metadata: true,
+          metadata: true,
         },
       });
 
@@ -315,13 +315,13 @@ describe('Document Isolation Security Tests', () => {
           userId: testUser1.id, // ✅ CRITICAL: Verify ownership
         },
         include: {
-          document_metadata: true,
+          metadata: true,
         },
       });
 
       expect(document).not.toBeNull();
-      expect(document?.document_metadata).not.toBeNull();
-      expect(document?.document_metadata?.extractedText).toContain('Receipt for $500.00');
+      expect(document?.metadata).not.toBeNull();
+      expect(document?.metadata?.extractedText).toContain('Receipt for $500.00');
     });
   });
 
@@ -357,8 +357,8 @@ describe('Document Isolation Security Tests', () => {
           ],
         },
         include: {
-          folders: true,
-          document_metadata: true,
+          folder: true,
+          metadata: true,
         },
       });
 

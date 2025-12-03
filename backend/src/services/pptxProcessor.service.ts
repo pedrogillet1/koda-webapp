@@ -13,7 +13,7 @@ import { pptxExtractorService } from './pptxExtractor.service';
 
 export interface PPTXChunk {
   content: string;
-  document_metadata: {
+  metadata: {
     slideNumber: number;
     totalSlides: number;
     slideTitle?: string;
@@ -25,7 +25,7 @@ export interface PPTXChunk {
 export interface PPTXProcessingResult {
   success: boolean;
   chunks: PPTXChunk[];
-  document_metadata: {
+  metadata: {
     title?: string;
     author?: string;
     totalSlides: number;
@@ -76,7 +76,7 @@ class PPTXProcessorService {
         return {
           success: false,
           chunks: [],
-          document_metadata: {
+          metadata: {
             totalSlides: 0,
             slidesWithText: 0
           },
@@ -91,7 +91,7 @@ class PPTXProcessorService {
         return {
           success: true,
           chunks: [],
-          document_metadata: {
+          metadata: {
             title: metadata?.title,
             author: metadata?.author,
             totalSlides: 0,
@@ -109,7 +109,7 @@ class PPTXProcessorService {
 
           return {
             content,
-            document_metadata: {
+            metadata: {
               slideNumber: slide.slide_number,
               totalSlides: totalSlides || slides.length,
               slideTitle: this.extractSlideTitle(slide.content),
@@ -134,7 +134,7 @@ class PPTXProcessorService {
       return {
         success: true,
         chunks,
-        document_metadata: {
+        metadata: {
           title: metadata?.title,
           author: metadata?.author,
           totalSlides: totalSlides || slides.length,
@@ -147,7 +147,7 @@ class PPTXProcessorService {
       return {
         success: false,
         chunks: [],
-        document_metadata: {
+        metadata: {
           totalSlides: 0,
           slidesWithText: 0
         },
@@ -165,7 +165,7 @@ class PPTXProcessorService {
   }> {
     return chunks.map(chunk => ({
       text: chunk.content,
-      document_metadata: {
+      metadata: {
         filename,
         slideNumber: chunk.document_metadata.slideNumber,
         totalSlides: chunk.document_metadata.totalSlides,

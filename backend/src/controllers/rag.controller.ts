@@ -395,15 +395,15 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       isShowFileQuery
     );
 
-    let intentResult;
+    let intentResult: IntentResult;
 
     if (isObviousRagQuery && !needsLlmIntent) {
       // ⚡ FAST PATH: Skip LLM intent detection for obvious RAG queries
       console.log('⚡ [FAST INTENT] Obvious RAG query detected - skipping LLM intent detection (saved 3-6s)');
       intentResult = {
-        intent: 'rag_query',
+        intent: Intent.GENERAL_QA,
         confidence: 0.95,
-        parameters: {}
+        entities: {}
       };
     } else {
       // SLOW PATH: Use LLM for ambiguous queries or file management
@@ -412,7 +412,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     }
 
     console.log(`🎯 [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
-    console.log(`📝 [STREAMING Entities]`, intentResult.parameters);
+    console.log(`📝 [STREAMING Entities]`, intentResult.entities);
 
     // TODO: Gemini fallback classifier removed - using pattern matching only
     // Only fallback to Gemini AI classifier if confidence is very low
@@ -446,7 +446,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       console.log(`📊 [EXCEL] Reading Excel cell from query: "${query}"`);
 
       const excelCellReader = await import('../services/excelCellReader.service');
-      const cellResult = await excelCellReader.default.readCell(query, userId);
+      const cellResult = await excelCellReader.default.readCell(query);
 
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);

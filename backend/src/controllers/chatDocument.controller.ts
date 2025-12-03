@@ -56,6 +56,11 @@ export const exportChatDocument = async (req: Request, res: Response): Promise<v
       filename: chatDocument.title,
     });
 
+    if (!exportBuffer) {
+      res.status(500).json({ error: 'Failed to generate export buffer' });
+      return;
+    }
+
     // Set response headers
     const mimeTypes = {
       pdf: 'application/pdf',

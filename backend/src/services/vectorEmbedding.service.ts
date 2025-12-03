@@ -141,7 +141,7 @@ class VectorEmbeddingService {
           chunkIndex: i,
           content: chunk.content,
           embedding: embeddings[i],
-          metadata: chunk.document_metadata
+          metadata: chunk.metadata
         }))
       );
 
@@ -338,7 +338,7 @@ class VectorEmbeddingService {
       if (slideRef || pageRef || sheetRef) {
         pineconeResults = pineconeResults.map((result: any) => {
           let boost = 0;
-          const metadata = result.document_metadata || {};
+          const metadata = result.metadata || {};
 
           // Boost results that match the specified slide
           if (slideRef && metadata.slide === slideRef) {
@@ -393,7 +393,7 @@ class VectorEmbeddingService {
         console.log('\n   📄 DETAILED RESULTS:');
         pineconeResults.slice(0, 5).forEach((r: any, idx: number) => {
           console.log(`   ${idx + 1}. ${r.document?.filename || 'unknown'} (score: ${(r.similarity || 0).toFixed(4)})`);
-          console.log(`      Metadata:`, JSON.stringify(r.document_metadata || {}, null, 2).split('\n').join('\n      '));
+          console.log(`      Metadata:`, JSON.stringify(r.metadata || {}, null, 2).split('\n').join('\n      '));
           console.log(`      Content preview: ${(r.content || '').substring(0, 100)}...`);
         });
       }

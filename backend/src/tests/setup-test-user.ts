@@ -37,7 +37,7 @@ export async function cleanupTestUser() {
   try {
     // Delete all test data in correct order (respecting foreign keys)
     await prisma.messages.deleteMany({
-      where: { conversations: { userId: TEST_USER_ID } },
+      where: { conversation: { userId: TEST_USER_ID } },
     });
     await prisma.conversations.deleteMany({
       where: { userId: TEST_USER_ID },

@@ -84,6 +84,11 @@ export const confirmUpload = async (req: Request, res: Response): Promise<void> 
       thumbnailData: thumbnailData || undefined,
     });
 
+    if (!document) {
+      res.status(500).json({ error: 'Failed to create document' });
+      return;
+    }
+
     // ✅ CACHE FIX: Invalidate cache BEFORE emitting events
     // This ensures frontend gets fresh data when it fetches
     await cacheService.invalidateUserCache(req.user.id);
@@ -212,6 +217,11 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       plaintextForEmbeddings: plaintextForEmbeddings || undefined, // ⚡ TEXT EXTRACTION: Pass plaintext for embeddings
     });
 
+    if (!document) {
+      res.status(500).json({ error: 'Failed to upload document' });
+      return;
+    }
+
     // ✅ INSTANT UPLOAD: Emit FULL document object via WebSocket
     // Document is returned with status='processing', frontend will add it to state immediately
     emitToUser(req.user.id, 'document-created', document);
@@ -297,7 +307,9 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
 
     // Emit real-time events for all created documents
     documents.forEach(doc => {
-      emitDocumentEvent(req.user!.id, 'created', doc.id);
+      if (doc) {
+        emitDocumentEvent(req.user!.id, 'created', doc.id);
+      }
     });
 
     // ✅ INSTANT UPLOAD: Invalidate cache immediately (no delay!)
@@ -640,7 +652,7 @@ export const updateMarkdown = async (req: Request, res: Response): Promise<void>
       where: { documentId: id },
       update: { markdownContent },
       create: {
-        documents: { connect: { id } },
+        document: { connect: { id } },
         markdownContent
       }
     });
@@ -944,7 +956,7 @@ export const searchInDocument = async (req: Request, res: Response): Promise<voi
     const document = await prisma.documents.findUnique({
       where: { id },
       include: {
-        document_metadata: true,
+        metadata: true,
       },
     });
 
@@ -960,8 +972,8 @@ export const searchInDocument = async (req: Request, res: Response): Promise<voi
 
     // Get extracted text from metadata
     let extractedText = '';
-    if (document.document_metadata) {
-      extractedText = document.document_metadata.extractedText || '';
+    if (document.metadata) {
+      extractedText = document.metadata.extractedText || '';
     }
 
     if (!extractedText) {
@@ -1035,7 +1047,7 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
     const document = await prisma.documents.findUnique({
       where: { id },
       include: {
-        document_metadata: true,
+        metadata: true,
       },
     });
 
@@ -1057,15 +1069,15 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
     }
 
     // Get slides data from metadata (stored as JSON string)
-    console.log('📊 Raw slidesData from DB:', document.document_metadata?.slidesData);
-    console.log('📊 Raw pptxMetadata from DB:', document.document_metadata?.pptxMetadata);
+    console.log('📊 Raw slidesData from DB:', document.metadata?.slidesData);
+    console.log('📊 Raw pptxMetadata from DB:', document.metadata?.pptxMetadata);
 
     let slidesData: any[] = [];
     try {
-      if (document.document_metadata?.slidesData) {
-        slidesData = typeof document.document_metadata.slidesData === 'string'
-          ? JSON.parse(document.document_metadata.slidesData as string)
-          : document.document_metadata.slidesData as any[];
+      if (document.metadata?.slidesData) {
+        slidesData = typeof document.metadata.slidesData === 'string'
+          ? JSON.parse(document.metadata.slidesData as string)
+          : document.metadata.slidesData as any[];
       }
     } catch (error) {
       console.error('❌ Failed to parse slidesData:', error);
@@ -1074,10 +1086,10 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
     // Parse pptxMetadata if it's a string
     let pptxMetadata: any = {};
     try {
-      if (document.document_metadata?.pptxMetadata) {
-        pptxMetadata = typeof document.document_metadata.pptxMetadata === 'string'
-          ? JSON.parse(document.document_metadata.pptxMetadata as string)
-          : document.document_metadata.pptxMetadata;
+      if (document.metadata?.pptxMetadata) {
+        pptxMetadata = typeof document.metadata.pptxMetadata === 'string'
+          ? JSON.parse(document.metadata.pptxMetadata as string)
+          : document.metadata.pptxMetadata;
       }
     } catch (error) {
       console.error('❌ Failed to parse pptxMetadata:', error);
@@ -1215,7 +1227,7 @@ export const exportDocument = async (req: Request, res: Response): Promise<void>
     const document = await prisma.documents.findUnique({
       where: { id },
       include: {
-        document_metadata: true,
+        metadata: true,
       },
     });
 
@@ -1229,7 +1241,7 @@ export const exportDocument = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const markdownContent = document.document_metadata?.markdownContent || '';
+    const markdownContent = document.metadata?.markdownContent || '';
 
     if (!markdownContent) {
       res.status(400).json({ error: 'No markdown content available for export' });
@@ -1245,6 +1257,11 @@ export const exportDocument = async (req: Request, res: Response): Promise<void>
       markdownContent,
       filename: document.filename
     });
+
+    if (!buffer) {
+      res.status(500).json({ error: 'Failed to generate export buffer' });
+      return;
+    }
 
     // Determine content type and file extension
     const contentTypes = {
@@ -1334,7 +1351,7 @@ export const reindexAllDocuments = async (req: Request, res: Response): Promise<
         status: 'completed'
       },
       include: {
-        document_metadata: true
+        metadata: true
       }
     });
 
@@ -1348,7 +1365,7 @@ export const reindexAllDocuments = async (req: Request, res: Response): Promise<
     for (const doc of documents) {
       try {
         // Skip documents without extracted text
-        if (!doc.document_metadata?.extractedText) {
+        if (!doc.metadata?.extractedText) {
           console.log(`⏭️  Skipping "${doc.filename}" - no extracted text`);
           skippedCount++;
           continue;
@@ -1356,10 +1373,11 @@ export const reindexAllDocuments = async (req: Request, res: Response): Promise<
 
         console.log(`\n🔄 Processing: "${doc.filename}"`);
         console.log(`   Document ID: ${doc.id.substring(0, 8)}...`);
-        console.log(`   Text length: ${doc.document_metadata.extractedText.length.toLocaleString()} characters`);
+        console.log(`   Text length: ${doc.metadata.extractedText.length.toLocaleString()} characters`);
 
         // Chunk the document using simple chunking
-        const docChunks = documentChunkingService.chunkText(doc.document_metadata.extractedText);
+        const extractedText = doc.metadata.extractedText;
+        const docChunks = documentChunkingService.chunkText(extractedText);
         console.log(`   Chunks created: ${docChunks.length}`);
 
         // Convert to format expected by vector embedding service
@@ -1367,7 +1385,7 @@ export const reindexAllDocuments = async (req: Request, res: Response): Promise<
           content: chunk,
           metadata: {
             startChar: index * 500,
-            endChar: Math.min((index + 1) * 500, doc.document_metadata.extractedText.length)
+            endChar: Math.min((index + 1) * 500, extractedText.length)
           }
         }));
 
@@ -1443,6 +1461,18 @@ export const getDocumentProgress = async (req: Request, res: Response): Promise<
     }
 
     // Get progress from Redis
+    if (!redisConnection) {
+      // No Redis connection - return status-based progress
+      const statusProgress: Record<string, any> = {
+        'uploading': { progress: 5, stage: 'uploading', message: 'Uploading to storage...' },
+        'processing': { progress: 50, stage: 'processing', message: 'Processing document...' },
+        'completed': { progress: 100, stage: 'completed', message: 'Processing complete' },
+        'failed': { progress: 0, stage: 'failed', message: 'Processing failed' }
+      };
+      res.status(200).json(statusProgress[document.status] || { progress: 0, stage: 'unknown', message: 'Unknown status' });
+      return;
+    }
+
     const progressData = await redisConnection.get(`progress:${documentId}`);
 
     if (progressData) {

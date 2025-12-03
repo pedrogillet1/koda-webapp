@@ -28,8 +28,9 @@ const getIO = () => {
 // Store progress in Redis (expires after 1 hour)
 const setDocumentProgress = async (documentId: string, progress: number, stage: string, message: string) => {
   try {
+    if (!redisConnection) return;
     const progressData = JSON.stringify({ progress, stage, message, updatedAt: new Date().toISOString() });
-    await redisConnection.set(`progress:${documentId}`, progressData, 'EX', 3600); // 1 hour expiration
+    await redisConnection.setex(`progress:${documentId}`, 3600, progressData); // 1 hour expiration
   } catch (error) {
     console.warn(`⚠️  Failed to store progress for ${documentId}:`, error);
   }
@@ -153,15 +154,17 @@ let documentWorker: Worker<DocumentProcessingJob> | null = null;
 // Only initialize if Redis is available
 if (redisConnection && process.env.REDIS_URL) {
   try {
-    // Use REDIS_URL for BullMQ (standard Redis protocol with TLS)
-    const redisConfig = {
-      connection: process.env.REDIS_URL,
-      maxRetriesPerRequest: null, // Required by BullMQ
-    };
-
-    // Create document processing queue
+    // BullMQ with Upstash Redis
+    // Parse the connection URL and configure ioredis
+    const redisUrl = new URL(process.env.REDIS_URL);
     documentQueue = new Queue<DocumentProcessingJob>('document-processing', {
-      connection: process.env.REDIS_URL,
+      connection: {
+        host: redisUrl.hostname,
+        port: parseInt(redisUrl.port) || 6379,
+        password: redisUrl.password, // Upstash token (no username auth needed)
+        tls: {}, // Enable TLS for Upstash
+        maxRetriesPerRequest: null, // Required by BullMQ
+      },
       defaultJobOptions: {
         attempts: 3,
         backoff: {
@@ -178,7 +181,7 @@ if (redisConnection && process.env.REDIS_URL) {
       },
     });
   } catch (error) {
-    console.warn('⚠️  Could not initialize document queue');
+    console.warn('⚠️  Could not initialize document queue:', error);
     documentQueue = null;
   }
 }
@@ -437,7 +440,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
     let documentFilename = 'document'; // Default filename for chunking
     await prisma.$transaction(async (tx) => {
       // Verify document belongs to this user (security check)
-      const doc = await tx.documents.findUnique({
+      const doc = await tx.document.findUnique({
         where: { id: documentId },
         select: { userId: true, filename: true }
       });
@@ -459,7 +462,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 
       // If DOCX was pre-converted to PDF, store the PDF path in renderableContent
       if (pdfConversionPath) {
-        await tx.documents.update({
+        await tx.document.update({
           where: { id: documentId },
           data: {
             renderableContent: JSON.stringify({
@@ -473,7 +476,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       }
 
       // Save metadata (including markdown)
-      await tx.document_metadata.upsert({
+      await tx.documentMetadata.upsert({
         where: { documentId },
         create: {
           documentId,
@@ -742,11 +745,19 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 // Create worker only if queue is available
 if (documentQueue && redisConnection && process.env.REDIS_URL) {
   try {
+    // BullMQ Worker with Upstash Redis
+    const redisUrl = new URL(process.env.REDIS_URL);
     documentWorker = new Worker<DocumentProcessingJob>(
       'document-processing',
       processDocument,
       {
-        connection: process.env.REDIS_URL,
+        connection: {
+          host: redisUrl.hostname,
+          port: parseInt(redisUrl.port) || 6379,
+          password: redisUrl.password, // Upstash token (no username)
+          tls: {}, // Enable TLS for Upstash
+          maxRetriesPerRequest: null,
+        },
         concurrency: 10, // Process 10 documents simultaneously for 10x throughput
       }
     );

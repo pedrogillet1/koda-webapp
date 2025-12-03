@@ -522,7 +522,7 @@ export const regenerateMessage = async (req: Request, res: Response) => {
     const message = await prisma.messages.findUnique({
       where: { id: messageId },
       include: {
-        conversations: true,
+        conversation: true,
       },
     });
 
@@ -532,7 +532,7 @@ export const regenerateMessage = async (req: Request, res: Response) => {
     }
 
     // 2. Verify user owns this conversation
-    if (message.conversations.userId !== userId) {
+    if (message.conversation.userId !== userId) {
       res.status(403).json({ error: 'Not authorized to regenerate this message' });
       return;
     }

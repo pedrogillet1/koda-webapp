@@ -65,7 +65,7 @@ class NavigationService {
     const bestMatch = await prisma.documents.findUnique({
       where: { id: topMatch.documentId },
       include: {
-        folders: true,
+        folder: true,
         categories: {
           include: {
             category: true
