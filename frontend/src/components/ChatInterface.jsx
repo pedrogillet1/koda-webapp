@@ -2536,7 +2536,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             background: '#F5F5F7',
             position: 'relative',
             width: isMobile ? '100%' : 'auto',
-            height: isMobile ? '100dvh' : '100%',
+            height: isMobile ? 'calc(100dvh - 70px)' : '100%',
             overflow: 'hidden'
         }}>
             {/* Header - sticky with safe-area padding for notch/dynamic island */}
@@ -3717,11 +3717,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     alignItems: 'center',
                     gap: isMobile ? 8 : 16,
                     flexShrink: 0,
-                    // ✅ MOBILE KEYBOARD FIX: Fixed position at bottom on mobile
-                    position: isMobile ? 'fixed' : 'relative',
-                    bottom: isMobile ? 70 : 'auto',
-                    left: isMobile ? 0 : 'auto',
-                    right: isMobile ? 0 : 'auto',
+                    // ✅ MOBILE KEYBOARD FIX: Relative position at bottom of container
+                    position: 'relative',
+                    bottom: 'auto',
+                    left: 'auto',
+                    right: 'auto',
                     width: isMobile ? '100%' : 'auto',
                     zIndex: isMobile ? 100 : 'auto',
                     boxSizing: 'border-box',
