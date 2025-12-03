@@ -2596,14 +2596,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     padding: isMobile ? 16 : 20,
-                    // Dynamic padding: when keyboard opens, we need space for the fixed input
-                    paddingBottom: isMobile
-                        ? 'calc(20px + env(safe-area-inset-bottom))'
-                        : 20,
+                    // Messages area just needs normal padding, input area handles MobileBottomNav spacing
+                    paddingBottom: 16,
                     position: 'relative',
                     WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
-                    willChange: 'transform', // Optimize scrolling performance
-                    transition: 'padding-bottom 0.25s ease-out' // Smooth keyboard animation
+                    willChange: 'transform' // Optimize scrolling performance
                 }}
             >
             {/* Centered Content Container */}
@@ -3707,9 +3704,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 data-input-area="true"
                 className="chat-input-area"
                 style={{
-                    padding: isMobile ? '8px 12px 8px 12px' : '8px 20px 20px 20px',
-                    paddingBottom: isMobile ? 'calc(60px + max(env(safe-area-inset-bottom), 12px))' : '20px',
-                    paddingTop: isMobile ? 8 : 8,
+                    padding: isMobile ? '8px 16px' : '8px 20px 20px 20px',
+                    // paddingBottom handled by CSS !important rule in index.css for mobile
+                    paddingTop: 8,
                     background: isMobile ? 'white' : '#F5F5F7',
                     borderTop: isMobile ? '1px solid #E6E6EC' : 'none',
                     display: 'flex',

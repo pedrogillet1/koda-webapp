@@ -928,18 +928,17 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
      Fix: Add proper padding and use dvh
      ======================================== */
 
-  /* Chat container needs keyboard-aware spacing */
+  /* Chat container - FIXED height, no extra padding (input area handles nav spacing) */
   .chat-container,
   [data-chat-container="true"] {
-    padding-bottom: max(env(safe-area-inset-bottom), 16px) !important;
-    min-height: 100dvh !important;
-    height: auto !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
   }
 
-  /* Chat input area (outer container) should stay above keyboard */
+  /* Chat input area position - NO padding here, padding is set in line 1314 */
   .chat-input-area,
   [data-input-area="true"] {
-    padding-bottom: max(env(safe-area-inset-bottom), 12px) !important;
     position: relative !important;
     z-index: 10 !important;
   }
@@ -1300,13 +1299,13 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     flex-direction: column !important;
   }
 
-  /* Messages container with safe area and bottom nav space */
+  /* Messages container - scrollable area, NO bottom nav padding (input area handles that) */
   .messages-container,
   [data-messages-container="true"] {
     flex: 1 !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
-    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+    padding-bottom: 16px !important;
   }
 
   /* Input area with safe area - MUST account for MobileBottomNav height (~60px + safe-area) */
@@ -1382,11 +1381,11 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
-  /* Generic scrollable content areas */
+  /* Generic scrollable content areas - EXCLUDE messages-container which has its own padding */
   .page-content,
   .main-content,
   .content-area,
-  .scrollable-content {
+  .scrollable-content:not(.messages-container) {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
