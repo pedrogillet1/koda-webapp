@@ -967,6 +967,17 @@ async function processDocumentWithTimeout(
             const excelProcessor = await import('./excelProcessor.service');
             const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
 
+            // ⚡ EXCEL FORMULA ENGINE: Load into HyperFormula for live calculations
+            try {
+              const { excelFormulaEngine } = await import('./calculation');
+              await excelFormulaEngine.initialize();
+              const excelInfo = await excelFormulaEngine.loadExcelFile(fileBuffer, documentId);
+              console.log(`✅ [DOCUMENT] Excel loaded into formula engine: ${excelInfo.sheets.length} sheets, ${excelInfo.totalFormulas} formulas`);
+            } catch (excelEngineError) {
+              // Non-critical - Excel processing can continue without formula engine
+              console.warn(`⚠️ [DOCUMENT] Excel formula engine load failed (non-critical):`, excelEngineError);
+            }
+
             // Convert Excel chunks to embedding format with full document metadata
             // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
             chunks = excelChunks.map(chunk => ({
@@ -1818,6 +1829,17 @@ async function processDocumentAsync(
               mimeType === 'application/vnd.ms-excel') {
             const excelProcessor = await import('./excelProcessor.service');
             const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
+
+            // ⚡ EXCEL FORMULA ENGINE: Load into HyperFormula for live calculations
+            try {
+              const { excelFormulaEngine } = await import('./calculation');
+              await excelFormulaEngine.initialize();
+              const excelInfo = await excelFormulaEngine.loadExcelFile(fileBuffer, documentId);
+              console.log(`✅ [DOCUMENT-ZK] Excel loaded into formula engine: ${excelInfo.sheets.length} sheets, ${excelInfo.totalFormulas} formulas`);
+            } catch (excelEngineError) {
+              // Non-critical - Excel processing can continue without formula engine
+              console.warn(`⚠️ [DOCUMENT-ZK] Excel formula engine load failed (non-critical):`, excelEngineError);
+            }
 
             // Convert Excel chunks to embedding format with full document metadata
             // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
@@ -2756,24 +2778,30 @@ export const getDocumentVersions = async (documentId: string, userId: string) =>
  * Get document processing status
  */
 export const getDocumentStatus = async (documentId: string, userId: string) => {
+  console.log(`[getDocumentStatus] Fetching document: ${documentId} for user: ${userId}`);
+
   const document = await prisma.documents.findUnique({
     where: { id: documentId },
     include: {
-      document_metadata: true,
+      metadata: true,
     },
   });
 
+  console.log(`[getDocumentStatus] Document found: ${!!document}, Document userId: ${document?.userId}`);
+
   if (!document) {
+    console.log(`[getDocumentStatus] ERROR: Document ${documentId} not found in database`);
     throw new Error('Document not found');
   }
 
   if (document.userId !== userId) {
+    console.log(`[getDocumentStatus] ERROR: userId mismatch - doc.userId: ${document.userId}, req.userId: ${userId}`);
     throw new Error('Unauthorized');
   }
 
   return {
     ...document,
-    metadata: document.document_metadata || null,
+    metadata: document.metadata || null,
   };
 };
 
@@ -2805,7 +2833,7 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   const document = await prisma.documents.findUnique({
     where: { id: documentId },
     include: {
-      document_metadata: true,
+      metadata: true,
     },
   });
 
@@ -2902,8 +2930,8 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   if (isPptx) {
     // REASON: PowerPoint files use PPTXPreview component with extracted slide data
     // WHY: Slides are extracted and stored in metadata during document processing
-    const slidesData = document.document_metadata?.slidesData;
-    const pptxMetadata = document.document_metadata?.pptxMetadata;
+    const slidesData = document.metadata?.slidesData;
+    const pptxMetadata = document.metadata?.pptxMetadata;
 
     return {
       previewType: 'pptx',
@@ -2959,21 +2987,48 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // EXCEL FILES: Generate signed URL for download/preview
+  // EXCEL FILES: Convert to HTML for in-browser preview
   // ═══════════════════════════════════════════════════════════════════════════
   const excelTypes = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
     'application/vnd.ms-excel', // .xls
-    'text/csv' // .csv
   ];
 
   if (excelTypes.includes(document.mimeType)) {
-    // REASON: Generate signed URL with 1-hour expiration
-    // WHY: Excel files can be downloaded and opened in appropriate applications
-    const url = await getSignedUrl(document.encryptedFilename, 3600);
+    // REASON: Convert Excel to HTML for rich in-browser preview with full styling
+    // WHY: HTML tables preserve formatting, colors, borders and are universally displayable
+    const excelToHtmlService = await import('./excelToHtmlStyled.service');
+
+    // Download Excel file from storage
+    let excelBuffer = await downloadFile(document.encryptedFilename);
+
+    // Decrypt if encrypted
+    if (document.isEncrypted) {
+      const encryptionService = await import('./encryption.service');
+      excelBuffer = encryptionService.default.decryptFile(excelBuffer, `document-${userId}`);
+    }
+
+    // Convert to HTML
+    const htmlResult = await excelToHtmlService.default.convertToHtml(excelBuffer);
 
     return {
       previewType: 'excel',
+      htmlContent: htmlResult.html,
+      sheetCount: htmlResult.sheetCount,
+      sheets: htmlResult.sheets,
+      downloadUrl: await getSignedUrl(document.encryptedFilename, 3600),
+      originalType: document.mimeType,
+      filename: document.filename,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CSV FILES: Generate signed URL for download
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (document.mimeType === 'text/csv') {
+    const url = await getSignedUrl(document.encryptedFilename, 3600);
+    return {
+      previewType: 'csv',
       previewUrl: url,
       originalType: document.mimeType,
       filename: document.filename,
@@ -3087,7 +3142,7 @@ export const reindexAllDocuments = async (userId: string) => {
         status: 'completed'  // Already filtering by status='completed', no deleted documents
       },
       include: {
-        document_metadata: true
+        metadata: true
       }
     });
 
@@ -3170,7 +3225,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 
     // 2. Check if it's a PowerPoint file and needs slide extraction
     const isPPTX = document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-    const hasSlides = document.document_metadata?.slidesData && JSON.parse(document.document_metadata.slidesData as string).length > 0;
+    const hasSlides = document.metadata?.slidesData && JSON.parse(document.metadata.slidesData as string).length > 0;
 
     // For PPTX files, reprocess slides if they're missing
     if (isPPTX && !hasSlides) {
@@ -3194,14 +3249,14 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
         if (result.success) {
           const extractedText = result.fullText || '';
           const slidesData = result.slides || [];
-          const pptxMetadata = result.document_metadata || {};
+          const pptxMetadata = result.metadata || {};
           const pageCount = result.totalSlides || null;
 
 
           // Update metadata with slides data
-          if (document.document_metadata) {
+          if (document.metadata) {
             await prisma.document_metadata.update({
-              where: { id: document.document_metadata.id },
+              where: { id: document.metadata.id },
               data: {
                 extractedText,
                 slidesData: JSON.stringify(slidesData),
@@ -3254,7 +3309,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
     }
 
     // 3. Get or re-extract text for non-PPTX or when slides already exist
-    let extractedText = document.document_metadata?.extractedText;
+    let extractedText = document.metadata?.extractedText;
     let fileBuffer: Buffer | null = null;
 
     if (!extractedText || extractedText.length === 0) {
@@ -3267,9 +3322,9 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
       extractedText = result.text;
 
       // Update metadata with extracted text
-      if (document.document_metadata) {
+      if (document.metadata) {
         await prisma.document_metadata.update({
-          where: { id: document.document_metadata.id },
+          where: { id: document.metadata.id },
           data: {
             extractedText,
             wordCount: result.wordCount || null,
@@ -3291,7 +3346,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
     }
 
     // 3.5. Regenerate markdown content if missing or requested
-    const needsMarkdown = !document.document_metadata?.markdownContent;
+    const needsMarkdown = !document.metadata?.markdownContent;
     if (needsMarkdown) {
 
       try {
@@ -3309,9 +3364,9 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
         );
 
         // Update metadata with markdown content
-        if (document.document_metadata) {
+        if (document.metadata) {
           await prisma.document_metadata.update({
-            where: { id: document.document_metadata.id },
+            where: { id: document.metadata.id },
             data: {
               markdownContent: markdownResult.markdownContent
             }
@@ -3398,7 +3453,7 @@ export const retryDocument = async (documentId: string, userId: string) => {
       document.filename,
       document.mimeType,
       userId,
-      document.document_metadata?.thumbnailUrl || null
+      document.metadata?.thumbnailUrl || null
     ).catch(error => {
       console.error('❌ Error in retry processing:', error);
     });

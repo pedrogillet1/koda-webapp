@@ -24,6 +24,7 @@ import rbacService from './services/rbac.service';
 import prisma from './config/database';
 import websocketService from './services/websocket.service';
 import { initializePinecone } from './services/rag.service';
+import sandboxManager from './services/calculation/sandboxManager.service';
 
 const portConfig = getPortConfig();
 
@@ -428,6 +429,15 @@ httpServer.listen(portConfig.httpsPort, () => {
       console.log('✅ [STARTUP] Pinecone connection pre-warmed and ready');
     } catch (error) {
       console.error('⚠️  [STARTUP] Failed to pre-warm Pinecone (will initialize on first request):', error);
+    }
+
+    // Initialize Python sandbox for calculations
+    console.log('🔧 [STARTUP] Initializing Python sandbox...');
+    try {
+      await sandboxManager.initialize();
+      console.log('✅ [STARTUP] Python sandbox initialized and ready');
+    } catch (error) {
+      console.error('⚠️  [STARTUP] Failed to initialize Python sandbox:', error);
     }
   })();
 
