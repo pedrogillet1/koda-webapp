@@ -2596,8 +2596,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     padding: isMobile ? 16 : 20,
-                    // Messages area just needs normal padding, input area handles MobileBottomNav spacing
-                    paddingBottom: 16,
+                    // Only safe-area padding needed - input area is fixed at bottom
+                    paddingBottom: isMobile ? 'calc(env(safe-area-inset-bottom))' : 20,
                     position: 'relative',
                     WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
                     willChange: 'transform' // Optimize scrolling performance
@@ -3714,9 +3714,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     alignItems: 'center',
                     gap: isMobile ? 8 : 16,
                     flexShrink: 0,
-                    // ✅ MOBILE KEYBOARD FIX: Relative position at bottom of container
+                    // Input area at bottom
                     position: 'relative',
-                    bottom: 'auto',
+                    bottom: 0,
                     left: 'auto',
                     right: 'auto',
                     width: isMobile ? '100%' : 'auto',
