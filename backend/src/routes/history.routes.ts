@@ -4,13 +4,13 @@
  */
 
 import { Router } from 'express';
-import { authenticateJWT } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth.middleware';
 import * as historyController from '../controllers/history.controller';
 
 const router = Router();
 
 // All routes require authentication
-router.use(authenticateJWT);
+router.use(authenticateToken);
 
 /**
  * GET /api/history

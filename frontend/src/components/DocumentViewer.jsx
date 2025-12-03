@@ -722,7 +722,7 @@ const DocumentViewer = () => {
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#F5F5F5', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'inline-flex' }}>
         {!isMobile && <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />}
-        <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex', width: '100%' }}>
+        <div style={{ flex: '1 1 0', height: isMobile ? '100dvh' : '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex', width: '100%' }}>
           {/* Header */}
           <div style={{
             alignSelf: 'stretch',

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsStore';
+import { useIsMobile } from '../hooks/useIsMobile';
 import logo from '../assets/logo.svg';
 import googleIcon from '../assets/Social icon 2.svg';
 import appleIcon from '../assets/Social icon.svg';
@@ -12,6 +13,7 @@ const Login = () => {
   const { t } = useTranslation();
   const { login, loginWithGoogle, loginWithApple } = useAuth();
   const { addNotification } = useNotifications();
+  const isMobile = useIsMobile();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -83,7 +85,7 @@ const Login = () => {
   };
 
   return (
-    <div style={{width: '100%', minHeight: '100vh', padding: '40px 20px', background: 'white', overflowY: 'auto', overflowX: 'hidden', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', display: 'flex'}}>
+    <div style={{width: '100%', height: isMobile ? '100dvh' : '100vh', padding: '40px 20px', background: 'white', overflow: 'hidden', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', display: 'flex', position: 'relative'}}>
       <div style={{width: '100%', maxWidth: 'var(--container-max-width)', padding: 'var(--container-padding)', borderRadius: 16, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 32, display: 'flex'}}>
         <img style={{width: 120, height: 120, borderRadius: 120, filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))'}} src={logo} alt="Logo" />
         <div style={{alignSelf: 'stretch', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>

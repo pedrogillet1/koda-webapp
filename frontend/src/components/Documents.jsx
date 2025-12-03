@@ -1078,7 +1078,7 @@ const Documents = () => {
         </div>
 
         {/* Scrollable Content */}
-        <div className="scrollable-content documents-content" style={{flex: 1, minHeight: 0, padding: isMobile ? 12 : 20, paddingBottom: isMobile ? 100 : 20, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20, maxWidth: '100%', boxSizing: 'border-box', WebkitOverflowScrolling: 'touch'}}>
+        <div className="scrollable-content documents-content" style={{flex: 1, minHeight: 0, padding: isMobile ? 12 : 20, paddingBottom: isMobile ? 100 : 20, overflowY: isMobile ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20, maxWidth: '100%', boxSizing: 'border-box', WebkitOverflowScrolling: 'touch'}}>
           {/* Smart Categories */}
           <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
             {/* Categories - vertical list on mobile, 4-column grid on desktop */}

@@ -64,13 +64,16 @@ function App() {
             <NotificationsProvider>
               <Router>
                 <div style={{
-                  width: isMobile ? '100%' : '100vw',
-                  height: isMobile ? 'auto' : '100vh',
-                  minHeight: isMobile ? '100dvh' : 'auto',
+                  width: '100%',
+                  height: isMobile ? '100dvh' : '100vh',
                   display: 'flex',
                   flexDirection: 'column',
-                  overflowY: isMobile ? 'auto' : 'hidden',
-                  WebkitOverflowScrolling: 'touch'
+                  overflow: 'hidden',
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0
                 }}>
                   <Routes>
             {/* ✅ DEFAULT ROUTE: Chat screen is the first page users see (protected) */}
