@@ -3708,7 +3708,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 className="chat-input-area"
                 style={{
                     padding: isMobile ? '8px 12px 8px 12px' : '8px 20px 20px 20px',
-                    paddingBottom: isMobile ? 'calc(60px + env(safe-area-inset-bottom))' : '20px',
+                    paddingBottom: isMobile ? 'calc(60px + max(env(safe-area-inset-bottom), 12px))' : '20px',
                     paddingTop: isMobile ? 8 : 8,
                     background: isMobile ? 'white' : '#F5F5F7',
                     borderTop: isMobile ? '1px solid #E6E6EC' : 'none',
