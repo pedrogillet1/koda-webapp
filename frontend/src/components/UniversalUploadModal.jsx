@@ -518,7 +518,9 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 10000
+      zIndex: 10000,
+      padding: 16,
+      boxSizing: 'border-box'
     }}>
       <div style={{
         width: '100%',
@@ -602,11 +604,11 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
             })}
             style={{
               alignSelf: 'stretch',
-              minHeight: 420,
-              paddingLeft: 40,
-              paddingRight: 40,
-              paddingTop: 40,
-              paddingBottom: 40,
+              minHeight: 380,
+              paddingLeft: 16,
+              paddingRight: 16,
+              paddingTop: 32,
+              paddingBottom: 32,
               background: isDragActive ? '#EFEFEF' : '#F5F5F5',
               overflow: 'visible',
               borderRadius: 20,
@@ -618,7 +620,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
               gap: 16,
               display: 'flex',
               cursor: 'pointer',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              boxSizing: 'border-box'
             }}
           >
             <input {...getInputProps()} />
@@ -628,10 +631,9 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
               src={fileTypesStackIcon}
               alt="File Types"
               style={{
-                width: '360px',
-                height: '183px',
-                minWidth: '360px',
-                minHeight: '183px',
+                width: '100%',
+                maxWidth: '360px',
+                height: 'auto',
                 display: 'block',
                 filter: 'drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15))',
                 transition: 'transform 0.3s ease, filter 0.3s ease'
@@ -672,7 +674,8 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                 </div>
               </div>
               <div style={{
-                width: 366,
+                width: '100%',
+                maxWidth: 366,
                 textAlign: 'center',
                 color: '#6C6B6E',
                 fontSize: 16,
@@ -688,8 +691,10 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
             <div style={{
               justifyContent: 'center',
               alignItems: 'center',
-              gap: 12,
-              display: 'flex'
+              gap: 10,
+              display: 'flex',
+              flexWrap: 'wrap',
+              width: '100%'
             }}>
               <div
                 onClick={(e) => {
@@ -697,10 +702,12 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   open();
                 }}
                 style={{
-                  minWidth: 140,
-                  height: 52,
-                  paddingLeft: 24,
-                  paddingRight: 24,
+                  flex: '1 1 auto',
+                  minWidth: 120,
+                  maxWidth: 160,
+                  height: 48,
+                  paddingLeft: 16,
+                  paddingRight: 16,
                   paddingTop: 10,
                   paddingBottom: 10,
                   background: 'white',
@@ -712,12 +719,13 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   gap: 8,
                   display: 'flex',
                   cursor: 'pointer',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  boxSizing: 'border-box'
                 }}
               >
                 <div style={{
                   color: '#323232',
-                  fontSize: 16,
+                  fontSize: 15,
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '600',
                   textTransform: 'capitalize',
@@ -734,10 +742,12 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   folderInputRef.current?.click();
                 }}
                 style={{
-                  minWidth: 140,
-                  height: 52,
-                  paddingLeft: 24,
-                  paddingRight: 24,
+                  flex: '1 1 auto',
+                  minWidth: 120,
+                  maxWidth: 160,
+                  height: 48,
+                  paddingLeft: 16,
+                  paddingRight: 16,
                   paddingTop: 10,
                   paddingBottom: 10,
                   background: 'white',
@@ -749,11 +759,12 @@ const UniversalUploadModal = ({ isOpen, onClose, categoryId = null, onUploadComp
                   gap: 8,
                   display: 'flex',
                   cursor: 'pointer',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  boxSizing: 'border-box'
                 }}>
                 <div style={{
                   color: '#323232',
-                  fontSize: 16,
+                  fontSize: 15,
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: '600',
                   textTransform: 'capitalize',

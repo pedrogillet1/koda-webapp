@@ -13,7 +13,6 @@ import pngIcon from '../assets/png-icon.png';
 import pptxIcon from '../assets/pptx.png';
 import movIcon from '../assets/mov.png';
 import mp4Icon from '../assets/mp4.png';
-import txtIcon from '../assets/txt-icon.png';
 
 const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, semicircle = false, style = {} }) => {
   const { t } = useTranslation();
@@ -44,7 +43,6 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
       'jpeg': 'jpg',
       'mov': 'mov',
       'mp4': 'mp4',
-      'txt': 'txt',
     };
     return mainTypes[ext] || 'other';
   };
@@ -77,14 +75,12 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
     'pptx': '#DC2626',  // Red
     'mov': '#3B82F6',   // Light Blue
     'mp4': '#A855F7',   // Purple
-    'txt': '#6B7280',   // Gray
     'other': '#6B7280'  // Gray
   };
 
-  // 9 file types including TXT
-  // Row 1: PNG, JPG, PDF
-  // Row 2: DOC, MOV, XLS
-  // Row 3: MP4, PPTX, TXT
+  // 8 file types
+  // Row 1: PNG, JPG, PDF, DOC
+  // Row 2: MOV, XLS, MP4, PPTX
   const gridData = [
     { type: 'png', label: 'PNG', icon: pngIcon, color: colorMap['png'] },
     { type: 'jpg', label: 'JPG', icon: jpgIcon, color: colorMap['jpg'] },
@@ -93,8 +89,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
     { type: 'mov', label: 'MOV', icon: movIcon, color: colorMap['mov'] },
     { type: 'xlsx', label: 'XLS', icon: xlsIcon, color: colorMap['xlsx'] },
     { type: 'mp4', label: 'MP4', icon: mp4Icon, color: colorMap['mp4'] },
-    { type: 'pptx', label: 'PPTX', icon: pptxIcon, color: colorMap['pptx'] },
-    { type: 'txt', label: 'TXT', icon: txtIcon, color: colorMap['txt'] }
+    { type: 'pptx', label: 'PPTX', icon: pptxIcon, color: colorMap['pptx'] }
   ];
 
   // Filter to only show file types that exist in documents
@@ -149,17 +144,17 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
       }}>
         {/* Icon Layout - Semicircle or Grid */}
         {semicircle ? (
-          /* 3-Column Layout for Settings page with centered last row */
+          /* 2x4 Grid Layout for Settings page */
           <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gridTemplateRows: 'repeat(2, auto)',
             width: '100%',
-            maxWidth: '320px',
             marginTop: 16,
             marginBottom: 16,
-            justifyContent: 'center',
+            justifyItems: 'center',
             alignItems: 'flex-start',
-            gap: '24px 0'
+            gap: '16px 8px'
           }}>
             {displayData.map((item) => {
               const fileCount = extensionBreakdown[item.type]?.count || 0;
@@ -175,7 +170,6 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: '4px',
-                    width: '33.33%',
                     opacity: !hasFiles ? 0.3 : (otherIsHovered ? 0.5 : 1),
                     transition: 'opacity 0.2s ease-out, transform 0.15s ease',
                     transform: isHovered ? 'scale(1.08)' : 'scale(1)',
@@ -187,8 +181,8 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                 >
                   <div
                     style={{
-                      width: 56,
-                      height: 56,
+                      width: 48,
+                      height: 48,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
@@ -198,14 +192,14 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                       src={item.icon}
                       alt={item.label}
                       style={{
-                        width: 56,
-                        height: 56,
+                        width: 48,
+                        height: 48,
                         objectFit: 'contain'
                       }}
                     />
                   </div>
                   <div style={{
-                    fontSize: '12px',
+                    fontSize: '11px',
                     fontWeight: '600',
                     color: '#32302C',
                     fontFamily: 'Plus Jakarta Sans',
@@ -214,7 +208,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                     {item.label}
                   </div>
                   <div style={{
-                    fontSize: '11px',
+                    fontSize: '10px',
                     fontWeight: '500',
                     color: '#6C6B6E',
                     fontFamily: 'Plus Jakarta Sans'

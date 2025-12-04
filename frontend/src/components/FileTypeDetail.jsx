@@ -339,7 +339,136 @@ const FileTypeDetail = () => {
       <LeftNav />
       <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Header - Title Row */}
-        <div data-file-type-header="true" className="file-type-header mobile-sticky-header" style={{ background: 'white', padding: isMobile ? '16px' : '20px 32px', paddingTop: isMobile ? 'max(env(safe-area-inset-top), 16px)' : '20px', borderBottom: '1px solid #E5E7EB', position: isMobile ? 'sticky' : 'relative', top: isMobile ? 0 : 'auto', zIndex: isMobile ? 10 : 'auto', flexShrink: 0 }}>
+        <div data-file-type-header="true" className="file-type-header mobile-sticky-header" style={{ background: 'white', padding: isMobile && isSelectMode ? 0 : (isMobile ? '16px' : '20px 32px'), paddingTop: isMobile && isSelectMode ? 0 : (isMobile ? 'max(env(safe-area-inset-top), 16px)' : '20px'), borderBottom: isMobile && isSelectMode ? 'none' : '1px solid #E5E7EB', position: isMobile ? 'sticky' : 'relative', top: isMobile ? 0 : 'auto', zIndex: isMobile ? 10 : 'auto', flexShrink: 0 }}>
+          {/* Mobile Select Mode: Two-row layout */}
+          {isMobile && isSelectMode ? (
+            <>
+              {/* Row 1: Title with border-bottom (same position as normal mode) */}
+              <div style={{
+                padding: '16px',
+                paddingTop: 'max(env(safe-area-inset-top), 16px)',
+                borderBottom: '1px solid #E5E7EB',
+                display: 'flex',
+                justifyContent: 'flex-start',
+                alignItems: 'center',
+                gap: 12
+              }}>
+                {config.icon && <img src={config.icon} alt={fileType} style={{ width: 24, height: 24, objectFit: 'contain' }} />}
+                <h1 style={{
+                  fontSize: 18,
+                  fontWeight: '600',
+                  color: '#111827',
+                  fontFamily: 'Plus Jakarta Sans',
+                  margin: 0
+                }}>
+                  {config.label}
+                </h1>
+              </div>
+              {/* Row 2: Action buttons */}
+              <div style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #E5E7EB',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8
+              }}>
+                {/* Delete Button */}
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={selectedDocuments.size === 0}
+                  style={{
+                    height: 38,
+                    paddingLeft: 12,
+                    paddingRight: 12,
+                    background: selectedDocuments.size > 0 ? '#FEE2E2' : '#F5F5F5',
+                    borderRadius: 100,
+                    border: '1px solid #E6E6EC',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
+                    opacity: selectedDocuments.size > 0 ? 1 : 0.5,
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                    minWidth: 0
+                  }}
+                >
+                  <TrashCanIcon style={{ width: 16, height: 16 }} />
+                  {selectedDocuments.size > 0 && (
+                    <span style={{
+                      color: '#D92D20',
+                      fontSize: 13,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '600'
+                    }}>
+                      ({selectedDocuments.size})
+                    </span>
+                  )}
+                </button>
+
+                {/* Move Button with + icon */}
+                <button
+                  onClick={handleBulkMove}
+                  disabled={selectedDocuments.size === 0}
+                  style={{
+                    height: 38,
+                    paddingLeft: 12,
+                    paddingRight: 12,
+                    background: 'white',
+                    borderRadius: 100,
+                    border: '1px solid #E6E6EC',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
+                    opacity: selectedDocuments.size > 0 ? 1 : 0.5,
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                    minWidth: 0
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span style={{
+                    color: '#32302C',
+                    fontSize: 13,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600'
+                  }}>
+                    {selectedDocuments.size > 0 ? `(${selectedDocuments.size})` : ''}
+                  </span>
+                </button>
+
+                {/* Cancel Button */}
+                <button
+                  onClick={() => { clearSelection(); toggleSelectMode(); }}
+                  style={{
+                    height: 38,
+                    paddingLeft: 12,
+                    paddingRight: 12,
+                    background: 'white',
+                    borderRadius: 100,
+                    border: '1px solid #E6E6EC',
+                    cursor: 'pointer',
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600',
+                    fontSize: 13,
+                    color: '#111827',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                    minWidth: 0
+                  }}
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </>
+          ) : (
+          /* Normal mode layout */
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'center' : 'flex-start', gap: isMobile ? 12 : 24, flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               {/* Breadcrumb - desktop only */}
@@ -360,39 +489,43 @@ const FileTypeDetail = () => {
                 <h1 style={{ fontSize: isMobile ? 18 : 32, fontWeight: '600', color: '#111827', fontFamily: 'Plus Jakarta Sans', margin: 0 }}>{config.label}</h1>
               </div>
             </div>
-            {/* Desktop: Search + Select in header / Mobile Select Mode: Action buttons */}
-            <div style={{ display: (isMobile && !isSelectMode) ? 'none' : 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexShrink: 0, flexWrap: 'wrap', width: isMobile ? 'auto' : 'auto', justifyContent: 'flex-end' }}>
-              {isSelectMode ? (
-                <>
-                  <button onClick={handleBulkDelete} disabled={selectedDocuments.size === 0} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: selectedDocuments.size > 0 ? '#FEE2E2' : '#F5F5F5', borderRadius: 100, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 8, cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed', opacity: selectedDocuments.size > 0 ? 1 : 0.5, whiteSpace: 'nowrap' }}>
-                    <TrashCanIcon style={{ width: 18, height: 18 }} />
-                    <span style={{ color: '#D92D20', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', whiteSpace: 'nowrap' }}>{t('common.delete')}{selectedDocuments.size > 0 ? ' (' + selectedDocuments.size + ')' : ''}</span>
-                  </button>
-                  <button onClick={handleBulkMove} disabled={selectedDocuments.size === 0} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 8, cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed', opacity: selectedDocuments.size > 0 ? 1 : 0.5, whiteSpace: 'nowrap' }}>
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    <span style={{ color: '#32302C', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', whiteSpace: 'nowrap' }}>{t('common.move')}{selectedDocuments.size > 0 ? ' (' + selectedDocuments.size + ')' : ''}</span>
-                  </button>
-                  <button onClick={() => { clearSelection(); toggleSelectMode(); }} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', fontSize: 15, color: '#111827', whiteSpace: 'nowrap' }}>{t('common.cancel')}</button>
-                </>
-              ) : (
-                <>
-                  <div style={{ paddingLeft: 12, paddingRight: 12, paddingTop: 10, paddingBottom: 10, background: 'white', borderRadius: 100, border: '1px #E5E7EB solid', display: 'flex', alignItems: 'center', gap: 8, width: 280 }}>
-                    <SearchIcon style={{ width: 20, height: 20, color: '#6B7280' }} />
-                    <input type="text" placeholder={t('common.searchFilesPlaceholder')} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ border: 'none', outline: 'none', background: 'transparent', color: '#111827', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', flex: 1, width: '100%' }} />
-                  </div>
-                  <button onClick={toggleSelectMode} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', fontSize: 15, color: '#111827', whiteSpace: 'nowrap' }}>{t('common.select')}</button>
-                </>
-              )}
-            </div>
+            {/* Desktop: Search + Select in header */}
+            {!isMobile && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                {isSelectMode ? (
+                  <>
+                    <button onClick={handleBulkDelete} disabled={selectedDocuments.size === 0} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: selectedDocuments.size > 0 ? '#FEE2E2' : '#F5F5F5', borderRadius: 100, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 8, cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed', opacity: selectedDocuments.size > 0 ? 1 : 0.5, whiteSpace: 'nowrap' }}>
+                      <TrashCanIcon style={{ width: 18, height: 18 }} />
+                      <span style={{ color: '#D92D20', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', whiteSpace: 'nowrap' }}>{t('common.delete')}{selectedDocuments.size > 0 ? ' (' + selectedDocuments.size + ')' : ''}</span>
+                    </button>
+                    <button onClick={handleBulkMove} disabled={selectedDocuments.size === 0} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', display: 'flex', alignItems: 'center', gap: 8, cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed', opacity: selectedDocuments.size > 0 ? 1 : 0.5, whiteSpace: 'nowrap' }}>
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span style={{ color: '#32302C', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', whiteSpace: 'nowrap' }}>{t('common.move')}{selectedDocuments.size > 0 ? ' (' + selectedDocuments.size + ')' : ''}</span>
+                    </button>
+                    <button onClick={() => { clearSelection(); toggleSelectMode(); }} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', fontSize: 15, color: '#111827', whiteSpace: 'nowrap' }}>{t('common.cancel')}</button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ paddingLeft: 12, paddingRight: 12, paddingTop: 10, paddingBottom: 10, background: 'white', borderRadius: 100, border: '1px #E5E7EB solid', display: 'flex', alignItems: 'center', gap: 8, width: 280 }}>
+                      <SearchIcon style={{ width: 20, height: 20, color: '#6B7280' }} />
+                      <input type="text" placeholder={t('common.searchFilesPlaceholder')} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ border: 'none', outline: 'none', background: 'transparent', color: '#111827', fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', flex: 1, width: '100%' }} />
+                    </div>
+                    <button onClick={toggleSelectMode} style={{ height: 42, paddingLeft: 18, paddingRight: 18, background: 'white', borderRadius: 100, border: '1px solid #E6E6EC', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans', fontWeight: '600', fontSize: 15, color: '#111827', whiteSpace: 'nowrap' }}>{t('common.select')}</button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
+          )}
         </div>
 
         {/* Mobile Tab Bar - Search + Select */}
         {isMobile && !isSelectMode && (
-          <div style={{
+          <div className="mobile-tab-bar" style={{
             padding: '12px 16px',
+            paddingBottom: '12px',
             background: 'white',
             borderBottom: '1px solid #E5E7EB',
             display: 'flex',
@@ -458,7 +591,7 @@ const FileTypeDetail = () => {
         )}
 
         {/* Content */}
-        <div className="file-type-content scrollable-content" style={{ flex: 1, overflow: 'auto', padding: isMobile ? '0 16px' : '20px 32px', paddingTop: isMobile ? 0 : 20, paddingBottom: isMobile ? 100 : 32, WebkitOverflowScrolling: 'touch' }}>
+        <div className="file-type-content scrollable-content" style={{ flex: 1, overflow: 'auto', padding: isMobile ? '12px 16px 100px 16px' : '20px 32px 32px 32px', WebkitOverflowScrolling: 'touch' }}>
           <style>{`
             @keyframes cardFadeIn {
               from { opacity: 0; transform: translateY(10px); }
@@ -521,9 +654,23 @@ const FileTypeDetail = () => {
                       key={doc.id}
                       className="document-row"
                       onClick={() => { if (isSelectMode) toggleDocument(doc.id); else navigate('/document/' + doc.id); }}
-                      style={{
+                      style={isMobile ? {
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: 10,
+                        borderRadius: 14,
+                        background: isSelected(doc.id) ? '#E8E8EC' : 'white',
+                        border: '1px solid #E6E6EC',
+                        cursor: 'pointer',
+                        marginBottom: 8,
+                        position: 'relative',
+                        zIndex: openDropdownId === doc.id ? 99999 : 1,
+                        minHeight: 72,
+                        boxSizing: 'border-box'
+                      } : {
                         display: 'grid',
-                        gridTemplateColumns: isMobile ? '1fr 50px' : '2fr 1fr 1fr 1fr 50px',
+                        gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
                         gap: 12,
                         alignItems: 'center',
                         padding: '12px 16px',
@@ -675,8 +822,8 @@ const FileTypeDetail = () => {
       />
 
       {showRenameModal && (
-        <div onClick={() => { setShowRenameModal(false); setItemToRename(null); setNewName(''); }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: 16, padding: 24, width: '90%', maxWidth: 400 }}>
+        <div onClick={() => { setShowRenameModal(false); setItemToRename(null); setNewName(''); }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16, boxSizing: 'border-box' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400, boxSizing: 'border-box' }}>
             <h3 style={{ fontSize: 20, fontWeight: '700', color: '#111827', fontFamily: 'Plus Jakarta Sans', marginTop: 0, marginBottom: 16 }}>{t('modals.rename.title', { item: t('common.file') })}</h3>
             <input
               type="text"

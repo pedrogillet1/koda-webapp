@@ -148,7 +148,7 @@ const NotificationPanel = ({ showNotificationsPopup, setShowNotificationsPopup }
               else e.currentTarget.style.background = '#E6E6EC';
             }}
           >
-            <CheckDoubleIcon style={{ width: 20, height: 20, filter: unreadCount > 0 ? 'invert(1)' : 'none' }} />
+            <CheckDoubleIcon style={{ width: 20, height: 20, filter: unreadCount > 0 ? 'none' : 'invert(1)' }} />
           </div>
         </div>
 

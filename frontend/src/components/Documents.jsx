@@ -35,7 +35,6 @@ import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg'
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as DotsIcon } from '../assets/dots.svg';
-import { ReactComponent as UploadIconMenu } from '../assets/upload.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import logoSvg from '../assets/logo.svg';
 import sphereIcon from '../assets/sphere.svg';
@@ -1090,27 +1089,28 @@ const Documents = () => {
           }}>
             {/* Search Bar */}
             <div style={{
-              position: 'relative',
+              flex: 1,
               height: 44,
+              paddingLeft: 12,
+              paddingRight: 12,
+              background: '#F5F5F5',
+              borderRadius: 100,
+              border: '1px #E6E6EC solid',
               display: 'flex',
               alignItems: 'center',
-              flex: 1
+              gap: 8
             }}>
-              <SearchIcon style={{position: 'absolute', left: 16, width: 20, height: 20, zIndex: 1}} />
+              <SearchIcon style={{ width: 20, height: 20, color: '#6B7280', flexShrink: 0 }} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('common.search')}
                 style={{
-                  height: '100%',
-                  width: '100%',
-                  paddingLeft: 46,
-                  paddingRight: 16,
-                  background: '#F5F5F5',
-                  borderRadius: 100,
-                  border: '1px #E6E6EC solid',
+                  flex: 1,
+                  border: 'none',
                   outline: 'none',
+                  background: 'transparent',
                   color: '#32302C',
                   fontSize: 16,
                   fontFamily: 'Plus Jakarta Sans',
@@ -1209,7 +1209,7 @@ const Documents = () => {
                       </div>
                     </div>
                   </div>
-                  {!isMobile && <div style={{position: 'relative'}} data-category-menu>
+                  <div style={{position: 'relative'}} data-category-menu>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1233,8 +1233,8 @@ const Documents = () => {
                         }
                       }}
                       style={{
-                        width: 28,
-                        height: 28,
+                        width: 32,
+                        height: 32,
                         background: 'transparent',
                         borderRadius: '50%',
                         border: 'none',
@@ -1324,7 +1324,7 @@ const Documents = () => {
                           onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
-                          <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
+                          <LogoutBlackIcon style={{width: 16, height: 16, color: '#32302C'}} />
                           {t('common.upload')}
                         </button>
                         <button
@@ -1358,7 +1358,7 @@ const Documents = () => {
                         </button>
                       </div>
                     )}
-                  </div>}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1548,7 +1548,7 @@ const Documents = () => {
                             onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
-                            <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
+                            <LogoutBlackIcon style={{width: 16, height: 16, color: '#32302C'}} />
                             {t('common.upload')}
                           </button>
                           <button
@@ -1844,16 +1844,18 @@ const Documents = () => {
                         style={isMobile ? {
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 14,
-                          padding: 14,
+                          gap: 12,
+                          padding: 10,
                           borderRadius: 14,
-                          background: '#F5F5F5',
+                          background: 'white',
                           border: '1px solid #E6E6EC',
-                          cursor: 'grab',
-                          marginBottom: 12,
+                          cursor: 'pointer',
+                          marginBottom: 8,
                           position: 'relative',
                           overflow: openDropdownId === doc.id ? 'visible' : 'hidden',
-                          zIndex: openDropdownId === doc.id ? 99999 : 1
+                          zIndex: openDropdownId === doc.id ? 99999 : 1,
+                          minHeight: 72,
+                          boxSizing: 'border-box'
                         } : {
                           display: 'grid',
                           gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
@@ -1901,8 +1903,8 @@ const Documents = () => {
                               src={getFileIcon(doc)}
                               alt="File icon"
                               style={{
-                                width: 48,
-                                height: 48,
+                                width: 40,
+                                height: 40,
                                 aspectRatio: '1/1',
                                 imageRendering: '-webkit-optimize-contrast',
                                 objectFit: 'contain',
@@ -1957,7 +1959,7 @@ const Documents = () => {
                             <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans', position: 'relative', zIndex: 1}}>{isUploading ? '' : new Date(doc.createdAt).toLocaleDateString()}</div>
                           </>
                         )}
-                        <div style={{position: 'relative'}} data-dropdown>
+                        <div style={{position: 'relative', flexShrink: 0}} data-dropdown>
                           <button
                             ref={(el) => {
                               if (el) dropdownRefs.current[doc.id] = el;
@@ -2110,6 +2112,7 @@ const Documents = () => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    setOpenDropdownId(null); // Close dropdown immediately
                                     setItemToDelete({ type: 'document', id: doc.id, name: doc.filename });
                                     setShowDeleteModal(true);
                                   }}
@@ -2378,7 +2381,7 @@ const Documents = () => {
 
       {/* Ask Koda Floating Button - Thinking Bubble Style */}
       {showAskKoda && (
-        <div style={{ width: 277, height: 82, right: 20, bottom: 20, position: 'absolute' }}>
+        <div style={{ width: 277, height: 82, right: 20, bottom: isMobile ? 100 : 20, position: 'absolute', zIndex: 9999 }}>
           {/* Close button */}
           <button
             onClick={(e) => {

@@ -58,22 +58,23 @@ export default function Modal({
         background: colors.overlay,
         display: 'flex',
         justifyContent: 'center',
-        alignItems: isMobile ? 'flex-end' : 'center',
+        alignItems: 'center',
         zIndex: zIndex.modal,
         animation: 'fadeIn 0.2s ease-out',
-        padding: isMobile ? 0 : spacing.lg,
-        paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : spacing.lg,
+        padding: isMobile ? 16 : spacing.lg,
+        paddingBottom: isMobile ? `calc(16px + env(safe-area-inset-bottom, 0px))` : spacing.lg,
+        boxSizing: 'border-box',
       }}
       onClick={onClose}
     >
       <div
         style={{
-          width: isMobile ? '100%' : '100%',
-          maxWidth: isMobile ? '100%' : maxWidth,
-          margin: isMobile ? 0 : spacing.lg,
-          maxHeight: isMobile ? '90vh' : '85vh',
+          width: '100%',
+          maxWidth: maxWidth,
+          margin: 0,
+          maxHeight: isMobile ? '85vh' : '85vh',
           background: colors.white,
-          borderRadius: isMobile ? '14px 14px 0 0' : radius.xl,
+          borderRadius: radius.xl,
           border: `1px solid ${colors.gray[300]}`,
           display: 'flex',
           flexDirection: 'column',
@@ -116,19 +117,19 @@ export default function Modal({
             {title}
           </div>
 
-          {/* Close button */}
+          {/* Close button - circular */}
           {showCloseButton && (
             <button
               onClick={onClose}
               style={{
                 width: 30,
                 height: 30,
-                padding: spacing.sm,
+                padding: 0,
                 background: colors.white,
                 border: `1px solid ${colors.gray[300]}`,
-                borderRadius: radius.md,
+                borderRadius: '50%',
                 cursor: 'pointer',
-                fontSize: 20,
+                fontSize: 18,
                 color: colors.gray[600],
                 transition: transitions.normal,
                 display: 'flex',
@@ -154,13 +155,13 @@ export default function Modal({
           {children}
         </div>
 
-        {/* Actions */}
+        {/* Actions - centered with pill-shaped buttons */}
         {actions.length > 0 && (
           <div
             style={{
               display: 'flex',
               gap: spacing.md,
-              justifyContent: 'flex-end',
+              justifyContent: 'center',
               paddingLeft: spacing.lg,
               paddingRight: spacing.lg,
             }}
@@ -179,8 +180,8 @@ export default function Modal({
                 bgColor = colors.error;
                 hoverColor = '#B82415';
               } else if (isSecondary) {
-                bgColor = colors.gray[400];
-                hoverColor = colors.gray[200];
+                bgColor = '#F5F5F5';
+                hoverColor = '#ECECEC';
                 textColor = colors.gray[900];
                 border = `1px solid ${colors.gray[300]}`;
               }
@@ -191,15 +192,17 @@ export default function Modal({
                   onClick={action.onClick}
                   disabled={action.disabled}
                   style={{
+                    flex: 1,
+                    height: 52,
                     padding: `${spacing.md}px ${spacing.lg}px`,
                     background: bgColor,
                     color: textColor,
                     border: border,
-                    borderRadius: radius.md,
+                    borderRadius: 100,
                     cursor: action.disabled ? 'not-allowed' : 'pointer',
-                    fontSize: typography.sizes.sm,
+                    fontSize: typography.sizes.md,
                     fontFamily: typography.fontFamily,
-                    fontWeight: typography.weights.semibold,
+                    fontWeight: typography.weights.bold,
                     transition: transitions.normal,
                     opacity: action.disabled ? 0.5 : 1,
                   }}
