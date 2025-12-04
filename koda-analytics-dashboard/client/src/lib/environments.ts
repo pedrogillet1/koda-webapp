@@ -15,7 +15,7 @@ export const ENVIRONMENTS: Record<string, Environment> = {
   localhost: {
     id: 'localhost',
     name: 'Development',
-    apiUrl: '/api',  // Use proxy in development
+    apiUrl: 'http://localhost:5000/api',  // Koda backend on port 5000
     color: '#3B82F6',
     icon: '💻',
     description: 'Local development environment'

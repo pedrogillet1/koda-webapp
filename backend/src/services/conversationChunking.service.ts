@@ -179,7 +179,12 @@ JSON array:`;
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
     const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
+    let text = result.response.text().trim();
+
+    // Remove markdown code blocks if present (e.g., ```json ... ```)
+    if (text.startsWith('```')) {
+      text = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+    }
 
     // Parse JSON array
     const boundaries = JSON.parse(text);

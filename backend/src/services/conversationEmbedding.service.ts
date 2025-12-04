@@ -89,17 +89,39 @@ export async function embedConversationChunk(
 
   console.log(`🔢 [EMBEDDING] Stored chunk embedding: ${vectorId}`);
 
-  // Update database with vector ID
-  await prisma.conversationChunk.updateMany({
-    where: {
-      conversationId: chunk.conversationId,
-      startMessageId: chunk.startMessageId
-    },
-    data: {
-      vectorId,
-      embeddingModel: EMBEDDING_MODEL
-    }
+  // Update database with vector ID (using chunk.id if available, otherwise by startMessageId)
+  // First check if this vectorId already exists - if so, just skip the update
+  const existingChunk = await prisma.conversationChunk.findFirst({
+    where: { vectorId }
   });
+
+  if (existingChunk) {
+    console.log(`🔢 [EMBEDDING] VectorId ${vectorId} already exists, skipping DB update`);
+  } else {
+    // Clear any existing vectorId for this chunk first to avoid unique constraint
+    await prisma.conversationChunk.updateMany({
+      where: {
+        conversationId: chunk.conversationId,
+        startMessageId: chunk.startMessageId,
+        vectorId: { not: null }
+      },
+      data: {
+        vectorId: null
+      }
+    });
+
+    // Now set the new vectorId
+    await prisma.conversationChunk.updateMany({
+      where: {
+        conversationId: chunk.conversationId,
+        startMessageId: chunk.startMessageId
+      },
+      data: {
+        vectorId,
+        embeddingModel: EMBEDDING_MODEL
+      }
+    });
+  }
 
   return vectorId;
 }

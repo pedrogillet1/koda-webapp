@@ -4,6 +4,7 @@ import { EnvironmentSwitcher } from "./EnvironmentSwitcher";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import type { Environment } from "@/lib/environments";
 import {
   LayoutDashboard,
   Users,
@@ -34,13 +35,29 @@ const navItems: NavItem[] = [
   { path: "/realtime", label: "Real-time", icon: <Zap className="w-5 h-5" /> },
 ];
 
-export function DashboardLayout({ children }: { children: React.ReactNode }) {
+interface DashboardLayoutProps {
+  children: React.ReactNode;
+  currentEnvironment?: Environment;
+  onEnvironmentChange?: (env: Environment) => void;
+  onRefresh?: () => void;
+}
+
+export function DashboardLayout({
+  children,
+  currentEnvironment,
+  onEnvironmentChange,
+  onRefresh
+}: DashboardLayoutProps) {
   const [location] = useLocation();
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
 
   const handleRefresh = () => {
-    window.location.reload();
+    if (onRefresh) {
+      onRefresh();
+    } else {
+      window.location.reload();
+    }
   };
 
   return (

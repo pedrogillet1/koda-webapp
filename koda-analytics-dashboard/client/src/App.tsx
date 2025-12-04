@@ -1,12 +1,16 @@
 import { Route, Switch, Redirect } from 'wouter';
+import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { EnvironmentProvider } from '@/contexts/EnvironmentContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AnalyticsProvider, useAnalytics } from '@/contexts/AnalyticsContext';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { DashboardLayout } from '@/components/DashboardLayout';
 
 // Pages
 import Login from '@/pages/Login';
-import Dashboard from '@/pages/Dashboard';
+import Overview from '@/pages/Overview';
 import UsersPage from '@/pages/Users';
 import ConversationsPage from '@/pages/Conversations';
 import DocumentsPage from '@/pages/Documents';
@@ -59,35 +63,39 @@ function PublicRoute({ component: Component }: { component: React.ComponentType 
   return <Component />;
 }
 
+// Dashboard Router with Analytics Context
+function DashboardRouter() {
+  const { environment, setEnvironment, refreshAll } = useAnalytics();
+
+  return (
+    <DashboardLayout
+      currentEnvironment={environment}
+      onEnvironmentChange={setEnvironment}
+      onRefresh={refreshAll}
+    >
+      <Switch>
+        <Route path="/" component={Overview} />
+        <Route path="/users" component={UsersPage} />
+        <Route path="/conversations" component={ConversationsPage} />
+        <Route path="/documents" component={DocumentsPage} />
+        <Route path="/system" component={SystemHealthPage} />
+        <Route path="/costs" component={CostsPage} />
+        <Route path="/realtime" component={RealtimePage} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </DashboardLayout>
+  );
+}
+
 function AppRoutes() {
   return (
     <Switch>
       <Route path="/login">
         <PublicRoute component={Login} />
       </Route>
-      <Route path="/">
-        <ProtectedRoute component={Dashboard} />
-      </Route>
-      <Route path="/users">
-        <ProtectedRoute component={UsersPage} />
-      </Route>
-      <Route path="/conversations">
-        <ProtectedRoute component={ConversationsPage} />
-      </Route>
-      <Route path="/documents">
-        <ProtectedRoute component={DocumentsPage} />
-      </Route>
-      <Route path="/system-health">
-        <ProtectedRoute component={SystemHealthPage} />
-      </Route>
-      <Route path="/costs">
-        <ProtectedRoute component={CostsPage} />
-      </Route>
-      <Route path="/realtime">
-        <ProtectedRoute component={RealtimePage} />
-      </Route>
       <Route>
-        <NotFound />
+        <ProtectedRoute component={DashboardRouter} />
       </Route>
     </Switch>
   );
@@ -96,12 +104,17 @@ function AppRoutes() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <EnvironmentProvider>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </EnvironmentProvider>
+      <ThemeProvider defaultTheme="light">
+        <TooltipProvider>
+          <Toaster />
+          <EnvironmentProvider>
+            <AuthProvider>
+              <AnalyticsProvider>
+                <AppRoutes />
+              </AnalyticsProvider>
+            </AuthProvider>
+          </EnvironmentProvider>
+        </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

@@ -20,6 +20,7 @@ import historyService from './history.service';
 import { conversationContextService } from './conversationContext.service';
 import OpenAI from 'openai';
 import { config } from '../config/env';
+// Note: Format enforcement is handled by rag.service.ts - no need to import here
 
 // OpenAI client for streaming title generation
 const openai = new OpenAI({
@@ -368,14 +369,12 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
     attachedDocumentId
   );
 
-  let fullResponse = ragResult.answer || 'Sorry, I could not generate a response.';
+  // ✅ FORMAT ENFORCEMENT: Already handled by rag.service.ts generateAnswerStream()
+  // Do NOT apply format enforcement here - it causes response duplication!
+  // The rag.service.ts applies structure + format enforcement before returning.
+  const fullResponse = ragResult.answer || 'Sorry, I could not generate a response.';
 
-  // Append document sources if available
-  if (ragResult.sources && ragResult.sources.length > 0) {
-    console.log(`📎 Appending ${ragResult.sources.length} document sources to response`);
-    const sourcesText = formatDocumentSources(ragResult.sources, attachedDocumentId);
-    fullResponse += '\n\n' + sourcesText;
-  }
+  console.log(`✅ [CHAT SERVICE] Using pre-formatted response from RAG service (${fullResponse.length} chars)`);
 
   // Create assistant message
   const assistantMessage = await prisma.messages.create({
@@ -1025,15 +1024,18 @@ export const handleFileActionsIfNeeded = async (
   attachedFiles?: any[]
 ): Promise<{ action: string; message: string } | null> => {
 
-  const { llmIntentDetectorService } = require('./llmIntentDetector.service');
+  // ✅ UNIFIED INTENT DETECTION
+  const intentDetectionService = require('./intentDetection.service').default;
+  const { toLegacyFormat } = require('./intentDetection.service');
   const fileActionsService = require('./fileActions.service').default;
 
   // ========================================
-  // Use LLM for flexible intent detection
+  // Use unified intent detection (fast-path + LLM when needed)
   // ========================================
-  const intentResult = await llmIntentDetectorService.detectIntent(message);
+  const unifiedResult = await intentDetectionService.detect(message, []);
+  const intentResult = toLegacyFormat(unifiedResult);
 
-  console.log(`🎯 [LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
+  console.log(`🎯 [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [${unifiedResult.detectionMethod}/${unifiedResult.detectionTimeMs}ms]`);
   console.log(`📝 [Entities]`, intentResult.parameters);
 
   // Only process file actions with high confidence

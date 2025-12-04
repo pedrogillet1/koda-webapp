@@ -1168,6 +1168,19 @@ async function processDocumentWithTimeout(
         }
       });
 
+      // ⚡ BM25 CHUNK CREATION - Run in background (non-blocking)
+      // Creates text chunks for keyword search (hybrid retrieval)
+      Promise.resolve().then(async () => {
+        try {
+          const bm25Service = await import('./bm25ChunkCreation.service');
+          const textForChunking = markdownContent || extractedText;
+          await bm25Service.createBM25Chunks(documentId, textForChunking, pageCount);
+        } catch (bm25Error: any) {
+          // BM25 chunking is not critical - log error but continue
+          console.error('❌ [Background] BM25 chunk creation failed (non-critical):', bm25Error.message);
+        }
+      });
+
     } else {
     }
 

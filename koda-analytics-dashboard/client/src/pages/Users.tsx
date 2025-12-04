@@ -1,8 +1,9 @@
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { useEffect } from 'react';
+import { useAnalytics } from '@/contexts/AnalyticsContext';
+import { Skeleton } from '@/components/ui/skeleton';
 import { MetricCard } from "@/components/MetricCard";
-import { useUserAnalytics } from "@/hooks/useAnalytics";
 import { Card } from "@/components/ui/card";
-import { Users, UserPlus, UserCheck, TrendingUp } from "lucide-react";
+import { Users, UserPlus, TrendingUp } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -14,16 +15,31 @@ import {
 } from 'recharts';
 
 export default function UsersPage() {
-  const { data, loading, error } = useUserAnalytics();
+  const { users, loading, fetchUsers } = useAnalytics();
 
-  if (error) {
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  if (loading && !users) {
     return (
-      <DashboardLayout>
-        <div className="text-center py-12">
-          <p className="text-destructive">Failed to load user analytics</p>
-          <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
         </div>
-      </DashboardLayout>
+        <Skeleton className="h-96" />
+      </div>
+    );
+  }
+
+  if (!users) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">No user data available</p>
+      </div>
     );
   }
 
@@ -32,67 +48,67 @@ export default function UsersPage() {
     return `${date.getMonth() + 1}/${date.getDate()}`;
   };
 
-  const chartData = data?.userGrowthTrend?.map(item => ({
+  const chartData = users?.userGrowthTrend?.map(item => ({
     date: formatDate(item.date),
     users: item.count
   })) || [];
 
   return (
-    <DashboardLayout>
-      <div className="space-y-8">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Users</h2>
-          <p className="text-muted-foreground mt-1">
-            User analytics and growth metrics
-          </p>
-        </div>
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">Users</h2>
+        <p className="text-muted-foreground mt-1">
+          User analytics and growth metrics
+        </p>
+      </div>
 
-        {/* Key Metrics */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            title="Total Users"
-            value={data?.totalUsers?.toLocaleString() || '0'}
-            icon={<Users className="w-6 h-6" />}
-            loading={loading}
-          />
-          <MetricCard
-            title="New Today"
-            value={data?.newUsersToday?.toLocaleString() || '0'}
-            icon={<UserPlus className="w-6 h-6" />}
-            loading={loading}
-          />
-          <MetricCard
-            title="New This Week"
-            value={data?.newUsersThisWeek?.toLocaleString() || '0'}
-            icon={<UserPlus className="w-6 h-6" />}
-            loading={loading}
-          />
-          <MetricCard
-            title="Growth Rate"
-            value={`${data?.userGrowthRate?.toFixed(1) || 0}%`}
-            trend={data?.userGrowthRate > 0 ? 'up' : 'down'}
-            icon={<TrendingUp className="w-6 h-6" />}
-            loading={loading}
-          />
-        </div>
+      {/* Key Metrics */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          title="Total Users"
+          value={users?.totalUsers?.toLocaleString() || '0'}
+          icon={<Users className="w-6 h-6" />}
+          loading={loading}
+        />
+        <MetricCard
+          title="New Today"
+          value={users?.newUsersToday?.toLocaleString() || '0'}
+          icon={<UserPlus className="w-6 h-6" />}
+          loading={loading}
+        />
+        <MetricCard
+          title="New This Week"
+          value={users?.newUsersThisWeek?.toLocaleString() || '0'}
+          icon={<UserPlus className="w-6 h-6" />}
+          loading={loading}
+        />
+        <MetricCard
+          title="Growth Rate"
+          value={`${users?.userGrowthRate?.toFixed(1) || 0}%`}
+          trend={users?.userGrowthRate && users.userGrowthRate > 0 ? 'up' : 'down'}
+          icon={<TrendingUp className="w-6 h-6" />}
+          loading={loading}
+        />
+      </div>
 
-        {/* Active Users */}
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card className="p-6">
-            <h3 className="stat-label">Daily Active Users</h3>
-            <p className="stat-value mt-2">{data?.activeUsersToday?.toLocaleString() || '0'}</p>
-          </Card>
-          <Card className="p-6">
-            <h3 className="stat-label">Weekly Active Users</h3>
-            <p className="stat-value mt-2">{data?.activeUsersThisWeek?.toLocaleString() || '0'}</p>
-          </Card>
-          <Card className="p-6">
-            <h3 className="stat-label">Monthly Active Users</h3>
-            <p className="stat-value mt-2">{data?.activeUsersThisMonth?.toLocaleString() || '0'}</p>
-          </Card>
-        </div>
+      {/* Active Users */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card className="p-6">
+          <h3 className="stat-label">Daily Active Users</h3>
+          <p className="stat-value mt-2">{users?.activeUsersToday?.toLocaleString() || '0'}</p>
+        </Card>
+        <Card className="p-6">
+          <h3 className="stat-label">Weekly Active Users</h3>
+          <p className="stat-value mt-2">{users?.activeUsersThisWeek?.toLocaleString() || '0'}</p>
+        </Card>
+        <Card className="p-6">
+          <h3 className="stat-label">Monthly Active Users</h3>
+          <p className="stat-value mt-2">{users?.activeUsersThisMonth?.toLocaleString() || '0'}</p>
+        </Card>
+      </div>
 
-        {/* User Growth Chart */}
+      {/* User Growth Chart */}
+      {chartData.length > 0 && (
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4">User Growth Trend</h3>
           <div className="h-[300px]">
@@ -125,36 +141,61 @@ export default function UsersPage() {
             </ResponsiveContainer>
           </div>
         </Card>
+      )}
 
-        {/* Top Users Table */}
-        {data?.topUsersByMessages && data.topUsersByMessages.length > 0 && (
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Top Users by Messages</h3>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Email</th>
-                  <th>Name</th>
-                  <th className="text-right">Messages</th>
-                  <th>Last Active</th>
+      {/* Top Users Table */}
+      {users?.mostActiveUsers && users.mostActiveUsers.length > 0 && (
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Most Active Users</h3>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th className="text-right">Messages</th>
+                <th className="text-right">Conversations</th>
+                <th className="text-right">Documents</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.mostActiveUsers.map((user) => (
+                <tr key={user.userId}>
+                  <td className="font-medium">{user.email}</td>
+                  <td className="text-right">{user.messageCount.toLocaleString()}</td>
+                  <td className="text-right">{user.conversationCount.toLocaleString()}</td>
+                  <td className="text-right">{user.documentCount.toLocaleString()}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {data.topUsersByMessages.map((user) => (
-                  <tr key={user.id}>
-                    <td className="font-medium">{user.email}</td>
-                    <td>{user.name || '-'}</td>
-                    <td className="text-right">{user.messageCount.toLocaleString()}</td>
-                    <td className="text-muted-foreground">
-                      {new Date(user.lastActive).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        )}
-      </div>
-    </DashboardLayout>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {/* Inactive Users Table */}
+      {users?.inactiveUsers && users.inactiveUsers.length > 0 && (
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Inactive Users (30+ days)</h3>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Last Active</th>
+                <th className="text-right">Days Inactive</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.inactiveUsers.map((user) => (
+                <tr key={user.userId}>
+                  <td className="font-medium">{user.email}</td>
+                  <td className="text-muted-foreground">
+                    {user.lastActive ? new Date(user.lastActive).toLocaleDateString() : 'Never'}
+                  </td>
+                  <td className="text-right">{user.daysSinceActive}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+    </div>
   );
 }

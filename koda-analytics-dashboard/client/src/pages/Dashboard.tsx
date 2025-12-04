@@ -1,8 +1,9 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { MetricCard } from "@/components/MetricCard";
+import StatCard from "@/components/StatCard";
 import { useQuickStats } from "@/hooks/useAnalytics";
 import { Card } from "@/components/ui/card";
-import { Users, MessageSquare, FileText, DollarSign, Activity, Clock } from "lucide-react";
+import { Users, MessageSquare, FileText, Activity, MessageCircle, BarChart3, HardDrive } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -73,27 +74,30 @@ export default function Dashboard() {
 
         {/* Secondary Metrics */}
         <div className="grid gap-6 md:grid-cols-3">
-          <Card className="p-6">
-            <h3 className="stat-label">Conversations</h3>
-            <p className="stat-value mt-2">{data?.totalConversations?.toLocaleString() || '0'}</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {data?.newConversationsToday || 0} new today
-            </p>
-          </Card>
-          <Card className="p-6">
-            <h3 className="stat-label">Avg Messages/Conv</h3>
-            <p className="stat-value mt-2">{data?.avgMessagesPerConversation?.toFixed(1) || '0'}</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              messages per conversation
-            </p>
-          </Card>
-          <Card className="p-6">
-            <h3 className="stat-label">Storage Used</h3>
-            <p className="stat-value mt-2">{data?.totalStorageGB?.toFixed(2) || '0'} GB</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              document storage
-            </p>
-          </Card>
+          <StatCard
+            title="Conversations"
+            value={data?.totalConversations?.toLocaleString() || '0'}
+            subtitle={`${data?.newConversationsToday || 0} new today`}
+            icon={MessageCircle}
+            color="text-blue-500"
+            loading={loading}
+          />
+          <StatCard
+            title="Avg Messages/Conv"
+            value={data?.avgMessagesPerConversation?.toFixed(1) || '0'}
+            subtitle="messages per conversation"
+            icon={BarChart3}
+            color="text-purple-500"
+            loading={loading}
+          />
+          <StatCard
+            title="Storage Used"
+            value={`${data?.totalStorageGB?.toFixed(2) || '0'} GB`}
+            subtitle="document storage"
+            icon={HardDrive}
+            color="text-green-500"
+            loading={loading}
+          />
         </div>
 
         {/* Activity Chart */}

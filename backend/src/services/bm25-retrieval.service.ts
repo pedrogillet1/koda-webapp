@@ -99,8 +99,8 @@ export class BM25RetrievalService {
 
       console.log('⚠️  [BM25 HYBRID] Using fallback: vector results only');
       return vectorResults.map(result => ({
-        content: result.content || result.document_metadata?.text || result.document_metadata?.content || '',
-        metadata: result.document_metadata,
+        content: result.content || (result.metadata as any)?.text || (result.metadata as any)?.content || '',
+        metadata: result.metadata,
         vectorScore: result.score || 0,
         bm25Score: 0,
         hybridScore: result.score || 0,
@@ -162,7 +162,7 @@ export class BM25RetrievalService {
         documentId: result.documentId,
         chunkText: result.text,
         score: Number(result.rank),
-        document_metadata: {
+        metadata: {
           text: result.text,
           content: result.text,
           page: result.page,
@@ -225,14 +225,14 @@ export class BM25RetrievalService {
     // ──────────────────────────────────────────────────────────────────
 
     vectorResults.forEach((result, rank) => {
-      const content = result.content || result.document_metadata?.text || result.document_metadata?.content || '';
+      const content = result.content || (result.metadata as any)?.text || (result.metadata as any)?.content || '';
       const key = this.generateKey(content);
 
       const rrfScore = 1 / (k + rank + 1); // +1 because rank starts at 0
 
       resultsMap.set(key, {
         content: content,
-        metadata: result.document_metadata,
+        metadata: result.metadata,
         vectorScore: result.score || 0,
         bm25Score: 0,
         hybridScore: rrfScore,
@@ -256,7 +256,7 @@ export class BM25RetrievalService {
         // New result from BM25 only
         resultsMap.set(key, {
           content: result.chunkText,
-          metadata: result.document_metadata,
+          metadata: result.metadata,
           vectorScore: 0,
           bm25Score: result.score,
           hybridScore: rrfScore,

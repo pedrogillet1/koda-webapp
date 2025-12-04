@@ -4,6 +4,69 @@ const basePrisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// INFINITE CONVERSATION MEMORY: Post-message-save chunking trigger
+// ═══════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Trigger conversation chunking after messages are saved
+// WHY: This enables infinite conversation memory (Manus-style)
+// HOW: Export a helper that can be called after message creation
+// NOTE: Prisma v6 removed $use() middleware, so we use a different approach
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Flag to enable/disable infinite memory (can be set via env var)
+const INFINITE_MEMORY_ENABLED = process.env.INFINITE_MEMORY_ENABLED !== 'false';
+
+// Import chunking trigger lazily to avoid circular dependencies
+let chunkingTrigger: any = null;
+const getChunkingTrigger = async () => {
+  if (!chunkingTrigger) {
+    try {
+      const module = await import('../services/conversationChunkingTrigger.service');
+      chunkingTrigger = module.default;
+    } catch (error) {
+      console.warn('♾️ [DATABASE] Could not load chunking trigger:', error);
+    }
+  }
+  return chunkingTrigger;
+};
+
+/**
+ * Trigger infinite memory chunking after a message is saved
+ * Call this after any prisma.message.create() call
+ */
+export async function triggerInfiniteMemoryChunking(conversationId: string, userId?: string): Promise<void> {
+  if (!INFINITE_MEMORY_ENABLED) return;
+
+  try {
+    // Get userId from conversation if not provided
+    let finalUserId = userId;
+    if (!finalUserId) {
+      const conversation = await basePrisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { userId: true }
+      });
+      finalUserId = conversation?.userId;
+    }
+
+    if (finalUserId) {
+      // Trigger chunking asynchronously (non-blocking)
+      setImmediate(async () => {
+        try {
+          const trigger = await getChunkingTrigger();
+          if (trigger) {
+            await trigger.triggerAfterMessage(conversationId, finalUserId);
+          }
+        } catch (error) {
+          console.debug('♾️ [DATABASE] Chunking trigger error (non-blocking):', error);
+        }
+      });
+    }
+  } catch (error) {
+    // Silent fail - chunking errors shouldn't break message saving
+    console.debug('♾️ [DATABASE] Trigger error (non-blocking):', error);
+  }
+}
+
 // ✅ COMPATIBILITY LAYER: Create plural aliases for Prisma model accessors
 // The generated Prisma client uses singular names (prisma.user), but our codebase uses plural (prisma.users)
 // This creates aliases to maintain backward compatibility

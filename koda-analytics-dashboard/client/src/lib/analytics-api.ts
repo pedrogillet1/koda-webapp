@@ -50,27 +50,29 @@ export interface UserAnalytics {
   activeUsersThisWeek: number;
   activeUsersThisMonth: number;
   userGrowthRate: number;
+  retentionRate: number;
   userGrowthTrend: Array<{ date: string; count: number }>;
-  topUsersByMessages: Array<{
-    id: string;
+  mostActiveUsers: Array<{
+    userId: string;
     email: string;
-    name: string;
     messageCount: number;
-    lastActive: string;
+    conversationCount: number;
+    documentCount: number;
   }>;
   inactiveUsers: Array<{
-    id: string;
+    userId: string;
     email: string;
-    name: string;
-    lastActive: string;
+    lastActive: string | null;
     daysSinceActive: number;
   }>;
+  usersBySubscriptionTier: Array<{ tier: string; count: number }>;
 }
 
 export interface ConversationAnalytics {
   totalConversations: number;
   newConversationsToday: number;
   newConversationsThisWeek: number;
+  newConversationsThisMonth: number;
   activeConversations: number;
   totalMessages: number;
   messagesToday: number;
@@ -82,10 +84,11 @@ export interface ConversationAnalytics {
   messagesTrend: Array<{ date: string; count: number }>;
   peakUsageHours: Array<{ hour: number; messageCount: number }>;
   longestConversations: Array<{
-    id: string;
+    conversationId: string;
     title: string;
-    userEmail: string;
     messageCount: number;
+    userId: string;
+    userEmail: string;
   }>;
 }
 
@@ -94,22 +97,26 @@ export interface DocumentAnalytics {
   documentsUploadedToday: number;
   documentsUploadedThisWeek: number;
   documentsUploadedThisMonth: number;
+  totalStorageBytes: number;
   totalStorageGB: number;
   avgDocumentSizeBytes: number;
   documentsByType: Array<{ type: string; count: number }>;
   documentsByStatus: Array<{ status: string; count: number }>;
   uploadTrend: Array<{ date: string; count: number }>;
   largestDocuments: Array<{
-    id: string;
+    documentId: string;
     filename: string;
-    userEmail: string;
+    sizeBytes: number;
     sizeMB: number;
+    userId: string;
+    userEmail: string;
   }>;
   recentUploads: Array<{
-    id: string;
+    documentId: string;
     filename: string;
-    userEmail: string;
     uploadedAt: string;
+    userId: string;
+    userEmail: string;
   }>;
   embeddingStats: {
     totalEmbeddings: number;
