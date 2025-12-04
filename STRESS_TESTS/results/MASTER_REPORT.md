@@ -1,6 +1,6 @@
 # KODA COMPREHENSIVE STRESS TEST - MASTER REPORT
 
-**Date:** 12/4/2025, 6:09:48 PM
+**Date:** 12/4/2025, 6:43:52 PM
 **Total Tests:** 85
 
 ---
@@ -10,7 +10,7 @@
 | Metric | Value |
 |--------|-------|
 | **Overall Score** | **0.00%** |
-| **Format Score** | **9.33%** |
+| **Format Score** | **0.00%** |
 | **Total Passed** | 0 |
 | **Total Failed** | 85 |
 | **Release Ready** | **❌ NO** |
@@ -21,7 +21,7 @@
 
 | Test Suite | Passed | Failed | Total | Score | Avg Response Time |
 |------------|--------|--------|-------|-------|-------------------|
-| Conversation Memory | 0 | 20 | 20 | **0.0%** | 4925ms |
+| Conversation Memory | 0 | 20 | 20 | **0.0%** | 0ms |
 | Data Extraction | 0 | 20 | 20 | **0.0%** | 0ms |
 | File Location | 0 | 10 | 10 | **0.0%** | 0ms |
 | Context Understanding | 0 | 10 | 10 | **0.0%** | 0ms |
@@ -51,7 +51,7 @@
 
 
 
-**Format Issues:** Average score 9.3% (required: ≥ 90%)
+**Format Issues:** Average score 0.0% (required: ≥ 90%)
 
 
 

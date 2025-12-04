@@ -1,6 +1,6 @@
 # NAVIGATION TEST REPORT
 
-**Date:** 12/4/2025, 6:09:48 PM
+**Date:** 12/4/2025, 6:43:52 PM
 **Total Tests:** 15
 
 ---
@@ -32,7 +32,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (10ms): Request failed with status code 400
+- API Error (7ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -46,7 +46,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (8ms): Request failed with status code 400
+- API Error (7ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -60,7 +60,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (9ms): Request failed with status code 400
+- API Error (7ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -74,7 +74,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (8ms): Request failed with status code 400
+- API Error (6ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -88,7 +88,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (9ms): Request failed with status code 400
+- API Error (7ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -102,7 +102,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (9ms): Request failed with status code 400
+- API Error (6ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -116,7 +116,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (10ms): Request failed with status code 400
+- API Error (7ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -130,7 +130,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (10ms): Request failed with status code 400
+- API Error (7ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -144,7 +144,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (10ms): Request failed with status code 400
+- API Error (8ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -158,7 +158,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (11ms): Request failed with status code 400
+- API Error (6ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -172,7 +172,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (9ms): Request failed with status code 400
+- API Error (7ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -186,7 +186,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (9ms): Request failed with status code 400
+- API Error (7ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -200,7 +200,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (10ms): Request failed with status code 400
+- API Error (7ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -214,7 +214,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (8ms): Request failed with status code 400
+- API Error (6ms): Request failed with status code 400
 
 **Response Preview:** ...
 
@@ -228,7 +228,7 @@
 **Format Score:** 0%
 
 **Errors:**
-- API Error (8ms): Request failed with status code 400
+- API Error (6ms): Request failed with status code 400
 
 **Response Preview:** ...
 

@@ -1,6 +1,6 @@
 # CONVERSATION MEMORY TEST REPORT
 
-**Date:** 12/4/2025, 6:09:47 PM
+**Date:** 12/4/2025, 6:43:51 PM
 **Total Tests:** 20
 
 ---
@@ -10,7 +10,7 @@
 | Metric | Value |
 |--------|-------|
 | **Score** | **0.00%** |
-| **Format Score** | **56.00%** |
+| **Format Score** | **0.00%** |
 | **Passed** | 0 |
 | **Failed** | 20 |
 
@@ -28,15 +28,13 @@
 ### Test 1 - ❌ FAILED
 
 **Question:** What World Bank indicators do you have data for? List the main ones.
-**Response Time:** 4336ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (2479ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -44,15 +42,13 @@
 ### Test 2 - ❌ FAILED
 
 **Question:** What research papers about financial topics do you have?
-**Response Time:** 3979ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (1431ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -60,15 +56,13 @@
 ### Test 3 - ❌ FAILED
 
 **Question:** Tell me about the Koda Business Plan documents.
-**Response Time:** 6955ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (2122ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -76,15 +70,13 @@
 ### Test 4 - ❌ FAILED
 
 **Question:** What interview documents are available?
-**Response Time:** 4081ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (2362ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -92,15 +84,13 @@
 ### Test 5 - ❌ FAILED
 
 **Question:** What is GDP growth data showing for major economies?
-**Response Time:** 8379ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (2033ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -108,16 +98,13 @@
 ### Test 6 - ❌ FAILED
 
 **Question:** Going back to question 1, which World Bank indicator relates to CO2 emissions?
-**Response Time:** 822ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 7 words
-- Response too short or empty
+- API Error (41ms): Request failed with status code 500
 
-**Response Preview:** I encountered an error while calculating: ERROR...
+**Response Preview:** ...
 
 ---
 
@@ -125,15 +112,13 @@
 ### Test 7 - ❌ FAILED
 
 **Question:** From the research papers you mentioned in question 2, which ones discuss machine learning?
-**Response Time:** 6899ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (5853ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -141,15 +126,13 @@
 ### Test 8 - ❌ FAILED
 
 **Question:** What was the main focus of the Koda Business Plan from question 3?
-**Response Time:** 3690ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (2763ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -157,16 +140,13 @@
 ### Test 9 - ❌ FAILED
 
 **Question:** Compare the GDP indicators with the CO2 emissions data we discussed earlier.
-**Response Time:** 812ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 7 words
-- Response too short or empty
+- API Error (2671ms): Request failed with status code 500
 
-**Response Preview:** I encountered an error while calculating: ERROR...
+**Response Preview:** ...
 
 ---
 
@@ -174,15 +154,13 @@
 ### Test 10 - ❌ FAILED
 
 **Question:** Based on the interviews from question 4, what topics are covered?
-**Response Time:** 8880ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (2232ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -190,16 +168,13 @@
 ### Test 11 - ❌ FAILED
 
 **Question:** What renewable energy indicators are available and how do they relate to CO2?
-**Response Time:** 865ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 7 words
-- Response too short or empty
+- API Error (2094ms): Request failed with status code 500
 
-**Response Preview:** I encountered an error while calculating: ERROR...
+**Response Preview:** ...
 
 ---
 
@@ -207,15 +182,13 @@
 ### Test 12 - ❌ FAILED
 
 **Question:** Summarize all the document types we've discussed so far.
-**Response Time:** 6625ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 21 words
+- API Error (6613ms): Request failed with status code 500
 
-**Response Preview:** I'd like to help you find that information. Could you provide more details about which document or topic you're asking about?...
+**Response Preview:** ...
 
 ---
 
@@ -223,15 +196,13 @@
 ### Test 13 - ❌ FAILED
 
 **Question:** What exact World Bank indicators did you list in question 1?
-**Response Time:** 4168ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (1366ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -239,15 +210,13 @@
 ### Test 14 - ❌ FAILED
 
 **Question:** From question 2, which financial research paper had the longest title?
-**Response Time:** 7134ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (1524ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -255,15 +224,13 @@
 ### Test 15 - ❌ FAILED
 
 **Question:** Combine the business plan insights from question 3 with interview themes from question 4.
-**Response Time:** 3847ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (2463ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -271,15 +238,13 @@
 ### Test 16 - ❌ FAILED
 
 **Question:** What are the top 3 most interesting patterns across all documents we've discussed?
-**Response Time:** 7008ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (2447ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -287,16 +252,13 @@
 ### Test 17 - ❌ FAILED
 
 **Question:** Create a summary of our entire conversation including all key data points.
-**Response Time:** 1423ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 1 words
-- Response too short or empty
+- API Error (5056ms): Request failed with status code 500
 
-**Response Preview:** __DOCUMENT_GENERATION_REQUESTED__:summary...
+**Response Preview:** ...
 
 ---
 
@@ -304,15 +266,13 @@
 ### Test 18 - ❌ FAILED
 
 **Question:** List all questions I've asked you in this conversation.
-**Response Time:** 6170ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (5299ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -320,15 +280,13 @@
 ### Test 19 - ❌ FAILED
 
 **Question:** What was the first piece of data you mentioned in this conversation?
-**Response Time:** 3754ms
-**Format Score:** 55%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
-- Response too short: 24 words
+- API Error (2328ms): Request failed with status code 500
 
-**Response Preview:** I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this....
+**Response Preview:** ...
 
 ---
 
@@ -336,18 +294,13 @@
 ### Test 20 - ❌ FAILED
 
 **Question:** Based on everything we've discussed, what recommendations would you make for someone researching global economic trends?
-**Response Time:** 8670ms
-**Format Score:** 75%
+**Response Time:** 0ms
+**Format Score:** 0%
 
 **Errors:**
-- Missing title (## format)
-- No sections found
+- API Error (4097ms): Request failed with status code 500
 
-**Response Preview:** Based on our discussions, here are some recommendations for someone researching global economic trends:
-
-1. Diversify Your Data Sources:
-
-• Official Institutions: Regularly consult reports and data...
+**Response Preview:** ...
 
 ---
 
