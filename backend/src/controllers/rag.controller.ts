@@ -3,8 +3,8 @@ import ragService from '../services/rag.service';
 import prisma from '../config/database';
 import { getIO } from '../services/websocket.service';
 import navigationService from '../services/navigation.service';
-// ✅ UNIFIED INTENT DETECTION - Replaces intent.service.ts + llmIntentDetector.service.ts
-import intentDetectionService, { toLegacyFormat } from '../services/intentDetection.service';
+// ✅ FIX #6: Simple Intent Detection - Replaces LLM-based intentDetection.service
+import { detectIntent as detectSimpleIntent, toLegacyIntent } from '../services/simpleIntentDetection.service';
 import responsePostProcessor from '../services/responsePostProcessor.service'; // ✅ FIX #4: Response Post-Processor
 import { Intent } from '../types/intent.types';
 import fileActionsService from '../services/fileActions.service';
@@ -411,11 +411,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       isShowFileQuery
     );
 
-    // ✅ UNIFIED INTENT DETECTION - Fast-path + LLM when needed
-    const unifiedIntentResult = await intentDetectionService.detect(query, conversationHistoryForIntent);
-    const intentResult = toLegacyFormat(unifiedIntentResult);
+    // ✅ FIX #6: Simple pattern-based intent detection (<10ms vs 3-6s LLM)
+    const simpleIntentResult = detectSimpleIntent(query);
+    const intentResult = toLegacyIntent(simpleIntentResult);
 
-    console.log(`🎯 [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [${unifiedIntentResult.detectionMethod}/${unifiedIntentResult.detectionTimeMs}ms]`);
+    console.log(`⚡ [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [pattern/${simpleIntentResult.detectionTimeMs}ms]`);
     console.log(`📝 [Entities]`, intentResult.entities);
 
     // TODO: Gemini fallback classifier removed - using pattern matching only
@@ -1480,11 +1480,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     });
     conversationHistoryForIntent.reverse(); // Chronological order
 
-    // Use unified intent detection (handles fast-path internally)
-    const unifiedIntentResult = await intentDetectionService.detect(query, conversationHistoryForIntent);
-    const intentResult = toLegacyFormat(unifiedIntentResult);
+    // ✅ FIX #6: Simple pattern-based intent detection (<10ms vs 3-6s LLM)
+    const simpleIntentResult = detectSimpleIntent(query);
+    const intentResult = toLegacyIntent(simpleIntentResult);
 
-    console.log(`🎯 [STREAMING Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [${unifiedIntentResult.detectionMethod}/${unifiedIntentResult.detectionTimeMs}ms]`);
+    console.log(`⚡ [STREAMING Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [pattern/${simpleIntentResult.detectionTimeMs}ms]`);
     console.log(`📝 [STREAMING Entities]`, intentResult.parameters);
 
     // ========================================

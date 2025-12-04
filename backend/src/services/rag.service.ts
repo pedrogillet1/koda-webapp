@@ -3,45 +3,17 @@ import { Pinecone } from '@pinecone-database/pinecone';
 import prisma from '../config/database';
 import fileActionsService from './fileActions.service';
 import { actionHistoryService } from './actionHistory.service';
-import * as reasoningService from './reasoning.service';
-// Agent loop removed - was using pgvector which isn't set up
-import { llmChunkFilterService } from './llm-chunk-filter.service';
+// ═══════════════════════════════════════════════════════════════════════════
+// CLEANUP: Removed 93 unused services for simpler codebase
+// ═══════════════════════════════════════════════════════════════════════════
 import { gracefulDegradationService } from './graceful-degradation.service';
-import { rerankingService } from './reranking.service';
-import { queryEnhancementService } from './query-enhancement.service';
 import { bm25RetrievalService } from './bm25-retrieval.service';
-import fastPathDetector from './fastPathDetector.service';
 import statusEmitter, { ProcessingStage } from './statusEmitter.service';
-import postProcessor from './postProcessor.service';
 import embeddingService from './embedding.service';
 import geminiCache from './geminiCache.service';
-import * as queryDecomposition from './query-decomposition.service';
-// ✅ Consolidated: Using camelCase versions (removed hyphenated duplicates)
-import * as confidenceScoring from './confidenceScoring.service';
-import * as contradictionDetection from './contradictionDetection.service';
 import { systemPromptsService } from './systemPrompts.service';
-import * as fullDocRetrieval from './fullDocumentRetrieval.service';
-import * as evidenceAggregation from './evidenceAggregation.service';
-import * as memoryService from './memory.service';
-import * as memoryExtraction from './memoryExtraction.service';
-import * as citationTracking from './citation-tracking.service';
 import ErrorMessagesService from './errorMessages.service';
-import * as terminologyIntegration from '../utils/terminology-integration';
-import { causalExtractionService } from './causalExtraction.service';
-import { methodologyExtractionService } from './methodologyExtraction.service';
-import { trendAnalysisService } from './trendAnalysis.service';
-import { domainKnowledgeService } from './domainKnowledge.service';
-import { crossDocumentSynthesisService } from './crossDocumentSynthesis.service';
-import { synthesisQueryDetectionService } from './synthesisQueryDetection.service';
-import { comparativeAnalysisService } from './comparativeAnalysis.service';
-import { practicalImplicationsService } from './practicalImplications.service';
-import { terminologyIntelligenceService } from './terminologyIntelligence.service';
 import * as languageDetectionService from './languageDetection.service';
-import contextEngineering from './contextEngineering.service';
-import adaptiveAnswerGeneration, { DocumentInfo as AdaptiveDocumentInfo } from './adaptiveAnswerGeneration.service';
-// ✅ Types only - dynamicResponseSystem default import removed (unused)
-import type { UserContext as DynamicUserContext, ResponseConfig } from './dynamicResponseSystem.service';
-import { outputIntegration } from './outputIntegration.service';
 
 // Fallback System Imports (Psychological Safety)
 import { fallbackDetection, fallbackResponse, psychologicalSafety } from './fallback';
@@ -59,14 +31,7 @@ import calculationRouter from './calculation/calculationRouter.service';
 // Format Validation Service (Quality Gate)
 import { formatValidationService } from './formatValidation.service';
 
-// Semantic Document Search Service
-import semanticDocumentSearchService from './semanticDocumentSearch.service';
-
-// Hybrid Retrieval Booster (Filename/Entity Matching)
-import hybridRetrievalBooster from './hybridRetrievalBooster.service';
-
-// Show vs Explain Intent Classifier
-import showVsExplainClassifier from './showVsExplainClassifier.service';
+// REMOVED: semanticDocumentSearchService, hybridRetrievalBooster, showVsExplainClassifier - deleted
 
 // Infinite Conversation Memory (Manus-style)
 import infiniteConversationMemory from './infiniteConversationMemory.service';
@@ -74,13 +39,7 @@ import infiniteConversationMemory from './infiniteConversationMemory.service';
 // Conversation Context Service (Multi-turn context management)
 import { conversationContextService } from './conversationContext.service';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// NEW: Empty Response Prevention & Structured Response Generator
-// ═══════════════════════════════════════════════════════════════════════════
-// PURPOSE: Prevent empty responses and ensure 100% format compliance
-import { emptyResponsePrevention } from './emptyResponsePrevention.service';
-// ✅ Removed - structuredResponseGenerator not actively used
-// import { structuredResponseGenerator } from './structuredResponseGenerator.service';
+// REMOVED: emptyResponsePrevention - deleted service
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FORMAT ENFORCEMENT SERVICES - Post-processing for 100% format compliance

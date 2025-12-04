@@ -11,8 +11,8 @@
 
 import prisma from '../config/database';
 import type { documents, folders } from '@prisma/client';
-// ✅ UNIFIED INTENT DETECTION
-import intentDetectionService, { toLegacyFormat } from './intentDetection.service';
+// ✅ FIX #6: Simple Intent Detection (replaces LLM-based intentDetection.service)
+import { detectIntent as detectSimpleIntent, toLegacyIntent } from './simpleIntentDetection.service';
 import { findBestMatch } from 'string-similarity';
 import fuzzyMatchService from './fuzzy-match.service';
 import { emitDocumentEvent, emitFolderEvent } from './websocket.service';
@@ -597,12 +597,13 @@ class FileActionsService {
       }
 
       // ═══════════════════════════════════════════════════════════════════════════
-      // FALLBACK: Use unified intent detection for complex queries
+      // FALLBACK: Use simple pattern-based intent detection
       // ═══════════════════════════════════════════════════════════════════════════
-      console.log(`🤖 [parseFileAction] Using unified intent detection...`);
-      const unifiedResult = await intentDetectionService.detect(query, []);
-      const intentResult = toLegacyFormat(unifiedResult);
-      console.log(`📊 [parseFileAction] Intent detected: ${intentResult.intent} [${unifiedResult.detectionMethod}/${unifiedResult.detectionTimeMs}ms]`);
+      // ✅ FIX #6: Simple intent detection (<10ms vs 3-6s LLM)
+      console.log(`⚡ [parseFileAction] Using simple pattern-based intent detection...`);
+      const simpleResult = detectSimpleIntent(query);
+      const intentResult = toLegacyIntent(simpleResult);
+      console.log(`⚡ [parseFileAction] Intent detected: ${intentResult.intent} [pattern/${simpleResult.detectionTimeMs}ms]`);
 
       // Map LLM intent to file actions
       const fileActionIntents = [
