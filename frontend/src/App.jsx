@@ -43,7 +43,16 @@ import FileTypeDetail from './components/FileTypeDetail';
 import Upgrade from './components/Upgrade';
 
 // Admin Dashboard
-import { AdminRoute, AdminOverview, AdminUsers } from './components/admin';
+import {
+  AdminRoute,
+  AdminOverview,
+  AdminUsers,
+  AdminConversations,
+  AdminDocuments,
+  AdminSystemHealth,
+  AdminCosts,
+  AdminRealtime
+} from './components/admin';
 
 function App() {
   const isMobile = useIsMobile();
@@ -120,6 +129,11 @@ function App() {
             {/* ADMIN DASHBOARD ROUTES */}
             <Route path="/admin" element={<AdminRoute><AdminOverview /></AdminRoute>} />
             <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+            <Route path="/admin/conversations" element={<AdminRoute><AdminConversations /></AdminRoute>} />
+            <Route path="/admin/documents" element={<AdminRoute><AdminDocuments /></AdminRoute>} />
+            <Route path="/admin/system" element={<AdminRoute><AdminSystemHealth /></AdminRoute>} />
+            <Route path="/admin/costs" element={<AdminRoute><AdminCosts /></AdminRoute>} />
+            <Route path="/admin/realtime" element={<AdminRoute><AdminRealtime /></AdminRoute>} />
                   </Routes>
                   {/* Global toast notifications */}
                   <ToastStack />

@@ -105,19 +105,53 @@ You: "I'll generate a comprehensive business plan document in Word format. This 
 - User wants to edit existing files → Suggest download and edit
 - User needs specific data → Use RAG to extract from their documents
 
-**Core Formatting Rules:**
-- Use **bold** for key terms, numbers, dates, file names, monetary values
-- NO emojis, NO citations like "According to page X...", NO code blocks
-- Match user's language (Portuguese → Portuguese, English → English)
-- **CRITICAL**: Maximum 2-3 items per bullet line
-- **CRITICAL**: Maximum 2-line intro before bullets
-- **CRITICAL**: NO paragraphs after bullet points end
+**KODA FORMAT RULES (100% COMPLIANCE REQUIRED):**
 
-**CRITICAL BULLET FORMAT RULE:**
-→ Maximum 2-3 items per bullet line
-→ Example (GOOD): • **File1.pdf** (Q4 data), **File2.xlsx** (summary)
-→ Example (BAD): • **File1.pdf**, **File2.xlsx**, **File3.docx**, **File4.txt** (too many)
-→ If 4+ items: Split into multiple bullet lines
+**TITLE (REQUIRED):**
+• Every response MUST start with a bold title (2-4 words)
+• Title describes the answer content, NOT the question
+• Format: **Title Here**
+• Examples: **Revenue Summary**, **Key Findings**, **Monthly Breakdown**
+
+**INTRODUCTION:**
+• Maximum 2 lines of intro text before bullets
+• Brief context, then get to the data
+• NO generic filler phrases
+
+**FORMATTING:**
+• Use **bold** for: monetary values ($1,234.56), percentages (45%), dates (2024-12-03), file names (Budget.xlsx)
+• NO emojis anywhere in the response
+• NO citations like "According to page X..." - just state the facts
+• NO code blocks for data
+• Match user's language (Portuguese → Portuguese, English → English)
+
+**BULLET STRUCTURE (CRITICAL):**
+• Use bullet character: •
+• Maximum 2-3 items per bullet line
+• Each bullet on its own line
+• NO paragraphs after bullet points end
+• NO trailing periods on short bullets (< 100 chars)
+• Example (GOOD): • Revenue: **$1,234.56** (up **12%** from last year)
+• Example (BAD): • File1.pdf, File2.xlsx, File3.docx, File4.txt (too many items)
+
+**TABLES (for comparisons):**
+• Use tables when comparing 2+ items with 3+ attributes
+• Proper markdown format with | separators
+• Header row + separator (---) + data rows
+• Example:
+  | Property | Investment | Return |
+  | --- | --- | --- |
+  | Carlyle | **$5M** | **2.5x** |
+
+**SPACING:**
+• Single blank line between sections
+• No multiple blank lines
+• No trailing whitespace
+
+**DEPTH:**
+• Direct answer first, then supporting details
+• Quantitative context: percentages, comparisons, trends
+• Professional, analytical tone
 
 ## GENERAL ANALYSIS PRINCIPLES
 
@@ -1039,7 +1073,12 @@ The user is currently viewing: **"${attachedDocumentInfo.documentName}"**
 **Retrieved Document Content**:
 ${context}
 
-**Instructions**: Answer the user's query based on the retrieved document content above. Use the conversation history to understand context and references (like "it", "the document", "that file", "the main point"). ${attachedDocumentInfo ? `Remember: the user is focused on "${attachedDocumentInfo.documentName}".` : ''} Follow the answer length guidelines specified.`;
+**Instructions**:
+1. **FIRST**, check if the answer is in the **Conversation History** above. If the user is asking about something discussed earlier in the conversation, answer from the conversation context.
+2. **SECOND**, if not found in conversation history, use the **Retrieved Document Content** above.
+3. Use conversation history to understand context and references (like "it", "the document", "that file", "the main point").
+${attachedDocumentInfo ? `4. Remember: the user is focused on "${attachedDocumentInfo.documentName}".` : ''}
+Follow the answer length guidelines specified.`;
   }
 
   /**
@@ -1098,17 +1137,14 @@ ${context}
       console.log('📊 [COMPARISON] isComparison=false, skipping table rules');
     }
 
-    // Add document context section
-    if (options.documentContext) {
-      systemPrompt += '\n\n**Retrieved Document Content**:\n' + options.documentContext;
+    // ♾️ PRIORITY 1: Add conversation history section FIRST (most important context)
+    // REASON: Users often ask about things discussed earlier in the conversation
+    // The LLM should check conversation history BEFORE searching documents
+    if (options.conversationHistory) {
+      systemPrompt += '\n\n**Conversation History** (CHECK THIS FIRST for context):\n' + options.conversationHistory;
     }
 
-    // Add document locations section
-    if (options.documentLocations) {
-      systemPrompt += '\n\n**Document Sources**:\n' + options.documentLocations;
-    }
-
-    // Add memory context section
+    // Add memory context section (user preferences, facts about them)
     if (options.memoryContext) {
       systemPrompt += '\n\n**Relevant Memory Context**:\n' + options.memoryContext;
     }
@@ -1118,9 +1154,14 @@ ${context}
       systemPrompt += '\n\n**Folder Structure**:\n' + options.folderTreeContext;
     }
 
-    // Add conversation history section
-    if (options.conversationHistory) {
-      systemPrompt += '\n\n**Conversation History**:\n' + options.conversationHistory;
+    // PRIORITY 2: Add document context section (secondary to conversation)
+    if (options.documentContext) {
+      systemPrompt += '\n\n**Retrieved Document Content**:\n' + options.documentContext;
+    }
+
+    // Add document locations section
+    if (options.documentLocations) {
+      systemPrompt += '\n\n**Document Sources**:\n' + options.documentLocations;
     }
 
     // Add multi-turn context summary (entities, keyFindings, reference resolution)

@@ -15,12 +15,23 @@ import p0FeaturesService from '../services/p0Features.service';
 import clarificationService from '../services/clarification.service';
 import chatDocumentGenerationService from '../services/chatDocumentGeneration.service';
 import * as languageDetectionService from '../services/languageDetection.service';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
-// Initialize Anthropic client for document generation
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
-const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+// ═══════════════════════════════════════════════════════════════════════════
+// MIGRATION: Anthropic → Gemini for document generation
+// ═══════════════════════════════════════════════════════════════════════════
+const GEMINI_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+let genAI: GoogleGenerativeAI | null = null;
+let geminiModel: GenerativeModel | null = null;
+
+if (GEMINI_API_KEY) {
+  genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  geminiModel = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+} else {
+  console.warn('[RAG Controller] No Gemini API key found');
+}
 
 /**
  * RAG Controller
@@ -2554,17 +2565,19 @@ Please generate a professional document with:
 
 Format the document using markdown with proper structure. Do NOT include the title or date headers - just start with the Executive Summary section.`;
 
-        const documentContentResponse = await anthropic.messages.create({
-          model: ANTHROPIC_MODEL,
-          max_tokens: 4096,
-          system: 'You are a professional business document writer. Generate comprehensive, well-structured documents with executive summaries and detailed sections.',
-          messages: [{ role: 'user', content: documentPrompt }]
+        if (!geminiModel) {
+          throw new Error('Gemini model not initialized');
+        }
+
+        const documentContentResponse = await geminiModel.generateContent({
+          contents: [{ role: 'user', parts: [{ text: `You are a professional business document writer. Generate comprehensive, well-structured documents with executive summaries and detailed sections.\n\n${documentPrompt}` }] }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 4096,
+          }
         });
 
-        const documentContent = documentContentResponse.content
-          .filter((block: any) => block.type === 'text')
-          .map((block: any) => block.text)
-          .join('\n\n');
+        const documentContent = documentContentResponse.response.text() || '';
 
         console.log(`✅ [AUTO-DOCUMENT] Generated ${documentContent.length} characters of document content`);
 

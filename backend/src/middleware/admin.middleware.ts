@@ -16,7 +16,8 @@ const ADMIN_EMAILS = process.env.ADMIN_EMAILS
   : [
     'admin@koda.com',
     'pedro@koda.com',
-    'pedro@getkoda.ai'
+    'pedro@getkoda.ai',
+    'localhost@koda.com'
   ];
 
 // Extend Express Request type to include user

@@ -14,11 +14,23 @@
  * RESULT: 20 chunks → 6-8 high-quality chunks
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// ═══════════════════════════════════════════════════════════════════════════
+// MIGRATION: Anthropic → Gemini
+// ═══════════════════════════════════════════════════════════════════════════
+const GEMINI_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+let genAI: GoogleGenerativeAI | null = null;
+let geminiModel: GenerativeModel | null = null;
+
+if (GEMINI_API_KEY) {
+  genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  geminiModel = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+} else {
+  console.warn('[LLMChunkFilter] No Gemini API key found');
+}
 
 interface ChunkScore {
   chunkIndex: number;
@@ -45,7 +57,7 @@ export class LLMChunkFilterService {
    */
   async filterChunks(
     query: string,
-    chunks: Array<{ content?: string; metadata?: any; score?: number }>,
+    chunks: Array<{ content?: string; metadata?: any; document_metadata?: any; score?: number }>,
     topK: number = 8
   ): Promise<Array<any>> {
 
@@ -110,17 +122,24 @@ Respond ONLY with JSON (no markdown, no explanation):
 }`;
 
       // ──────────────────────────────────────────────────────────────────────
-      // Call Anthropic API with batched validation
+      // Call Gemini API with batched validation
       // ──────────────────────────────────────────────────────────────────────
 
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 3000,
-        messages: [{ role: 'user', content: prompt }],
+      if (!geminiModel) {
+        console.log('⚠️  [LLM FILTER] Gemini model not initialized');
+        return chunks.slice(0, topK);
+      }
+
+      const geminiResult = await geminiModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 3000,
+        }
       });
 
       // Parse response
-      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      const content = geminiResult.response.text() || '';
 
       // Remove markdown code blocks if present
       let jsonContent = content.trim();
@@ -136,7 +155,7 @@ Respond ONLY with JSON (no markdown, no explanation):
       // Map filtered results back to original chunks
       // ──────────────────────────────────────────────────────────────────────
 
-      const result = parsed.filtered
+      const filteredResults = parsed.filtered
         .filter((item: ChunkScore) => item.finalScore >= 0.7)
         .slice(0, topK)
         .map((item: ChunkScore) => {
@@ -158,18 +177,18 @@ Respond ONLY with JSON (no markdown, no explanation):
       // ──────────────────────────────────────────────────────────────────────
 
       const reductionPercent = chunks.length > 0
-        ? ((1 - result.length / chunks.length) * 100).toFixed(0)
+        ? ((1 - filteredResults.length / chunks.length) * 100).toFixed(0)
         : '0';
 
-      console.log(`✅ [LLM FILTER] Filtered ${chunks.length} → ${result.length} chunks (${reductionPercent}% reduction)`);
+      console.log(`✅ [LLM FILTER] Filtered ${chunks.length} → ${filteredResults.length} chunks (${reductionPercent}% reduction)`);
 
-      if (result.length > 0) {
-        const maxScore = result[0]?.llmScore?.finalScore || 0;
-        const minScore = result[result.length - 1]?.llmScore?.finalScore || 0;
+      if (filteredResults.length > 0) {
+        const maxScore = filteredResults[0]?.llmScore?.finalScore || 0;
+        const minScore = filteredResults[filteredResults.length - 1]?.llmScore?.finalScore || 0;
         console.log(`📊 [LLM FILTER] Score range: ${maxScore.toFixed(2)} - ${minScore.toFixed(2)}`);
       }
 
-      return result;
+      return filteredResults;
 
     } catch (error) {
       console.error('❌ [LLM FILTER] Error:', error);
@@ -192,7 +211,7 @@ Respond ONLY with JSON (no markdown, no explanation):
    */
   async filterChunksForComplexQuery(
     query: string,
-    chunks: Array<{ content?: string; metadata?: any; score?: number }>,
+    chunks: Array<{ content?: string; metadata?: any; document_metadata?: any; score?: number }>,
     topK: number = 12
   ): Promise<Array<any>> {
 
@@ -245,13 +264,20 @@ Respond ONLY with JSON:
   ]
 }`;
 
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 3000,
-        messages: [{ role: 'user', content: prompt }],
+      if (!geminiModel) {
+        console.log('⚠️  [LLM FILTER COMPLEX] Gemini model not initialized');
+        return chunks.slice(0, topK);
+      }
+
+      const result = await geminiModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 3000,
+        }
       });
 
-      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      const content = result.response.text() || '';
 
       let jsonContent = content.trim();
       if (jsonContent.startsWith('```json')) {
@@ -262,7 +288,7 @@ Respond ONLY with JSON:
 
       const parsed: FilteredResponse = JSON.parse(jsonContent);
 
-      const result = parsed.filtered
+      const filteredResult = parsed.filtered
         .filter((item: ChunkScore) => item.finalScore >= 0.5) // More lenient for complex queries
         .slice(0, topK)
         .map((item: ChunkScore) => {
@@ -279,9 +305,9 @@ Respond ONLY with JSON:
           };
         });
 
-      console.log(`✅ [LLM FILTER COMPLEX] Filtered ${chunks.length} → ${result.length} chunks`);
+      console.log(`✅ [LLM FILTER COMPLEX] Filtered ${chunks.length} → ${filteredResult.length} chunks`);
 
-      return result;
+      return filteredResult;
 
     } catch (error) {
       console.error('❌ [LLM FILTER COMPLEX] Error:', error);

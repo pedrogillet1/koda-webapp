@@ -13,12 +13,24 @@
  * 4. Hypothetical Document Generation: Imagine ideal answer, use as query
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import NodeCache from 'node-cache';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// ═══════════════════════════════════════════════════════════════════════════
+// MIGRATION: Anthropic → Gemini
+// ═══════════════════════════════════════════════════════════════════════════
+const GEMINI_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+let genAI: GoogleGenerativeAI | null = null;
+let geminiModel: GenerativeModel | null = null;
+
+if (GEMINI_API_KEY) {
+  genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  geminiModel = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+} else {
+  console.warn('[QueryEnhancement] No Gemini API key found');
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚡ PERFORMANCE FIX: In-memory cache for query enhancement
@@ -95,13 +107,28 @@ Respond ONLY with JSON (no markdown):
   "hypotheticalAnswer": "Brief hypothetical answer text..."
 }`;
 
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }],
+      if (!geminiModel) {
+        console.log('⚠️  [QUERY ENHANCE] Gemini model not initialized');
+        return {
+          original: query,
+          expanded: query,
+          synonyms: [],
+          domainTerms: [],
+          reformulations: [],
+          hypotheticalAnswer: '',
+          combinedQuery: query,
+        };
+      }
+
+      const geminiResult = await geminiModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 1000,
+        }
       });
 
-      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      const content = geminiResult.response.text() || '';
 
       // Remove markdown code blocks if present
       let jsonContent = content.trim();
@@ -120,7 +147,7 @@ Respond ONLY with JSON (no markdown):
       const expanded = this.buildExpandedQuery(query, parsed);
       const combinedQuery = this.buildCombinedQuery(query, parsed);
 
-      const result: EnhancedQuery = {
+      const enhancedResult: EnhancedQuery = {
         original: query,
         expanded: expanded,
         synonyms: parsed.synonyms || [],
@@ -136,10 +163,10 @@ Respond ONLY with JSON (no markdown):
       console.log(`   Synonyms: ${parsed.synonyms?.length || 0}, Domain: ${parsed.domainTerms?.length || 0}, Reformulations: ${parsed.reformulations?.length || 0}`);
 
       // ⚡ PERFORMANCE FIX: Store result in cache for future use
-      enhancementCache.set(cacheKey, result);
+      enhancementCache.set(cacheKey, enhancedResult);
       console.log(`💾 [QUERY ENHANCE] Cached result for "${query.substring(0, 50)}..."`);
 
-      return result;
+      return enhancedResult;
 
     } catch (error) {
       console.error('❌ [QUERY ENHANCE] Error:', error);

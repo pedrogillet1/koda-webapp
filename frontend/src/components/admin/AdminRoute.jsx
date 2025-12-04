@@ -14,7 +14,8 @@ import './AdminStyles.css';
 const ADMIN_EMAILS = [
   'admin@koda.com',
   'pedro@koda.com',
-  'pedro@getkoda.ai'
+  'pedro@getkoda.ai',
+  'localhost@koda.com'
 ];
 
 const AdminRoute = ({ children }) => {
