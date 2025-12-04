@@ -29,25 +29,83 @@ export interface FallbackContext {
 class FallbackResponseService {
   /**
    * Generate fallback response based on type and context
+   * FIX: Added validation to ensure non-empty responses
    */
   async generateFallbackResponse(context: FallbackContext): Promise<string> {
-    switch (context.fallbackType) {
-      case 'clarification':
-        return await this.generateClarificationFallback(context);
+    let response = '';
 
-      case 'knowledge':
-        return await this.generateKnowledgeFallback(context);
+    try {
+      switch (context.fallbackType) {
+        case 'clarification':
+          response = await this.generateClarificationFallback(context);
+          break;
 
-      case 'refusal':
-        return await this.generateRefusalFallback(context);
+        case 'knowledge':
+          response = await this.generateKnowledgeFallback(context);
+          break;
 
-      case 'error_recovery':
-        return await this.generateErrorRecoveryFallback(context);
+        case 'refusal':
+          response = await this.generateRefusalFallback(context);
+          break;
 
-      default:
-        // Should never happen, but provide safe fallback
-        return "I'm here to help with your documents. Could you rephrase your question?";
+        case 'error_recovery':
+          response = await this.generateErrorRecoveryFallback(context);
+          break;
+
+        default:
+          response = '';
+      }
+    } catch (error) {
+      console.error('[FALLBACK] Error generating response:', error);
+      response = '';
     }
+
+    // FIX: Validate response is not empty
+    if (!response || response.trim().length === 0) {
+      console.warn('[FALLBACK] Empty response generated, using default fallback');
+      response = this.getDefaultFallback(context.fallbackType, context.language);
+    }
+
+    return response;
+  }
+
+  /**
+   * Get default fallback when LLM fails to generate response
+   */
+  private getDefaultFallback(type: FallbackType, language: string): string {
+    const isPortuguese = language.toLowerCase().includes('portuguese') || language === 'pt';
+    const isSpanish = language.toLowerCase().includes('spanish') || language === 'es';
+
+    const defaults: Record<FallbackType, { en: string; pt: string; es: string }> = {
+      clarification: {
+        en: "I'd like to help you find that information. Could you provide more details about which document or topic you're asking about?",
+        pt: "Gostaria de ajudá-lo a encontrar essa informação. Poderia fornecer mais detalhes sobre qual documento ou tópico você está perguntando?",
+        es: "Me gustaría ayudarte a encontrar esa información. ¿Podrías proporcionar más detalles sobre qué documento o tema estás preguntando?"
+      },
+      knowledge: {
+        en: "I searched through your documents but couldn't find that specific information. Try rephrasing your question or let me know which document might contain this.",
+        pt: "Pesquisei em seus documentos, mas não encontrei essa informação específica. Tente reformular sua pergunta ou me diga qual documento pode conter isso.",
+        es: "Busqué en tus documentos pero no pude encontrar esa información específica. Intenta reformular tu pregunta o dime qué documento podría contener esto."
+      },
+      refusal: {
+        en: "I focus on analyzing documents and helping you find information within them. Is there something specific about your documents I can help with?",
+        pt: "Eu me concentro em analisar documentos e ajudá-lo a encontrar informações neles. Há algo específico sobre seus documentos com que eu possa ajudar?",
+        es: "Me enfoco en analizar documentos y ayudarte a encontrar información en ellos. ¿Hay algo específico sobre tus documentos con lo que pueda ayudarte?"
+      },
+      error_recovery: {
+        en: "I ran into an issue processing that request. Could you try rephrasing your question or asking about something else?",
+        pt: "Encontrei um problema ao processar essa solicitação. Você poderia tentar reformular sua pergunta ou perguntar sobre outra coisa?",
+        es: "Tuve un problema al procesar esa solicitud. ¿Podrías intentar reformular tu pregunta o preguntar sobre otra cosa?"
+      },
+      none: {
+        en: "I'm here to help with your documents. What would you like to know?",
+        pt: "Estou aqui para ajudar com seus documentos. O que você gostaria de saber?",
+        es: "Estoy aquí para ayudarte con tus documentos. ¿Qué te gustaría saber?"
+      }
+    };
+
+    const fallback = defaults[type] || defaults.knowledge;
+    return isPortuguese ? fallback.pt : isSpanish ? fallback.es : fallback.en;
   }
 
   /**

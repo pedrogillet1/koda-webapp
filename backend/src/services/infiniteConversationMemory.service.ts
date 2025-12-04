@@ -368,8 +368,39 @@ export async function batchProcessUserConversations(
   };
 }
 
+/**
+ * Simple wrapper to get context for a query from conversation memory
+ * This is the function expected by rag.service.ts checkConversationContextFirst
+ * Returns a formatted string of relevant context or empty string if none found
+ */
+export async function getContextForQuery(
+  conversationId: string,
+  userId: string,
+  query: string
+): Promise<string> {
+  try {
+    const context = await getInfiniteConversationContext(
+      conversationId,
+      userId,
+      query,
+      {
+        includeHistorical: true,
+        includeMemories: true,
+        autoChunk: false,
+        autoCompress: false
+      }
+    );
+
+    return context.formattedContext || '';
+  } catch (error) {
+    console.error('[INFINITE MEMORY] Error getting context for query:', error);
+    return '';
+  }
+}
+
 export default {
   getInfiniteConversationContext,
+  getContextForQuery,
   searchAcrossConversations,
   chunkAndEmbedConversation,
   getConversationStats,
