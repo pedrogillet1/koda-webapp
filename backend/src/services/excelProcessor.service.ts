@@ -1,15 +1,27 @@
 import * as XLSX from 'xlsx';
+import { isExcelDateSerial, formatExcelDate } from '../utils/excelDateUtils';
+import { formatNumber } from '../utils/excelCellUtils';
 
 /**
  * Enhanced Excel Processor
  * Extracts data from Excel with cell-level precision for deep linking
  * Creates semantic chunks for better RAG understanding
+ *
+ * ✅ FIX: Added proper date serial number detection and formatting
  */
 
 interface CellData {
   cell: string;
   value: string;
   formula?: string;
+  isMerged?: boolean;      // Indicates this cell is part of a merged range
+  mergeRange?: string;     // The merge range (e.g., "A1:C3")
+}
+
+interface MergedCellInfo {
+  value: string;           // The master cell value
+  masterCell: string;      // The top-left cell address
+  range: string;           // The full merge range
 }
 
 interface ExcelChunk {
@@ -28,13 +40,96 @@ interface ExcelChunk {
     formulas?: string[];  // Array of formulas in the row (e.g., ["=SUM(B2:B4)", "=A1*B1"])
     // ✅ Entity metadata for property/investment name extraction
     entities?: string[];  // Array of entity names found in the row (e.g., ["Carlyle", "Lone Mountain Ranch"])
+    // ✅ NEW: Merged cell metadata for complete data extraction
+    hasMergedCells?: boolean;  // Indicates row contains merged cells
+    mergedRanges?: string[];   // Array of merge ranges in this row (e.g., ["A1:C1", "D1:D3"])
   };
+}
+
+// ============================================================================
+// MERGED CELL EXTRACTION
+// ============================================================================
+// PURPOSE: Handle merged cells in Excel files to extract complete data
+// WHY: Only the master (top-left) cell contains the value in merged ranges
+// IMPACT: Prevents missing data in reports with merged cells
+
+/**
+ * Extract merged cell information from a worksheet
+ * Creates a map of cell address -> merged cell info for all cells in merged ranges
+ *
+ * @param sheet - XLSX worksheet object
+ * @param sheetValues - XLSX worksheet with calculated values
+ * @returns Map of cell addresses to their merged cell info
+ */
+function extractMergedCells(
+  sheet: XLSX.WorkSheet,
+  sheetValues: XLSX.WorkSheet
+): Map<string, MergedCellInfo> {
+  const mergedCells = new Map<string, MergedCellInfo>();
+
+  // Get merged cell ranges from the sheet
+  const merges = sheet['!merges'];
+
+  if (!merges || merges.length === 0) {
+    return mergedCells;
+  }
+
+  console.log(`  📐 Found ${merges.length} merged cell ranges`);
+
+  for (const merge of merges) {
+    // merge is in format: { s: { r: startRow, c: startCol }, e: { r: endRow, c: endCol } }
+    const startCell = XLSX.utils.encode_cell(merge.s);
+    const endCell = XLSX.utils.encode_cell(merge.e);
+    const rangeStr = `${startCell}:${endCell}`;
+
+    // Get the master cell value (top-left cell of the merge)
+    const masterCellFormula = sheet[startCell];
+    const masterCellValue = sheetValues[startCell];
+
+    // Extract the value from master cell
+    let value = '';
+    if (masterCellValue?.v !== undefined && masterCellValue?.v !== null) {
+      value = String(masterCellValue.v);
+    } else if (masterCellFormula?.v !== undefined && masterCellFormula?.v !== null) {
+      value = String(masterCellFormula.v);
+    }
+
+    // Apply this value to ALL cells in the merged range
+    for (let row = merge.s.r; row <= merge.e.r; row++) {
+      for (let col = merge.s.c; col <= merge.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+
+        mergedCells.set(cellAddress, {
+          value,
+          masterCell: startCell,
+          range: rangeStr
+        });
+      }
+    }
+  }
+
+  console.log(`  ✅ Mapped ${mergedCells.size} cells from merged ranges`);
+  return mergedCells;
+}
+
+/**
+ * Check if a cell is part of a merged range (but not the master cell)
+ * Used to avoid duplicating content in row output
+ */
+function isMergedSecondaryCell(
+  cellAddress: string,
+  mergedCells: Map<string, MergedCellInfo>
+): boolean {
+  const mergeInfo = mergedCells.get(cellAddress);
+  if (!mergeInfo) return false;
+  return mergeInfo.masterCell !== cellAddress;
 }
 
 class ExcelProcessorService {
   /**
    * Process Excel file comprehensively
    * Reads ALL sheets, ALL rows, ALL cells with formulas and coordinates
+   * Now includes merged cell handling for complete data extraction
    * @param buffer - Excel file buffer
    * @returns Array of chunks with metadata for vector embedding
    */
@@ -69,13 +164,16 @@ class ExcelProcessorService {
 
         console.log(`  Processing sheet ${sheetNumber}/${workbook.SheetNames.length}: "${sheetName}"`);
 
-        // Method 1: Row-by-row processing with cell coordinates
-        const rowChunks = this.processSheetByRows(sheet, sheetValues, sheetName, sheetNumber, chunkIndex);
+        // ✅ NEW: Extract merged cell information for complete data extraction
+        const mergedCells = extractMergedCells(sheet, sheetValues);
+
+        // Method 1: Row-by-row processing with cell coordinates (now with merged cell support)
+        const rowChunks = this.processSheetByRows(sheet, sheetValues, sheetName, sheetNumber, chunkIndex, mergedCells);
         chunks.push(...rowChunks);
         chunkIndex += rowChunks.length;
 
-        // Method 2: Table detection for semantic understanding
-        const tableChunks = this.processSheetAsTables(sheetValues, sheetName, sheetNumber, chunkIndex);
+        // Method 2: Table detection for semantic understanding (now with merged cell support)
+        const tableChunks = this.processSheetAsTables(sheet, sheetValues, sheetName, sheetNumber, chunkIndex, mergedCells);
         chunks.push(...tableChunks);
         chunkIndex += tableChunks.length;
 
@@ -93,6 +191,7 @@ class ExcelProcessorService {
 
   /**
    * Process sheet row by row, preserving exact cell coordinates
+   * Now includes merged cell handling for complete data extraction
    * Creates chunks like: "Sheet 2 'Revenue', Row 5: A5: Q1 Total | B5: $1,200,000 (formula: =SUM(B2:B4))"
    */
   private processSheetByRows(
@@ -100,7 +199,8 @@ class ExcelProcessorService {
     sheetValues: XLSX.WorkSheet,
     sheetName: string,
     sheetNumber: number,
-    startChunkIndex: number
+    startChunkIndex: number,
+    mergedCells: Map<string, MergedCellInfo>  // ✅ NEW: Merged cell data
   ): ExcelChunk[] {
     const chunks: ExcelChunk[] = [];
     const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
@@ -117,10 +217,30 @@ class ExcelProcessorService {
         const cell = sheet[cellAddress];
         const cellValue = sheetValues[cellAddress];
 
-        // Include all cells within the range, even empty ones
+        // ✅ NEW: Check if this cell is part of a merged range
+        const mergeInfo = mergedCells.get(cellAddress);
+
+        // ✅ NEW: Skip secondary merged cells (not the master cell)
+        // This prevents duplicate content in the row output
+        if (mergeInfo && isMergedSecondaryCell(cellAddress, mergedCells)) {
+          continue; // Skip - value will be from master cell
+        }
+
+        // ✅ NEW: Get value - prefer merged cell value if this is a master cell
+        let value = '';
+        if (mergeInfo) {
+          // This is the master cell of a merged range - use the merged value
+          value = this.formatCellValue(mergeInfo.value);
+        } else {
+          // Regular cell - use normal extraction
+          value = this.formatCellValue(cellValue?.v ?? '');
+        }
+
+        // Create cell data
         const cellData: CellData = {
           cell: cellAddress,
-          value: this.formatCellValue(cellValue?.v ?? '')
+          value,
+          ...(mergeInfo && { isMerged: true, mergeRange: mergeInfo.range })
         };
 
         // Check if cell has a formula
@@ -134,14 +254,17 @@ class ExcelProcessorService {
       // Create chunk for this row if it has data
       if (rowCells.length > 0) {
         const cellTexts = rowCells.map(cellData => {
+          // ✅ NEW: Include merge range info for merged cells
+          const mergeIndicator = cellData.isMerged ? ` [merged: ${cellData.mergeRange}]` : '';
+
           if (cellData.formula) {
-            return `${cellData.cell}: ${cellData.value} (formula: =${cellData.formula})`;
+            return `${cellData.cell}: ${cellData.value} (formula: =${cellData.formula})${mergeIndicator}`;
           }
           // Don't include empty cells in chunk text to reduce noise
           if (cellData.value === '[empty]') {
             return null;
           }
-          return `${cellData.cell}: ${cellData.value}`;
+          return `${cellData.cell}: ${cellData.value}${mergeIndicator}`;
         }).filter(Boolean); // Remove null entries
 
         const rowText = cellTexts.join(' | ');
@@ -151,6 +274,14 @@ class ExcelProcessorService {
           .filter(c => c.formula)
           .map(c => `=${c.formula}`);
         const hasFormula = rowFormulas.length > 0;
+
+        // ✅ NEW: Track merged cells in this row
+        const hasMergedCells = rowCells.some(c => c.isMerged);
+        const mergedRanges = [...new Set(
+          rowCells
+            .filter(c => c.mergeRange)
+            .map(c => c.mergeRange as string)  // Assert non-undefined after filter
+        )];
 
         chunks.push({
           content: `Sheet ${sheetNumber} '${sheetName}', Row ${rowNum + 1}: ${rowText}`,
@@ -165,6 +296,9 @@ class ExcelProcessorService {
             // ✅ Formula metadata for better RAG retrieval
             ...(hasFormula && { hasFormula: true }),
             ...(hasFormula && { formulas: rowFormulas }),
+            // ✅ NEW: Merged cell metadata
+            ...(hasMergedCells && { hasMergedCells: true }),
+            ...(mergedRanges.length > 0 && { mergedRanges }),
           }
         });
       }
@@ -175,19 +309,26 @@ class ExcelProcessorService {
 
   /**
    * Process sheet as tables with ENTITY-AWARE semantic understanding
+   * Now includes merged cell handling for complete data extraction
    * Detects and labels entities like property names, investment names, etc.
    * Creates chunks like: "[Entities: Carlyle, Lone Mountain Ranch] Sheet 2 'Revenue' table data: Property: Carlyle, Revenue: $450,000"
    */
   private processSheetAsTables(
     sheet: XLSX.WorkSheet,
+    sheetValues: XLSX.WorkSheet,  // ✅ NEW: Add sheetValues for merged cell handling
     sheetName: string,
     sheetNumber: number,
-    startChunkIndex: number
+    startChunkIndex: number,
+    mergedCells: Map<string, MergedCellInfo>  // ✅ NEW: Merged cell data
   ): ExcelChunk[] {
     const chunks: ExcelChunk[] = [];
 
-    // Convert sheet to JSON array
-    const jsonData = XLSX.utils.sheet_to_json(sheet, {
+    // ✅ NEW: Build a sheet with merged cell values filled in
+    // This ensures sheet_to_json gets complete data
+    const enhancedSheet = this.fillMergedCellValues(sheetValues, mergedCells);
+
+    // Convert sheet to JSON array (now with merged cell values)
+    const jsonData = XLSX.utils.sheet_to_json(enhancedSheet, {
       header: 1,
       defval: '',
       blankrows: false,
@@ -270,6 +411,39 @@ class ExcelProcessorService {
   }
 
   /**
+   * ✅ NEW: Fill merged cell values into a sheet copy
+   * Creates a new sheet object with merged cell values propagated to all cells in each merge range
+   * This ensures sheet_to_json extracts complete data from merged cells
+   */
+  private fillMergedCellValues(
+    sheet: XLSX.WorkSheet,
+    mergedCells: Map<string, MergedCellInfo>
+  ): XLSX.WorkSheet {
+    // If no merged cells, return original sheet
+    if (mergedCells.size === 0) {
+      return sheet;
+    }
+
+    // Create a shallow copy of the sheet
+    const enhancedSheet: XLSX.WorkSheet = { ...sheet };
+
+    // Fill in merged cell values
+    for (const [cellAddress, mergeInfo] of mergedCells) {
+      // Only fill secondary cells (master cell already has the value)
+      if (cellAddress !== mergeInfo.masterCell && mergeInfo.value) {
+        // Create or update the cell with the merged value
+        enhancedSheet[cellAddress] = {
+          t: 's',  // String type
+          v: mergeInfo.value,
+          w: mergeInfo.value
+        };
+      }
+    }
+
+    return enhancedSheet;
+  }
+
+  /**
    * ✅ NEW: Detect columns that likely contain entity names
    * (property names, investment names, company names, etc.)
    */
@@ -304,22 +478,24 @@ class ExcelProcessorService {
 
   /**
    * Format cell value for display
+   * ✅ FIX: Improved date serial detection using shared utility
+   * ✅ FIX: Uses formatNumber for proper decimal precision preservation
+   *
+   * @param value - The cell value
+   * @param numFmt - Optional Excel number format string
    */
-  private formatCellValue(value: any): string {
+  private formatCellValue(value: any, numFmt?: string): string {
     if (value === null || value === undefined || value === '') {
       return '[empty]';
     }
 
     if (typeof value === 'number') {
-      // Check if it's a date (Excel dates are numbers)
-      if (value > 25569 && value < 50000) {
-        // Likely a date
-        const date = XLSX.SSF.parse_date_code(value);
-        if (date) {
-          return `${date.m}/${date.d}/${date.y}`;
-        }
+      // ✅ FIX: Use shared date utility for proper detection
+      if (isExcelDateSerial(value, numFmt)) {
+        return formatExcelDate(value, { locale: 'en-US' });
       }
-      return value.toString();
+      // ✅ FIX: Use formatNumber to preserve decimal precision for financial data
+      return formatNumber(value);
     }
 
     if (typeof value === 'boolean') {
@@ -327,7 +503,7 @@ class ExcelProcessorService {
     }
 
     if (value instanceof Date) {
-      return value.toLocaleDateString();
+      return value.toLocaleDateString('en-US');
     }
 
     // Truncate very long strings

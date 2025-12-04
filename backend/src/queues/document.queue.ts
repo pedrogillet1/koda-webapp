@@ -4,10 +4,20 @@ import { redisConnection } from '../config/redis';
 import { downloadFile } from '../config/storage';
 import { extractText } from '../services/textExtraction.service';
 import * as imageProcessing from '../services/imageProcessing.service';
-import * as visionService from '../services/vision.service';
+// REMOVED: visionService, vectorEmbeddingService, semanticChunkingService - deleted services
+const visionService = {
+  analyzeImage: async () => ({ description: '', labels: [], text: '' }),
+  extractTextFromImage: async () => '',
+};
 import markdownConversionService from '../services/markdownConversion.service';
-import vectorEmbeddingService from '../services/vectorEmbedding.service';
-import semanticChunkingService from '../services/semantic-chunking.service';
+const vectorEmbeddingService = {
+  storeDocumentEmbeddings: async () => {},
+  generateEmbeddings: async () => [],
+};
+const semanticChunkingService = {
+  chunkDocument: async (text: string) => [{ content: text, metadata: {} }],
+  chunk: async (text: string) => [{ content: text, metadata: {} }],
+};
 // import { documentPreProcessor } from '../services/documentPreProcessor.service';
 import prisma from '../config/database';
 
@@ -550,26 +560,10 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 
 
     // Step 8: Extract all knowledge for cross-document synthesis
-    // REASON: Enable ChatGPT-level intelligence by building a knowledge graph
-    // WHY: Store definitions, methodologies, causal relationships, and comparisons
-    // IMPACT: Transform "47 papers found" to intelligent synthesis with insights
+    // REMOVED: knowledgeExtractionService was deleted
     try {
       if (extractedText && extractedText.length > 200) {
-        console.log(`📚 [DOC:${documentId}] Extracting knowledge for synthesis...`);
-        const { knowledgeExtractionService } = await import('../services/knowledgeExtraction.service');
-
-        // Extract all types of knowledge from document
-        const knowledgeResult = await knowledgeExtractionService.extractKnowledge(
-          documentId,
-          extractedText,
-          userId
-        );
-
-        console.log(`✅ [DOC:${documentId}] Knowledge extraction complete:`);
-        console.log(`   - ${knowledgeResult.definitions.length} definitions`);
-        console.log(`   - ${knowledgeResult.methodologies.length} methodologies`);
-        console.log(`   - ${knowledgeResult.causalRelationships.length} causal relationships`);
-        console.log(`   - ${knowledgeResult.comparisons.length} comparisons`);
+        console.log(`📚 [DOC:${documentId}] Knowledge extraction skipped (service removed)`);
       }
     } catch (knowledgeError) {
       // Do not fail the entire job if knowledge extraction fails

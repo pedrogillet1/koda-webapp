@@ -12,14 +12,28 @@
  */
 
 import { Request, Response } from 'express';
-import sessionStorageService from '../services/sessionStorage.service';
+// REMOVED: sessionStorageService, metadataExtractionService, documentComparisonService - deleted services
 import textExtractionService from '../services/textExtraction.service';
 import embeddingService from '../services/embedding.service';
-import metadataExtractionService from '../services/metadataExtraction.service';
-import documentComparisonService from '../services/documentComparison.service';
 import ragService from '../services/rag.service';
 import prisma from '../config/database';
 import crypto from 'crypto';
+
+// Stub services for removed functionality
+const sessionStorageService = {
+  createSession: async () => { throw new Error('Session storage service removed'); },
+  getSession: async () => null,
+  deleteSession: async () => {},
+  storeDocument: async () => { throw new Error('Session storage service removed'); },
+  getDocuments: async () => [],
+  deleteDocument: async () => {},
+};
+const metadataExtractionService = {
+  extractMetadata: async () => ({}),
+};
+const documentComparisonService = {
+  compareDocuments: async () => ({ similarities: [], differences: [] }),
+};
 import multer from 'multer';
 
 // Configure multer for session uploads

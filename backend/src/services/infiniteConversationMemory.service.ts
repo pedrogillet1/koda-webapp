@@ -11,7 +11,7 @@
 import { PrismaClient } from '@prisma/client';
 import conversationChunking from './conversationChunking.service';
 import conversationEmbedding from './conversationEmbedding.service';
-import conversationRetrieval from './conversationRetrieval.service';
+import { formatConversationContext, getConversationContext, updateContextState, findConversationByQuery, getContextStats } from './conversationRetrieval.service';
 import contextCompression from './contextCompression.service';
 
 const prisma = new PrismaClient();
@@ -67,7 +67,7 @@ export async function getInfiniteConversationContext(
   }
 
   // STEP 2: Retrieve conversation context
-  const context = await conversationRetrieval.getConversationContext(
+  const context = await getConversationContext(
     conversationId,
     userId,
     query,
@@ -84,7 +84,7 @@ export async function getInfiniteConversationContext(
   console.log(`   Total tokens: ${context.tokenUsage.total}`);
 
   // STEP 3: Check if compression needed
-  let formattedContext = conversationRetrieval.formatConversationContext(context);
+  let formattedContext = formatConversationContext(context);
   let compressionLevel = 0;
   let compressionRatio: number | undefined;
 
@@ -106,7 +106,7 @@ export async function getInfiniteConversationContext(
   }
 
   // STEP 4: Update context state for monitoring
-  await conversationRetrieval.updateContextState(
+  await updateContextState(
     conversationId,
     userId,
     context,
@@ -199,7 +199,7 @@ export async function searchAcrossConversations(
 
   console.log(`♾️ [INFINITE MEMORY] Cross-conversation search: "${query.substring(0, 50)}..."`);
 
-  return await conversationRetrieval.findConversationByQuery(query, userId, options);
+  return await findConversationByQuery(query, userId, options);
 }
 
 /**
@@ -261,7 +261,7 @@ export async function getConversationStats(conversationId: string): Promise<{
   compressionStats: any;
 }> {
 
-  const stats = await conversationRetrieval.getContextStats(conversationId);
+  const stats = await getContextStats(conversationId);
 
   const contextState = await prisma.conversationContextState.findUnique({
     where: { conversationId }

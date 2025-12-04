@@ -1,9 +1,9 @@
 /**
- * Presentation Routes
+ * Presentation Routes - STUBBED (controller removed)
  */
 
-import express from 'express';
-import * as presentationController from '../controllers/presentation.controller';
+import express, { Request, Response } from 'express';
+// REMOVED: presentationController - deleted controller
 import { authenticateToken } from '../middleware/auth.middleware';
 
 const router = express.Router();
@@ -11,25 +11,17 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticateToken);
 
-// Initialize new presentation
-router.post('/initialize', presentationController.initializePresentation);
+// Stub routes - service removed
+const stubResponse = (req: Request, res: Response) => {
+  res.status(501).json({ error: 'Presentation service removed' });
+};
 
-// List user's presentations
-router.get('/', presentationController.listPresentations);
-
-// Get specific presentation
-router.get('/:presentationId', presentationController.getPresentation);
-
-// View presentation (HTML viewer)
-router.get('/:presentationId/view', presentationController.viewPresentation);
-
-// Generate slide content
-router.post('/:presentationId/slides/:slideId', presentationController.generateSlide);
-
-// Export presentation (PDF/PPTX/HTML)
-router.get('/:presentationId/export/:format', presentationController.exportPresentation);
-
-// Delete presentation
-router.delete('/:presentationId', presentationController.deletePresentation);
+router.post('/initialize', stubResponse);
+router.get('/', stubResponse);
+router.get('/:presentationId', stubResponse);
+router.get('/:presentationId/view', stubResponse);
+router.post('/:presentationId/slides/:slideId', stubResponse);
+router.get('/:presentationId/export/:format', stubResponse);
+router.delete('/:presentationId', stubResponse);
 
 export default router;

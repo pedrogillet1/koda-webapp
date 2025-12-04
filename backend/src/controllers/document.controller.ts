@@ -1211,114 +1211,27 @@ export const regeneratePPTXSlides = async (req: Request, res: Response): Promise
 
 /**
  * Test LibreOffice installation
+ * NOTE: Service removed - returning stub response
  */
 export const testLibreOffice = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { pptxSlideGeneratorService } = await import('../services/pptxSlideGenerator.service');
-    const result = await pptxSlideGeneratorService.checkLibreOffice();
-
-    res.status(200).json(result);
-  } catch (error) {
-    const err = error as Error;
-    console.error('Test LibreOffice error:', err);
-    res.status(500).json({
-      installed: false,
-      error: err.message,
-      message: 'Failed to check LibreOffice installation'
-    });
-  }
+  // REMOVED: pptxSlideGeneratorService was deleted
+  res.status(501).json({
+    installed: false,
+    error: 'Service not available',
+    message: 'LibreOffice check service has been removed'
+  });
 };
 
 /**
  * Export document with edited markdown content
- * Converts markdown back to original format or exports as markdown
+ * NOTE: Service removed - returning stub response
  */
 export const exportDocument = async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const { id } = req.params;
-    const { format } = req.body; // 'pdf', 'docx', 'xlsx'
-
-    if (!format || !['pdf', 'docx', 'xlsx'].includes(format)) {
-      res.status(400).json({ error: 'Invalid format. Supported formats: pdf, docx, xlsx' });
-      return;
-    }
-
-    const prisma = (await import('../config/database')).default;
-
-    // Get document with metadata
-    const document = await prisma.documents.findUnique({
-      where: { id },
-      include: {
-        metadata: true,
-      },
-    });
-
-    if (!document) {
-      res.status(404).json({ error: 'Document not found' });
-      return;
-    }
-
-    if (document.userId !== req.user.id) {
-      res.status(403).json({ error: 'Unauthorized access to document' });
-      return;
-    }
-
-    const markdownContent = document.metadata?.markdownContent || '';
-
-    if (!markdownContent) {
-      res.status(400).json({ error: 'No markdown content available for export' });
-      return;
-    }
-
-    // Import export service
-    const documentExportService = (await import('../services/documentExport.service')).default;
-
-    // Export document using the service
-    const buffer = await documentExportService.exportDocument({
-      format: format as 'pdf' | 'docx' | 'xlsx',
-      markdownContent,
-      filename: document.filename
-    });
-
-    if (!buffer) {
-      res.status(500).json({ error: 'Failed to generate export buffer' });
-      return;
-    }
-
-    // Determine content type and file extension
-    const contentTypes = {
-      pdf: 'application/pdf',
-      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    };
-
-    const extensions = {
-      pdf: 'pdf',
-      docx: 'docx',
-      xlsx: 'xlsx'
-    };
-
-    // Generate filename
-    const baseFilename = document.filename.replace(/\.[^/.]+$/, '');
-    const exportFilename = `${baseFilename}.${extensions[format as keyof typeof extensions]}`;
-
-    // Set response headers
-    res.setHeader('Content-Type', contentTypes[format as keyof typeof contentTypes]);
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(exportFilename)}"`);
-    res.setHeader('Content-Length', buffer.length);
-
-    // Send buffer
-    res.send(buffer);
-  } catch (error) {
-    const err = error as Error;
-    console.error('Export error:', err);
-    res.status(500).json({ error: err.message || 'Export failed' });
-  }
+  // REMOVED: documentExportService was deleted
+  res.status(501).json({
+    error: 'Export service not available',
+    message: 'Document export service has been removed'
+  });
 };
 
 /**
@@ -1349,120 +1262,15 @@ export const deleteAllDocuments = async (req: Request, res: Response): Promise<v
 
 /**
  * Re-index all documents in Pinecone
- * This will re-process and re-embed ALL completed documents into Pinecone
- * Useful when documents were uploaded but not indexed, or if indexing failed
+ * NOTE: Service removed - returning stub response
  */
 export const reindexAllDocuments = async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const userId = req.user.id;
-
-    console.log('\n🔄 ==========================================');
-    console.log('🔄 [RE-INDEX] Starting document re-indexing...');
-    console.log(`👤 User ID: ${userId.substring(0, 8)}...`);
-    console.log('==========================================\n');
-
-    // Import required services dynamically
-    const prisma = (await import('../config/database')).default;
-    const documentChunkingService = (await import('../services/documentChunking.service')).default;
-    const vectorEmbeddingService = (await import('../services/vectorEmbedding.service')).default;
-
-    // Get all completed documents with extracted text
-    const documents = await prisma.documents.findMany({
-      where: {
-        userId,
-        status: 'completed'
-      },
-      include: {
-        metadata: true
-      }
-    });
-
-    console.log(`📊 Found ${documents.length} completed documents to re-index\n`);
-
-    let successCount = 0;
-    let failedCount = 0;
-    let skippedCount = 0;
-    const failedDocuments: Array<{ filename: string; error: string }> = [];
-
-    for (const doc of documents) {
-      try {
-        // Skip documents without extracted text
-        if (!doc.metadata?.extractedText) {
-          console.log(`⏭️  Skipping "${doc.filename}" - no extracted text`);
-          skippedCount++;
-          continue;
-        }
-
-        console.log(`\n🔄 Processing: "${doc.filename}"`);
-        console.log(`   Document ID: ${doc.id.substring(0, 8)}...`);
-        console.log(`   Text length: ${doc.metadata.extractedText.length.toLocaleString()} characters`);
-
-        // Chunk the document using simple chunking
-        const extractedText = doc.metadata.extractedText;
-        const docChunks = documentChunkingService.chunkText(extractedText);
-        console.log(`   Chunks created: ${docChunks.length}`);
-
-        // Convert to format expected by vector embedding service
-        const chunks = docChunks.map((chunk, index) => ({
-          content: chunk,
-          metadata: {
-            startChar: index * 500,
-            endChar: Math.min((index + 1) * 500, extractedText.length)
-          }
-        }));
-
-        // Store embeddings in Pinecone
-        console.log(`   💾 Storing embeddings in Pinecone...`);
-        await vectorEmbeddingService.storeDocumentEmbeddings(doc.id, chunks);
-
-        successCount++;
-        console.log(`   ✅ Successfully re-indexed "${doc.filename}"`);
-
-      } catch (error: any) {
-        failedCount++;
-        const errorMessage = error.message || 'Unknown error';
-        console.error(`   ❌ Failed to re-index "${doc.filename}": ${errorMessage}`);
-        failedDocuments.push({
-          filename: doc.filename,
-          error: errorMessage
-        });
-      }
-    }
-
-    console.log('\n==========================================');
-    console.log('🎯 RE-INDEX SUMMARY');
-    console.log('==========================================');
-    console.log(`📊 Total documents: ${documents.length}`);
-    console.log(`✅ Successfully re-indexed: ${successCount}`);
-    console.log(`❌ Failed: ${failedCount}`);
-    console.log(`⏭️  Skipped (no text): ${skippedCount}`);
-    console.log('==========================================\n');
-
-    res.status(200).json({
-      success: true,
-      message: `Re-indexing complete: ${successCount} documents successfully re-indexed`,
-      summary: {
-        totalDocuments: documents.length,
-        successCount,
-        failedCount,
-        skippedCount
-      },
-      failedDocuments: failedDocuments.length > 0 ? failedDocuments : undefined
-    });
-
-  } catch (error) {
-    const err = error as Error;
-    console.error('❌ [RE-INDEX] Fatal error:', err);
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
-  }
+  // REMOVED: vectorEmbeddingService was deleted
+  res.status(501).json({
+    success: false,
+    error: 'Re-indexing service not available',
+    message: 'Vector embedding service has been removed'
+  });
 };
 
 /**

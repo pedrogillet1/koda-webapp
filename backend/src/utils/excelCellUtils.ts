@@ -3,7 +3,14 @@
  * Shared utilities for handling Excel cell values, especially formulas
  *
  * ✅ FIX: This utility ensures formulas return calculated results, not formula text
+ * ✅ FIX: Added date serial number detection and conversion
  */
+
+import {
+  isExcelDateSerial,
+  formatExcelDate,
+  isDateFormat
+} from './excelDateUtils';
 
 /**
  * Result of extracting a cell value
@@ -120,14 +127,47 @@ export function getCellValue(cell: any): CellValueResult {
 }
 
 /**
- * Format a value for display
+ * Format a number value with proper precision preservation
+ * ✅ FIX: Preserves decimal precision for financial data accuracy
+ *
+ * @param value - The numeric value to format
+ * @returns Formatted string with proper precision
  */
-export function formatValue(value: any): string {
+export function formatNumber(value: number): string {
+  if (isNaN(value)) return String(value);
+
+  // Preserve original precision
+  // Check if has decimals
+  if (value % 1 !== 0) {
+    // Keep up to 2 decimal places for currency (values >= 1)
+    // Keep up to 4 decimal places for percentages/rates (values < 1)
+    const decimals = Math.abs(value) < 1 ? 4 : 2;
+
+    // Use toLocaleString to add thousand separators while preserving decimals
+    return value.toLocaleString('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: decimals,
+    });
+  }
+
+  // Integer - add thousand separators
+  return value.toLocaleString('en-US');
+}
+
+/**
+ * Format a value for display
+ * ✅ FIX: Added date serial number detection and conversion
+ * ✅ FIX: Uses formatNumber for proper precision preservation
+ *
+ * @param value - The value to format
+ * @param numFmt - Optional Excel number format string for date detection
+ */
+export function formatValue(value: any, numFmt?: string | null): string {
   if (value === null || value === undefined) {
     return '';
   }
 
-  // Date
+  // Date object
   if (value instanceof Date) {
     return value.toLocaleDateString('en-US');
   }
@@ -143,14 +183,13 @@ export function formatValue(value: any): string {
     if (isNaN(value)) return '#NUM!';
     if (!isFinite(value)) return value > 0 ? '#DIV/0!' : '#DIV/0!';
 
-    // Format with commas for large numbers
-    if (Math.abs(value) >= 1000) {
-      return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    // ✅ FIX: Check if this number is an Excel date serial
+    if (isExcelDateSerial(value, numFmt)) {
+      return formatExcelDate(value, { locale: 'en-US' });
     }
 
-    // Check if it's likely a percentage (0-1 range)
-    // Note: This is a heuristic, actual format should come from cell numFmt
-    return value.toString();
+    // ✅ FIX: Use formatNumber for proper precision preservation
+    return formatNumber(value);
   }
 
   // String or other
@@ -209,6 +248,7 @@ export function getErrorType(value: any): string | null {
 export default {
   getCellValue,
   formatValue,
+  formatNumber,
   hasFormula,
   getFormula,
   isErrorValue,

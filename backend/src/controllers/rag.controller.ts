@@ -2,18 +2,10 @@ import { Request, Response } from 'express';
 import ragService from '../services/rag.service';
 import prisma from '../config/database';
 import { getIO } from '../services/websocket.service';
-import navigationService from '../services/navigation.service';
-// ✅ UNIFIED INTENT DETECTION - Replaces intent.service.ts + llmIntentDetector.service.ts
-import intentDetectionService, { toLegacyFormat } from '../services/intentDetection.service';
-import responsePostProcessor from '../services/responsePostProcessor.service'; // ✅ FIX #4: Response Post-Processor
-import { Intent } from '../types/intent.types';
+// REMOVED: navigationService, responsePostProcessor, p0FeaturesService, clarificationService, chatDocumentGenerationService - deleted services
 import fileActionsService from '../services/fileActions.service';
 import { generateConversationTitle } from '../services/gemini.service';
-import cacheService from '../services/cache.service'; // ✅ FIX: Cache invalidation after saving messages
-// ✅ P0 FEATURES: Import P0 services for multi-turn conversations
-import p0FeaturesService from '../services/p0Features.service';
-import clarificationService from '../services/clarification.service';
-import chatDocumentGenerationService from '../services/chatDocumentGeneration.service';
+import cacheService from '../services/cache.service';
 import * as languageDetectionService from '../services/languageDetection.service';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 // ✅ FORMAT ENFORCEMENT: Import format enforcement services
@@ -21,6 +13,8 @@ import { structureEnforcementService } from '../services/structureEnforcement.se
 import formatEnforcementService from '../services/formatEnforcement.service';
 // ✅ KODA FIX #2: Response validation to prevent empty responses
 import responseValidation from '../services/responseValidation.service';
+// ✅ FIX #6: Simple Intent Detection (replaces LLM-based intentDetection.service)
+import { detectIntent as detectSimpleIntent, toLegacyIntent, Intent } from '../services/simpleIntentDetection.service';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MIGRATION: Anthropic → Gemini for document generation
@@ -411,11 +405,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       isShowFileQuery
     );
 
-    // ✅ UNIFIED INTENT DETECTION - Fast-path + LLM when needed
-    const unifiedIntentResult = await intentDetectionService.detect(query, conversationHistoryForIntent);
-    const intentResult = toLegacyFormat(unifiedIntentResult);
+    // ✅ FIX #6: Simple pattern-based intent detection (<10ms vs 3-6s LLM)
+    const simpleIntentResult = detectSimpleIntent(query);
+    const intentResult = toLegacyIntent(simpleIntentResult);
 
-    console.log(`🎯 [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [${unifiedIntentResult.detectionMethod}/${unifiedIntentResult.detectionTimeMs}ms]`);
+    console.log(`⚡ [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [pattern/${simpleIntentResult.detectionTimeMs}ms]`);
     console.log(`📝 [Entities]`, intentResult.entities);
 
     // TODO: Gemini fallback classifier removed - using pattern matching only
@@ -1480,11 +1474,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     });
     conversationHistoryForIntent.reverse(); // Chronological order
 
-    // Use unified intent detection (handles fast-path internally)
-    const unifiedIntentResult = await intentDetectionService.detect(query, conversationHistoryForIntent);
-    const intentResult = toLegacyFormat(unifiedIntentResult);
+    // ✅ FIX #6: Simple pattern-based intent detection (<10ms vs 3-6s LLM)
+    const simpleIntentResult = detectSimpleIntent(query);
+    const intentResult = toLegacyIntent(simpleIntentResult);
 
-    console.log(`🎯 [STREAMING Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [${unifiedIntentResult.detectionMethod}/${unifiedIntentResult.detectionTimeMs}ms]`);
+    console.log(`⚡ [STREAMING Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [pattern/${simpleIntentResult.detectionTimeMs}ms]`);
     console.log(`📝 [STREAMING Entities]`, intentResult.parameters);
 
     // ========================================
@@ -2407,73 +2401,14 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     console.log(`   Content length: ${assistantMessage.content.length}`);
 
     // ════════════════════════════════════════════════════════════════════════════════
-    // DOCUMENT GENERATION HANDLER
+    // DOCUMENT GENERATION HANDLER - REMOVED
     // ════════════════════════════════════════════════════════════════════════════════
+    // NOTE: chatDocumentGeneration service was deleted
     // Check if the answer contains document generation marker
     if (cleanedAnswer.includes('__DOCUMENT_GENERATION_REQUESTED__:')) {
-      console.log('📝 [RAG CONTROLLER] Detected document generation marker in answer');
-
-      // Extract document type from marker
-      const markerMatch = cleanedAnswer.match(/__DOCUMENT_GENERATION_REQUESTED__:(\w+)/);
-      const documentType = markerMatch ? markerMatch[1] as 'summary' | 'report' | 'analysis' | 'general' : 'general';
-
-      console.log(`📝 [RAG CONTROLLER] Triggering ${documentType} document generation`);
-
-      try {
-        // Import document generation service
-        const chatDocGenService = await import('../services/chatDocumentGeneration.service');
-
-        // Stream progress message to client
-        const progressMessage = `\n\n📝 Generating your ${documentType}...\n\n`;
-        res.write(`data: ${JSON.stringify({ type: 'content', content: progressMessage })}\n\n`);
-        if (res.flush) res.flush();
-
-        // Generate document
-        const docResult = await chatDocGenService.generateDocument({
-          userId,
-          conversationId,
-          messageId: assistantMessage.id,
-          query,
-          documentType,
-        });
-
-        // Store chat document for the done event
-        generatedChatDocument = docResult.chatDocument;
-
-        // Update assistant message with generated document content
-        await prisma.message.update({
-          where: { id: assistantMessage.id },
-          data: {
-            content: docResult.message,
-          },
-        });
-
-        // Update cleanedAnswer for the done event
-        cleanedAnswer = docResult.message;
-
-        console.log(`✅ [RAG CONTROLLER] Document generated successfully: ${docResult.chatDocument.id}`);
-
-        // Stream final message
-        res.write(`data: ${JSON.stringify({ type: 'content', content: '\n' + docResult.message })}\n\n`);
-        if (res.flush) res.flush();
-      } catch (docGenError: any) {
-        console.error('❌ [RAG CONTROLLER] Document generation failed:', docGenError);
-        console.error('❌ [RAG CONTROLLER] Error message:', docGenError?.message);
-        console.error('❌ [RAG CONTROLLER] Error stack:', docGenError?.stack);
-        const errorMessage = '\n\n❌ Failed to generate document. Please try again.';
-
-        await prisma.message.update({
-          where: { id: assistantMessage.id },
-          data: {
-            content: cleanedAnswer + errorMessage,
-          },
-        });
-
-        cleanedAnswer += errorMessage;
-
-        res.write(`data: ${JSON.stringify({ type: 'content', content: errorMessage })}\n\n`);
-        if (res.flush) res.flush();
-      }
+      console.log('📝 [RAG CONTROLLER] Document generation marker detected but service removed');
+      // Remove the marker from the answer
+      cleanedAnswer = cleanedAnswer.replace(/__DOCUMENT_GENERATION_REQUESTED__:\w+/, '');
     }
 
     // Update conversation timestamp

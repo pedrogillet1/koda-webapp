@@ -1,9 +1,12 @@
 /**
  * Excel to HTML Conversion Service
  * Converts Excel files (.xlsx, .xls) to HTML tables with formatting preservation
+ *
+ * ✅ FIX: Added date serial number detection and conversion
  */
 
 import * as XLSX from 'xlsx';
+import { isExcelDateSerial, formatExcelDate } from '../utils/excelDateUtils';
 
 interface ExcelToHtmlResult {
   html: string;
@@ -138,6 +141,7 @@ class ExcelToHtmlService {
 
   /**
    * Format cell value with proper type detection
+   * ✅ FIX: Added date serial number detection and conversion
    */
   private formatCellValue(value: any): string {
     if (value === null || value === undefined || value === '') {
@@ -147,6 +151,12 @@ class ExcelToHtmlService {
     // Check if it's a number
     if (typeof value === 'number' || !isNaN(Number(value))) {
       const numValue = typeof value === 'number' ? value : Number(value);
+
+      // ✅ FIX: Check if this number is an Excel date serial
+      if (isExcelDateSerial(numValue)) {
+        const dateStr = formatExcelDate(numValue, { locale: 'en-US' });
+        return `<span class="date-cell">${this.escapeHtml(dateStr)}</span>`;
+      }
 
       // Format large numbers with commas
       if (Math.abs(numValue) >= 1000) {
@@ -169,6 +179,7 @@ class ExcelToHtmlService {
 
   /**
    * Determine cell class based on content
+   * ✅ FIX: Added date serial detection
    */
   private getCellClass(value: any): string {
     if (value === null || value === undefined || value === '') {
@@ -176,6 +187,11 @@ class ExcelToHtmlService {
     }
 
     if (typeof value === 'number' || !isNaN(Number(value))) {
+      const numValue = typeof value === 'number' ? value : Number(value);
+      // ✅ FIX: Detect date serial numbers
+      if (isExcelDateSerial(numValue)) {
+        return 'cell date-cell';
+      }
       return 'cell number-cell';
     }
 

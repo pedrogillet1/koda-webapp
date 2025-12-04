@@ -18,7 +18,7 @@
  * - control: Contextual/Search-Across ("Show me all files...")
  */
 
-import { Intent, IntentResult } from '../types/intent.types';
+import { Intent, IntentResult } from '../../types/intent.types';
 
 // NEW: Psychological Goals (simplified 5-goal system)
 export type PsychologicalGoal =

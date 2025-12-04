@@ -1,9 +1,12 @@
 /**
  * Excel to HTML with Full Styling
  * Converts Excel files to HTML with colors, borders, formatting
+ *
+ * ✅ FIX: Added date serial number detection and conversion
  */
 
 import ExcelJS from 'exceljs';
+import { isExcelDateSerial, isDateFormat, formatExcelDate } from '../utils/excelDateUtils';
 
 interface CellStyle {
   backgroundColor?: string;
@@ -356,11 +359,12 @@ class ExcelToHtmlStyledService {
 
   /**
    * Format value based on type and number format
+   * ✅ FIX: Added date serial number detection and conversion
    */
   private formatValue(value: any, cell?: ExcelJS.Cell): string {
     if (value === null || value === undefined) return '';
 
-    // Date
+    // Date object
     if (value instanceof Date) {
       return value.toLocaleDateString('en-US', {
         year: 'numeric',
@@ -378,6 +382,11 @@ class ExcelToHtmlStyledService {
     if (typeof value === 'number') {
       // Check number format from cell
       const numFmt = cell?.numFmt || '';
+
+      // ✅ FIX: Check if this is a date format FIRST (before other number formats)
+      if (isDateFormat(numFmt) || isExcelDateSerial(value, numFmt)) {
+        return formatExcelDate(value, { locale: 'en-US' });
+      }
 
       // Percentage format
       if (numFmt.includes('%')) {

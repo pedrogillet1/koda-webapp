@@ -3,12 +3,14 @@
  * Reads specific cells from Excel files with proper formula handling
  *
  * ✅ FIX: Properly handles Excel formulas - returns calculated result, not formula text
+ * ✅ FIX: Added date serial number detection and conversion
  */
 
 import ExcelJS from 'exceljs';
 import prisma from '../config/database';
 import path from 'path';
 import fs from 'fs/promises';
+import { isExcelDateSerial, formatExcelDate } from '../utils/excelDateUtils';
 
 interface CellReadResult {
   success: boolean;
@@ -169,6 +171,7 @@ class ExcelCellReaderService {
   /**
    * Get cell value with proper formula handling
    * ✅ FIX: Returns calculated result for formula cells, not the formula text
+   * ✅ FIX: Added date format detection from cell.numFmt
    */
   private getCellValue(cell: ExcelJS.Cell): {
     value: any;
@@ -177,6 +180,8 @@ class ExcelCellReaderService {
     formula?: string;
   } {
     const cellValue = cell.value as any;
+    // ✅ FIX: Get numFmt for date detection
+    const numFmt = cell.numFmt;
 
     // Handle null/undefined
     if (cellValue === null || cellValue === undefined) {
@@ -195,7 +200,7 @@ class ExcelCellReaderService {
       if (cellValue.result !== undefined && cellValue.result !== null) {
         return {
           value: cellValue.result,
-          formattedValue: this.formatValue(cellValue.result),
+          formattedValue: this.formatValue(cellValue.result, numFmt),
           hasFormula: true,
           formula: `=${formula}`,
         };
@@ -239,23 +244,27 @@ class ExcelCellReaderService {
       };
     }
 
-    // Regular value
+    // Regular value - ✅ FIX: Pass numFmt for date detection
     return {
       value: cellValue,
-      formattedValue: this.formatValue(cellValue),
+      formattedValue: this.formatValue(cellValue, numFmt),
       hasFormula: false,
     };
   }
 
   /**
    * Format value for display
+   * ✅ FIX: Added date serial number detection and conversion
+   *
+   * @param value - The value to format
+   * @param numFmt - Optional Excel number format string
    */
-  private formatValue(value: any): string {
+  private formatValue(value: any, numFmt?: string): string {
     if (value === null || value === undefined) {
       return '';
     }
 
-    // Date
+    // Date object
     if (value instanceof Date) {
       return value.toLocaleDateString('en-US');
     }
@@ -267,6 +276,11 @@ class ExcelCellReaderService {
 
     // Number
     if (typeof value === 'number') {
+      // ✅ FIX: Check if this number is an Excel date serial
+      if (isExcelDateSerial(value, numFmt)) {
+        return formatExcelDate(value, { locale: 'en-US' });
+      }
+
       // Format with commas for large numbers
       if (Math.abs(value) >= 1000) {
         return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
