@@ -6,6 +6,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
+import { extractPDFWithTables } from '../utils/pdfTableExtractor';
 
 export interface ExtractionResult {
   text: string;
@@ -193,7 +194,14 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
         }
 
         // Post-process the OCR text to fix common errors
-        const cleanedText = postProcessOCRText(ocrResult.text);
+        let cleanedText = postProcessOCRText(ocrResult.text);
+
+        // ✅ FIX: Detect and preserve table structure from OCR text
+        try {
+          cleanedText = extractPDFWithTables(cleanedText);
+        } catch (tableError) {
+          console.warn('⚠️ [PDF] Table extraction failed for OCR text, using raw text');
+        }
 
         console.log(`📊 OCR Results:`, {
           extractedChars: cleanedText.length,
@@ -229,7 +237,16 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
     // ════════════════════════════════════════════════════════════════════════════════
 
     // Apply basic cleanup even for native text
-    const cleanedText = postProcessOCRText(data.text);
+    let cleanedText = postProcessOCRText(data.text);
+
+    // ════════════════════════════════════════════════════════════════════════════════
+    // ✅ FIX: Detect and preserve table structure
+    // ════════════════════════════════════════════════════════════════════════════════
+    try {
+      cleanedText = extractPDFWithTables(cleanedText);
+    } catch (tableError) {
+      console.warn('⚠️ [PDF] Table extraction failed, using raw text:', tableError);
+    }
 
     console.log(`✅ Native PDF text extraction: ${cleanedText.length} chars, ${cleanedText.split(/\s+/).length} words, ${avgCharsPerPage.toFixed(0)} chars/page`);
 
@@ -250,7 +267,14 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
 
     try {
       const ocrResult = await visionService.extractTextFromScannedPDF(buffer);
-      const cleanedText = postProcessOCRText(ocrResult.text);
+      let cleanedText = postProcessOCRText(ocrResult.text);
+
+      // ✅ FIX: Detect and preserve table structure from OCR fallback
+      try {
+        cleanedText = extractPDFWithTables(cleanedText);
+      } catch (tableError) {
+        console.warn('⚠️ [PDF] Table extraction failed for OCR fallback');
+      }
 
       console.log(`✅ OCR fallback successful: ${cleanedText.length} chars`);
 
