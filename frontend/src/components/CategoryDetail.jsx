@@ -168,6 +168,7 @@ const CategoryDetail = () => {
   const [itemToRename, setItemToRename] = useState(null);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [moveModalDoc, setMoveModalDoc] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [successCount, setSuccessCount] = useState(0);
   const fileInputRef = React.useRef(null);
