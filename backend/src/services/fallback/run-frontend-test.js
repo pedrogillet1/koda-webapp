@@ -4,8 +4,8 @@
  * Outputs results to a markdown file for review
  */
 
-// Set API key BEFORE any imports
-process.env.GEMINI_API_KEY = 'AIzaSyCDkTErobrUpr7INl9tgPE3V2fdFxm8zvM';
+// Set API key BEFORE any imports - load from .env
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
 
 const fs = require('fs');
 const path = require('path');

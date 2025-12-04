@@ -1959,104 +1959,149 @@ async function pureBM25Search(query: string, userId: string, topK: number = 20):
 function detectLanguage(query: string): 'pt' | 'es' | 'fr' | 'en' {
   const lower = query.toLowerCase();
 
-  // Helper function to match words (can be substring for better detection)
-  const hasAnyWord = (text: string, words: string[]): boolean => {
-    return words.some(word => text.includes(word));
+  // ✅ FIX: Check for STRONG English patterns FIRST - these are definitive
+  const strongEnglishPatterns = [
+    /\bwhat\s+is\b/i,
+    /\bhow\s+(many|much|is|are|does|do)\b/i,
+    /\bwhy\s+(is|are|does|do)\b/i,
+    /\bwhat\s+are\b/i,
+    /\bwhich\s+(is|are|property|properties|fund|funds|company|companies)\b/i,
+    /\bshould\s+i\b/i,
+    /\bcan\s+(you|i)\b/i,
+    /\bif\s+i\s+have\b/i,
+    /\bbased\s+on\b/i,
+    /\baccording\s+to\b/i,
+    /\bplease\b/i,
+    /\bthe\s+(total|average|sum|revenue|investment|budget|fund|property)\b/i,
+    /\b(calculate|compare|analyze|explain|show|find|get|list|summarize)\b/i,
+    /\b(what|which|how|where|when|who)\s+/i,  // English question starters
+    /\b(across|between|from|with)\s+/i,  // English prepositions in context
+  ];
+
+  // If query matches any strong English pattern, return English immediately
+  if (strongEnglishPatterns.some(pattern => pattern.test(lower))) {
+    console.log(`🌐 [LANG DETECT] Detected: English (strong pattern match)`);
+    return 'en';
+  }
+
+  // Helper function to count whole-word matches using word boundaries
+  const countWholeWordMatches = (text: string, words: string[]): number => {
+    return words.filter(word => {
+      // Skip single-character patterns (they cause false positives)
+      if (word.length <= 2) return false;
+      // Escape special regex characters and create word boundary pattern
+      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+      return regex.test(text);
+    }).length;
   };
 
-  // Helper function to count matches
-  const countMatches = (text: string, words: string[]): number => {
-    return words.filter(word => text.includes(word)).length;
-  };
+  // English indicators (STRONG - check first)
+  const enWords = [
+    // Question words (unique to English)
+    'what', 'how', 'when', 'where', 'why', 'who', 'which', 'whose',
+    // Common English verbs
+    'is', 'are', 'was', 'were', 'have', 'has', 'had', 'do', 'does', 'did',
+    'can', 'could', 'would', 'should', 'will', 'shall', 'may', 'might',
+    // English-specific words
+    'the', 'and', 'but', 'or', 'not', 'this', 'that', 'these', 'those',
+    'with', 'from', 'into', 'about', 'between', 'through', 'during',
+    // Document/file terms (English)
+    'document', 'documents', 'file', 'files', 'folder', 'folders',
+    // Actions
+    'show', 'tell', 'find', 'get', 'give', 'make', 'create', 'delete', 'move',
+    'list', 'summarize', 'explain', 'calculate', 'compare', 'analyze',
+    // Question patterns
+    'uploaded', 'mentioned', 'contains', 'across', 'between',
+    // Common words
+    'all', 'any', 'each', 'every', 'some', 'many', 'much', 'more', 'most',
+    'my', 'your', 'their', 'our', 'its',
+    'total', 'average', 'sum', 'main', 'key', 'top'
+  ];
 
-  // Portuguese indicators (comprehensive list)
+  // Portuguese indicators (unique words only - removed single chars)
   const ptWords = [
-    // Question words
-    'quantos', 'quantas', 'quais', 'qual', 'onde', 'quando', 'como', 'porque', 'por que', 'quem',
-    // Common verbs
+    // Question words (unique to Portuguese)
+    'quantos', 'quantas', 'quais', 'qual', 'onde', 'quando', 'porque', 'quem',
+    // Common Portuguese verbs
     'tenho', 'salvei', 'salvo', 'fazer', 'posso', 'pode', 'preciso', 'quero', 'gostaria',
     'ajudar', 'mostrar', 'explicar', 'encontrar', 'buscar', 'procurar',
-    // File/document terms
-    'documento', 'documentos', 'arquivo', 'arquivos', 'pasta', 'pastas',
+    // File/document terms (Portuguese-specific)
+    'arquivo', 'arquivos', 'pasta', 'pastas',
     // Actions
     'cria', 'criar', 'deletar', 'apagar', 'mover', 'renomear', 'enviar', 'baixar',
-    // Greetings and common phrases
-    'ol�', 'ola', 'oi', 'bom dia', 'boa tarde', 'boa noite', 'obrigado', 'obrigada',
-    'por favor', 'tudo bem', 'como vai',
-    // Common words
-    'sobre', 'para', 'isso', 'este', 'esta', 'esse', 'essa', 'neste', 'nesta', 'deste', 'desta',
+    // Greetings (Portuguese-specific)
+    'obrigado', 'obrigada',
+    // Common Portuguese words (unique)
     'meu', 'minha', 'meus', 'minhas', 'seu', 'sua', 'seus', 'suas',
-    'n�o', 'nao', 'sim', 'muito', 'mais', 'menos', 'tamb�m', 'tambem',
-    // Accented characters (strong Portuguese indicator)
-    '��o', 'cao', '�es', '�es', '�', '�', '�', '�', '�', '�', '�', '�', '�'
+    'muito', 'também', 'tambem'
   ];
 
-  // Spanish indicators (comprehensive list)
+  // Spanish indicators (unique words only - removed single chars)
   const esWords = [
-    // Question words
-    'cu�ntos', 'cuantos', 'cu�ntas', 'cuantas', 'cu�les', 'cuales', 'cu�l', 'cual',
-    'd�nde', 'donde', 'cu�ndo', 'cuando', 'c�mo', 'como', 'por qu�', 'porque', 'qui�n', 'quien',
-    // Common verbs
-    'tengo', 'puedo', 'necesito', 'quiero', 'quisiera', 'ayudar', 'mostrar', 'explicar',
-    'buscar', 'encontrar',
-    // File/document terms
-    'archivo', 'archivos', 'carpeta', 'carpetas', 'documento', 'documentos',
+    // Question words (Spanish-specific)
+    'cuántos', 'cuantos', 'cuántas', 'cuantas', 'cuáles', 'cuales', 'cuál', 'cual',
+    'dónde', 'donde', 'cuándo', 'cuando', 'cómo', 'quién', 'quien',
+    // Common Spanish verbs
+    'tengo', 'puedo', 'necesito', 'quiero', 'quisiera',
+    // File/document terms (Spanish-specific)
+    'archivo', 'archivos', 'carpeta', 'carpetas',
     // Actions
-    'crear', 'borrar', 'eliminar', 'mover', 'renombrar', 'enviar', 'descargar',
-    // Greetings and common phrases
-    'hola', 'buenos d�as', 'buenos dias', 'buenas tardes', 'buenas noches',
-    'gracias', 'por favor', 'c�mo est�s', 'como estas',
-    // Common words
-    'sobre', 'para', 'esto', 'este', 'esta', 'ese', 'esa', 'mi', 'mis', 'tu', 'tus',
-    'no', 's�', 'si', 'mucho', 'm�s', 'mas', 'menos', 'tambi�n', 'tambien',
-    // Spanish-specific patterns
-    '�', '�', '�', '�', '�', '�', '�', '�', '�'
+    'crear', 'borrar', 'eliminar', 'renombrar', 'descargar',
+    // Greetings (Spanish-specific)
+    'hola', 'gracias'
   ];
 
-  // French indicators (comprehensive list)
+  // French indicators (unique words only - REMOVED single character accents that cause false positives)
   const frWords = [
-    // Question words
-    'combien', 'quels', 'quelles', 'quel', 'quelle', 'o�', 'ou', 'quand', 'comment', 'pourquoi', 'qui',
-    // Common verbs
-    'avoir', '�tre', 'etre', 'pouvoir', 'vouloir', 'faire', 'montrer', 'expliquer',
+    // Question words (French-specific)
+    'combien', 'quels', 'quelles', 'quel', 'quelle', 'quand', 'pourquoi',
+    // Common French verbs
+    'avoir', 'être', 'etre', 'pouvoir', 'vouloir', 'faire',
     'chercher', 'trouver', 'aider',
-    // File/document terms
-    'fichier', 'fichiers', 'dossier', 'dossiers', 'document', 'documents',
+    // File/document terms (French-specific)
+    'fichier', 'fichiers', 'dossier', 'dossiers',
     // Actions
-    'cr�er', 'creer', 'supprimer', 'd�placer', 'deplacer', 'renommer', 'envoyer', 't�l�charger', 'telecharger',
-    // Greetings and common phrases
-    'bonjour', 'bonsoir', 'salut', 'merci', 's\'il vous pla�t', 'sil vous plait',
-    'comment allez-vous', 'comment vas-tu', '�a va', 'ca va',
-    // Common words
-    'sur', 'pour', 'ceci', 'cela', 'ce', 'cette', 'ces', 'mon', 'ma', 'mes', 'ton', 'ta', 'tes',
-    'non', 'oui', 'tr�s', 'tres', 'plus', 'moins', 'aussi',
-    // French-specific patterns
-    '�', '�', '�', '�', '�', '�', '�', '�', '�', '�', '�', '�', '�', '�'
+    'créer', 'creer', 'supprimer', 'déplacer', 'deplacer', 'renommer', 'envoyer', 'télécharger', 'telecharger',
+    // Greetings (French-specific)
+    'bonjour', 'bonsoir', 'salut', 'merci',
+    // French-specific words (multi-char only)
+    'ceci', 'cela', 'cette', 'ces', 'oui', 'très', 'tres', 'aussi'
   ];
 
-  // Count matches for each language
-  const ptCount = countMatches(lower, ptWords);
-  const esCount = countMatches(lower, esWords);
-  const frCount = countMatches(lower, frWords);
+  // Count matches for each language using whole word matching
+  const enCount = countWholeWordMatches(lower, enWords);
+  const ptCount = countWholeWordMatches(lower, ptWords);
+  const esCount = countWholeWordMatches(lower, esWords);
+  const frCount = countWholeWordMatches(lower, frWords);
 
   // Log for debugging
-  console.log(`?? [LANG DETECT] PT: ${ptCount}, ES: ${esCount}, FR: ${frCount} for query: "${query.substring(0, 50)}..."`);
+  console.log(`🌐 [LANG DETECT] EN: ${enCount}, PT: ${ptCount}, ES: ${esCount}, FR: ${frCount} for query: "${query.substring(0, 50)}..."`);
 
-  // Return language with most matches (minimum 1 match required)
-  if (ptCount > esCount && ptCount > frCount && ptCount > 0) {
-    console.log(`?? [LANG DETECT] Detected: Portuguese`);
+  // ✅ FIX: Require MINIMUM of 2 strong matches to switch from English
+  const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 2;
+
+  // English wins if it has the most matches OR ties with any other language
+  if (enCount >= ptCount && enCount >= esCount && enCount >= frCount && enCount > 0) {
+    console.log(`🌐 [LANG DETECT] Detected: English`);
+    return 'en';
+  }
+
+  // Return language with most matches ONLY if above threshold
+  if (ptCount > esCount && ptCount > frCount && ptCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+    console.log(`🌐 [LANG DETECT] Detected: Portuguese (${ptCount} matches)`);
     return 'pt';
   }
-  if (esCount > ptCount && esCount > frCount && esCount > 0) {
-    console.log(`?? [LANG DETECT] Detected: Spanish`);
+  if (esCount > ptCount && esCount > frCount && esCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+    console.log(`🌐 [LANG DETECT] Detected: Spanish (${esCount} matches)`);
     return 'es';
   }
-  if (frCount > ptCount && frCount > esCount && frCount > 0) {
-    console.log(`?? [LANG DETECT] Detected: French`);
+  if (frCount > ptCount && frCount > esCount && frCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+    console.log(`🌐 [LANG DETECT] Detected: French (${frCount} matches)`);
     return 'fr';
   }
 
-  console.log(`?? [LANG DETECT] Detected: English (default)`);
+  console.log(`🌐 [LANG DETECT] Detected: English (default)`);
   return 'en'; // Default to English
 }
 
@@ -4254,6 +4299,318 @@ async function handleDocumentCounting(
 }
 
 // ============================================================================
+// FORMULA QUERY DETECTION & EXTRACTION (Excel Formula Understanding)
+// ============================================================================
+
+/**
+ * Detect if query is asking about Excel formulas
+ * Used to enhance retrieval and provide formula-specific context to LLM
+ */
+function isFormulaQuery(query: string): { isFormula: boolean; formulaType?: string; cellReference?: string } {
+  const lower = query.toLowerCase().trim();
+
+  // Pattern 1: Direct formula questions
+  const formulaPatterns = [
+    /what\s+(is\s+)?the\s+formula/i,           // "what is the formula..."
+    /which\s+formula/i,                         // "which formula..."
+    /what\s+formula/i,                          // "what formula..."
+    /show\s+(me\s+)?the\s+formula/i,           // "show me the formula..."
+    /formula\s+(for|used|in)/i,                // "formula for...", "formula used in..."
+    /explain\s+(the\s+)?formula/i,             // "explain the formula..."
+    /how\s+is\s+.*\s+calculated/i,             // "how is X calculated"
+    /how\s+does\s+.*\s+get\s+calculated/i,     // "how does X get calculated"
+    /how\s+are\s+.*\s+calculated/i,            // "how are subtotals calculated"
+    /calculation\s+(method|formula)/i,         // "calculation method..."
+    /\=\s*[A-Z]+\s*\(/i,                       // "=SUM(", "=IFERROR(", etc.
+  ];
+
+  // Pattern 2: Cell-specific formula questions
+  const cellFormulaPatterns = [
+    /cell\s+([A-Z]+\d+)\s+.*(?:formula|calculated)/i,     // "cell B71 formula"
+    /how\s+is\s+cell\s+([A-Z]+\d+)/i,                     // "how is cell B71..."
+    /formula\s+(?:in|for)\s+(?:cell\s+)?([A-Z]+\d+)/i,   // "formula in B71"
+    /what\s+(?:is|does)\s+([A-Z]+\d+)\s+(?:contain|calculate|compute)/i,  // "what does B71 calculate"
+  ];
+
+  // Pattern 3: Formula type questions (IFERROR, SUM, VLOOKUP, etc.)
+  const formulaTypePatterns = [
+    /\b(SUM|AVERAGE|COUNT|IFERROR|VLOOKUP|HLOOKUP|INDEX|MATCH|IF|AND|OR|PMT|NPV|IRR|XIRR|SUMIF|COUNTIF|SUMPRODUCT)\b/i,
+  ];
+
+  // Pattern 4: Subtotals and calculation method questions (like Q8)
+  const subtotalPatterns = [
+    /how\s+(?:is|are)\s+(?:the\s+)?(?:sub)?totals?\s+calculated/i,  // "how are subtotals calculated"
+    /(?:sub)?total.*(?:formula|calculation|computed)/i,             // "subtotal formula"
+    /(?:calculation|formula)\s+(?:for|of)\s+(?:sub)?totals?/i,     // "calculation for subtotals"
+  ];
+
+  // Check for any formula pattern
+  const isFormulaQuestion = formulaPatterns.some(p => p.test(lower)) ||
+                            cellFormulaPatterns.some(p => p.test(lower)) ||
+                            subtotalPatterns.some(p => p.test(lower));
+
+  if (!isFormulaQuestion) {
+    return { isFormula: false };
+  }
+
+  // Extract cell reference if present
+  let cellReference: string | undefined;
+  for (const pattern of cellFormulaPatterns) {
+    const match = lower.match(pattern);
+    if (match && match[1]) {
+      cellReference = match[1].toUpperCase();
+      break;
+    }
+  }
+
+  // Also check for cell references in the general query
+  if (!cellReference) {
+    const cellMatch = query.match(/\b([A-Z]{1,3}\d{1,5})\b/);
+    if (cellMatch) {
+      cellReference = cellMatch[1];
+    }
+  }
+
+  // Extract formula type if present
+  let formulaType: string | undefined;
+  for (const pattern of formulaTypePatterns) {
+    const match = query.match(pattern);
+    if (match && match[1]) {
+      formulaType = match[1].toUpperCase();
+      break;
+    }
+  }
+
+  console.log(`📊 [FORMULA QUERY] Detected formula query - Type: ${formulaType || 'general'}, Cell: ${cellReference || 'none'}`);
+
+  return {
+    isFormula: true,
+    formulaType,
+    cellReference
+  };
+}
+
+/**
+ * Extract formulas from chunk text
+ * Looks for pattern: "CELL: value (formula: =FORMULA)"
+ */
+function extractFormulasFromChunks(chunks: Array<{ text: string; metadata?: any }>): Array<{
+  cell: string;
+  value: string;
+  formula: string;
+  context: string;
+}> {
+  const formulas: Array<{ cell: string; value: string; formula: string; context: string }> = [];
+
+  // Pattern to match: "B5: $1,200,000 (formula: =SUM(B2:B4))"
+  const formulaPattern = /([A-Z]{1,3}\d{1,5}):\s*([^(]+)\s*\(formula:\s*=([^)]+)\)/gi;
+
+  for (const chunk of chunks) {
+    const text = chunk.text || '';
+    let match;
+
+    while ((match = formulaPattern.exec(text)) !== null) {
+      formulas.push({
+        cell: match[1],
+        value: match[2].trim(),
+        formula: '=' + match[3].trim(),
+        context: text.substring(
+          Math.max(0, match.index - 50),
+          Math.min(text.length, match.index + match[0].length + 50)
+        )
+      });
+    }
+  }
+
+  if (formulas.length > 0) {
+    console.log(`📊 [FORMULA EXTRACT] Found ${formulas.length} formulas in chunks`);
+  }
+
+  return formulas;
+}
+
+/**
+ * Enhance query for formula retrieval
+ * Adds formula-specific search terms
+ */
+function enhanceQueryForFormulas(query: string, formulaInfo: { isFormula: boolean; formulaType?: string; cellReference?: string }): string {
+  if (!formulaInfo.isFormula) {
+    return query;
+  }
+
+  let enhanced = query;
+
+  // Add formula pattern suffix to help retrieval find formula chunks
+  enhanced += ' (formula: =';
+
+  // If specific cell, add it
+  if (formulaInfo.cellReference) {
+    enhanced += ` ${formulaInfo.cellReference}:`;
+  }
+
+  // If specific formula type, add it
+  if (formulaInfo.formulaType) {
+    enhanced += ` ${formulaInfo.formulaType}`;
+  }
+
+  console.log(`📊 [FORMULA ENHANCE] Enhanced query: "${query}" → "${enhanced}"`);
+
+  return enhanced;
+}
+
+// ============================================================================
+// ENTITY QUERY DETECTION AND ENHANCEMENT
+// ============================================================================
+
+/**
+ * ✅ NEW: Detect entity queries (property names, investment names, etc.)
+ * Returns true if the query is asking about entities like properties, investments, etc.
+ */
+function isEntityQuery(query: string): { isEntity: boolean; entityType?: string } {
+  const lower = query.toLowerCase().trim();
+
+  // Pattern 1: Direct entity listing questions
+  const entityListingPatterns = [
+    /what\s+(?:are\s+)?(?:the\s+)?(?:names?\s+(?:of\s+)?)?(?:the\s+)?propert(?:y|ies)/i,  // "what are the property names"
+    /(?:list|show|tell|give)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?propert(?:y|ies)/i,        // "list all properties"
+    /how\s+many\s+propert(?:y|ies)/i,                                                      // "how many properties"
+    /which\s+propert(?:y|ies)/i,                                                           // "which properties"
+    /what\s+(?:are\s+)?(?:the\s+)?(?:names?\s+(?:of\s+)?)?(?:the\s+)?investments?/i,      // "what are the investments"
+    /(?:list|show|tell|give)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?investments?/i,            // "list investments"
+    /what\s+(?:are\s+)?(?:the\s+)?(?:names?\s+(?:of\s+)?)?(?:the\s+)?assets?/i,           // "what are the assets"
+    /what\s+(?:are\s+)?(?:the\s+)?(?:names?\s+(?:of\s+)?)?(?:the\s+)?funds?/i,            // "what are the funds"
+    /what\s+(?:are\s+)?(?:the\s+)?(?:names?\s+(?:of\s+)?)?(?:the\s+)?companies/i,         // "what are the companies"
+    /(?:list|show)\s+(?:all\s+)?(?:the\s+)?(?:portfolio\s+)?holdings?/i,                  // "list portfolio holdings"
+    /what's?\s+(?:in|included\s+in)\s+(?:the\s+)?(?:portfolio|fund)/i,                    // "what's in the portfolio"
+  ];
+
+  // Pattern 2: Specific entity type keywords
+  const entityTypeKeywords = [
+    'properties', 'property', 'investments', 'investment',
+    'assets', 'asset', 'funds', 'fund', 'portfolio', 'portfolios',
+    'holdings', 'companies', 'company', 'entities', 'entity'
+  ];
+
+  // Check for entity listing patterns
+  const isEntityListing = entityListingPatterns.some(p => p.test(lower));
+
+  if (!isEntityListing) {
+    return { isEntity: false };
+  }
+
+  // Detect entity type
+  let entityType: string | undefined;
+  for (const keyword of entityTypeKeywords) {
+    if (lower.includes(keyword)) {
+      entityType = keyword.replace(/ies$/, 'y').replace(/s$/, ''); // Normalize to singular
+      break;
+    }
+  }
+
+  console.log(`📊 [ENTITY QUERY] Detected entity query - Type: ${entityType || 'general'}`);
+
+  return {
+    isEntity: true,
+    entityType
+  };
+}
+
+/**
+ * ✅ NEW: Enhance query for entity retrieval
+ * Adds entity-specific search terms like [Entities:
+ */
+function enhanceQueryForEntities(query: string, entityInfo: { isEntity: boolean; entityType?: string }): string {
+  if (!entityInfo.isEntity) {
+    return query;
+  }
+
+  let enhanced = query;
+
+  // Add entity pattern prefix to help retrieval find entity chunks
+  enhanced += ' [Entities:';
+
+  // If specific entity type, add it
+  if (entityInfo.entityType) {
+    enhanced += ` ${entityInfo.entityType}`;
+  }
+
+  console.log(`📊 [ENTITY ENHANCE] Enhanced query: "${query}" → "${enhanced}"`);
+
+  return enhanced;
+}
+
+/**
+ * ✅ NEW: Extract entities from chunk text
+ * Looks for pattern: "[Entities: Entity1, Entity2] ..."
+ */
+function extractEntitiesFromChunks(chunks: Array<{ text: string; metadata?: any }>): string[] {
+  const entities: Set<string> = new Set();
+
+  // Pattern to match: "[Entities: Carlyle, Lone Mountain Ranch]"
+  const entityPattern = /\[Entities:\s*([^\]]+)\]/gi;
+
+  for (const chunk of chunks) {
+    const text = chunk.text || '';
+    let match;
+
+    while ((match = entityPattern.exec(text)) !== null) {
+      const entityList = match[1].split(',').map(e => e.trim()).filter(e => e.length > 0);
+      entityList.forEach(entity => entities.add(entity));
+    }
+  }
+
+  if (entities.size > 0) {
+    console.log(`📊 [ENTITY EXTRACT] Found ${entities.size} unique entities: ${Array.from(entities).join(', ')}`);
+  }
+
+  return Array.from(entities);
+}
+
+/**
+ * Build formula context for LLM prompt
+ * Creates a structured section showing extracted formulas
+ */
+function buildFormulaContext(
+  formulas: Array<{ cell: string; value: string; formula: string; context: string }>,
+  formulaInfo: { isFormula: boolean; formulaType?: string; cellReference?: string }
+): string {
+  if (formulas.length === 0) {
+    return '';
+  }
+
+  let context = '\n\n## EXTRACTED FORMULAS FROM EXCEL FILES\n';
+  context += 'The following formulas were found in the relevant Excel chunks:\n\n';
+
+  // If looking for specific cell, prioritize it
+  if (formulaInfo.cellReference) {
+    const targetFormula = formulas.find(f => f.cell === formulaInfo.cellReference);
+    if (targetFormula) {
+      context += `**Target Cell ${targetFormula.cell}:**\n`;
+      context += `- Current Value: ${targetFormula.value}\n`;
+      context += `- Formula: \`${targetFormula.formula}\`\n`;
+      context += `- Context: "${targetFormula.context}"\n\n`;
+    }
+  }
+
+  // Show all formulas (up to 10)
+  const displayFormulas = formulas.slice(0, 10);
+  if (displayFormulas.length > 0) {
+    context += '**All Extracted Formulas:**\n';
+    for (const f of displayFormulas) {
+      context += `- **${f.cell}**: ${f.value} → \`${f.formula}\`\n`;
+    }
+  }
+
+  if (formulas.length > 10) {
+    context += `\n(${formulas.length - 10} more formulas not shown)\n`;
+  }
+
+  context += '\n**IMPORTANT:** Use these actual formulas to answer the user\'s question about how calculations work.\n';
+
+  return context;
+}
+
+// ============================================================================
 // DOCUMENT TYPES DETECTION & HANDLER
 // ============================================================================
 
@@ -5463,8 +5820,20 @@ Provide a comprehensive answer addressing all parts of the query.`;
   onStage?.('searching', searchingMsg);
 
   // Simple query enhancement (instant, no LLM call)
-  const enhancedQueryText = queryEnhancementService.enhanceQuerySimple(query);
+  let enhancedQueryText = queryEnhancementService.enhanceQuerySimple(query);
   console.log(`🔍 [QUERY ENHANCE] Enhanced: "${query}" → "${enhancedQueryText}"`);
+
+  // ✅ Formula Query Detection - Enhance retrieval for formula questions
+  const formulaQueryInfo = isFormulaQuery(query);
+  if (formulaQueryInfo.isFormula) {
+    enhancedQueryText = enhanceQueryForFormulas(enhancedQueryText, formulaQueryInfo);
+  }
+
+  // ✅ Entity Query Detection - Enhance retrieval for property/investment name questions
+  const entityQueryInfo = isEntityQuery(query);
+  if (entityQueryInfo.isEntity) {
+    enhancedQueryText = enhanceQueryForEntities(enhancedQueryText, entityQueryInfo);
+  }
 
   console.log('⚡ [PARALLEL] Starting all independent operations in parallel...');
   perfTimer.mark('parallelOperations');
@@ -6360,6 +6729,35 @@ Provide a comprehensive answer addressing all parts of the query.`;
     perfTimer.measure('Causal Extraction', 'causalExtraction');
 
     // ---------------------------------------------------------------------------
+    // FORMULA EXTRACTION - Excel Formula Intelligence for "How is X calculated" Questions
+    // ---------------------------------------------------------------------------
+    // REASON: Users asking about formulas need to see actual Excel formulas
+    // WHY: "How is cell B71 calculated?" needs the actual formula from the spreadsheet
+    // HOW: Extract formula patterns from chunks and add structured context
+    // IMPACT: Transforms "I don't see formulas" to "B71 uses formula =+B60"
+
+    perfTimer.mark('formulaExtraction');
+    let formulaContext = '';
+
+    if (formulaQueryInfo.isFormula) {
+      // Extract formulas from all retrieved chunks
+      const chunksWithText = rerankedChunks.map((chunk: any) => ({
+        text: chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
+        metadata: chunk.metadata
+      }));
+
+      const extractedFormulas = extractFormulasFromChunks(chunksWithText);
+
+      if (extractedFormulas.length > 0) {
+        formulaContext = buildFormulaContext(extractedFormulas, formulaQueryInfo);
+        console.log(`✅ [FORMULA] Added ${extractedFormulas.length} formulas to prompt context`);
+      } else {
+        console.log(`⚠️ [FORMULA] No formulas found in chunks despite formula query detected`);
+      }
+    }
+    perfTimer.measure('Formula Extraction', 'formulaExtraction');
+
+    // ---------------------------------------------------------------------------
     // PRACTICAL IMPLICATIONS - Actionable Recommendations for "What does this mean" Questions
     // ---------------------------------------------------------------------------
     // REASON: Users asking "what does this mean for X" want actionable guidance
@@ -6384,10 +6782,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
     perfTimer.measure('Practical Implications', 'practicalImplications');
 
-    // Append causal context and implications to document context if available
+    // Append causal context, formula context, and implications to document context if available
     let contextWithIntelligence = finalDocumentContext;
     if (causalContext) {
       contextWithIntelligence += causalContext;
+    }
+    if (formulaContext) {
+      contextWithIntelligence += formulaContext;
     }
     if (implicationsContext) {
       contextWithIntelligence += implicationsContext;
@@ -7043,8 +7444,12 @@ export async function generateAnswer(
     isFirstMessage  // ✅ Pass first message flag for greeting logic
   );
 
+  // ✅ FORMAT FIX: Apply formatting fixes to the response
+  const { formatValidationService } = await import('./formatValidation.service');
+  const fixedAnswer = formatValidationService.fixFormatting(fullAnswer);
+
   return {
-    answer: fullAnswer,
+    answer: fixedAnswer,
     sources: result.sources,  // ✅ FIXED: Return actual sources
   };
 }
@@ -7082,9 +7487,13 @@ export async function generateAnswerStreaming(
     documentId || undefined
   );
 
+  // ✅ FORMAT FIX: Apply formatting fixes to the response
+  const { formatValidationService } = await import('./formatValidation.service');
+  const fixedAnswer = formatValidationService.fixFormatting(fullAnswer);
+
   // Return result object for backwards compatibility
   return {
-    answer: fullAnswer,
+    answer: fixedAnswer,
     sources: result.sources,  // ✅ FIXED: Return actual sources
   };
 }

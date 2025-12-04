@@ -182,10 +182,24 @@ class PythonExecutorService {
             executionTime
           });
         } else if (exitCode !== 0) {
+          // ✅ FIX: Handle Windows-specific exit codes with friendly messages
+          let errorMessage = errorOutput || `Process exited with code ${exitCode}`;
+
+          // 0xC0000142 = 3221225794 - Application failed to initialize
+          if (exitCode === 3221225794 || exitCode === -1073741502) {
+            errorMessage = 'Python process failed to initialize. This may be a temporary issue. Please try again.';
+            console.error('[PYTHON] Process failed with Windows error 0xC0000142 - initialization failure');
+          }
+          // 0xC0000005 = Access violation
+          else if (exitCode === 3221225477 || exitCode === -1073741819) {
+            errorMessage = 'Python process encountered a memory error. Please try a simpler calculation.';
+            console.error('[PYTHON] Process failed with Windows error 0xC0000005 - access violation');
+          }
+
           resolve({
             success: false,
             output: output,
-            error: errorOutput || `Process exited with code ${exitCode}`,
+            error: errorMessage,
             executionTime
           });
         } else {

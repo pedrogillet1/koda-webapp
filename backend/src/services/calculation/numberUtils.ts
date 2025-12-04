@@ -30,9 +30,13 @@ export function normalizeNumbersInQuery(query: string): string {
   normalized = normalized.replace(/¥\s*/g, '');
   normalized = normalized.replace(/R\$\s*/g, '');
 
-  // Normalize multiplication symbols
-  normalized = normalized.replace(/×/g, '*');
-  normalized = normalized.replace(/÷/g, '/');
+  // Normalize multiplication symbols - add spaces for proper parsing
+  normalized = normalized.replace(/×/g, ' * ');
+  normalized = normalized.replace(/÷/g, ' / ');
+  normalized = normalized.replace(/−/g, '-');
+
+  // Clean up multiple spaces
+  normalized = normalized.replace(/\s+/g, ' ').trim();
 
   // Normalize percentage symbol spacing
   normalized = normalized.replace(/(\d+)\s*%/g, '$1%');
@@ -253,6 +257,10 @@ export function testNumberNormalization(): void {
     {
       input: 'Sales of $500K',
       expected: 'Sales of 500000'
+    },
+    {
+      input: '100 ÷ 5',
+      expected: '100 / 5'
     }
   ];
 

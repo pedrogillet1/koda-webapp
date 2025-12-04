@@ -266,7 +266,13 @@ ${documentInfo.pageCount ? `- Length: ${documentInfo.pageCount} pages` : ''}
 `;
 
   // Build the prompt using best practices
-  return `You are answering a question about a document. Provide a natural, conversational, and comprehensive answer.
+  return `**CRITICAL - RESPONSE LANGUAGE: ${languageName.toUpperCase()}**
+You MUST respond ENTIRELY in **${languageName}**. The user asked their question in ${languageName}, so your response MUST be in ${languageName}.
+- Do NOT respond in French, Portuguese, Spanish, or any other language unless ${languageName} IS that language.
+- Even if the document content is in a different language, translate and respond in ${languageName}.
+- This is NON-NEGOTIABLE.
+
+You are answering a question about a document. Provide a natural, conversational, and comprehensive answer in ${languageName}.
 
 **QUERY:**
 ${query}

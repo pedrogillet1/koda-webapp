@@ -107,7 +107,7 @@ class VectorEmbeddingService {
           status: true,
           fileSize: true,
           folderId: true,
-          folders: {
+          folder: {
             select: {
               name: true,
               path: true

@@ -192,7 +192,7 @@ async function notifyCompletionWithRetry(documentIds, maxRetries = MAX_CONFIRM_R
       const response = await api.post('/api/presigned-urls/complete', {
         documentIds
       }, {
-        timeout: 10000 // 10 second timeout
+        timeout: 120000 // 120 second timeout for large batch uploads
       });
       return response.data;
     } catch (error) {

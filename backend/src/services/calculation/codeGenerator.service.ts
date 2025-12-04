@@ -501,6 +501,11 @@ ${calculationType.subType ? `**SUBTYPE: ${calculationType.subType.toUpperCase()}
 7. Format currency with $ and commas
 8. Format percentages with %
 9. ALWAYS print the final result clearly
+10. **CRITICAL - ENGLISH ONLY:** All print statements and output MUST be in ENGLISH.
+    - Use "IRR:" not "TIR:" (Portuguese/Spanish)
+    - Use "NPV:" not "VPL:" (Portuguese)
+    - Use "The result is" not "O resultado é" or "Le résultat est"
+    - Regardless of the input language, ALL OUTPUT MUST BE IN ENGLISH
 
 ${examples}
 
@@ -508,10 +513,11 @@ ${examples}
 \`\`\`python
 # Your complete code here
 # Print results clearly at the end
+# ALL PRINT STATEMENTS MUST BE IN ENGLISH
 \`\`\`
 
 **EXPLANATION:**
-Brief explanation of how the calculation was done.
+Brief explanation of how the calculation was done. (IN ENGLISH ONLY)
 
 Generate the code now:`;
   }
