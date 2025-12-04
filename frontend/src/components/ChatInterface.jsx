@@ -5,7 +5,6 @@ import remarkGfm from 'remark-gfm';
 import { ReactComponent as AttachmentIcon } from '../assets/Paperclip.svg';
 import { ReactComponent as SendIcon } from '../assets/arrow-narrow-up.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
-import { ReactComponent as UploadIconDrag } from '../assets/upload.svg';
 import sphere from '../assets/sphere.svg';
 import kodaLogo from '../assets/koda-logo_1.svg';
 import filesIcon from '../assets/files-icon.svg';

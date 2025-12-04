@@ -31,6 +31,7 @@ import { ReactComponent as CheckCircleIcon } from '../assets/check-circle.svg';
 import storageIcon from '../assets/storage-icon.svg';
 import { ReactComponent as CheckDoubleIcon } from '../assets/check-double_svgrepo.com.svg';
 import { ReactComponent as ExpandIcon } from '../assets/expand.svg';
+import { ReactComponent as UploadIconMenu } from '../assets/Logout-black.svg';
 import pdfIcon from '../assets/pdf-icon.png';
 import jpgIcon from '../assets/jpg-icon.png';
 import docIcon from '../assets/doc-icon.png';
@@ -1159,12 +1160,14 @@ const Settings = () => {
                         display: 'flex',
                         alignItems: 'center',
                         gap: 12,
-                        padding: 12,
-                        borderRadius: 10,
+                        padding: 10,
+                        borderRadius: 14,
                         background: 'white',
                         border: '1px solid #E6E6EC',
                         cursor: 'pointer',
-                        transition: 'background 0.15s ease'
+                        transition: 'background 0.15s ease',
+                        minHeight: 72,
+                        boxSizing: 'border-box'
                       } : {
                         display: 'grid',
                         gridTemplateColumns: '2fr 1fr 1fr 1fr',

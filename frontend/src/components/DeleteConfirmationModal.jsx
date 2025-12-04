@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
@@ -36,43 +37,45 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemTyp
     return itemName || t('modals.delete.thisItem');
   };
 
-  return (
+  // Use portal to render at document body level, bypassing any parent overflow/stacking issues
+  return ReactDOM.createPortal(
     <>
-      {/* Dark Overlay - matches LogoutModal */}
+      {/* Dark Overlay - CENTERED on both mobile and desktop */}
       <div
         onClick={onClose}
         style={{
           position: 'fixed',
           top: 0,
           left: 0,
-          width: '100%',
-          height: '100%',
+          right: 0,
+          bottom: 0,
+          width: '100vw',
+          height: '100vh',
           background: 'linear-gradient(180deg, rgba(17, 19, 21, 0.50) 0%, rgba(17, 19, 21, 0.90) 100%)',
-          zIndex: 999,
+          zIndex: 10000,
           display: 'flex',
-          alignItems: isMobile ? 'flex-end' : 'center',
+          alignItems: 'center',
           justifyContent: 'center',
-          padding: isMobile ? 0 : 16,
-          paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 0px)' : 16
+          padding: isMobile ? 16 : 16
         }}
       >
-        {/* Modal */}
+        {/* Modal - CENTERED */}
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
-            width: isMobile ? '100%' : 400,
-            maxWidth: isMobile ? '100%' : 400,
+            width: isMobile ? 'calc(100% - 32px)' : 400,
+            maxWidth: 400,
             padding: 18,
-            paddingBottom: isMobile ? 'calc(18px + env(safe-area-inset-bottom, 0px))' : 18,
             background: 'white',
-            borderRadius: isMobile ? '14px 14px 0 0' : 14,
+            borderRadius: 14,
             outline: '1px #E6E6EC solid',
             outlineOffset: '-1px',
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
             gap: 18,
-            display: 'flex'
+            display: 'flex',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
           }}
         >
           {/* Header */}
@@ -159,7 +162,8 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemTyp
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 };
 

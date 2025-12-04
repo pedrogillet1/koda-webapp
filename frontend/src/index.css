@@ -1026,11 +1026,11 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     flex-wrap: wrap !important;
   }
 
-  /* Category header search input */
-  .category-header input,
-  .folder-header input,
-  [data-category-header="true"] input,
-  [data-folder-header="true"] input {
+  /* Category header search input - only direct children, NOT mobile-tab-bar */
+  .category-header > div > div input,
+  .folder-header > div > div input,
+  [data-category-header="true"] > div > div input,
+  [data-folder-header="true"] > div > div input {
     width: 100% !important;
     flex: 1 1 100% !important;
     min-width: 0 !important;
@@ -1039,15 +1039,46 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     order: -1 !important;
   }
 
-  /* Category header buttons */
-  .category-header button,
-  .folder-header button,
-  [data-category-header="true"] button,
-  [data-folder-header="true"] button {
+  /* Mobile tab bar input - override with proper flex */
+  .mobile-tab-bar input {
+    width: auto !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    order: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Category header buttons - only direct children, NOT mobile-tab-bar */
+  .category-header > div > div button,
+  .folder-header > div > div button,
+  [data-category-header="true"] > div > div button,
+  [data-folder-header="true"] > div > div button {
     padding: 8px 10px !important;
     font-size: 12px !important;
     white-space: nowrap !important;
     flex: 0 1 auto !important;
+  }
+
+  /* Mobile tab bar buttons - compact with no shrink */
+  .mobile-tab-bar button {
+    padding: 0 12px !important;
+    font-size: 14px !important;
+    flex-shrink: 0 !important;
+    height: 40px !important;
+  }
+
+  /* Mobile tab bar container - ensure proper flex layout */
+  .mobile-tab-bar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
+    gap: 8px !important;
+  }
+
+  /* Mobile tab bar search wrapper - must shrink */
+  .mobile-tab-bar > div:first-child {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
   }
 
   /* ========================================
@@ -1344,20 +1375,27 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
 
   /* Category Detail page content */
   .category-detail-content,
+  /* Category/Folder page content - exclude mobile-tab-bar */
   .category-content,
-  [data-category-header="true"] ~ div,
-  [data-page="category"] {
+  [data-category-header="true"] ~ div.category-content,
+  [data-page="category"] .scrollable-content {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
   /* File Type Detail page content */
   .file-type-content,
   .file-type-detail-content,
-  [data-file-type-header="true"] ~ div,
-  [data-page="file-type"] {
+  [data-file-type-header="true"] ~ div.file-type-content,
+  [data-page="file-type"] .scrollable-content {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
+  /* Mobile tab bar should NOT have extra padding - MUST have higher specificity */
+  div.mobile-tab-bar {
+    padding: 12px 16px !important;
+    padding-bottom: 12px !important;
+    margin: 0 !important;
+  }
 
   /* Folder Detail page content */
   .folder-detail-content,
@@ -1382,6 +1420,46 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   .category-grid,
   .folder-grid {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* Category page folder grid - force 2 columns on mobile */
+  .category-page .folder-card,
+  [data-page="category"] .folder-card {
+    max-width: 100% !important;
+  }
+
+  /* Force folder grid to 2 columns */
+  .category-page div[style*="display: grid"],
+  [data-page="category"] div[style*="display: grid"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  /* Folder card styling for mobile 2-column layout */
+  .folder-card {
+    padding: 12px !important;
+    border-radius: 12px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Folder card title - ensure text truncation works */
+  .folder-card h3 {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+  }
+
+  /* Folder icon container - smaller on mobile */
+  .folder-card > div:first-of-type + div {
+    height: 80px !important;
+  }
+
+  /* Folder icon image - smaller */
+  .folder-card img[alt="Folder"] {
+    width: 60px !important;
+    height: 60px !important;
   }
 }
 

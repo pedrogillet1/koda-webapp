@@ -24,7 +24,6 @@ import { ReactComponent as EditIcon } from '../assets/Edit 5.svg';
 import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as DotsIcon } from '../assets/dots.svg';
-import { ReactComponent as UploadIconMenu } from '../assets/upload.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import logoSvg from '../assets/logo.svg';
@@ -739,23 +738,24 @@ const DocumentsPage = () => {
           <div style={{display: 'flex', flexDirection: 'column', gap: spacing.md}}>
             <div style={{display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gridTemplateColumns: isMobile ? undefined : 'repeat(4, 1fr)', gap: spacing.md}}>
               <div onClick={() => setIsModalOpen(true)} style={{
-                padding: `${spacing.lg}px`,
+                padding: isMobile ? '10px' : `${spacing.lg}px`,
                 background: colors.white,
-                borderRadius: radius.xl,
-                border: `2px solid ${colors.gray[300]}`,
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
+                borderRadius: isMobile ? 14 : radius.xl,
+                border: isMobile ? '1px solid #E6E6EC' : `2px solid ${colors.gray[300]}`,
+                boxShadow: isMobile ? 'none' : '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: spacing.sm,
                 cursor: 'pointer',
-                height: 72,
+                minHeight: 72,
+                height: isMobile ? 'auto' : 72,
                 boxSizing: 'border-box',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease'
               }} onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
                 <div style={{width: 40, height: 40, background: colors.gray[100], borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                   <AddIcon style={{ width: 20, height: 20 }} />
                 </div>
-                <span style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0}}>{t('documents.newFolder')}</span>
+                <span style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: '19.60px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0}}>{t('documents.newFolder')}</span>
               </div>
               {categories.map((category, index) => (
                 <div
@@ -798,17 +798,18 @@ const DocumentsPage = () => {
                     }
                   }}
                   style={{
-                    padding: '14px 16px',
-                    background: colors.white,
-                    borderRadius: radius.xl,
-                    border: `2px solid ${colors.gray[300]}`,
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
+                    padding: isMobile ? '10px' : '14px 16px',
+                    background: 'white',
+                    borderRadius: isMobile ? 14 : radius.xl,
+                    border: isMobile ? '1px solid #E6E6EC' : `2px solid ${colors.gray[300]}`,
+                    boxShadow: isMobile ? 'none' : '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 12,
+                    gap: isMobile ? 12 : 12,
                     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                     position: 'relative',
-                    height: 72,
+                    minHeight: 72,
+                    height: isMobile ? 'auto' : 72,
                     boxSizing: 'border-box',
                     zIndex: categoryMenuOpen === category.id ? 99999 : 1
                   }}
@@ -817,7 +818,7 @@ const DocumentsPage = () => {
                     navigate(`/folder/${category.id}`);
                   }} style={{display: 'flex', alignItems: 'center', gap: 12, flex: 1, cursor: 'pointer', minWidth: 0}} onMouseEnter={(e) => e.currentTarget.parentElement.style.transform = 'translateY(-2px)'} onMouseLeave={(e) => e.currentTarget.parentElement.style.transform = 'translateY(0)'}>
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                      <CategoryIcon emoji={category.emoji} size={42} />
+                      <CategoryIcon emoji={category.emoji} size={isMobile ? 40 : 42} />
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: spacing.xs, flex: 1, minWidth: 0}}>
                       <div style={{color: colors.gray[900], fontSize: typography.sizes.sm, fontFamily: typography.fontFamily, fontWeight: typography.weights.semibold, lineHeight: '19.60px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{category.name}</div>
@@ -849,8 +850,8 @@ const DocumentsPage = () => {
                         }
                       }}
                       style={{
-                        width: 28,
-                        height: 28,
+                        width: 32,
+                        height: 32,
                         background: 'transparent',
                         borderRadius: '50%',
                         border: 'none',
@@ -939,7 +940,7 @@ const DocumentsPage = () => {
                           onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
-                          <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
+                          <LogoutBlackIcon style={{width: 16, height: 16, color: '#32302C'}} />
                           {t('nav.upload')}
                         </button>
                         <button
@@ -1306,13 +1307,16 @@ const DocumentsPage = () => {
                       style={isMobile ? {
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 14,
-                        padding: 14,
+                        gap: 12,
+                        padding: 10,
                         borderRadius: 14,
-                        background: isSelectMode && isSelected(doc.id) ? '#E8E8EC' : '#F5F5F5',
+                        background: isSelectMode && isSelected(doc.id) ? '#E8E8EC' : 'white',
+                        border: '1px solid #E6E6EC',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
                         marginBottom: 8,
+                        minHeight: 72,
+                        boxSizing: 'border-box',
                         position: 'relative',
                         zIndex: openDropdownId === doc.id ? 99999 : 1
                       } : {
@@ -1348,12 +1352,11 @@ const DocumentsPage = () => {
                             src={getFileIcon(doc)}
                             alt="File icon"
                             style={{
-                              width: 48,
-                              height: 48,
+                              width: 40,
+                              height: 40,
                               flexShrink: 0,
                               imageRendering: '-webkit-optimize-contrast',
-                              objectFit: 'contain',
-                              filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
+                              objectFit: 'contain'
                             }}
                           />
                           <div style={{flex: 1, overflow: 'hidden'}}>
@@ -1433,8 +1436,8 @@ const DocumentsPage = () => {
                           </div>
                         </>
                       )}
-                      {/* Actions Column - Hidden on mobile */}
-                      {!isSelectMode && !isMobile && <div style={{position: 'relative'}} data-dropdown>
+                      {/* Actions Column */}
+                      {!isSelectMode && <div style={{position: 'relative', flexShrink: 0}} data-dropdown>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
