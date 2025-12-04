@@ -98,6 +98,7 @@ export interface AnswerGenerationConfig {
   documentContext: string;
   documentInfo?: DocumentInfo;
   conversationHistory?: Array<{ role: string; content: string }>;
+  conversationContext?: string; // Pre-formatted conversation context (from infinite memory)
   answerLength?: 'short' | 'medium' | 'long' | 'adaptive';
   language?: string;
   includeMetadata?: boolean;
@@ -226,6 +227,37 @@ export function buildAnswerPrompt(config: AnswerGenerationConfig): string {
   };
   const languageName = languageMap[language] || 'English';
 
+  // Build conversation history section (PRIORITY 1 - CHECK THIS FIRST)
+  // REASON: Users often ask about things discussed earlier in the conversation
+  // WHY: Conversation context should be checked BEFORE document search
+  // HOW: Include recent conversation with clear instructions to prioritize it
+  let conversationSection = '';
+
+  // Priority 1: Use pre-formatted conversationContext (from infinite memory)
+  if (config.conversationContext && config.conversationContext.trim().length > 0) {
+    conversationSection = `
+**CONVERSATION HISTORY (CHECK THIS FIRST!):**
+${config.conversationContext}
+
+**IMPORTANT - CONTEXT PRIORITY:**
+1. FIRST, check if the answer is in the CONVERSATION HISTORY above. If the user asks about something discussed earlier, answer from the conversation.
+2. SECOND, if not found in conversation history, use the DOCUMENT INFORMATION below.
+3. Use conversation history to understand references (like "it", "the document", "that file").
+`;
+  }
+  // Priority 2: Use conversationHistory array format (legacy)
+  else if (config.conversationHistory && config.conversationHistory.length > 0) {
+    conversationSection = `
+**CONVERSATION HISTORY (CHECK THIS FIRST!):**
+${config.conversationHistory.map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`).join('\n\n')}
+
+**IMPORTANT - CONTEXT PRIORITY:**
+1. FIRST, check if the answer is in the CONVERSATION HISTORY above. If the user asks about something discussed earlier, answer from the conversation.
+2. SECOND, if not found in conversation history, use the DOCUMENT INFORMATION below.
+3. Use conversation history to understand references (like "it", "the document", "that file").
+`;
+  }
+
   // Build metadata section if available
   const metadataSection =
     includeMetadata && documentInfo
@@ -272,10 +304,12 @@ You MUST respond ENTIRELY in **${languageName}**. The user asked their question 
 - Even if the document content is in a different language, translate and respond in ${languageName}.
 - This is NON-NEGOTIABLE.
 
-You are answering a question about a document. Provide a natural, conversational, and comprehensive answer in ${languageName}.
+You are answering a question based on the conversation history and/or documents. Provide a natural, conversational, and comprehensive answer in ${languageName}.
 
 **QUERY:**
 ${query}
+
+${conversationSection}
 
 **DOCUMENT INFORMATION:**
 ${documentContext}

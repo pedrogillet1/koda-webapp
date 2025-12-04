@@ -425,7 +425,6 @@ Generate a natural, conversational response in ${languageName}.
       const count = await prisma.document.count({
         where: {
           userId,
-          deletedAt: null,
         },
       });
       return count;
@@ -443,7 +442,6 @@ Generate a natural, conversational response in ${languageName}.
       const count = await prisma.folder.count({
         where: {
           userId,
-          deletedAt: null,
         },
       });
       return count;

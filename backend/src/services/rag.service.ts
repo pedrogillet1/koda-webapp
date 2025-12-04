@@ -71,6 +71,9 @@ import showVsExplainClassifier from './showVsExplainClassifier.service';
 // Infinite Conversation Memory (Manus-style)
 import infiniteConversationMemory from './infiniteConversationMemory.service';
 
+// Conversation Context Service (Multi-turn context management)
+import { conversationContextService } from './conversationContext.service';
+
 // ============================================================================
 // PERFORMANCE TIMING INSTRUMENTATION
 // ============================================================================
@@ -7047,6 +7050,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
         query,
         documentContext: contextWithIntelligence,
         documentInfo,
+        // ♾️ Pass pre-formatted conversation context from infinite memory
+        conversationContext: typeof conversationContext === 'string' && conversationContext.trim().length > 0
+          ? conversationContext
+          : undefined,
+        // Also pass array format for backward compatibility
         conversationHistory: Array.isArray(conversationContext)
           ? conversationContext.map((msg: any) => ({
               role: msg.role as string,
