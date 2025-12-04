@@ -453,8 +453,6 @@ Generate the fallback response now:`;
       return `Não encontrei essa informação nos seus documentos. Tente reformular sua pergunta com palavras diferentes, ou me diga qual documento pode conter essa informação.`;
     } else if (language === 'Spanish' || language === 'es') {
       return `No encontré esa información en tus documentos. Intenta reformular tu pregunta con palabras diferentes, o dime qué documento podría contener esta información.`;
-    } else if (language === 'French' || language === 'fr') {
-      return `Je n'ai pas trouvé cette information dans vos documents. Essayez de reformuler votre question avec des mots différents, ou dites-moi quel document pourrait contenir cette information.`;
     } else {
       return `I couldn't find that information in your documents. Try rephrasing your question with different keywords, or let me know which document might contain this info.`;
     }
@@ -468,7 +466,6 @@ export function detectLanguage(query: string): string {
   // Simple language detection based on common words
   const portugueseKeywords = ['como', 'que', 'por', 'qual', 'onde', 'quando', 'quem', 'porque', 'o que'];
   const spanishKeywords = ['cómo', 'qué', 'por', 'cuál', 'dónde', 'cuándo', 'quién', 'porque'];
-  const frenchKeywords = ['comment', 'que', 'quel', 'où', 'quand', 'qui', 'pourquoi'];
 
   const lowerQuery = query.toLowerCase();
 
@@ -477,9 +474,6 @@ export function detectLanguage(query: string): string {
   }
   if (spanishKeywords.some(keyword => lowerQuery.includes(keyword))) {
     return 'es';
-  }
-  if (frenchKeywords.some(keyword => lowerQuery.includes(keyword))) {
-    return 'fr';
   }
 
   return 'en'; // Default to English

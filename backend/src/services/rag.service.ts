@@ -56,6 +56,21 @@ import { CalculationType } from './calculation/calculationTypes';
 import { excelFormulaEngine } from './calculation';
 import calculationRouter from './calculation/calculationRouter.service';
 
+// Format Validation Service (Quality Gate)
+import { formatValidationService } from './formatValidation.service';
+
+// Semantic Document Search Service
+import semanticDocumentSearchService from './semanticDocumentSearch.service';
+
+// Hybrid Retrieval Booster (Filename/Entity Matching)
+import hybridRetrievalBooster from './hybridRetrievalBooster.service';
+
+// Show vs Explain Intent Classifier
+import showVsExplainClassifier from './showVsExplainClassifier.service';
+
+// Infinite Conversation Memory (Manus-style)
+import infiniteConversationMemory from './infiniteConversationMemory.service';
+
 // ============================================================================
 // PERFORMANCE TIMING INSTRUMENTATION
 // ============================================================================
@@ -1545,15 +1560,18 @@ async function handleMultiStepQuery(
     // Filter deleted documents
     const filteredMatches = await filterDeletedDocuments(results.matches || [], userId);
 
+    // 🚀 HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost
+    const boostedMatches = hybridRetrievalBooster.boostRetrievalScores(filteredMatches, subQuery, 1.8);
+
     // ✅ ISSUE #6 FIX: Boost section matches for section-specific queries
     const sectionRefs = extractSectionReferences(subQuery);
     if (sectionRefs.length > 0) {
-      boostSectionMatches(filteredMatches, sectionRefs);
+      boostSectionMatches(boostedMatches, sectionRefs);
     }
 
-    console.log(`  ✅ Found ${filteredMatches.length} chunks for sub-query ${index + 1}`);
+    console.log(`  ✅ Found ${boostedMatches.length} chunks for sub-query ${index + 1}`);
 
-    return filteredMatches;
+    return boostedMatches;
   });
 
   // Wait for all sub-queries to complete
@@ -1676,32 +1694,35 @@ async function iterativeRetrieval(
 
     const filteredMatches = await filterDeletedDocuments(results.matches || [], userId);
 
+    // 🚀 HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost
+    const boostedMatches = hybridRetrievalBooster.boostRetrievalScores(filteredMatches, currentQuery, 1.8);
+
     // ✅ ISSUE #6 FIX: Boost section matches for section-specific queries
     const sectionRefs = extractSectionReferences(currentQuery);
     if (sectionRefs.length > 0) {
-      boostSectionMatches(filteredMatches, sectionRefs);
+      boostSectionMatches(boostedMatches, sectionRefs);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // STEP 2: Observe results
     // ─────────────────────────────────────────────────────────────────────────
 
-    const observation = observeRetrievalResults({ matches: filteredMatches }, currentQuery, config.minRelevanceScore);
+    const observation = observeRetrievalResults({ matches: boostedMatches }, currentQuery, config.minRelevanceScore);
 
-    const avgScore = filteredMatches.length > 0
-      ? filteredMatches.reduce((sum: number, m: any) => sum + (m.score || 0), 0) / filteredMatches.length
+    const avgScore = boostedMatches.length > 0
+      ? boostedMatches.reduce((sum: number, m: any) => sum + (m.score || 0), 0) / boostedMatches.length
       : 0;
 
     // Record this attempt in history
     state.history.push({
       attempt: state.attempt,
       query: currentQuery,
-      resultCount: filteredMatches.length,
+      resultCount: boostedMatches.length,
       avgScore,
       observation
     });
 
-    console.log(`  📊 Results: ${filteredMatches.length} chunks, avg score: ${avgScore.toFixed(2)}`);
+    console.log(`  📊 Results: ${boostedMatches.length} chunks, avg score: ${avgScore.toFixed(2)}`);
 
     // ─────────────────────────────────────────────────────────────────────────
     // STEP 3: Update best results if this attempt is better
@@ -1714,7 +1735,7 @@ async function iterativeRetrieval(
 
       console.log(`  ✅ New best results! (${(improvement * 100).toFixed(1)}% improvement)`);
 
-      state.bestResults = { matches: filteredMatches };
+      state.bestResults = { matches: boostedMatches };
       state.bestScore = avgScore;
     } else {
       console.log(`  ⚠️  Not better than previous best (${state.bestScore.toFixed(2)})`);
@@ -1726,7 +1747,7 @@ async function iterativeRetrieval(
 
     // Stop if results are good enough
     if (!observation.needsRefinement &&
-        filteredMatches.length >= config.minChunks &&
+        boostedMatches.length >= config.minChunks &&
         avgScore >= config.minRelevanceScore) {
       console.log(`  ✅ Results are satisfactory - stopping`);
       break;
@@ -1956,7 +1977,7 @@ async function pureBM25Search(query: string, userId: string, topK: number = 20):
 // LANGUAGE DETECTION UTILITY
 // ============================================================================
 
-function detectLanguage(query: string): 'pt' | 'es' | 'fr' | 'en' {
+function detectLanguage(query: string): 'pt' | 'es' | 'en' {
   const lower = query.toLowerCase();
 
   // ✅ FIX: Check for STRONG English patterns FIRST - these are definitive
@@ -2052,53 +2073,31 @@ function detectLanguage(query: string): 'pt' | 'es' | 'fr' | 'en' {
     'hola', 'gracias'
   ];
 
-  // French indicators (unique words only - REMOVED single character accents that cause false positives)
-  const frWords = [
-    // Question words (French-specific)
-    'combien', 'quels', 'quelles', 'quel', 'quelle', 'quand', 'pourquoi',
-    // Common French verbs
-    'avoir', 'être', 'etre', 'pouvoir', 'vouloir', 'faire',
-    'chercher', 'trouver', 'aider',
-    // File/document terms (French-specific)
-    'fichier', 'fichiers', 'dossier', 'dossiers',
-    // Actions
-    'créer', 'creer', 'supprimer', 'déplacer', 'deplacer', 'renommer', 'envoyer', 'télécharger', 'telecharger',
-    // Greetings (French-specific)
-    'bonjour', 'bonsoir', 'salut', 'merci',
-    // French-specific words (multi-char only)
-    'ceci', 'cela', 'cette', 'ces', 'oui', 'très', 'tres', 'aussi'
-  ];
-
   // Count matches for each language using whole word matching
   const enCount = countWholeWordMatches(lower, enWords);
   const ptCount = countWholeWordMatches(lower, ptWords);
   const esCount = countWholeWordMatches(lower, esWords);
-  const frCount = countWholeWordMatches(lower, frWords);
 
   // Log for debugging
-  console.log(`🌐 [LANG DETECT] EN: ${enCount}, PT: ${ptCount}, ES: ${esCount}, FR: ${frCount} for query: "${query.substring(0, 50)}..."`);
+  console.log(`🌐 [LANG DETECT] EN: ${enCount}, PT: ${ptCount}, ES: ${esCount} for query: "${query.substring(0, 50)}..."`);
 
   // ✅ FIX: Require MINIMUM of 2 strong matches to switch from English
   const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 2;
 
   // English wins if it has the most matches OR ties with any other language
-  if (enCount >= ptCount && enCount >= esCount && enCount >= frCount && enCount > 0) {
+  if (enCount >= ptCount && enCount >= esCount && enCount > 0) {
     console.log(`🌐 [LANG DETECT] Detected: English`);
     return 'en';
   }
 
   // Return language with most matches ONLY if above threshold
-  if (ptCount > esCount && ptCount > frCount && ptCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+  if (ptCount > esCount && ptCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
     console.log(`🌐 [LANG DETECT] Detected: Portuguese (${ptCount} matches)`);
     return 'pt';
   }
-  if (esCount > ptCount && esCount > frCount && esCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+  if (esCount > ptCount && esCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
     console.log(`🌐 [LANG DETECT] Detected: Spanish (${esCount} matches)`);
     return 'es';
-  }
-  if (frCount > ptCount && frCount > esCount && frCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
-    console.log(`🌐 [LANG DETECT] Detected: French (${frCount} matches)`);
-    return 'fr';
   }
 
   console.log(`🌐 [LANG DETECT] Detected: English (default)`);
@@ -2607,6 +2606,71 @@ export async function generateAnswerStream(
   }
 
   // ============================================================================
+  // SEMANTIC DOCUMENT SEARCH - "which document mentions X?"
+  // ============================================================================
+  // Impact: Handles document discovery queries with confidence scoring
+  // Returns file buttons with matched criteria and preview
+
+  try {
+    if (semanticDocumentSearchService.isDocumentSearchQuery(query)) {
+      console.log('🔍 [DOC-SEARCH] Document search query detected');
+
+      if (onStage) {
+        onStage('searching', 'Searching your documents...');
+      }
+
+      const searchResult = await semanticDocumentSearchService.search(query, userId);
+
+      if (searchResult.success || searchResult.action === 'not_found') {
+        console.log(`🔍 [DOC-SEARCH] ${searchResult.action}: ${searchResult.documents.length} documents found`);
+
+        // Format response with file information for frontend
+        let response = searchResult.message;
+
+        // Add document details for show_multiple
+        if (searchResult.action === 'show_multiple' && searchResult.uiData?.documents) {
+          response += '\n\n';
+          searchResult.uiData.documents.forEach((doc: any, idx: number) => {
+            response += `${idx + 1}. **${doc.filename}** `;
+            if (doc.matchedCriteria?.length > 0) {
+              response += `(matches: ${doc.matchedCriteria.join(', ')}) `;
+            }
+            response += `- ${(doc.confidence * 100).toFixed(0)}% confidence\n`;
+          });
+        }
+
+        // Add preview for single document
+        if (searchResult.action === 'show_single' && searchResult.uiData?.preview) {
+          response += '\n\n**Preview:**\n> ' + searchResult.uiData.preview.substring(0, 200) + '...';
+        }
+
+        if (onChunk) {
+          onChunk(response);
+        }
+
+        if (onStage) {
+          onStage('complete', 'Complete');
+        }
+
+        // Return sources based on found documents
+        const sources = searchResult.documents.map(doc => ({
+          documentId: doc.documentId,
+          filename: doc.filename,
+          mimeType: doc.mimeType,
+          matchedCriteria: doc.matchedCriteria,
+          confidence: doc.confidence,
+          preview: doc.matchedChunks[0]?.content
+        }));
+
+        return { sources };
+      }
+    }
+  } catch (error) {
+    console.error('🔍 [DOC-SEARCH] Error in document search handling:', error);
+    // Fall through to normal RAG if document search fails
+  }
+
+  // ============================================================================
   // DYNAMIC RESPONSE SYSTEM - Handles all non-RAG queries
   // ============================================================================
   // Impact: 20+ seconds → < 1 second for 30-40% of queries
@@ -2643,42 +2707,21 @@ export async function generateAnswerStream(
 
   const responseType = getResponseType(query);
 
-  if (responseType !== 'general') {
-    console.log(`⚡ DYNAMIC RESPONSE: ${responseType} - Bypassing RAG pipeline`);
-
-    try {
-      const response = await dynamicResponseSystem.generateDynamicResponse({
-        type: responseType,
-        context: userContext,
-        specificQuery: query,
-      });
-
-      if (onChunk) onChunk(response);
-      if (onStage) onStage('complete', 'Complete');
-      return { sources: [] };
-    } catch (error) {
-      console.error(`❌ [DYNAMIC RESPONSE] Error generating ${responseType} response:`, error);
-      // Fall through to legacy fast path as backup
-    }
-  }
-
-  // Legacy fast path detection as fallback
-  const fastPathResult = await fastPathDetector.detect(query);
+  // ⚡ FAST PATH: Use fastPathDetector for multilanguage greetings/help
+  // Now uses languageDetection.service for proper multilanguage support
+  const fastPathResult = await fastPathDetector.detect(query, {
+    documentCount,
+    hasUploadedDocuments: documentCount > 0,
+    language: detectedLanguage || 'en',
+    userId,
+  });
 
   if (fastPathResult.isFastPath && fastPathResult.response) {
-    console.log(`⚡ FAST PATH (fallback): ${fastPathResult.type} - Bypassing RAG pipeline`);
+    console.log(`⚡ FAST PATH: ${fastPathResult.type} - Multilanguage response (${fastPathResult.detectedLanguage})`);
 
-    if (onChunk && fastPathResult.response) {
-      onChunk(fastPathResult.response);
-    }
-
-    if (onStage) {
-      onStage('complete', 'Complete');
-    }
-
-    return {
-      sources: [],
-    };
+    if (onChunk) onChunk(fastPathResult.response);
+    if (onStage) onStage('complete', 'Complete');
+    return { sources: [] };
   }
 
   console.log('📚 Not a fast path query - proceeding with RAG pipeline');
@@ -2718,8 +2761,7 @@ export async function generateAnswerStream(
     // Determine language
     const earlyQueryLang = detectedLanguage || 'en';
     const earlyQueryLangName = earlyQueryLang === 'pt' ? 'Portuguese' :
-                              earlyQueryLang === 'es' ? 'Spanish' :
-                              earlyQueryLang === 'fr' ? 'French' : 'English';
+                              earlyQueryLang === 'es' ? 'Spanish' : 'English';
 
     const earlyFallbackContext: FallbackContext = {
       query,
@@ -2975,6 +3017,65 @@ export async function generateAnswerStream(
         documents: attachedIds
       }, onChunk, conversationHistory);
     }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // STEP 5.8: Show vs Explain Intent Classification
+  // ──────────────────────────────────────────────────────────────────────────────
+  // PURPOSE: Distinguish between "show me the file" vs "explain what's in the file"
+  // WHY: Users asking "what is this" want to SEE the document, not get an explanation
+  // IMPACT: Routes show requests to file preview instead of RAG
+  const intentClassification = showVsExplainClassifier.classifyIntent(query);
+  console.log(`👁️ [INTENT] ${intentClassification.intent.toUpperCase()} (confidence: ${intentClassification.confidence.toFixed(2)}) - ${intentClassification.reason}`);
+
+  if (intentClassification.intent === 'show' && intentClassification.confidence >= 0.75) {
+    console.log('📄 [SHOW FILE] User wants to see document, routing to semantic document search');
+
+    // Use semantic document search to find and show the document
+    const searchQuery = intentClassification.detectedFilename || query;
+
+    // Check if this matches a specific document the user wants to see
+    if (semanticDocumentSearchService.isDocumentSearchQuery(searchQuery) ||
+        intentClassification.detectedFilename) {
+      try {
+        const searchResult = await semanticDocumentSearchService.search(searchQuery, userId);
+
+        if (searchResult.success && searchResult.documents.length > 0) {
+          // Format response to show the found document(s)
+          let response = '';
+
+          if (searchResult.action === 'show_single') {
+            const doc = searchResult.documents[0];
+            response = `Here is **${doc.filename}**:\n\n`;
+            if (searchResult.uiData?.preview) {
+              response += `> ${searchResult.uiData.preview.substring(0, 500)}${searchResult.uiData.preview.length > 500 ? '...' : ''}`;
+            }
+          } else {
+            response = `I found ${searchResult.documents.length} matching document(s):\n\n`;
+            searchResult.documents.forEach((doc: any, idx: number) => {
+              response += `${idx + 1}. **${doc.filename}**\n`;
+            });
+          }
+
+          if (onChunk) onChunk(response);
+          if (onStage) onStage('complete', 'Complete');
+
+          return {
+            sources: searchResult.documents.map((doc: any) => ({
+              documentId: doc.documentId,
+              filename: doc.filename,
+              mimeType: doc.mimeType
+            }))
+          };
+        }
+      } catch (error) {
+        console.error('❌ [SHOW FILE] Error searching for document:', error);
+        // Fall through to regular RAG if search fails
+      }
+    }
+
+    // If no specific document found, fall through to regular RAG
+    console.log('📄 [SHOW FILE] No specific document found, continuing with RAG');
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -3264,7 +3365,6 @@ async function handleFileAction(
     } else {
       const sorry = lang === 'pt' ? 'Desculpe, não consegui completar essa ação:' :
                     lang === 'es' ? 'Lo siento, no pude completar esa acción:' :
-                    lang === 'fr' ? 'Désolé, je n\'ai pas pu compléter cette action:' :
                     'Sorry, I couldn\'t complete that action:';
       onChunk(`${sorry} ${result.error || result.message}`);
     }
@@ -3273,7 +3373,6 @@ async function handleFileAction(
     console.error('❌ [FILE ACTION] Error:', error);
     const sorry = lang === 'pt' ? 'Desculpe, ocorreu um erro ao tentar executar essa ação:' :
                   lang === 'es' ? 'Lo siento, ocurrió un error al intentar ejecutar esa acción:' :
-                  lang === 'fr' ? 'Désolé, une erreur s\'est produite lors de l\'exécution de cette action:' :
                   'Sorry, an error occurred while trying to execute that action:';
     onChunk(`${sorry} ${error.message}`);
   }
@@ -3866,13 +3965,16 @@ async function handleConceptComparison(
   const filteredMatches = await filterDeletedDocuments(allRawMatches, userId);
   comparisonTimer.end('filterDeletedDocuments (Batch)');
 
-  console.log(`✅ [BATCH FILTER] ${filteredMatches.length}/${allRawMatches.length} matches after filtering`);
+  // 🚀 HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost
+  const boostedMatches = hybridRetrievalBooster.boostRetrievalScores(filteredMatches, query, 1.8);
 
-  // Now process filtered results
+  console.log(`✅ [BATCH FILTER] ${boostedMatches.length}/${allRawMatches.length} matches after filtering and boosting`);
+
+  // Now process boosted results
   const allChunks: any[] = [];
   const sourceMap = new Map<string, any>();
 
-  for (const match of filteredMatches) {
+  for (const match of boostedMatches) {
     if (match.score && match.score > 0.3) {
       const meta = match.metadata || {};
       const docName = meta.filename || meta.documentName || '';
@@ -5494,6 +5596,42 @@ async function handleRegularQuery(
   console.log(`❌ [CACHE MISS] Query result for "${query.substring(0, 50)}..."`);
 
   // ============================================================================
+  // 🧠 CONVERSATION CONTEXT - Load and resolve references for multi-turn support
+  // ============================================================================
+  // REASON: Multi-turn conversations need context from previous messages
+  // WHY: Pronouns like "it", "that", "this" refer to previous entities
+  // HOW: Load saved context, resolve references, inject into prompt
+  // IMPACT: Enables ChatGPT-like conversation continuity
+
+  perfTimer.mark('conversationContextLoad');
+  let multiTurnContext = null;
+  let resolvedQuery = query; // Default to original query
+
+  try {
+    // Load conversation context (previous entities, topics, findings)
+    multiTurnContext = await conversationContextService.getContext(conversationId);
+
+    if (multiTurnContext && (multiTurnContext.entities.length > 0 || multiTurnContext.keyFindings.length > 0)) {
+      console.log(`🧠 [CONTEXT] Loaded context: ${multiTurnContext.entities.length} entities, ${multiTurnContext.keyFindings.length} findings`);
+
+      // Resolve pronouns in the query ("it", "that", "this" → actual entities)
+      resolvedQuery = conversationContextService.resolveReferences(query, multiTurnContext);
+
+      if (resolvedQuery !== query) {
+        console.log(`🔄 [CONTEXT] Resolved query: "${query}" → "${resolvedQuery}"`);
+      }
+    } else {
+      console.log('🧠 [CONTEXT] No prior context found (first message or empty context)');
+    }
+  } catch (contextError) {
+    console.error('❌ [CONTEXT] Error loading conversation context:', contextError);
+    // Continue with original query if context loading fails
+  }
+
+  perfTimer.measure('Conversation Context Load', 'conversationContextLoad');
+
+
+  // ============================================================================
   // FAST PATH: Skip reasoning for simple document queries
   // ============================================================================
   // REASON: Simple queries like "what does X say about Y" don't need 3 LLM calls
@@ -5774,20 +5912,62 @@ Provide a comprehensive answer addressing all parts of the query.`;
     : (!conversationHistory || conversationHistory.length === 0);
   console.log(`👋 [GREETING] shouldShowGreeting: ${shouldShowGreeting} (isFirstMessage param: ${isFirstMessage})`);
 
-  // ⚡ SPEED OPTIMIZATION: Limit conversation history to last 3 messages (saves ~500ms)
-  // REASON: Large context slows down LLM generation
-  // WHY: Recent messages are most relevant for context
-  // IMPACT: ~500ms saved while maintaining conversation coherence
+  // ♾️ INFINITE CONVERSATION MEMORY - Manus-style architecture
+  // REASON: Never forget context, even in very long conversations
+  // WHY: Last 3 messages loses important context from earlier discussion
+  // HOW: Last 20 messages + semantic retrieval from historical chunks + memories
+  // IMPACT: Infinite memory without token overflow
   perfTimer.mark('conversationContext');
   let conversationContext = '';
-  if (conversationHistory && conversationHistory.length > 0) {
+  let infiniteMemoryStats: any = null;
+
+  if (conversationId && userId) {
+    try {
+      // Use infinite memory system for rich conversation context
+      const infiniteContext = await infiniteConversationMemory.getInfiniteConversationContext(
+        conversationId,
+        userId,
+        query,
+        {
+          includeHistorical: true,
+          includeMemories: true,
+          autoChunk: true,
+          autoCompress: true
+        }
+      );
+
+      conversationContext = infiniteContext.formattedContext;
+      infiniteMemoryStats = infiniteContext.stats;
+
+      console.log(`♾️ [INFINITE MEMORY] Context built:`);
+      console.log(`   Recent messages: ${infiniteMemoryStats.recentMessageCount}`);
+      console.log(`   Historical chunks: ${infiniteMemoryStats.historicalChunkCount}`);
+      console.log(`   Memories: ${infiniteMemoryStats.memoryCount}`);
+      console.log(`   Total tokens: ${infiniteMemoryStats.totalTokens}`);
+      if (infiniteMemoryStats.compressionLevel > 0) {
+        console.log(`   Compression level: ${infiniteMemoryStats.compressionLevel}`);
+      }
+    } catch (infiniteMemoryError) {
+      console.error(`⚠️ [INFINITE MEMORY] Failed, falling back to simple context:`, infiniteMemoryError);
+
+      // Fallback to simple conversation context
+      if (conversationHistory && conversationHistory.length > 0) {
+        conversationContext = conversationHistory
+          .slice(-5)
+          .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+          .join('\n\n');
+        console.log(`⚡ [CONTEXT] Fallback: Using last 5 of ${conversationHistory.length} messages`);
+      }
+    }
+  } else if (conversationHistory && conversationHistory.length > 0) {
+    // No conversationId - use simple fallback
     conversationContext = conversationHistory
-      .slice(-3)  // ⚡ Only use last 3 messages (was unlimited)
+      .slice(-5)
       .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
       .join('\n\n');
-    console.log(`⚡ [CONTEXT] Using last 3 of ${conversationHistory.length} messages for context`);
+    console.log(`⚡ [CONTEXT] Simple mode: Using last 5 of ${conversationHistory.length} messages`);
   }
-  perfTimer.measure('Conversation Context Build', 'conversationContext');
+  perfTimer.measure('Conversation Context Build (Infinite Memory)', 'conversationContext');
 
   // ============================================================================
   // ⚡ MAJOR PARALLELIZATION FIX: Run ALL independent operations in parallel
@@ -5820,17 +6000,18 @@ Provide a comprehensive answer addressing all parts of the query.`;
   onStage?.('searching', searchingMsg);
 
   // Simple query enhancement (instant, no LLM call)
-  let enhancedQueryText = queryEnhancementService.enhanceQuerySimple(query);
-  console.log(`🔍 [QUERY ENHANCE] Enhanced: "${query}" → "${enhancedQueryText}"`);
+  // 🧠 Use resolvedQuery (with pronoun resolution) for document retrieval
+  let enhancedQueryText = queryEnhancementService.enhanceQuerySimple(resolvedQuery);
+  console.log(`🔍 [QUERY ENHANCE] Enhanced: "${resolvedQuery}" → "${enhancedQueryText}"`);
 
   // ✅ Formula Query Detection - Enhance retrieval for formula questions
-  const formulaQueryInfo = isFormulaQuery(query);
+  const formulaQueryInfo = isFormulaQuery(resolvedQuery);
   if (formulaQueryInfo.isFormula) {
     enhancedQueryText = enhanceQueryForFormulas(enhancedQueryText, formulaQueryInfo);
   }
 
   // ✅ Entity Query Detection - Enhance retrieval for property/investment name questions
-  const entityQueryInfo = isEntityQuery(query);
+  const entityQueryInfo = isEntityQuery(resolvedQuery);
   if (entityQueryInfo.isEntity) {
     enhancedQueryText = enhanceQueryForEntities(enhancedQueryText, entityQueryInfo);
   }
@@ -6164,6 +6345,30 @@ Provide a comprehensive answer addressing all parts of the query.`;
       }
     }
     // ============================================================================
+
+    // 🚀 HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost to main results
+    if (hybridResults.length > 0) {
+      // Convert hybridResults to match format expected by booster
+      const matchesForBoosting = hybridResults.map((hr: any) => ({
+        id: hr.metadata?.documentId || '',
+        score: hr.hybridScore || hr.vectorScore || 0,
+        metadata: hr.metadata
+      }));
+
+      const boostedMatches = hybridRetrievalBooster.boostRetrievalScores(matchesForBoosting, query, 1.8);
+
+      // Update hybridResults with boosted scores
+      boostedMatches.forEach((boosted: any, idx: number) => {
+        if (hybridResults[idx]) {
+          hybridResults[idx].hybridScore = boosted.score;
+          hybridResults[idx].vectorScore = boosted.score;
+          hybridResults[idx].metadata = boosted.metadata;
+        }
+      });
+
+      // Re-sort by boosted scores
+      hybridResults.sort((a: any, b: any) => (b.hybridScore || 0) - (a.hybridScore || 0));
+    }
 
     // ✅ ISSUE #6 FIX: Boost section matches for section-specific queries
     const sectionRefs = extractSectionReferences(query);
@@ -6782,6 +6987,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
     perfTimer.measure('Practical Implications', 'practicalImplications');
 
+    // 🧠 Build multi-turn context summary for enhanced LLM understanding
+    let multiTurnContextSummary = '';
+    if (multiTurnContext && (multiTurnContext.entities.length > 0 || multiTurnContext.keyFindings.length > 0)) {
+      multiTurnContextSummary = conversationContextService.buildContextSummary(multiTurnContext);
+      console.log(`🧠 [CONTEXT] Built context summary for LLM (${multiTurnContextSummary.length} chars)`);
+    }
+
     // Append causal context, formula context, and implications to document context if available
     let contextWithIntelligence = finalDocumentContext;
     if (causalContext) {
@@ -6792,6 +7004,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
     if (implicationsContext) {
       contextWithIntelligence += implicationsContext;
+    }
+
+    // 🧠 Add multi-turn context summary for reference resolution and continuity
+    if (multiTurnContextSummary) {
+      contextWithIntelligence += multiTurnContextSummary;
+      console.log(`🧠 [CONTEXT] Injected context summary into document context`);
     }
 
     // ============================================================================
@@ -7155,11 +7373,11 @@ async function smartStreamLLMResponse(
 // POST-PROCESSING
 // ============================================================================
 
-export function postProcessAnswerExport(answer: string): string {
+export async function postProcessAnswerExport(answer: string): Promise<string> {
   return postProcessAnswer(answer);
 }
 
-function postProcessAnswer(answer: string): string {
+async function postProcessAnswer(answer: string): Promise<string> {
   let processed = answer.trim();
 
   // ============================================================================
@@ -7273,8 +7491,8 @@ function postProcessAnswer(answer: string): string {
   // CLEANUP ARTIFACTS
   // ============================================================================
 
-  // Remove double spaces created by removals
-  processed = processed.replace(/\s{2,}/g, ' ');
+  // Remove double spaces created by removals (but preserve newlines)
+  processed = processed.replace(/[^\S\n]{2,}/g, ' ');
 
   // Clean up orphaned commas/periods
   processed = processed.replace(/\s+([.,])/g, '$1');
@@ -7333,6 +7551,39 @@ function postProcessAnswer(answer: string): string {
       processed = convertTableToBullets(processed);
     }
   }
+
+  // ============================================================================
+  // FORMAT VALIDATION - Quality Gate (Final Pass)
+  // ============================================================================
+  try {
+    console.log('🔍 [POST-PROCESS] Running format validation...');
+    const validationResult = await formatValidationService.validateAndCorrect(processed);
+
+    if (!validationResult.isValid) {
+      console.log(`⚠️ [POST-PROCESS] Format issues detected: ${validationResult.violations.length} violations`);
+      validationResult.violations.forEach(v => {
+        console.log(`   - [${v.severity}] ${v.rule}: ${v.message} (Auto-corrected: ${v.autoCorrected})`);
+      });
+    } else {
+      console.log('✅ [POST-PROCESS] Format validation passed');
+    }
+
+    // Use corrected text
+    processed = validationResult.correctedText;
+  } catch (error) {
+    console.error('❌ [POST-PROCESS] Format validation error:', error);
+    // Continue with original processed text on error
+  }
+
+  // ============================================================================
+  // FINAL PARAGRAPH FORMATTING - Ensure readable spacing
+  // ============================================================================
+
+  // Only add spacing after bullet point sections (not after every sentence)
+  processed = processed.replace(/(\n[•\-\*].+)(\n)([A-Z][^•\-\*\n])/g, '$1\n\n$3');
+
+  // Normalize multiple consecutive newlines to max 2
+  processed = processed.replace(/\n{3,}/g, '\n\n');
 
   return processed.trim();
 }

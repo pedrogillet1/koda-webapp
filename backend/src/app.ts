@@ -28,6 +28,7 @@ import agentRoutes from './routes/agent.routes';
 import creativityRoutes from './routes/creativity.routes';
 import profileRoutes from './routes/profile.routes';
 import historyRoutes from './routes/history.routes';
+import analyticsRoutes from './routes/analytics.routes';
 import { explanationController } from './controllers/explanation.controller';
 import { profileController } from './controllers/profile.controller';
 // TODO: Temporarily disabled routes with deleted service dependencies
@@ -215,6 +216,7 @@ app.use('/api/presentations', presentationRoutes); // Manus-style presentation g
 app.use('/api/agent', agentRoutes); // Problem-solving agent with ReAct reasoning
 app.use('/api/creativity', creativityRoutes); // AI Creativity Engine: temperature and persona controls
 app.use('/api/profile', profileRoutes); // User profile and knowledge gathering
+app.use('/api/admin/analytics', analyticsRoutes); // Admin analytics dashboard
 
 // Additional profile endpoints with userId parameter (for admin/testing purposes)
 app.get('/api/profiles/:userId', profileController.getProfileByParam.bind(profileController));

@@ -251,7 +251,8 @@ class CalculationDetectorService {
   }
 
   /**
-   * Check if query is a document generation request
+   * Check if query is a document generation or file action request
+   * These should NOT trigger calculation mode
    */
   private isDocumentQuery(query: string): boolean {
     const documentPatterns = [
@@ -260,7 +261,17 @@ class CalculationDetectorService {
       /(?:report|summary).*(?:of|from|based\s+on).*(?:documents?|files?)/i,
     ];
 
-    return documentPatterns.some(pattern => pattern.test(query));
+    // ✅ FIX: File action patterns - queries to show/open/display files
+    // These should use file actions service, NOT calculation mode
+    const fileActionPatterns = [
+      /(?:show|open|display|view|pull up|bring up)\s+(?:me\s+)?(?:the\s+)?(?:document|file|report|pdf|excel|spreadsheet)/i,
+      /(?:show|open|display|view)\s+(?:me\s+)?(?:the\s+)?[\w\s]+(?:report|file|document)/i,
+      /(?:me\s+)?(?:mostra|abre|exibir|mostrar)\s+(?:o\s+)?(?:documento|arquivo|relatório)/i, // Portuguese
+      /(?:muéstrame|abrir|mostrar)\s+(?:el\s+)?(?:documento|archivo|informe)/i, // Spanish
+    ];
+
+    return documentPatterns.some(pattern => pattern.test(query)) ||
+           fileActionPatterns.some(pattern => pattern.test(query));
   }
 
   /**

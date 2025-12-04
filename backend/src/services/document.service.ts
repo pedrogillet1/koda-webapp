@@ -157,11 +157,12 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   });
 
   if (existingDoc) {
-
-    return await prisma.documents.findUnique({
+    const existing = await prisma.documents.findUnique({
       where: { id: existingDoc.id },
       include: { folder: true },
     });
+    // Return existing document with flag indicating it already existed
+    return { ...existing, isExisting: true };
   }
 
 

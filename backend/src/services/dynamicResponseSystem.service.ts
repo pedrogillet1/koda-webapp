@@ -100,7 +100,24 @@ Generate ONE natural greeting now:`;
 
   try {
     const result = await model.generateContent(prompt);
-    return result.response.text().trim();
+
+    // Debug: Log the full response structure
+    console.log('[DynamicResponse] Raw response:', JSON.stringify({
+      candidates: result.response.candidates?.length,
+      promptFeedback: result.response.promptFeedback,
+      text: result.response.text?.()
+    }, null, 2));
+
+    const greeting = result.response.text().trim();
+
+    // Check for empty response and use fallback
+    if (!greeting || greeting.length === 0) {
+      console.warn('[DynamicResponse] Gemini returned empty greeting, using fallback');
+      return contextEngineering.createContextAwareGreeting(hasDocuments);
+    }
+
+    console.log(`[DynamicResponse] Generated greeting: "${greeting}"`);
+    return greeting;
   } catch (error) {
     console.error('[DynamicResponse] Greeting generation failed:', error);
     // Fallback to context engineering service

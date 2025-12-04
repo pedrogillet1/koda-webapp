@@ -17,6 +17,7 @@ import fuzzyMatchService from './fuzzy-match.service';
 import { emitDocumentEvent, emitFolderEvent } from './websocket.service';
 import semanticFileMatcher from './semanticFileMatcher.service'; // ✅ FIX #7: Import semantic matcher
 import clarificationService from './clarification.service'; // ✅ P0 Feature: Smart clarification with grouping
+import { generateDynamicResponse } from './dynamicResponseGenerator.service'; // ✅ Dynamic LLM-based responses
 
 /**
  * Enhanced fuzzy matching using our dedicated service
@@ -40,9 +41,9 @@ function fuzzyMatchName(searchName: string, actualName: string): boolean {
 /**
  * Language Detection Function
  * Detects user's language from query to provide localized responses
- * Supports: English (EN), Portuguese (PT), Spanish (ES)
+ * Supports: English (EN), Portuguese (PT), Spanish (ES), French (FR)
  */
-function detectLanguage(query: string): 'pt' | 'es' | 'en' {
+function detectLanguage(query: string): 'pt' | 'es' | 'fr' | 'en' {
   const lowerQuery = query.toLowerCase();
 
   // Portuguese indicators
@@ -53,9 +54,14 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' {
   const esWords = ['muéstrame', 'muestra', 'archivo', 'carpeta', 'mover', 'renombrar', 'eliminar', 'crear', 'abrir', 'aquí está', 'necesito', 'quiero', 'dónde está', 'enseña', 'déjame ver'];
   const esCount = esWords.filter(word => lowerQuery.includes(word)).length;
 
+  // French indicators
+  const frWords = ['montre', 'montrer', 'fichier', 'dossier', 'déplacer', 'renommer', 'supprimer', 'créer', 'ouvrir', 'voici', 'besoin', 'veux', 'où est', 'afficher', 'laisse-moi voir'];
+  const frCount = frWords.filter(word => lowerQuery.includes(word)).length;
+
   // Return language with highest match count
-  if (ptCount > esCount && ptCount > 0) return 'pt';
-  if (esCount > ptCount && esCount > 0) return 'es';
+  if (ptCount > esCount && ptCount > frCount && ptCount > 0) return 'pt';
+  if (esCount > ptCount && esCount > frCount && esCount > 0) return 'es';
+  if (frCount > ptCount && frCount > esCount && frCount > 0) return 'fr';
   return 'en'; // Default to English
 }
 
@@ -408,58 +414,68 @@ function detectShowFileIntent(query: string): ShowFilePatternResult | null {
 
 /**
  * Multilingual Message Templates
- * All file action responses in 3 languages (EN, PT, ES)
+ * All file action responses in 4 languages (EN, PT, ES, FR)
  */
 const messages = {
   hereIsFile: {
     en: "Here's the file:",
     pt: "Aqui está o arquivo:",
-    es: "Aquí está el archivo:"
+    es: "Aquí está el archivo:",
+    fr: "Voici le fichier:"
   },
   fileNotFound: {
     en: (filename: string) => `I couldn't find a file named "${filename}". Please check the name and try again.`,
     pt: (filename: string) => `Não consegui encontrar um arquivo chamado "${filename}". Por favor, verifique o nome e tente novamente.`,
-    es: (filename: string) => `No pude encontrar un archivo llamado "${filename}". Por favor, verifica el nombre e intenta de nuevo.`
+    es: (filename: string) => `No pude encontrar un archivo llamado "${filename}". Por favor, verifica el nombre e intenta de nuevo.`,
+    fr: (filename: string) => `Je n'ai pas pu trouver un fichier nommé "${filename}". Veuillez vérifier le nom et réessayer.`
   },
   multipleFilesFound: {
     en: (count: number, filename: string) => `I found **${count} files** matching "${filename}". Which one would you like to see?`,
     pt: (count: number, filename: string) => `Encontrei **${count} arquivos** correspondentes a "${filename}". Qual deles você quer ver?`,
-    es: (count: number, filename: string) => `Encontré **${count} archivos** que coinciden con "${filename}". ¿Cuál quieres ver?`
+    es: (count: number, filename: string) => `Encontré **${count} archivos** que coinciden con "${filename}". ¿Cuál quieres ver?`,
+    fr: (count: number, filename: string) => `J'ai trouvé **${count} fichiers** correspondant à "${filename}". Lequel voulez-vous voir?`
   },
   folderCreated: {
     en: (folderName: string) => `Folder "${folderName}" created successfully.`,
     pt: (folderName: string) => `Pasta "${folderName}" criada com sucesso.`,
-    es: (folderName: string) => `Carpeta "${folderName}" creada exitosamente.`
+    es: (folderName: string) => `Carpeta "${folderName}" creada exitosamente.`,
+    fr: (folderName: string) => `Dossier "${folderName}" créé avec succès.`
   },
   folderAlreadyExists: {
     en: (folderName: string) => `Folder "${folderName}" already exists.`,
     pt: (folderName: string) => `A pasta "${folderName}" já existe.`,
-    es: (folderName: string) => `La carpeta "${folderName}" ya existe.`
+    es: (folderName: string) => `La carpeta "${folderName}" ya existe.`,
+    fr: (folderName: string) => `Le dossier "${folderName}" existe déjà.`
   },
   fileMoved: {
     en: (filename: string, folderName: string) => `File "${filename}" moved to "${folderName}" successfully.`,
     pt: (filename: string, folderName: string) => `Arquivo "${filename}" movido para "${folderName}" com sucesso.`,
-    es: (filename: string, folderName: string) => `Archivo "${filename}" movido a "${folderName}" exitosamente.`
+    es: (filename: string, folderName: string) => `Archivo "${filename}" movido a "${folderName}" exitosamente.`,
+    fr: (filename: string, folderName: string) => `Fichier "${filename}" déplacé vers "${folderName}" avec succès.`
   },
   fileRenamed: {
     en: (oldName: string, newName: string) => `File renamed from "${oldName}" to "${newName}" successfully.`,
     pt: (oldName: string, newName: string) => `Arquivo renomeado de "${oldName}" para "${newName}" com sucesso.`,
-    es: (oldName: string, newName: string) => `Archivo renombrado de "${oldName}" a "${newName}" exitosamente.`
+    es: (oldName: string, newName: string) => `Archivo renombrado de "${oldName}" a "${newName}" exitosamente.`,
+    fr: (oldName: string, newName: string) => `Fichier renommé de "${oldName}" à "${newName}" avec succès.`
   },
   fileDeleted: {
     en: (filename: string) => `File "${filename}" deleted successfully.`,
     pt: (filename: string) => `Arquivo "${filename}" deletado com sucesso.`,
-    es: (filename: string) => `Archivo "${filename}" eliminado exitosamente.`
+    es: (filename: string) => `Archivo "${filename}" eliminado exitosamente.`,
+    fr: (filename: string) => `Fichier "${filename}" supprimé avec succès.`
   },
   folderNotFound: {
     en: (folderName: string) => `Folder "${folderName}" not found.`,
     pt: (folderName: string) => `Pasta "${folderName}" não encontrada.`,
-    es: (folderName: string) => `Carpeta "${folderName}" no encontrada.`
+    es: (folderName: string) => `Carpeta "${folderName}" no encontrada.`,
+    fr: (folderName: string) => `Dossier "${folderName}" introuvable.`
   },
   fileNotFoundShort: {
     en: (filename: string) => `File "${filename}" not found.`,
     pt: (filename: string) => `Arquivo "${filename}" não encontrado.`,
-    es: (filename: string) => `Archivo "${filename}" no encontrado.`
+    es: (filename: string) => `Archivo "${filename}" no encontrado.`,
+    fr: (filename: string) => `Fichier "${filename}" introuvable.`
   },
   hereIsFolder: {
     en: (name: string, fileCount: number, subfolderCount: number) =>
@@ -467,12 +483,15 @@ const messages = {
     pt: (name: string, fileCount: number, subfolderCount: number) =>
       `Aqui está a pasta **${name}** com ${fileCount} arquivo${fileCount !== 1 ? 's' : ''} e ${subfolderCount} subpasta${subfolderCount !== 1 ? 's' : ''}.`,
     es: (name: string, fileCount: number, subfolderCount: number) =>
-      `Aquí está la carpeta **${name}** con ${fileCount} archivo${fileCount !== 1 ? 's' : ''} y ${subfolderCount} subcarpeta${subfolderCount !== 1 ? 's' : ''}.`
+      `Aquí está la carpeta **${name}** con ${fileCount} archivo${fileCount !== 1 ? 's' : ''} y ${subfolderCount} subcarpeta${subfolderCount !== 1 ? 's' : ''}.`,
+    fr: (name: string, fileCount: number, subfolderCount: number) =>
+      `Voici le dossier **${name}** avec ${fileCount} fichier${fileCount !== 1 ? 's' : ''} et ${subfolderCount} sous-dossier${subfolderCount !== 1 ? 's' : ''}.`
   },
   multipleFoldersFound: {
     en: (count: number, folderName: string) => `I found **${count} folders** matching "${folderName}". Which one would you like to see?`,
     pt: (count: number, folderName: string) => `Encontrei **${count} pastas** correspondentes a "${folderName}". Qual delas você quer ver?`,
-    es: (count: number, folderName: string) => `Encontré **${count} carpetas** que coinciden con "${folderName}". ¿Cuál quieres ver?`
+    es: (count: number, folderName: string) => `Encontré **${count} carpetas** que coinciden con "${folderName}". ¿Cuál quieres ver?`,
+    fr: (count: number, folderName: string) => `J'ai trouvé **${count} dossiers** correspondant à "${folderName}". Lequel voulez-vous voir?`
   }
 };
 
@@ -842,7 +861,13 @@ class FileActionsService {
       if (existingFolder) {
         return {
           success: false,
-          message: messages.folderAlreadyExists[lang](params.folderName),
+          message: await generateDynamicResponse({
+            action: 'create_folder',
+            success: false,
+            language: lang,
+            details: { folderName: params.folderName },
+            userQuery: query
+          }),
           error: 'FOLDER_EXISTS'
         };
       }
@@ -868,14 +893,26 @@ class FileActionsService {
 
       return {
         success: true,
-        message: messages.folderCreated[lang](params.folderName),
+        message: await generateDynamicResponse({
+          action: 'create_folder',
+          success: true,
+          language: lang,
+          details: { folderName: params.folderName },
+          userQuery: query
+        }),
         data: { folder }
       };
     } catch (error: any) {
       console.error('❌ Create folder failed:', error);
       return {
         success: false,
-        message: 'Failed to create folder',
+        message: await generateDynamicResponse({
+          action: 'create_folder',
+          success: false,
+          language: detectLanguage(query),
+          details: { errorMessage: error.message },
+          userQuery: query
+        }),
         error: error.message
       };
     }
@@ -901,7 +938,13 @@ class FileActionsService {
       if (!document) {
         return {
           success: false,
-          message: messages.fileNotFoundShort[lang](params.documentId),
+          message: await generateDynamicResponse({
+            action: 'move_file',
+            success: false,
+            language: lang,
+            details: { filename: params.documentId },
+            userQuery: query
+          }),
           error: 'DOCUMENT_NOT_FOUND'
         };
       }
@@ -917,7 +960,13 @@ class FileActionsService {
       if (!targetFolder) {
         return {
           success: false,
-          message: messages.folderNotFound[lang](params.targetFolderId),
+          message: await generateDynamicResponse({
+            action: 'move_file',
+            success: false,
+            language: lang,
+            details: { folderName: params.targetFolderId },
+            userQuery: query
+          }),
           error: 'FOLDER_NOT_FOUND'
         };
       }
@@ -938,14 +987,26 @@ class FileActionsService {
 
       return {
         success: true,
-        message: messages.fileMoved[lang](document.filename, targetFolder.name),
+        message: await generateDynamicResponse({
+          action: 'move_file',
+          success: true,
+          language: lang,
+          details: { filename: document.filename, targetFolder: targetFolder.name },
+          userQuery: query
+        }),
         data: { document: updatedDocument }
       };
     } catch (error: any) {
       console.error('❌ Move file failed:', error);
       return {
         success: false,
-        message: 'Failed to move file',
+        message: await generateDynamicResponse({
+          action: 'move_file',
+          success: false,
+          language: detectLanguage(query),
+          details: { errorMessage: error.message },
+          userQuery: query
+        }),
         error: error.message
       };
     }
@@ -971,7 +1032,13 @@ class FileActionsService {
       if (!document) {
         return {
           success: false,
-          message: messages.fileNotFoundShort[lang](params.documentId),
+          message: await generateDynamicResponse({
+            action: 'rename_file',
+            success: false,
+            language: lang,
+            details: { filename: params.documentId },
+            userQuery: query
+          }),
           error: 'DOCUMENT_NOT_FOUND'
         };
       }
@@ -992,14 +1059,26 @@ class FileActionsService {
 
       return {
         success: true,
-        message: messages.fileRenamed[lang](document.filename, params.newFilename),
+        message: await generateDynamicResponse({
+          action: 'rename_file',
+          success: true,
+          language: lang,
+          details: { oldName: document.filename, newName: params.newFilename },
+          userQuery: query
+        }),
         data: { document: updatedDocument }
       };
     } catch (error: any) {
       console.error('❌ Rename file failed:', error);
       return {
         success: false,
-        message: 'Failed to rename file',
+        message: await generateDynamicResponse({
+          action: 'rename_file',
+          success: false,
+          language: detectLanguage(query),
+          details: { errorMessage: error.message },
+          userQuery: query
+        }),
         error: error.message
       };
     }
@@ -1025,7 +1104,13 @@ class FileActionsService {
       if (!document) {
         return {
           success: false,
-          message: messages.fileNotFoundShort[lang](params.documentId),
+          message: await generateDynamicResponse({
+            action: 'delete_file',
+            success: false,
+            language: lang,
+            details: { filename: params.documentId },
+            userQuery: query
+          }),
           error: 'DOCUMENT_NOT_FOUND'
         };
       }
@@ -1046,14 +1131,26 @@ class FileActionsService {
 
       return {
         success: true,
-        message: messages.fileDeleted[lang](document.filename),
+        message: await generateDynamicResponse({
+          action: 'delete_file',
+          success: true,
+          language: lang,
+          details: { filename: document.filename },
+          userQuery: query
+        }),
         data: { documentId: params.documentId }
       };
     } catch (error: any) {
       console.error('❌ Delete file failed:', error);
       return {
         success: false,
-        message: 'Failed to delete file',
+        message: await generateDynamicResponse({
+          action: 'delete_file',
+          success: false,
+          language: detectLanguage(query),
+          details: { errorMessage: error.message },
+          userQuery: query
+        }),
         error: error.message
       };
     }
@@ -1609,27 +1706,45 @@ class FileActionsService {
       }
 
       case 'renameFile': {
-        // SMART DETECTION: Check if it's a folder first, then file
-        // This allows "rename pedro1 to pedro2" to work for both files and folders
+        // SMART DETECTION: Check file extension to determine if it's a file or folder
+        // If name has file extension (.pdf, .xlsx, etc.), treat as file FIRST
+        const hasFileExtension = /\.\w{2,5}$/i.test(params.oldFilename);
 
-        // First, try to find a folder with this name
-        const folder = await this.findFolderByName(userId, params.oldFilename);
-        if (folder) {
-          // It's a folder - rename the folder
-          console.log(`   📁 Detected folder rename: ${params.oldFilename} → ${params.newFilename}`);
-          return await this.renameFolder(userId, folder.id, params.newFilename);
-        }
-
-        // Not a folder, try to find a file
-        const document = await this.findDocumentByName(userId, params.oldFilename);
-        if (document) {
-          // It's a file - rename the file
-          console.log(`   📄 Detected file rename: ${params.oldFilename} → ${params.newFilename}`);
-          return await this.renameFile({
-            userId,
-            documentId: document.id,
-            newFilename: params.newFilename
-          }, query);
+        if (hasFileExtension) {
+          // Has extension - try file FIRST
+          console.log(`   📄 Detected file extension in: ${params.oldFilename}`);
+          const document = await this.findDocumentByName(userId, params.oldFilename);
+          if (document) {
+            console.log(`   📄 Renaming file: ${params.oldFilename} → ${params.newFilename}`);
+            return await this.renameFile({
+              userId,
+              documentId: document.id,
+              newFilename: params.newFilename
+            }, query);
+          }
+          // File not found with extension, maybe it's a folder with dots in name
+          const folder = await this.findFolderByName(userId, params.oldFilename);
+          if (folder) {
+            console.log(`   📁 Fallback to folder rename: ${params.oldFilename} → ${params.newFilename}`);
+            return await this.renameFolder(userId, folder.id, params.newFilename);
+          }
+        } else {
+          // No extension - try folder FIRST (original behavior)
+          const folder = await this.findFolderByName(userId, params.oldFilename);
+          if (folder) {
+            console.log(`   📁 Detected folder rename: ${params.oldFilename} → ${params.newFilename}`);
+            return await this.renameFolder(userId, folder.id, params.newFilename);
+          }
+          // Not a folder, try to find a file
+          const document = await this.findDocumentByName(userId, params.oldFilename);
+          if (document) {
+            console.log(`   📄 Fallback to file rename: ${params.oldFilename} → ${params.newFilename}`);
+            return await this.renameFile({
+              userId,
+              documentId: document.id,
+              newFilename: params.newFilename
+            }, query);
+          }
         }
 
         // Neither file nor folder found - provide helpful error
@@ -1667,26 +1782,43 @@ class FileActionsService {
       }
 
       case 'deleteFile': {
-        // SMART DETECTION: Check if it's a folder first, then file
-        // This allows "delete pedro1" to work for both files and folders
+        // SMART DETECTION: Check file extension to determine if it's a file or folder
+        // If name has file extension (.pdf, .xlsx, etc.), treat as file FIRST
+        const hasFileExtension = /\.\w{2,5}$/i.test(params.filename);
 
-        // First, try to find a folder with this name
-        const folder = await this.findFolderByName(userId, params.filename);
-        if (folder) {
-          // It's a folder - delete the folder
-          console.log(`   📁 Detected folder delete: ${params.filename}`);
-          return await this.deleteFolder(userId, folder.id);
-        }
-
-        // Not a folder, try to find a file
-        const document = await this.findDocumentByName(userId, params.filename);
-        if (document) {
-          // It's a file - delete the file
-          console.log(`   📄 Detected file delete: ${params.filename}`);
-          return await this.deleteFile({
-            userId,
-            documentId: document.id
-          }, query);
+        if (hasFileExtension) {
+          // Has extension - try file FIRST
+          console.log(`   📄 Detected file extension in: ${params.filename}`);
+          const document = await this.findDocumentByName(userId, params.filename);
+          if (document) {
+            console.log(`   📄 Deleting file: ${params.filename}`);
+            return await this.deleteFile({
+              userId,
+              documentId: document.id
+            }, query);
+          }
+          // File not found with extension, maybe it's a folder with dots in name
+          const folder = await this.findFolderByName(userId, params.filename);
+          if (folder) {
+            console.log(`   📁 Fallback to folder delete: ${params.filename}`);
+            return await this.deleteFolder(userId, folder.id);
+          }
+        } else {
+          // No extension - try folder FIRST (original behavior)
+          const folder = await this.findFolderByName(userId, params.filename);
+          if (folder) {
+            console.log(`   📁 Detected folder delete: ${params.filename}`);
+            return await this.deleteFolder(userId, folder.id);
+          }
+          // Not a folder, try to find a file
+          const document = await this.findDocumentByName(userId, params.filename);
+          if (document) {
+            console.log(`   📄 Fallback to file delete: ${params.filename}`);
+            return await this.deleteFile({
+              userId,
+              documentId: document.id
+            }, query);
+          }
         }
 
         // Neither file nor folder found - provide helpful error

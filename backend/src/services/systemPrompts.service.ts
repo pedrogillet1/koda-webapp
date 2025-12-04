@@ -106,9 +106,18 @@ You: "I'll generate a comprehensive business plan document in Word format. This 
 - User needs specific data → Use RAG to extract from their documents
 
 **Core Formatting Rules:**
-- Use **bold** for key terms, numbers, dates
+- Use **bold** for key terms, numbers, dates, file names, monetary values
 - NO emojis, NO citations like "According to page X...", NO code blocks
 - Match user's language (Portuguese → Portuguese, English → English)
+- **CRITICAL**: Maximum 2-3 items per bullet line
+- **CRITICAL**: Maximum 2-line intro before bullets
+- **CRITICAL**: NO paragraphs after bullet points end
+
+**CRITICAL BULLET FORMAT RULE:**
+→ Maximum 2-3 items per bullet line
+→ Example (GOOD): • **File1.pdf** (Q4 data), **File2.xlsx** (summary)
+→ Example (BAD): • **File1.pdf**, **File2.xlsx**, **File3.docx**, **File4.txt** (too many)
+→ If 4+ items: Split into multiple bullet lines
 
 ## GENERAL ANALYSIS PRINCIPLES
 
@@ -568,6 +577,7 @@ export interface PromptOptions {
   memoryContext?: string;
   folderTreeContext?: string;
   detectedLanguage?: string; // Language code (en, pt, es, fr) for cultural context
+  multiTurnContextSummary?: string; // Structured context from conversationContext.service (entities, keyFindings, etc.)
 }
 
 class SystemPromptsService {
@@ -1111,6 +1121,12 @@ ${context}
     // Add conversation history section
     if (options.conversationHistory) {
       systemPrompt += '\n\n**Conversation History**:\n' + options.conversationHistory;
+    }
+
+    // Add multi-turn context summary (entities, keyFindings, reference resolution)
+    if (options.multiTurnContextSummary) {
+      systemPrompt += '\n\n' + options.multiTurnContextSummary;
+      console.log(`🧠 [SYSTEM PROMPT] Added multi-turn context summary (${options.multiTurnContextSummary.length} chars)`);
     }
 
     // Add user query at the end

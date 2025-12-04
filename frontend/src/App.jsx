@@ -42,6 +42,9 @@ import Settings from './components/Settings';
 import FileTypeDetail from './components/FileTypeDetail';
 import Upgrade from './components/Upgrade';
 
+// Admin Dashboard
+import { AdminRoute, AdminOverview, AdminUsers } from './components/admin';
+
 function App() {
   const isMobile = useIsMobile();
 
@@ -113,6 +116,10 @@ function App() {
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/filetype/:fileType" element={<ProtectedRoute><FileTypeDetail /></ProtectedRoute>} />
             <Route path="/upgrade" element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
+
+            {/* ADMIN DASHBOARD ROUTES */}
+            <Route path="/admin" element={<AdminRoute><AdminOverview /></AdminRoute>} />
+            <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
                   </Routes>
                   {/* Global toast notifications */}
                   <ToastStack />

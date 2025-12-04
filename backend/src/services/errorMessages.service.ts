@@ -12,7 +12,7 @@ export interface NotFoundContext {
   documentCount: number;
   hasSpecificDocument?: boolean;
   documentName?: string;
-  language?: 'en' | 'pt' | 'es' | 'fr';
+  language?: 'en' | 'pt' | 'es';
 }
 
 export class ErrorMessagesService {

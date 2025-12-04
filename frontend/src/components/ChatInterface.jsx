@@ -252,6 +252,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         return false;
     };
 
+    // Helper function to strip visible document sources from message content
+    // The AI sometimes outputs "Document Sources" text which we already display via the UI component
+    const stripDocumentSources = (content) => {
+        if (!content) return content;
+
+        // Remove patterns like:
+        // ---\n\nDocument Sources (1)\n\n• filename.xlsx
+        // or: \n---\n\nDocument Sources (N)\n\n• file1\n• file2
+        // Also remove: \n\n---\n\nDocument Sources
+        let result = content;
+        // Remove "---" followed by "Document Sources" section at the end
+        result = result.replace(/\n*---\n*[*]*Document Sources?[*]*\s*\(\d+\)[*]*\s*\n+(?:[•\-*]\s*.+\n*)+$/gi, '');
+        // Remove standalone "Document Sources" section without HR
+        result = result.replace(/\n*[*]*Document Sources?[*]*\s*\(\d+\)[*]*\s*\n+(?:[•\-*]\s*.+\n*)+$/gi, '');
+        // Remove trailing HR that might be left over
+        result = result.replace(/\n*---\s*$/g, '');
+        return result.trim();
+    };
+
     // Custom link component for document navigation
     const DocumentLink = ({ href, children }) => {
         // Check if this is a document link (starts with #doc-)
@@ -2704,7 +2723,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                         img: ({node, ...props}) => <img className="markdown-image" {...props} alt={props.alt || ''} />,
                                                                     }}
                                                                 >
-                                                                    {msg.content}
+                                                                    {stripDocumentSources(msg.content)}
                                                                 </ReactMarkdown>
                                                             </div>
 

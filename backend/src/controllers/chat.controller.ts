@@ -226,11 +226,11 @@ export const sendMessageStreaming = async (req: Request, res: Response) => {
       }
     );
 
-    // Send completion signal
+    // Send completion signal (with null checks to prevent crashes)
     const donePayload = {
       type: 'done',
-      messageId: result.userMessage.id,
-      assistantMessageId: result.assistantMessage.id,
+      messageId: result.userMessage?.id || null,
+      assistantMessageId: result.assistantMessage?.id || null,
       conversationId
     };
 
@@ -479,11 +479,11 @@ export const sendAdaptiveMessageStreaming = async (req: Request, res: Response) 
       }
     );
 
-    // Send completion signal
+    // Send completion signal (with null checks to prevent crashes)
     const donePayload = {
       type: 'done',
-      messageId: result.userMessage.id,
-      assistantMessageId: result.assistantMessage.id,
+      messageId: result.userMessage?.id || null,
+      assistantMessageId: result.assistantMessage?.id || null,
       conversationId
     };
 

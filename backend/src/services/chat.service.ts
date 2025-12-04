@@ -17,6 +17,7 @@ import * as memoryService from './memory.service';
 import { detectLanguage } from './languageDetection.service';
 import { profileService } from './profile.service';
 import historyService from './history.service';
+import { conversationContextService } from './conversationContext.service';
 import OpenAI from 'openai';
 import { config } from '../config/env';
 
@@ -402,6 +403,18 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
     await autoGenerateTitle(conversationId, userId, content, fullResponse);
   }
 
+  // 🧠 Update conversation context after each turn (for multi-turn context retention)
+  const contextSources = ragResult.sources?.map(s => ({
+    documentId: s.documentId || '',
+    documentName: s.documentName || ''
+  })) || [];
+  conversationContextService.updateContextAfterTurn(
+    conversationId,
+    content,
+    fullResponse,
+    contextSources
+  ).catch(err => console.error('❌ Error updating conversation context:', err));
+
   // ⚡ CACHE: Invalidate conversation cache after new message
   await cacheService.invalidateConversationCache(userId, conversationId);
   console.log(`🗑️  [Cache] Invalidated conversation cache for ${conversationId.substring(0, 8)}...`);
@@ -715,6 +728,14 @@ export const sendMessageStreaming = async (
     historyService.autoTitleConversation(conversationId)
       .catch(err => console.error('❌ Error auto-titling conversation:', err));
   }
+
+  // 🧠 Update conversation context after each turn (for multi-turn context retention)
+  conversationContextService.updateContextAfterTurn(
+    conversationId,
+    content,
+    fullResponse,
+    []
+  ).catch(err => console.error('❌ Error updating conversation context:', err));
 
   // ✅ NEW: Extract memory insights after sufficient conversation (fire-and-forget)
   // Extract memory after 5+ user messages to learn preferences and insights
@@ -1064,7 +1085,7 @@ export const handleFileActionsIfNeeded = async (
       };
     }
 
-    const folderId = folderResult.data.folders.id;
+    const folderId = folderResult.data.folder.id;
     console.log(`✅ Folder created: ${folderId}`);
 
     // If files attached, upload them to the new folder
@@ -1095,14 +1116,33 @@ export const handleFileActionsIfNeeded = async (
   }
 
   // ========================================
+  // MOVE FILE (must come BEFORE upload to prevent misclassification)
+  // ========================================
+  if (intentResult.intent === 'move_files' &&
+      intentResult.parameters?.filename &&
+      intentResult.parameters?.targetFolder) {
+
+    console.log(`📦 [Action] Moving: "${intentResult.parameters.filename}" → "${intentResult.parameters.targetFolder}"`);
+
+    const result = await fileActionsService.executeAction(message, userId);
+
+    return {
+      action: 'move_file',
+      message: result.message
+    };
+  }
+
+  // ========================================
   // UPLOAD FILE
   // ========================================
   // Check for file upload to folder patterns
+  // NOTE: "move" is handled in MOVE FILE section above
   const uploadPatterns = [
-    /(?:upload|save|store|put|add|move)\s+(?:this|these|the)?\s*(?:file|files|document|documents)?\s+(?:to|in|into)\s+(?:the\s+)?["']?([^"']+)["']?\s*(?:folder)?/i,
+    /(?:upload|save|store|put|add)\s+(?:this|these|the)?\s*(?:file|files|document|documents)?\s+(?:to|in|into)\s+(?:the\s+)?["']?([^"']+)["']?\s*(?:folder)?/i,
   ];
 
-  let targetFolder = intentResult.parameters?.targetFolder || null;
+  // Skip upload logic if this is a move_files intent (already handled above)
+  let targetFolder = intentResult.intent !== 'move_files' ? (intentResult.parameters?.targetFolder || null) : null;
 
   if (!targetFolder) {
     for (const pattern of uploadPatterns) {
@@ -1188,23 +1228,6 @@ export const handleFileActionsIfNeeded = async (
 
     return {
       action: 'delete_file',
-      message: result.message
-    };
-  }
-
-  // ========================================
-  // MOVE FILE
-  // ========================================
-  if (intentResult.intent === 'move_files' &&
-      intentResult.parameters?.filename &&
-      intentResult.parameters?.targetFolder) {
-
-    console.log(`📦 [Action] Moving: "${intentResult.parameters.filename}" → "${intentResult.parameters.targetFolder}"`);
-
-    const result = await fileActionsService.executeAction(message, userId);
-
-    return {
-      action: 'move_file',
       message: result.message
     };
   }

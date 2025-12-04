@@ -42,6 +42,12 @@
     "test:functionality:win": "pwsh scripts/test-functionality.ps1",
     "test:chat": "bash scripts/test-chat-complete.sh",
     "test:chat:win": "pwsh scripts/test-chat-complete.ps1",
+    "stress-test:setup": "cd stress-tests && npx ts-node setup-test-user.ts",
+    "stress-test": "cd stress-tests && npx ts-node file-actions-stress-test.ts",
+    "stress-test:quick": "cd stress-tests && npx ts-node file-actions-stress-test.ts --quick",
+    "stress-test:load": "cd stress-tests && npx ts-node file-actions-stress-test.ts --load-only",
+    "test:conversation": "npx ts-node --transpile-only test-suite/16-conversation-flow-test.ts",
+    "test:conversation:quick": "npx ts-node --transpile-only test-suite/16-conversation-flow-test.ts --quick",
     "prepare": "husky"
   },
   "lint-staged": {

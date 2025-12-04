@@ -82,9 +82,9 @@
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-/* Paragraphs - ONE blank line between */
+/* Paragraphs - Natural spacing like Claude */
 .markdown-paragraph {
-  margin-bottom: 16px !important; /* Creates one blank line between paragraphs */
+  margin-bottom: 1em !important; /* Natural paragraph spacing */
   line-height: 1.6 !important;
   color: #4b5563 !important;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
@@ -315,29 +315,29 @@
   font-weight: 500 !important;
 }
 
-/* Code */
+/* Code - Inline code styling (for filenames, variables, etc.) */
 .markdown-inline-code {
   background-color: #f3f4f6 !important;
-  color: #e11d48 !important;
+  color: #374151 !important;
   padding: 2px 6px !important;
   border-radius: 4px !important;
-  font-family: 'Courier New', Courier, monospace !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
   font-size: 0.9em !important;
   border: 1px solid #e5e7eb !important;
+  font-weight: 600 !important;
 }
 
+/* Code block - Only for actual code snippets, not filenames */
 .markdown-code-block {
-  display: block !important;
-  background-color: #1f2937 !important;
-  color: #f9fafb !important;
-  padding: 16px !important;
-  border-radius: 8px !important;
-  font-family: 'Courier New', Courier, monospace !important;
+  display: inline !important;
+  background-color: #f3f4f6 !important;
+  color: #374151 !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
   font-size: 0.9em !important;
-  overflow-x: auto !important;
-  margin: 14px 0 !important; /* ✅ Was 16px, now 14px */
-  line-height: 1.5 !important;
-  border: 1px solid #374151 !important;
+  border: 1px solid #e5e7eb !important;
+  font-weight: 600 !important;
 }
 
 /* Blockquotes */
@@ -357,11 +357,9 @@
   color: #1e40af !important;
 }
 
-/* Horizontal Rule */
+/* Horizontal Rule - Hidden to avoid visual clutter */
 .markdown-hr {
-  border: none !important;
-  border-top: 2px solid #e5e7eb !important;
-  margin: 24px 0 !important; /* ✅ Was 32px, now 24px (-25%) */
+  display: none !important; /* Hide HR elements - they are used for document sources which we render via UI */
 }
 
 /* Images */

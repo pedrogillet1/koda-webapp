@@ -8,6 +8,7 @@
  */
 
 import { ResponseFormatType } from './formatTypeClassifier.service';
+import formatEnforcement from './formatEnforcement.service';
 
 interface ResponseContext {
   queryLength: number;
@@ -24,6 +25,9 @@ export class ResponseFormatterService {
   /**
    * Main entry point - Format KODA response with post-processing
    * CRITICAL FIX: Gemini ignores line break instructions, so we fix output after generation
+   *
+   * NOTE: Many formatting rules are now delegated to FormatEnforcementService
+   * This service handles additional pre-processing like table conversion
    */
   async formatResponse(
     rawAnswer: string,
@@ -33,139 +37,71 @@ export class ResponseFormatterService {
   ): Promise<string> {
     let formatted = rawAnswer;
 
-    // CRITICAL FIX 1: Remove all emojis (user requirement)
-    if (this.hasEmojis(formatted)) {
-      console.log(`📝 [ResponseFormatter] Removing emojis from response`);
-      formatted = this.removeEmojis(formatted);
-    }
+    // PRE-PROCESSING: Convert special formats before main format enforcement
 
-    // CRITICAL FIX 2: Convert ASCII tables to Markdown tables
+    // Convert ASCII tables to Markdown tables (must happen before format enforcement)
     if (this.hasASCIITable(formatted)) {
-      console.log(`📝 [ResponseFormatter] Converting ASCII table to Markdown`);
+      console.log(`[ResponseFormatter] Converting ASCII table to Markdown`);
       formatted = this.convertASCIITableToMarkdown(formatted);
     }
 
-    // CRITICAL FIX 3: Detect and convert plain text "tables" (text with multiple spaces)
+    // Convert plain text "tables" (text with multiple spaces) to Markdown
     if (this.hasPlainTextTable(formatted)) {
-      console.log(`📝 [ResponseFormatter] Converting plain text table to Markdown`);
+      console.log(`[ResponseFormatter] Converting plain text table to Markdown`);
       formatted = this.convertPlainTextTableToMarkdown(formatted);
     }
 
-    // CRITICAL FIX 4: Detect and fix list line breaks
-    const bulletCount = (formatted.match(/•/g) || []).length;
-
-    if (bulletCount >= 2) {
-      // This is a list - fix line breaks
-      console.log(`📝 [ResponseFormatter] Detected list with ${bulletCount} bullets - fixing line breaks`);
-      formatted = this.fixListLineBreaks(formatted);
-    }
-
-    // CRITICAL FIX 5: Remove text after "Next actions:" section
-    if (formatted.includes('Next actions:')) {
-      console.log(`📝 [ResponseFormatter] Removing text after "Next actions:" section`);
-      formatted = this.removeTextAfterNextActions(formatted);
-    }
-
-    // CRITICAL FIX 6: Remove paragraphs after bullet points (user requirement)
-    if (bulletCount >= 2) {
-      console.log(`📝 [ResponseFormatter] Removing paragraphs after bullet points`);
-      formatted = this.removeParagraphsAfterBullets(formatted);
-    }
-
-    // CRITICAL FIX 7: Enforce max 2-line intro (user requirement)
-    if (bulletCount >= 2) {
-      console.log(`📝 [ResponseFormatter] Enforcing max 2-line intro`);
-      formatted = this.enforceMaxTwoLineIntro(formatted);
-    }
-
-    // CRITICAL FIX 8: Format comparison responses
+    // Format comparison responses (remove duplicate sections)
     formatted = this.formatComparison(formatted);
 
-    // CRITICAL FIX 9: Fix inline markdown headings (## without line breaks)
+    // Fix inline markdown headings (## without line breaks)
     formatted = this.fixInlineMarkdownHeadings(formatted);
 
-    // CRITICAL FIX 10: Clean up excessive whitespace (before paragraph breaking)
-    formatted = this.cleanWhitespace(formatted);
-
-    // CRITICAL FIX 11: ALWAYS enforce 2-3 sentence paragraphs with blank lines
-    // The function internally skips bullets, tables, headings - so safe to always run
-    console.log(`📝 [ResponseFormatter] Enforcing 2-3 sentence paragraph breaks`);
+    // Enforce 2-3 sentence paragraphs with blank lines
+    // (skips bullets, tables, headings internally)
+    console.log(`[ResponseFormatter] Enforcing 2-3 sentence paragraph breaks`);
     formatted = this.enforceStrictParagraphBreaks(formatted);
+
+    // MAIN FORMAT ENFORCEMENT: Apply all 12 rules from FormatEnforcementService
+    // This handles: emojis, bullets, citations, bold, whitespace, etc.
+    console.log(`[ResponseFormatter] Applying comprehensive format enforcement (12 rules)`);
+    const enforcementResult = formatEnforcement.enforceFormat(formatted);
+
+    if (!enforcementResult.isValid) {
+      const errorCount = enforcementResult.violations.filter(v => v.severity === 'error').length;
+      const warningCount = enforcementResult.violations.filter(v => v.severity === 'warning').length;
+      console.log(`[ResponseFormatter] Found ${errorCount} errors, ${warningCount} warnings`);
+
+      // Log each violation for debugging
+      enforcementResult.violations.forEach(v => {
+        console.log(`  ${v.severity.toUpperCase()}: ${v.type} - ${v.message}`);
+      });
+    }
+
+    formatted = enforcementResult.fixedText || formatted;
+
+    // Log final stats
+    const stats = formatEnforcement.getStats(formatted);
+    console.log(`[ResponseFormatter] Stats: ${stats.bulletCount} bullets, ${stats.introLineCount} intro lines, ${stats.boldCount} bold items, ${stats.wordCount} words`);
 
     return formatted;
   }
 
   /**
    * Fix line breaks in AI-generated lists
-   * Handles cases where AI puts multiple bullets on one line
-   *
-   * Why this is needed: LLMs sometimes ignore formatting instructions.
-   * Gemini may generate "• Item1 • Item2 • Item3" even when told to use line breaks.
-   * This post-processor fixes the output regardless of what the AI generates.
+   * @deprecated Use formatEnforcement.fixBulletLineBreaks() instead
    */
   fixListLineBreaks(text: string): string {
-    // Pattern 1: "• Item1 • Item2 • Item3" → "• Item1\n• Item2\n• Item3"
-    let fixed = text.replace(/ • /g, '\n• ');
-
-    // Pattern 2: "•Item1 •Item2" (no space after bullet) → "•Item1\n•Item2"
-    fixed = fixed.replace(/ •/g, '\n•');
-
-    // Pattern 3: Multiple spaces before bullets
-    fixed = fixed.replace(/  +•/g, '\n•');
-
-    // Pattern 4: Ensure no double newlines before bullets
-    fixed = fixed.replace(/\n\n+•/g, '\n•');
-
-    // Pattern 5: Ensure bullets start on new lines (except first one)
-    // "Text content • Item" → "Text content\n• Item"
-    fixed = fixed.replace(/([^\n])( •)/g, '$1\n•');
-
-    // Pattern 6: Fix bullets at start of line with extra space
-    fixed = fixed.replace(/\n +•/g, '\n•');
-
-    return fixed;
+    return formatEnforcement.fixBulletLineBreaks(text);
   }
 
   /**
    * Remove any text that appears after the "Next actions:" section
-   *
-   * Problem: AI sometimes adds extra commentary after the bullet points
-   * Example:
-   *   Next actions:
-   *   • Action 1
-   *   • Action 2
-   *
-   *   This is extra text we want to remove.
-   *
-   * Solution: Find "Next actions:", keep bullets, remove everything after
+   * @deprecated Handled by formatEnforcement.removeParagraphsAfterBullets() and formatNextActionsSection()
    */
   removeTextAfterNextActions(text: string): string {
-    // Find the "Next actions:" section
-    const nextActionsIndex = text.indexOf('Next actions:');
-    if (nextActionsIndex === -1) {
-      return text; // No "Next actions:" found
-    }
-
-    // Get text after "Next actions:"
-    const afterNextActions = text.substring(nextActionsIndex);
-
-    // Find all bullet points after "Next actions:"
-    const bulletMatches = afterNextActions.match(/•[^\n]+/g);
-
-    if (!bulletMatches || bulletMatches.length === 0) {
-      return text; // No bullets found, return as is
-    }
-
-    // Find the position of the last bullet point
-    const lastBullet = bulletMatches[bulletMatches.length - 1];
-    const lastBulletIndex = afterNextActions.lastIndexOf(lastBullet);
-    const endOfLastBullet = lastBulletIndex + lastBullet.length;
-
-    // Construct final text: everything before "Next actions:" + "Next actions:" + bullets only
-    const beforeNextActions = text.substring(0, nextActionsIndex);
-    const nextActionsSection = afterNextActions.substring(0, endOfLastBullet);
-
-    return beforeNextActions + nextActionsSection;
+    // This is now handled by FormatEnforcementService
+    return text;
   }
 
   /**
@@ -199,8 +135,8 @@ export class ResponseFormatterService {
       const markdownSeparator = '|' + headers.map(() => '---').join('|') + '|';
 
       // Process body rows
-      const rows = bodyLines.trim().split('\n').filter(line => line.trim());
-      const markdownRows = rows.map(row => {
+      const rows = bodyLines.trim().split('\n').filter((line: string) => line.trim());
+      const markdownRows = rows.map((row: string) => {
         const cols = row.trim().split(/\s{2,}/);
         return '| ' + cols.join(' | ') + ' |';
       });
@@ -305,98 +241,26 @@ export class ResponseFormatterService {
 
   /**
    * Detect if text contains emojis
+   * @deprecated Use formatEnforcement.hasEmojis() instead
    */
   hasEmojis(text: string): boolean {
-    // Common emoji patterns
-    const emojiPattern = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F910}-\u{1F96B}\u{1F980}-\u{1F9E0}\u{2300}-\u{23FF}\u{2B50}\u{2705}\u{274C}\u{1F004}\u{1F170}-\u{1F251}]/u;
-    return emojiPattern.test(text);
+    return formatEnforcement.hasEmojis(text);
   }
 
   /**
    * Remove all emojis from text
-   *
-   * User requirement: NO emojis in responses (✅ ❌ 🔍 📁 📊 📄 🎯 ⚠️ etc.)
+   * @deprecated Use formatEnforcement.removeEmojis() instead
    */
   removeEmojis(text: string): string {
-    // Comprehensive emoji removal pattern
-    const emojiPattern = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F910}-\u{1F96B}\u{1F980}-\u{1F9E0}\u{2300}-\u{23FF}\u{2B50}\u{2705}\u{274C}\u{1F004}\u{1F170}-\u{1F251}]/gu;
-
-    // Remove emojis and clean up any extra spaces left behind
-    let cleaned = text.replace(emojiPattern, '');
-
-    // Clean up multiple spaces left by emoji removal
-    cleaned = cleaned.replace(/\s{2,}/g, ' ');
-
-    // Clean up space at start of lines
-    cleaned = cleaned.replace(/^\s+/gm, '');
-
-    return cleaned;
+    return formatEnforcement.removeEmojis(text);
   }
 
   /**
    * Remove paragraphs that come after bullet points
-   *
-   * User requirement: "THERE SHOULD NOT BE ANY TYPE OF PARAGRAPH EXPLANATION"
-   * Once bullets end, the response should STOP (except for "Next actions:" section)
-   *
-   * Examples to remove:
-   * • Bullet 1
-   * • Bullet 2
-   *
-   * This is an extra paragraph that should be removed.
-   *
-   * Another paragraph that should also be removed.
+   * @deprecated Use formatEnforcement.removeParagraphsAfterBullets() instead
    */
   removeParagraphsAfterBullets(text: string): string {
-    // Strategy:
-    // 1. Find the last bullet point
-    // 2. Check if there's a "Next actions:" section
-    // 3. Remove any text between last bullet and "Next actions:" (or end of text)
-
-    // Find all bullet points
-    const bulletMatches = text.match(/•[^\n]+/g);
-
-    if (!bulletMatches || bulletMatches.length === 0) {
-      return text; // No bullets, return as-is
-    }
-
-    // Find the position of the last bullet
-    const lastBullet = bulletMatches[bulletMatches.length - 1];
-    const lastBulletIndex = text.lastIndexOf(lastBullet);
-    const endOfLastBullet = lastBulletIndex + lastBullet.length;
-
-    // Check if there's a "Next actions:" section
-    const nextActionsIndex = text.indexOf('Next actions:', endOfLastBullet);
-
-    if (nextActionsIndex !== -1) {
-      // There's a "Next actions:" section
-      // Remove text between last bullet and "Next actions:"
-      const beforeBullets = text.substring(0, endOfLastBullet);
-      const nextActionsSection = text.substring(nextActionsIndex);
-
-      // Check if there's significant text between last bullet and "Next actions:"
-      const textBetween = text.substring(endOfLastBullet, nextActionsIndex).trim();
-
-      if (textBetween.length > 0) {
-        // There's unwanted text - remove it
-        console.log(`📝 [ResponseFormatter] Removing ${textBetween.length} chars between bullets and "Next actions:"`);
-        return beforeBullets + '\n\n' + nextActionsSection;
-      }
-
-      return text; // No unwanted text
-    } else {
-      // No "Next actions:" section
-      // Remove any text after last bullet
-      const afterLastBullet = text.substring(endOfLastBullet).trim();
-
-      // Check if there's significant text after last bullet (ignoring whitespace)
-      if (afterLastBullet.length > 0) {
-        console.log(`📝 [ResponseFormatter] Removing ${afterLastBullet.length} chars after last bullet`);
-        return text.substring(0, endOfLastBullet);
-      }
-
-      return text; // No unwanted text
-    }
+    return formatEnforcement.removeParagraphsAfterBullets(text);
   }
 
   /**
@@ -421,37 +285,10 @@ export class ResponseFormatterService {
 
   /**
    * Enforce max 2-line intro before bullets
-   *
-   * User requirement: "the intro to the answer but it needs to have max 2 lines"
-   *
-   * Strategy:
-   * 1. Find first bullet point
-   * 2. Get text before first bullet (intro)
-   * 3. If intro is more than 2 lines, truncate to 2 lines
+   * @deprecated Use formatEnforcement.enforceMaxTwoLineIntro() instead
    */
   enforceMaxTwoLineIntro(text: string): string {
-    // Find first bullet point
-    const firstBulletMatch = text.match(/•/);
-
-    if (!firstBulletMatch) {
-      return text; // No bullets, return as-is
-    }
-
-    const firstBulletIndex = text.indexOf('•');
-    const intro = text.substring(0, firstBulletIndex).trim();
-    const bulletsAndRest = text.substring(firstBulletIndex);
-
-    // Split intro into lines
-    const introLines = intro.split('\n').filter(line => line.trim().length > 0);
-
-    // If intro is more than 2 lines, keep only first 2
-    if (introLines.length > 2) {
-      console.log(`📝 [ResponseFormatter] Truncating intro from ${introLines.length} lines to 2 lines`);
-      const truncatedIntro = introLines.slice(0, 2).join('\n');
-      return truncatedIntro + '\n\n' + bulletsAndRest;
-    }
-
-    return text; // Intro is already 2 lines or less
+    return formatEnforcement.enforceMaxTwoLineIntro(text);
   }
 
   /**
@@ -917,21 +754,10 @@ EXAMPLE:
 
   /**
    * Clean up excessive whitespace (final polish)
-   *
-   * Removes:
-   * - More than 2 consecutive newlines
-   * - Trailing whitespace from lines
-   * - Leading/trailing whitespace from entire text
+   * @deprecated Use formatEnforcement.cleanWhitespace() instead
    */
   cleanWhitespace(text: string): string {
-    // Remove more than 2 consecutive newlines
-    let cleaned = text.replace(/\n{3,}/g, '\n\n');
-
-    // Remove trailing whitespace from lines
-    cleaned = cleaned.split('\n').map(line => line.trimEnd()).join('\n');
-
-    // Remove leading/trailing whitespace from entire text
-    return cleaned.trim();
+    return formatEnforcement.cleanWhitespace(text);
   }
 }
 

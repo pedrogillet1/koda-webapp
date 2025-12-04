@@ -57,7 +57,7 @@ class FallbackResponseService {
     const { query, reason, documentCount, documentNames, language } = context;
 
     const model = geminiClient.getModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 300,
@@ -123,7 +123,7 @@ Generate the clarification request now:`;
     const { query, reason, documentCount, documentNames, language } = context;
 
     const model = geminiClient.getModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 400,
@@ -198,7 +198,7 @@ Generate the knowledge fallback response now:`;
     const { query, documentCount, language } = context;
 
     const model = geminiClient.getModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 300,
@@ -257,7 +257,7 @@ Generate the refusal response now:`;
     const { query, errorDetails, language } = context;
 
     const model = geminiClient.getModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.6, // Lower temperature for consistency
         maxOutputTokens: 250,
@@ -321,7 +321,7 @@ Generate the error recovery response now:`;
     language: string
   ): Promise<string> {
     const model = geminiClient.getModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 400,

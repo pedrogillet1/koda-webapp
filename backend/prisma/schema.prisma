@@ -1158,13 +1158,6 @@ model UserProfile {
   role      String?  // e.g., "lawyer", "accountant", "student"
   organization String?
   expertiseLevel String? // "beginner", "intermediate", "expert"
-
-  // Knowledge gathering fields
-  customInstructions String? @db.Text // User-provided general instructions
-  writingStyle       String?          // e.g., 'concise', 'detailed', 'bullet-points'
-  preferredTone      String?          // e.g., 'formal', 'casual', 'humorous'
-  coreGoals          String? @db.Text // Key goals the user is working on
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1653,75 +1646,6 @@ model FolderSummary {
 
 
 // ════════════════════════════════════════════════════════════════════════════════
-// TRUSTED SOURCES - For Fact-Checking in Explanation Pipeline
-// ════════════════════════════════════════════════════════════════════════════════
-
-model TrustedSource {
-  id          String   @id @default(uuid())
-  domain      String   @unique  // e.g., "wikipedia.org", "britannica.com"
-  name        String             // Display name: "Wikipedia", "Britannica"
-  category    String?            // "encyclopedia", "academic", "news", "government"
-  priority    Int      @default(5)  // 1-10, higher = more trusted
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([domain])
-  @@index([category])
-  @@index([isActive])
-  @@map("trusted_sources")
-}
-
-// ════════════════════════════════════════════════════════════════════════════════
-// CULTURAL CONTEXT ENGINE - Multilingual & Multicultural Support
-// ════════════════════════════════════════════════════════════════════════════════
-
-model CulturalProfile {
-  id           String   @id @default(cuid())
-  languageCode String   @unique // e.g., 'en', 'pt', 'es', 'fr'
-  systemPrompt String   @db.Text // The culturally-aware system prompt
-  tone         String   @default("helpful") // e.g., 'formal', 'friendly'
-  currency     String? // e.g., 'USD', 'BRL', 'EUR'
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@map("cultural_profiles")
-}
-
-// ════════════════════════════════════════════════════════════════════════════════
-// AI CREATIVITY ENGINE - Persona System
-// ════════════════════════════════════════════════════════════════════════════════
-
-// Persona model - Custom AI personas with different personalities and styles
-model Persona {
-  id              String   @id @default(uuid())
-  userId          String?  // Null for system personas
-  name            String   // Unique name identifier (e.g., "comedian", "academic")
-  displayName     String   // User-friendly display name
-  description     String?  @db.Text // Description of the persona
-  systemPrompt    String   @db.Text // The system prompt for this persona
-
-  // Personality configuration
-  recommendedTemperature Float   @default(0.7) // Recommended temperature (0.0-2.0)
-  tags            String[] @default([]) // Tags for categorization (e.g., ["funny", "creative"])
-
-  // Metadata
-  isSystem        Boolean  @default(false) // System personas cannot be deleted
-  usageCount      Int      @default(0) // Number of times used
-  isActive        Boolean  @default(true)
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@unique([userId, name])
-  @@index([userId])
-  @@index([name])
-  @@index([isSystem])
-  @@index([isActive])
-  @@map("personas")
-}
-
-// ════════════════════════════════════════════════════════════════════════════════
 // PRESENTATION GENERATION SYSTEM (Manus-Style Slides)
 // ════════════════════════════════════════════════════════════════════════════════
 
@@ -1732,24 +1656,24 @@ model Presentation {
   title       String
   description String?  @db.Text
   status      String   @default("draft") // draft, generating, completed, failed
-
+  
   // Style configuration (Koda design system)
   colorPalette        String?  @db.Text // JSON: primary, secondary, accent colors
   typography          String?  @db.Text // JSON: font families and sizes
   aestheticDirection  String?  @db.Text // Design direction description
-
+  
   // Metadata
   totalSlides  Int      @default(0)
   viewCount    Int      @default(0)
   lastViewedAt DateTime?
-
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
+  
   // Relations
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   slides      Slide[]
-
+  
   @@index([userId])
   @@index([status])
   @@index([createdAt])
@@ -1789,4 +1713,289 @@ model Slide {
   @@index([presentationId])
   @@index([status])
   @@map("slides")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// INFINITE CONVERSATION MEMORY SYSTEM - Manus-style Architecture
+// ════════════════════════════════════════════════════════════════════════════════
+// PURPOSE: Enable infinite conversation memory through semantic chunking and retrieval
+// WHY: Prevent context overflow, enable "which chat was this in?", never forget
+// HOW: Chunk conversations → Embed chunks → Retrieve semantically when needed
+
+// Conversation Chunk - Semantic segments of conversations with embeddings
+model ConversationChunk {
+  id              String   @id @default(uuid())
+  conversationId  String
+  userId          String
+  
+  // Message range this chunk covers
+  startMessageId  String
+  endMessageId    String
+  messageCount    Int      @default(0)
+  
+  // Content
+  content         String   @db.Text  // Full text of messages in this chunk
+  summary         String   @db.Text  // AI-generated summary of chunk
+  
+  // Semantic metadata
+  topics          String[]           // Extracted topics (e.g., ["budget", "Q4 revenue"])
+  entities        String[]           // Named entities (e.g., ["Budget 2024.xlsx", "John"])
+  keywords        String[]           // Key terms for search
+  
+  // Vector embedding metadata
+  vectorId        String?  @unique   // Pinecone vector ID
+  embeddingModel  String   @default("text-embedding-004")
+  
+  // Quality metrics
+  importance      Float    @default(0.5)  // 0-1 score for chunk importance
+  coherence       Float    @default(0.5)  // 0-1 score for topic coherence
+  
+  // Timestamps
+  firstMessageAt  DateTime           // Timestamp of first message in chunk
+  lastMessageAt   DateTime           // Timestamp of last message in chunk
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([conversationId])
+  @@index([userId])
+  @@index([vectorId])
+  @@index([conversationId, lastMessageAt])
+  @@index([userId, lastMessageAt])
+  @@map("conversation_chunks")
+}
+
+// Conversation Index - High-level conversation summaries for cross-chat search
+model ConversationIndex {
+  id              String   @id @default(uuid())
+  conversationId  String   @unique
+  userId          String
+  
+  // Conversation metadata
+  title           String
+  summary         String   @db.Text  // Overall conversation summary
+  
+  // Semantic metadata
+  mainTopics      String[]           // Primary topics discussed
+  keyEntities     String[]           // Important entities mentioned
+  keywords        String[]           // Searchable keywords
+  
+  // Statistics
+  messageCount    Int      @default(0)
+  chunkCount      Int      @default(0)
+  userMessageCount Int     @default(0)
+  assistantMessageCount Int @default(0)
+  
+  // Vector embedding metadata
+  vectorId        String?  @unique   // Pinecone vector ID for conversation-level search
+  embeddingModel  String   @default("text-embedding-004")
+  
+  // Timestamps
+  firstMessageAt  DateTime
+  lastMessageAt   DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([vectorId])
+  @@index([userId, lastMessageAt])
+  @@map("conversation_indexes")
+}
+
+// Conversation Context State - Tracks what's currently in context window
+model ConversationContextState {
+  id              String   @id @default(uuid())
+  conversationId  String   @unique
+  userId          String
+  
+  // Current context composition
+  recentMessageIds     String[]      // IDs of recent messages in context
+  retrievedChunkIds    String[]      // IDs of chunks retrieved for context
+  memoryIds            String[]      // IDs of memories included in context
+  
+  // Token usage tracking
+  totalTokens          Int    @default(0)
+  recentMessagesTokens Int    @default(0)
+  chunksTokens         Int    @default(0)
+  memoriesTokens       Int    @default(0)
+  documentsTokens      Int    @default(0)
+  
+  // Compression state
+  isCompressed         Boolean @default(false)
+  compressionLevel     Int     @default(0)  // 0=none, 1=light, 2=medium, 3=heavy
+  lastCompressedAt     DateTime?
+  
+  // Last query context
+  lastQuery            String?  @db.Text
+  lastQueryEmbedding   Json?    // Store for similarity comparison
+  
+  updatedAt            DateTime @updatedAt
+  
+  @@index([conversationId])
+  @@index([userId])
+  @@map("conversation_context_states")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// ANALYTICS SYSTEM - Admin Dashboard Data
+// ════════════════════════════════════════════════════════════════════════════════
+
+// Daily aggregated statistics for historical tracking
+model AnalyticsDailyStat {
+  id                    String   @id @default(uuid())
+  date                  DateTime @unique // The date for these stats (stored as midnight UTC)
+
+  // User metrics
+  totalUsers            Int      @default(0)
+  newUsers              Int      @default(0)
+  activeUsers           Int      @default(0)
+
+  // Conversation metrics
+  totalConversations    Int      @default(0)
+  newConversations      Int      @default(0)
+
+  // Message metrics
+  totalMessages         Int      @default(0)
+  userMessages          Int      @default(0)
+  assistantMessages     Int      @default(0)
+
+  // Document metrics
+  totalDocuments        Int      @default(0)
+  newDocuments          Int      @default(0)
+  storageUsedBytes      BigInt   @default(0)
+
+  // System metrics
+  errorCount            Int      @default(0)
+  avgResponseTimeMs     Int      @default(0)
+
+  // Cost metrics
+  estimatedCostUSD      Float    @default(0)
+  geminiApiCalls        Int      @default(0)
+  embeddingCalls        Int      @default(0)
+
+  // Timestamps
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([date])
+  @@map("analytics_daily_stats")
+}
+
+// User activity tracking for detailed analytics
+model AnalyticsUserActivity {
+  id                    String   @id @default(uuid())
+  userId                String
+  date                  DateTime // The date of activity
+
+  // Activity counts
+  sessionsCount         Int      @default(0)
+  messagesSent          Int      @default(0)
+  documentsUploaded     Int      @default(0)
+  conversationsCreated  Int      @default(0)
+  ragQueriesCount       Int      @default(0)
+
+  // Engagement metrics
+  totalActiveMinutes    Int      @default(0)
+  lastActiveAt          DateTime?
+
+  // Feature usage
+  featuresUsed          String[] @default([]) // Array of feature names used
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+  @@index([userId, date])
+  @@map("analytics_user_activity")
+}
+
+// System health snapshots for monitoring
+model AnalyticsSystemHealth {
+  id                    String   @id @default(uuid())
+  timestamp             DateTime @default(now())
+
+  // Database metrics
+  databaseConnections   Int      @default(0)
+  databaseSizeBytes     BigInt   @default(0)
+  slowQueryCount        Int      @default(0)
+
+  // API metrics
+  requestsPerMinute     Int      @default(0)
+  avgResponseTimeMs     Int      @default(0)
+  errorRate             Float    @default(0)
+
+  // Server metrics
+  cpuUsagePercent       Float    @default(0)
+  memoryUsagePercent    Float    @default(0)
+  diskUsagePercent      Float    @default(0)
+
+  // External services
+  pineconeLatencyMs     Int      @default(0)
+  geminiLatencyMs       Int      @default(0)
+  s3LatencyMs           Int      @default(0)
+
+  @@index([timestamp])
+  @@map("analytics_system_health")
+}
+
+// Error tracking for debugging and monitoring
+model AnalyticsError {
+  id                    String   @id @default(uuid())
+  timestamp             DateTime @default(now())
+
+  // Error details
+  errorType             String   // 'api_error', 'database_error', 'external_service', 'validation', etc.
+  errorCode             String?  // HTTP status code or custom error code
+  errorMessage          String   @db.Text
+  stackTrace            String?  @db.Text
+
+  // Context
+  endpoint              String?  // API endpoint that caused the error
+  method                String?  // HTTP method
+  userId                String?  // User who triggered the error (if known)
+  requestBody           String?  @db.Text // Sanitized request body
+
+  // Resolution
+  isResolved            Boolean  @default(false)
+  resolvedAt            DateTime?
+  resolvedBy            String?  // Admin who resolved it
+  resolution            String?  @db.Text // How it was resolved
+
+  // Grouping
+  fingerprint           String?  // Hash for grouping similar errors
+  occurrenceCount       Int      @default(1)
+  firstOccurrence       DateTime @default(now())
+  lastOccurrence        DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([errorType])
+  @@index([fingerprint])
+  @@index([isResolved])
+  @@index([userId])
+  @@map("analytics_errors")
+}
+
+// Admin action audit log
+model AdminAuditLog {
+  id                    String   @id @default(uuid())
+  adminUserId           String
+  timestamp             DateTime @default(now())
+
+  // Action details
+  action                String   // 'view_analytics', 'export_data', 'clear_cache', etc.
+  resource              String?  // What was accessed/modified
+  resourceId            String?  // ID of the resource
+
+  // Request details
+  ipAddress             String?
+  userAgent             String?
+
+  // Additional data
+  details               Json?    // Additional context
+
+  @@index([adminUserId])
+  @@index([timestamp])
+  @@index([action])
+  @@map("admin_audit_logs")
 }

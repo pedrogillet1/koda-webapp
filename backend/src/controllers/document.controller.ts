@@ -222,21 +222,32 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // ✅ INSTANT UPLOAD: Emit FULL document object via WebSocket
-    // Document is returned with status='processing', frontend will add it to state immediately
-    emitToUser(req.user.id, 'document-created', document);
-    console.log('📡 [WebSocket] Emitted document-created event with full document object');
+    // Check if document already existed (duplicate upload)
+    const isExisting = (document as any).isExisting === true;
 
-    // Invalidate cache immediately
-    await cacheService.invalidateDocumentListCache(req.user.id);
-    console.log('🗑️ [Cache] Invalidated document list cache immediately');
+    // Remove the isExisting flag from the document object before sending
+    const { isExisting: _, ...cleanDocument } = document as any;
 
-    // Emit folder-tree-updated event to refresh folder tree
-    emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
+    if (!isExisting) {
+      // ✅ INSTANT UPLOAD: Emit FULL document object via WebSocket (only for new uploads)
+      // Document is returned with status='processing', frontend will add it to state immediately
+      emitToUser(req.user.id, 'document-created', cleanDocument);
+      console.log('📡 [WebSocket] Emitted document-created event with full document object');
+
+      // Invalidate cache immediately
+      await cacheService.invalidateDocumentListCache(req.user.id);
+      console.log('🗑️ [Cache] Invalidated document list cache immediately');
+
+      // Emit folder-tree-updated event to refresh folder tree
+      emitToUser(req.user.id, 'folder-tree-updated', { documentId: cleanDocument.id });
+    } else {
+      console.log('📋 [Upload] File already exists, returning existing document');
+    }
 
     res.status(201).json({
-      message: 'Document uploaded successfully',
-      document,
+      message: isExisting ? 'File already exists in this folder' : 'Document uploaded successfully',
+      document: cleanDocument,
+      isExisting,
     });
   } catch (error) {
     const err = error as Error;
@@ -302,26 +313,42 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
 
     const documents = await Promise.all(uploadPromises);
 
-    console.log(`📤 [Backend] Returning ${documents.length} document(s) to frontend`);
-    console.log(`📤 [Backend] Document IDs:`, documents.map(d => d?.id || 'null').join(', '));
+    // Separate new uploads from existing documents
+    const newDocuments = documents.filter(doc => doc && !(doc as any).isExisting);
+    const existingDocuments = documents.filter(doc => doc && (doc as any).isExisting);
 
-    // Emit real-time events for all created documents
-    documents.forEach(doc => {
+    // Clean isExisting flag from all documents
+    const cleanDocuments = documents.map(doc => {
+      if (!doc) return doc;
+      const { isExisting: _, ...clean } = doc as any;
+      return clean;
+    });
+
+    console.log(`📤 [Backend] Returning ${documents.length} document(s) to frontend (${newDocuments.length} new, ${existingDocuments.length} existing)`);
+    console.log(`📤 [Backend] Document IDs:`, cleanDocuments.map(d => d?.id || 'null').join(', '));
+
+    // Emit real-time events only for newly created documents
+    newDocuments.forEach(doc => {
       if (doc) {
         emitDocumentEvent(req.user!.id, 'created', doc.id);
       }
     });
 
-    // ✅ INSTANT UPLOAD: Invalidate cache immediately (no delay!)
-    await cacheService.invalidateDocumentListCache(req.user.id);
-    console.log('🗑️ [Cache] Invalidated document list cache immediately');
+    // ✅ INSTANT UPLOAD: Invalidate cache immediately (no delay!) - only if new docs uploaded
+    if (newDocuments.length > 0) {
+      await cacheService.invalidateDocumentListCache(req.user.id);
+      console.log('🗑️ [Cache] Invalidated document list cache immediately');
 
-    // Emit folder-tree-updated event to refresh folder tree
-    emitToUser(req.user.id, 'folder-tree-updated', { documentCount: documents.length });
+      // Emit folder-tree-updated event to refresh folder tree
+      emitToUser(req.user.id, 'folder-tree-updated', { documentCount: newDocuments.length });
+    }
 
     res.status(201).json({
-      message: `${documents.length} documents uploaded successfully`,
-      documents,
+      message: existingDocuments.length > 0
+        ? `${newDocuments.length} documents uploaded, ${existingDocuments.length} already existed`
+        : `${cleanDocuments.length} documents uploaded successfully`,
+      documents: cleanDocuments,
+      existingCount: existingDocuments.length,
     });
   } catch (error) {
     const err = error as Error;

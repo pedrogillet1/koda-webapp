@@ -300,7 +300,7 @@ export async function generateFormattedOutput(
     // Get the AI model
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: maxTokens,
@@ -310,6 +310,21 @@ export async function generateFormattedOutput(
     // Generate the response
     const result = await model.generateContent(prompt);
     const content = result.response.text().trim();
+
+    // Check for empty response - use fallback if Gemini returned nothing
+    if (!content || content.length === 0) {
+      console.warn(`[UnifiedFormatting] Gemini returned empty response for ${context.outputType}, using fallback`);
+      return {
+        content: getFallbackResponse(context),
+        metadata: {
+          outputType: context.outputType,
+          language: context.language,
+          wordCount: 0,
+          hasStructure: false,
+          estimatedReadingTime: 0,
+        },
+      };
+    }
 
     // Calculate metadata
     const wordCount = content.split(/\s+/).length;
