@@ -316,6 +316,7 @@ class ExcelToHtmlStyledService {
 
   /**
    * Format cell value
+   * ✅ FIX: Properly handle Excel formulas - use calculated result when available
    */
   private formatCellValue(cell: ExcelJS.Cell): string {
     if (cell.value === null || cell.value === undefined) {
@@ -324,9 +325,15 @@ class ExcelToHtmlStyledService {
 
     const value = cell.value as any;
 
-    // Handle formula cells
+    // Handle formula cells - ✅ FIX: Show calculated result, not formula text
     if (value.formula) {
-      return value.result !== undefined ? this.formatValue(value.result, cell) : '';
+      // Check if we have a calculated result
+      if (value.result !== undefined && value.result !== null) {
+        return this.formatValue(value.result, cell);
+      }
+      // If no result, show a warning indicator (formula wasn't calculated)
+      console.warn(`[EXCEL] Formula not calculated: =${value.formula}`);
+      return `[Formula: =${value.formula}]`;
     }
 
     // Handle rich text
