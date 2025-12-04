@@ -103,6 +103,8 @@ export interface AnswerGenerationConfig {
   language?: string;
   includeMetadata?: boolean;
   includeImplications?: boolean;
+  forceConversationOnly?: boolean; // NEW: When true, answer ONLY from conversation context
+  profilePrompt?: string; // User profile custom prompt
 }
 
 export interface GeneratedAnswer {
@@ -236,25 +238,47 @@ export function buildAnswerPrompt(config: AnswerGenerationConfig): string {
   // Priority 1: Use pre-formatted conversationContext (from infinite memory)
   if (config.conversationContext && config.conversationContext.trim().length > 0) {
     conversationSection = `
-**CONVERSATION HISTORY (CHECK THIS FIRST!):**
+═══════════════════════════════════════════════════════════════════════════════
+MANDATORY: CONVERSATION HISTORY (YOU MUST CHECK THIS FIRST!)
+═══════════════════════════════════════════════════════════════════════════════
+
 ${config.conversationContext}
 
-**IMPORTANT - CONTEXT PRIORITY:**
-1. FIRST, check if the answer is in the CONVERSATION HISTORY above. If the user asks about something discussed earlier, answer from the conversation.
-2. SECOND, if not found in conversation history, use the DOCUMENT INFORMATION below.
-3. Use conversation history to understand references (like "it", "the document", "that file").
+═══════════════════════════════════════════════════════════════════════════════
+MANDATORY CONTEXT PRIORITY RULES (FOLLOW EXACTLY):
+═══════════════════════════════════════════════════════════════════════════════
+
+1. **ALWAYS CHECK CONVERSATION HISTORY FIRST** before looking at documents.
+2. If the user asks about ANYTHING mentioned in the conversation above (budgets, projects,
+   names, numbers, revenue, team leads, features, etc.) - answer from the CONVERSATION.
+3. Do NOT say "I don't have documents" if the answer is in the conversation history.
+4. Do NOT suggest uploading files if you can answer from the conversation.
+5. Only use documents if the information is NOT in the conversation history.
+6. References like "the budget", "our revenue", "the team lead" refer to the conversation.
+
 `;
   }
   // Priority 2: Use conversationHistory array format (legacy)
   else if (config.conversationHistory && config.conversationHistory.length > 0) {
     conversationSection = `
-**CONVERSATION HISTORY (CHECK THIS FIRST!):**
+═══════════════════════════════════════════════════════════════════════════════
+MANDATORY: CONVERSATION HISTORY (YOU MUST CHECK THIS FIRST!)
+═══════════════════════════════════════════════════════════════════════════════
+
 ${config.conversationHistory.map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`).join('\n\n')}
 
-**IMPORTANT - CONTEXT PRIORITY:**
-1. FIRST, check if the answer is in the CONVERSATION HISTORY above. If the user asks about something discussed earlier, answer from the conversation.
-2. SECOND, if not found in conversation history, use the DOCUMENT INFORMATION below.
-3. Use conversation history to understand references (like "it", "the document", "that file").
+═══════════════════════════════════════════════════════════════════════════════
+MANDATORY CONTEXT PRIORITY RULES (FOLLOW EXACTLY):
+═══════════════════════════════════════════════════════════════════════════════
+
+1. **ALWAYS CHECK CONVERSATION HISTORY FIRST** before looking at documents.
+2. If the user asks about ANYTHING mentioned in the conversation above (budgets, projects,
+   names, numbers, revenue, team leads, features, etc.) - answer from the CONVERSATION.
+3. Do NOT say "I don't have documents" if the answer is in the conversation history.
+4. Do NOT suggest uploading files if you can answer from the conversation.
+5. Only use documents if the information is NOT in the conversation history.
+6. References like "the budget", "our revenue", "the team lead" refer to the conversation.
+
 `;
   }
 
@@ -376,20 +400,81 @@ Now, answer the user's query following these guidelines.`;
 }
 
 /**
+ * Build a prompt specifically for answering from conversation context ONLY
+ * Used when forceConversationOnly is true
+ */
+function buildConversationOnlyPrompt(config: AnswerGenerationConfig): string {
+  const languageInstruction = config.language && config.language !== 'en'
+    ? `IMPORTANT: Respond in ${config.language}.`
+    : 'Respond in English.';
+
+  return `You are a helpful assistant with PERFECT memory of our conversation.
+
+═══════════════════════════════════════════════════════════════════════════════
+MANDATORY INSTRUCTION - READ THIS FIRST:
+═══════════════════════════════════════════════════════════════════════════════
+
+You MUST answer the user's question using ONLY the conversation context below.
+This is information the user previously shared with you in this conversation.
+
+DO NOT:
+- Say you don't have access to documents
+- Suggest uploading files
+- Say you need more information (if it's in the context)
+- Make up information not in the context
+- Mention "documents" or "files" at all
+
+DO:
+- Answer directly from the conversation context
+- Reference what "we discussed" or "you mentioned"
+- Be confident - this is information YOU already know
+- Be concise and direct
+
+═══════════════════════════════════════════════════════════════════════════════
+CONVERSATION CONTEXT (YOUR MEMORY OF OUR CHAT):
+═══════════════════════════════════════════════════════════════════════════════
+
+${config.conversationContext}
+
+═══════════════════════════════════════════════════════════════════════════════
+USER'S QUESTION:
+═══════════════════════════════════════════════════════════════════════════════
+
+${config.query}
+
+═══════════════════════════════════════════════════════════════════════════════
+YOUR ANSWER:
+═══════════════════════════════════════════════════════════════════════════════
+
+${languageInstruction}
+
+Based on our conversation above, here's the answer:`;
+}
+
+/**
  * Generate answer using adaptive prompt
  */
 export async function generateAdaptiveAnswer(
   config: AnswerGenerationConfig,
   onChunk?: (chunk: string) => void
 ): Promise<GeneratedAnswer> {
-  const prompt = buildAnswerPrompt(config);
+  // Check if we should use conversation-only mode
+  let prompt: string;
 
-  // Initialize Gemini
+  if (config.forceConversationOnly && config.conversationContext) {
+    // CONVERSATION-ONLY MODE: Answer ONLY from conversation history
+    console.log('🎯 [ADAPTIVE] Using forceConversationOnly mode');
+    prompt = buildConversationOnlyPrompt(config);
+  } else {
+    prompt = buildAnswerPrompt(config);
+  }
+
+  // Initialize Gemini with lower temperature for conversation recall
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash',
     generationConfig: {
-      temperature: 0.7, // Higher for more natural variation
+      temperature: config.forceConversationOnly ? 0.3 : 0.7, // Lower for accurate recall
       maxOutputTokens: 2000,
     },
   });

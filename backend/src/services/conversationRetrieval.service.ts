@@ -19,18 +19,19 @@ import { getRelevantMemories } from './memory.service';
 const prisma = new PrismaClient();
 
 // Token budget configuration (Gemini 2.5 Flash: 1M input tokens)
+// INCREASED: Was too conservative, now using more of Gemini's capacity
 const TOKEN_BUDGET = {
-  TOTAL: 200000,           // Conservative limit for context
-  SYSTEM_PROMPT: 5000,     // 2.5%
-  RECENT_MESSAGES: 20000,  // 10% - Last 20 messages
-  HISTORICAL_CHUNKS: 30000, // 15% - Relevant past chunks
-  DOCUMENTS: 50000,        // 25% - Document chunks from RAG
-  MEMORIES: 5000,          // 2.5% - User memories
-  OUTPUT_RESERVE: 40000,   // 20% - Reserved for response
-  BUFFER: 50000            // 25% - Safety buffer
+  TOTAL: 800000,           // INCREASED from 200K - use more of 1M capacity
+  SYSTEM_PROMPT: 10000,    // 1.25%
+  RECENT_MESSAGES: 100000, // 12.5% - Last 50 messages (increased from 20)
+  HISTORICAL_CHUNKS: 240000, // 30% - INCREASED from 30K for more history
+  DOCUMENTS: 150000,       // 18.75% - Document chunks from RAG
+  MEMORIES: 20000,         // 2.5% - User memories (increased)
+  OUTPUT_RESERVE: 80000,   // 10% - Reserved for response
+  BUFFER: 200000           // 25% - Safety buffer
 };
 
-const RECENT_MESSAGE_COUNT = 20; // How many recent messages to include in full
+const RECENT_MESSAGE_COUNT = 50; // INCREASED from 20 - include more recent context
 
 export interface ConversationContext {
   recentMessages: Array<{
@@ -104,11 +105,12 @@ export async function getConversationContext(
     const oldestRecentTimestamp = recentMessages[0].createdAt;
 
     // Search for relevant chunks BEFORE recent messages
+    // FIXED: Lowered minScore from 0.7 to 0.5 and increased topK for better recall
     const searchResults = await conversationEmbedding.searchConversationChunks(query, {
       conversationId,
       userId,
-      topK: maxHistoricalChunks,
-      minScore: 0.7
+      topK: Math.max(maxHistoricalChunks, 10), // At least 10 chunks
+      minScore: 0.5 // LOWERED from 0.7 - was filtering out too many relevant chunks
     });
 
     // Filter out chunks that overlap with recent messages

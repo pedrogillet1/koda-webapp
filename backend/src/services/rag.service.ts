@@ -74,6 +74,13 @@ import infiniteConversationMemory from './infiniteConversationMemory.service';
 // Conversation Context Service (Multi-turn context management)
 import { conversationContextService } from './conversationContext.service';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW: Empty Response Prevention & Structured Response Generator
+// ═══════════════════════════════════════════════════════════════════════════
+// PURPOSE: Prevent empty responses and ensure 100% format compliance
+import { emptyResponsePrevention } from './emptyResponsePrevention.service';
+import { structuredResponseGenerator } from './structuredResponseGenerator.service';
+
 // ============================================================================
 // PERFORMANCE TIMING INSTRUMENTATION
 // ============================================================================
@@ -2512,6 +2519,272 @@ async function handleExcelDependentsQuery(
 }
 
 // ============================================================================
+// CONVERSATION CONTEXT PRE-CHECK (PHASE 1 FIX)
+// ============================================================================
+// PURPOSE: Check if query can be answered from conversation history BEFORE
+//          routing to calculation/excel handlers that might intercept it
+// WHY: Queries like "what was our Q4 revenue?" were being caught by calculation
+//      detector because they contain numbers, even when discussed in conversation
+// IMPACT: Ensures conversation context is always checked first
+
+/**
+ * Extract key terms from a query for conversation search
+ */
+function extractKeyTerms(query: string): string[] {
+  const stopWords = new Set([
+    'what', 'is', 'the', 'was', 'were', 'are', 'how', 'much', 'many', 'who',
+    'when', 'where', 'which', 'why', 'can', 'you', 'tell', 'me', 'about',
+    'do', 'does', 'did', 'have', 'has', 'had', 'be', 'been', 'being',
+    'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of',
+    'with', 'by', 'from', 'up', 'down', 'out', 'our', 'my', 'your', 'their'
+  ]);
+
+  // Important short terms that should NOT be filtered (financial quarters, etc.)
+  const importantShortTerms = new Set(['q1', 'q2', 'q3', 'q4', 'fy', 'roi']);
+
+  // Extract words, keeping numbers and important terms
+  const words = query.toLowerCase()
+    .replace(/[?!.,;:'"()]/g, '')
+    .split(/\s+/)
+    .filter(word => {
+      // Keep important short terms
+      if (importantShortTerms.has(word)) return true;
+      // Keep years (4-digit numbers)
+      if (/^\d{4}$/.test(word)) return true;
+      // Normal filter: length > 2 and not a stopword
+      return word.length > 2 && !stopWords.has(word);
+    });
+
+  // Also extract named entities (capitalized words in original query)
+  const namedEntities = query
+    .split(/\s+/)
+    .filter(word => /^[A-Z][a-z]+/.test(word) && word.length > 2)
+    .map(w => w.toLowerCase());
+
+  // Combine and deduplicate
+  const allTerms = [...new Set([...words, ...namedEntities])];
+
+  return allTerms;
+}
+
+/**
+ * Check if a query can be answered from conversation context
+ * Returns the answer if found, null if should proceed to other handlers
+ */
+async function checkConversationContextFirst(
+  query: string,
+  conversationId: string,
+  userId: string,
+  conversationHistory?: Array<{ role: string; content: string }>
+): Promise<{
+  canAnswer: boolean;
+  answer?: string;
+  confidence: number;
+  source: 'infinite_memory' | 'recent_history' | 'none';
+}> {
+  console.log('\n🧠 [CONV-CHECK] Checking conversation context FIRST...');
+  console.log(`   Query: "${query.substring(0, 80)}..."`);
+
+  const keyTerms = extractKeyTerms(query);
+  console.log(`   Key terms: ${keyTerms.join(', ')}`);
+
+  // Skip pre-check for pure calculation queries with no context indicators
+  const pureCalculationPatterns = [
+    /^\d+\s*[\+\-\*\/\^]\s*\d+/,  // 5 + 3
+    /^calculate\s+\d+/i,          // calculate 500...
+    /^what\s+is\s+\d+\s*[\+\-\*\/]/i,  // what is 5 + 3
+  ];
+
+  if (pureCalculationPatterns.some(p => p.test(query))) {
+    console.log('   ⏭️ Skipping: Pure calculation query');
+    return { canAnswer: false, confidence: 0, source: 'none' };
+  }
+
+  // Check for conversation context indicators
+  const contextIndicators = [
+    /\b(we|our|discussed|mentioned|said|told|earlier|before|previous)\b/i,
+    /\b(the|that)\s+(budget|revenue|project|team|lead|cost|price|amount|total)\b/i,
+    /\bwhat\s+(was|were|is|are)\s+(the|our|my)\b/i,
+    /\bwho\s+(is|was)\s+(the|our|my)\b/i,
+    /\b(q[1-4]|quarter|fiscal|year)\s*\d{0,4}\b/i,
+    /\b(project|initiative|team|lead|manager|budget)\b/i,
+  ];
+
+  const hasContextIndicator = contextIndicators.some(p => p.test(query));
+
+  if (!hasContextIndicator && keyTerms.length < 2) {
+    console.log('   ⏭️ Skipping: No context indicators and few key terms');
+    return { canAnswer: false, confidence: 0, source: 'none' };
+  }
+
+  try {
+    // STRATEGY 1: Check infinite memory first (semantic search)
+    console.log('   📚 Searching infinite memory...');
+    const memoryContext = await infiniteConversationMemory.getContextForQuery(
+      conversationId,
+      userId,
+      query
+    );
+
+    if (memoryContext && memoryContext.trim().length > 100) {
+      // Check if the memory context contains relevant information
+      const termsFound = keyTerms.filter(term =>
+        memoryContext.toLowerCase().includes(term.toLowerCase())
+      );
+
+      const termMatchRatio = termsFound.length / Math.max(keyTerms.length, 1);
+      console.log(`   📊 Term match ratio: ${termMatchRatio.toFixed(2)} (${termsFound.length}/${keyTerms.length})`);
+
+      if (termMatchRatio >= 0.4 || termsFound.length >= 2) {
+        console.log('   ✅ Found relevant context in infinite memory!');
+        return {
+          canAnswer: true,
+          answer: memoryContext,
+          confidence: Math.min(0.9, 0.5 + termMatchRatio * 0.4),
+          source: 'infinite_memory'
+        };
+      }
+    }
+
+    // STRATEGY 2: Check recent conversation history (last 30 messages)
+    console.log('   💬 Checking recent conversation history...');
+
+    let recentHistory = conversationHistory;
+    if (!recentHistory || recentHistory.length < 5) {
+      // Fetch from database
+      const messages = await prisma.message.findMany({
+        where: { conversationId },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        select: { role: true, content: true }
+      });
+      recentHistory = messages.reverse().map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+    }
+
+    if (recentHistory && recentHistory.length > 0) {
+      const historyText = recentHistory.map(m => m.content).join(' ').toLowerCase();
+
+      // Check if key terms appear in recent history
+      const termsInHistory = keyTerms.filter(term =>
+        historyText.includes(term.toLowerCase())
+      );
+
+      const historyMatchRatio = termsInHistory.length / Math.max(keyTerms.length, 1);
+      console.log(`   📊 History match ratio: ${historyMatchRatio.toFixed(2)} (${termsInHistory.length}/${keyTerms.length})`);
+
+      if (historyMatchRatio >= 0.5 || termsInHistory.length >= 2) {
+        // Build context from matching messages
+        const relevantMessages = recentHistory.filter(m =>
+          keyTerms.some(term => m.content.toLowerCase().includes(term.toLowerCase()))
+        );
+
+        if (relevantMessages.length > 0) {
+          const contextFromHistory = relevantMessages
+            .slice(-10) // Last 10 relevant messages
+            .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+            .join('\n\n');
+
+          console.log('   ✅ Found relevant context in recent history!');
+          return {
+            canAnswer: true,
+            answer: contextFromHistory,
+            confidence: Math.min(0.85, 0.4 + historyMatchRatio * 0.45),
+            source: 'recent_history'
+          };
+        }
+      }
+    }
+
+    console.log('   ❌ No relevant conversation context found');
+    return { canAnswer: false, confidence: 0, source: 'none' };
+
+  } catch (error) {
+    console.error('   ⚠️ Error checking conversation context:', error);
+    return { canAnswer: false, confidence: 0, source: 'none' };
+  }
+}
+
+/**
+ * Handle a query that should be answered from conversation context
+ */
+async function handleConversationContextQuery(
+  query: string,
+  conversationContext: string,
+  userId: string,
+  detectedLanguage: string,
+  onChunk: (chunk: string) => void,
+  onStage?: (stage: string, message: string) => void,
+  profilePrompt?: string
+): Promise<{ sources: any[] }> {
+  console.log('\n🎯 [CONV-ANSWER] Generating answer from conversation context...');
+
+  if (onStage) {
+    onStage('thinking', 'Recalling from our conversation...');
+  }
+
+  try {
+    // Use adaptive answer generation with conversation-only mode
+    const result = await adaptiveAnswerGeneration.generateAnswer({
+      query,
+      userId,
+      language: detectedLanguage || 'en',
+      conversationContext,
+      forceConversationOnly: true, // NEW: Forces LLM to use only conversation
+      profilePrompt,
+      documents: [], // No documents needed
+      fullDocumentTexts: new Map(),
+      retrievedChunks: [],
+    });
+
+    if (result.answer && result.answer.trim().length > 0) {
+      if (onChunk) onChunk(result.answer);
+      if (onStage) onStage('complete', 'Complete');
+      return { sources: [] };
+    }
+
+    // Fallback: Generate response directly
+    console.log('   ⚠️ Adaptive generation returned empty, using direct generation...');
+
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash',
+      generationConfig: { temperature: 0.3 }
+    });
+
+    const prompt = `You are a helpful assistant. Answer the user's question based ONLY on the conversation context provided.
+
+CONVERSATION CONTEXT:
+${conversationContext}
+
+USER QUESTION: ${query}
+
+INSTRUCTIONS:
+- Answer ONLY using information from the conversation context above
+- If the information is in the context, provide a direct answer
+- Do NOT say "I don't have documents" or suggest uploading files
+- Respond in ${detectedLanguage || 'English'}
+- Be concise and direct
+
+YOUR ANSWER:`;
+
+    const response = await model.generateContent(prompt);
+    const answer = response.response.text();
+
+    if (onChunk) onChunk(answer);
+    if (onStage) onStage('complete', 'Complete');
+
+    return { sources: [] };
+
+  } catch (error) {
+    console.error('   ❌ Error generating conversation answer:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
 // MAIN ENTRY POINT - Streaming Answer Generation
 // ============================================================================
 
@@ -2539,6 +2812,42 @@ export async function generateAnswerStream(
   console.log('🔍 [QUERY ROUTING] Starting query classification');
   console.log(`📝 [QUERY] "${query}"`);
   console.log('════════════════════════════════════════════════════════════════════════════════\n');
+
+  // ============================================================================
+  // 🧠 CONVERSATION CONTEXT PRE-CHECK (PHASE 1 FIX - RUNS FIRST!)
+  // ============================================================================
+  // PURPOSE: Check if query can be answered from conversation BEFORE other handlers
+  // WHY: Prevents calculation/excel handlers from intercepting conversation queries
+  // IMPACT: Queries like "what was our Q4 revenue?" now use conversation context
+
+  try {
+    const conversationCheck = await checkConversationContextFirst(
+      query,
+      conversationId,
+      userId,
+      conversationHistory
+    );
+
+    if (conversationCheck.canAnswer && conversationCheck.answer) {
+      console.log(`🧠 [CONV-CHECK] ✅ Can answer from ${conversationCheck.source} (confidence: ${conversationCheck.confidence.toFixed(2)})`);
+
+      // Handle the query using conversation context
+      return await handleConversationContextQuery(
+        query,
+        conversationCheck.answer,
+        userId,
+        detectedLanguage || 'en',
+        onChunk,
+        onStage,
+        profilePrompt
+      );
+    }
+
+    console.log('🧠 [CONV-CHECK] ❌ No conversation context found, proceeding to other handlers...');
+  } catch (error) {
+    console.error('🧠 [CONV-CHECK] Error in conversation pre-check:', error);
+    // Continue to other handlers if pre-check fails
+  }
 
   // ============================================================================
   // CALCULATION ENGINE - Check if this is a calculation query (Manus Method)
@@ -5953,22 +6262,22 @@ Provide a comprehensive answer addressing all parts of the query.`;
     } catch (infiniteMemoryError) {
       console.error(`⚠️ [INFINITE MEMORY] Failed, falling back to simple context:`, infiniteMemoryError);
 
-      // Fallback to simple conversation context
+      // Fallback to simple conversation context (INCREASED from 5 to 20)
       if (conversationHistory && conversationHistory.length > 0) {
         conversationContext = conversationHistory
-          .slice(-5)
+          .slice(-20)
           .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
           .join('\n\n');
-        console.log(`⚡ [CONTEXT] Fallback: Using last 5 of ${conversationHistory.length} messages`);
+        console.log(`⚡ [CONTEXT] Fallback: Using last 20 of ${conversationHistory.length} messages`);
       }
     }
   } else if (conversationHistory && conversationHistory.length > 0) {
-    // No conversationId - use simple fallback
+    // No conversationId - use simple fallback (INCREASED from 5 to 20)
     conversationContext = conversationHistory
-      .slice(-5)
+      .slice(-20)
       .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
       .join('\n\n');
-    console.log(`⚡ [CONTEXT] Simple mode: Using last 5 of ${conversationHistory.length} messages`);
+    console.log(`⚡ [CONTEXT] Simple mode: Using last 20 of ${conversationHistory.length} messages`);
   }
   perfTimer.measure('Conversation Context Build (Infinite Memory)', 'conversationContext');
 
@@ -6747,6 +7056,15 @@ Provide a comprehensive answer addressing all parts of the query.`;
     console.log(`⚡ [SPEED] Cohere reranking DISABLED (saved 2-3 seconds)`);
     console.log(`✅ [FAST PATH] Using ${rerankedChunks.length} chunks in Pinecone order`);
 
+    // ✅ NEW: Validate chunk quality before proceeding
+    const chunkQuality = emptyResponsePrevention.validateChunks(rerankedChunks, query);
+    if (!chunkQuality.isValid) {
+      console.warn(`⚠️ [CHUNK QUALITY] Validation failed: ${chunkQuality.reason}`);
+      // Continue but log warning - graceful degradation will handle if answer is poor
+    } else {
+      console.log(`✅ [CHUNK QUALITY] Score: ${chunkQuality.score.toFixed(2)}`);
+    }
+
     // Log score distribution for debugging
     if (rerankedChunks.length > 0) {
       const scores = rerankedChunks.slice(0, 5).map((c: any) => c.rerankScore.toFixed(2));
@@ -7274,21 +7592,23 @@ async function streamLLMResponse(
 
       console.log(`✅ [STREAMING] Complete. Total chars: ${fullAnswer.length}`);
 
-      // ✅ FIX: Retry on empty response from Gemini (transient API issue)
-      if (fullAnswer.length === 0) {
-        console.warn(`⚠️ [STREAMING] Gemini returned empty response on attempt ${attempt}`);
+      // ✅ ENHANCED: Validate response using EmptyResponsePrevention service
+      const validation = emptyResponsePrevention.validateResponse(fullAnswer, context, { answerLength: 'medium' });
+
+      if (!validation.isValid) {
+        console.warn(`⚠️ [STREAMING] Response validation failed: ${validation.reason}`);
 
         if (attempt < MAX_RETRIES) {
           // Wait before retry with exponential backoff
           const delayMs = 1000 * Math.pow(2, attempt - 1); // 1s, 2s, 4s
-          console.log(`⏳ [STREAMING] Retrying in ${delayMs}ms...`);
+          console.log(`⏳ [STREAMING] Retrying in ${delayMs}ms... (${validation.suggestions?.join(', ')})`);
           await new Promise(resolve => setTimeout(resolve, delayMs));
           continue; // Retry
         }
 
-        // All retries failed - send fallback
-        console.error('❌ [STREAMING] All retry attempts returned empty response');
-        const fallbackMessage = 'I found relevant information in your documents but had trouble generating a response. Please try rephrasing your question.';
+        // All retries failed - send context-aware fallback
+        console.error('❌ [STREAMING] All retry attempts failed validation');
+        const fallbackMessage = emptyResponsePrevention.getFallbackResponse(context, 'en');
         onChunk(fallbackMessage);
         return fallbackMessage;
       }

@@ -359,8 +359,8 @@ export async function needsChunking(conversationId: string): Promise<boolean> {
   });
 
   if (existingChunks.length === 0) {
-    // No chunks yet - need chunking if 10+ messages
-    return messageCount >= 10;
+    // No chunks yet - need chunking if 4+ messages (lowered from 10 for faster context)
+    return messageCount >= 4;
   }
 
   // Get last chunked message
@@ -373,7 +373,7 @@ export async function needsChunking(conversationId: string): Promise<boolean> {
   });
 
   if (!lastChunkedMessage) {
-    return messageCount >= 10;
+    return messageCount >= 4;
   }
 
   // Count messages after last chunk
@@ -384,8 +384,8 @@ export async function needsChunking(conversationId: string): Promise<boolean> {
     }
   });
 
-  // Need chunking if 10+ new messages
-  return unchunkedCount >= 10;
+  // Need chunking if 4+ new messages (lowered from 10 for faster context)
+  return unchunkedCount >= 4;
 }
 
 /**
@@ -419,8 +419,8 @@ export async function chunkNewMessages(
     }
   });
 
-  if (newMessages.length < 10) {
-    console.log(`📦 [CHUNKING] Only ${newMessages.length} new messages, skipping`);
+  if (newMessages.length < 4) {
+    console.log(`📦 [CHUNKING] Only ${newMessages.length} new messages, skipping (need 4+)`);
     return [];
   }
 

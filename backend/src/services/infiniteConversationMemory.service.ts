@@ -154,15 +154,22 @@ async function autoChunkConversation(
     // Save chunks to database
     await conversationChunking.saveChunks(chunks);
 
-    // Embed chunks in background (don't wait)
-    conversationEmbedding.embedChunksBatch(chunks).catch(error => {
-      console.error(`⚠️ [INFINITE MEMORY] Background embedding failed:`, error);
-    });
+    // FIXED: Wait for embeddings (was fire-and-forget, caused race conditions)
+    // Embeddings must complete before query can find them
+    try {
+      await conversationEmbedding.embedChunksBatch(chunks);
+      console.log(`♾️ [INFINITE MEMORY] Successfully embedded ${chunks.length} chunks`);
+    } catch (error) {
+      console.error(`⚠️ [INFINITE MEMORY] Chunk embedding failed:`, error);
+    }
 
-    // Update conversation index in background
-    conversationEmbedding.embedConversationIndex(conversationId, userId).catch(error => {
+    // Update conversation index (also synchronous now)
+    try {
+      await conversationEmbedding.embedConversationIndex(conversationId, userId);
+      console.log(`♾️ [INFINITE MEMORY] Updated conversation index`);
+    } catch (error) {
       console.error(`⚠️ [INFINITE MEMORY] Conversation index update failed:`, error);
-    });
+    }
 
     console.log(`♾️ [INFINITE MEMORY] Created and embedded ${chunks.length} new chunks`);
   } catch (error) {
