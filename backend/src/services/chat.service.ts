@@ -1024,18 +1024,17 @@ export const handleFileActionsIfNeeded = async (
   attachedFiles?: any[]
 ): Promise<{ action: string; message: string } | null> => {
 
-  // ✅ UNIFIED INTENT DETECTION
-  const intentDetectionService = require('./intentDetection.service').default;
-  const { toLegacyFormat } = require('./intentDetection.service');
+  // ✅ FIX #6: Simple Intent Detection (replaces LLM-based intentDetection.service)
+  const { detectIntent: detectSimpleIntent, toLegacyIntent } = require('./simpleIntentDetection.service');
   const fileActionsService = require('./fileActions.service').default;
 
   // ========================================
-  // Use unified intent detection (fast-path + LLM when needed)
+  // Use simple pattern-based intent detection (<10ms vs 3-6s LLM)
   // ========================================
-  const unifiedResult = await intentDetectionService.detect(message, []);
-  const intentResult = toLegacyFormat(unifiedResult);
+  const simpleResult = detectSimpleIntent(message);
+  const intentResult = toLegacyIntent(simpleResult);
 
-  console.log(`🎯 [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [${unifiedResult.detectionMethod}/${unifiedResult.detectionTimeMs}ms]`);
+  console.log(`⚡ [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [pattern/${simpleResult.detectionTimeMs}ms]`);
   console.log(`📝 [Entities]`, intentResult.parameters);
 
   // Only process file actions with high confidence
