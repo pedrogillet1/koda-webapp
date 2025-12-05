@@ -79,8 +79,7 @@ import infiniteConversationMemory from './infiniteConversationMemory.service';
 // Conversation Context Service (Multi-turn context management)
 import { conversationContextService } from './deletedServiceStubs';
 
-// Format Enforcement Services
-import formatEnforcementService from './formatEnforcement.service';
+// Format Enforcement Services (structureEnforcement only - kodaFormatEnforcement used instead of old formatEnforcement)
 import structureEnforcementService from './structureEnforcement.service';
 
 // Format Enforcement V2 and Citation Format Services (KODA 100/100)
@@ -4998,7 +4997,9 @@ async function handleDocumentComparison(
       const meta = match.metadata || {};
       // ✅ FIX: Use correct field names from Pinecone - try 'text' first, then 'content'
       const chunkContent = meta.text || meta.content || '';
-      return `[Document: ${meta.filename || 'Unknown'}, Page: ${meta.page || 'N/A'}]\n${chunkContent}`;
+      // ✅ FIX: Only show page if it exists and is > 0 (100% confidence)
+      const pageInfo = (meta.page && meta.page > 0) ? `, Page: ${meta.page}` : '';
+      return `[Document: ${meta.filename || 'Unknown'}${pageInfo}]\n${chunkContent}`;
     })
     .join('\n\n---\n\n');
 
@@ -6658,7 +6659,8 @@ async function handleRegularQuery(
     // Build context from optimized chunks with document type labels
     const contextChunks = optimizedContextResult.chunks.map((chunk: any, index: number) => {
       const content = chunk.content || '';
-      const page = chunk.pageNumber || 0;
+      // ✅ FIX: Don't default to 0, keep as undefined if not set
+      const page = chunk.pageNumber;
 
       // Get document type/name for context (helps with cross-document synthesis)
       let docLabel = 'Document';
@@ -6677,7 +6679,8 @@ async function handleRegularQuery(
         docLabel = chunk.documentTitle;
       }
 
-      const pageInfo = page > 0 ? ` (Page: ${page})` : '';
+      // ✅ FIX: Only show page if it exists and is > 0 (100% confidence)
+      const pageInfo = (page && page > 0) ? ` (Page: ${page})` : '';
       return `[${docLabel} - Context ${index + 1}]${pageInfo}\n${content}`;
     });
 
@@ -7881,10 +7884,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
       const meta = result.metadata || {};
       const documentId = meta.documentId || 'unknown';
       const filename = meta.filename || 'Unknown';
-      const page = meta.page || meta.pageNumber || 'N/A';
+      // ✅ FIX: Don't show page if not confident (undefined, 0, or N/A)
+      const page = meta.page || meta.pageNumber;
+      const pageInfo = (page && page > 0) ? `, Page: ${page}` : '';
 
       // ✅ Include documentId for citation tracking
-      return `[Document ${idx + 1}] ${filename} (documentId: ${documentId}, Page: ${page}):\n${meta.text || meta.content || result.content || ''}`;
+      return `[Document ${idx + 1}] ${filename} (documentId: ${documentId}${pageInfo}):\n${meta.text || meta.content || result.content || ''}`;
     }).join('\n\n---\n\n');
 
     console.log(`📚 [CONTEXT] Built context from ${rerankedChunks.length} chunks with folder locations`);
