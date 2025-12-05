@@ -17,7 +17,7 @@ import * as memoryService from './memory.service';
 import { detectLanguage } from './languageDetection.service';
 import { profileService } from './profile.service';
 import historyService from './history.service';
-import { conversationContextService } from './conversationContext.service';
+import { conversationContextService } from './deletedServiceStubs';
 import OpenAI from 'openai';
 import { config } from '../config/env';
 // Note: Format enforcement is handled by rag.service.ts - no need to import here

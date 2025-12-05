@@ -33,7 +33,7 @@ import calculationRouter from './calculation/calculationRouter.service';
 import { formatValidationService } from './formatValidation.service';
 
 // Confidence Scoring Service
-import * as confidenceScoring from './confidence-scoring.service';
+import * as confidenceScoring from './archived/confidence-scoring.service';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STUB IMPORTS: These services were deleted but are still referenced in code
@@ -69,7 +69,7 @@ import {
 import infiniteConversationMemory from './infiniteConversationMemory.service';
 
 // Conversation Context Service (Multi-turn context management)
-import { conversationContextService } from './conversationContext.service';
+import { conversationContextService } from './deletedServiceStubs';
 
 // Format Enforcement Services
 import formatEnforcementService from './formatEnforcement.service';

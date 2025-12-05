@@ -890,3 +890,18 @@ export default {
   showVsExplainClassifier,
   responsePostProcessor
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Conversation Context Service Stub (added for rag.service.ts import)
+// ═══════════════════════════════════════════════════════════════════════════
+export const conversationContextService = {
+  getContext: async (_conversationId: string, _userId: string) => ({
+    recentMessages: [] as any[],
+    summary: '',
+    topics: [] as string[],
+    entities: [] as any[]
+  }),
+  updateContext: async (_conversationId: string, _context: any) => {},
+  clearContext: async (_conversationId: string) => {},
+  updateContextAfterTurn: async (_conversationId: string, _userMessage: string, _assistantMessage: string) => {}
+};

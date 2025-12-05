@@ -137,23 +137,23 @@ export class BM25RetrievalService {
         id: string;
         documentId: string;
         text: string;
-        page: number;
+        chunkIndex: number;
         filename: string;
         rank: number;
       }>>`
         SELECT
-          dc.id,
-          dc."documentId",
-          dc.text,
-          dc.page,
+          de.id,
+          de."documentId",
+          de.content as text,
+          de."chunkIndex",
           d.filename,
-          ts_rank(to_tsvector('english', dc.text), plainto_tsquery('english', ${searchQuery})) as rank
-        FROM "document_chunks" dc
-        JOIN "documents" d ON dc."documentId" = d.id
+          ts_rank(to_tsvector('english', de.content), plainto_tsquery('english', ${searchQuery})) as rank
+        FROM "document_embeddings" de
+        JOIN "documents" d ON de."documentId" = d.id
         WHERE
           d."userId" = ${userId}
           AND d.status != 'deleted'
-          AND to_tsvector('english', dc.text) @@ plainto_tsquery('english', ${searchQuery})
+          AND to_tsvector('english', de.content) @@ plainto_tsquery('english', ${searchQuery})
         ORDER BY rank DESC
         LIMIT ${topK}
       `;
@@ -165,8 +165,8 @@ export class BM25RetrievalService {
         metadata: {
           text: result.text,
           content: result.text,
-          page: result.page,
-          pageNumber: result.page,
+          chunkIndex: result.chunkIndex,
+          pageNumber: result.chunkIndex,
           filename: result.filename,
           documentId: result.documentId,
         },
