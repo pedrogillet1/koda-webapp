@@ -59,6 +59,11 @@ import {
   shouldBypassRAG,
   requiresRAG,
   getBypassType,
+  queryDecomposition,
+  contradictionDetection,
+  practicalImplicationsService,
+  evidenceAggregation,
+  memoryExtraction,
   type UserContext as DynamicUserContext,
   type ResponseConfig,
   type DocumentInfo as AdaptiveDocumentInfo
@@ -77,6 +82,10 @@ import { conversationContextService } from './deletedServiceStubs';
 // Format Enforcement Services
 import formatEnforcementService from './formatEnforcement.service';
 import structureEnforcementService from './structureEnforcement.service';
+
+// Format Enforcement V2 and Citation Format Services (NEW)
+import { kodaFormatEnforcementService } from './formatEnforcementV2.service';
+import { kodaCitationFormatService, type CitationSource as FormattedCitationSource } from './citationFormat.service';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SIMPLE INTENT DETECTION (Fast Pattern-Based)
@@ -6606,28 +6615,48 @@ async function handleRegularQuery(
 
     console.log(`✅ [FILTER] ${filteredChunks.length}/${hybridResults.length} chunks above threshold (${COMPARISON_MIN_SCORE})`);
 
-    // Build context from all chunks with document type labels for multi-document queries
-    const contextChunks = filteredChunks.slice(0, 20).map((chunk: any, index: number) => {
-      const content = chunk.metadata?.content || '';
-      const page = chunk.metadata?.page || 0;
+    // CONTEXT ENGINEERING: Prepare chunks for optimization
+    const contextChunksForOptimization = filteredChunks.slice(0, 30).map((chunk: any) => ({
+      content: chunk.metadata?.content || chunk.content || '',
+      documentId: chunk.metadata?.documentId || '',
+      documentTitle: chunk.metadata?.filename || 'Unknown Document',
+      score: chunk.hybridScore || chunk.vectorScore || chunk.score || 0,
+      pageNumber: chunk.metadata?.page,
+      chunkIndex: chunk.metadata?.chunkIndex
+    }));
+
+    // Apply context optimization (deduplication, relevance scoring, token packing)
+    const optimizedContextResult = contextEngineering.buildOptimizedContext({
+      chunks: contextChunksForOptimization,
+      query: queryAnalysis.originalQuery || query,
+      maxTokens: 50000,
+      includeMetadata: false,
+      prioritizeRecent: false,
+      deduplicateContent: true
+    });
+
+    console.log(`📦 [CONTEXT] Optimized: ${optimizedContextResult.originalCount} → ${optimizedContextResult.chunks.length} chunks (removed ${optimizedContextResult.removedChunks} duplicates)`);
+
+    // Build context from optimized chunks with document type labels
+    const contextChunks = optimizedContextResult.chunks.map((chunk: any, index: number) => {
+      const content = chunk.content || '';
+      const page = chunk.pageNumber || 0;
 
       // Get document type/name for context (helps with cross-document synthesis)
       let docLabel = 'Document';
-      if (chunk.metadata?.filename) {
-        const filename = chunk.metadata.filename.toLowerCase();
-        if (filename.includes('financial') || filename.includes('report') || filename.includes('statement')) {
-          docLabel = 'Financial Report';
-        } else if (filename.includes('lease') || filename.includes('agreement') || filename.includes('contract')) {
-          docLabel = 'Lease Agreement';
-        } else if (filename.includes('medical') || filename.includes('health') || filename.includes('record') || filename.includes('patient')) {
-          docLabel = 'Medical Record';
-        } else if (filename.includes('invoice') || filename.includes('bill')) {
-          docLabel = 'Invoice';
-        } else if (filename.includes('policy') || filename.includes('insurance')) {
-          docLabel = 'Insurance Policy';
-        } else {
-          docLabel = chunk.metadata.filename;
-        }
+      const filename = (chunk.documentTitle || '').toLowerCase();
+      if (filename.includes('financial') || filename.includes('report') || filename.includes('statement')) {
+        docLabel = 'Financial Report';
+      } else if (filename.includes('lease') || filename.includes('agreement') || filename.includes('contract')) {
+        docLabel = 'Lease Agreement';
+      } else if (filename.includes('medical') || filename.includes('health') || filename.includes('record') || filename.includes('patient')) {
+        docLabel = 'Medical Record';
+      } else if (filename.includes('invoice') || filename.includes('bill')) {
+        docLabel = 'Invoice';
+      } else if (filename.includes('policy') || filename.includes('insurance')) {
+        docLabel = 'Insurance Policy';
+      } else if (chunk.documentTitle) {
+        docLabel = chunk.documentTitle;
       }
 
       const pageInfo = page > 0 ? ` (Page: ${page})` : '';
@@ -8116,8 +8145,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // Step 1: Structure Enforcement (title, sections, source, follow-up)
     const structureResult = structureEnforcementService.enforceStructure(fullResponse, {
       query,
-      sources: useFullDocuments && fullDocuments.length > 0
-        ? fullDocuments.map(doc => ({ documentName: doc.filename, pageNumber: null }))
+      sources: fullDocuments.length > 0
+        ? fullDocuments.map(doc => ({ documentName: doc.title || 'Unknown', pageNumber: null }))
         : rerankedChunks.map(chunk => ({
             documentName: chunk.metadata?.filename || 'Unknown',
             pageNumber: chunk.metadata?.page || null
@@ -8160,16 +8189,16 @@ Provide a comprehensive answer addressing all parts of the query.`;
       console.log(`📎 [CITATION] Using LLM-provided structured citations (${extractedCitations.length} docs)`);
 
       // Build chunks array for citation matching
-      const availableChunks = useFullDocuments && fullDocuments.length > 0
+      const availableChunks = fullDocuments.length > 0
         ? fullDocuments.map(doc => ({
             metadata: {
               documentId: doc.id,
-              filename: doc.filename,
-              mimeType: doc.mimeType,
+              filename: doc.title || 'Unknown',
+              mimeType: doc.metadata?.mimeType || 'application/octet-stream',
               page: null
             },
             content: doc.content?.substring(0, 500) || '',
-            score: doc.relevanceScore || 1.0
+            score: doc.metadata?.relevanceScore || 1.0
           }))
         : rerankedChunks;
 
@@ -8177,7 +8206,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       sources = citationTracking.buildSourcesFromCitations(extractedCitations, availableChunks);
 
       console.log(`✅ [CITATION] Built ${sources.length} accurate sources from LLM citations`);
-    } else if (useFullDocuments && fullDocuments.length > 0) {
+    } else if (fullDocuments.length > 0) {
       // Fallback: No LLM citations, use fast regex extraction on full documents
       console.log(`⚡ [FAST CITATION] No LLM citations, building from full documents (regex-based)`);
 
@@ -8185,12 +8214,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
       const pseudoChunks = fullDocuments.map(doc => ({
         metadata: {
           documentId: doc.id,
-          filename: doc.filename,
-          mimeType: doc.mimeType,
+          filename: doc.title || 'Unknown',
+          mimeType: doc.metadata?.mimeType || 'application/octet-stream',
           page: null
         },
         content: doc.content?.substring(0, 500) || '',
-        score: doc.relevanceScore || 1.0
+        score: doc.metadata?.relevanceScore || 1.0
       }));
 
       sources = fastCitationExtraction(fullResponse, pseudoChunks);
@@ -8226,7 +8255,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       console.log(`📚 [EVIDENCE] Generating evidence map...`);
       const evidenceMap = await evidenceAggregation.generateEvidenceMap(
         fullResponse,
-        fullDocuments.map(doc => ({ id: doc.id, filename: doc.filename, content: doc.content }))
+        fullDocuments.map(doc => ({ id: doc.id, filename: doc.title || 'Unknown', content: doc.content }))
       );
 
       const evidenceMessage = evidenceAggregation.formatEvidenceForUser(evidenceMap);

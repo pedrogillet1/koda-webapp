@@ -32,6 +32,15 @@ export interface BuildContextParams {
   deduplicateContent?: boolean;
 }
 
+export interface OptimizedContextResult {
+  chunks: ContextChunk[];
+  context: string;
+  tokenCount: number;
+  removedChunks: number;
+  originalCount: number;
+  uniqueDocuments: number;
+}
+
 export interface OptimizeContextParams {
   context: string;
   maxTokens?: number;
@@ -219,6 +228,89 @@ export function buildContext(params: BuildContextParams): string {
 }
 
 // ============================================================================
+// BUILD OPTIMIZED CONTEXT (Returns structured result)
+// ============================================================================
+
+/**
+ * Build optimized context and return structured result with stats
+ * This is the main integration point for rag.service.ts
+ */
+export function buildOptimizedContext(params: BuildContextParams): OptimizedContextResult {
+  const {
+    chunks,
+    query,
+    maxTokens = 50000,
+    includeMetadata = true,
+    prioritizeRecent = false,
+    deduplicateContent = true
+  } = params;
+
+  const originalCount = chunks.length;
+  console.log(`📦 [CONTEXT] Optimizing ${originalCount} chunks...`);
+
+  // Step 1: Deduplicate if requested
+  let processedChunks = deduplicateContent ? deduplicateChunks(chunks) : [...chunks];
+  const removedChunks = originalCount - processedChunks.length;
+
+  // Step 2: Re-score by relevance
+  processedChunks = rescoreByRelevance(processedChunks, query);
+
+  // Step 3: Sort by score (highest first)
+  processedChunks.sort((a, b) => {
+    if (prioritizeRecent && a.documentId === b.documentId) {
+      return (b.chunkIndex || 0) - (a.chunkIndex || 0);
+    }
+    return b.score - a.score;
+  });
+
+  // Step 4: Pack chunks until token limit
+  let context = '';
+  let tokenCount = 0;
+  const includedChunks: ContextChunk[] = [];
+
+  for (const chunk of processedChunks) {
+    let chunkText = '';
+
+    if (includeMetadata) {
+      chunkText = `**Document:** ${chunk.documentTitle}`;
+      if (chunk.pageNumber) {
+        chunkText += ` (Page ${chunk.pageNumber})`;
+      }
+      chunkText += `\n${chunk.content}\n\n`;
+    } else {
+      chunkText = `${chunk.content}\n\n`;
+    }
+
+    const chunkTokens = estimateTokens(chunkText);
+
+    if (tokenCount + chunkTokens > maxTokens) {
+      console.log(`🏗️ [CONTEXT] Reached token limit (${tokenCount}/${maxTokens}), stopping`);
+      break;
+    }
+
+    context += chunkText;
+    tokenCount += chunkTokens;
+    includedChunks.push(chunk);
+  }
+
+  // Calculate unique documents
+  const uniqueDocs = new Set(includedChunks.map(c => c.documentTitle));
+
+  console.log(`✅ [CONTEXT] Optimized: ${tokenCount} tokens`);
+  console.log(`   Removed ${removedChunks} duplicate chunks`);
+  console.log(`   Kept ${includedChunks.length} unique chunks from ${uniqueDocs.size} documents`);
+
+  return {
+    chunks: includedChunks,
+    context,
+    tokenCount,
+    removedChunks,
+    originalCount,
+    uniqueDocuments: uniqueDocs.size
+  };
+}
+
+// ============================================================================
 // OPTIMIZE CONTEXT
 // ============================================================================
 
@@ -349,6 +441,7 @@ export function calculateContextQuality(context: string, query: string): {
 
 export const contextEngineering = {
   buildContext,
+  buildOptimizedContext,
   optimizeContext,
   calculateContextQuality,
   estimateTokens
