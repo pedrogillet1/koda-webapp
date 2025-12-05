@@ -83,9 +83,9 @@ import { conversationContextService } from './deletedServiceStubs';
 import formatEnforcementService from './formatEnforcement.service';
 import structureEnforcementService from './structureEnforcement.service';
 
-// Format Enforcement V2 and Citation Format Services (NEW)
-import { kodaFormatEnforcementService } from './formatEnforcementV2.service';
-import { kodaCitationFormatService, type CitationSource as FormattedCitationSource } from './citationFormat.service';
+// Format Enforcement V2 and Citation Format Services (KODA 100/100)
+import { kodaFormatEnforcementService } from './kodaFormatEnforcement.service';
+import { kodaCitationFormatService, type CitationSource as FormattedCitationSource } from './kodaCitationFormat.service';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SIMPLE INTENT DETECTION (Fast Pattern-Based)
@@ -1142,11 +1142,29 @@ function fastCitationExtraction(response: string, chunks: any[]): EnhancedSource
   // Convert Map to array, sorted by score descending
   const sources = Array.from(sourceMap.values()).sort((a, b) => b.score - a.score);
 
+  // ✅ KODA 100/100: Apply kodaCitationFormat for 100% confidence-based locations
+  console.log(`⚡ [FAST CITATION] Applying KODA citation formatting...`);
+  const formattedSources = kodaCitationFormatService.formatSources(chunks);
+
+  // Merge formatted data back into sources (keep existing structure, add formatted location)
+  sources.forEach(src => {
+    const formatted = formattedSources.find(f => f.documentId === src.documentId);
+    if (formatted) {
+      // Add KODA formatted location (only shows page if 100% confident)
+      (src as any).formattedLocation = formatted.location;
+      (src as any).relevanceScore = formatted.relevanceScore;
+      (src as any).relevanceExplanation = formatted.relevanceExplanation;
+      (src as any).folderPath = formatted.folderPath;
+      (src as any).categoryName = formatted.categoryName;
+    }
+  });
+
   // ✅ ENHANCED: Log detailed page information for debugging citation accuracy
   console.log(`⚡ [FAST CITATION] Extracted ${sources.length} unique document sources (saved ~1000ms)`);
   sources.forEach((src, idx) => {
     const pagesStr = src.allPages.length > 0 ? `pages ${src.allPages.join(', ')}` : 'no page info';
-    console.log(`   ${idx + 1}. ${src.documentName} (${pagesStr}, score: ${src.score.toFixed(3)})`);
+    const kodaLocation = (src as any).formattedLocation || 'N/A';
+    console.log(`   ${idx + 1}. ${src.documentName} (${pagesStr}, KODA: ${kodaLocation}, score: ${src.score.toFixed(3)})`);
   });
 
   return sources;
@@ -2463,7 +2481,7 @@ function applyFormatEnforcement(
     console.log(`${logPrefix} Applying format enforcement to ${responseType} response (${response.length} chars)...`);
 
     // Apply format enforcement
-    const formatResult = formatEnforcementService.enforceFormat(response);
+    const formatResult = kodaFormatEnforcementService.enforceFormat(response);
 
     const formatted = formatResult.fixedText || response;
 
@@ -8163,7 +8181,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     fullResponse = structureResult.text;
 
     // Step 2: Format Enforcement (bullets, bold, spacing, etc.)
-    const formatResult = formatEnforcementService.enforceFormat(fullResponse);
+    const formatResult = kodaFormatEnforcementService.enforceFormat(fullResponse);
 
     if (formatResult.violations.length > 0) {
       console.log(`✏️ [FORMAT] Fixed ${formatResult.violations.length} violations:`,
@@ -8956,7 +8974,7 @@ export async function generateAnswer(
     console.log('[FORMAT] Pre-enforcement length:', fullAnswer.length);
 
     // Apply format enforcement
-    const formatResult = formatEnforcementService.enforceFormat(fullAnswer);
+    const formatResult = kodaFormatEnforcementService.enforceFormat(fullAnswer);
     formatted = formatResult.fixedText || fullAnswer;
 
     console.log('[FORMAT] Post-enforcement length:', formatted.length);
