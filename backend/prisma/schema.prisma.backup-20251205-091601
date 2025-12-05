@@ -30,7 +30,8 @@ model User {
   masterKeyEncrypted    String?
   actionHistory         ActionHistory[]
   auditLogs             AuditLog[]
-
+  cloudIntegrations     CloudIntegration[]
+  conversationSummaries ConversationSummary[]
   conversationTopics    ConversationTopic[]
   conversations         Conversation[]
   ownedShares           DocumentShare[]       @relation("Owner")
@@ -38,16 +39,16 @@ model User {
   documents             Document[]
   domainKnowledge       DomainKnowledge[]
   folders               Folder[]
-
+  interactionMetadata   InteractionMetadata[]
   memories              Memory[]
-
+  notifications         Notification[]
   presentations         Presentation[]
   reminders             Reminder[]
   sessions              Session[]
   tags                  Tag[]
   terminologyMaps       TerminologyMap[]
   twoFactorAuth         TwoFactorAuth?
-
+  insights              UserInsight[]
   userPreferences       UserPreferences?
   preferencesMemory     UserPreference[]
   profile               UserProfile?
@@ -375,13 +376,63 @@ model Message {
   markdownContent   String?
   calculationResult Json?
   contextEntities   Json?
-
+  chatDocuments     ChatDocument[]
+  attachments       MessageAttachment[]
   conversation      Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
   @@index([isDocument])
   @@index([conversationId, createdAt])
   @@map("messages")
+}
+
+model ChatDocument {
+  id               String    @id @default(uuid())
+  messageId        String
+  conversationId   String
+  userId           String
+  title            String
+  markdownContent  String
+  documentType     String?
+  sourceDocumentId String?
+  pdfUrl           String?
+  docxUrl          String?
+  wordCount        Int?
+  createdAt        DateTime  @default(now())
+  expiresAt        DateTime?
+  message          Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([conversationId])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("chat_documents")
+}
+
+model MessageAttachment {
+  id                String   @id @default(uuid())
+  messageId         String
+  conversationId    String
+  userId            String
+  attachmentType    String
+  title             String
+  content           String
+  previewHtml       String?
+  previewCss        String?
+  sourceDocumentIds String?
+  analysisType      String?
+  metadata          String?
+  editHistory       String?
+  editCount         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  message           Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([conversationId])
+  @@index([userId])
+  @@index([attachmentType])
+  @@map("message_attachments")
 }
 
 model Reminder {
@@ -395,7 +446,7 @@ model Reminder {
   documentId    String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-
+  notifications Notification[]
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -415,6 +466,26 @@ model DocumentSummary {
   @@map("document_summaries")
 }
 
+model CloudIntegration {
+  id             String    @id @default(uuid())
+  userId         String
+  provider       String
+  accessToken    String
+  refreshToken   String?
+  tokenExpiry    DateTime?
+  providerUserId String?
+  providerEmail  String?
+  isActive       Boolean   @default(true)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("cloud_integrations")
+}
+
 model AuditLog {
   id        String   @id @default(uuid())
   userId    String?
@@ -431,6 +502,24 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model Notification {
+  id                String    @id @default(uuid())
+  userId            String
+  type              String
+  title             String
+  message           String
+  relatedDocumentId String?
+  relatedReminderId String?
+  isRead            Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  relatedReminder   Reminder? @relation(fields: [relatedReminderId], references: [id])
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
 }
 
 model UserPreferences {
@@ -564,6 +653,80 @@ model APIUsage {
   @@map("api_usage")
 }
 
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  priority    Int              @default(0)
+  isSystem    Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  parentRoles RoleHierarchy[]  @relation("ChildRole")
+  childRoles  RoleHierarchy[]  @relation("ParentRole")
+  permissions RolePermission[]
+  userRoles   UserRole[]
+
+  @@index([name])
+  @@index([priority])
+  @@map("roles")
+}
+
+model Permission {
+  id              String           @id @default(uuid())
+  resource        String
+  action          String
+  description     String?
+  createdAt       DateTime         @default(now())
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@index([resource])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id        String    @id @default(uuid())
+  userId    String
+  roleId    String
+  grantedBy String?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  role      Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RoleHierarchy {
+  id           String   @id @default(uuid())
+  parentRoleId String
+  childRoleId  String
+  createdAt    DateTime @default(now())
+  childRole    Role     @relation("ChildRole", fields: [childRoleId], references: [id], onDelete: Cascade)
+  parentRole   Role     @relation("ParentRole", fields: [parentRoleId], references: [id], onDelete: Cascade)
+
+  @@unique([parentRoleId, childRoleId])
+  @@index([parentRoleId])
+  @@index([childRoleId])
+  @@map("role_hierarchy")
+}
+
 model APIKey {
   id          String    @id @default(uuid())
   userId      String
@@ -598,20 +761,61 @@ model GeneratedDocument {
   expiresAt         DateTime?
   sourceDocumentIds String
   generationPrompt  String?
+  templateId        String?
   renderableContent String
   metadata          String?
   generatedAt       DateTime              @default(now())
   savedAt           DateTime?
-
+  editHistory       DocumentEditHistory[]
   document          Document              @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  template          DocumentTemplate?     @relation(fields: [templateId], references: [id])
 
   @@index([userId])
   @@index([documentId])
   @@index([generationType])
+  @@index([templateId])
   @@index([conversationId])
   @@index([isTemporary])
   @@index([expiresAt])
   @@map("generated_documents")
+}
+
+model DocumentTemplate {
+  id            String              @id @default(uuid())
+  userId        String?
+  name          String
+  description   String?
+  category      String
+  structure     String
+  isSystem      Boolean             @default(false)
+  usageCount    Int                 @default(0)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  generatedDocs GeneratedDocument[]
+
+  @@index([userId])
+  @@index([category])
+  @@index([isSystem])
+  @@map("document_templates")
+}
+
+model DocumentEditHistory {
+  id                  String            @id @default(uuid())
+  generatedDocumentId String
+  editNumber          Int
+  editType            String
+  editCommand         String?
+  editDescription     String
+  contentBefore       String
+  contentAfter        String
+  editedBy            String
+  editedAt            DateTime          @default(now())
+  generatedDocument   GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Cascade)
+
+  @@index([generatedDocumentId])
+  @@index([editNumber])
+  @@index([editedBy])
+  @@map("document_edit_history")
 }
 
 model ExcelSheet {
@@ -647,6 +851,46 @@ model ExcelCell {
   @@unique([sheetId, rowIndex, colIndex])
   @@index([sheetId])
   @@map("excel_cells")
+}
+
+model AnalysisSession {
+  id            String            @id @default(uuid())
+  userId        String
+  sessionType   String            @default("document_analysis")
+  status        String            @default("active")
+  documentCount Int               @default(0)
+  documentIds   String?
+  createdAt     DateTime          @default(now())
+  expiresAt     DateTime
+  completedAt   DateTime?
+  documents     SessionDocument[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("analysis_sessions")
+}
+
+model SessionDocument {
+  id            String          @id @default(uuid())
+  sessionId     String
+  userId        String
+  filename      String
+  fileSize      Int
+  mimeType      String
+  fileType      String
+  status        String          @default("processing")
+  extractedText String?
+  wordCount     Int?
+  pageCount     Int?
+  uploadedAt    DateTime        @default(now())
+  processedAt   DateTime?
+  session       AnalysisSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([userId])
+  @@index([status])
+  @@map("session_documents")
 }
 
 model ActionHistory {
@@ -713,6 +957,49 @@ model ConversationTopic {
   @@index([userId])
   @@index([userId, lastSeen])
   @@map("conversation_topics")
+}
+
+model UserInsight {
+  id          String   @id @default(uuid())
+  userId      String
+  insightType String
+  insightText String
+  confidence  Float    @default(0.5)
+  evidence    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, insightType])
+  @@map("user_insights")
+}
+
+model ConversationSummary {
+  id             String   @id @default(uuid())
+  userId         String
+  conversationId String
+  summary        String
+  userMessages   String[]
+  timestamp      DateTime
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, timestamp])
+  @@map("conversation_summaries")
+}
+
+model InteractionMetadata {
+  id            String   @id @default(uuid())
+  userId        String
+  metadataType  String
+  metadataValue String
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, metadataType])
+  @@index([userId])
+  @@map("interaction_metadata")
 }
 
 model Memory {
@@ -872,6 +1159,89 @@ model ComparativeData {
   @@index([conceptA])
   @@index([conceptB])
   @@map("comparative_data")
+}
+
+model PracticalRecommendation {
+  id                String   @id @default(uuid())
+  userId            String
+  recommendation    String
+  category          String
+  strength          String
+  evidence          String?
+  rationale         String?
+  thresholds        String?
+  domain            String?
+  applicability     String?
+  sourceDocumentIds String?
+  documentCount     Int      @default(1)
+  consensusLevel    String?
+  confidence        Float    @default(0.5)
+  isVerified        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+  @@index([category])
+  @@index([userId, category])
+  @@index([strength])
+  @@index([consensusLevel])
+  @@map("practical_recommendations")
+}
+
+model TrendPattern {
+  id                String   @id @default(uuid())
+  userId            String
+  subject           String
+  trendType         String
+  timeframe         String?
+  description       String
+  dataPoints        String?
+  magnitude         String?
+  drivers           String?
+  implications      String?
+  sourceDocumentIds String?
+  documentCount     Int      @default(1)
+  confidence        Float    @default(0.5)
+  isVerified        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+  @@index([subject])
+  @@index([trendType])
+  @@index([userId, trendType])
+  @@map("trend_patterns")
+}
+
+model KnowledgeEntry {
+  id         String   @id @default(uuid())
+  documentId String
+  type       String
+  content    String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([type])
+  @@index([documentId, type])
+  @@map("knowledge_entries")
+}
+
+model FolderSummary {
+  id                  String    @id @default(uuid())
+  folderId            String    @unique
+  userId              String
+  summary             String
+  documentCount       Int
+  themes              String[]  @default([])
+  lastDocumentAddedAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([folderId])
+  @@map("folder_summaries")
 }
 
 model Presentation {

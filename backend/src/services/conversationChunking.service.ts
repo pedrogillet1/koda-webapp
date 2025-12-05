@@ -177,7 +177,7 @@ Topic boundaries should indicate:
 JSON array:`;
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     let text = result.response.text().trim();
 
@@ -269,7 +269,7 @@ Return ONLY valid JSON:
 
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.3,
         responseMimeType: 'application/json'

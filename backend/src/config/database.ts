@@ -80,7 +80,6 @@ const prisma = Object.assign(basePrisma, {
   conversations: basePrisma.conversation,
   messages: basePrisma.message,
   reminders: basePrisma.reminder,
-  notifications: basePrisma.notification,
   categories: basePrisma.category,
 
   // Document-related plurals
@@ -99,37 +98,23 @@ const prisma = Object.assign(basePrisma, {
   pending_users: basePrisma.pendingUser,
 
   // Chat-related plurals
-  chat_documents: basePrisma.chatDocument,
   chat_contexts: basePrisma.chatContext,
-  message_attachments: basePrisma.messageAttachment,
 
   // Other plurals
-  cloud_integrations: basePrisma.cloudIntegration,
   audit_logs: basePrisma.auditLog,
   user_preferences: basePrisma.userPreferences,
   terminology_maps: basePrisma.terminologyMap,
   api_usage: basePrisma.aPIUsage,
   api_keys: basePrisma.aPIKey,
 
-  // RBAC plurals
-  roles: basePrisma.role,
-  permissions: basePrisma.permission,
-  role_permissions: basePrisma.rolePermission,
-  user_roles: basePrisma.userRole,
-  role_hierarchy: basePrisma.roleHierarchy,
 
   // Generated documents
   generated_documents: basePrisma.generatedDocument,
-  document_templates: basePrisma.documentTemplate,
-  document_edit_history: basePrisma.documentEditHistory,
 
   // Excel
   excel_sheets: basePrisma.excelSheet,
   excel_cells: basePrisma.excelCell,
 
-  // Analysis sessions
-  analysis_sessions: basePrisma.analysisSession,
-  session_documents: basePrisma.sessionDocument,
 
   // Action history
   action_history: basePrisma.actionHistory,
@@ -138,9 +123,6 @@ const prisma = Object.assign(basePrisma, {
   user_profiles: basePrisma.userProfile,
   user_preferences_memory: basePrisma.userPreference,
   conversation_topics: basePrisma.conversationTopic,
-  user_insights: basePrisma.userInsight,
-  conversation_summaries: basePrisma.conversationSummary,
-  interaction_metadata: basePrisma.interactionMetadata,
   memories: basePrisma.memory,
 
   // Knowledge system
@@ -149,10 +131,6 @@ const prisma = Object.assign(basePrisma, {
   concept_relationships: basePrisma.conceptRelationship,
   causal_relationships: basePrisma.causalRelationship,
   comparative_data: basePrisma.comparativeData,
-  practical_recommendations: basePrisma.practicalRecommendation,
-  trend_patterns: basePrisma.trendPattern,
-  knowledge_entries: basePrisma.knowledgeEntry,
-  folder_summaries: basePrisma.folderSummary,
 
   // Presentations
   presentations: basePrisma.presentation,
