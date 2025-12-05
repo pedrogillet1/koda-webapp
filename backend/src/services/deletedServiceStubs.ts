@@ -82,7 +82,7 @@ async function directGeminiAnswer(
 
     // Get Gemini 2.5 Flash model
     const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash-preview-05-20',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 500,
