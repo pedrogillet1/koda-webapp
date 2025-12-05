@@ -3103,7 +3103,7 @@ async function handleConversationContextQuery(
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       generationConfig: { temperature: 0.3 }
     });
 
@@ -3193,7 +3193,7 @@ Respond in the same language as the user's question.`;
     try {
       const geminiClient = (await import('./geminiClient.service')).default;
       const model = geminiClient.getModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         systemInstruction: systemPrompt,
         generationConfig: {
           temperature: 0.7,
@@ -3269,7 +3269,7 @@ Respond in the same language as the user's question.`;
     const calculationResult = await handleCalculationQuery(query, userId);
 
     if (calculationResult) {
-      console.log('🧮 [CALCULATION] Calculation detected and processed - bypassing RAG');
+      console.log('🧮 [ROUTER] → CALCULATION (math/financial query detected)');
 
       if (onStage) {
         onStage('calculating', 'Computing calculation...');
@@ -3311,7 +3311,7 @@ Respond in the same language as the user's question.`;
       const excelResult = await handleExcelQuery(query, primaryDocId, userId);
 
       if (excelResult) {
-        console.log('📊 [EXCEL] Excel query detected and processed - bypassing RAG');
+        console.log('📊 [ROUTER] → EXCEL (cell/formula query detected)');
 
         if (onStage) {
           onStage('analyzing', 'Analyzing Excel data...');
@@ -3477,59 +3477,6 @@ Respond in the same language as the user's question.`;
     if (onStage) onStage('complete', 'Complete');
     return { sources: [] };
   }
-
-  // ============================================================================
-  // GENERAL KNOWLEDGE BYPASS CHECK
-  // ============================================================================
-  // REASON: Skip RAG for general knowledge questions that don't need documents
-  // WHY: "What is the capital of France?" doesn't need document retrieval
-  // IMPACT: Saves 3-5 seconds on 10-15% of queries
-
-  const bypassType = getBypassType(query);
-  if (bypassType === 'general_knowledge' || bypassType === 'date_time') {
-    console.log(`⚡ [GENERAL KNOWLEDGE BYPASS] Query type: ${bypassType} - skipping RAG`);
-
-    // For general knowledge questions, let the LLM answer directly
-    // without document context (the AI has this knowledge)
-    if (onStage) onStage('answering', 'Generating response...');
-
-    const systemPrompt = `You are Koda, a helpful AI assistant. Answer the user's question directly using your knowledge.
-Keep your response concise and helpful. Do not mention documents or say you're searching for information.
-${bypassType === 'date_time' ? `Today's date is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.` : ''}
-Respond in the same language as the user's question.`;
-
-    try {
-      // Use existing geminiClient service
-      const geminiClient = (await import('./geminiClient.service')).default;
-      const model = geminiClient.getModel({
-        model: 'gemini-2.0-flash',
-        systemInstruction: systemPrompt,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1000,
-        }
-      });
-
-      const result = await model.generateContent(query);
-      const responseText = result.response.text();
-
-      const formattedResponse = applyFormatEnforcement(responseText, {
-        responseType: 'general_knowledge',
-        logPrefix: '[GENERAL-KNOWLEDGE FORMAT]'
-      });
-
-      if (onChunk) onChunk(formattedResponse);
-      if (onStage) onStage('complete', 'Complete');
-      return { sources: [] };
-    } catch (error) {
-      console.error('❌ [GENERAL KNOWLEDGE] LLM call failed, falling back to RAG:', error);
-      // Fall through to RAG pipeline
-    }
-  }
-
-  console.log('📚 Not a fast path query - proceeding with RAG pipeline');
-  console.log('🎯 [HYBRID RAG] Processing query:', query);
-  console.log('📎 Attached document ID:', attachedDocumentId);
 
   // ============================================================================
   // EARLY FALLBACK DETECTION (Pre-RAG)
@@ -3744,7 +3691,7 @@ Respond in the same language as the user's question.`;
   // ------------------------------------------------------------------------------
   const countingCheck = isDocumentCountingQuery(query);
   if (countingCheck.isCounting) {
-    console.log('🔢 [DOCUMENT COUNTING] Detected');
+    console.log('🔢 [ROUTER] → COUNTING (how many documents?)');
     return await handleDocumentCounting(userId, query, countingCheck.fileType, onChunk);
   }
 
@@ -3752,7 +3699,7 @@ Respond in the same language as the user's question.`;
   // STEP 3: Document Types - Fast (No LLM call)
   // ──────────────────────────────────────────────────────────────────────────────
   if (isDocumentTypesQuery(query)) {
-    console.log('📊 [DOCUMENT TYPES] Detected');
+    console.log('📊 [ROUTER] → DOCUMENT TYPES (file type breakdown)');
     return await handleDocumentTypes(userId, query, onChunk);
   }
 
@@ -3760,7 +3707,7 @@ Respond in the same language as the user's question.`;
   // STEP 4: Document Listing - Fast (No LLM call)
   // ──────────────────────────────────────────────────────────────────────────────
   if (isDocumentListingQuery(query)) {
-    console.log('✅ [QUERY ROUTING] Routed to: DOCUMENT LISTING');
+    console.log('📋 [ROUTER] → LISTING (list all documents)');
     return await handleDocumentListing(userId, query, onChunk);
   }
 
@@ -3773,7 +3720,7 @@ Respond in the same language as the user's question.`;
   // ✅ NEW: Handle "which folders do I have?" queries
   const isFolderListingQuery = detectFolderListingQuery(query);
   if (isFolderListingQuery) {
-    console.log('📂 [FOLDER LISTING] Detected folder listing query');
+    console.log('📂 [ROUTER] → FOLDER LISTING (list all folders)');
     return await handleFolderListingQuery(userId, onChunk);
   }
 
@@ -3783,7 +3730,7 @@ Respond in the same language as the user's question.`;
   // ✅ MOVED UP: Handle "what's in Finance folder?" queries BEFORE file actions
   const isFolderContentQuery = detectFolderContentQuery(query);
   if (isFolderContentQuery) {
-    console.log('📁 [FOLDER CONTENT] Detected folder content query');
+    console.log('📁 [ROUTER] → FOLDER CONTENT (what\'s in folder?)');
     return await handleFolderContentQuery(query, userId, onChunk);
   }
 
@@ -3810,7 +3757,7 @@ Respond in the same language as the user's question.`;
       comparison.documents = attachedIds;
     }
 
-    console.log('🔄 [COMPARISON] Detected:', comparison.documents);
+    console.log(`⚖️ [ROUTER] → COMPARISON (${comparison.type || 'document'})`);
     return await handleComparison(userId, query, comparison, onChunk, conversationHistory);
   }
 
@@ -3820,7 +3767,7 @@ Respond in the same language as the user's question.`;
   if (attachedIds.length >= 2) {
     const hasCompareIntent = /\b(compare|difference|vs|versus|between|contrast|similarities)\b/i.test(query);
     if (hasCompareIntent) {
-      console.log(`🔄 [MULTI-DOC] Routing to comparison handler with ${attachedIds.length} attached documents`);
+      console.log(`⚖️ [ROUTER] → MULTI-DOC COMPARISON (${attachedIds.length} documents)`);
       return await handleComparison(userId, query, {
         type: 'document',
         documents: attachedIds
@@ -3903,7 +3850,7 @@ Respond in the same language as the user's question.`;
   // REASON: Only check file actions if nothing else matched
   // WHY: LLM intent detection is expensive (20-30s)
   if (fileAction) {
-    console.log('📁 [FILE ACTION] Detected:', fileAction);
+    console.log(`📁 [ROUTER] → FILE ACTION (${fileAction})`);
     await handleFileAction(userId, query, fileAction, onChunk);
     return { sources: [] }; // File actions don't have sources
   }
@@ -3914,7 +3861,7 @@ Respond in the same language as the user's question.`;
   // ✅ NEW: Handle "where is myfile.pdf?" queries with direct database lookup
   const isFileLocationQuery = detectFileLocationQuery(query);
   if (isFileLocationQuery) {
-    console.log('📍 [FILE LOCATION] Detected file location query');
+    console.log('📍 [ROUTER] → FILE LOCATION (where is file?)');
     return await handleFileLocationQuery(query, userId, onChunk);
   }
 
@@ -3932,7 +3879,7 @@ Respond in the same language as the user's question.`;
   // ──────────────────────────────────────────────────────────────────────────────
   // STEP 7: Regular Queries - Standard RAG
   // ──────────────────────────────────────────────────────────────────────────────
-  console.log('? [QUERY ROUTING] Routed to: REGULAR QUERY (RAG)');
+  console.log('📚 [ROUTER] → REGULAR RAG (standard document retrieval)');
   return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage, memoryPromptContext, isFirstMessage, detectedLanguage, ragConfig);
 }
 
@@ -6589,16 +6536,45 @@ async function handleRegularQuery(
     searchResults = await handleMultiStepQuery(queryAnalysis, userId, filter, onChunk);
     perfTimer.measure('Multi-Step Query Handler', 'multiStepQuery');
 
-    // Convert vector results to hybrid result format for consistency
-    // BM25 is enabled - hybrid search will merge vector + keyword results
-    const hybridResults = (searchResults.matches || []).map((match: any) => ({
-      content: match.metadata?.content || match.metadata?.text || '',
-      metadata: match.metadata,
-      vectorScore: match.score || 0,
-      bm25Score: 0,
-      hybridScore: match.score || 0,
-      inBoth: false,
-    }));
+    // ✅ TRUE HYBRID SEARCH: Merge vector results with BM25 using RRF
+    // Get BM25 results in parallel for better performance
+    const vectorMatches = searchResults.matches || [];
+    let hybridResults: any[];
+
+    try {
+      const bm25Results = await bm25RetrievalService.hybridSearch(query, [], userId, vectorMatches.length * 2);
+
+      // Convert vector results to RRF format
+      const vectorResultsForRRF = vectorMatches.map((match: any) => ({
+        metadata: match.metadata,
+        score: match.score || 0,
+      }));
+
+      // Convert BM25 results to RRF format
+      const keywordResultsForRRF = bm25Results.map((result: any) => ({
+        content: result.content,
+        metadata: result.metadata,
+        documentId: result.metadata?.documentId,
+        chunkIndex: result.metadata?.chunkIndex,
+        score: result.bm25Score || result.hybridScore || 0,
+        bm25Score: result.bm25Score || result.hybridScore || 0,
+      }));
+
+      // Merge with RRF algorithm
+      hybridResults = mergeWithRRF(vectorResultsForRRF, keywordResultsForRRF, 20);
+      console.log(`✅ [MULTI-STEP] True hybrid search: ${hybridResults.length} results (RRF merged)`);
+    } catch (error) {
+      console.warn('⚠️ [MULTI-STEP] BM25 search failed, using vector-only:', error);
+      // Fallback to vector-only results
+      hybridResults = vectorMatches.map((match: any) => ({
+        content: match.metadata?.content || match.metadata?.text || '',
+        metadata: match.metadata,
+        vectorScore: match.score || 0,
+        bm25Score: 0,
+        hybridScore: match.score || 0,
+        inBoth: false,
+      }));
+    }
 
     // Filter by minimum score threshold
     const COMPARISON_MIN_SCORE = 0.65;
@@ -7350,16 +7326,44 @@ Provide a comprehensive answer addressing all parts of the query.`;
         // Use iterative retrieval instead of single refinement
         const iterativeResults = await iterativeRetrieval(query, userId, filter);
 
-        // ✅ TRUE HYBRID SEARCH: Vector + BM25 with RRF (see mergeWithRRF function)
-        // Convert to hybrid result format for consistency
-        const iterativeHybridResults = (iterativeResults.matches || []).map((match: any) => ({
-          content: match.metadata?.content || match.metadata?.text || '',
-          metadata: match.metadata,
-          vectorScore: match.score || 0,
-          bm25Score: 0,
-          hybridScore: match.score || 0,
-          inBoth: false,
-        }));
+        // ✅ TRUE HYBRID SEARCH: Merge vector results with BM25 using RRF
+        const iterativeVectorMatches = iterativeResults.matches || [];
+        let iterativeHybridResults: any[];
+
+        try {
+          // Get BM25 results for merging
+          const bm25Results = await bm25RetrievalService.hybridSearch(query, [], userId, iterativeVectorMatches.length * 2);
+
+          // Convert to RRF format
+          const vectorResultsForRRF = iterativeVectorMatches.map((match: any) => ({
+            metadata: match.metadata,
+            score: match.score || 0,
+          }));
+
+          const keywordResultsForRRF = bm25Results.map((result: any) => ({
+            content: result.content,
+            metadata: result.metadata,
+            documentId: result.metadata?.documentId,
+            chunkIndex: result.metadata?.chunkIndex,
+            score: result.bm25Score || result.hybridScore || 0,
+            bm25Score: result.bm25Score || result.hybridScore || 0,
+          }));
+
+          // Merge with RRF algorithm
+          iterativeHybridResults = mergeWithRRF(vectorResultsForRRF, keywordResultsForRRF, 20);
+          console.log(`✅ [AGENT LOOP] True hybrid refinement: ${iterativeHybridResults.length} results (RRF merged)`);
+        } catch (error) {
+          console.warn('⚠️ [AGENT LOOP] BM25 search failed, using vector-only:', error);
+          // Fallback to vector-only
+          iterativeHybridResults = iterativeVectorMatches.map((match: any) => ({
+            content: match.metadata?.content || match.metadata?.text || '',
+            metadata: match.metadata,
+            vectorScore: match.score || 0,
+            bm25Score: 0,
+            hybridScore: match.score || 0,
+            inBoth: false,
+          }));
+        }
 
         // Update results if iterative refinement improved them
         if (iterativeHybridResults.length > 0) {

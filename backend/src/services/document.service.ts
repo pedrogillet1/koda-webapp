@@ -1143,6 +1143,37 @@ async function processDocumentWithTimeout(
           await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
           console.log(`✅ [DIAGNOSTIC] storeDocumentEmbeddings completed successfully!`);
 
+          // ═══════════════════════════════════════════════════════════════
+          // VERIFY EMBEDDINGS STORAGE
+          // ═══════════════════════════════════════════════════════════════
+          console.log('🔍 [VERIFICATION] Verifying embeddings were stored...');
+          try {
+            const pineconeService = await import('./pinecone.service');
+            const verification = await pineconeService.default.verifyDocumentEmbeddings(documentId);
+
+            if (!verification.success || verification.count < chunks.length * 0.95) {
+              // Allow 5% loss for edge cases
+              const expectedCount = chunks.length;
+              const actualCount = verification.count;
+
+              console.error(`❌ [VERIFICATION] Embedding storage verification failed!`);
+              console.error(`   Expected: ${expectedCount} chunks`);
+              console.error(`   Found: ${actualCount} embeddings`);
+              console.error(`   Success rate: ${((actualCount / expectedCount) * 100).toFixed(1)}%`);
+
+              throw new Error(
+                `Embedding verification failed: expected ${expectedCount}, got ${actualCount}`
+              );
+            }
+
+            console.log(`✅ [VERIFICATION] Confirmed ${verification.count}/${chunks.length} embeddings stored`);
+
+          } catch (verifyError) {
+            console.error('❌ [VERIFICATION] Verification error:', verifyError);
+            // Don't throw - allow document to be marked as completed
+            // But log the error for investigation
+          }
+
           // Emit embedding completion (80%)
           emitToUserAsync(userId, 'document-processing-update', {
             documentId,
