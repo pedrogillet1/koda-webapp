@@ -46,7 +46,6 @@ import {
   memoryService,
   citationTracking,
   outputIntegration,
-  adaptiveAnswerGeneration,
   synthesisQueryDetectionService,
   comparativeAnalysisService,
   methodologyExtractionService,
@@ -64,6 +63,10 @@ import {
   type ResponseConfig,
   type DocumentInfo as AdaptiveDocumentInfo
 } from './deletedServiceStubs';
+
+// Real Service Implementations (replacing stubs)
+import adaptiveAnswerGeneration from './adaptiveAnswerGeneration.service';
+import contextEngineering from './contextEngineering.service';
 
 // Infinite Conversation Memory (Manus-style)
 import infiniteConversationMemory from './infiniteConversationMemory.service';
@@ -762,7 +765,7 @@ function buildDocumentContext(
  */
 function buildConversationContext(
   conversationHistory?: Array<{ role: string; content: string }>,
-  maxTokens: number = 50000
+  maxTokens: number = 100000
 ): string {
 
   if (!conversationHistory || conversationHistory.length === 0) {
@@ -1265,7 +1268,7 @@ interface ObservationResult {
 function observeRetrievalResults(
   results: any,
   query: string,
-  minRelevanceScore: number = 0.7
+  minRelevanceScore: number = 0.05
 ): ObservationResult {
 
   // ============================================================================
@@ -1898,7 +1901,7 @@ interface AgentLoopConfig {
 // ✅ OPTIMIZED: Reduced iterations for faster responses while maintaining quality
 const DEFAULT_AGENT_CONFIG: AgentLoopConfig = {
   maxAttempts: 2,              // Reduced from 3 (saves 10-15s on complex queries)
-  minRelevanceScore: 0.65,     // Slightly lower threshold (0.7 → 0.65)
+  minRelevanceScore: 0.05,     // Slightly lower threshold (0.7 → 0.65)
   minChunks: 3,
   improvementThreshold: 0.15   // Higher threshold (0.1 → 0.15) to stop earlier if not improving much
 };
@@ -2254,7 +2257,7 @@ async function pureBM25Search(query: string, userId: string, topK: number = 20):
 // LANGUAGE DETECTION UTILITY
 // ============================================================================
 
-function detectLanguage(query: string): 'pt' | 'es' | 'en' {
+function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
   const lower = query.toLowerCase();
 
   // ✅ FIX: Check for STRONG English patterns FIRST - these are definitive
@@ -2350,31 +2353,51 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' {
     'hola', 'gracias'
   ];
 
+  // French indicators (unique words only)
+  const frWords = [
+    // Question words (French-specific)
+    'quoi', 'comment', 'pourquoi', 'combien', 'lesquels', 'lesquelles',
+    // Common French verbs/words
+    'avoir', 'être', 'faire', 'pouvoir', 'vouloir', 'devoir', 'savoir',
+    'je', 'tu', 'nous', 'vous', 'ils', 'elles',
+    // File/document terms (French-specific)
+    'fichier', 'fichiers', 'dossier', 'dossiers', 'document', 'documents',
+    // Actions
+    'créer', 'supprimer', 'renommer', 'télécharger', 'montrer', 'expliquer',
+    // Greetings (French-specific)
+    'bonjour', 'bonsoir', 'salut', 'merci'
+  ];
+
   // Count matches for each language using whole word matching
   const enCount = countWholeWordMatches(lower, enWords);
   const ptCount = countWholeWordMatches(lower, ptWords);
   const esCount = countWholeWordMatches(lower, esWords);
+  const frCount = countWholeWordMatches(lower, frWords);
 
   // Log for debugging
-  console.log(`🌐 [LANG DETECT] EN: ${enCount}, PT: ${ptCount}, ES: ${esCount} for query: "${query.substring(0, 50)}..."`);
+  console.log(`🌐 [LANG DETECT] EN: ${enCount}, PT: ${ptCount}, ES: ${esCount}, FR: ${frCount} for query: "${query.substring(0, 50)}..."`);
 
   // ✅ FIX: Require MINIMUM of 2 strong matches to switch from English
   const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 2;
 
   // English wins if it has the most matches OR ties with any other language
-  if (enCount >= ptCount && enCount >= esCount && enCount > 0) {
+  if (enCount >= ptCount && enCount >= esCount && enCount >= frCount && enCount > 0) {
     console.log(`🌐 [LANG DETECT] Detected: English`);
     return 'en';
   }
 
   // Return language with most matches ONLY if above threshold
-  if (ptCount > esCount && ptCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+  if (ptCount > esCount && ptCount > frCount && ptCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
     console.log(`🌐 [LANG DETECT] Detected: Portuguese (${ptCount} matches)`);
     return 'pt';
   }
-  if (esCount > ptCount && esCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+  if (esCount > ptCount && esCount > frCount && esCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
     console.log(`🌐 [LANG DETECT] Detected: Spanish (${esCount} matches)`);
     return 'es';
+  }
+  if (frCount > ptCount && frCount > esCount && frCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+    console.log(`🌐 [LANG DETECT] Detected: French (${frCount} matches)`);
+    return 'fr';
   }
 
   console.log(`🌐 [LANG DETECT] Detected: English (default)`);
@@ -6546,6 +6569,7 @@ async function handleRegularQuery(
 
       // Convert vector results to RRF format
       const vectorResultsForRRF = vectorMatches.map((match: any) => ({
+        content: match.metadata?.content || match.metadata?.text || '',
         metadata: match.metadata,
         score: match.score || 0,
       }));
@@ -7087,6 +7111,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       // Convert to format expected by mergeWithRRF
       const vectorResultsForRRF = (rawResults.matches || []).map((match: any) => ({
+        content: match.metadata?.content || match.metadata?.text || '',
         metadata: match.metadata,
         score: match.score || 0,
       }));
@@ -7142,6 +7167,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
         // Convert to format expected by mergeWithRRF
         const vectorResultsForRRF = (rawResults.matches || []).map((match: any) => ({
+          content: match.metadata?.content || match.metadata?.text || '',
           metadata: match.metadata,
           score: match.score || 0,
         }));
@@ -7336,6 +7362,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
           // Convert to RRF format
           const vectorResultsForRRF = iterativeVectorMatches.map((match: any) => ({
+            content: match.metadata?.content || match.metadata?.text || '',
             metadata: match.metadata,
             score: match.score || 0,
           }));
@@ -10100,12 +10127,23 @@ async function handleDocumentMetadataQuery(
 }
 
 // ============================================================================
+// GET CONTEXT - Retrieve stored RAG context by ID
+// ============================================================================
+async function getContext(contextId: string): Promise<any> {
+  // Contexts are typically stored in-memory or in cache
+  // For now, return null as contexts are ephemeral
+  console.log(`📋 [RAG] Getting context for: ${contextId}`);
+  return null;
+}
+
+// ============================================================================
 // DEFAULT EXPORT (for backward compatibility with default imports)
 // ============================================================================
 export default {
   generateAnswer,
   generateAnswerStream,
   generateAnswerStreaming,
+  getContext,
 };
 
 

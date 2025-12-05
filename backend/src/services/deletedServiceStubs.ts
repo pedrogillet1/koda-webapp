@@ -662,7 +662,7 @@ export const outputIntegration = {
     lang === 'pt' ? 'Nenhum documento encontrado.' :
     lang === 'es' ? 'No se encontraron documentos.' :
     'No documents found.',
-  generateFileListing: async (lang: string, files: any[]) =>
+  generateFileListing: async (lang: string, files: any[], _totalCount?: number, _limit?: number) =>
     files.map(f => f.name || f.title).join('\n'),
   generateProcessingError: async (lang: string, _type: string) =>
     lang === 'pt' ? 'Erro ao processar sua solicitação.' :
@@ -671,39 +671,23 @@ export const outputIntegration = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Adaptive Answer Generation Stub
+// Adaptive Answer Generation - NOW USING REAL IMPLEMENTATION
+// See: adaptiveAnswerGeneration.service.ts
 // ═══════════════════════════════════════════════════════════════════════════
+// NOTE: DocumentInfo interface kept for backwards compatibility (used as AdaptiveDocumentInfo)
 export interface DocumentInfo {
-  id: string;
+  id?: string;
   title: string;
-  content: string;
+  content?: string;
+  pageCount?: number;
+  wordCount?: number;
+  type?: string;
 }
 
-export const adaptiveAnswerGeneration = {
-  generateAnswer: async (_params: any) => ({
-    answer: '',
-    confidence: 0,
-    sources: []
-  }),
-  generateAdaptiveAnswer: async (_params: any) => ({
-    answer: '',
-    confidence: 0,
-    sources: []
-  }),
-  validateAnswerQuality: (_answer: string) => ({
-    isValid: true,
-    score: 1,
-    issues: []
-  })
-};
-
 // ═══════════════════════════════════════════════════════════════════════════
-// Context Engineering Stub
+// Context Engineering - NOW USING REAL IMPLEMENTATION
+// See: contextEngineering.service.ts
 // ═══════════════════════════════════════════════════════════════════════════
-export const contextEngineering = {
-  buildContext: (_params: any) => '',
-  optimizeContext: (context: string) => context
-};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Synthesis Query Detection Stub
@@ -712,7 +696,8 @@ export const synthesisQueryDetectionService = {
   detect: (_query: string) => ({
     isSynthesis: false,
     isSynthesisQuery: false,
-    type: null as string | null,
+    type: '' as string,
+    topic: '' as string,
     confidence: 0
   })
 };
@@ -721,10 +706,13 @@ export const synthesisQueryDetectionService = {
 // Comparative Analysis Stub
 // ═══════════════════════════════════════════════════════════════════════════
 export const comparativeAnalysisService = {
-  getComparisonContext: (_query: string, _docs: any[]) => ({
+  getComparisonContext: (_query: string, _concepts: string[], _chunks: any[]) => ({
     isComparison: false,
-    items: [],
-    context: ''
+    items: [] as any[],
+    context: '',
+    comparativeStatements: [] as any[],
+    conceptAttributesMap: new Map<string, any>(),
+    promptAddition: ''
   })
 };
 
@@ -750,8 +738,15 @@ export const trendAnalysisService = {
 // Terminology Intelligence Stub
 // ═══════════════════════════════════════════════════════════════════════════
 export const terminologyIntelligenceService = {
-  isTerminologyQuestion: (_query: string) => ({ isTerm: false, term: null }),
-  answerTerminologyQuestion: async (_userId: string, _term: string, _query: string) => null,
+  isTerminologyQuestion: (_query: string) => ({ isTerm: false, term: null as string | null }),
+  answerTerminologyQuestion: async (_userId: string, _term: string, _chunks: any[], _options?: any) => ({
+    confidence: 0,
+    definition: '',
+    formula: null as string | null,
+    interpretation: null as string | null,
+    documentValues: [] as any[],
+    sources: [] as any[]
+  }),
   formatAsString: (_response: any) => ''
 };
 
@@ -759,9 +754,11 @@ export const terminologyIntelligenceService = {
 // Cross Document Synthesis Stub
 // ═══════════════════════════════════════════════════════════════════════════
 export const crossDocumentSynthesisService = {
-  synthesizeMethodologies: async (_userId: string, _query: string, _docs: any[]) => ({
+  synthesizeMethodologies: async (_userId: string, _topic?: string) => ({
     synthesis: '',
-    sources: []
+    sources: [] as any[],
+    methodologies: [] as Array<{ name: string; documentIds: string[]; description?: string }>,
+    totalDocuments: 0
   })
 };
 
@@ -870,6 +867,7 @@ export const practicalImplicationsService = {
 };
 
 // Default export for services that use default import
+// NOTE: adaptiveAnswerGeneration and contextEngineering removed - now using real implementations
 export default {
   semanticDocumentSearchService,
   hybridRetrievalBooster,
@@ -878,8 +876,6 @@ export default {
   memoryService,
   citationTracking,
   outputIntegration,
-  adaptiveAnswerGeneration,
-  contextEngineering,
   synthesisQueryDetectionService,
   comparativeAnalysisService,
   methodologyExtractionService,
@@ -895,13 +891,156 @@ export default {
 // Conversation Context Service Stub (added for rag.service.ts import)
 // ═══════════════════════════════════════════════════════════════════════════
 export const conversationContextService = {
-  getContext: async (_conversationId: string, _userId: string) => ({
+  getContext: async (_conversationId: string, _userId?: string) => ({
     recentMessages: [] as any[],
     summary: '',
     topics: [] as string[],
-    entities: [] as any[]
+    entities: [] as any[],
+    keyFindings: [] as any[]  // Added for rag.service.ts line 6435
   }),
   updateContext: async (_conversationId: string, _context: any) => {},
   clearContext: async (_conversationId: string) => {},
-  updateContextAfterTurn: async (_conversationId: string, _userMessage: string, _assistantMessage: string) => {}
+  updateContextAfterTurn: async (_conversationId: string, _userMessage: string, _assistantMessage: string) => {},
+  resolveReferences: (query: string, _context: any) => query  // Returns original query unchanged
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Navigation Service Stub (used in rag.controller.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const navigationService = {
+  handleNavigation: async (_userId: string, _action: string, _params?: any) => ({
+    success: false,
+    message: 'Navigation service disabled'
+  }),
+  parseNavigationIntent: (_query: string) => null,
+  findFile: async (_userId: string, _filename: string) => ({
+    found: false,
+    message: 'Navigation service disabled',
+    actions: [] as Array<{ type: string; documentId?: string; folderId?: string }>,
+    folderPath: null as string | null
+  })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P0 Features Service Stub (used in rag.controller.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const p0FeaturesService = {
+  isEnabled: (_feature: string) => false,
+  getFeatureConfig: (_feature: string) => null,
+  trackUsage: async (_userId: string, _feature: string) => {},
+  preProcessQuery: async (_query: string, _userId?: string, _conversationId?: string) => ({
+    processedQuery: _query,
+    wasRewritten: false,
+    isRefinement: false,
+    scopeDocumentIds: [] as string[],
+    requiresCalculation: false,
+    calculationType: null as string | null
+  }),
+  postProcessResponse: async (
+    _query: string,
+    _response: string,
+    _sources: any[],
+    _userId?: string,
+    _conversationId?: string,
+    _preProcessResult?: any
+  ) => ({
+    processed: false,
+    updates: null as any,
+    answer: _response, // Return original response instead of null
+    calculationResult: null as { explanation?: string } | null,
+    scopeUpdated: false,
+    newScopeDescription: null as string | null
+  })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Chat Document Generation Service Stub (used in rag.controller.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const chatDocumentGenerationService = {
+  shouldGenerateDocument: (_query: string, _context?: any) => false,
+  generateDocument: async (_params: {
+    userId: string;
+    content: string;
+    title?: string;
+    conversationId?: string;
+  }) => ({
+    success: false,
+    documentId: null as string | null,
+    error: 'Document generation service disabled'
+  })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SMS Service Stubs (for auth.service.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const smsServiceStubs = {
+  formatPhoneNumber: (phone: string) => phone,
+  isValidPhoneNumber: (_phone: string) => true,
+  sendVerificationSMS: async (_phone: string, _code: string) => ({ success: true }),
+  sendPasswordResetSMS: async (_phone: string, _code: string) => ({ success: true })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pending User Service Stubs (for auth.service.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const pendingUserServiceStubs = {
+  verifyPendingEmail: async (_email: string, _code: string) => ({ success: false, error: 'Service disabled' }),
+  resendEmailCode: async (_email: string) => ({ success: false, error: 'Service disabled' }),
+  addPhoneToPending: async (_email: string, _phone: string) => ({ success: false, error: 'Service disabled' }),
+  verifyPendingPhone: async (_email: string, _code: string) => ({ success: false, error: 'Service disabled' })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Fuzzy Match Service Stub (for fileActions.service.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const fuzzyMatchService = {
+  fuzzyMatch: async () => [] as never[],
+  findBestMatch: async (_query: string, _userId: string, _options?: any) => null as any
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// File Matching Service Stub (for fileActions.service.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const fileMatchingService = {
+  matchFiles: async () => [] as never[],
+  findSingleFile: async (_query: string, _userId: string) => null as any
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dynamic Response Generator Stubs (for fileActions.service.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const generateDynamicResponse = async (_template: string, _params?: any): Promise<string> => {
+  return _template || '';
+};
+
+export const generateResponse = generateDynamicResponse;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PPTX Slide Generator Stub (for document.service.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const pptxSlideGeneratorStub = {
+  checkLibreOffice: async () => ({ installed: false, error: 'Service disabled' }),
+  generateSlide: async () => ({ content: '', error: 'Service disabled' }),
+  generateSlideImages: async (_slides: any[]) => [] as any[]
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Vision Service Stub (for document.service.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const visionServiceStub = {
+  processImage: async (_buffer: Buffer): Promise<{ text: string; confidence: number }> => ({
+    text: '',
+    confidence: 0
+  })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Clarification Service Stub (for fileActions.service.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const clarificationService = {
+  needsClarification: false,
+  options: [] as string[],
+  question: '',
+  groupingStrategy: 'none' as string,
+  askForClarification: async (): Promise<string> => ''
 };
