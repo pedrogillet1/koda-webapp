@@ -12,20 +12,11 @@
 import geminiClient from './geminiClient.service';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Semantic Document Search Service Stub
+// Semantic Document Search Service - NOW USING REAL IMPLEMENTATION
+// See: semanticDocumentSearch.service.ts
 // ═══════════════════════════════════════════════════════════════════════════
-export const semanticDocumentSearchService = {
-  isDocumentSearchQuery: (_query: string): boolean => false,
-  search: async (_query: string, _userId: string) => ({
-    success: false,
-    action: null as string | null,
-    message: 'Service disabled',
-    documents: [] as any[],
-    uiData: null as any,
-    query: _query,
-    totalResults: 0
-  })
-};
+import { semanticDocumentSearchService as _semanticDocumentSearchService } from './semanticDocumentSearch.service';
+export const semanticDocumentSearchService = _semanticDocumentSearchService;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Hybrid Retrieval Booster Stub
@@ -1079,25 +1070,12 @@ export const fileMatchingService = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Dynamic Response Generator Stubs (for fileActions.service.ts)
+// Dynamic Response Generator - NOW USING REAL IMPLEMENTATION
+// See: dynamicResponseGenerator.service.ts
 // ═══════════════════════════════════════════════════════════════════════════
-export const generateDynamicResponse = async (
-  _options: string | {
-    action: string;
-    success: boolean;
-    language: string;
-    details?: any;
-    userQuery?: string;
-  },
-  _params?: any
-): Promise<string> => {
-  if (typeof _options === 'string') {
-    return _options || '';
-  }
-  return _options?.action ? `Action: ${_options.action}` : '';
-};
-
-export const generateResponse = generateDynamicResponse;
+import { generateDynamicResponse as _generateDynamicResponse, generateResponse as _generateResponse } from './dynamicResponseGenerator.service';
+export const generateDynamicResponse = _generateDynamicResponse;
+export const generateResponse = _generateResponse;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PPTX Slide Generator Stub (for document.service.ts)

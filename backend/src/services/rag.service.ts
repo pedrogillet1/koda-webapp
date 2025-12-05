@@ -73,6 +73,7 @@ import {
 import adaptiveAnswerGeneration from './adaptiveAnswerGeneration.service';
 import contextEngineering from './contextEngineering.service';
 import { emptyResponsePrevention } from './emptyResponsePrevention.service';
+import { fallbackResponseService } from './fallbackResponse.service';
 
 // Infinite Conversation Memory (Manus-style)
 import infiniteConversationMemory from './infiniteConversationMemory.service';
@@ -3468,9 +3469,8 @@ Respond in the same language as the user's question.`;
           documentId: doc.documentId,
           filename: doc.filename,
           mimeType: doc.mimeType,
-          matchedCriteria: doc.matchedCriteria,
           confidence: doc.confidence,
-          preview: doc.matchedChunks[0]?.content
+          preview: doc.content?.substring(0, 200) || ''
         }));
 
         return { sources };
@@ -9549,7 +9549,26 @@ async function handleFileLocationQuery(
   });
 
   if (documents.length === 0) {
-    onChunk(`I couldn't find **${filename}** in your library. It may have been deleted or the filename might be slightly different.`);
+    // Find similar files to suggest alternatives
+    const similarFiles = await prisma.document.findMany({
+      where: {
+        userId,
+        status: { not: 'deleted' }
+      },
+      select: { id: true, filename: true },
+      take: 5,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Use dynamic fallback response
+    const fallbackMessage = await fallbackResponseService.generateFileNotFoundResponse(
+      query,
+      filename,
+      userId,
+      'en', // TODO: Detect language from query
+      similarFiles
+    );
+    onChunk(fallbackMessage);
     return { sources: [] };
   }
 
@@ -9701,7 +9720,23 @@ async function handleFolderContentQuery(
   });
 
   if (!folder) {
-    onChunk(`I couldn't find a folder named **${folderName}**. You can check your folder list or create a new folder.`);
+    // Find available folders to suggest alternatives
+    const availableFolders = await prisma.folder.findMany({
+      where: { userId },
+      select: { id: true, name: true },
+      take: 5,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Use dynamic fallback response
+    const fallbackMessage = await fallbackResponseService.generateFolderNotFoundResponse(
+      query,
+      folderName,
+      userId,
+      'en', // TODO: Detect language from query
+      availableFolders
+    );
+    onChunk(fallbackMessage);
     return { sources: [] };
   }
 
