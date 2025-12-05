@@ -40,7 +40,7 @@ class ExcelToHtmlStyledService {
    */
   async convertToHtml(buffer: Buffer): Promise<ExcelToHtmlResult> {
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    await workbook.xlsx.load(buffer as any);
 
     const sheets: SheetInfo[] = [];
     let html = this.getHtmlHeader();

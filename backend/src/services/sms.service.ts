@@ -17,8 +17,33 @@ export const verifySMSCode = async (phoneNumber: string, code: string): Promise<
   return false;
 };
 
+// Additional stubs for auth.service.ts
+export const formatPhoneNumber = (phone: string): string => {
+  // Simple pass-through - no actual formatting
+  return phone;
+};
+
+export const isValidPhoneNumber = (_phone: string): boolean => {
+  // Always return true as stub
+  return true;
+};
+
+export const sendVerificationSMS = async (phoneNumber: string, code: string): Promise<{ success: boolean }> => {
+  console.log(`[SMS STUB] Would send verification code ${code} to ${phoneNumber}`);
+  return { success: true };
+};
+
+export const sendPasswordResetSMS = async (phoneNumber: string, code: string): Promise<{ success: boolean }> => {
+  console.log(`[SMS STUB] Would send password reset code ${code} to ${phoneNumber}`);
+  return { success: true };
+};
+
 export default {
   sendSMS,
   generateSMSCode,
   verifySMSCode,
+  formatPhoneNumber,
+  isValidPhoneNumber,
+  sendVerificationSMS,
+  sendPasswordResetSMS,
 };

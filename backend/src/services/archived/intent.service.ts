@@ -476,7 +476,7 @@ class QueryIntentService {
           confidence: 0.95,
           reasoning: 'Query is requesting a list of files, categories, or items',
           suggestedAction: action,
-          entities: { folderName }  // Include folder name in entities
+          entities: { folderName: folderName ?? undefined }  // Include folder name in entities
         };
       }
     }

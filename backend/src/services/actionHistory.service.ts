@@ -52,7 +52,7 @@ class ActionHistoryService {
     userId: string,
     actionType: 'create' | 'delete' | 'rename' | 'move',
     targetPath: string,
-    document_metadata: {
+    metadata: {
       previousPath?: string;
       fileContent?: string;
       fileType?: string;
@@ -60,7 +60,7 @@ class ActionHistoryService {
   ): Promise<void> {
     try {
       // Mark all previous actions as not-redoable (new action breaks redo chain)
-      await prisma.action_history.updateMany({
+      await prisma.actionHistory.updateMany({
         where: {
           userId,
           canRedo: true,
@@ -71,7 +71,7 @@ class ActionHistoryService {
       });
 
       // Record new action
-      await prisma.action_history.create({
+      await prisma.actionHistory.create({
         data: {
           userId,
           actionType,
@@ -98,7 +98,7 @@ class ActionHistoryService {
   async undoLastAction(userId: string): Promise<UndoResult> {
     try {
       // Find the most recent undoable action
-      const lastAction = await prisma.action_history.findFirst({
+      const lastAction = await prisma.actionHistory.findFirst({
         where: {
           userId,
           canUndo: true,
@@ -169,7 +169,7 @@ class ActionHistoryService {
 
       if (reverseSuccess) {
         // Mark action as undone and redoable
-        await prisma.action_history.update({
+        await prisma.actionHistory.update({
           where: { id: lastAction.id },
           data: {
             canUndo: false,
@@ -207,7 +207,7 @@ class ActionHistoryService {
   async redoLastAction(userId: string): Promise<RedoResult> {
     try {
       // Find the most recent redoable action
-      const lastUndone = await prisma.action_history.findFirst({
+      const lastUndone = await prisma.actionHistory.findFirst({
         where: {
           userId,
           canRedo: true,
@@ -278,7 +278,7 @@ class ActionHistoryService {
 
       if (redoSuccess) {
         // Mark action as undoable again (and not redoable)
-        await prisma.action_history.update({
+        await prisma.actionHistory.update({
           where: { id: lastUndone.id },
           data: {
             canUndo: true,
@@ -315,7 +315,7 @@ class ActionHistoryService {
    */
   async getHistory(userId: string, limit: number = 10): Promise<ActionRecord[]> {
     try {
-      const actions = await prisma.action_history.findMany({
+      const actions = await prisma.actionHistory.findMany({
         where: { userId },
         orderBy: { timestamp: 'desc' },
         take: limit,
@@ -343,7 +343,7 @@ class ActionHistoryService {
    */
   async clearHistory(userId: string): Promise<void> {
     try {
-      await prisma.action_history.deleteMany({
+      await prisma.actionHistory.deleteMany({
         where: { userId },
       });
       console.log(`🗑️ [ActionHistory] Cleared history for user ${userId}`);
@@ -361,7 +361,7 @@ class ActionHistoryService {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const result = await prisma.action_history.deleteMany({
+      const result = await prisma.actionHistory.deleteMany({
         where: {
           timestamp: {
             lt: thirtyDaysAgo,

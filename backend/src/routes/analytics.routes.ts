@@ -130,4 +130,35 @@ router.get('/export', analyticsController.exportData);
  */
 router.post('/aggregate', analyticsController.runAggregation);
 
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW: PERFORMANCE TRACKING ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/admin/analytics/rag-performance
+ * Get RAG query performance metrics
+ * Query params: days (default: 7)
+ */
+router.get('/rag-performance', analyticsController.getRAGPerformance);
+
+/**
+ * GET /api/admin/analytics/api-performance
+ * Get API performance metrics
+ * Query params: service, hours (default: 24)
+ */
+router.get('/api-performance', analyticsController.getAPIPerformance);
+
+/**
+ * GET /api/admin/analytics/feature-usage-stats
+ * Get detailed feature usage statistics from tracking
+ * Query params: days (default: 30)
+ */
+router.get('/feature-usage-stats', analyticsController.getFeatureUsageStats);
+
+/**
+ * GET /api/admin/analytics/conversations/:conversationId/feedback
+ * Get feedback statistics for a specific conversation
+ */
+router.get('/conversations/:conversationId/feedback', analyticsController.getConversationFeedbackStats);
+
 export default router;

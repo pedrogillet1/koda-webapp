@@ -20,19 +20,68 @@ import prisma from '../config/database';
 import crypto from 'crypto';
 
 // Stub services for removed functionality
+interface SessionDocument {
+  id: string;
+  filename: string;
+  mimeType: string;
+  content: string;
+  metadata: {
+    author?: string;
+    creationDate?: string;
+    language?: string;
+    fileType?: string;
+    [key: string]: any;
+  };
+}
+
+interface Session {
+  id: string;
+  userId: string;
+  documents: SessionDocument[];
+  createdAt: Date;
+}
+
 const sessionStorageService = {
-  createSession: async () => { throw new Error('Session storage service removed'); },
-  getSession: async () => null,
-  deleteSession: async () => {},
-  storeDocument: async () => { throw new Error('Session storage service removed'); },
-  getDocuments: async () => [],
-  deleteDocument: async () => {},
+  createSession: async (_userId: string): Promise<Session> => {
+    return {
+      id: crypto.randomUUID(),
+      userId: _userId,
+      documents: [],
+      createdAt: new Date(),
+    };
+  },
+  getSession: async (_sessionId: string): Promise<Session | null> => null,
+  getSessionStats: async (_sessionId: string) => ({
+    documentCount: 0,
+    totalSize: 0,
+  }),
+  deleteSession: async (_sessionId: string): Promise<void> => {},
+  storeDocument: async (_sessionId: string, _doc: any): Promise<SessionDocument> => {
+    return { id: '', filename: '', mimeType: '', content: '', metadata: {} };
+  },
+  addDocument: async (_sessionId: string, _doc: any): Promise<SessionDocument> => {
+    return { id: '', filename: '', mimeType: '', content: '', metadata: {} };
+  },
+  getDocuments: async (_sessionId: string): Promise<SessionDocument[]> => [],
+  deleteDocument: async (_sessionId: string, _documentId: string): Promise<void> => {},
+  querySession: async (_sessionId: string, _embedding: number[], _topK: number, _threshold: number): Promise<any[]> => [],
+  getSessionDocuments: async (_sessionId: string): Promise<any[]> => [],
 };
+
 const metadataExtractionService = {
-  extractMetadata: async () => ({}),
+  extractMetadata: async (_buffer: Buffer, _filename: string, _mimeType: string, _text: string) => ({
+    author: undefined as string | undefined,
+    creationDate: undefined as string | undefined,
+    language: undefined as string | undefined,
+    fileType: undefined as string | undefined,
+  }),
 };
+
 const documentComparisonService = {
-  compareDocuments: async () => ({ similarities: [], differences: [] }),
+  compareDocuments: async (_docId1: string, _docId2: string, _userId: string) => ({
+    similarities: [] as string[],
+    differences: [] as string[],
+  }),
 };
 import multer from 'multer';
 

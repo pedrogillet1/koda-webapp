@@ -301,17 +301,17 @@ export class ResponseFormatterService {
    */
   buildFormatPrompt(formatType: ResponseFormatType): string {
     switch (formatType) {
-      case ResponseFormatType.FEATURE_LIST:
+      case 'LIST':
         return this.buildFeatureListPrompt();
-      case ResponseFormatType.STRUCTURED_LIST:
+      case 'STRUCTURED':
         return this.buildStructuredListPrompt();
-      case ResponseFormatType.DOCUMENT_LIST:
+      case 'NARRATIVE':
         return this.buildDocumentListPrompt();
-      case ResponseFormatType.TABLE:
+      case 'TABLE':
         return this.buildTablePrompt();
-      case ResponseFormatType.DIRECT_ANSWER:
+      case 'DIRECT_ANSWER':
         return this.buildDirectAnswerPrompt();
-      case ResponseFormatType.SIMPLE_LIST:
+      case 'SUMMARY':
         return this.buildSimpleListPrompt();
       default:
         return this.buildFeatureListPrompt(); // Default

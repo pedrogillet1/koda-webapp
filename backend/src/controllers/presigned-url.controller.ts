@@ -73,7 +73,7 @@ async function createFolderHierarchy(
       : `/${folderName}`;
 
     // Check if folder already exists
-    const existingFolder = await prisma.folders.findFirst({
+    const existingFolder = await prisma.folder.findFirst({
       where: {
         userId,
         name: folderName,
@@ -86,11 +86,11 @@ async function createFolderHierarchy(
       folderMap.set(folderPath, existingFolder.id);
     } else {
       // Create new folder
-      const newFolder = await prisma.folders.create({
+      const newFolder = await prisma.folder.create({
         data: {
-          user: { connect: { id: userId } },
+          userId,
           name: folderName,
-          parentFolderId: parentFolderId,
+          parentFolderId: parentFolderId ?? null,
           path: fullPath
         }
       });
@@ -108,7 +108,7 @@ async function createFolderHierarchy(
  * Helper function to build full path for a folder
  */
 async function buildFullPath(parentFolderId: string, folderName: string): Promise<string> {
-  const parent = await prisma.folders.findUnique({
+  const parent = await prisma.folder.findUnique({
     where: { id: parentFolderId },
     select: { path: true }
   });

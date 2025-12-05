@@ -11,9 +11,13 @@ export const formatBytes = (bytes: number) => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
+export const incrementStorage = async (_userId: string, _bytes: number) => {};
+export const decrementStorage = async (_userId: string, _bytes: number) => {};
 
 export default {
   hasCapacity,
   getStorageInfo,
   formatBytes,
+  incrementStorage,
+  decrementStorage,
 };

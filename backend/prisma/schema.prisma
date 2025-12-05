@@ -53,6 +53,14 @@ model User {
   profile               UserProfile?
   verificationCodes     VerificationCode[]
 
+  // Analytics relations
+  userSessions          UserSession[]
+  analyticsEvents       AnalyticsEvent[]
+  conversationFeedback  ConversationFeedback[]
+  ragQueryMetrics       RAGQueryMetrics[]
+  userLifetimeValue     UserLifetimeValue?
+  featureUsageLogs      FeatureUsageLog[]
+
   @@map("users")
 }
 
@@ -185,6 +193,9 @@ model Document {
   versions               Document[]          @relation("DocumentVersions")
   user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   generatedDocument      GeneratedDocument?
+
+  // Analytics relations
+  processingMetrics      DocumentProcessingMetrics?
 
   @@index([userId])
   @@index([folderId])
@@ -354,6 +365,11 @@ model Conversation {
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages          Message[]
 
+  // Analytics relations
+  feedback          ConversationFeedback[]
+  metrics           ConversationMetrics?
+  ragQueries        RAGQueryMetrics[]
+
   @@index([userId])
   @@index([contextType, contextId])
   @@index([userId, updatedAt])
@@ -380,6 +396,10 @@ model Message {
   contextEntities   Json?
 
   conversation      Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // Analytics relations
+  feedback          ConversationFeedback[]
+  ragMetrics        RAGQueryMetrics?
 
   @@index([conversationId])
   @@index([isDocument])
@@ -1125,4 +1145,418 @@ enum MemorySection {
   GOALS
   COMMUNICATION_STYLE
   RELATIONSHIPS
+}
+
+// ============================================================================
+// ANALYTICS DATA MODEL FOR KODA
+// Designed to track all critical metrics for production-ready analytics
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// 1. USER ENGAGEMENT TRACKING
+// ----------------------------------------------------------------------------
+
+model UserSession {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Session timing
+  startedAt     DateTime @default(now())
+  endedAt       DateTime?
+  duration      Int?     // Duration in seconds (calculated on session end)
+
+  // Session metadata
+  ipAddress     String?
+  userAgent     String?
+  device        String?  // mobile, tablet, desktop
+  browser       String?
+  os            String?
+
+  // Activity tracking
+  pageViews     Int      @default(0)
+  actionsCount  Int      @default(0)
+  messagesCount Int      @default(0)
+
+  // Session quality
+  bounced       Boolean  @default(false) // Left within 30 seconds
+  converted     Boolean  @default(false) // Completed a goal
+
+  events        AnalyticsEvent[]
+
+  @@index([userId])
+  @@index([startedAt])
+  @@map("user_sessions")
+}
+
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  sessionId   String?
+  session     UserSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Event details
+  eventType   String   // page_view, feature_used, button_clicked, etc.
+  eventName   String   // Specific event name
+  category    String?  // Grouping category
+
+  // Event data (JSON for flexibility)
+  properties  Json?    // Custom event properties
+
+  // Timing
+  timestamp   DateTime @default(now())
+  duration    Int?     // For events with duration (in ms)
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([eventType])
+  @@index([timestamp])
+  @@map("analytics_events")
+}
+
+// ----------------------------------------------------------------------------
+// 2. CONVERSATION QUALITY METRICS
+// ----------------------------------------------------------------------------
+
+model ConversationFeedback {
+  id              String   @id @default(cuid())
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messageId       String?
+  message         Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Feedback type
+  feedbackType    String   // thumbs_up, thumbs_down, rating, comment
+  rating          Int?     // 1-5 star rating (if applicable)
+  sentiment       String?  // positive, negative, neutral
+
+  // Detailed feedback
+  comment         String?  @db.Text
+  categories      String[] // helpful, accurate, fast, etc.
+
+  // Context
+  wasHelpful      Boolean?
+  hadSources      Boolean  @default(false)
+  sourceCount     Int      @default(0)
+
+  createdAt       DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([userId])
+  @@index([feedbackType])
+  @@index([createdAt])
+  @@map("conversation_feedback")
+}
+
+model ConversationMetrics {
+  id              String   @id @default(cuid())
+  conversationId  String   @unique
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // Timing metrics
+  startedAt       DateTime
+  endedAt         DateTime?
+  duration        Int?     // Total duration in seconds
+
+  // Message metrics
+  totalMessages   Int      @default(0)
+  userMessages    Int      @default(0)
+  assistantMessages Int    @default(0)
+
+  // Quality metrics
+  completed       Boolean  @default(false)
+  abandoned       Boolean  @default(false)
+  hadFallback     Boolean  @default(false)
+  fallbackCount   Int      @default(0)
+
+  // RAG metrics
+  ragQueriesCount Int      @default(0)
+  sourcesUsedCount Int     @default(0)
+  avgRelevanceScore Float?
+
+  // User satisfaction
+  userRating      Int?     // 1-5 stars
+  userFeedback    String?  // positive, negative, neutral
+
+  updatedAt       DateTime @updatedAt
+
+  @@index([startedAt])
+  @@index([completed])
+  @@map("conversation_metrics")
+}
+
+// ----------------------------------------------------------------------------
+// 3. DOCUMENT PROCESSING METRICS
+// ----------------------------------------------------------------------------
+
+model DocumentProcessingMetrics {
+  id                String   @id @default(cuid())
+  documentId        String   @unique
+  document          Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  // Upload metrics
+  uploadStartedAt   DateTime
+  uploadCompletedAt DateTime?
+  uploadDuration    Int?     // Seconds
+  uploadFailed      Boolean  @default(false)
+  uploadError       String?  @db.Text
+
+  // Processing metrics
+  processingStartedAt   DateTime?
+  processingCompletedAt DateTime?
+  processingDuration    Int?     // Seconds
+  processingFailed      Boolean  @default(false)
+  processingError       String?  @db.Text
+
+  // Text extraction
+  textExtractionMethod  String?  // pdf-parse, tesseract, mistral-ocr, etc.
+  textExtractionSuccess Boolean  @default(false)
+  textExtractionTime    Int?     // Milliseconds
+  textLength            Int?     // Characters extracted
+
+  // OCR metrics (if applicable)
+  ocrUsed           Boolean  @default(false)
+  ocrSuccess        Boolean  @default(false)
+  ocrConfidence     Float?   // 0-1 confidence score
+  ocrTime           Int?     // Milliseconds
+
+  // Embedding metrics
+  embeddingStartedAt    DateTime?
+  embeddingCompletedAt  DateTime?
+  embeddingDuration     Int?     // Seconds
+  embeddingsCreated     Int      @default(0)
+  chunksCreated         Int      @default(0)
+
+  // Access metrics
+  timesQueried      Int      @default(0)
+  lastQueriedAt     DateTime?
+
+  updatedAt         DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([uploadStartedAt])
+  @@map("document_processing_metrics")
+}
+
+// ----------------------------------------------------------------------------
+// 4. RAG PERFORMANCE METRICS
+// ----------------------------------------------------------------------------
+
+model RAGQueryMetrics {
+  id              String   @id @default(cuid())
+  conversationId  String?
+  conversation    Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messageId       String?  @unique
+  message         Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Query details
+  query           String   @db.Text
+  queryLanguage   String?  // en, es, pt, etc.
+
+  // Retrieval method
+  retrievalMethod String   // hybrid, pinecone_only, bm25_only
+  usedBM25        Boolean  @default(false)
+  usedPinecone    Boolean  @default(false)
+
+  // Performance timing
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  totalLatency    Int?     // Total time in ms
+  embeddingLatency Int?    // Time to generate query embedding
+  bm25Latency     Int?     // Time for BM25 search
+  pineconeLatency Int?     // Time for Pinecone search
+  llmLatency      Int?     // Time for LLM response
+
+  // Retrieval results
+  chunksRetrieved Int      @default(0)
+  bm25Results     Int      @default(0)
+  pineconeResults Int      @default(0)
+  documentsUsed   Int      @default(0)
+
+  // Quality metrics
+  topScore        Float?   // Highest relevance score
+  avgScore        Float?   // Average relevance score
+  minRelevanceScore Float? // Threshold used
+  passedThreshold Boolean  @default(false)
+
+  // Outcome
+  needsRefinement Boolean  @default(false)
+  refinementReason String? // low_relevance, no_results, etc.
+  hadFallback     Boolean  @default(false)
+  responseGenerated Boolean @default(false)
+
+  // Source diversity
+  uniqueDocuments Int      @default(0)
+  sourceCoverage  Float?   // 0-1 score for source diversity
+
+  @@index([userId])
+  @@index([conversationId])
+  @@index([startedAt])
+  @@index([retrievalMethod])
+  @@map("rag_query_metrics")
+}
+
+// ----------------------------------------------------------------------------
+// 5. API PERFORMANCE METRICS
+// ----------------------------------------------------------------------------
+
+model APIPerformanceLog {
+  id            String   @id @default(cuid())
+
+  // API details
+  service       String   // openai, pinecone, s3, gemini, etc.
+  endpoint      String   // chat/completions, query, upload, etc.
+  method        String   // GET, POST, PUT, DELETE
+
+  // Request details
+  requestSize   Int?     // Bytes
+  requestData   Json?    // Sanitized request data
+
+  // Response details
+  responseSize  Int?     // Bytes
+  statusCode    Int
+  success       Boolean
+  errorMessage  String?  @db.Text
+  errorCode     String?
+
+  // Performance
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  latency       Int?     // Milliseconds
+
+  // Rate limiting
+  rateLimitHit  Boolean  @default(false)
+  retryCount    Int      @default(0)
+
+  // Cost tracking (if applicable)
+  tokensUsed    Int?
+  estimatedCost Float?
+
+  // Context
+  userId        String?
+  conversationId String?
+
+  @@index([service])
+  @@index([startedAt])
+  @@index([success])
+  @@index([rateLimitHit])
+  @@map("api_performance_logs")
+}
+
+// ----------------------------------------------------------------------------
+// 6. REAL-TIME SYSTEM HEALTH SNAPSHOTS
+// ----------------------------------------------------------------------------
+
+model SystemHealthSnapshot {
+  id                String   @id @default(cuid())
+
+  // Timestamp
+  timestamp         DateTime @default(now())
+
+  // User activity
+  onlineUsers       Int      @default(0)
+  activeConversations Int    @default(0)
+
+  // System load
+  cpuUsage          Float?   // Percentage
+  memoryUsage       Float?   // Percentage
+  diskUsage         Float?   // Percentage
+
+  // API activity
+  apiRequestsPerSec Float?
+  avgResponseTime   Float?   // Milliseconds
+  errorRate         Float?   // Percentage
+
+  // Database
+  dbConnections     Int?
+  dbQueryTime       Float?   // Average in ms
+
+  // Queue status
+  queuedJobs        Int      @default(0)
+  processingJobs    Int      @default(0)
+  failedJobs        Int      @default(0)
+
+  @@index([timestamp])
+  @@map("system_health_snapshots")
+}
+
+// ----------------------------------------------------------------------------
+// 7. BUSINESS METRICS - USER LIFETIME VALUE
+// ----------------------------------------------------------------------------
+
+model UserLifetimeValue {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Engagement metrics
+  totalSessions   Int      @default(0)
+  totalMessages   Int      @default(0)
+  totalDocuments  Int      @default(0)
+  totalConversations Int   @default(0)
+
+  // Time metrics
+  totalTimeSpent  Int      @default(0) // Seconds
+  avgSessionDuration Float?
+  daysSinceSignup Int?
+  lastActiveAt    DateTime?
+
+  // Retention
+  isActive        Boolean  @default(true)
+  isChurned       Boolean  @default(false)
+  churnedAt       DateTime?
+  churnReason     String?
+
+  // Value metrics
+  subscriptionTier String?
+  lifetimeRevenue Float?   @default(0)
+  estimatedValue  Float?
+
+  // Feature usage
+  featuresUsed    String[] // List of features used
+  featureAdoptionRate Float?
+
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([isChurned])
+  @@map("user_lifetime_value")
+}
+
+// ----------------------------------------------------------------------------
+// 8. FEATURE USAGE TRACKING
+// ----------------------------------------------------------------------------
+
+model FeatureUsageLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Feature details
+  featureName String   // rag_query, document_upload, memory_usage, etc.
+  featureCategory String? // chat, documents, settings, etc.
+
+  // Usage details
+  usedAt      DateTime @default(now())
+  duration    Int?     // Milliseconds (if applicable)
+  success     Boolean  @default(true)
+  errorMessage String? @db.Text
+
+  // Context
+  sessionId   String?
+  conversationId String?
+
+  // Metadata
+  metadata    Json?    // Additional feature-specific data
+
+  @@index([userId])
+  @@index([featureName])
+  @@index([usedAt])
+  @@map("feature_usage_logs")
 }

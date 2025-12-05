@@ -64,9 +64,9 @@ async function test_queryDocumentContent() {
     });
 
     const markdownDoc = documents[0];
-    const passed = markdownDoc &&
+    const passed = Boolean(markdownDoc &&
                    markdownDoc.renderableContent &&
-                   markdownDoc.renderableContent.includes('# Test Markdown Document');
+                   markdownDoc.renderableContent.includes('# Test Markdown Document'));
 
     results.push({
       test: 'queryDocumentContent',
@@ -317,9 +317,9 @@ async function test_queryDocumentWithFullText() {
       }
     });
 
-    const passed = markdownDoc &&
+    const passed = Boolean(markdownDoc &&
                    markdownDoc.renderableContent &&
-                   markdownDoc.renderableContent.length > 5000;
+                   markdownDoc.renderableContent.length > 5000);
 
     results.push({
       test: 'queryDocumentWithFullText',

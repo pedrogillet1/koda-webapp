@@ -222,7 +222,8 @@ Insights:`;
     };
 
     // Check what's missing and suggest based on insights
-    if (!profile?.writingStyle) {
+    const profileAny = profile as any;
+    if (!profileAny?.writingStyle) {
       suggestions.recommendations.push({
         field: 'writingStyle',
         suggestion: 'Consider setting a preferred writing style (concise, detailed, bullet-points)',
@@ -230,7 +231,7 @@ Insights:`;
       });
     }
 
-    if (!profile?.preferredTone) {
+    if (!profileAny?.preferredTone) {
       suggestions.recommendations.push({
         field: 'preferredTone',
         suggestion: 'Consider setting a preferred tone (formal, casual, humorous)',
@@ -238,7 +239,7 @@ Insights:`;
       });
     }
 
-    if (!profile?.coreGoals) {
+    if (!profileAny?.coreGoals) {
       suggestions.recommendations.push({
         field: 'coreGoals',
         suggestion: 'Consider documenting your main goals or current projects',
@@ -246,7 +247,7 @@ Insights:`;
       });
     }
 
-    if (!profile?.customInstructions) {
+    if (!profileAny?.customInstructions) {
       suggestions.recommendations.push({
         field: 'customInstructions',
         suggestion: 'Consider adding custom instructions for how you want Koda to assist you',

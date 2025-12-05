@@ -324,7 +324,7 @@ class PineconeService {
       filename: result.document.filename,  // ✅ Extract filename
       similarity: result.similarity,
       chunkIndex: result.chunkIndex,
-      document_metadata: {
+      metadata: {
         ...result.metadata,
         // ✅ Ensure filename is in metadata
         filename: result.document.filename,

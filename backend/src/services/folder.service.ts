@@ -1,5 +1,6 @@
 import prisma from '../config/database';
 import { invalidateUserCache } from '../controllers/batch.controller';
+import { deleteFile } from '../config/storage';
 
 /**
  * Create a new folder
@@ -22,7 +23,7 @@ export const createFolder = async (
   }
 ) => {
   // ✅ FIX: Check for existing folder
-  const existingFolder = await prisma.folders.findFirst({
+  const existingFolder = await prisma.folder.findFirst({
     where: {
       userId,
       name,
@@ -50,7 +51,7 @@ export const createFolder = async (
       // Auto-rename if requested
       let counter = 1;
       let newName = `${name} (${counter})`;
-      while (await prisma.folders.findFirst({
+      while (await prisma.folder.findFirst({
         where: { userId, name: newName, parentFolderId: parentFolderId || null }
       })) {
         counter++;
@@ -64,7 +65,7 @@ export const createFolder = async (
     }
   }
 
-  const folder = await prisma.folders.create({
+  const folder = await prisma.folder.create({
     data: {
       userId,
       name,
@@ -97,7 +98,7 @@ export const createFolder = async (
  */
 export const getOrCreateFolderByName = async (userId: string, folderName: string) => {
   // First, try to find existing folder
-  const existingFolder = await prisma.folders.findFirst({
+  const existingFolder = await prisma.folder.findFirst({
     where: {
       userId,
       name: folderName,
@@ -110,7 +111,7 @@ export const getOrCreateFolderByName = async (userId: string, folderName: string
   }
 
   // Create new folder if it doesn't exist
-  const newFolder = await prisma.folders.create({
+  const newFolder = await prisma.folder.create({
     data: {
       userId,
       name: folderName,
@@ -131,7 +132,7 @@ const getAllFolderIdsInTree = async (rootFolderId: string): Promise<string[]> =>
 
   // Iteratively find all subfolders (breadth-first search)
   while (currentBatch.length > 0) {
-    const subfolders = await prisma.folders.findMany({
+    const subfolders = await prisma.folder.findMany({
       where: { parentFolderId: { in: currentBatch } },
       select: { id: true },
     });
@@ -155,7 +156,7 @@ const countDocumentsRecursively = async (folderId: string): Promise<number> => {
 
   // Count documents in ALL folders with a single query
   // ✅ FIX: Include processing and uploading documents in count (not just completed)
-  const totalDocuments = await prisma.documents.count({
+  const totalDocuments = await prisma.document.count({
     where: {
       folderId: { in: allFolderIds },
       status: { in: ["completed", "processing", "uploading"] }
@@ -173,7 +174,7 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
   // --- ⚡ START: PERFORMANCE OPTIMIZATION ⚡ ---
 
   // 1. Get ALL folders for the user in a flat list (we need all for recursive count calculation)
-  const allFolders = await prisma.folders.findMany({
+  const allFolders = await prisma.folder.findMany({
     where: { userId },
     include: {
       _count: {
@@ -187,7 +188,7 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
   });
 
   // 2. Get all document counts grouped by folderId in a SINGLE query
-  const docCounts = await prisma.documents.groupBy({
+  const docCounts = await prisma.document.groupBy({
     by: ['folderId'],
     _count: { id: true },
     where: {
@@ -263,7 +264,7 @@ export const getFolderTree = async (userId: string, includeAll: boolean = false)
  * ✅ FIX: Now includes _count for subfolders and calculates totalDocuments recursively
  */
 export const getFolder = async (folderId: string, userId: string) => {
-  const folder = await prisma.folders.findUnique({
+  const folder = await prisma.folder.findUnique({
     where: { id: folderId },
     include: {
       // ✅ FIX: Include _count in subfolders query
@@ -326,7 +327,7 @@ export const getFolder = async (folderId: string, userId: string) => {
  * Update folder
  */
 export const updateFolder = async (folderId: string, userId: string, name?: string, emoji?: string, parentFolderId?: string | null) => {
-  const folder = await prisma.folders.findUnique({
+  const folder = await prisma.folder.findUnique({
     where: { id: folderId },
   });
 
@@ -365,7 +366,7 @@ export const updateFolder = async (folderId: string, userId: string, name?: stri
     updateData.parentFolderId = parentFolderId;
   }
 
-  const updated = await prisma.folders.update({
+  const updated = await prisma.folder.update({
     where: { id: folderId },
     data: updateData,
   });
@@ -377,7 +378,7 @@ export const updateFolder = async (folderId: string, userId: string, name?: stri
  * Check if targetFolder is a descendant of sourceFolder
  */
 const checkIfDescendant = async (sourceFolderId: string, targetFolderId: string): Promise<boolean> => {
-  let currentFolder = await prisma.folders.findUnique({
+  let currentFolder = await prisma.folder.findUnique({
     where: { id: targetFolderId },
   });
 
@@ -388,7 +389,7 @@ const checkIfDescendant = async (sourceFolderId: string, targetFolderId: string)
     if (!currentFolder.parentFolderId) {
       return false;
     }
-    currentFolder = await prisma.folders.findUnique({
+    currentFolder = await prisma.folder.findUnique({
       where: { id: currentFolder.parentFolderId },
     });
   }
@@ -468,7 +469,7 @@ export const bulkCreateFolders = async (
       }
 
       // ✅ FIX: Check if folder already exists before creating (prevents duplicates on retry)
-      const existingFolder = await tx.folders.findFirst({
+      const existingFolder = await tx.folder.findFirst({
         where: {
           userId,
           name,
@@ -482,7 +483,7 @@ export const bulkCreateFolders = async (
         folder = existingFolder;
       } else {
         // Create the folder within transaction
-        folder = await tx.folders.create({
+        folder = await tx.folder.create({
           data: {
             userId,
             name,
@@ -511,10 +512,11 @@ export const bulkCreateFolders = async (
 
 /**
  * ⚡ OPTIMIZED: Delete folder (cascade delete - deletes all subfolders and documents)
+ * ✅ FIXED: Now properly deletes from all storage systems (GCS, PostgreSQL embeddings, Pinecone)
  * Uses bulk delete instead of recursive deletion for instant performance
  */
 export const deleteFolder = async (folderId: string, userId: string) => {
-  const folder = await prisma.folders.findUnique({
+  const folder = await prisma.folder.findUnique({
     where: { id: folderId },
   });
 
@@ -529,27 +531,92 @@ export const deleteFolder = async (folderId: string, userId: string) => {
   // ⚡ OPTIMIZATION: Get all folder IDs in one query instead of recursive deletion
   const allFolderIds = await getAllFolderIdsInTree(folderId);
 
-  console.log(`🗑️ Deleting folder "${folder.name}" and ${allFolderIds.length - 1} subfolders (${allFolderIds.length} total)`);
+  console.log(`🗑️ [DeleteFolder] Deleting folder "${folder.name}" and ${allFolderIds.length - 1} subfolders (${allFolderIds.length} total)`);
 
-  // ⚡ OPTIMIZATION: Use a transaction to delete everything atomically and fast
-  await prisma.$transaction(async (tx) => {
-    // 1. Delete all documents in all folders (bulk delete)
-    const deletedDocs = await tx.documents.deleteMany({
-      where: { folderId: { in: allFolderIds } },
-    });
-    console.log(`  ✅ Deleted ${deletedDocs.count} documents`);
-
-    // 2. Delete all folders (bulk delete)
-    const deletedFolders = await tx.folders.deleteMany({
-      where: { id: { in: allFolderIds } },
-    });
-    console.log(`  ✅ Deleted ${deletedFolders.count} folders`);
+  // ✅ CRITICAL FIX: Enumerate all documents BEFORE deletion to clean up external storage
+  const documentsToDelete = await prisma.document.findMany({
+    where: { folderId: { in: allFolderIds } },
+    select: {
+      id: true,
+      encryptedFilename: true,
+      filename: true,
+    },
   });
 
-  console.log(`✅ Folder deletion complete`);
+  console.log(`📊 [DeleteFolder] Found ${documentsToDelete.length} documents to clean up from external storage`);
+
+  // Track cleanup errors (non-blocking)
+  const cleanupErrors: string[] = [];
+  let storageDeleted = 0;
+  let postgresEmbeddingsDeleted = 0;
+  let pineconeEmbeddingsDeleted = 0;
+
+  // ✅ STEP 1: Delete from external storage systems BEFORE database deletion
+  for (const doc of documentsToDelete) {
+    // 1a. Delete from GCS/S3
+    try {
+      await deleteFile(doc.encryptedFilename);
+      storageDeleted++;
+    } catch (error: any) {
+      const errorMsg = `[${doc.filename}] GCS delete failed: ${error.message}`;
+      console.error(`  ❌ ${errorMsg}`);
+      cleanupErrors.push(errorMsg);
+    }
+
+    // 1b. Delete from PostgreSQL embeddings
+    try {
+      const vectorEmbeddingService = await import('./vectorEmbedding.service');
+      await vectorEmbeddingService.default.deleteDocumentEmbeddings(doc.id);
+      postgresEmbeddingsDeleted++;
+    } catch (error: any) {
+      const errorMsg = `[${doc.filename}] PostgreSQL embeddings delete failed: ${error.message}`;
+      console.error(`  ❌ ${errorMsg}`);
+      cleanupErrors.push(errorMsg);
+    }
+
+    // 1c. Delete from Pinecone (CRITICAL - prevents orphaned vectors)
+    try {
+      const pineconeService = await import('./pinecone.service');
+      await pineconeService.default.deleteDocumentEmbeddings(doc.id);
+      pineconeEmbeddingsDeleted++;
+    } catch (error: any) {
+      const errorMsg = `[${doc.filename}] Pinecone delete failed: ${error.message}`;
+      console.error(`  ❌ ${errorMsg}`);
+      cleanupErrors.push(errorMsg);
+    }
+  }
+
+  console.log(`  ✅ External storage cleanup: ${storageDeleted}/${documentsToDelete.length} files, ${postgresEmbeddingsDeleted}/${documentsToDelete.length} PG embeddings, ${pineconeEmbeddingsDeleted}/${documentsToDelete.length} Pinecone vectors`);
+
+  // ✅ STEP 2: Delete from database atomically
+  await prisma.$transaction(async (tx) => {
+    // 2a. Delete all documents in all folders (bulk delete)
+    const deletedDocs = await tx.document.deleteMany({
+      where: { folderId: { in: allFolderIds } },
+    });
+    console.log(`  ✅ Deleted ${deletedDocs.count} documents from database`);
+
+    // 2b. Delete all folders (bulk delete)
+    const deletedFolders = await tx.folder.deleteMany({
+      where: { id: { in: allFolderIds } },
+    });
+    console.log(`  ✅ Deleted ${deletedFolders.count} folders from database`);
+  });
+
+  // Log any cleanup errors that occurred
+  if (cleanupErrors.length > 0) {
+    console.warn(`⚠️ [DeleteFolder] Completed with ${cleanupErrors.length} external storage cleanup errors:`, cleanupErrors);
+  }
+
+  console.log(`✅ [DeleteFolder] Folder deletion complete`);
 
   // ✅ FIX #3: Invalidate the user's cache to prevent stale data from reappearing
   await invalidateUserCache(userId);
 
-  return { success: true };
+  return {
+    success: true,
+    documentsDeleted: documentsToDelete.length,
+    foldersDeleted: allFolderIds.length,
+    cleanupErrors: cleanupErrors.length > 0 ? cleanupErrors : undefined
+  };
 };

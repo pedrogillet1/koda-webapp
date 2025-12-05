@@ -20,23 +20,10 @@ const ADMIN_EMAILS = process.env.ADMIN_EMAILS
     'localhost@koda.com'
   ];
 
-// Extend Express Request type to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        email?: string;
-        role?: string;
-      };
-    }
-  }
-}
-
 /**
  * Check if user is an admin
  */
-export const isAdmin = async (req: Request, res: Response, next: NextFunction) => {
+export const isAdmin = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     // Check if user is authenticated
     if (!req.user || !req.user.id) {
@@ -83,7 +70,7 @@ export const isAdmin = async (req: Request, res: Response, next: NextFunction) =
 
     // Add admin info to request
     req.user.email = user.email;
-    req.user.role = user.role;
+    (req.user as any).role = (user as any).role;
 
     next();
   } catch (error: any) {
@@ -98,7 +85,7 @@ export const isAdmin = async (req: Request, res: Response, next: NextFunction) =
 /**
  * Check if user is a super admin (highest privilege)
  */
-export const isSuperAdmin = async (req: Request, res: Response, next: NextFunction) => {
+export const isSuperAdmin = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     // Check if user is authenticated
     if (!req.user || !req.user.id) {

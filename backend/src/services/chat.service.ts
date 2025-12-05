@@ -20,6 +20,7 @@ import historyService from './history.service';
 import { conversationContextService } from './deletedServiceStubs';
 import OpenAI from 'openai';
 import { config } from '../config/env';
+import { analyticsTrackingService } from './analytics-tracking.service';
 // Note: Format enforcement is handled by rag.service.ts - no need to import here
 
 // OpenAI client for streaming title generation
@@ -84,7 +85,7 @@ export const createConversation = async (params: CreateConversationParams) => {
     console.log('🔐 Zero-knowledge encryption enabled for conversation');
   }
 
-  const conversation = await prisma.conversations.create({
+  const conversation = await prisma.conversation.create({
     data: {
       userId,
       title,
@@ -130,7 +131,7 @@ export const getUserConversations = async (userId: string) => {
     return cached;
   }
 
-  const conversations = await prisma.conversations.findMany({
+  const conversations = await prisma.conversation.findMany({
     where: { userId },
     orderBy: { updatedAt: 'desc' },
     include: {
@@ -180,7 +181,7 @@ export const getConversation = async (conversationId: string, userId: string) =>
   // Older messages can be loaded on-demand (lazy loading)
   const INITIAL_MESSAGE_LIMIT = 100; // Load last 100 messages for instant display
 
-  const conversation = await prisma.conversations.findFirst({
+  const conversation = await prisma.conversation.findFirst({
     where: {
       id: conversationId,
       userId,
@@ -208,17 +209,11 @@ export const getConversation = async (conversationId: string, userId: string) =>
           content: true,
           createdAt: true,
           conversationId: true,
-          // Load attachments and documents with essential fields only
-          attachments: true,
-          chatDocuments: {
-            select: {
-              id: true,
-              sourceDocumentId: true,
-              title: true,
-              documentType: true,
-              pdfUrl: true,
-            },
-          },
+          metadata: true,
+          isDocument: true,
+          documentTitle: true,
+          documentFormat: true,
+          markdownContent: true,
         },
       },
     },
@@ -247,7 +242,7 @@ export const deleteConversation = async (conversationId: string, userId: string)
   console.log('🗑️ Deleting conversation:', conversationId);
 
   // Verify ownership
-  const conversation = await prisma.conversations.findFirst({
+  const conversation = await prisma.conversation.findFirst({
     where: {
       id: conversationId,
       userId,
@@ -260,12 +255,12 @@ export const deleteConversation = async (conversationId: string, userId: string)
   }
 
   // Delete all messages first (cascade should handle this, but being explicit)
-  await prisma.messages.deleteMany({
+  await prisma.message.deleteMany({
     where: { conversationId },
   });
 
   // Delete conversation
-  await prisma.conversations.delete({
+  await prisma.conversation.delete({
     where: { id: conversationId },
   });
 
@@ -279,7 +274,7 @@ export const deleteAllConversations = async (userId: string) => {
   console.log('🗑️ Deleting all conversations for user:', userId);
 
   // Get all conversation IDs
-  const conversations = await prisma.conversations.findMany({
+  const conversations = await prisma.conversation.findMany({
     where: { userId },
     select: { id: true },
   });
@@ -287,12 +282,12 @@ export const deleteAllConversations = async (userId: string) => {
   const conversationIds = conversations.map((c) => c.id);
 
   // Delete all messages
-  await prisma.messages.deleteMany({
+  await prisma.message.deleteMany({
     where: { conversationId: { in: conversationIds } },
   });
 
   // Delete all conversations
-  const result = await prisma.conversations.deleteMany({
+  const result = await prisma.conversation.deleteMany({
     where: { userId },
   });
 
@@ -326,7 +321,7 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
   }
 
   // Verify conversation ownership
-  const conversation = await prisma.conversations.findFirst({
+  const conversation = await prisma.conversation.findFirst({
     where: {
       id: conversationId,
       userId,
@@ -338,7 +333,7 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
   }
 
   // Create user message
-  const userMessage = await prisma.messages.create({
+  const userMessage = await prisma.message.create({
     data: {
       conversationId,
       role: 'user',
@@ -352,6 +347,10 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
   });
 
   console.log('✅ User message saved:', userMessage.id);
+
+  // Track user message (non-blocking)
+  analyticsTrackingService.incrementConversationMessages(conversationId, 'user')
+    .catch(err => console.error('📊 Failed to increment user messages:', err));
 
   // ✅ NEW: Fetch conversation history using helper function
   const conversationHistory = await getConversationHistory(conversationId);
@@ -377,7 +376,7 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
   console.log(`✅ [CHAT SERVICE] Using pre-formatted response from RAG service (${fullResponse.length} chars)`);
 
   // Create assistant message
-  const assistantMessage = await prisma.messages.create({
+  const assistantMessage = await prisma.message.create({
     data: {
       conversationId,
       role: 'assistant',
@@ -389,7 +388,7 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
   console.log('✅ Assistant message saved:', assistantMessage.id);
 
   // Update conversation timestamp
-  await prisma.conversations.update({
+  await prisma.conversation.update({
     where: { id: conversationId },
     data: { updatedAt: new Date() },
   });
@@ -449,7 +448,7 @@ export const sendMessageStreaming = async (
   // Only await conversation check and history (needed for processing)
   const [conversation, conversationHistory] = await Promise.all([
     // Verify conversation ownership
-    prisma.conversations.findFirst({
+    prisma.conversation.findFirst({
       where: {
         id: conversationId,
         userId,
@@ -465,7 +464,7 @@ export const sendMessageStreaming = async (
   }
 
   // ⚡ PERFORMANCE: Create user message async (don't wait - saves 400-600ms)
-  const userMessagePromise = prisma.messages.create({
+  const userMessagePromise = prisma.message.create({
     data: {
       conversationId,
       role: 'user',
@@ -493,7 +492,7 @@ export const sendMessageStreaming = async (
     console.log('✅ File action completed:', fileActionResult.action);
 
     // ⚡ PERFORMANCE: Create assistant message async (don't block)
-    const assistantMessagePromise = prisma.messages.create({
+    const assistantMessagePromise = prisma.message.create({
       data: {
         conversationId,
         role: 'assistant',
@@ -503,7 +502,7 @@ export const sendMessageStreaming = async (
     });
 
     // ⚡ PERFORMANCE: Update conversation timestamp async (fire-and-forget)
-    prisma.conversations.update({
+    prisma.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
     }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
@@ -545,7 +544,7 @@ export const sendMessageStreaming = async (
   const profilePrompt = profileService.buildProfileSystemPrompt(userProfile);
 
   if (userProfile) {
-    console.log(`✅ Profile loaded - Writing Style: ${userProfile.writingStyle}, Tone: ${userProfile.preferredTone}`);
+    console.log(`✅ Profile loaded - Writing Style: ${(userProfile as any).writingStyle}, Tone: ${(userProfile as any).preferredTone}`);
   } else {
     console.log('ℹ️ No user profile found - using default settings');
   }
@@ -553,6 +552,10 @@ export const sendMessageStreaming = async (
   // Call hybrid RAG service with streaming
   let isDocumentGeneration = false;
   let documentType: 'summary' | 'report' | 'analysis' | 'general' = 'general';
+
+  // Track RAG performance
+  const ragStartTime = Date.now();
+  let ragHadFallback = false;
 
   await ragService.generateAnswerStream(
     userId,
@@ -588,6 +591,24 @@ export const sendMessageStreaming = async (
     profilePrompt         // ✅ USER PROFILE: Pass user profile prompt (11th parameter)
   );
 
+  // Track RAG query metrics (non-blocking)
+  const ragTotalLatency = Date.now() - ragStartTime;
+  analyticsTrackingService.recordRAGQuery({
+    userId,
+    conversationId,
+    query: content,
+    queryLanguage: detectedLanguage,
+    retrievalMethod: 'hybrid',
+    usedBM25: true,
+    usedPinecone: true,
+    totalLatency: ragTotalLatency,
+    hadFallback: ragHadFallback,
+    responseGenerated: fullResponse.length > 0,
+  }).catch(err => console.error('📊 Failed to track RAG query:', err));
+
+  // Update conversation metrics (non-blocking)
+  analyticsTrackingService.incrementConversationMessages(conversationId, 'assistant')
+    .catch(err => console.error('📊 Failed to increment conversation messages:', err));
 
   // ════════════════════════════════════════════════════════════════════════════════
   // DOCUMENT GENERATION HANDLER
@@ -697,7 +718,7 @@ export const sendMessageStreaming = async (
   // No need to append sources separately
 
   // ⚡ PERFORMANCE: Create assistant message async (don't block)
-  const assistantMessagePromise = prisma.messages.create({
+  const assistantMessagePromise = prisma.message.create({
     data: {
       conversationId,
       role: 'assistant',
@@ -707,7 +728,7 @@ export const sendMessageStreaming = async (
   });
 
   // ⚡ PERFORMANCE: Update conversation timestamp async (fire-and-forget)
-  prisma.conversations.update({
+  prisma.conversation.update({
     where: { id: conversationId },
     data: { updatedAt: new Date() },
   }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
@@ -802,9 +823,11 @@ const autoGenerateTitle = async (
       const io = getIO();
 
       // Emit title generation start event
-      io.to(`user:${userId}`).emit('title:generating:start', {
-        conversationId,
-      });
+      if (io) {
+        io.to(`user:${userId}`).emit('title:generating:start', {
+          conversationId,
+        });
+      }
       console.log(`📡 [TITLE-STREAM] Started streaming for conversation ${conversationId}`);
 
       // Generate title with streaming using OpenAI
@@ -845,10 +868,12 @@ Return ONLY the title, nothing else.`,
           fullTitle += content;
 
           // Emit each character/chunk
-          io.to(`user:${userId}`).emit('title:generating:chunk', {
-            conversationId,
-            chunk: content,
-          });
+          if (io) {
+            io.to(`user:${userId}`).emit('title:generating:chunk', {
+              conversationId,
+              chunk: content,
+            });
+          }
         }
       }
 
@@ -856,7 +881,7 @@ Return ONLY the title, nothing else.`,
       const cleanTitle = fullTitle.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
 
       // Update the conversation in database
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: {
           title: cleanTitle,
@@ -865,11 +890,13 @@ Return ONLY the title, nothing else.`,
       });
 
       // Emit completion event
-      io.to(`user:${userId}`).emit('title:generating:complete', {
-        conversationId,
-        title: cleanTitle,
-        updatedAt: new Date()
-      });
+      if (io) {
+        io.to(`user:${userId}`).emit('title:generating:complete', {
+          conversationId,
+          title: cleanTitle,
+          updatedAt: new Date()
+        });
+      }
 
       console.log(`✅ Generated and streamed title: "${cleanTitle}"`);
 
@@ -880,7 +907,7 @@ Return ONLY the title, nothing else.`,
       const title = await generateConversationTitle(firstMessage, firstResponse);
       const cleanTitle = title.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
 
-      await prisma.conversations.update({
+      await prisma.conversation.update({
         where: { id: conversationId },
         data: {
           title: cleanTitle,
@@ -891,11 +918,13 @@ Return ONLY the title, nothing else.`,
       // Still emit the update event for instant display
       try {
         const io = getIO();
-        io.to(`user:${userId}`).emit('conversation:updated', {
-          conversationId,
-          title: cleanTitle,
-          updatedAt: new Date()
-        });
+        if (io) {
+          io.to(`user:${userId}`).emit('conversation:updated', {
+            conversationId,
+            title: cleanTitle,
+            updatedAt: new Date()
+          });
+        }
       } catch (e) {
         // Ignore socket errors in fallback
       }
@@ -915,7 +944,7 @@ export const regenerateConversationTitles = async (userId: string) => {
   console.log('🔄 Regenerating conversation titles for user:', userId);
 
   // Find all conversations with "New Chat" title that have messages
-  const conversations = await prisma.conversations.findMany({
+  const conversations = await prisma.conversation.findMany({
     where: {
       userId,
       title: 'New Chat',
@@ -976,7 +1005,7 @@ export const buildConversationContext = async (
   console.log(`📚 [CONTEXT] Building conversation history for ${conversationId}`);
 
   // Get all messages in conversation
-  const messages = await prisma.messages.findMany({
+  const messages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'asc' },
     select: {
@@ -1159,7 +1188,7 @@ export const handleFileActionsIfNeeded = async (
     console.log(`📤 [Action] Uploading files to: "${targetFolder}"`);
 
     // Find folder by name
-    const folder = await prisma.folders.findFirst({
+    const folder = await prisma.folder.findFirst({
       where: {
         name: {
           contains: targetFolder
@@ -1325,7 +1354,7 @@ export const handleFileActionsIfNeeded = async (
     if (folderName) {
       console.log(`📁 Filtering by folder: "${folderName}"`);
 
-      const folder = await prisma.folders.findFirst({
+      const folder = await prisma.folder.findFirst({
         where: {
           name: {
             contains: folderName,
@@ -1346,7 +1375,7 @@ export const handleFileActionsIfNeeded = async (
     }
 
     // Get documents from database
-    const documents = await prisma.documents.findMany({
+    const documents = await prisma.document.findMany({
       where: whereClause,
       orderBy: { createdAt: 'desc' },
       take: 50, // Limit to 50 files
@@ -1400,7 +1429,7 @@ export const handleFileActionsIfNeeded = async (
     console.log(`📊 [Action] Metadata query - counting files by type`);
 
     // Get ALL documents from database
-    const documents = await prisma.documents.findMany({
+    const documents = await prisma.document.findMany({
       where: {
         userId,
         status: { not: 'deleted' },
@@ -1576,7 +1605,7 @@ const formatDocumentSources = (sources: any[], attachedDocId?: string): string =
 async function getConversationHistory(
   conversationId: string
 ): Promise<Array<{ role: string; content: string }>> {
-  const messages = await prisma.messages.findMany({
+  const messages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'asc' },
     select: {

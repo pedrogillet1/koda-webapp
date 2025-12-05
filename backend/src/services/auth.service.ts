@@ -70,7 +70,7 @@ export const registerUser = async ({ email, password, firstName, lastName, name,
   }
 
   // Check if user already exists in main users table
-  const existingUser = await prisma.users.findUnique({
+  const existingUser = await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
   });
 
@@ -140,7 +140,7 @@ export const registerUser = async ({ email, password, firstName, lastName, name,
  */
 export const loginUser = async ({ email, password, rememberMe }: LoginInput) => {
   // Find user
-  const user = await prisma.users.findUnique({
+  const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
     include: { twoFactorAuth: true },
   });
@@ -215,7 +215,7 @@ export const refreshAccessToken = async (refreshToken: string) => {
       refreshTokenHash,
       expiresAt: { gte: new Date() },
     },
-    include: { users: true },
+    include: { user: true },
   });
 
   if (!session) {
@@ -224,8 +224,8 @@ export const refreshAccessToken = async (refreshToken: string) => {
 
   // Generate new access token
   const accessToken = generateAccessToken({
-    userId: session.users.id,
-    email: session.users.email,
+    userId: session.user.id,
+    email: session.user.email,
   });
 
   return { accessToken };
@@ -251,10 +251,10 @@ export const logoutUser = async (refreshToken: string) => {
 export const verifyPendingUserEmail = async (email: string, code: string) => {
   const pendingUserService = await import('./pendingUser.service');
 
-  const pendingUser = await pendingUserService.verifyPendingEmail(email, code);
+  const pendingUser = await pendingUserService.verifyPendingUserEmail(email, code);
 
   // Create the actual user in the database (email verification is sufficient)
-  const user = await prisma.users.create({
+  const user = await prisma.user.create({
     data: {
       email: pendingUser.email,
       passwordHash: pendingUser.passwordHash,
@@ -346,7 +346,7 @@ export const addPhoneToPendingUser = async (email: string, phoneNumber: string) 
   }
 
   // Check if phone is already in use
-  const existingUser = await prisma.users.findFirst({
+  const existingUser = await prisma.user.findFirst({
     where: { phoneNumber: formattedPhone },
   });
 
@@ -367,8 +367,8 @@ export const addPhoneToPendingUser = async (email: string, phoneNumber: string) 
   try {
     await smsService.sendVerificationSMS(formattedPhone, phoneCode);
     console.log(`✅ SMS sent successfully to ${formattedPhone}`);
-  } catch (error) {
-    console.error('⚠️  Failed to send SMS (code still valid for testing):', error.message);
+  } catch (error: any) {
+    console.error('⚠️  Failed to send SMS (code still valid for testing):', error?.message || error);
   }
 
   return {
@@ -384,7 +384,7 @@ export const verifyPendingUserPhone = async (email: string, code: string) => {
   const pendingUserService = await import('./pendingUser.service');
 
   // Verify phone code
-  const pendingUser = await pendingUserService.verifyPendingPhone(email, code);
+  const pendingUser = await pendingUserService.verifyPendingUserPhone(email, code);
 
   // Allow phone-only verification (don't require email to be verified)
   if (!pendingUser.phoneVerified) {
@@ -392,7 +392,7 @@ export const verifyPendingUserPhone = async (email: string, code: string) => {
   }
 
   // Create the actual user in the database
-  const user = await prisma.users.create({
+  const user = await prisma.user.create({
     data: {
       email: pendingUser.email,
       passwordHash: pendingUser.passwordHash,
@@ -444,7 +444,7 @@ export const verifyPendingUserPhone = async (email: string, code: string) => {
  * Send email verification code
  */
 export const sendEmailVerificationCode = async (userId: string) => {
-  const user = await prisma.users.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
   });
 
@@ -467,7 +467,7 @@ export const sendEmailVerificationCode = async (userId: string) => {
   expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 
   // Delete any existing unused codes
-  await prisma.verification_codes.deleteMany({
+  await prisma.verificationCode.deleteMany({
     where: {
       userId,
       type: 'email',
@@ -476,7 +476,7 @@ export const sendEmailVerificationCode = async (userId: string) => {
   });
 
   // Create new verification code
-  await prisma.verification_codes.create({
+  await prisma.verificationCode.create({
     data: {
       userId,
       type: 'email',
@@ -496,7 +496,7 @@ export const sendEmailVerificationCode = async (userId: string) => {
  * Verify email code
  */
 export const verifyEmailCode = async (userId: string, code: string) => {
-  const verification_codes = await prisma.verification_codes.findFirst({
+  const verificationCode = await prisma.verificationCode.findFirst({
     where: {
       userId,
       type: 'email',
@@ -506,18 +506,18 @@ export const verifyEmailCode = async (userId: string, code: string) => {
     },
   });
 
-  if (!verification_codes) {
+  if (!verificationCode) {
     throw new Error('Invalid or expired verification code');
   }
 
   // Mark code as used
-  await prisma.verification_codes.update({
-    where: { id: verification_codes.id },
+  await prisma.verificationCode.update({
+    where: { id: verificationCode.id },
     data: { isUsed: true },
   });
 
   // Update user
-  const user = await prisma.users.update({
+  const user = await prisma.user.update({
     where: { id: userId },
     data: { isEmailVerified: true },
   });
@@ -533,7 +533,7 @@ export const verifyEmailCode = async (userId: string, code: string) => {
  * Send phone verification code
  */
 export const sendPhoneVerificationCode = async (userId: string, phoneNumber: string) => {
-  const user = await prisma.users.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
   });
 
@@ -551,7 +551,7 @@ export const sendPhoneVerificationCode = async (userId: string, phoneNumber: str
   }
 
   // Check if phone number is already in use by another user
-  const existingUser = await prisma.users.findFirst({
+  const existingUser = await prisma.user.findFirst({
     where: {
       phoneNumber: formattedPhone,
       id: { not: userId },
@@ -570,7 +570,7 @@ export const sendPhoneVerificationCode = async (userId: string, phoneNumber: str
   expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 
   // Delete any existing unused codes
-  await prisma.verification_codes.deleteMany({
+  await prisma.verificationCode.deleteMany({
     where: {
       userId,
       type: 'phone',
@@ -579,7 +579,7 @@ export const sendPhoneVerificationCode = async (userId: string, phoneNumber: str
   });
 
   // Create new verification code
-  await prisma.verification_codes.create({
+  await prisma.verificationCode.create({
     data: {
       userId,
       type: 'phone',
@@ -589,7 +589,7 @@ export const sendPhoneVerificationCode = async (userId: string, phoneNumber: str
   });
 
   // Update user's phone number (unverified)
-  await prisma.users.update({
+  await prisma.user.update({
     where: { id: userId },
     data: {
       phoneNumber: formattedPhone,
@@ -610,7 +610,7 @@ export const verifyPhoneCode = async (userId: string, code: string) => {
   // Use transaction to ensure atomicity
   const result = await prisma.$transaction(async (tx) => {
     // 1. Find and validate the verification code
-    const verification_codes = await tx.verification_codes.findFirst({
+    const verificationCode = await tx.verificationCode.findFirst({
       where: {
         userId,
         type: 'phone',
@@ -620,18 +620,18 @@ export const verifyPhoneCode = async (userId: string, code: string) => {
       },
     });
 
-    if (!verification_codes) {
+    if (!verificationCode) {
       throw new Error('Invalid or expired verification code');
     }
 
     // 2. Mark code as used
-    await tx.verification_codes.update({
-      where: { id: verification_codes.id },
+    await tx.verificationCode.update({
+      where: { id: verificationCode.id },
       data: { isUsed: true },
     });
 
     // 3. Update user verification status
-    const updatedUser = await tx.users.update({
+    const updatedUser = await tx.user.update({
       where: { id: userId },
       data: { isPhoneVerified: true },
       select: {
@@ -664,7 +664,7 @@ export const requestPasswordReset = async ({
   phoneNumber?: string;
 }) => {
   // Find user by email or phone number
-  const user = await prisma.users.findFirst({
+  const user = await prisma.user.findFirst({
     where: email
       ? { email: email.toLowerCase() }
       : { phoneNumber },
@@ -687,7 +687,7 @@ export const requestPasswordReset = async ({
   expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 
   // Delete any existing unused password reset codes
-  await prisma.verification_codes.deleteMany({
+  await prisma.verificationCode.deleteMany({
     where: {
       userId: user.id,
       type: 'password_reset',
@@ -696,7 +696,7 @@ export const requestPasswordReset = async ({
   });
 
   // Create new verification code
-  await prisma.verification_codes.create({
+  await prisma.verificationCode.create({
     data: {
       userId: user.id,
       type: 'password_reset',
@@ -744,7 +744,7 @@ export const verifyPasswordResetCode = async ({
   code: string;
 }) => {
   // Find user by email or phone number
-  const user = await prisma.users.findFirst({
+  const user = await prisma.user.findFirst({
     where: email
       ? { email: email.toLowerCase() }
       : { phoneNumber },
@@ -755,7 +755,7 @@ export const verifyPasswordResetCode = async ({
   }
 
   // Find valid verification code
-  const verification_codes = await prisma.verification_codes.findFirst({
+  const verificationCode = await prisma.verificationCode.findFirst({
     where: {
       userId: user.id,
       type: 'password_reset',
@@ -765,7 +765,7 @@ export const verifyPasswordResetCode = async ({
     },
   });
 
-  if (!verification_codes) {
+  if (!verificationCode) {
     throw new Error('Invalid or expired verification code');
   }
 
@@ -796,7 +796,7 @@ export const resetPassword = async ({
   }
 
   // Find user by email or phone number
-  const user = await prisma.users.findFirst({
+  const user = await prisma.user.findFirst({
     where: email
       ? { email: email.toLowerCase() }
       : { phoneNumber },
@@ -807,7 +807,7 @@ export const resetPassword = async ({
   }
 
   // Find valid verification code
-  const verification_codes = await prisma.verification_codes.findFirst({
+  const verificationCode = await prisma.verificationCode.findFirst({
     where: {
       userId: user.id,
       type: 'password_reset',
@@ -817,7 +817,7 @@ export const resetPassword = async ({
     },
   });
 
-  if (!verification_codes) {
+  if (!verificationCode) {
     throw new Error('Invalid or expired verification code');
   }
 
@@ -825,7 +825,7 @@ export const resetPassword = async ({
   const { hash, salt } = await hashPassword(newPassword);
 
   // Update user password
-  await prisma.users.update({
+  await prisma.user.update({
     where: { id: user.id },
     data: {
       passwordHash: hash,
@@ -834,8 +834,8 @@ export const resetPassword = async ({
   });
 
   // Mark verification code as used
-  await prisma.verification_codes.update({
-    where: { id: verification_codes.id },
+  await prisma.verificationCode.update({
+    where: { id: verificationCode.id },
     data: { isUsed: true },
   });
 
@@ -988,7 +988,7 @@ export async function getUserFromSessionToken(sessionToken: string): Promise<str
  */
 export async function initiateForgotPassword(email: string) {
   // Find user by email
-  const user = await prisma.users.findUnique({
+  const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
     select: {
       id: true,
@@ -1054,7 +1054,7 @@ export async function sendResetLink(sessionToken: string, method: 'email' | 'sms
   }
 
   // Get user details from database
-  const user = await prisma.users.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
@@ -1128,7 +1128,7 @@ export async function resetPasswordWithToken(token: string, newPassword: string)
   const passwordHash = await bcrypt.hash(newPassword, salt);
 
   // Update user password in database
-  await prisma.users.update({
+  await prisma.user.update({
     where: { id: userId },
     data: {
       passwordHash,

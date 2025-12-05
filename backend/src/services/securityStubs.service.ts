@@ -129,12 +129,21 @@ export const triggerReminderNotification = notificationService.triggerReminderNo
 // GDPR Service Stub
 // ═══════════════════════════════════════════════════════════════════════════
 export const gdprService = {
-  exportUserData: async (_params: { userId: string; format?: string; includeDocuments?: boolean }) => ({
+  exportUserData: async (_params: { userId: string; format?: string; includeDocuments?: boolean }): Promise<{
+    success: boolean;
+    exportId: string;
+    downloadUrl: string;
+    error?: string;
+  }> => ({
     success: true,
     exportId: 'stub',
     downloadUrl: '',
   }),
-  deleteUserData: async (_params: { userId: string; reason?: string; requestedBy: string }) => ({
+  deleteUserData: async (_params: { userId: string; reason?: string; requestedBy: string }): Promise<{
+    success: boolean;
+    deletedData: any;
+    error?: string;
+  }> => ({
     success: true,
     deletedData: {},
   }),
@@ -156,7 +165,12 @@ export const dataRetentionService = {
 // Backup Encryption Service Stub
 // ═══════════════════════════════════════════════════════════════════════════
 export const backupEncryptionService = {
-  createBackup: async (_options: any) => ({ success: true, backupId: 'stub', document_metadata: {} }),
+  createBackup: async (_options: any): Promise<{
+    success: boolean;
+    backupId: string;
+    document_metadata: any;
+    error?: string;
+  }> => ({ success: true, backupId: 'stub', document_metadata: {} }),
   listBackups: async () => [] as any[],
   getBackupStats: async () => ({}),
 };
@@ -165,7 +179,7 @@ export const backupEncryptionService = {
 // Key Rotation Service Stub
 // ═══════════════════════════════════════════════════════════════════════════
 export const keyRotationService = {
-  rotateMasterKey: async (_userId: string) => ({ success: true }),
+  rotateMasterKey: async (_userId: string): Promise<{ success: boolean; error?: string }> => ({ success: true }),
   getRotationProgress: () => null as any,
   getKeyVersionInfo: async () => ({ version: 1 }),
   getRotationHistory: async () => [] as any[],
@@ -189,8 +203,12 @@ export const excelCellReaderService = {
   readCell: async (_query: string) => ({
     success: false,
     error: 'Excel cell reader service has been disabled',
-    value: null
+    value: null as string | number | null,
+    message: 'Excel cell reader service has been disabled',
+    cellAddress: null as string | null,
+    sheetName: null as string | null,
+    documentName: null as string | null
   }),
 };
 
-export default excelCellReaderService;
+// Note: excelCellReaderService is exported as named export above

@@ -53,9 +53,9 @@ class FallbackDetectionService {
     }
 
     // 2. Check for Clarification Fallback (ambiguous query)
-    // BUT: Skip clarification if RAG found good results (score > 0.7)
-    // This means the system understood the query well enough to find relevant content
-    const hasGoodRagResults = ragScore !== undefined && ragScore > 0.7 &&
+    // BUT: Skip clarification if RAG found good results
+    // NOTE: RRF scores are typically 0.01-0.05, NOT 0-1 like cosine similarity
+    const hasGoodRagResults = ragScore !== undefined && ragScore > 0.01 &&
                               ragResults && ragResults.length > 0;
 
     const clarificationCheck = this.checkClarificationNeeded(query, documentCount);
@@ -342,7 +342,8 @@ class FallbackDetectionService {
     }
 
     // RAG score too low (results not relevant)
-    if (ragScore !== undefined && ragScore < 0.3) {
+    // NOTE: RRF scores are typically 0.01-0.05, NOT 0-1 like cosine similarity
+    if (ragScore !== undefined && ragScore < 0.005) {
       return {
         needed: true,
         reason: 'Retrieved information not relevant to query',
@@ -351,7 +352,8 @@ class FallbackDetectionService {
     }
 
     // Very few results with low scores
-    if (ragResults.length < 2 && ragScore !== undefined && ragScore < 0.5) {
+    // NOTE: RRF scores are typically 0.01-0.05, NOT 0-1 like cosine similarity
+    if (ragResults.length < 2 && ragScore !== undefined && ragScore < 0.003) {
       return {
         needed: true,
         reason: 'Limited relevant information available',

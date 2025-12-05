@@ -19,42 +19,57 @@ export interface AnswerWithConfidence {
   conflicting_evidence: Evidence[];
 }
 
+export interface ConfidenceResult {
+  level: string;
+  score: number;
+}
+
 /**
  * Calculate confidence score for an answer
+ * @param sources - Array of sources (or supporting evidence)
+ * @param query - Optional query string
+ * @param response - Optional response string
  */
 export function calculateConfidence(
-  supporting_evidence: Evidence[],
-  conflicting_evidence: Evidence[]
-): number {
-  if (supporting_evidence.length === 0) {
-    return 0.0;
+  sources: any[],
+  query?: string,
+  response?: string
+): ConfidenceResult {
+  if (!sources || sources.length === 0) {
+    return { level: 'low', score: 0 };
   }
 
-  // Calculate average support strength
-  const avgSupport = supporting_evidence.reduce((sum, e) => sum + e.support_strength, 0) / supporting_evidence.length;
+  // Calculate based on number of sources and their scores
+  let totalScore = 0;
+  for (const source of sources) {
+    if (source.score) {
+      totalScore += source.score * 100;
+    } else if (source.support_strength) {
+      totalScore += source.support_strength * 100;
+    } else {
+      totalScore += 50; // Default medium confidence per source
+    }
+  }
 
-  // Calculate average relevance
-  const avgRelevance = supporting_evidence.reduce((sum, e) => sum + e.relevance_score, 0) / supporting_evidence.length;
+  const avgScore = totalScore / sources.length;
 
-  // Penalize for conflicting evidence
-  const conflictPenalty = conflicting_evidence.length > 0
-    ? Math.min(0.3, conflicting_evidence.length * 0.1)
-    : 0;
+  // Bonus for multiple sources
+  const multiSourceBonus = Math.min(20, (sources.length - 1) * 5);
+  const finalScore = Math.min(100, avgScore + multiSourceBonus);
 
-  // Bonus for multiple supporting documents
-  const multiDocBonus = supporting_evidence.length > 1
-    ? Math.min(0.2, (supporting_evidence.length - 1) * 0.05)
-    : 0;
+  // Determine level
+  let level: string;
+  if (finalScore >= 80) {
+    level = 'high';
+  } else if (finalScore >= 50) {
+    level = 'medium';
+  } else {
+    level = 'low';
+  }
 
-  // Final confidence score
-  let confidence = (avgSupport * 0.5 + avgRelevance * 0.5) + multiDocBonus - conflictPenalty;
+  console.log(`📊 [CONFIDENCE] Score: ${finalScore.toFixed(0)}/100 (${level}) based on ${sources.length} sources`);
 
-  // Clamp to [0, 1]
-  confidence = Math.max(0, Math.min(1, confidence));
-
-  console.log(`📊 [CONFIDENCE] Score: ${confidence.toFixed(2)} (support: ${avgSupport.toFixed(2)}, relevance: ${avgRelevance.toFixed(2)}, docs: ${supporting_evidence.length}, conflicts: ${conflicting_evidence.length})`);
-
-  return confidence;
+  return { level, score: Math.round(finalScore) };
 }
 
 /**
@@ -103,11 +118,11 @@ export function buildAnswerWithConfidence(
     relevance_score: 0.5
   }));
 
-  const confidence = calculateConfidence(supporting_evidence, conflicting_evidence);
+  const confidenceResult = calculateConfidence(supporting_evidence);
 
   return {
     answer,
-    confidence,
+    confidence: confidenceResult.score / 100, // Convert from 0-100 to 0-1
     supporting_evidence,
     conflicting_evidence
   };

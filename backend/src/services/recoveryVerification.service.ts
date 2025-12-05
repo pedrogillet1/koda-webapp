@@ -38,7 +38,7 @@ export function maskPhoneNumber(phone: string): string {
  * Send email verification magic link
  */
 export async function sendEmailVerificationLink(userId: string): Promise<void> {
-  const user = await prisma.users.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, email: true, firstName: true, isEmailVerified: true },
   });
@@ -57,7 +57,7 @@ export async function sendEmailVerificationLink(userId: string): Promise<void> {
   expiresAt.setMinutes(expiresAt.getMinutes() + 15); // 15 minutes expiry
 
   // Store verification token in database
-  await prisma.verification_codes.create({
+  await prisma.verificationCode.create({
     data: {
       userId: user.id,
       code: token,
@@ -125,7 +125,7 @@ export async function sendEmailVerificationLink(userId: string): Promise<void> {
  * Send phone verification magic link via SMS
  */
 export async function sendPhoneVerificationLink(userId: string): Promise<void> {
-  const user = await prisma.users.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, phoneNumber: true, isPhoneVerified: true },
   });
@@ -148,7 +148,7 @@ export async function sendPhoneVerificationLink(userId: string): Promise<void> {
   expiresAt.setMinutes(expiresAt.getMinutes() + 15); // 15 minutes expiry
 
   // Store verification token in database
-  await prisma.verification_codes.create({
+  await prisma.verificationCode.create({
     data: {
       userId: user.id,
       code: token,
@@ -172,13 +172,13 @@ export async function sendPhoneVerificationLink(userId: string): Promise<void> {
  */
 export async function verifyEmailWithToken(token: string): Promise<{ success: boolean; message: string }> {
   // Find verification code
-  const verification_codes = await prisma.verification_codes.findFirst({
+  const verification_codes = await prisma.verificationCode.findFirst({
     where: {
       code: token,
       type: 'email_recovery',
       expiresAt: { gte: new Date() },
     },
-    include: { users: true },
+    include: { user: true },
   });
 
   if (!verification_codes) {
@@ -186,13 +186,13 @@ export async function verifyEmailWithToken(token: string): Promise<{ success: bo
   }
 
   // Mark email as verified
-  await prisma.users.update({
+  await prisma.user.update({
     where: { id: verification_codes.userId },
     data: { isEmailVerified: true },
   });
 
   // Delete used verification code
-  await prisma.verification_codes.delete({
+  await prisma.verificationCode.delete({
     where: { id: verification_codes.id },
   });
 
@@ -205,13 +205,13 @@ export async function verifyEmailWithToken(token: string): Promise<{ success: bo
  */
 export async function verifyPhoneWithToken(token: string): Promise<{ success: boolean; message: string }> {
   // Find verification code
-  const verification_codes = await prisma.verification_codes.findFirst({
+  const verification_codes = await prisma.verificationCode.findFirst({
     where: {
       code: token,
       type: 'phone_recovery',
       expiresAt: { gte: new Date() },
     },
-    include: { users: true },
+    include: { user: true },
   });
 
   if (!verification_codes) {
@@ -219,13 +219,13 @@ export async function verifyPhoneWithToken(token: string): Promise<{ success: bo
   }
 
   // Mark phone as verified
-  await prisma.users.update({
+  await prisma.user.update({
     where: { id: verification_codes.userId },
     data: { isPhoneVerified: true },
   });
 
   // Delete used verification code
-  await prisma.verification_codes.delete({
+  await prisma.verificationCode.delete({
     where: { id: verification_codes.id },
   });
 
@@ -244,7 +244,7 @@ export async function addPhoneNumber(userId: string, phoneNumber: string): Promi
   }
 
   // Check if phone number is already in use
-  const existingUser = await prisma.users.findFirst({
+  const existingUser = await prisma.user.findFirst({
     where: {
       phoneNumber: formattedPhone,
       id: { not: userId },
@@ -256,7 +256,7 @@ export async function addPhoneNumber(userId: string, phoneNumber: string): Promi
   }
 
   // Update user with phone number
-  await prisma.users.update({
+  await prisma.user.update({
     where: { id: userId },
     data: {
       phoneNumber: formattedPhone,
@@ -271,7 +271,7 @@ export async function addPhoneNumber(userId: string, phoneNumber: string): Promi
  * Get user verification status
  */
 export async function getUserVerificationStatus(userId: string) {
-  const user = await prisma.users.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       email: true,

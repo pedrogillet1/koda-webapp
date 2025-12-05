@@ -2,7 +2,13 @@ import { Request, Response } from 'express';
 import ragService from '../services/rag.service';
 import prisma from '../config/database';
 import { getIO } from '../services/websocket.service';
-// REMOVED: navigationService, responsePostProcessor, p0FeaturesService, clarificationService, chatDocumentGenerationService - deleted services
+// Stub imports for deleted services
+import {
+  navigationService,
+  responsePostProcessor,
+  p0FeaturesService,
+  chatDocumentGenerationService
+} from '../services/deletedServiceStubs';
 import fileActionsService from '../services/fileActions.service';
 import { generateConversationTitle } from '../services/gemini.service';
 import cacheService from '../services/cache.service';
@@ -1261,12 +1267,14 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
             // Emit WebSocket event for real-time update (if WebSocket is initialized)
             try {
               const io = getIO();
-              io.to(`user:${userId}`).emit('conversation:updated', {
-                conversationId,
-                title: generatedTitle,
-                updatedAt: new Date()
-              });
-              console.log(`📡 [AUTO-NAMING] WebSocket event emitted to user:${userId}`);
+              if (io) {
+                io.to(`user:${userId}`).emit('conversation:updated', {
+                  conversationId,
+                  title: generatedTitle,
+                  updatedAt: new Date()
+                });
+                console.log(`📡 [AUTO-NAMING] WebSocket event emitted to user:${userId}`);
+              }
             } catch (wsError) {
               console.warn('⚠️  [AUTO-NAMING] WebSocket not available, skipping real-time update:', wsError);
             }
@@ -2031,7 +2039,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // Add keepalive pings every 15 seconds to prevent timeout
     const keepaliveInterval = setInterval(() => {
       res.write(': keepalive\n\n');
-      if (res.flush) res.flush();
+      if ((res as any).flush) (res as any).flush();
     }, 15000);
 
     // Clean up interval when done
@@ -2219,7 +2227,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     // Now that format enforcement is complete, send the full response
     res.write(`data: ${JSON.stringify({ type: 'content', content: cleanedAnswer })}\n\n`);
-    if (res.flush) res.flush();
+    if ((res as any).flush) (res as any).flush();
     console.log(`📤 [SEND] Sent format-enforced response (${cleanedAnswer.length} chars)`);
 
     // ========================================
@@ -2255,11 +2263,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     console.log(`🔍 [DEBUG - DEDUP] result.sources:`, result.sources);
     console.log(`🔍 [DEBUG - DEDUP] First source:`, result.sources?.[0]);
 
-    const uniqueSources = result.sources ?
-      Array.from(new Map(result.sources.map((src: any) => {
+    const uniqueSources: any[] = result.sources ?
+      Array.from(new Map<string, any>(result.sources.map((src: any) => {
         const key = src.documentId || src.documentName || `${src.documentName}-${src.pageNumber}`;
         console.log(`🔍 [DEBUG - DEDUP] Source: documentId=${src.documentId}, documentName=${src.documentName}, key=${key}`);
-        return [key, src];
+        return [key, src] as [string, any];
       })).values())
       : [];
     console.log(`✅ [DEDUPLICATION] ${result.sources?.length || 0} sources → ${uniqueSources.length} unique sources`);
@@ -2446,11 +2454,13 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
             try {
               const io = getIO();
-              io.to(`user:${userId}`).emit('conversation:updated', {
-                conversationId,
-                title: generatedTitle,
-                updatedAt: new Date()
-              });
+              if (io) {
+                io.to(`user:${userId}`).emit('conversation:updated', {
+                  conversationId,
+                  title: generatedTitle,
+                  updatedAt: new Date()
+                });
+              }
             } catch (wsError) {
               console.warn('⚠️  WebSocket not available for title update');
             }

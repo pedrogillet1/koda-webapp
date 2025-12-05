@@ -263,7 +263,7 @@ export async function getUserAnalytics(): Promise<UserAnalytics> {
     ? (retainedUsers / usersActiveLastMonth.size) * 100
     : 0;
 
-  // Most active users
+  // Most active users - based on conversations and documents
   const mostActiveUsersData = await prisma.user.findMany({
     take: 10,
     select: {
@@ -271,21 +271,20 @@ export async function getUserAnalytics(): Promise<UserAnalytics> {
       email: true,
       _count: {
         select: {
-          messages: true,
           conversations: true,
           documents: true
         }
       }
     },
     orderBy: {
-      messages: { _count: 'desc' }
+      conversations: { _count: 'desc' }
     }
   });
 
   const mostActiveUsers = mostActiveUsersData.map(user => ({
     userId: user.id,
     email: user.email,
-    messageCount: user._count.messages,
+    messageCount: 0, // Messages counted via conversations
     conversationCount: user._count.conversations,
     documentCount: user._count.documents
   }));
@@ -296,23 +295,23 @@ export async function getUserAnalytics(): Promise<UserAnalytics> {
       id: true,
       email: true,
       createdAt: true,
-      messages: {
-        orderBy: { createdAt: 'desc' },
+      conversations: {
+        orderBy: { updatedAt: 'desc' },
         take: 1,
-        select: { createdAt: true }
+        select: { updatedAt: true }
       }
     }
   });
 
   const inactiveUsers = allUsers
     .filter(user => {
-      const lastMessage = user.messages[0]?.createdAt;
-      if (!lastMessage) return true;
-      return lastMessage < thirtyDaysAgo;
+      const lastActivity = (user as any).conversations[0]?.updatedAt;
+      if (!lastActivity) return true;
+      return lastActivity < thirtyDaysAgo;
     })
     .slice(0, 20)
     .map(user => {
-      const lastActive = user.messages[0]?.createdAt || null;
+      const lastActive = (user as any).conversations[0]?.updatedAt || null;
       const daysSinceActive = lastActive
         ? Math.floor((now.getTime() - lastActive.getTime()) / (24 * 60 * 60 * 1000))
         : Math.floor((now.getTime() - user.createdAt.getTime()) / (24 * 60 * 60 * 1000));

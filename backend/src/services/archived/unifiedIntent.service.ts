@@ -146,7 +146,7 @@ class UnifiedIntentService {
       // Fallback to pattern-based file action detection
       const patternResult = this.detectFileActionPattern(query);
       if (patternResult) {
-        console.log(`   → Detected: FILE_ACTION (${patternResult.intent}) via pattern`);
+        console.log(`   → Detected: FILE_ACTION (${patternResult.category}) via pattern`);
         return patternResult;
       }
     }

@@ -62,6 +62,17 @@ interface FormatSpec {
   };
 }
 
+interface FormatViolation {
+  severity: 'error' | 'warning' | 'info';
+  type: string;
+  message: string;
+}
+
+interface FormatResult {
+  fixedText: string;
+  violations: FormatViolation[];
+}
+
 interface FileItem {
   name: string;
   size: string;
@@ -89,11 +100,12 @@ export class KodaFormatEnforcementService {
     answerLength: 'short' | 'medium' | 'long' | 'detailed' = 'medium',
     userTone?: 'professional' | 'casual' | 'technical',
     fileList?: FileItem[]
-  ): string {
+  ): FormatResult {
 
     console.log('[KODA FORMAT] Starting format enforcement');
     console.log(`[KODA FORMAT] Query type: ${queryType}, Length: ${answerLength}`);
 
+    const violations: FormatViolation[] = [];
     let formatted = answer;
 
     // Special handling for file actions with large lists
@@ -102,32 +114,63 @@ export class KodaFormatEnforcementService {
     }
 
     // Step 1: Fix spacing issues
+    const beforeSpacing = formatted;
     formatted = this.fixSpacing(formatted);
+    if (formatted !== beforeSpacing) {
+      violations.push({ severity: 'warning', type: 'SPACING', message: 'Fixed spacing issues' });
+    }
 
     // Step 2: Ensure proper title
+    const beforeTitle = formatted;
     formatted = this.ensureTitle(formatted, userTone);
+    if (formatted !== beforeTitle) {
+      violations.push({ severity: 'info', type: 'TITLE', message: 'Added/fixed title' });
+    }
 
     // Step 3: Validate introduction
+    const beforeIntro = formatted;
     formatted = this.validateIntroduction(formatted);
+    if (formatted !== beforeIntro) {
+      violations.push({ severity: 'warning', type: 'INTRODUCTION', message: 'Truncated long introduction' });
+    }
 
     // Step 4: Ensure proper section structure
+    const beforeSections = formatted;
     formatted = this.ensureSectionStructure(formatted);
+    if (formatted !== beforeSections) {
+      violations.push({ severity: 'info', type: 'SECTIONS', message: 'Fixed section structure' });
+    }
 
     // Step 5: Fix bold/italic usage
+    const beforeFormatting = formatted;
     formatted = this.fixFormattingMarkers(formatted);
+    if (formatted !== beforeFormatting) {
+      violations.push({ severity: 'info', type: 'FORMATTING', message: 'Fixed bold/italic usage' });
+    }
 
     // Step 6: Validate length
+    const beforeLength = formatted;
     formatted = this.validateLength(formatted, answerLength);
+    if (formatted !== beforeLength) {
+      violations.push({ severity: 'warning', type: 'LENGTH', message: 'Added summary due to length' });
+    }
 
     // Step 7: Add closing statement if needed
+    const beforeClosing = formatted;
     formatted = this.addClosingStatement(formatted, queryType);
+    if (formatted !== beforeClosing) {
+      violations.push({ severity: 'info', type: 'CLOSING', message: 'Added closing statement' });
+    }
 
     // Step 8: Final cleanup
     formatted = this.finalCleanup(formatted);
 
     console.log('[KODA FORMAT] Format enforcement complete');
 
-    return formatted;
+    return {
+      fixedText: formatted,
+      violations
+    };
   }
 
   /**

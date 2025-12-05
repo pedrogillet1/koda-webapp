@@ -125,7 +125,7 @@ class PPTXProcessorService {
 
       // Log sample of slide titles
       const sampleTitles = chunks.slice(0, 3).map(chunk =>
-        `Slide ${chunk.document_metadata.slideNumber}: ${chunk.document_metadata.slideTitle || 'Untitled'}`
+        `Slide ${chunk.metadata.slideNumber}: ${chunk.metadata.slideTitle || 'Untitled'}`
       );
       if (sampleTitles.length > 0) {
         console.log(`   - Sample titles:`, sampleTitles);
@@ -167,10 +167,10 @@ class PPTXProcessorService {
       text: chunk.content,
       metadata: {
         filename,
-        slideNumber: chunk.document_metadata.slideNumber,
-        totalSlides: chunk.document_metadata.totalSlides,
-        slideTitle: chunk.document_metadata.slideTitle,
-        hasNotes: chunk.document_metadata.hasNotes,
+        slideNumber: chunk.metadata.slideNumber,
+        totalSlides: chunk.metadata.totalSlides,
+        slideTitle: chunk.metadata.slideTitle,
+        hasNotes: chunk.metadata.hasNotes,
         sourceType: 'powerpoint',
         chunkType: 'slide'
       }

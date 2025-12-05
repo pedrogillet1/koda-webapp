@@ -23,7 +23,7 @@ async function test_createMarkdownFile() {
       additionalContext: 'Create a test markdown file'
     });
 
-    const passed = result.success && result.fileName.endsWith('.md');
+    const passed = Boolean(result.success && result.fileName?.endsWith('.md'));
     results.push({
       test: 'createFile: markdown',
       passed,
@@ -50,7 +50,7 @@ async function test_createPDFFile() {
       additionalContext: 'Create a test PDF file'
     });
 
-    const passed = result.success && result.fileName.endsWith('.pdf');
+    const passed = Boolean(result.success && result.fileName?.endsWith('.pdf'));
     results.push({
       test: 'createFile: pdf',
       passed,
@@ -77,7 +77,7 @@ async function test_createDOCXFile() {
       additionalContext: 'Create a test DOCX file'
     });
 
-    const passed = result.success && result.fileName.endsWith('.docx');
+    const passed = Boolean(result.success && result.fileName?.endsWith('.docx'));
     results.push({
       test: 'createFile: docx',
       passed,

@@ -8,9 +8,11 @@ export const detectDocumentGenerationIntent = (_query: string): {
   isDocumentGeneration: boolean;
   documentType?: string;
   shouldProceedToRag: boolean;
+  confidence: number;
 } => ({
   isDocumentGeneration: false,
-  shouldProceedToRag: true
+  shouldProceedToRag: true,
+  confidence: 0
 });
 
 export default {

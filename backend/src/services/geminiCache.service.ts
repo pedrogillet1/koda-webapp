@@ -267,9 +267,9 @@ class GeminiCacheService {
       console.log(`🔧 [CACHE] Creating explicit cache: ${name}`);
       console.log(`📊 [CACHE] Content length: ${content.length} chars`);
       console.log(`⏱️ [CACHE] TTL: ${ttlSeconds} seconds`);
-      // @ts-ignore - cacheManager not available in current version
       // ✅ FIX: Use singleton client
       const rawClient = geminiClient.getRawClient();
+      // @ts-ignore - cacheManager not available in current TypeScript types
       const cachedContent = await rawClient.cacheManager.create({
         model: 'gemini-2.5-flash',
         contents: [
@@ -357,9 +357,9 @@ class GeminiCacheService {
       console.log('📋 [CACHE] Listing all active caches');
 
       const caches: CachedContent[] = [];
-      // @ts-ignore - cacheManager not available in current version
       // ✅ FIX: Use singleton client
       const rawClient = geminiClient.getRawClient();
+      // @ts-ignore - cacheManager not available in current TypeScript types
       for await (const cache of rawClient.cacheManager.list()) {
         caches.push(cache);
         console.log(`   - ${cache.name} (expires: ${cache.expireTime})`);
@@ -380,9 +380,9 @@ class GeminiCacheService {
   async deleteCache(cacheName: string): Promise<void> {
     try {
       console.log(`🗑️ [CACHE] Deleting cache: ${cacheName}`);
-      // @ts-ignore - cacheManager not available in current version
       // ✅ FIX: Use singleton client
       const rawClient = geminiClient.getRawClient();
+      // @ts-ignore - cacheManager not available in current TypeScript types
       await rawClient.cacheManager.delete(cacheName);
 
       // Remove from memory store

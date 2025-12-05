@@ -3,13 +3,26 @@
  * This stub file prevents import errors while the service is removed.
  */
 
+export interface ConversationSearchResult {
+  conversationId: string;
+  title: string;
+  summary: string;
+  score: number;
+  messageCount: number;
+  lastMessageAt: string;
+}
+
 export const embedConversation = async () => {};
 
-export const searchConversations = async (_query: string, _userId: string, _options?: any) => [];
+export const searchConversations = async (
+  _query: string,
+  _userId: string,
+  _options?: any
+): Promise<ConversationSearchResult[]> => [];
 
-export const searchConversationChunks = async (_query: string, _options?: any) => [];
+export const searchConversationChunks = async (_query: string, _options?: any): Promise<any[]> => [];
 
-export const embedChunksBatch = async (_chunks: any[]) => [];
+export const embedChunksBatch = async (_chunks: any[]): Promise<any[]> => [];
 
 export const embedConversationIndex = async (_conversationId: string, _userId: string) => {};
 

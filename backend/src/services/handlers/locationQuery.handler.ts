@@ -15,13 +15,13 @@ class LocationQueryHandler {
     console.log(`\n📍 LOCATION QUERY: Finding "${documentName}" for user ${userId.substring(0, 8)}...`);
 
     // Try exact match first
-    let documents = await prisma.documents.findMany({
+    let documents = await prisma.document.findMany({
       where: {
         userId: userId,
         filename: { contains: documentName }
       },
       include: {
-        folders: {
+        folder: {
           select: {
             id: true,
             name: true,
@@ -42,7 +42,7 @@ class LocationQueryHandler {
       if (fuzzyMatches.length > 0) {
         // Fetch full document data for fuzzy matches
         const documentIds = fuzzyMatches.map(m => m.id);
-        documents = await prisma.documents.findMany({
+        documents = await prisma.document.findMany({
           where: {
             id: { in: documentIds }
           },

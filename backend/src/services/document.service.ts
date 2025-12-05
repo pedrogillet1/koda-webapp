@@ -214,7 +214,7 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
   // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded to the SAME folder
   // ✅ FIX: Also check filename to allow identical files with different names (e.g., copy1.png, copy2.png)
-  const existingDoc = await prisma.documents.findFirst({
+  const existingDoc = await prisma.document.findFirst({
     where: {
       userId,
       fileHash,
@@ -226,7 +226,7 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   });
 
   if (existingDoc) {
-    const existing = await prisma.documents.findUnique({
+    const existing = await prisma.document.findUnique({
       where: { id: existingDoc.id },
       include: { folder: true },
     });
@@ -281,7 +281,7 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   const thumbnailUrl: string | null = null;
 
   // Create document record with encryption metadata
-  const document = await prisma.documents.create({
+  const document = await prisma.document.create({
     data: {
       userId,
       folderId: finalFolderId || null,
@@ -384,7 +384,7 @@ export async function processDocumentInBackground(
     // 3. Download original file
     // 4. Get error details
     try {
-      await prisma.documents.update({
+      await prisma.document.update({
         where: { id: documentId },
         data: {
           status: 'failed',
@@ -834,7 +834,7 @@ async function processDocumentWithTimeout(
         const { convertDocxToPdf } = await import('./docx-converter.service');
 
         // Get the document info
-        const document = await prisma.documents.findUnique({
+        const document = await prisma.document.findUnique({
           where: { id: documentId },
           select: { encryptedFilename: true, userId: true }
         });
@@ -894,7 +894,7 @@ async function processDocumentWithTimeout(
 
     // ⚡ OPTIMIZATION: Run metadata enrichment in BACKGROUND (non-blocking)
     // This saves 5-10 seconds of processing time
-    let enrichedMetadata = null;
+    let enrichedMetadata: { summary?: string; topics?: string[]; entities?: any[] } | null = null;
     if (extractedText && extractedText.length > 100) {
 
       // Run in background - don't await!
@@ -915,7 +915,7 @@ async function processDocumentWithTimeout(
           );
 
           // Update document metadata with enriched data
-          await prisma.document_metadata.update({
+          await prisma.documentMetadata.update({
             where: { documentId },
             data: {
               classification: enriched.topics.length > 0 ? enriched.topics[0] : classification,
@@ -930,9 +930,9 @@ async function processDocumentWithTimeout(
 
     }
 
-    // Create or update metadata record with enriched data
+    // Create or update metadata record (enriched data added in background)
     const metadataUpsertStartTime = Date.now();
-    await prisma.document_metadata.upsert({
+    await prisma.documentMetadata.upsert({
       where: { documentId },
       create: {
         documentId,
@@ -940,7 +940,7 @@ async function processDocumentWithTimeout(
         ocrConfidence,
         classification,
         entities,
-        summary: enrichedMetadata?.summary || null,
+        summary: null, // Summary added by background enrichment
         thumbnailUrl,
         pageCount,
         wordCount,
@@ -953,7 +953,7 @@ async function processDocumentWithTimeout(
         ocrConfidence,
         classification,
         entities,
-        summary: enrichedMetadata?.summary || null,
+        summary: null, // Summary added by background enrichment
         thumbnailUrl,
         pageCount,
         wordCount,
@@ -1229,7 +1229,7 @@ async function processDocumentWithTimeout(
     // This makes the document appear in the UI instantly (2-3s instead of 14-17s)
     // Background tasks (NER, embeddings) will continue running
     const statusUpdateStartTime = Date.now();
-    await prisma.documents.update({
+    await prisma.document.update({
       where: { id: documentId },
       data: {
         status: 'completed',
@@ -1287,7 +1287,7 @@ async function processDocumentWithTimeout(
       Promise.resolve().then(async () => {
         try {
           const { domainKnowledgeService } = await import('./domainKnowledge.service');
-          await domainKnowledgeService.extractFromDocument(extractedText, documentId, userId);
+          await domainKnowledgeService.extractFromDocument(documentId, extractedText);
         } catch (domainError: any) {
           // Domain extraction is not critical - log error but continue
         }
@@ -1326,7 +1326,7 @@ async function processDocumentWithTimeout(
 
     // ✅ FIX: Emit processing-complete event with full document data
     // This allows frontend to update document status in state
-    const completedDocument = await prisma.documents.findUnique({
+    const completedDocument = await prisma.document.findUnique({
       where: { id: documentId },
       include: { folder: { select: { id: true, name: true, emoji: true } } }
     });
@@ -1340,7 +1340,7 @@ async function processDocumentWithTimeout(
     console.error('❌ CRITICAL: Unhandled error in processDocumentWithTimeout:', error);
 
     try {
-      await prisma.documents.update({
+      await prisma.document.update({
         where: { id: documentId },
         data: {
           status: 'failed',
@@ -1374,7 +1374,7 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
 
 
   // ⚡ IDEMPOTENCY CHECK: Skip if identical file already uploaded to the SAME folder
-  const existingDoc = await prisma.documents.findFirst({
+  const existingDoc = await prisma.document.findFirst({
     where: {
       userId,
       fileHash,
@@ -1386,7 +1386,7 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
 
   if (existingDoc) {
 
-    return await prisma.documents.findUnique({
+    return await prisma.document.findUnique({
       where: { id: existingDoc.id },
       include: { folder: true },
     });
@@ -1406,7 +1406,7 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
   }
 
   // Create document record
-  const document = await prisma.documents.create({
+  const document = await prisma.document.create({
     data: {
       userId,
       folderId: folderId || null,
@@ -1440,7 +1440,7 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
 
       // Update document status to 'failed'
       try {
-        await prisma.documents.update({
+        await prisma.document.update({
           where: { id: document.id },
           data: {
             status: 'failed',
@@ -1500,7 +1500,7 @@ async function processDocumentAsync(
     emitProgress('starting', 5, 'Starting document processing...');
 
     // Get document to check if it's encrypted
-    const document = await prisma.documents.findUnique({
+    const document = await prisma.document.findUnique({
       where: { id: documentId },
     });
 
@@ -1882,7 +1882,7 @@ async function processDocumentAsync(
     emitProgress('analyzing', 50, 'Analysis complete');
 
     // 🆕 ENHANCED METADATA ENRICHMENT with semantic understanding
-    let enrichedMetadata = null;
+    let enrichedMetadata: { summary?: string; topics?: string[]; entities?: any[] } | null = null;
     if (extractedText && extractedText.length > 100) {
       try {
         const metadataEnrichmentService = await import('./metadataEnrichment.service');
@@ -1900,10 +1900,10 @@ async function processDocumentAsync(
         );
 
         // Use enriched data if basic analysis didn't provide these
-        if (!classification && enrichedMetadata.topics.length > 0) {
+        if (!classification && enrichedMetadata?.topics && enrichedMetadata.topics.length > 0) {
           classification = enrichedMetadata.topics[0];
         }
-        if (!entities || entities === '{}') {
+        if ((!entities || entities === '{}') && enrichedMetadata?.entities) {
           entities = JSON.stringify(enrichedMetadata.entities);
         }
 
@@ -1912,7 +1912,7 @@ async function processDocumentAsync(
     }
 
     // Create or update metadata record (upsert handles retry cases)
-    await prisma.document_metadata.upsert({
+    await prisma.documentMetadata.upsert({
       where: { documentId },
       create: {
         documentId,
@@ -2078,20 +2078,8 @@ async function processDocumentAsync(
 
           // 🔍 VERIFY PINECONE STORAGE - Temporarily disabled during OpenAI migration
 
-          // Update document metadata with embedding info
-          await prisma.documents.update({
-            where: { id: documentId },
-            data: {
-              document_metadata: {
-                upsert: {
-                  create: {
-                    thumbnailUrl: null
-                  },
-                  update: {}
-                }
-              }
-            }
-          });
+          // Embedding info stored - document ready for AI chat
+          console.log(`✅ [EMBEDDING] Document ${documentId} ready for AI chat`);
 
           // Emit success event via WebSocket
           const io = require('../server').io;
@@ -2109,20 +2097,8 @@ async function processDocumentAsync(
           // ⚠️ NON-CRITICAL ERROR: documents is still usable without embeddings
           console.error('❌ [Background] Vector embedding generation failed:', error);
 
-          // Update document with error status but don't throw
-          await prisma.documents.update({
-            where: { id: documentId },
-            data: {
-              document_metadata: {
-                upsert: {
-                  create: {
-                    thumbnailUrl: null
-                  },
-                  update: {}
-                }
-              }
-            }
-          }).catch(err => console.error('Failed to update document with embedding error:', err));
+          // Log embedding error but continue - document is still usable
+          console.warn(`⚠️ [EMBEDDING] Failed for document ${documentId}, but document is still usable`);
 
           // Emit warning event via WebSocket
           const io = require('../server').io;
@@ -2143,7 +2119,7 @@ async function processDocumentAsync(
     emitProgress('finalizing', 95, 'Finalizing document...');
 
     // Update document status to completed (only if verification passed)
-    await prisma.documents.update({
+    await prisma.document.update({
       where: { id: documentId },
       data: { status: 'completed' },
     });
@@ -2176,7 +2152,7 @@ async function processDocumentAsync(
     }
   } catch (error) {
     console.error('❌ Error processing document:', error);
-    await prisma.documents.update({
+    await prisma.document.update({
       where: { id: documentId },
       data: { status: 'failed' },
     });
@@ -2202,7 +2178,7 @@ function chunkText(text: string, maxWords: number = 500): Array<{content: string
   if (wordCount < 100) {
     return [{
       content: text.trim(),
-      document_metadata: {
+      metadata: {
         chunkIndex: 0,
         startChar: 0,
         endChar: text.length,
@@ -2226,7 +2202,7 @@ function chunkText(text: string, maxWords: number = 500): Array<{content: string
       // Save current chunk
       chunks.push({
         content: currentChunk.trim(),
-        document_metadata: {
+        metadata: {
           chunkIndex,
           startChar: text.indexOf(currentChunk),
           endChar: text.indexOf(currentChunk) + currentChunk.length
@@ -2245,7 +2221,7 @@ function chunkText(text: string, maxWords: number = 500): Array<{content: string
   if (currentChunk.trim().length > 0) {
     chunks.push({
       content: currentChunk.trim(),
-      document_metadata: {
+      metadata: {
         chunkIndex,
         startChar: text.indexOf(currentChunk),
         endChar: text.indexOf(currentChunk) + currentChunk.length
@@ -2283,7 +2259,7 @@ function chunkPowerPointText(text: string, maxWords: number = 500): Array<{conte
       // Slide fits in one chunk
       chunks.push({
         content: slideContent,
-        document_metadata: {
+        metadata: {
           chunkIndex,
           slide: slideNumber,
           slideNumber, // Both formats for compatibility
@@ -2307,7 +2283,7 @@ function chunkPowerPointText(text: string, maxWords: number = 500): Array<{conte
         if (currentWordCount + sentenceWordCount > maxWords && currentChunk.length > 0) {
           chunks.push({
             content: currentChunk.trim(),
-            document_metadata: {
+            metadata: {
               chunkIndex,
               slide: slideNumber,
               slideNumber,
@@ -2331,7 +2307,7 @@ function chunkPowerPointText(text: string, maxWords: number = 500): Array<{conte
       if (currentChunk.trim().length > 0) {
         chunks.push({
           content: currentChunk.trim(),
-          document_metadata: {
+          metadata: {
             chunkIndex,
             slide: slideNumber,
             slideNumber,
@@ -2354,7 +2330,7 @@ function chunkPowerPointText(text: string, maxWords: number = 500): Array<{conte
  * Get document download URL
  */
 export const getDocumentDownloadUrl = async (documentId: string, userId: string) => {
-  const document = await prisma.documents.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id: documentId },
   });
 
@@ -2387,7 +2363,7 @@ export const getDocumentDownloadUrl = async (documentId: string, userId: string)
  * PHASE 2: Supports pre-converted PDFs for DOCX files
  */
 export const getDocumentViewUrl = async (documentId: string, userId: string, req?: any) => {
-  const document = await prisma.documents.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id: documentId },
   });
 
@@ -2459,7 +2435,7 @@ export const getDocumentViewUrl = async (documentId: string, userId: string, req
  * Stream document file (downloads and decrypts server-side, returns buffer)
  */
 export const streamDocument = async (documentId: string, userId: string) => {
-  const document = await prisma.documents.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id: documentId },
   });
 
@@ -2513,7 +2489,7 @@ export const streamDocument = async (documentId: string, userId: string) => {
 export const streamPreviewPdf = async (documentId: string, userId: string) => {
 
   // Verify document ownership
-  const document = await prisma.documents.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id: documentId },
   });
 
@@ -2561,7 +2537,7 @@ export const streamPreviewPdf = async (documentId: string, userId: string) => {
  * Get a single document by ID
  */
 export const getDocumentById = async (documentId: string, userId: string) => {
-  const document = await prisma.documents.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id: documentId },
     include: {
       folder: true,
@@ -2614,7 +2590,7 @@ export const listDocuments = async (
   }
 
   const [documents, total] = await Promise.all([
-    prisma.documents.findMany({
+    prisma.document.findMany({
       where,
       include: {
         folder: true,
@@ -2638,7 +2614,7 @@ export const listDocuments = async (
       skip,
       take: limit,
     }),
-    prisma.documents.count({ where }),
+    prisma.document.count({ where }),
   ]);
 
   // 🔍 DEBUG: Log document filenames to verify correct data
@@ -2687,7 +2663,7 @@ export const updateDocument = async (
   userId: string,
   updates: { folderId?: string | null; filename?: string }
 ) => {
-  const document = await prisma.documents.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id: documentId },
   });
 
@@ -2711,7 +2687,7 @@ export const updateDocument = async (
   }
 
   // Update document
-  const updatedDocument = await prisma.documents.update({
+  const updatedDocument = await prisma.document.update({
     where: { id: documentId },
     data: updateData,
     include: {
@@ -2724,9 +2700,10 @@ export const updateDocument = async (
 
 /**
  * Delete document
+ * ✅ FIXED: Now properly deletes from all storage systems (GCS, PostgreSQL embeddings, Pinecone)
  */
 export const deleteDocument = async (documentId: string, userId: string) => {
-  const document = await prisma.documents.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id: documentId },
   });
 
@@ -2740,19 +2717,43 @@ export const deleteDocument = async (documentId: string, userId: string) => {
 
   // Store file size before deletion for storage tracking
   const fileSize = document.fileSize;
+  const deletionErrors: string[] = [];
 
-  // Delete from GCS
-  await deleteFile(document.encryptedFilename);
+  // 1. Delete from GCS/S3
+  try {
+    await deleteFile(document.encryptedFilename);
+    console.log(`✅ [DeleteDocument] Deleted file from storage: ${document.encryptedFilename}`);
+  } catch (error: any) {
+    const errorMsg = `Failed to delete file from storage: ${error.message}`;
+    console.error(`❌ [DeleteDocument] ${errorMsg}`);
+    deletionErrors.push(errorMsg);
+    // Continue with deletion - don't block on storage failure
+  }
 
-  // Delete embeddings from vector store
+  // 2. Delete embeddings from PostgreSQL vector store
   try {
     const vectorEmbeddingService = await import('./vectorEmbedding.service');
     await vectorEmbeddingService.default.deleteDocumentEmbeddings(documentId);
-  } catch (error) {
+    console.log(`✅ [DeleteDocument] Deleted PostgreSQL embeddings for document: ${documentId}`);
+  } catch (error: any) {
+    const errorMsg = `Failed to delete PostgreSQL embeddings: ${error.message}`;
+    console.error(`❌ [DeleteDocument] ${errorMsg}`);
+    deletionErrors.push(errorMsg);
   }
 
-  // Delete from database (cascade will handle metadata and tags)
-  await prisma.documents.delete({
+  // 3. Delete embeddings from Pinecone (CRITICAL - prevents orphaned vectors)
+  try {
+    const pineconeService = await import('./pinecone.service');
+    await pineconeService.default.deleteDocumentEmbeddings(documentId);
+    console.log(`✅ [DeleteDocument] Deleted Pinecone embeddings for document: ${documentId}`);
+  } catch (error: any) {
+    const errorMsg = `Failed to delete Pinecone embeddings: ${error.message}`;
+    console.error(`❌ [DeleteDocument] ${errorMsg}`);
+    deletionErrors.push(errorMsg);
+  }
+
+  // 4. Delete from database (cascade will handle metadata and tags)
+  await prisma.document.delete({
     where: { id: documentId },
   });
 
@@ -2765,17 +2766,24 @@ export const deleteDocument = async (documentId: string, userId: string) => {
   // Invalidate document-specific response cache (AI chat responses)
   await cacheService.invalidateDocumentCache(documentId);
 
-  return { success: true };
+  // Log any errors that occurred during cleanup (but deletion succeeded)
+  if (deletionErrors.length > 0) {
+    console.warn(`⚠️ [DeleteDocument] Document ${documentId} deleted with ${deletionErrors.length} cleanup errors:`, deletionErrors);
+  }
+
+  return { success: true, cleanupErrors: deletionErrors };
 };
 
 /**
  * Delete all documents for a user
+ * ✅ FIXED: Now properly deletes from all storage systems (GCS, PostgreSQL embeddings, Pinecone)
  */
 export const deleteAllDocuments = async (userId: string) => {
   try {
+    console.log(`🗑️ [DeleteAllDocuments] Starting deletion for user: ${userId}`);
 
     // Get all documents for the user
-    const documents = await prisma.documents.findMany({
+    const documents = await prisma.document.findMany({
       where: { userId },
       select: {
         id: true,
@@ -2793,30 +2801,57 @@ export const deleteAllDocuments = async (userId: string) => {
       };
     }
 
+    console.log(`📊 [DeleteAllDocuments] Found ${documents.length} documents to delete`);
 
     let successCount = 0;
     let failedCount = 0;
-    const results = [];
+    const results: Array<{
+      documentId: string;
+      filename: string;
+      status: string;
+      error?: string;
+      cleanupErrors?: string[];
+    }> = [];
 
     // Delete each document
     for (const document of documents) {
-      try {
+      const cleanupErrors: string[] = [];
 
-        // Delete from GCS
+      try {
+        // 1. Delete from GCS/S3
         try {
           await deleteFile(document.encryptedFilename);
-        } catch (error) {
+          console.log(`  ✅ Deleted file: ${document.encryptedFilename}`);
+        } catch (error: any) {
+          const errorMsg = `GCS delete failed: ${error.message}`;
+          console.error(`  ❌ ${errorMsg}`);
+          cleanupErrors.push(errorMsg);
         }
 
-        // Delete embeddings from vector store
+        // 2. Delete embeddings from PostgreSQL vector store
         try {
           const vectorEmbeddingService = await import('./vectorEmbedding.service');
           await vectorEmbeddingService.default.deleteDocumentEmbeddings(document.id);
-        } catch (error) {
+          console.log(`  ✅ Deleted PostgreSQL embeddings for: ${document.id}`);
+        } catch (error: any) {
+          const errorMsg = `PostgreSQL embeddings delete failed: ${error.message}`;
+          console.error(`  ❌ ${errorMsg}`);
+          cleanupErrors.push(errorMsg);
         }
 
-        // Delete from database (cascade will handle metadata, tags, etc.)
-        await prisma.documents.delete({
+        // 3. Delete embeddings from Pinecone (CRITICAL - prevents orphaned vectors)
+        try {
+          const pineconeService = await import('./pinecone.service');
+          await pineconeService.default.deleteDocumentEmbeddings(document.id);
+          console.log(`  ✅ Deleted Pinecone embeddings for: ${document.id}`);
+        } catch (error: any) {
+          const errorMsg = `Pinecone delete failed: ${error.message}`;
+          console.error(`  ❌ ${errorMsg}`);
+          cleanupErrors.push(errorMsg);
+        }
+
+        // 4. Delete from database (cascade will handle metadata, tags, etc.)
+        await prisma.document.delete({
           where: { id: document.id }
         });
 
@@ -2826,7 +2861,8 @@ export const deleteAllDocuments = async (userId: string) => {
         results.push({
           documentId: document.id,
           filename: document.filename,
-          status: 'success'
+          status: 'success',
+          cleanupErrors: cleanupErrors.length > 0 ? cleanupErrors : undefined
         });
 
         successCount++;
@@ -2838,7 +2874,8 @@ export const deleteAllDocuments = async (userId: string) => {
           documentId: document.id,
           filename: document.filename,
           status: 'failed',
-          error: error.message
+          error: error.message,
+          cleanupErrors: cleanupErrors.length > 0 ? cleanupErrors : undefined
         });
 
         failedCount++;
@@ -2848,6 +2885,7 @@ export const deleteAllDocuments = async (userId: string) => {
     // Invalidate cache for this user
     await cacheService.invalidateUserCache(userId);
 
+    console.log(`✅ [DeleteAllDocuments] Completed: ${successCount} deleted, ${failedCount} failed`);
 
     return {
       totalDocuments: documents.length,
@@ -2868,7 +2906,7 @@ export const uploadDocumentVersion = async (
   parentDocumentId: string,
   input: Omit<UploadDocumentInput, 'folderId'>
 ) => {
-  const parentDocument = await prisma.documents.findUnique({
+  const parentDocument = await prisma.document.findUnique({
     where: { id: parentDocumentId },
   });
 
@@ -2889,7 +2927,7 @@ export const uploadDocumentVersion = async (
   await uploadFile(encryptedFilename, fileBuffer, mimeType);
 
   // Create new version
-  const newVersion = await prisma.documents.create({
+  const newVersion = await prisma.document.create({
     data: {
       userId,
       folderId: parentDocument.folderId,
@@ -2910,7 +2948,7 @@ export const uploadDocumentVersion = async (
  * Get document versions
  */
 export const getDocumentVersions = async (documentId: string, userId: string) => {
-  const document = await prisma.documents.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id: documentId },
   });
 
@@ -2923,7 +2961,7 @@ export const getDocumentVersions = async (documentId: string, userId: string) =>
   }
 
   // Get all versions (current and previous)
-  const versions = await prisma.documents.findMany({
+  const versions = await prisma.document.findMany({
     where: {
       OR: [
         { id: documentId },
@@ -2943,7 +2981,7 @@ export const getDocumentVersions = async (documentId: string, userId: string) =>
 export const getDocumentStatus = async (documentId: string, userId: string) => {
   console.log(`[getDocumentStatus] Fetching document: ${documentId} for user: ${userId}`);
 
-  const document = await prisma.documents.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id: documentId },
     include: {
       metadata: true,
@@ -2972,7 +3010,7 @@ export const getDocumentStatus = async (documentId: string, userId: string) => {
  * Get document thumbnail
  */
 export const getDocumentThumbnail = async (documentId: string, userId: string) => {
-  const document = await prisma.documents.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id: documentId },
   });
 
@@ -2993,7 +3031,7 @@ export const getDocumentThumbnail = async (documentId: string, userId: string) =
  * Supports all file formats: PDF, DOCX, PPTX, XLSX, images, text files, etc.
  */
 export const getDocumentPreview = async (documentId: string, userId: string) => {
-  const document = await prisma.documents.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id: documentId },
     include: {
       metadata: true,
@@ -3299,7 +3337,7 @@ export const reindexAllDocuments = async (userId: string) => {
   try {
 
     // Get all completed documents for the user
-    const documents = await prisma.documents.findMany({
+    const documents = await prisma.document.findMany({
       where: {
         userId,
         status: 'completed'  // Already filtering by status='completed', no deleted documents
@@ -3373,9 +3411,9 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
   try {
 
     // 1. Get document and verify ownership
-    const document = await prisma.documents.findUnique({
+    const document = await prisma.document.findUnique({
       where: { id: documentId },
-      include: { documentMetadata: true }
+      include: { metadata: true }
     });
 
     if (!document) {
@@ -3418,7 +3456,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 
           // Update metadata with slides data
           if (document.metadata) {
-            await prisma.document_metadata.update({
+            await prisma.documentMetadata.update({
               where: { id: document.metadata.id },
               data: {
                 extractedText,
@@ -3428,7 +3466,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
               }
             });
           } else {
-            await prisma.document_metadata.create({
+            await prisma.documentMetadata.create({
               data: {
                 documentId,
                 extractedText,
@@ -3486,7 +3524,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 
       // Update metadata with extracted text
       if (document.metadata) {
-        await prisma.document_metadata.update({
+        await prisma.documentMetadata.update({
           where: { id: document.metadata.id },
           data: {
             extractedText,
@@ -3495,7 +3533,7 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
           }
         });
       } else {
-        await prisma.document_metadata.create({
+        await prisma.documentMetadata.create({
           data: {
             documentId,
             extractedText,
@@ -3528,14 +3566,14 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
 
         // Update metadata with markdown content
         if (document.metadata) {
-          await prisma.document_metadata.update({
+          await prisma.documentMetadata.update({
             where: { id: document.metadata.id },
             data: {
               markdownContent: markdownResult.markdownContent
             }
           });
         } else {
-          await prisma.document_metadata.create({
+          await prisma.documentMetadata.create({
             data: {
               documentId,
               markdownContent: markdownResult.markdownContent
@@ -3589,9 +3627,9 @@ export const retryDocument = async (documentId: string, userId: string) => {
   try {
 
     // 1. Get document and verify ownership
-    const document = await prisma.documents.findUnique({
+    const document = await prisma.document.findUnique({
       where: { id: documentId },
-      include: { documentMetadata: true }
+      include: { metadata: true }
     });
 
     if (!document) {
@@ -3603,7 +3641,7 @@ export const retryDocument = async (documentId: string, userId: string) => {
     }
 
     // 2. Update status to 'processing'
-    await prisma.documents.update({
+    await prisma.document.update({
       where: { id: documentId },
       data: { status: 'processing' },
     });
@@ -3640,9 +3678,9 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
   try {
 
     // 1. Get document and verify ownership
-    const document = await prisma.documents.findUnique({
+    const document = await prisma.document.findUnique({
       where: { id: documentId },
-      include: { documentMetadata: true }
+      include: { metadata: true }
     });
 
     if (!document) {
@@ -3661,7 +3699,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
 
 
     // Set status to processing
-    await prisma.document_metadata.update({
+    await prisma.documentMetadata.update({
       where: { documentId: document.id },
       data: {
         slideGenerationStatus: 'processing',
@@ -3680,9 +3718,8 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
     try {
       // 5. Generate new slide images using ImageMagick
       const { PPTXSlideGeneratorService } = await import('./pptxSlideGenerator.service');
-      const slideGenerator = new PPTXSlideGeneratorService();
 
-      const slideResult = await slideGenerator.generateSlideImages(tempFilePath, documentId, {
+      const slideResult = await PPTXSlideGeneratorService.generateSlideImages(tempFilePath, documentId, {
         uploadToGCS: true,
         maxWidth: 1920,
         quality: 90
@@ -3704,7 +3741,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
         if (imageResult.success && imageResult.slides && imageResult.slides.length > 0) {
 
           // Fetch existing slidesData
-          const existingMetadata = await prisma.document_metadata.findUnique({
+          const existingMetadata = await prisma.documentMetadata.findUnique({
             where: { documentId: document.id }
           });
 
@@ -3737,7 +3774,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
           });
 
           // Update metadata
-          await prisma.document_metadata.update({
+          await prisma.documentMetadata.update({
             where: { documentId: document.id },
             data: {
               slidesData: JSON.stringify(slidesData),
@@ -3765,7 +3802,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
       const slides = slideResult.slides || [];
 
       // 6. Fetch existing slidesData to preserve text content
-      const existingMetadata = await prisma.document_metadata.findUnique({
+      const existingMetadata = await prisma.documentMetadata.findUnique({
         where: { documentId: document.id }
       });
 
@@ -3780,7 +3817,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
       }
 
       // Merge image URLs with existing slide data
-      const slidesData = slides.map((slide) => {
+      const slidesData = slides.map((slide: any) => {
         // Find matching slide in existing data
         const existingSlide = existingSlidesData.find(
           (s: any) => s.slideNumber === slide.slideNumber || s.slide_number === slide.slideNumber
@@ -3797,7 +3834,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
         };
       });
 
-      await prisma.document_metadata.update({
+      await prisma.documentMetadata.update({
         where: { documentId: document.id },
         data: {
           slidesData: JSON.stringify(slidesData),
@@ -3827,7 +3864,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
 
     // Set status to failed
     try {
-      await prisma.document_metadata.update({
+      await prisma.documentMetadata.update({
         where: { documentId },
         data: {
           slideGenerationStatus: 'failed',

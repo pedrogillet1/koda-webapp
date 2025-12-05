@@ -971,7 +971,7 @@ export const conversationContextService = {
   }),
   updateContext: async (_conversationId: string, _context: any) => {},
   clearContext: async (_conversationId: string) => {},
-  updateContextAfterTurn: async (_conversationId: string, _userMessage: string, _assistantMessage: string) => {},
+  updateContextAfterTurn: async (_conversationId: string, _userMessage: string, _assistantMessage: string, _sources?: any[]) => {},
   resolveReferences: (query: string, _context: any) => query,  // Returns original query unchanged
   buildContextSummary: (_context: any) => ''  // Returns empty summary
 };

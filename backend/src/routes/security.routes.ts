@@ -667,7 +667,7 @@ router.get('/data-retention/policies', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const policies = [];
+    const policies: any[] = [];
 
     return res.json({ policies });
   } catch (error) {

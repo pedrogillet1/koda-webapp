@@ -9,12 +9,13 @@ import { Request, Response } from 'express';
 import analyticsService from '../services/analytics.service';
 import analyticsCache from '../services/analyticsCache.service';
 import aggregationService from '../services/analyticsAggregation.service';
+import analyticsTrackingService from '../services/analytics-tracking.service';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET OVERVIEW (ALL METRICS)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const getOverview = async (req: Request, res: Response) => {
+export const getOverview = async (req: Request, res: Response): Promise<any> => {
   try {
     console.log('📊 [ANALYTICS API] GET /api/admin/analytics/overview');
 
@@ -53,7 +54,7 @@ export const getOverview = async (req: Request, res: Response) => {
 // GET QUICK STATS (LIGHTWEIGHT)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const getQuickStats = async (req: Request, res: Response) => {
+export const getQuickStats = async (req: Request, res: Response): Promise<any> => {
   try {
     console.log('📊 [ANALYTICS API] GET /api/admin/analytics/quick-stats');
 
@@ -91,7 +92,7 @@ export const getQuickStats = async (req: Request, res: Response) => {
 // GET USER ANALYTICS
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const getUserAnalytics = async (req: Request, res: Response) => {
+export const getUserAnalytics = async (req: Request, res: Response): Promise<any> => {
   try {
     console.log('📊 [ANALYTICS API] GET /api/admin/analytics/users');
 
@@ -129,7 +130,7 @@ export const getUserAnalytics = async (req: Request, res: Response) => {
 // GET CONVERSATION ANALYTICS
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const getConversationAnalytics = async (req: Request, res: Response) => {
+export const getConversationAnalytics = async (req: Request, res: Response): Promise<any> => {
   try {
     console.log('📊 [ANALYTICS API] GET /api/admin/analytics/conversations');
 
@@ -167,7 +168,7 @@ export const getConversationAnalytics = async (req: Request, res: Response) => {
 // GET DOCUMENT ANALYTICS
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const getDocumentAnalytics = async (req: Request, res: Response) => {
+export const getDocumentAnalytics = async (req: Request, res: Response): Promise<any> => {
   try {
     console.log('📊 [ANALYTICS API] GET /api/admin/analytics/documents');
 
@@ -205,7 +206,7 @@ export const getDocumentAnalytics = async (req: Request, res: Response) => {
 // GET SYSTEM HEALTH METRICS
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const getSystemHealth = async (req: Request, res: Response) => {
+export const getSystemHealth = async (req: Request, res: Response): Promise<any> => {
   try {
     console.log('📊 [ANALYTICS API] GET /api/admin/analytics/system-health');
 
@@ -243,7 +244,7 @@ export const getSystemHealth = async (req: Request, res: Response) => {
 // GET COST ANALYTICS
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const getCostAnalytics = async (req: Request, res: Response) => {
+export const getCostAnalytics = async (req: Request, res: Response): Promise<any> => {
   try {
     console.log('📊 [ANALYTICS API] GET /api/admin/analytics/costs');
 
@@ -281,7 +282,7 @@ export const getCostAnalytics = async (req: Request, res: Response) => {
 // GET FEATURE USAGE ANALYTICS
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const getFeatureUsage = async (req: Request, res: Response) => {
+export const getFeatureUsage = async (req: Request, res: Response): Promise<any> => {
   try {
     console.log('📊 [ANALYTICS API] GET /api/admin/analytics/feature-usage');
 
@@ -319,7 +320,7 @@ export const getFeatureUsage = async (req: Request, res: Response) => {
 // GET DAILY STATS FOR DATE RANGE
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const getDailyStats = async (req: Request, res: Response) => {
+export const getDailyStats = async (req: Request, res: Response): Promise<any> => {
   try {
     const { startDate, endDate } = req.query;
 
@@ -383,7 +384,7 @@ export const getDailyStats = async (req: Request, res: Response) => {
 // GET PERIOD COMPARISON
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const getPeriodComparison = async (req: Request, res: Response) => {
+export const getPeriodComparison = async (req: Request, res: Response): Promise<any> => {
   try {
     const { period } = req.query; // 'week' | 'month'
 
@@ -440,7 +441,7 @@ export const getPeriodComparison = async (req: Request, res: Response) => {
 // REFRESH CACHE (FORCE UPDATE)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const refreshCache = async (req: Request, res: Response) => {
+export const refreshCache = async (req: Request, res: Response): Promise<any> => {
   try {
     console.log('📊 [ANALYTICS API] POST /api/admin/analytics/refresh');
 
@@ -478,7 +479,7 @@ export const refreshCache = async (req: Request, res: Response) => {
 // GET CACHE STATS
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const getCacheStats = async (req: Request, res: Response) => {
+export const getCacheStats = async (req: Request, res: Response): Promise<any> => {
   try {
     console.log('📊 [ANALYTICS API] GET /api/admin/analytics/cache-stats');
 
@@ -505,7 +506,7 @@ export const getCacheStats = async (req: Request, res: Response) => {
 // EXPORT DATA (CSV)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const exportData = async (req: Request, res: Response) => {
+export const exportData = async (req: Request, res: Response): Promise<any> => {
   try {
     const { type, format, startDate, endDate } = req.query;
 
@@ -607,7 +608,7 @@ export const exportData = async (req: Request, res: Response) => {
 // RUN AGGREGATION JOB (MANUAL TRIGGER)
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const runAggregation = async (req: Request, res: Response) => {
+export const runAggregation = async (req: Request, res: Response): Promise<any> => {
   try {
     const { type } = req.body; // 'daily' | 'weekly' | 'monthly'
 
@@ -643,6 +644,257 @@ export const runAggregation = async (req: Request, res: Response) => {
   }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// RECORD FEEDBACK (PUBLIC API)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const recordFeedback = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { conversationId, messageId, feedbackType, rating, comment, categories } = req.body;
+    const userId = (req as any).user?.userId;
+
+    console.log(`📊 [ANALYTICS API] POST /api/analytics/feedback - ${feedbackType}`);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not authenticated'
+      });
+    }
+
+    if (!conversationId || !feedbackType) {
+      return res.status(400).json({
+        success: false,
+        error: 'conversationId and feedbackType are required'
+      });
+    }
+
+    if (!['thumbs_up', 'thumbs_down', 'rating', 'comment'].includes(feedbackType)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid feedbackType. Use: thumbs_up, thumbs_down, rating, or comment'
+      });
+    }
+
+    const feedback = await analyticsTrackingService.recordFeedback({
+      userId,
+      conversationId,
+      messageId,
+      feedbackType,
+      rating,
+      comment,
+      categories,
+    });
+
+    res.json({
+      success: true,
+      data: feedback,
+      message: 'Feedback recorded successfully'
+    });
+  } catch (error: any) {
+    console.error('❌ [ANALYTICS API] Error recording feedback:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET RAG PERFORMANCE METRICS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const getRAGPerformance = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { days } = req.query;
+
+    console.log(`📊 [ANALYTICS API] GET /api/admin/analytics/rag-performance?days=${days}`);
+
+    const cacheKey = `rag-performance-${days || 7}`;
+    const cached = analyticsCache.get(cacheKey);
+    if (cached) {
+      return res.json({
+        success: true,
+        data: cached,
+        cached: true
+      });
+    }
+
+    const stats = await analyticsTrackingService.getRAGPerformanceStats(
+      undefined,
+      parseInt(days as string) || 7
+    );
+
+    analyticsCache.set(cacheKey, stats);
+
+    res.json({
+      success: true,
+      data: stats,
+      cached: false
+    });
+  } catch (error: any) {
+    console.error('❌ [ANALYTICS API] Error getting RAG performance:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET API PERFORMANCE METRICS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const getAPIPerformance = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { service, hours } = req.query;
+
+    console.log(`📊 [ANALYTICS API] GET /api/admin/analytics/api-performance?service=${service}&hours=${hours}`);
+
+    const cacheKey = `api-performance-${service || 'all'}-${hours || 24}`;
+    const cached = analyticsCache.get(cacheKey);
+    if (cached) {
+      return res.json({
+        success: true,
+        data: cached,
+        cached: true
+      });
+    }
+
+    const stats = await analyticsTrackingService.getAPIPerformanceStats(
+      service as string | undefined,
+      parseInt(hours as string) || 24
+    );
+
+    analyticsCache.set(cacheKey, stats);
+
+    res.json({
+      success: true,
+      data: stats,
+      cached: false
+    });
+  } catch (error: any) {
+    console.error('❌ [ANALYTICS API] Error getting API performance:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET CONVERSATION FEEDBACK STATS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const getConversationFeedbackStats = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { conversationId } = req.params;
+
+    console.log(`📊 [ANALYTICS API] GET /api/admin/analytics/conversations/${conversationId}/feedback`);
+
+    if (!conversationId) {
+      return res.status(400).json({
+        success: false,
+        error: 'conversationId is required'
+      });
+    }
+
+    const stats = await analyticsTrackingService.getConversationFeedbackStats(conversationId);
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error: any) {
+    console.error('❌ [ANALYTICS API] Error getting conversation feedback stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET FEATURE USAGE STATS (FROM TRACKING)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const getFeatureUsageStats = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { days } = req.query;
+
+    console.log(`📊 [ANALYTICS API] GET /api/admin/analytics/feature-usage-stats?days=${days}`);
+
+    const cacheKey = `feature-usage-stats-${days || 30}`;
+    const cached = analyticsCache.get(cacheKey);
+    if (cached) {
+      return res.json({
+        success: true,
+        data: cached,
+        cached: true
+      });
+    }
+
+    const stats = await analyticsTrackingService.getFeatureUsageStats(
+      parseInt(days as string) || 30
+    );
+
+    analyticsCache.set(cacheKey, stats);
+
+    res.json({
+      success: true,
+      data: stats,
+      cached: false
+    });
+  } catch (error: any) {
+    console.error('❌ [ANALYTICS API] Error getting feature usage stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRACK EVENT (PUBLIC API)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const trackEvent = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { eventType, eventName, category, properties, duration } = req.body;
+    const userId = (req as any).user?.userId;
+
+    console.log(`📊 [ANALYTICS API] POST /api/analytics/track - ${eventType}/${eventName}`);
+
+    if (!eventType || !eventName) {
+      return res.status(400).json({
+        success: false,
+        error: 'eventType and eventName are required'
+      });
+    }
+
+    const event = await analyticsTrackingService.trackEvent({
+      userId,
+      eventType,
+      eventName,
+      category,
+      properties,
+      duration,
+    });
+
+    res.json({
+      success: true,
+      data: { id: event.id },
+      message: 'Event tracked successfully'
+    });
+  } catch (error: any) {
+    console.error('❌ [ANALYTICS API] Error tracking event:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
 export default {
   getOverview,
   getQuickStats,
@@ -657,5 +909,12 @@ export default {
   refreshCache,
   getCacheStats,
   exportData,
-  runAggregation
+  runAggregation,
+  // New tracking endpoints
+  recordFeedback,
+  getRAGPerformance,
+  getAPIPerformance,
+  getConversationFeedbackStats,
+  getFeatureUsageStats,
+  trackEvent
 };

@@ -8,7 +8,7 @@ const contextManager = {
   buildOptimizedContext: (params: any) => {
     const { systemPrompt, documentContext, conversationHistory } = params;
     // Build messages array from conversation history
-    const messages = conversationHistory ? conversationHistory.map((msg: any) => ({
+    const messages = conversationHistory ? conversationHistory.map((msg: { role: string; content: string }) => ({
       role: msg.role,
       content: msg.content
     })) : [];
@@ -16,7 +16,14 @@ const contextManager = {
       systemPrompt,
       documentContext,
       conversationHistory,
-      messages
+      messages,
+      tokenUsage: {
+        systemPrompt: 0,
+        documentContext: 0,
+        conversationHistory: 0,
+        total: 0,
+        utilizationPercentage: 0
+      }
     };
   }
 };
@@ -878,7 +885,7 @@ export const sendMessageToGeminiStreaming = async (
 
     // Add current user message to optimized messages
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      ...optimizedContext.messages.map((msg) => ({
+      ...optimizedContext.messages.map((msg: { role: string; content: string }) => ({
         role: msg.role as 'system' | 'user' | 'assistant',
         content: msg.content,
       })),
@@ -1148,7 +1155,7 @@ export const sendMessageToGeminiWithoutFunctions = async (
 
     // Add current user message to optimized messages
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      ...optimizedContext.messages.map((msg) => ({
+      ...optimizedContext.messages.map((msg: { role: string; content: string }) => ({
         role: msg.role as 'system' | 'user' | 'assistant',
         content: msg.content,
       })),

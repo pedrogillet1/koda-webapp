@@ -369,7 +369,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       markdownContent = markdownResult.value.markdownContent;
       markdownStructure = JSON.stringify(markdownResult.value.structure);
       images = markdownResult.value.images;
-      metadata = markdownResult.value.metadata || {};
+      metadata = (markdownResult.value as any).metadata || {};
     }
 
     if (docxConversionResult.status === 'fulfilled' && docxConversionResult.value) {

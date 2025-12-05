@@ -23,7 +23,7 @@ export interface ExtractionResult {
 const preprocessImage = async (inputBuffer: Buffer): Promise<Buffer> => {
   try {
     const image = sharp(inputBuffer);
-    const metadata = await image.document_metadata();
+    const metadata = await image.metadata();
     let pipeline = image;
 
     // Step 0: Auto-rotate based on EXIF (fixes orientation issues)

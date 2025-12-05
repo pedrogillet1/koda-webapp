@@ -20,6 +20,7 @@ process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
 });
 
 import { startReminderScheduler } from './jobs/reminder.scheduler';
+import { startOrphanCleanupScheduler } from './jobs/orphanCleanup.scheduler';
 import { rbacService } from './services/securityStubs.service';
 import prisma from './config/database';
 import websocketService from './services/websocket.service';
@@ -418,6 +419,9 @@ httpServer.listen(portConfig.httpsPort, () => {
 
   // Start reminder scheduler
   startReminderScheduler();
+
+  // Start orphan cleanup scheduler (weekly cleanup of orphaned data)
+  startOrphanCleanupScheduler();
 
   // ⚡ PERFORMANCE FIX: Pre-warm Pinecone connection at startup
   // REASON: First Pinecone query takes 2832ms (cold start), subsequent: 184ms (warm)

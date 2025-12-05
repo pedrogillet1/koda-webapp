@@ -344,10 +344,10 @@ export class FileTypeHandler {
     }
 
     // Fetch documents
-    const documents = await prisma.documents.findMany({
+    const documents = await prisma.document.findMany({
       where,
       include: {
-        folders: {
+        folder: {
           select: {
             name: true
           }
@@ -377,7 +377,7 @@ export class FileTypeHandler {
       mimeType: doc.mimeType,
       fileSize: doc.fileSize,
       createdAt: doc.createdAt,
-      folderName: doc.folders?.name,
+      folderName: doc.folder?.name,
       status: doc.status
     }));
 
