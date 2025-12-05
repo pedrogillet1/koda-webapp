@@ -14,6 +14,7 @@ import nerService from './ner.service';
 import fileValidator from './fileValidator.service';
 import storageService from './storage.service';
 import { invalidateUserCache } from '../controllers/batch.controller';
+import { invalidateFileListingCache } from './rag.service';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -326,6 +327,8 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
     // ⚡ CACHE: Invalidate Redis cache after document upload
     await invalidateUserCache(userId);
+    // ⚡ PERFORMANCE: Invalidate file listing cache
+    invalidateFileListingCache(userId);
 
     return document; // Return the already-created document
   }
@@ -344,6 +347,8 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
   // ⚡ CACHE: Invalidate Redis cache after document upload
   await invalidateUserCache(userId);
+  // ⚡ PERFORMANCE: Invalidate file listing cache
+  invalidateFileListingCache(userId);
 
   // Return immediately with 'processing' status
   return document;
@@ -1311,6 +1316,8 @@ async function processDocumentWithTimeout(
 
     // Invalidate cache for this user after successful processing
     await cacheService.invalidateUserCache(userId);
+    // ⚡ PERFORMANCE: Invalidate file listing cache
+    invalidateFileListingCache(userId);
 
     // ⏱️ TOTAL PROCESSING TIME
     const totalProcessingTime = Date.now() - processingStartTime;
@@ -2141,6 +2148,8 @@ async function processDocumentAsync(
 
     // Invalidate cache for this user after successful processing
     await cacheService.invalidateUserCache(userId);
+    // ⚡ PERFORMANCE: Invalidate file listing cache
+    invalidateFileListingCache(userId);
 
 
     // ✅ OPTIMIZATION: Start background tag generation AFTER document is completed
@@ -2766,6 +2775,9 @@ export const deleteDocument = async (documentId: string, userId: string) => {
   // Invalidate document-specific response cache (AI chat responses)
   await cacheService.invalidateDocumentCache(documentId);
 
+  // ⚡ PERFORMANCE: Invalidate file listing cache for faster "what files do I have?" queries
+  invalidateFileListingCache(userId);
+
   // Log any errors that occurred during cleanup (but deletion succeeded)
   if (deletionErrors.length > 0) {
     console.warn(`⚠️ [DeleteDocument] Document ${documentId} deleted with ${deletionErrors.length} cleanup errors:`, deletionErrors);
@@ -2884,6 +2896,8 @@ export const deleteAllDocuments = async (userId: string) => {
 
     // Invalidate cache for this user
     await cacheService.invalidateUserCache(userId);
+    // ⚡ PERFORMANCE: Invalidate file listing cache
+    invalidateFileListingCache(userId);
 
     console.log(`✅ [DeleteAllDocuments] Completed: ${successCount} deleted, ${failedCount} failed`);
 
