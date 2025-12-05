@@ -1560,3 +1560,119 @@ model FeatureUsageLog {
   @@index([usedAt])
   @@map("feature_usage_logs")
 }
+
+// ----------------------------------------------------------------------------
+// 9. TOKEN USAGE TRACKING (LLM Cost Analytics)
+// ----------------------------------------------------------------------------
+
+model TokenUsage {
+  id              String   @id @default(cuid())
+
+  // Request context
+  userId          String?
+  conversationId  String?
+  messageId       String?
+
+  // Model information
+  model           String   // gemini-2.5-flash, gemini-2.0-flash, text-embedding-004, etc.
+  provider        String   // gemini, openai, anthropic
+
+  // Token counts
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  totalTokens     Int      @default(0)
+
+  // Cost calculation
+  inputCost       Float    @default(0)  // USD
+  outputCost      Float    @default(0)  // USD
+  totalCost       Float    @default(0)  // USD
+
+  // Request metadata
+  requestType     String   // chat, embedding, summary, classification, etc.
+  latencyMs       Int?     // Response time in milliseconds
+  success         Boolean  @default(true)
+  errorMessage    String?  @db.Text
+
+  // Caching
+  wasCached       Boolean  @default(false)
+  cacheHit        Boolean  @default(false)
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([conversationId])
+  @@index([model])
+  @@index([provider])
+  @@index([requestType])
+  @@index([createdAt])
+  @@map("token_usage")
+}
+
+// ----------------------------------------------------------------------------
+// 10. DAILY ANALYTICS AGGREGATION
+// ----------------------------------------------------------------------------
+
+model DailyAnalyticsAggregate {
+  id                    String   @id @default(cuid())
+  date                  DateTime @unique @db.Date
+
+  // User metrics
+  totalUsers            Int      @default(0)
+  newUsers              Int      @default(0)
+  activeUsers           Int      @default(0)
+  returningUsers        Int      @default(0)
+
+  // Session metrics
+  totalSessions         Int      @default(0)
+  avgSessionDuration    Int      @default(0)  // seconds
+  bounceRate            Float    @default(0)  // percentage
+
+  // Conversation metrics
+  totalConversations    Int      @default(0)
+  newConversations      Int      @default(0)
+  avgMessagesPerConversation Float @default(0)
+
+  // Message metrics
+  totalMessages         Int      @default(0)
+  userMessages          Int      @default(0)
+  assistantMessages     Int      @default(0)
+  avgResponseTime       Int      @default(0)  // milliseconds
+
+  // Document metrics
+  totalDocuments        Int      @default(0)
+  newDocuments          Int      @default(0)
+  documentsProcessed    Int      @default(0)
+  totalStorageBytes     BigInt   @default(0)
+
+  // RAG metrics
+  totalRagQueries       Int      @default(0)
+  avgRagLatency         Int      @default(0)  // milliseconds
+  ragSuccessRate        Float    @default(0)  // percentage
+  fallbackRate          Float    @default(0)  // percentage
+
+  // Token & cost metrics
+  totalInputTokens      Int      @default(0)
+  totalOutputTokens     Int      @default(0)
+  totalTokenCost        Float    @default(0)  // USD
+  geminiCalls           Int      @default(0)
+  embeddingCalls        Int      @default(0)
+
+  // Error metrics
+  totalErrors           Int      @default(0)
+  errorRate             Float    @default(0)  // percentage
+
+  // Feature usage
+  topFeatures           Json?    // Array of {feature, count}
+
+  // Feedback metrics
+  positiveRatings       Int      @default(0)
+  negativeRatings       Int      @default(0)
+  satisfactionRate      Float    @default(0)  // percentage
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([date])
+  @@map("daily_analytics_aggregates")
+}

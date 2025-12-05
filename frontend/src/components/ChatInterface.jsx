@@ -3453,10 +3453,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             </div>
                                         </div>
 
-                                        {/* Message Actions (Regenerate, Copy) - Hide when regenerating */}
+                                        {/* Message Actions (Regenerate, Copy, Feedback) - Hide when regenerating */}
                                         {!msg.isRegenerating && (
                                             <MessageActions
                                                 message={msg}
+                                                conversationId={currentConversation?.id}
                                                 onRegenerate={handleRegenerate}
                                                 isRegenerating={regeneratingMessageId === msg.id}
                                             />

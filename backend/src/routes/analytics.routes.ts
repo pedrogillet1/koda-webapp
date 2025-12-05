@@ -161,4 +161,51 @@ router.get('/feature-usage-stats', analyticsController.getFeatureUsageStats);
  */
 router.get('/conversations/:conversationId/feedback', analyticsController.getConversationFeedbackStats);
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TOKEN USAGE & COST ANALYTICS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/admin/analytics/token-usage
+ * Get token usage statistics
+ * Query params: userId, startDate, endDate, groupBy (model|provider|requestType)
+ */
+router.get('/token-usage', analyticsController.getTokenUsage);
+
+/**
+ * GET /api/admin/analytics/token-usage/daily
+ * Get daily token usage for cost trends
+ * Query params: days (default: 30)
+ */
+router.get('/token-usage/daily', analyticsController.getDailyTokenUsage);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ERROR ANALYTICS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/admin/analytics/errors
+ * Get error statistics
+ * Query params: days (default: 7)
+ */
+router.get('/errors', analyticsController.getErrorStats);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAILY AGGREGATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/admin/analytics/daily-aggregates
+ * Get pre-aggregated daily analytics
+ * Query params: days (default: 30)
+ */
+router.get('/daily-aggregates', analyticsController.getDailyAnalyticsAggregates);
+
+/**
+ * POST /api/admin/analytics/aggregate-daily
+ * Manually trigger daily aggregation
+ * Body: { date?: string } - ISO date string, defaults to today
+ */
+router.post('/aggregate-daily', analyticsController.runDailyAggregation);
+
 export default router;

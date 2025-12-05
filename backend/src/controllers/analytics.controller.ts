@@ -895,6 +895,162 @@ export const trackEvent = async (req: Request, res: Response): Promise<any> => {
   }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TOKEN USAGE ANALYTICS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const getTokenUsage = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { userId, startDate, endDate, groupBy } = req.query;
+
+    console.log(`📊 [ANALYTICS API] GET /api/admin/analytics/token-usage`);
+
+    const cacheKey = `token-usage-${userId || 'all'}-${groupBy || 'model'}`;
+    const cached = analyticsCache.get(cacheKey);
+    if (cached) {
+      return res.json({
+        success: true,
+        data: cached,
+        cached: true
+      });
+    }
+
+    const stats = await analyticsTrackingService.getTokenUsageStats({
+      userId: userId as string | undefined,
+      startDate: startDate ? new Date(startDate as string) : undefined,
+      endDate: endDate ? new Date(endDate as string) : undefined,
+      groupBy: groupBy as 'model' | 'provider' | 'requestType' | undefined,
+    });
+
+    analyticsCache.set(cacheKey, stats);
+
+    res.json({
+      success: true,
+      data: stats,
+      cached: false
+    });
+  } catch (error: any) {
+    console.error('❌ [ANALYTICS API] Error getting token usage:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+export const getDailyTokenUsage = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { days } = req.query;
+
+    console.log(`📊 [ANALYTICS API] GET /api/admin/analytics/token-usage/daily?days=${days}`);
+
+    const dailyUsage = await analyticsTrackingService.getDailyTokenUsage(
+      parseInt(days as string) || 30
+    );
+
+    res.json({
+      success: true,
+      data: dailyUsage
+    });
+  } catch (error: any) {
+    console.error('❌ [ANALYTICS API] Error getting daily token usage:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ERROR ANALYTICS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const getErrorStats = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { days } = req.query;
+
+    console.log(`📊 [ANALYTICS API] GET /api/admin/analytics/errors?days=${days}`);
+
+    const cacheKey = `error-stats-${days || 7}`;
+    const cached = analyticsCache.get(cacheKey);
+    if (cached) {
+      return res.json({
+        success: true,
+        data: cached,
+        cached: true
+      });
+    }
+
+    const stats = await analyticsTrackingService.getErrorStats(
+      parseInt(days as string) || 7
+    );
+
+    analyticsCache.set(cacheKey, stats);
+
+    res.json({
+      success: true,
+      data: stats,
+      cached: false
+    });
+  } catch (error: any) {
+    console.error('❌ [ANALYTICS API] Error getting error stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAILY ANALYTICS AGGREGATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const getDailyAnalyticsAggregates = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { days } = req.query;
+
+    console.log(`📊 [ANALYTICS API] GET /api/admin/analytics/daily-aggregates?days=${days}`);
+
+    const dailyAnalytics = await analyticsTrackingService.getDailyAnalytics(
+      parseInt(days as string) || 30
+    );
+
+    res.json({
+      success: true,
+      data: dailyAnalytics
+    });
+  } catch (error: any) {
+    console.error('❌ [ANALYTICS API] Error getting daily aggregates:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+export const runDailyAggregation = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { date } = req.body;
+
+    console.log(`📊 [ANALYTICS API] POST /api/admin/analytics/aggregate-daily`);
+
+    const targetDate = date ? new Date(date) : new Date();
+    const result = await analyticsTrackingService.aggregateDailyAnalytics(targetDate);
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Daily analytics aggregated for ${targetDate.toISOString().split('T')[0]}`
+    });
+  } catch (error: any) {
+    console.error('❌ [ANALYTICS API] Error running daily aggregation:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
 export default {
   getOverview,
   getQuickStats,
@@ -916,5 +1072,13 @@ export default {
   getAPIPerformance,
   getConversationFeedbackStats,
   getFeatureUsageStats,
-  trackEvent
+  trackEvent,
+  // Token usage & cost analytics
+  getTokenUsage,
+  getDailyTokenUsage,
+  // Error analytics
+  getErrorStats,
+  // Daily aggregation
+  getDailyAnalyticsAggregates,
+  runDailyAggregation
 };

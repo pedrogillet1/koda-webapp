@@ -475,6 +475,10 @@ export const sendMessageStreaming = async (
 
   console.log('⚡ User message creation started (async)');
 
+  // Track user message (non-blocking)
+  analyticsTrackingService.incrementConversationMessages(conversationId, 'user')
+    .catch(err => console.error('📊 Failed to increment user messages:', err));
+
   // ✅ FIX #2: Check for file actions FIRST (before RAG)
   const fileActionResult = await handleFileActionsIfNeeded(
     userId,
