@@ -702,12 +702,14 @@ export const DocumentsProvider = ({ children }) => {
     });
 
     // ⚡ NEW: Listen for processing complete events (emitted after database commit completes)
-    socket.on('processing-complete', (updatedDocument) => {
+    socket.on('processing-complete', (data) => {
+      // ✅ FIX: Backend sends 'documentId', not 'id' - handle both for compatibility
+      const docId = data?.documentId || data?.id;
 
       // ✅ FIX: Update the document in the state to 'completed'
-      if (updatedDocument && updatedDocument.id) {
+      if (docId) {
         setDocuments(prev => prev.map(doc =>
-          doc.id === updatedDocument.id ? { ...doc, ...updatedDocument, status: 'completed' } : doc
+          doc.id === docId ? { ...doc, ...data, id: docId, status: 'completed' } : doc
         ));
       }
 

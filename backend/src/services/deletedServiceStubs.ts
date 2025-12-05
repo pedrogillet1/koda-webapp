@@ -223,6 +223,29 @@ export const postProcessor = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Response Post Processor Stub (Used in rag.controller.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const responsePostProcessor = {
+  process: (response: string, _sources?: any[]) => {
+    // Basic cleanup - remove multiple blank lines
+    let cleaned = response.replace(/\n{3,}/g, '\n\n');
+    // Use ES2015-compatible regex ([\s\S] instead of . with s flag)
+    cleaned = cleaned.replace(/⚠️\s*Note:[\s\S]*?(?:\n\n|$)/g, '');
+    cleaned = cleaned.replace(/⚠️\s*Warning:[\s\S]*?(?:\n\n|$)/g, '');
+    cleaned = cleaned.replace(/\*\*Note:\*\*[\s\S]*?(?:\n\n|$)/g, '');
+    return cleaned.trim();
+  },
+  cleanResponse: (response: string) => response.replace(/\n{3,}/g, '\n\n').trim(),
+  removeAllWarnings: (text: string) => {
+    // Use [\s\S] instead of . with s flag for ES2015 compatibility
+    text = text.replace(/⚠️\s*Note:[\s\S]*?(?:\n\n|$)/g, '');
+    text = text.replace(/⚠️\s*Warning:[\s\S]*?(?:\n\n|$)/g, '');
+    text = text.replace(/\*\*Note:\*\*[\s\S]*?(?:\n\n|$)/g, '');
+    return text;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Memory Service Stub
 // ═══════════════════════════════════════════════════════════════════════════
 export const memoryService = {
@@ -554,6 +577,65 @@ export interface ResponseConfig {
   style?: string;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Query Enhancement Service Stub
+// ═══════════════════════════════════════════════════════════════════════════
+export const queryEnhancementService = {
+  enhanceQuerySimple: (query: string): string => query, // Pass-through, no enhancement
+  enhanceQuery: async (query: string): Promise<string> => query
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Terminology Integration Stub
+// ═══════════════════════════════════════════════════════════════════════════
+export const terminologyIntegration = {
+  enhanceQueryForRAG: async (_query: string, _options?: any): Promise<any> => ({
+    searchTerms: [],
+    detectedDomains: [],
+    synonymsUsed: {}
+  })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Causal Extraction Service Stub
+// ═══════════════════════════════════════════════════════════════════════════
+export const causalExtractionService = {
+  getWhyQueryContext: (_query: string, _chunks: any[]): any => ({
+    isWhyQuery: false,
+    causalContext: null,
+    relevantChunks: []
+  })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Query Decomposition Service Stub
+// ═══════════════════════════════════════════════════════════════════════════
+export const queryDecomposition = {
+  needsDecomposition: (_query: string): boolean => false,
+  decomposeQuery: async (_query: string): Promise<string[]> => []
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Contradiction Detection Service Stub
+// ═══════════════════════════════════════════════════════════════════════════
+export const contradictionDetection = {
+  extractClaims: async (_documents: any[]): Promise<any[]> => [],
+  detectContradictions: async (_claims: any[]): Promise<any[]> => [],
+  formatContradictionsForUser: (_contradictions: any): string => ''
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Practical Implications Service Stub
+// ═══════════════════════════════════════════════════════════════════════════
+export const practicalImplicationsService = {
+  extractImplications: async (_query: string, _chunks: any[]): Promise<any> => ({
+    hasImplications: false,
+    implications: [],
+    recommendations: []
+  }),
+  formatImplications: (_implications: any): string => ''
+};
+
 // Default export for services that use default import
 export default {
   semanticDocumentSearchService,
@@ -572,5 +654,6 @@ export default {
   terminologyIntelligenceService,
   crossDocumentSynthesisService,
   emptyResponsePrevention,
-  showVsExplainClassifier
+  showVsExplainClassifier,
+  responsePostProcessor
 };

@@ -32,6 +32,9 @@ import calculationRouter from './calculation/calculationRouter.service';
 // Format Validation Service (Quality Gate)
 import { formatValidationService } from './formatValidation.service';
 
+// Confidence Scoring Service
+import * as confidenceScoring from './confidence-scoring.service';
+
 // ═══════════════════════════════════════════════════════════════════════════
 // STUB IMPORTS: These services were deleted but are still referenced in code
 // Using stub implementations to prevent runtime errors
@@ -48,9 +51,12 @@ import {
   comparativeAnalysisService,
   methodologyExtractionService,
   trendAnalysisService,
+  queryEnhancementService,
   terminologyIntelligenceService,
   crossDocumentSynthesisService,
   emptyResponsePrevention,
+  terminologyIntegration,
+  causalExtractionService,
   type UserContext as DynamicUserContext,
   type ResponseConfig,
   type DocumentInfo as AdaptiveDocumentInfo
@@ -2869,10 +2875,20 @@ async function checkConversationContextFirst(
       }));
     }
 
-    if (recentHistory && recentHistory.length > 0) {
-      const historyText = recentHistory.map(m => m.content).join(' ').toLowerCase();
+    // ✅ FIX: Only check ASSISTANT messages for context (not user queries!)
+    // This prevents false positives where the user's query matches itself
+    const assistantMessages = recentHistory?.filter(m => m.role === 'assistant') || [];
+    console.log(`   📊 Assistant messages found: ${assistantMessages.length}`);
 
-      // Check if key terms appear in recent history
+    // ✅ FIX: Require at least 1 assistant message with actual content
+    if (assistantMessages.length === 0 || !assistantMessages.some(m => m.content.length > 50)) {
+      console.log('   ⏭️ Skipping: No substantive assistant responses in history');
+      // Fall through to return 'none' at the end
+    } else if (recentHistory && recentHistory.length > 0) {
+      // Only check assistant message content for key terms (not user queries!)
+      const historyText = assistantMessages.map(m => m.content).join(' ').toLowerCase();
+
+      // Check if key terms appear in assistant responses
       const termsInHistory = keyTerms.filter(term =>
         historyText.includes(term.toLowerCase())
       );
@@ -2881,18 +2897,18 @@ async function checkConversationContextFirst(
       console.log(`   📊 History match ratio: ${historyMatchRatio.toFixed(2)} (${termsInHistory.length}/${keyTerms.length})`);
 
       if (historyMatchRatio >= 0.5 || termsInHistory.length >= 2) {
-        // Build context from matching messages
-        const relevantMessages = recentHistory.filter(m =>
+        // Build context from matching ASSISTANT messages only
+        const relevantMessages = assistantMessages.filter(m =>
           keyTerms.some(term => m.content.toLowerCase().includes(term.toLowerCase()))
         );
 
         if (relevantMessages.length > 0) {
           const contextFromHistory = relevantMessages
             .slice(-10) // Last 10 relevant messages
-            .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+            .map(m => `Assistant: ${m.content}`)
             .join('\n\n');
 
-          console.log('   ✅ Found relevant context in recent history!');
+          console.log('   ✅ Found relevant context in recent assistant history!');
           return {
             canAnswer: true,
             answer: contextFromHistory,
@@ -5535,6 +5551,23 @@ async function handleDocumentListing(
 
 function isMetaQuery(query: string): boolean {
   const lower = query.toLowerCase().trim();
+
+  // ✅ FIX: If query mentions user's documents, it's NOT a meta query!
+  // These need RAG/metadata lookup, not capability responses
+  if (/\b(my|our|the)\s+(documents?|files?|folders?)\b/i.test(lower)) {
+    return false;  // Route to RAG or metadata service
+  }
+
+  // ✅ FIX: If query asks to show/list/analyze documents, NOT a meta query!
+  if (/(show|list|display|analyze|find|search|summarize|extract).*\b(all|my|the)\s+(documents?|files?)/i.test(lower)) {
+    return false;  // Route to RAG or metadata service
+  }
+
+  // ✅ FIX: If query mentions specific data/content, NOT a meta query!
+  if (/\b(revenue|sales|profit|data|content|topics?|themes?|insights?)\b/i.test(lower)) {
+    return false;  // Route to RAG
+  }
+
 
   // Enhanced capability detection patterns - more natural and comprehensive
   const metaPatterns = [

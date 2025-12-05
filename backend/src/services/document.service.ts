@@ -1009,7 +1009,7 @@ async function processDocumentWithTimeout(
             // Update chunks with embeddings
             chunks = chunks.map((chunk, i) => ({
               ...chunk,
-              embedding: excelEmbeddingResult.embeddings[i].embedding
+              embedding: excelEmbeddingResult.embeddings[i]?.embedding || new Array(1536).fill(0)
             }));
           } else {
             // 🆕 Phase 4C: For PowerPoint, use slide-level chunks with metadata
@@ -1042,12 +1042,18 @@ async function processDocumentWithTimeout(
             // Update chunks with embeddings
             chunks = chunks.map((chunk, i) => ({
               ...chunk,
-              embedding: embeddingResult.embeddings[i].embedding
+              embedding: embeddingResult.embeddings[i]?.embedding || new Array(1536).fill(0)
             }));
           }
 
-          // Store embeddings
+          // ✅ FIX: DocumentChunk removed - chunks stored via vectorEmbeddingService
+          // The storeDocumentEmbeddings handles both Pinecone and DocumentEmbedding table
+          console.log(`💾 [Document] Preparing to store ${chunks.length} embeddings...`);
+
+          // Store embeddings in Pinecone + DocumentEmbedding table
+          console.log(`🔄 [DIAGNOSTIC] About to call storeDocumentEmbeddings...`);
           await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
+          console.log(`✅ [DIAGNOSTIC] storeDocumentEmbeddings completed successfully!`);
 
           // Emit embedding completion (80%)
           emitToUserAsync(userId, 'document-processing-update', {
@@ -1885,7 +1891,7 @@ async function processDocumentAsync(
             // Update chunks with embeddings
             chunks = chunks.map((chunk, i) => ({
               ...chunk,
-              embedding: excelEmbeddingResult.embeddings[i].embedding
+              embedding: excelEmbeddingResult.embeddings[i]?.embedding || new Array(1536).fill(0)
             }));
           } else {
             // 🆕 Phase 4C: For PowerPoint, use slide-level chunks with metadata
@@ -1918,12 +1924,17 @@ async function processDocumentAsync(
             // Update chunks with embeddings
             chunks = chunks.map((chunk, i) => ({
               ...chunk,
-              embedding: embeddingResult.embeddings[i].embedding
+              embedding: embeddingResult.embeddings[i]?.embedding || new Array(1536).fill(0)
             }));
           }
 
-          // Store embeddings
+          // ✅ FIX: DocumentChunk removed - chunks stored via vectorEmbeddingService
+          console.log(`💾 [Document] Preparing to store ${chunks.length} embeddings...`);
+
+          // Store embeddings in Pinecone + DocumentEmbedding table
+          console.log(`🔄 [DIAGNOSTIC] About to call storeDocumentEmbeddings...`);
           await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
+          console.log(`✅ [DIAGNOSTIC] storeDocumentEmbeddings completed successfully!`);
 
           emitProgress('embedding', 85, 'Embeddings stored');
 

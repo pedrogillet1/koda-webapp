@@ -4,21 +4,16 @@ import { redisConnection } from '../config/redis';
 import { downloadFile } from '../config/storage';
 import { extractText } from '../services/textExtraction.service';
 import * as imageProcessing from '../services/imageProcessing.service';
-// REMOVED: visionService, vectorEmbeddingService, semanticChunkingService - deleted services
+// REMOVED: visionService - deleted service (stub kept)
 const visionService = {
   analyzeImage: async () => ({ description: '', labels: [], text: '' }),
   extractTextFromImage: async () => '',
 };
 import markdownConversionService from '../services/markdownConversion.service';
-const vectorEmbeddingService = {
-  storeDocumentEmbeddings: async () => {},
-  generateEmbeddings: async () => [],
-};
-const semanticChunkingService = {
-  chunkDocument: async (text: string) => [{ content: text, metadata: {} }],
-  chunk: async (text: string) => [{ content: text, metadata: {} }],
-};
-// import { documentPreProcessor } from '../services/documentPreProcessor.service';
+// ✅ RESTORED: Real embedding and chunking services for document indexing
+import embeddingService from '../services/embedding.service';
+import pineconeService from '../services/pinecone.service';
+import { createBM25Chunks } from '../services/bm25ChunkCreation.service';
 import prisma from '../config/database';
 
 // Import io dynamically to avoid circular dependency
@@ -65,77 +60,25 @@ const emitProcessingUpdate = async (userId: string, documentId: string, data: an
 /**
  * Chunk text into smaller pieces for vector embedding
  *
- * REASON: Use semantic chunking instead of fixed-size chunking
- * WHY: Respects document structure and topic boundaries
- * HOW: Parse headings/sections → Create semantic chunks → Add overlap
- * IMPACT: 20% improvement in retrieval accuracy (65% → 85%)
+ * REASON: Simple sentence-based chunking for embedding generation
+ * WHY: Creates ~500 word chunks that fit well within embedding context
+ * HOW: Split by sentences → Group into chunks → Add metadata
+ * IMPACT: Enables semantic search via Pinecone
  */
 async function chunkText(text: string, filename: string = 'document'): Promise<Array<{content: string, metadata: any}>> {
-  try {
-    // REASON: Use semantic chunking service
-    // WHY: Better retrieval accuracy, preserves context
-    const semanticChunks = await semanticChunkingService.chunkDocument(text, filename);
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  const chunks: Array<{content: string, metadata: any}> = [];
+  let currentChunk = '';
+  let currentWordCount = 0;
+  let chunkIndex = 0;
+  const maxWords = 500;
+  const CHUNK_OVERLAP = 50; // Words overlap between chunks
 
-    // REASON: Convert to format expected by vector embedding service
-    // WHY: Maintain compatibility with existing code
-    const chunks = semanticChunks.map((chunk, index) => ({
-      content: chunk.text,
-      metadata: {
-        chunkIndex: index,
-        title: chunk.title,
-        section: chunk.metadata.section,
-        hasHeading: chunk.metadata.hasHeading,
-        topicSummary: chunk.metadata.topicSummary,
-        tokenCount: chunk.tokenCount,
-        startChar: chunk.startPosition,
-        endChar: chunk.endPosition,
-      }
-    }));
+  for (const sentence of sentences) {
+    const words = sentence.trim().split(/\s+/);
+    const sentenceWordCount = words.length;
 
-    console.log(`📊 [Semantic Chunking] Stats:
-   - Total chunks: ${chunks.length}
-   - Avg tokens per chunk: ${Math.round(semanticChunks.reduce((sum, c) => sum + c.tokenCount, 0) / semanticChunks.length)}
-   - Chunks with headings: ${semanticChunks.filter(c => c.metadata.hasHeading).length}
-    `);
-
-    return chunks;
-  } catch (error) {
-    console.error('❌ [Semantic Chunking] Error:', error);
-
-    // REASON: Fallback to simple sentence-based chunking
-    // WHY: Don't fail the entire job if semantic chunking fails
-    console.log('⚠️  [Semantic Chunking] Falling back to simple chunking');
-
-    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
-    const chunks: Array<{content: string, metadata: any}> = [];
-    let currentChunk = '';
-    let currentWordCount = 0;
-    let chunkIndex = 0;
-    const maxWords = 500;
-
-    for (const sentence of sentences) {
-      const words = sentence.trim().split(/\s+/);
-      const sentenceWordCount = words.length;
-
-      if (currentWordCount + sentenceWordCount > maxWords && currentChunk.length > 0) {
-        chunks.push({
-          content: currentChunk.trim(),
-          metadata: {
-            chunkIndex,
-            startChar: text.indexOf(currentChunk),
-            endChar: text.indexOf(currentChunk) + currentChunk.length
-          }
-        });
-        chunkIndex++;
-        currentChunk = '';
-        currentWordCount = 0;
-      }
-
-      currentChunk += sentence + ' ';
-      currentWordCount += sentenceWordCount;
-    }
-
-    if (currentChunk.trim().length > 0) {
+    if (currentWordCount + sentenceWordCount > maxWords && currentChunk.length > 0) {
       chunks.push({
         content: currentChunk.trim(),
         metadata: {
@@ -144,10 +87,30 @@ async function chunkText(text: string, filename: string = 'document'): Promise<A
           endChar: text.indexOf(currentChunk) + currentChunk.length
         }
       });
+      chunkIndex++;
+      // Keep last few sentences for overlap
+      const overlapSentences = currentChunk.split(/[.!?]+/).slice(-2).join('. ');
+      currentChunk = overlapSentences ? overlapSentences + '. ' : '';
+      currentWordCount = overlapSentences ? overlapSentences.split(/\s+/).length : 0;
     }
 
-    return chunks;
+    currentChunk += sentence + ' ';
+    currentWordCount += sentenceWordCount;
   }
+
+  if (currentChunk.trim().length > 0) {
+    chunks.push({
+      content: currentChunk.trim(),
+      metadata: {
+        chunkIndex,
+        startChar: text.indexOf(currentChunk),
+        endChar: text.indexOf(currentChunk) + currentChunk.length
+      }
+    });
+  }
+
+  console.log(`📊 [Chunking] Created ${chunks.length} chunks (~${maxWords} words each) for "${filename}"`);
+  return chunks;
 }
 
 // Document processing job data interface
@@ -532,8 +495,8 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       message: 'Metadata and text extraction complete',
     });
 
-    // Step 7: Generate vector embeddings for RAG search
-    console.log(`🧠 [DOC:${documentId}] Generating vector embeddings...`);
+    // Step 7: Generate vector embeddings for RAG search + BM25 chunks
+    console.log(`🧠 [DOC:${documentId}] Generating vector embeddings and BM25 chunks...`);
     await job.updateProgress(80);
     await emitProcessingUpdate(userId, documentId, {
       progress: 80,
@@ -543,31 +506,74 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 
     try {
       if (extractedText && extractedText.length > 50) {
-        // REASON: Use semantic chunking with document filename
-        // WHY: Better chunking decisions based on document structure
+        // ============================================================================
+        // STEP 7A: Create BM25 chunks for keyword search
+        // ============================================================================
+        console.log(`🔍 [DOC:${documentId}] Creating BM25 chunks...`);
+        const bm25ChunkCount = await createBM25Chunks(
+          documentId,
+          extractedText,
+          metadata.pageCount || null
+        );
+        console.log(`✅ [DOC:${documentId}] Created ${bm25ChunkCount} BM25 chunks`);
+
+        // ============================================================================
+        // STEP 7B: Generate embeddings and store in Pinecone
+        // ============================================================================
+        console.log(`🧠 [DOC:${documentId}] Generating embeddings for Pinecone...`);
+
+        // Split text into chunks for embedding
         const chunks = await chunkText(extractedText, documentFilename);
         console.log(`📦 [DOC:${documentId}] Split document into ${chunks.length} chunks`);
 
-        await vectorEmbeddingService.storeDocumentEmbeddings(documentId, chunks);
-        console.log(`✅ [DOC:${documentId}] Stored ${chunks.length} vector embeddings`);
+        // Generate embeddings for each chunk
+        const chunksWithEmbeddings = [];
+        for (let i = 0; i < chunks.length; i++) {
+          try {
+            const embeddingResult = await embeddingService.generateEmbedding(chunks[i].content);
+            chunksWithEmbeddings.push({
+              chunkIndex: i,
+              content: chunks[i].content,
+              embedding: embeddingResult.embedding,
+              metadata: chunks[i].metadata
+            });
+          } catch (chunkError) {
+            console.warn(`⚠️ [DOC:${documentId}] Failed to embed chunk ${i}:`, chunkError);
+          }
+        }
+
+        // Get document metadata for Pinecone
+        const doc = await prisma.document.findUnique({
+          where: { id: documentId },
+          include: { folder: true }
+        });
+
+        if (doc && chunksWithEmbeddings.length > 0) {
+          // Store in Pinecone with full metadata
+          await pineconeService.upsertDocumentEmbeddings(
+            documentId,
+            userId,
+            {
+              filename: doc.filename,
+              mimeType: doc.mimeType,
+              createdAt: doc.createdAt,
+              status: 'completed',
+              folderId: doc.folderId || undefined,
+              folderName: doc.folder?.name || undefined,
+              folderPath: doc.folder?.path || undefined,
+            },
+            chunksWithEmbeddings
+          );
+          console.log(`✅ [DOC:${documentId}] Stored ${chunksWithEmbeddings.length} embeddings in Pinecone`);
+        } else {
+          console.warn(`⚠️ [DOC:${documentId}] No embeddings to store (doc: ${!!doc}, chunks: ${chunksWithEmbeddings.length})`);
+        }
       } else {
         console.log(`⚠️  [DOC:${documentId}] Skipping embeddings: text too short (${extractedText.length} chars)`);
       }
     } catch (embeddingError) {
       // Don't fail the entire job if embedding generation fails
       console.error(`❌ [DOC:${documentId}] Embedding generation failed (non-critical):`, embeddingError);
-    }
-
-
-    // Step 8: Extract all knowledge for cross-document synthesis
-    // REMOVED: knowledgeExtractionService was deleted
-    try {
-      if (extractedText && extractedText.length > 200) {
-        console.log(`📚 [DOC:${documentId}] Knowledge extraction skipped (service removed)`);
-      }
-    } catch (knowledgeError) {
-      // Do not fail the entire job if knowledge extraction fails
-      console.warn(`⚠️ [DOC:${documentId}] Knowledge extraction failed (non-critical):`, knowledgeError);
     }
 
     // ✅ CRITICAL FIX: Update status to 'completed' AFTER embeddings are stored
