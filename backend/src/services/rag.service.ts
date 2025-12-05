@@ -1,11 +1,11 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+﻿import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Pinecone } from '@pinecone-database/pinecone';
 import prisma from '../config/database';
 import fileActionsService from './fileActions.service';
 import { actionHistoryService } from './actionHistory.service';
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // CLEANUP: Removed 93 unused services - keeping only essential imports
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 import { gracefulDegradationService } from './graceful-degradation.service';
 import { bm25RetrievalService } from './bm25-retrieval.service';
 import statusEmitter, { ProcessingStage } from './statusEmitter.service';
@@ -35,10 +35,10 @@ import { formatValidationService } from './formatValidation.service';
 // Confidence Scoring Service
 import * as confidenceScoring from './archived/confidence-scoring.service';
 
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // STUB IMPORTS: These services were deleted but are still referenced in code
 // Using stub implementations to prevent runtime errors
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 import {
   semanticDocumentSearchService,
   hybridRetrievalBooster,
@@ -86,16 +86,16 @@ import structureEnforcementService from './structureEnforcement.service';
 import { kodaFormatEnforcementService } from './kodaFormatEnforcement.service';
 import { kodaCitationFormatService, type CitationSource as FormattedCitationSource } from './kodaCitationFormat.service';
 
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // SIMPLE INTENT DETECTION (Fast Pattern-Based)
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // FIX: Import the simple intent detection service for unified routing
 // This replaces multiple conflicting intent detection services
 import { detectIntent as detectSimpleIntent, type SimpleIntentResult } from './simpleIntentDetection.service';
 
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // RAG CONFIGURATION INTERFACE
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Controls optional RAG features that can be toggled for speed vs accuracy tradeoff
 export interface RAGConfig {
   useLLMFiltering?: boolean;           // LLM-based chunk filtering (saves 3-5 seconds when disabled)
@@ -110,9 +110,9 @@ export const DEFAULT_RAG_CONFIG: RAGConfig = {
   useContradictionDetection: false,
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // RRF (Reciprocal Rank Fusion) Merging Algorithm
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 interface RRFScore {
   content: string;
   metadata: any;
@@ -139,7 +139,7 @@ function mergeWithRRF(
   const k = 60; // RRF constant (standard in literature)
   const scoreMap = new Map<string, RRFScore>();
 
-  console.log(`🔄 [RRF] Merging ${vectorResults.length} vector + ${keywordResults.length} keyword results`);
+  console.log(`ðŸ”„ [RRF] Merging ${vectorResults.length} vector + ${keywordResults.length} keyword results`);
 
   // Process vector results
   vectorResults.forEach((result, rank) => {
@@ -208,7 +208,7 @@ function mergeWithRRF(
   const keywordOnly = sorted.filter(r => r.vectorScore === 0).length;
   const both = sorted.filter(r => r.vectorScore > 0 && r.bm25Score > 0).length;
 
-  console.log(`✅ [RRF] Merged results:`);
+  console.log(`âœ… [RRF] Merged results:`);
   console.log(`   - Vector only: ${vectorOnly}`);
   console.log(`   - Keyword only: ${keywordOnly}`);
   console.log(`   - Both: ${both}`);
@@ -230,7 +230,7 @@ class PerformanceTimer {
   start(label: string): void {
     const now = Date.now();
     this.checkpointStack.push({ label, start: now });
-    console.log(`⏱️  [START] ${label}`);
+    console.log(`â±ï¸  [START] ${label}`);
   }
 
   end(label: string): number {
@@ -238,7 +238,7 @@ class PerformanceTimer {
     const checkpoint = this.checkpointStack.pop();
 
     if (!checkpoint || checkpoint.label !== label) {
-      console.error(`⚠️  [TIMING ERROR] Mismatched: expected "${checkpoint?.label}", got "${label}"`);
+      console.error(`âš ï¸  [TIMING ERROR] Mismatched: expected "${checkpoint?.label}", got "${label}"`);
       return 0;
     }
 
@@ -250,7 +250,7 @@ class PerformanceTimer {
     this.timings.get(label)!.push(duration);
 
     const totalElapsed = now - this.startTime;
-    console.log(`⏱️  [END] ${label}: ${duration}ms (total: ${totalElapsed}ms)`);
+    console.log(`â±ï¸  [END] ${label}: ${duration}ms (total: ${totalElapsed}ms)`);
 
     return duration;
   }
@@ -264,7 +264,7 @@ class PerformanceTimer {
   measure(label: string, fromMark: string): number {
     const markTime = this.marks.get(fromMark);
     if (!markTime) {
-      console.error(`⚠️  [TIMING ERROR] Mark "${fromMark}" not found`);
+      console.error(`âš ï¸  [TIMING ERROR] Mark "${fromMark}" not found`);
       return 0;
     }
     const duration = Date.now() - markTime;
@@ -274,7 +274,7 @@ class PerformanceTimer {
     }
     this.timings.get(label)!.push(duration);
 
-    console.log(`⏱️  [MEASURE] ${label}: ${duration}ms`);
+    console.log(`â±ï¸  [MEASURE] ${label}: ${duration}ms`);
     return duration;
   }
 
@@ -283,14 +283,14 @@ class PerformanceTimer {
       this.timings.set(label, []);
     }
     this.timings.get(label)!.push(duration);
-    console.log(`⏱️  [RECORD] ${label}: ${duration}ms`);
+    console.log(`â±ï¸  [RECORD] ${label}: ${duration}ms`);
   }
 
   printSummary(): void {
     const totalTime = Date.now() - this.startTime;
-    console.log('\n═══════════════════════════════════════════════════════════════');
-    console.log('⏱️  COMPLETE PERFORMANCE TIMING BREAKDOWN');
-    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('\nâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+    console.log('â±ï¸  COMPLETE PERFORMANCE TIMING BREAKDOWN');
+    console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
 
     const entries = Array.from(this.timings.entries())
       .map(([label, times]) => ({
@@ -310,7 +310,7 @@ class PerformanceTimer {
       }
       const percentage = ((total / totalTime) * 100).toFixed(1);
       if (count > 1) {
-        console.log(`  ${label}: ${total}ms (${percentage}%) - ${avg.toFixed(1)}ms avg × ${count} calls`);
+        console.log(`  ${label}: ${total}ms (${percentage}%) - ${avg.toFixed(1)}ms avg Ã— ${count} calls`);
       } else {
         console.log(`  ${label}: ${total}ms (${percentage}%)`);
       }
@@ -320,11 +320,11 @@ class PerformanceTimer {
     const measuredPct = ((measuredTime / totalTime) * 100).toFixed(1);
     const unmeasuredPct = ((unmeasuredTime / totalTime) * 100).toFixed(1);
 
-    console.log('───────────────────────────────────────────────────────────────');
+    console.log('â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€');
     console.log(`  MEASURED: ${measuredTime}ms (${measuredPct}%)`);
-    console.log(`  UNMEASURED: ${unmeasuredTime}ms (${unmeasuredPct}%) ← INVESTIGATE THIS`);
+    console.log(`  UNMEASURED: ${unmeasuredTime}ms (${unmeasuredPct}%) â† INVESTIGATE THIS`);
     console.log(`  TOTAL TIME: ${totalTime}ms`);
-    console.log('═══════════════════════════════════════════════════════════════\n');
+    console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
   }
 
   reset(): void {
@@ -339,7 +339,7 @@ class PerformanceTimer {
 let requestTimer: PerformanceTimer | null = null;
 
 // ============================================================================
-// 🔧 TABLE CELL FIX: Remove newlines from markdown table cells
+// ðŸ”§ TABLE CELL FIX: Remove newlines from markdown table cells
 // ============================================================================
 function fixMarkdownTableCells(markdown: string): string {
   const lines = markdown.split('\n');
@@ -348,9 +348,9 @@ function fixMarkdownTableCells(markdown: string): string {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    // 🔧 SAFEGUARD: Skip extremely long lines (malformed LLM output)
+    // ðŸ”§ SAFEGUARD: Skip extremely long lines (malformed LLM output)
     if (line.length > 2000) {
-      console.warn(`⚠️ [TABLE FIX] Skipping malformed line (${line.length} chars)`);
+      console.warn(`âš ï¸ [TABLE FIX] Skipping malformed line (${line.length} chars)`);
       continue;
     }
 
@@ -358,7 +358,7 @@ function fixMarkdownTableCells(markdown: string): string {
       // Check if it's a separator row (|---|---|---|)
       const isSeparator = /^\|[\s\-:]+\|$/.test(line) || /^\|[\s\-:|]+\|$/.test(line);
       if (isSeparator) {
-        // 🔧 SAFEGUARD: Fix malformed separators with too many dashes
+        // ðŸ”§ SAFEGUARD: Fix malformed separators with too many dashes
         const fixedSeparator = line.replace(/\-{10,}/g, '---');
         fixedLines.push(fixedSeparator);
       } else {
@@ -371,7 +371,7 @@ function fixMarkdownTableCells(markdown: string): string {
           if (nextLine.startsWith('|') || !nextLine || nextLine.length === 0) break;
           // Skip extremely long continuation lines
           if (nextLine.length > 1000) {
-            console.warn(`⚠️ [TABLE FIX] Skipping malformed continuation (${nextLine.length} chars)`);
+            console.warn(`âš ï¸ [TABLE FIX] Skipping malformed continuation (${nextLine.length} chars)`);
             break;
           }
           fullRow += ' ' + nextLine;
@@ -379,7 +379,7 @@ function fixMarkdownTableCells(markdown: string): string {
         }
         i = j - 1;
 
-        // 🔧 SAFEGUARD: Truncate cells that are too long
+        // ðŸ”§ SAFEGUARD: Truncate cells that are too long
         const cells = fullRow.split('|').map(cell => {
           const trimmed = cell.trim();
           if (trimmed.length > 500) {
@@ -397,7 +397,7 @@ function fixMarkdownTableCells(markdown: string): string {
 }
 
 // ============================================================================
-// ✅ FIX #10: Better Error Messages - Custom Error Types
+// âœ… FIX #10: Better Error Messages - Custom Error Types
 // ============================================================================
 // REASON: Generic error messages don't help users understand what went wrong
 // WHY: Users need specific errors and clear actions to recover
@@ -590,11 +590,11 @@ function getCachedIntent(query: string): any | null {
   const age = Date.now() - cached.timestamp;
   if (age > INTENT_CACHE_TTL) {
     intentCache.delete(normalizedQuery);
-    console.log('🗑️ [INTENT CACHE] Expired cache entry removed');
+    console.log('ðŸ—‘ï¸ [INTENT CACHE] Expired cache entry removed');
     return null;
   }
 
-  console.log(`⚡ [INTENT CACHE] Cache hit! (age: ${Math.round(age / 1000)}s)`);
+  console.log(`âš¡ [INTENT CACHE] Cache hit! (age: ${Math.round(age / 1000)}s)`);
   return cached.result;
 }
 
@@ -604,7 +604,7 @@ function cacheIntent(query: string, result: any): void {
     result,
     timestamp: Date.now()
   });
-  console.log(`💾 [INTENT CACHE] Cached result (total entries: ${intentCache.size})`);
+  console.log(`ðŸ’¾ [INTENT CACHE] Cached result (total entries: ${intentCache.size})`);
 }
 
 // Periodic cleanup of expired cache entries (every 10 minutes)
@@ -620,7 +620,7 @@ setInterval(() => {
   }
 
   if (removed > 0) {
-    console.log(`🧹 [INTENT CACHE] Cleaned up ${removed} expired entries (${intentCache.size} remaining)`);
+    console.log(`ðŸ§¹ [INTENT CACHE] Cleaned up ${removed} expired entries (${intentCache.size} remaining)`);
   }
 }, 10 * 60 * 1000);
 
@@ -649,7 +649,7 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
     return matches;
   }
 
-  console.log(`🔍 [FILTER] Checking ${documentIds.length} unique documents from ${matches.length} matches`);
+  console.log(`ðŸ” [FILTER] Checking ${documentIds.length} unique documents from ${matches.length} matches`);
 
   // Query database for valid (non-deleted) documents
   const dbStart = Date.now();
@@ -671,7 +671,7 @@ async function filterDeletedDocuments(matches: any[], userId: string): Promise<a
   if (requestTimer) requestTimer.record('filterDeletedDocuments: Filter Matches', Date.now() - filterStart);
 
   if (filtered.length < matches.length) {
-    console.log(`🗑️ [FILTER] Removed deleted documents: ${matches.length} → ${filtered.length}`);
+    console.log(`ðŸ—‘ï¸ [FILTER] Removed deleted documents: ${matches.length} â†’ ${filtered.length}`);
   }
 
   if (requestTimer) requestTimer.record('filterDeletedDocuments (total)', Date.now() - fnStart);
@@ -690,7 +690,7 @@ async function retrieveFullDocuments(
   userId: string
 ): Promise<{ id: string; title: string; content: string; metadata?: any }[]> {
 
-  console.log(`📄 [FULL DOCS] Retrieving ${documentIds.length} full documents`);
+  console.log(`ðŸ“„ [FULL DOCS] Retrieving ${documentIds.length} full documents`);
 
   // Remove duplicates
   const uniqueDocIds = [...new Set(documentIds)];
@@ -723,13 +723,13 @@ async function retrieveFullDocuments(
     }
   }));
 
-  // Calculate total tokens (rough estimate: 1 token ≈ 4 characters)
+  // Calculate total tokens (rough estimate: 1 token â‰ˆ 4 characters)
   const totalTokens = fullDocs.reduce((sum, doc) => sum + (doc.content.length / 4), 0);
-  console.log(`📄 [FULL DOCS] Retrieved ${fullDocs.length} documents (~${Math.floor(totalTokens)} tokens)`);
+  console.log(`ðŸ“„ [FULL DOCS] Retrieved ${fullDocs.length} documents (~${Math.floor(totalTokens)} tokens)`);
 
   // Warn if approaching context limit
   if (totalTokens > 800000) { // 800K tokens, leaving room for prompt and response
-    console.warn(`⚠️ [FULL DOCS] Large context size (${Math.floor(totalTokens)} tokens) - may need truncation`);
+    console.warn(`âš ï¸ [FULL DOCS] Large context size (${Math.floor(totalTokens)} tokens) - may need truncation`);
   }
 
   return fullDocs;
@@ -780,7 +780,7 @@ function buildConversationContext(
     return '';
   }
 
-  console.log(`📚 [CONTEXT] Building conversation history (${conversationHistory.length} messages)`);
+  console.log(`ðŸ“š [CONTEXT] Building conversation history (${conversationHistory.length} messages)`);
 
   let context = '## Conversation History\n\n';
   let tokenCount = 0;
@@ -792,11 +792,11 @@ function buildConversationContext(
   for (const message of reversedHistory) {
     const messageText = `**${message.role === 'user' ? 'User' : 'KODA'}**: ${message.content}\n\n`;
 
-    // Rough token estimation (1 token ≈ 4 characters)
+    // Rough token estimation (1 token â‰ˆ 4 characters)
     const messageTokens = messageText.length / 4;
 
     if (tokenCount + messageTokens > maxTokens) {
-      console.log(`📚 [CONTEXT] Reached token limit, truncating history`);
+      console.log(`ðŸ“š [CONTEXT] Reached token limit, truncating history`);
       break;
     }
 
@@ -806,7 +806,7 @@ function buildConversationContext(
 
   context += includedMessages.join('');
 
-  console.log(`📚 [CONTEXT] Built history with ${includedMessages.length} messages (~${Math.floor(tokenCount)} tokens)`);
+  console.log(`ðŸ“š [CONTEXT] Built history with ${includedMessages.length} messages (~${Math.floor(tokenCount)} tokens)`);
 
   return context;
 }
@@ -978,7 +978,7 @@ Rules for citations:
 // ============================================================================
 // GEMINI MODEL CONFIGURATION - Enhanced for Long Context
 // ============================================================================
-// ⚡ SPEED OPTIMIZATION #3: Optimize Gemini generation config (saves 500-1000ms)
+// âš¡ SPEED OPTIMIZATION #3: Optimize Gemini generation config (saves 500-1000ms)
 // ============================================================================
 // REASON: High topK slows down token generation by considering too many candidates
 // WHY: topK=40 means model evaluates 40 tokens per generation step
@@ -990,7 +990,7 @@ Rules for citations:
 // - Time per step with topK=40: ~10-20ms (evaluate 40 candidates)
 // - Time per step with topK=1: ~5-8ms (greedy, pick most likely)
 // - Difference: 5-12ms per step
-// - Total saved: (10-5) × 200 steps = 1000ms
+// - Total saved: (10-5) Ã— 200 steps = 1000ms
 //
 // QUALITY IMPACT:
 // - topK=40: More diverse responses, slightly more creative
@@ -1004,20 +1004,20 @@ const model = genAI.getGenerativeModel({
   generationConfig: {
     temperature: 0.7,    // Keep same (controls randomness)
     topP: 0.95,          // Keep same (nucleus sampling threshold)
-    topK: 10,            // ⚡ OPTIMIZED: 40 → 10 (balanced: faster + quality)
+    topK: 10,            // âš¡ OPTIMIZED: 40 â†’ 10 (balanced: faster + quality)
     maxOutputTokens: 8192, // Keep same (max response length)
   },
 });
-console.log('⚡ [SPEED] Gemini topK optimized: 40 → 10 (balanced speed/quality)');
+console.log('âš¡ [SPEED] Gemini topK optimized: 40 â†’ 10 (balanced speed/quality)');
 
 let pinecone: Pinecone | null = null;
 let pineconeIndex: any = null;
 
 // Initialize Pinecone
-// ⚡ PERFORMANCE FIX: Export this function to allow pre-warming at server startup
+// âš¡ PERFORMANCE FIX: Export this function to allow pre-warming at server startup
 export async function initializePinecone() {
   if (!pinecone) {
-    console.log('🔥 [PINECONE] Initializing Pinecone client...');
+    console.log('ðŸ”¥ [PINECONE] Initializing Pinecone client...');
     const startTime = Date.now();
     pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY || '',
@@ -1026,26 +1026,26 @@ export async function initializePinecone() {
 
     // Initialize hybrid retrieval service with Pinecone index
     initializePineconeIndex(pineconeIndex);
-    console.log('   ✅ [HYBRID] Pinecone index shared with hybrid retrieval service');
+    console.log('   âœ… [HYBRID] Pinecone index shared with hybrid retrieval service');
 
-    // ⚡ WARM UP: Do a dummy query to establish the connection
+    // âš¡ WARM UP: Do a dummy query to establish the connection
     try {
       await pineconeIndex.describeIndexStats();
-      console.log(`✅ [PINECONE] Connection warmed up in ${Date.now() - startTime}ms`);
+      console.log(`âœ… [PINECONE] Connection warmed up in ${Date.now() - startTime}ms`);
     } catch (error) {
-      console.log(`⚠️  [PINECONE] Warm-up query failed (will retry on first real query)`);
+      console.log(`âš ï¸  [PINECONE] Warm-up query failed (will retry on first real query)`);
     }
   }
 }
 
 // ============================================================================
-// ⚡ FAST CITATION EXTRACTION - Regex-based (replaces LLM call, saves ~1000ms)
+// âš¡ FAST CITATION EXTRACTION - Regex-based (replaces LLM call, saves ~1000ms)
 // ============================================================================
 // REASON: LLM-based citation extraction adds 800-1200ms
 // WHY: Simple regex can extract [1], [2] citations from response
-// HOW: Parse citations → map to chunks → deduplicate by document
+// HOW: Parse citations â†’ map to chunks â†’ deduplicate by document
 // IMPACT: ~1000ms saved per query
-// ✅ ENHANCED: Now tracks ALL page numbers per document for accurate citations
+// âœ… ENHANCED: Now tracks ALL page numbers per document for accurate citations
 
 interface EnhancedSourceInfo {
   documentId: string;
@@ -1058,14 +1058,14 @@ interface EnhancedSourceInfo {
 }
 
 function fastCitationExtraction(response: string, chunks: any[]): EnhancedSourceInfo[] {
-  // ✅ ENHANCED: Track all pages per document, not just one
+  // âœ… ENHANCED: Track all pages per document, not just one
   const sourceMap = new Map<string, EnhancedSourceInfo>();
 
   // Extract [1], [2], etc. from response
   const citationMatches = response.match(/\[(\d+)\]/g) || [];
   const citedIndices = [...new Set(citationMatches.map(m => parseInt(m.replace(/\[|\]/g, '')) - 1))];
 
-  console.log(`⚡ [FAST CITATION] Found ${citedIndices.length} unique citation references in response`);
+  console.log(`âš¡ [FAST CITATION] Found ${citedIndices.length} unique citation references in response`);
 
   // Map citations to chunks - accumulate ALL pages per document
   citedIndices.forEach(idx => {
@@ -1078,7 +1078,7 @@ function fastCitationExtraction(response: string, chunks: any[]): EnhancedSource
       if (docId) {
         const existing = sourceMap.get(docId);
         if (existing) {
-          // ✅ ENHANCED: Accumulate page numbers instead of replacing
+          // âœ… ENHANCED: Accumulate page numbers instead of replacing
           if (pageNum !== null && !existing.allPages.includes(pageNum)) {
             existing.allPages.push(pageNum);
             existing.allPages.sort((a, b) => a - b);
@@ -1105,7 +1105,7 @@ function fastCitationExtraction(response: string, chunks: any[]): EnhancedSource
 
   // If no citations found in response, use top 3 chunks as sources
   if (sourceMap.size === 0) {
-    console.log(`⚡ [FAST CITATION] No explicit citations found, using top 3 chunks as sources`);
+    console.log(`âš¡ [FAST CITATION] No explicit citations found, using top 3 chunks as sources`);
     chunks.slice(0, 3).forEach(chunk => {
       const docId = chunk.metadata?.documentId;
       const score = chunk.score || chunk.rerankScore || chunk.hybridScore || 0;
@@ -1141,8 +1141,8 @@ function fastCitationExtraction(response: string, chunks: any[]): EnhancedSource
   // Convert Map to array, sorted by score descending
   const sources = Array.from(sourceMap.values()).sort((a, b) => b.score - a.score);
 
-  // ✅ KODA 100/100: Apply kodaCitationFormat for 100% confidence-based locations
-  console.log(`⚡ [FAST CITATION] Applying KODA citation formatting...`);
+  // âœ… KODA 100/100: Apply kodaCitationFormat for 100% confidence-based locations
+  console.log(`âš¡ [FAST CITATION] Applying KODA citation formatting...`);
   const formattedSources = kodaCitationFormatService.formatSources(chunks);
 
   // Merge formatted data back into sources (keep existing structure, add formatted location)
@@ -1158,8 +1158,8 @@ function fastCitationExtraction(response: string, chunks: any[]): EnhancedSource
     }
   });
 
-  // ✅ ENHANCED: Log detailed page information for debugging citation accuracy
-  console.log(`⚡ [FAST CITATION] Extracted ${sources.length} unique document sources (saved ~1000ms)`);
+  // âœ… ENHANCED: Log detailed page information for debugging citation accuracy
+  console.log(`âš¡ [FAST CITATION] Extracted ${sources.length} unique document sources (saved ~1000ms)`);
   sources.forEach((src, idx) => {
     const pagesStr = src.allPages.length > 0 ? `pages ${src.allPages.join(', ')}` : 'no page info';
     const kodaLocation = (src as any).formattedLocation || 'N/A';
@@ -1170,7 +1170,7 @@ function fastCitationExtraction(response: string, chunks: any[]): EnhancedSource
 }
 
 // ============================================================================
-// ✅ BUILD ANSWER WITH CITATIONS - Accurate source tracking
+// âœ… BUILD ANSWER WITH CITATIONS - Accurate source tracking
 // ============================================================================
 // PURPOSE: Appends a "Sources" section with accurate document locations
 // WHY: Fixes "wrong file location reported" precision error
@@ -1246,10 +1246,10 @@ function buildAnswerWithCitations(
       const pageStr = src.pages.length > 0
         ? ` (pages ${src.pages.join(', ')})`
         : '';
-      sourceLines.push(`• **${src.documentName}**${pageStr}`);
+      sourceLines.push(`â€¢ **${src.documentName}**${pageStr}`);
     });
 
-    console.log(`📎 [CITATION BUILDER] Added ${sources.length} sources to answer`);
+    console.log(`ðŸ“Ž [CITATION BUILDER] Added ${sources.length} sources to answer`);
     sources.forEach((src, idx) => {
       const pagesStr = src.pages.length > 0 ? `pages ${src.pages.join(', ')}` : 'no page info';
       console.log(`   ${idx + 1}. ${src.documentName} (${pagesStr})`);
@@ -1302,7 +1302,7 @@ function observeRetrievalResults(
   // ============================================================================
 
   if (!results.matches || results.matches.length === 0) {
-    console.log('🔍 [OBSERVE] No results found - refinement needed');
+    console.log('ðŸ” [OBSERVE] No results found - refinement needed');
     return {
       needsRefinement: true,
       reason: 'no_results',
@@ -1320,7 +1320,7 @@ function observeRetrievalResults(
   const topScore = results.matches[0]?.score || 0;
 
   if (topScore < minRelevanceScore) {
-    console.log(`🔍 [OBSERVE] Low relevance (top: ${topScore.toFixed(2)}, avg: ${avgScore.toFixed(2)}) - refinement needed`);
+    console.log(`ðŸ” [OBSERVE] Low relevance (top: ${topScore.toFixed(2)}, avg: ${avgScore.toFixed(2)}) - refinement needed`);
     return {
       needsRefinement: true,
       reason: 'low_relevance',
@@ -1349,12 +1349,12 @@ function observeRetrievalResults(
     const numberedItems = content.match(/\b\d+\.\s/g)?.length || 0;
 
     // Count bullet points
-    const bulletItems = content.match(/[•\-\*]\s/g)?.length || 0;
+    const bulletItems = content.match(/[â€¢\-\*]\s/g)?.length || 0;
 
     const foundCount = Math.max(numberedItems, bulletItems, results.matches.length);
 
     if (foundCount < expectedCount) {
-      console.log(`🔍 [OBSERVE] Incomplete results (expected: ${expectedCount}, found: ${foundCount}) - refinement needed`);
+      console.log(`ðŸ” [OBSERVE] Incomplete results (expected: ${expectedCount}, found: ${foundCount}) - refinement needed`);
       return {
         needsRefinement: true,
         reason: 'incomplete',
@@ -1377,7 +1377,7 @@ function observeRetrievalResults(
   const hasVs = /\bvs\.?\b|\bversus\b/i.test(query);
 
   if ((hasAnd || hasOr || hasVs) && results.matches.length < 5) {
-    console.log(`🔍 [OBSERVE] Multi-part query with insufficient results (${results.matches.length} chunks) - refinement may be needed`);
+    console.log(`ðŸ” [OBSERVE] Multi-part query with insufficient results (${results.matches.length} chunks) - refinement may be needed`);
     // Don't force refinement, but flag as potentially insufficient
     return {
       needsRefinement: false, // Let it proceed, but log the concern
@@ -1393,7 +1393,7 @@ function observeRetrievalResults(
   // ALL CHECKS PASSED - Results are good
   // ============================================================================
 
-  console.log(`✅ [OBSERVE] Results are sufficient (${results.matches.length} chunks, avg score: ${avgScore.toFixed(2)})`);
+  console.log(`âœ… [OBSERVE] Results are sufficient (${results.matches.length} chunks, avg score: ${avgScore.toFixed(2)})`);
   return {
     needsRefinement: false
   };
@@ -1412,17 +1412,17 @@ function refineQuery(originalQuery: string, observation: ObservationResult): str
     return originalQuery; // No refinement needed
   }
 
-  console.log(`🔧 [REFINE] Refining query due to: ${observation.reason}`);
+  console.log(`ðŸ”§ [REFINE] Refining query due to: ${observation.reason}`);
 
   switch (observation.reason) {
 
     // ============================================================================
-    // CASE 1: No results found → Broaden the search
+    // CASE 1: No results found â†’ Broaden the search
     // ============================================================================
     case 'no_results': {
       // Remove very specific terms, keep core concepts
       // Example: "How does loss aversion affect purchasing decisions in retail?"
-      // → "loss aversion purchasing"
+      // â†’ "loss aversion purchasing"
 
       // Extract key nouns (simple heuristic: words > 4 chars, not common words)
       const commonWords = ['what', 'how', 'why', 'when', 'where', 'does', 'affect', 'impact', 'influence', 'relate', 'apply'];
@@ -1434,33 +1434,33 @@ function refineQuery(originalQuery: string, observation: ObservationResult): str
       );
 
       const refinedQuery = keyWords.slice(0, 3).join(' '); // Take top 3 key words
-      console.log(`🔧 [REFINE] Broadened query: "${originalQuery}" → "${refinedQuery}"`);
+      console.log(`ðŸ”§ [REFINE] Broadened query: "${originalQuery}" â†’ "${refinedQuery}"`);
       return refinedQuery;
     }
 
     // ============================================================================
-    // CASE 2: Low relevance → Try different keywords
+    // CASE 2: Low relevance â†’ Try different keywords
     // ============================================================================
     case 'low_relevance': {
       // Try removing question words and focusing on core concepts
       // Example: "What are the key principles of persuasion?"
-      // → "principles persuasion"
+      // â†’ "principles persuasion"
 
       const withoutQuestionWords = originalQuery
         .replace(/^(what|how|why|when|where|who|which)\s+(is|are|does|do|can|could|would|should)\s+/i, '')
         .replace(/^(tell me about|explain|describe|list|show me)\s+/i, '');
 
-      console.log(`🔧 [REFINE] Simplified query: "${originalQuery}" → "${withoutQuestionWords}"`);
+      console.log(`ðŸ”§ [REFINE] Simplified query: "${originalQuery}" â†’ "${withoutQuestionWords}"`);
       return withoutQuestionWords;
     }
 
     // ============================================================================
-    // CASE 3: Incomplete results → Search for complete list
+    // CASE 3: Incomplete results â†’ Search for complete list
     // ============================================================================
     case 'incomplete': {
       // Add "complete list" or "all X" to the query
       // Example: "What are Cialdini's principles?" (found 5, expected 7)
-      // → "Cialdini complete list all 7 principles"
+      // â†’ "Cialdini complete list all 7 principles"
 
       const expected = observation.details?.expected;
       const coreQuery = originalQuery.replace(/^(what|how|list|tell me|explain)\s+(are|is|about)?\s*/i, '');
@@ -1469,16 +1469,16 @@ function refineQuery(originalQuery: string, observation: ObservationResult): str
         ? `${coreQuery} complete list all ${expected}`
         : `${coreQuery} complete list`;
 
-      console.log(`🔧 [REFINE] Added "complete list": "${originalQuery}" → "${refinedQuery}"`);
+      console.log(`ðŸ”§ [REFINE] Added "complete list": "${originalQuery}" â†’ "${refinedQuery}"`);
       return refinedQuery;
     }
 
     // ============================================================================
-    // CASE 4: Insufficient coverage → Keep original (will be handled by decomposition)
+    // CASE 4: Insufficient coverage â†’ Keep original (will be handled by decomposition)
     // ============================================================================
     case 'insufficient_coverage': {
       // This will be handled by query decomposition in Phase 2
-      console.log(`🔧 [REFINE] Insufficient coverage - will be handled by decomposition`);
+      console.log(`ðŸ”§ [REFINE] Insufficient coverage - will be handled by decomposition`);
       return originalQuery;
     }
 
@@ -1531,7 +1531,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
 
   for (const pattern of multiDocPatterns) {
     if (pattern.test(query)) {
-      console.log(`🔗 [DECOMPOSE] Detected multi-document cross-reference query`);
+      console.log(`ðŸ”— [DECOMPOSE] Detected multi-document cross-reference query`);
 
       // Use LLM to intelligently decompose
       if (requestTimer) requestTimer.start('decomposeWithLLM');
@@ -1572,7 +1572,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
       }
 
       if (concept1 && concept2) {
-        console.log(`🧩 [DECOMPOSE] Detected comparison query: "${concept1}" vs "${concept2}"`);
+        console.log(`ðŸ§© [DECOMPOSE] Detected comparison query: "${concept1}" vs "${concept2}"`);
 
         if (requestTimer) requestTimer.end('analyzeQueryComplexity');
         return {
@@ -1600,7 +1600,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
 
   if (andParts.length >= 3) {
     // Has 3+ parts connected by "and"
-    console.log(`🧩 [DECOMPOSE] Detected multi-part query with ${andParts.length} parts`);
+    console.log(`ðŸ§© [DECOMPOSE] Detected multi-part query with ${andParts.length} parts`);
 
     // Extract the question stem (e.g., "What is" from "What is A and B and C")
     const questionStem = andParts[0].match(/^(what|how|why|when|where|who|which|explain|describe|tell me about|list)\s+(is|are|does|do|was|were)?/i)?.[0] || '';
@@ -1637,7 +1637,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
 
   for (const pattern of sequentialPatterns) {
     if (pattern.test(query)) {
-      console.log(`🧩 [DECOMPOSE] Detected sequential query`);
+      console.log(`ðŸ§© [DECOMPOSE] Detected sequential query`);
 
       // Use LLM to decompose (more complex pattern)
       if (requestTimer) requestTimer.start('decomposeWithLLM (sequential)');
@@ -1663,7 +1663,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
     const count = parseInt(countMatch[2]);
     if (count >= 5) {
       // Large lists might benefit from decomposition
-      console.log(`🧩 [DECOMPOSE] Detected large list query (${count} items)`);
+      console.log(`ðŸ§© [DECOMPOSE] Detected large list query (${count} items)`);
 
       // Don't decompose, but flag for special handling (completeness check)
       if (requestTimer) requestTimer.end('analyzeQueryComplexity');
@@ -1679,7 +1679,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
   // DEFAULT: Simple query
   // ============================================================================
 
-  console.log(`✅ [DECOMPOSE] Simple query - no decomposition needed`);
+  console.log(`âœ… [DECOMPOSE] Simple query - no decomposition needed`);
   if (requestTimer) requestTimer.end('analyzeQueryComplexity');
   return {
     isComplex: false,
@@ -1688,7 +1688,7 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
   };
 }
 
-// ⚡ PERFORMANCE: Cache decomposition results to avoid redundant LLM calls (saves 1-2s)
+// âš¡ PERFORMANCE: Cache decomposition results to avoid redundant LLM calls (saves 1-2s)
 const decompositionCache = new Map<string, { result: QueryAnalysis | null; timestamp: number }>();
 const DECOMPOSITION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -1699,17 +1699,17 @@ const DECOMPOSITION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
  * @returns Query analysis with sub-queries, or null if LLM fails
  */
 async function decomposeWithLLM(query: string): Promise<QueryAnalysis | null> {
-  // ⚡ Check cache first - saves 1-2 seconds for repeat queries
+  // âš¡ Check cache first - saves 1-2 seconds for repeat queries
   const cacheKey = query.toLowerCase().trim();
   const cached = decompositionCache.get(cacheKey);
 
   if (cached && (Date.now() - cached.timestamp) < DECOMPOSITION_CACHE_TTL) {
-    console.log(`⚡ [DECOMPOSE CACHE HIT] Using cached decomposition (saved 1-2s)`);
+    console.log(`âš¡ [DECOMPOSE CACHE HIT] Using cached decomposition (saved 1-2s)`);
     return cached.result;
   }
 
   try {
-    console.log(`🤖 [LLM DECOMPOSE] Analyzing query complexity with LLM...`);
+    console.log(`ðŸ¤– [LLM DECOMPOSE] Analyzing query complexity with LLM...`);
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
@@ -1790,24 +1790,24 @@ Respond with ONLY the JSON object, no explanation.`;
     const analysis = JSON.parse(jsonText);
 
     if (analysis.isComplex && analysis.subQueries && analysis.subQueries.length > 0) {
-      console.log(`🤖 [LLM DECOMPOSE] Broke query into ${analysis.subQueries.length} sub-queries`);
+      console.log(`ðŸ¤– [LLM DECOMPOSE] Broke query into ${analysis.subQueries.length} sub-queries`);
       const result: QueryAnalysis = {
         isComplex: true,
         queryType: analysis.queryType || 'sequential',
         subQueries: analysis.subQueries,
         originalQuery: query
       };
-      // ⚡ Cache the result for future queries
+      // âš¡ Cache the result for future queries
       decompositionCache.set(cacheKey, { result, timestamp: Date.now() });
       return result;
     }
 
-    console.log(`✅ [LLM DECOMPOSE] Query classified as simple`);
-    // ⚡ Cache null result for simple queries too (avoids re-analyzing)
+    console.log(`âœ… [LLM DECOMPOSE] Query classified as simple`);
+    // âš¡ Cache null result for simple queries too (avoids re-analyzing)
     decompositionCache.set(cacheKey, { result: null, timestamp: Date.now() });
     return null;
   } catch (error) {
-    console.error('⚠️ [LLM DECOMPOSE] Failed to decompose with LLM:', error);
+    console.error('âš ï¸ [LLM DECOMPOSE] Failed to decompose with LLM:', error);
     return null;
   }
 }
@@ -1831,10 +1831,10 @@ async function handleMultiStepQuery(
     throw new Error('No sub-queries provided for multi-step query');
   }
 
-  console.log(`🔄 [MULTI-STEP] Executing ${analysis.subQueries.length} sub-queries...`);
+  console.log(`ðŸ”„ [MULTI-STEP] Executing ${analysis.subQueries.length} sub-queries...`);
 
   // ============================================================================
-  // ⚡ PERFORMANCE: Generate ALL embeddings in parallel first (saves 1-2s)
+  // âš¡ PERFORMANCE: Generate ALL embeddings in parallel first (saves 1-2s)
   // ============================================================================
 
   analysis.subQueries.forEach((subQuery, index) => {
@@ -1854,7 +1854,7 @@ async function handleMultiStepQuery(
   const subQueryPromises = analysis.subQueries.map(async (subQuery, index) => {
     const queryEmbedding = embeddings[index].embedding;
 
-    // 🔀 HYBRID RETRIEVAL: Use combined Vector + BM25 search
+    // ðŸ”€ HYBRID RETRIEVAL: Use combined Vector + BM25 search
     const hybridResults = await performHybridRetrieval(
       subQuery,
       queryEmbedding,
@@ -1866,16 +1866,16 @@ async function handleMultiStepQuery(
     // Filter deleted documents
     const filteredMatches = await filterDeletedDocuments(hybridResults.matches || [], userId);
 
-    // 🚀 HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost
+    // ðŸš€ HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost
     const boostedMatches = hybridRetrievalBooster.boostRetrievalScores(filteredMatches, subQuery, 1.8);
 
-    // ✅ ISSUE #6 FIX: Boost section matches for section-specific queries
+    // âœ… ISSUE #6 FIX: Boost section matches for section-specific queries
     const sectionRefs = extractSectionReferences(subQuery);
     if (sectionRefs.length > 0) {
       boostSectionMatches(boostedMatches, sectionRefs);
     }
 
-    console.log(`  ✅ Found ${boostedMatches.length} chunks for sub-query ${index + 1}`);
+    console.log(`  âœ… Found ${boostedMatches.length} chunks for sub-query ${index + 1}`);
 
     return boostedMatches;
   });
@@ -1905,10 +1905,10 @@ async function handleMultiStepQuery(
   // Sort by relevance score (highest first)
   combinedMatches.sort((a, b) => (b.score || 0) - (a.score || 0));
 
-  // ⚡ PERFORMANCE: Reduced from 20 to 10 overall (less context = faster LLM)
+  // âš¡ PERFORMANCE: Reduced from 20 to 10 overall (less context = faster LLM)
   const topMatches = combinedMatches.slice(0, 10);
 
-  console.log(`✅ [MULTI-STEP] Combined ${allResults.length} sub-query results into ${topMatches.length} unique chunks`);
+  console.log(`âœ… [MULTI-STEP] Combined ${allResults.length} sub-query results into ${topMatches.length} unique chunks`);
 
   return { matches: topMatches };
 }
@@ -1924,12 +1924,12 @@ interface AgentLoopConfig {
   improvementThreshold: number;  // Minimum improvement to continue (e.g., 0.1 = 10% better)
 }
 
-// ✅ OPTIMIZED: Reduced iterations for faster responses while maintaining quality
+// âœ… OPTIMIZED: Reduced iterations for faster responses while maintaining quality
 const DEFAULT_AGENT_CONFIG: AgentLoopConfig = {
   maxAttempts: 2,              // Reduced from 3 (saves 10-15s on complex queries)
-  minRelevanceScore: 0.05,     // Slightly lower threshold (0.7 → 0.65)
+  minRelevanceScore: 0.05,     // Slightly lower threshold (0.7 â†’ 0.65)
   minChunks: 3,
-  improvementThreshold: 0.15   // Higher threshold (0.1 → 0.15) to stop earlier if not improving much
+  improvementThreshold: 0.15   // Higher threshold (0.1 â†’ 0.15) to stop earlier if not improving much
 };
 
 interface AgentLoopState {
@@ -1973,7 +1973,7 @@ async function iterativeRetrieval(
   const state = createInitialState();
   let currentQuery = initialQuery;
 
-  console.log(`🔄 [AGENT LOOP] Starting iterative retrieval (max ${config.maxAttempts} attempts)`);
+  console.log(`ðŸ”„ [AGENT LOOP] Starting iterative retrieval (max ${config.maxAttempts} attempts)`);
 
   // ============================================================================
   // AGENT LOOP: Try up to maxAttempts times
@@ -1981,16 +1981,16 @@ async function iterativeRetrieval(
 
   while (state.attempt < config.maxAttempts) {
     state.attempt++;
-    console.log(`\n🔄 [AGENT LOOP] Attempt ${state.attempt}/${config.maxAttempts}: "${currentQuery}"`);
+    console.log(`\nðŸ”„ [AGENT LOOP] Attempt ${state.attempt}/${config.maxAttempts}: "${currentQuery}"`);
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 1: Execute retrieval
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     const embeddingResult = await embeddingService.generateEmbedding(currentQuery);
     const queryEmbedding = embeddingResult.embedding;
 
-    // 🔀 HYBRID RETRIEVAL: Use combined Vector + BM25 search
+    // ðŸ”€ HYBRID RETRIEVAL: Use combined Vector + BM25 search
     const hybridResults = await performHybridRetrieval(
       currentQuery,
       queryEmbedding,
@@ -2001,18 +2001,18 @@ async function iterativeRetrieval(
 
     const filteredMatches = await filterDeletedDocuments(hybridResults.matches || [], userId);
 
-    // 🚀 HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost
+    // ðŸš€ HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost
     const boostedMatches = hybridRetrievalBooster.boostRetrievalScores(filteredMatches, currentQuery, 1.8);
 
-    // ✅ ISSUE #6 FIX: Boost section matches for section-specific queries
+    // âœ… ISSUE #6 FIX: Boost section matches for section-specific queries
     const sectionRefs = extractSectionReferences(currentQuery);
     if (sectionRefs.length > 0) {
       boostSectionMatches(boostedMatches, sectionRefs);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 2: Observe results
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     const observation = observeRetrievalResults({ matches: boostedMatches }, currentQuery, config.minRelevanceScore);
 
@@ -2029,40 +2029,40 @@ async function iterativeRetrieval(
       observation
     });
 
-    console.log(`  📊 Results: ${boostedMatches.length} chunks, avg score: ${avgScore.toFixed(2)}`);
+    console.log(`  ðŸ“Š Results: ${boostedMatches.length} chunks, avg score: ${avgScore.toFixed(2)}`);
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 3: Update best results if this attempt is better
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     if (avgScore > state.bestScore) {
       const improvement = state.bestScore > 0
         ? ((avgScore - state.bestScore) / state.bestScore)
         : 1.0;
 
-      console.log(`  ✅ New best results! (${(improvement * 100).toFixed(1)}% improvement)`);
+      console.log(`  âœ… New best results! (${(improvement * 100).toFixed(1)}% improvement)`);
 
       state.bestResults = { matches: boostedMatches };
       state.bestScore = avgScore;
     } else {
-      console.log(`  ⚠️  Not better than previous best (${state.bestScore.toFixed(2)})`);
+      console.log(`  âš ï¸  Not better than previous best (${state.bestScore.toFixed(2)})`);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 4: Decide if we should continue or stop
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     // Stop if results are good enough
     if (!observation.needsRefinement &&
         boostedMatches.length >= config.minChunks &&
         avgScore >= config.minRelevanceScore) {
-      console.log(`  ✅ Results are satisfactory - stopping`);
+      console.log(`  âœ… Results are satisfactory - stopping`);
       break;
     }
 
     // Stop if we've reached max attempts
     if (state.attempt >= config.maxAttempts) {
-      console.log(`  ⏹️  Reached max attempts - using best results`);
+      console.log(`  â¹ï¸  Reached max attempts - using best results`);
       break;
     }
 
@@ -2072,20 +2072,20 @@ async function iterativeRetrieval(
       const improvement = avgScore > 0 ? (avgScore - previousScore) / previousScore : 0;
 
       if (improvement < config.improvementThreshold && improvement >= 0) {
-        console.log(`  ⏹️  Improvement too small (${(improvement * 100).toFixed(1)}%) - stopping`);
+        console.log(`  â¹ï¸  Improvement too small (${(improvement * 100).toFixed(1)}%) - stopping`);
         break;
       }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 5: Refine query for next attempt
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    console.log(`  🔧 Refining query for next attempt...`);
+    console.log(`  ðŸ”§ Refining query for next attempt...`);
     currentQuery = refineQuery(currentQuery, observation);
 
     if (currentQuery === state.history[state.history.length - 1].query) {
-      console.log(`  ⏹️  Refinement produced same query - stopping to avoid infinite loop`);
+      console.log(`  â¹ï¸  Refinement produced same query - stopping to avoid infinite loop`);
       break;
     }
   }
@@ -2094,7 +2094,7 @@ async function iterativeRetrieval(
   // Return best results found across all attempts
   // ============================================================================
 
-  console.log(`\n✅ [AGENT LOOP] Completed after ${state.attempt} attempts`);
+  console.log(`\nâœ… [AGENT LOOP] Completed after ${state.attempt} attempts`);
   console.log(`  Best score: ${state.bestScore.toFixed(2)}`);
   console.log(`  Best result count: ${state.bestResults?.matches?.length || 0}`);
 
@@ -2166,12 +2166,12 @@ function validateAnswer(answer: string, query: string, sources: any[]): AnswerVa
   // ============================================================================
 
   if (issues.length > 0) {
-    console.log(`⚠️  [VALIDATE] Answer validation found ${issues.length} issues:`);
+    console.log(`âš ï¸  [VALIDATE] Answer validation found ${issues.length} issues:`);
     issues.forEach(issue => console.log(`   - ${issue}`));
     return { isValid: false, issues, suggestions };
   }
 
-  console.log(`✅ [VALIDATE] Answer passed validation`);
+  console.log(`âœ… [VALIDATE] Answer passed validation`);
   return { isValid: true };
 }
 
@@ -2192,7 +2192,7 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
   // ============================================================================
   // STRATEGY 1: Keyword search for exact-match queries
   // ============================================================================
-  // ✅ ENABLED: BM25 keyword search via document_chunks table
+  // âœ… ENABLED: BM25 keyword search via document_chunks table
   // Uses PostgreSQL full-text search with GIN index for fast keyword matching
 
   // Detect technical terms, IDs, version numbers, acronyms
@@ -2206,8 +2206,8 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
 
   for (const pattern of hasExactMatchPattern) {
     if (pattern.test(query)) {
-      // ✅ ENABLED: Use KEYWORD for exact-match patterns
-      console.log(`🎯 [STRATEGY] Exact-match pattern detected → using KEYWORD search (BM25)`);
+      // âœ… ENABLED: Use KEYWORD for exact-match patterns
+      console.log(`ðŸŽ¯ [STRATEGY] Exact-match pattern detected â†’ using KEYWORD search (BM25)`);
       return 'keyword';
     }
   }
@@ -2219,7 +2219,7 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
   const isComparison = /compare|difference|versus|vs\.?/i.test(query);
 
   if (isComparison) {
-    console.log(`🎯 [STRATEGY] Comparison query detected → using HYBRID search`);
+    console.log(`ðŸŽ¯ [STRATEGY] Comparison query detected â†’ using HYBRID search`);
     return 'hybrid';
   }
 
@@ -2231,7 +2231,7 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
   const documentMentions = query.match(/\b\w+\.(pdf|docx|xlsx|pptx|txt)\b/gi);
 
   if (documentMentions && documentMentions.length >= 2) {
-    console.log(`🎯 [STRATEGY] Multiple documents mentioned → using HYBRID search`);
+    console.log(`ðŸŽ¯ [STRATEGY] Multiple documents mentioned â†’ using HYBRID search`);
     return 'hybrid';
   }
 
@@ -2239,7 +2239,7 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
   // STRATEGY 4: Vector search for everything else (semantic understanding)
   // ============================================================================
 
-  console.log(`🎯 [STRATEGY] Standard query → using VECTOR search`);
+  console.log(`ðŸŽ¯ [STRATEGY] Standard query â†’ using VECTOR search`);
   return 'vector';
 }
 
@@ -2252,7 +2252,7 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
  * @returns Search results with BM25 scores
  */
 async function pureBM25Search(query: string, userId: string, topK: number = 20): Promise<any> {
-  console.log(`🔍 [PURE BM25] Executing keyword-only search for: "${query}"`);
+  console.log(`ðŸ” [PURE BM25] Executing keyword-only search for: "${query}"`);
 
   try {
     await initializePinecone();
@@ -2262,7 +2262,7 @@ async function pureBM25Search(query: string, userId: string, topK: number = 20):
     const emptyVectorResults: any[] = [];
     const hybridResults = await bm25RetrievalService.hybridSearch(query, emptyVectorResults, userId, topK);
 
-    console.log(`✅ [PURE BM25] Found ${hybridResults.length} keyword matches`);
+    console.log(`âœ… [PURE BM25] Found ${hybridResults.length} keyword matches`);
 
     // Convert to Pinecone-like format
     const matches = hybridResults.map((result: any) => ({
@@ -2274,7 +2274,7 @@ async function pureBM25Search(query: string, userId: string, topK: number = 20):
 
     return { matches };
   } catch (error) {
-    console.error('❌ [PURE BM25] Error:', error);
+    console.error('âŒ [PURE BM25] Error:', error);
     return { matches: [] };
   }
 }
@@ -2286,7 +2286,7 @@ async function pureBM25Search(query: string, userId: string, topK: number = 20):
 function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
   const lower = query.toLowerCase();
 
-  // ✅ FIX: Check for STRONG English patterns FIRST - these are definitive
+  // âœ… FIX: Check for STRONG English patterns FIRST - these are definitive
   const strongEnglishPatterns = [
     /\bwhat\s+is\b/i,
     /\bhow\s+(many|much|is|are|does|do)\b/i,
@@ -2307,7 +2307,7 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
 
   // If query matches any strong English pattern, return English immediately
   if (strongEnglishPatterns.some(pattern => pattern.test(lower))) {
-    console.log(`🌐 [LANG DETECT] Detected: English (strong pattern match)`);
+    console.log(`ðŸŒ [LANG DETECT] Detected: English (strong pattern match)`);
     return 'en';
   }
 
@@ -2361,14 +2361,14 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
     'obrigado', 'obrigada',
     // Common Portuguese words (unique)
     'meu', 'minha', 'meus', 'minhas', 'seu', 'sua', 'seus', 'suas',
-    'muito', 'também', 'tambem'
+    'muito', 'tambÃ©m', 'tambem'
   ];
 
   // Spanish indicators (unique words only - removed single chars)
   const esWords = [
     // Question words (Spanish-specific)
-    'cuántos', 'cuantos', 'cuántas', 'cuantas', 'cuáles', 'cuales', 'cuál', 'cual',
-    'dónde', 'donde', 'cuándo', 'cuando', 'cómo', 'quién', 'quien',
+    'cuÃ¡ntos', 'cuantos', 'cuÃ¡ntas', 'cuantas', 'cuÃ¡les', 'cuales', 'cuÃ¡l', 'cual',
+    'dÃ³nde', 'donde', 'cuÃ¡ndo', 'cuando', 'cÃ³mo', 'quiÃ©n', 'quien',
     // Common Spanish verbs
     'tengo', 'puedo', 'necesito', 'quiero', 'quisiera',
     // File/document terms (Spanish-specific)
@@ -2384,12 +2384,12 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
     // Question words (French-specific)
     'quoi', 'comment', 'pourquoi', 'combien', 'lesquels', 'lesquelles',
     // Common French verbs/words
-    'avoir', 'être', 'faire', 'pouvoir', 'vouloir', 'devoir', 'savoir',
+    'avoir', 'Ãªtre', 'faire', 'pouvoir', 'vouloir', 'devoir', 'savoir',
     'je', 'tu', 'nous', 'vous', 'ils', 'elles',
     // File/document terms (French-specific)
     'fichier', 'fichiers', 'dossier', 'dossiers', 'document', 'documents',
     // Actions
-    'créer', 'supprimer', 'renommer', 'télécharger', 'montrer', 'expliquer',
+    'crÃ©er', 'supprimer', 'renommer', 'tÃ©lÃ©charger', 'montrer', 'expliquer',
     // Greetings (French-specific)
     'bonjour', 'bonsoir', 'salut', 'merci'
   ];
@@ -2401,32 +2401,32 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
   const frCount = countWholeWordMatches(lower, frWords);
 
   // Log for debugging
-  console.log(`🌐 [LANG DETECT] EN: ${enCount}, PT: ${ptCount}, ES: ${esCount}, FR: ${frCount} for query: "${query.substring(0, 50)}..."`);
+  console.log(`ðŸŒ [LANG DETECT] EN: ${enCount}, PT: ${ptCount}, ES: ${esCount}, FR: ${frCount} for query: "${query.substring(0, 50)}..."`);
 
-  // ✅ FIX: Require MINIMUM of 2 strong matches to switch from English
+  // âœ… FIX: Require MINIMUM of 2 strong matches to switch from English
   const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 2;
 
   // English wins if it has the most matches OR ties with any other language
   if (enCount >= ptCount && enCount >= esCount && enCount >= frCount && enCount > 0) {
-    console.log(`🌐 [LANG DETECT] Detected: English`);
+    console.log(`ðŸŒ [LANG DETECT] Detected: English`);
     return 'en';
   }
 
   // Return language with most matches ONLY if above threshold
   if (ptCount > esCount && ptCount > frCount && ptCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
-    console.log(`🌐 [LANG DETECT] Detected: Portuguese (${ptCount} matches)`);
+    console.log(`ðŸŒ [LANG DETECT] Detected: Portuguese (${ptCount} matches)`);
     return 'pt';
   }
   if (esCount > ptCount && esCount > frCount && esCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
-    console.log(`🌐 [LANG DETECT] Detected: Spanish (${esCount} matches)`);
+    console.log(`ðŸŒ [LANG DETECT] Detected: Spanish (${esCount} matches)`);
     return 'es';
   }
   if (frCount > ptCount && frCount > esCount && frCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
-    console.log(`🌐 [LANG DETECT] Detected: French (${frCount} matches)`);
+    console.log(`ðŸŒ [LANG DETECT] Detected: French (${frCount} matches)`);
     return 'fr';
   }
 
-  console.log(`🌐 [LANG DETECT] Detected: English (default)`);
+  console.log(`ðŸŒ [LANG DETECT] Detected: English (default)`);
   return 'en'; // Default to English
 }
 
@@ -2512,26 +2512,26 @@ function applyFormatEnforcement(
  * Uses the unified CalculationRouter for cleaner routing logic
  */
 async function handleCalculationQuery(query: string, userId: string): Promise<string | null> {
-  console.log('🧮 [CALCULATION] Routing query through calculation router...');
+  console.log('ðŸ§® [CALCULATION] Routing query through calculation router...');
 
   try {
     // Use the unified calculation router for all calculation types
     const result = await calculationRouter.routeQuery(query);
 
     if (!result.handled) {
-      console.log('🧮 [CALCULATION] Not a calculation, proceeding with normal RAG');
+      console.log('ðŸ§® [CALCULATION] Not a calculation, proceeding with normal RAG');
       return null; // Not a calculation, proceed with normal RAG
     }
 
     if (result.error) {
-      console.error('🧮 [CALCULATION] Error:', result.error);
+      console.error('ðŸ§® [CALCULATION] Error:', result.error);
       return `I encountered an error while calculating: ${result.error}`;
     }
 
-    console.log(`🧮 [CALCULATION] Handled by: ${result.method} in ${result.executionTime}ms`);
+    console.log(`ðŸ§® [CALCULATION] Handled by: ${result.method} in ${result.executionTime}ms`);
     return result.response || null;
   } catch (error: any) {
-    console.error('🧮 [CALCULATION] Unexpected error:', error);
+    console.error('ðŸ§® [CALCULATION] Unexpected error:', error);
     // Fall back to legacy handling if router fails
     return handleCalculationQueryLegacy(query, userId);
   }
@@ -2542,17 +2542,17 @@ async function handleCalculationQuery(query: string, userId: string): Promise<st
  * Kept for backwards compatibility if router has issues
  */
 async function handleCalculationQueryLegacy(query: string, userId: string): Promise<string | null> {
-  console.log('🧮 [CALCULATION] Using legacy handler...');
+  console.log('ðŸ§® [CALCULATION] Using legacy handler...');
 
   // Step 1: Detect if this is a calculation
   const detection = calculationDetector.detect(query);
 
   if (!detection.isCalculation) {
-    console.log('🧮 [CALCULATION] Not a calculation, proceeding with normal RAG');
+    console.log('ðŸ§® [CALCULATION] Not a calculation, proceeding with normal RAG');
     return null; // Not a calculation, proceed with normal RAG
   }
 
-  console.log(`🧮 [CALCULATION] Type: ${detection.type}, Confidence: ${detection.confidence}`);
+  console.log(`ðŸ§® [CALCULATION] Type: ${detection.type}, Confidence: ${detection.confidence}`);
 
   // Step 2: Route to appropriate calculator
   switch (detection.type) {
@@ -2635,7 +2635,7 @@ async function handleStatisticalCalculation(query: string, detection: any): Prom
  * Handle complex calculations using Python (EXACTLY like Manus)
  */
 async function handleComplexCalculation(query: string, userId: string): Promise<string> {
-  console.log('🐍 [PYTHON] Generating code for complex calculation...');
+  console.log('ðŸ [PYTHON] Generating code for complex calculation...');
 
   // Step 1: Generate Python code using LLM
   const codeGen = await codeGenerator.generateCalculationCode(query);
@@ -2644,7 +2644,7 @@ async function handleComplexCalculation(query: string, userId: string): Promise<
     return `I couldn't generate code for that calculation: ${codeGen.error}`;
   }
 
-  console.log('🐍 [PYTHON] Code generated, validating...');
+  console.log('ðŸ [PYTHON] Code generated, validating...');
 
   // Step 2: Validate code for security
   const validation = pythonExecutor.validateCode(codeGen.code);
@@ -2653,7 +2653,7 @@ async function handleComplexCalculation(query: string, userId: string): Promise<
     return `I can't execute that code for security reasons: ${validation.reason}`;
   }
 
-  console.log('🐍 [PYTHON] Executing code...');
+  console.log('ðŸ [PYTHON] Executing code...');
 
   // Step 3: Execute Python code
   const execution = await pythonExecutor.executePython(codeGen.code);
@@ -2714,7 +2714,7 @@ async function handleExcelQuery(
   for (const { pattern, type } of formulaPatterns) {
     const match = query.match(pattern);
     if (match) {
-      console.log(`📊 [EXCEL] Detected ${type} query for cell ${match[1]}`);
+      console.log(`ðŸ“Š [EXCEL] Detected ${type} query for cell ${match[1]}`);
 
       switch (type) {
         case 'value':
@@ -2969,7 +2969,7 @@ async function checkConversationContextFirst(
   confidence: number;
   source: 'infinite_memory' | 'recent_history' | 'none';
 }> {
-  console.log('\n🧠 [CONV-CHECK] Checking conversation context FIRST...');
+  console.log('\nðŸ§  [CONV-CHECK] Checking conversation context FIRST...');
   console.log(`   Query: "${query.substring(0, 80)}..."`);
 
   const keyTerms = extractKeyTerms(query);
@@ -2983,7 +2983,7 @@ async function checkConversationContextFirst(
   ];
 
   if (pureCalculationPatterns.some(p => p.test(query))) {
-    console.log('   ⏭️ Skipping: Pure calculation query');
+    console.log('   â­ï¸ Skipping: Pure calculation query');
     return { canAnswer: false, confidence: 0, source: 'none' };
   }
 
@@ -3000,13 +3000,13 @@ async function checkConversationContextFirst(
   const hasContextIndicator = contextIndicators.some(p => p.test(query));
 
   if (!hasContextIndicator && keyTerms.length < 2) {
-    console.log('   ⏭️ Skipping: No context indicators and few key terms');
+    console.log('   â­ï¸ Skipping: No context indicators and few key terms');
     return { canAnswer: false, confidence: 0, source: 'none' };
   }
 
   try {
     // STRATEGY 1: Check infinite memory first (semantic search)
-    console.log('   📚 Searching infinite memory...');
+    console.log('   ðŸ“š Searching infinite memory...');
     const memoryContext = await infiniteConversationMemory.getContextForQuery(
       conversationId,
       userId,
@@ -3020,10 +3020,10 @@ async function checkConversationContextFirst(
       );
 
       const termMatchRatio = termsFound.length / Math.max(keyTerms.length, 1);
-      console.log(`   📊 Term match ratio: ${termMatchRatio.toFixed(2)} (${termsFound.length}/${keyTerms.length})`);
+      console.log(`   ðŸ“Š Term match ratio: ${termMatchRatio.toFixed(2)} (${termsFound.length}/${keyTerms.length})`);
 
       if (termMatchRatio >= 0.4 || termsFound.length >= 2) {
-        console.log('   ✅ Found relevant context in infinite memory!');
+        console.log('   âœ… Found relevant context in infinite memory!');
         return {
           canAnswer: true,
           answer: memoryContext,
@@ -3034,7 +3034,7 @@ async function checkConversationContextFirst(
     }
 
     // STRATEGY 2: Check recent conversation history (last 30 messages)
-    console.log('   💬 Checking recent conversation history...');
+    console.log('   ðŸ’¬ Checking recent conversation history...');
 
     let recentHistory = conversationHistory;
     if (!recentHistory || recentHistory.length < 5) {
@@ -3051,14 +3051,14 @@ async function checkConversationContextFirst(
       }));
     }
 
-    // ✅ FIX: Only check ASSISTANT messages for context (not user queries!)
+    // âœ… FIX: Only check ASSISTANT messages for context (not user queries!)
     // This prevents false positives where the user's query matches itself
     const assistantMessages = recentHistory?.filter(m => m.role === 'assistant') || [];
-    console.log(`   📊 Assistant messages found: ${assistantMessages.length}`);
+    console.log(`   ðŸ“Š Assistant messages found: ${assistantMessages.length}`);
 
-    // ✅ FIX: Require at least 1 assistant message with actual content
+    // âœ… FIX: Require at least 1 assistant message with actual content
     if (assistantMessages.length === 0 || !assistantMessages.some(m => m.content.length > 50)) {
-      console.log('   ⏭️ Skipping: No substantive assistant responses in history');
+      console.log('   â­ï¸ Skipping: No substantive assistant responses in history');
       // Fall through to return 'none' at the end
     } else if (recentHistory && recentHistory.length > 0) {
       // Only check assistant message content for key terms (not user queries!)
@@ -3070,7 +3070,7 @@ async function checkConversationContextFirst(
       );
 
       const historyMatchRatio = termsInHistory.length / Math.max(keyTerms.length, 1);
-      console.log(`   📊 History match ratio: ${historyMatchRatio.toFixed(2)} (${termsInHistory.length}/${keyTerms.length})`);
+      console.log(`   ðŸ“Š History match ratio: ${historyMatchRatio.toFixed(2)} (${termsInHistory.length}/${keyTerms.length})`);
 
       if (historyMatchRatio >= 0.5 || termsInHistory.length >= 2) {
         // Build context from matching ASSISTANT messages only
@@ -3084,7 +3084,7 @@ async function checkConversationContextFirst(
             .map(m => `Assistant: ${m.content}`)
             .join('\n\n');
 
-          console.log('   ✅ Found relevant context in recent assistant history!');
+          console.log('   âœ… Found relevant context in recent assistant history!');
           return {
             canAnswer: true,
             answer: contextFromHistory,
@@ -3095,11 +3095,11 @@ async function checkConversationContextFirst(
       }
     }
 
-    console.log('   ❌ No relevant conversation context found');
+    console.log('   âŒ No relevant conversation context found');
     return { canAnswer: false, confidence: 0, source: 'none' };
 
   } catch (error) {
-    console.error('   ⚠️ Error checking conversation context:', error);
+    console.error('   âš ï¸ Error checking conversation context:', error);
     return { canAnswer: false, confidence: 0, source: 'none' };
   }
 }
@@ -3116,7 +3116,7 @@ async function handleConversationContextQuery(
   onStage?: (stage: string, message: string) => void,
   profilePrompt?: string
 ): Promise<{ sources: any[] }> {
-  console.log('\n🎯 [CONV-ANSWER] Generating answer from conversation context...');
+  console.log('\nðŸŽ¯ [CONV-ANSWER] Generating answer from conversation context...');
 
   if (onStage) {
     onStage('thinking', 'Recalling from our conversation...');
@@ -3148,7 +3148,7 @@ async function handleConversationContextQuery(
     }
 
     // Fallback: Generate response directly
-    console.log('   ⚠️ Adaptive generation returned empty, using direct generation...');
+    console.log('   âš ï¸ Adaptive generation returned empty, using direct generation...');
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
     const model = genAI.getGenerativeModel({
@@ -3186,7 +3186,7 @@ YOUR ANSWER:`;
     return { sources: [] };
 
   } catch (error) {
-    console.error('   ❌ Error generating conversation answer:', error);
+    console.error('   âŒ Error generating conversation answer:', error);
     throw error;
   }
 }
@@ -3213,12 +3213,12 @@ export async function generateAnswerStream(
   // ============================================================================
   // ENHANCED ROUTER LOGGING
   // ============================================================================
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🔍 [ROUTER] Analyzing query...');
+  console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+  console.log('ðŸ” [ROUTER] Analyzing query...');
   console.log(`   Query: "${query}"`);
   console.log(`   User: ${userId}`);
   console.log(`   Conversation: ${conversationId}`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
 
   // ============================================================================
   // STEP 0: RAG BYPASS CHECK (Fastest Path)
@@ -3229,7 +3229,7 @@ export async function generateAnswerStream(
 
   if (shouldBypassRAG(query)) {
     const bypassType = getBypassType(query);
-    console.log(`⚡ [ROUTER] → BYPASS (${bypassType}) - No RAG needed`);
+    console.log(`âš¡ [ROUTER] â†’ BYPASS (${bypassType}) - No RAG needed`);
 
     // Handle bypass queries with direct LLM response
     if (onStage) onStage('answering', 'Generating response...');
@@ -3262,18 +3262,18 @@ Respond in the same language as the user's question.`;
       if (onStage) onStage('complete', 'Complete');
       return { sources: [] };
     } catch (error) {
-      console.error('❌ [ROUTER] Bypass LLM call failed, falling back to RAG:', error);
+      console.error('âŒ [ROUTER] Bypass LLM call failed, falling back to RAG:', error);
       // Fall through to normal routing
     }
   }
 
-  console.log('📚 [ROUTER] → RAG PIPELINE (document retrieval needed)');
+  console.log('ðŸ“š [ROUTER] â†’ RAG PIPELINE (document retrieval needed)');
 
-  // ✅ FIX: Initialize Pinecone in parallel with fast checks
+  // âœ… FIX: Initialize Pinecone in parallel with fast checks
   const pineconePromise = initializePinecone();
 
   // ============================================================================
-  // 🧠 CONVERSATION CONTEXT PRE-CHECK (PHASE 1 FIX - RUNS FIRST!)
+  // ðŸ§  CONVERSATION CONTEXT PRE-CHECK (PHASE 1 FIX - RUNS FIRST!)
   // ============================================================================
   // PURPOSE: Check if query can be answered from conversation BEFORE other handlers
   // WHY: Prevents calculation/excel handlers from intercepting conversation queries
@@ -3288,7 +3288,7 @@ Respond in the same language as the user's question.`;
     );
 
     if (conversationCheck.canAnswer && conversationCheck.answer) {
-      console.log(`🧠 [CONV-CHECK] ✅ Can answer from ${conversationCheck.source} (confidence: ${conversationCheck.confidence.toFixed(2)})`);
+      console.log(`ðŸ§  [CONV-CHECK] âœ… Can answer from ${conversationCheck.source} (confidence: ${conversationCheck.confidence.toFixed(2)})`);
 
       // Handle the query using conversation context
       return await handleConversationContextQuery(
@@ -3302,9 +3302,9 @@ Respond in the same language as the user's question.`;
       );
     }
 
-    console.log('🧠 [CONV-CHECK] ❌ No conversation context found, proceeding to other handlers...');
+    console.log('ðŸ§  [CONV-CHECK] âŒ No conversation context found, proceeding to other handlers...');
   } catch (error) {
-    console.error('🧠 [CONV-CHECK] Error in conversation pre-check:', error);
+    console.error('ðŸ§  [CONV-CHECK] Error in conversation pre-check:', error);
     // Continue to other handlers if pre-check fails
   }
 
@@ -3318,7 +3318,7 @@ Respond in the same language as the user's question.`;
     const calculationResult = await handleCalculationQuery(query, userId);
 
     if (calculationResult) {
-      console.log('🧮 [ROUTER] → CALCULATION (math/financial query detected)');
+      console.log('ðŸ§® [ROUTER] â†’ CALCULATION (math/financial query detected)');
 
       if (onStage) {
         onStage('calculating', 'Computing calculation...');
@@ -3341,7 +3341,7 @@ Respond in the same language as the user's question.`;
       return { sources: [] };
     }
   } catch (error) {
-    console.error('🧮 [CALCULATION] Error in calculation handling:', error);
+    console.error('ðŸ§® [CALCULATION] Error in calculation handling:', error);
     // Fall through to normal RAG if calculation fails
   }
 
@@ -3360,7 +3360,7 @@ Respond in the same language as the user's question.`;
       const excelResult = await handleExcelQuery(query, primaryDocId, userId);
 
       if (excelResult) {
-        console.log('📊 [ROUTER] → EXCEL (cell/formula query detected)');
+        console.log('ðŸ“Š [ROUTER] â†’ EXCEL (cell/formula query detected)');
 
         if (onStage) {
           onStage('analyzing', 'Analyzing Excel data...');
@@ -3384,7 +3384,7 @@ Respond in the same language as the user's question.`;
       }
     }
   } catch (error) {
-    console.error('📊 [EXCEL] Error in Excel query handling:', error);
+    console.error('ðŸ“Š [EXCEL] Error in Excel query handling:', error);
     // Fall through to normal RAG if Excel query fails
   }
 
@@ -3396,7 +3396,7 @@ Respond in the same language as the user's question.`;
 
   try {
     if (semanticDocumentSearchService.isDocumentSearchQuery(query)) {
-      console.log('🔍 [DOC-SEARCH] Document search query detected');
+      console.log('ðŸ” [DOC-SEARCH] Document search query detected');
 
       if (onStage) {
         onStage('searching', 'Searching your documents...');
@@ -3405,7 +3405,7 @@ Respond in the same language as the user's question.`;
       const searchResult = await semanticDocumentSearchService.search(query, userId);
 
       if (searchResult.success || searchResult.action === 'not_found') {
-        console.log(`🔍 [DOC-SEARCH] ${searchResult.action}: ${searchResult.documents.length} documents found`);
+        console.log(`ðŸ” [DOC-SEARCH] ${searchResult.action}: ${searchResult.documents.length} documents found`);
 
         // Format response with file information for frontend
         let response = searchResult.message;
@@ -3455,14 +3455,14 @@ Respond in the same language as the user's question.`;
       }
     }
   } catch (error) {
-    console.error('🔍 [DOC-SEARCH] Error in document search handling:', error);
+    console.error('ðŸ” [DOC-SEARCH] Error in document search handling:', error);
     // Fall through to normal RAG if document search fails
   }
 
   // ============================================================================
   // DYNAMIC RESPONSE SYSTEM - Handles all non-RAG queries
   // ============================================================================
-  // Impact: 20+ seconds → < 1 second for 30-40% of queries
+  // Impact: 20+ seconds â†’ < 1 second for 30-40% of queries
   // Replaces hardcoded fast path with AI-generated, context-aware responses
 
   // Emit initial analyzing status
@@ -3488,15 +3488,15 @@ Respond in the same language as the user's question.`;
   // Detect response type for dynamic handling
   const getResponseType = (q: string): 'greeting' | 'help' | 'capabilities' | 'general' => {
     const lowerQ = q.toLowerCase();
-    if (lowerQ.match(/^(hello|hi|hey|olá|oi|hola|bonjour)\b/i)) return 'greeting';
+    if (lowerQ.match(/^(hello|hi|hey|olÃ¡|oi|hola|bonjour)\b/i)) return 'greeting';
     if (lowerQ.match(/\b(help|what can you do|how do you work|como funciona|que puedes hacer)\b/i)) return 'capabilities';
-    if (lowerQ.match(/\b(how to|como|where|onde|dónde)\b.*\b(upload|use|start|upload|usar|começar)\b/i)) return 'help';
+    if (lowerQ.match(/\b(how to|como|where|onde|dÃ³nde)\b.*\b(upload|use|start|upload|usar|comeÃ§ar)\b/i)) return 'help';
     return 'general';
   };
 
   const responseType = getResponseType(query);
 
-  // ⚡ FAST PATH: Use fastPathDetector for multilanguage greetings/help
+  // âš¡ FAST PATH: Use fastPathDetector for multilanguage greetings/help
   // Now uses languageDetection.service for proper multilanguage support
   // ENHANCED: Also handles general knowledge queries via Direct Gemini Bypass
   const fastPathResult = await fastPathDetector.detect(query, {
@@ -3513,16 +3513,12 @@ Respond in the same language as the user's question.`;
     const model = metadata?.model || 'N/A';
     const latency = metadata?.latency || 0;
 
-    console.log(`⚡ FAST PATH: ${fastPathResult.type} - ${responseSource} (${fastPathResult.detectedLanguage})`);
+    console.log(`âš¡ FAST PATH: ${fastPathResult.type} - ${responseSource} (${fastPathResult.detectedLanguage})`);
     console.log(`   Model: ${model}, Latency: ${latency}ms, Used RAG: ${metadata?.usedRAG || false}`);
 
-    // Apply format enforcement to fast path responses
-    const formattedFastPath = applyFormatEnforcement(fastPathResult.response, {
-      responseType: 'fast_path',
-      logPrefix: '[FAST-PATH FORMAT]'
-    });
-
-    if (onChunk) onChunk(formattedFastPath);
+    // Fast path responses (greetings, help) are already properly formatted
+    // DO NOT apply format enforcement - greetings should be natural, not structured
+    if (onChunk) onChunk(fastPathResult.response);
     if (onStage) onStage('complete', 'Complete');
     return { sources: [] };
   }
@@ -3548,7 +3544,7 @@ Respond in the same language as the user's question.`;
       earlyFallbackCheck.confidence > 0.85 &&
       (earlyFallbackCheck.fallbackType === 'clarification' || earlyFallbackCheck.fallbackType === 'refusal')) {
 
-    console.log(`⚡ [EARLY FALLBACK] ${earlyFallbackCheck.fallbackType} detected - skipping RAG`);
+    console.log(`âš¡ [EARLY FALLBACK] ${earlyFallbackCheck.fallbackType} detected - skipping RAG`);
 
     // Get document names for context
     const earlyUserDocuments = await prisma.document.findMany({
@@ -3584,10 +3580,10 @@ Respond in the same language as the user's question.`;
       if (onChunk) onChunk(formattedFallback);
       if (onStage) onStage('complete', 'Complete');
 
-      console.log(`✅ [EARLY FALLBACK] ${earlyFallbackCheck.fallbackType} response generated (saved RAG processing)`);
+      console.log(`âœ… [EARLY FALLBACK] ${earlyFallbackCheck.fallbackType} response generated (saved RAG processing)`);
       return { sources: [] };
     } catch (earlyFallbackError) {
-      console.error('❌ [EARLY FALLBACK] Error generating response:', earlyFallbackError);
+      console.error('âŒ [EARLY FALLBACK] Error generating response:', earlyFallbackError);
       // Fall through to normal RAG processing
     }
   }
@@ -3600,7 +3596,7 @@ Respond in the same language as the user's question.`;
   const docGenResult = detectDocumentGenerationIntent(query);
 
   if (docGenResult.isDocumentGeneration && docGenResult.confidence > 0.7) {
-    console.log(`📄 [DOC GEN] Detected ${docGenResult.documentType} generation request (confidence: ${docGenResult.confidence})`);
+    console.log(`ðŸ“„ [DOC GEN] Detected ${docGenResult.documentType} generation request (confidence: ${docGenResult.confidence})`);
 
     // Return special marker to trigger document generation in chat service
     if (onChunk) {
@@ -3616,69 +3612,69 @@ Respond in the same language as the user's question.`;
     };
   }
 
-  // ════════════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // ADVANCED QUERY TYPE DETECTION - Route to specialized handlers
-  // ════════════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // REASON: Many queries need different retrieval strategies than semantic search
   // WHY: "list all companies" needs entity extraction, not similarity search
-  // IMPACT: Transforms "I don't see that" → actual entity/synthesis/data extraction
+  // IMPACT: Transforms "I don't see that" â†’ actual entity/synthesis/data extraction
 
   const advancedQueryType = detectAdvancedQueryType(query);
-  console.log(`🎯 [ADVANCED QUERY TYPE] Detected: ${advancedQueryType}`);
+  console.log(`ðŸŽ¯ [ADVANCED QUERY TYPE] Detected: ${advancedQueryType}`);
 
   // Handle entity extraction queries (people, companies, organizations)
   if (advancedQueryType === 'entity_extraction') {
-    console.log('👥 [ENTITY EXTRACTION] Routing to entity extraction handler');
+    console.log('ðŸ‘¥ [ENTITY EXTRACTION] Routing to entity extraction handler');
     return await handleEntityExtractionQuery(query, userId, onChunk, onStage, detectedLanguage);
   }
 
   // Handle synthesis queries (summarize all, create outline, executive summary)
   if (advancedQueryType === 'synthesis') {
-    console.log('🔄 [SYNTHESIS] Routing to advanced synthesis handler');
+    console.log('ðŸ”„ [SYNTHESIS] Routing to advanced synthesis handler');
     return await handleAdvancedSynthesisQuery(query, userId, onChunk, onStage, detectedLanguage);
   }
 
   // Handle data extraction queries (extract numbers, dates, statistics)
   if (advancedQueryType === 'data_extraction') {
-    console.log('📊 [DATA EXTRACTION] Routing to data extraction handler');
+    console.log('ðŸ“Š [DATA EXTRACTION] Routing to data extraction handler');
     return await handleDataExtractionQuery(query, userId, onChunk, onStage, detectedLanguage);
   }
 
   // Handle metadata queries (document titles, upload dates, newest/oldest)
   if (advancedQueryType === 'metadata') {
-    console.log('📁 [METADATA] Routing to metadata handler');
+    console.log('ðŸ“ [METADATA] Routing to metadata handler');
     return await handleDocumentMetadataQuery(query, userId, onChunk, onStage, detectedLanguage);
   }
 
-  console.log('📖 [CONTENT QUERY] Proceeding with standard RAG pipeline');
+  console.log('ðŸ“– [CONTENT QUERY] Proceeding with standard RAG pipeline');
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 1: Meta-Queries - FIRST (No LLM call, instant response)
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // REASON: Check simple greetings BEFORE expensive operations
   // WHY: "hello" should not trigger LLM intent detection
-  // IMPACT: 20-30s → < 1s for simple queries
+  // IMPACT: 20-30s â†’ < 1s for simple queries
   if (isMetaQuery(query)) {
-    console.log('💭 [META-QUERY] Detected');
+    console.log('ðŸ’­ [META-QUERY] Detected');
     await handleMetaQuery(query, onChunk, conversationHistory);
     return { sources: [] }; // Meta queries don't have sources
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 1.5: Navigation Queries - Fast (App usage questions)
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // REASON: Detect app navigation questions BEFORE document queries
   // WHY: "Where do I upload?" should explain the UI, not search documents
   // IMPACT: Provides accurate app guidance instead of irrelevant document content
   if (isNavigationQuery(query)) {
-    console.log('🧭 [NAVIGATION] Detected app navigation question');
+    console.log('ðŸ§­ [NAVIGATION] Detected app navigation question');
     await handleNavigationQuery(query, userId, onChunk);
     return { sources: [] }; // Navigation queries don't have document sources
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 1.6: Methodology Knowledge Queries - Fast (DB lookup + cached knowledge)
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // REASON: "What is ensemble learning?" should give actual explanation, not just citations
   // WHY: Users need conceptual understanding, not just "mentioned in 15 papers"
   // IMPACT: Transforms Koda from citation-only to ChatGPT-like explanations
@@ -3740,59 +3736,59 @@ Respond in the same language as the user's question.`;
   // ------------------------------------------------------------------------------
   const countingCheck = isDocumentCountingQuery(query);
   if (countingCheck.isCounting) {
-    console.log('🔢 [ROUTER] → COUNTING (how many documents?)');
+    console.log('ðŸ”¢ [ROUTER] â†’ COUNTING (how many documents?)');
     return await handleDocumentCounting(userId, query, countingCheck.fileType, onChunk);
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 3: Document Types - Fast (No LLM call)
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (isDocumentTypesQuery(query)) {
-    console.log('📊 [ROUTER] → DOCUMENT TYPES (file type breakdown)');
+    console.log('ðŸ“Š [ROUTER] â†’ DOCUMENT TYPES (file type breakdown)');
     return await handleDocumentTypes(userId, query, onChunk);
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 4: Document Listing - Fast (No LLM call)
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (isDocumentListingQuery(query)) {
-    console.log('📋 [ROUTER] → LISTING (list all documents)');
+    console.log('ðŸ“‹ [ROUTER] â†’ LISTING (list all documents)');
     return await handleDocumentListing(userId, query, onChunk);
   }
 
-  // ✅ FIX: Ensure Pinecone is initialized before expensive operations
+  // âœ… FIX: Ensure Pinecone is initialized before expensive operations
   await pineconePromise;
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 5.5: Folder Listing Queries - Direct DB Lookup
-  // ──────────────────────────────────────────────────────────────────────────────
-  // ✅ NEW: Handle "which folders do I have?" queries
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // âœ… NEW: Handle "which folders do I have?" queries
   const isFolderListingQuery = detectFolderListingQuery(query);
   if (isFolderListingQuery) {
-    console.log('📂 [ROUTER] → FOLDER LISTING (list all folders)');
+    console.log('ðŸ“‚ [ROUTER] â†’ FOLDER LISTING (list all folders)');
     return await handleFolderListingQuery(userId, onChunk);
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 5.6: Folder Content Queries - Direct DB Lookup
-  // ──────────────────────────────────────────────────────────────────────────────
-  // ✅ MOVED UP: Handle "what's in Finance folder?" queries BEFORE file actions
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // âœ… MOVED UP: Handle "what's in Finance folder?" queries BEFORE file actions
   const isFolderContentQuery = detectFolderContentQuery(query);
   if (isFolderContentQuery) {
-    console.log('📁 [ROUTER] → FOLDER CONTENT (what\'s in folder?)');
+    console.log('ðŸ“ [ROUTER] â†’ FOLDER CONTENT (what\'s in folder?)');
     return await handleFolderContentQuery(query, userId, onChunk);
   }
 
-  // ✅ FIX: Parallelize comparison and file action detection
+  // âœ… FIX: Parallelize comparison and file action detection
   const [comparison, fileAction] = await Promise.all([
     detectComparison(userId, query),
     detectFileAction(query)
   ]);
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 5: Comparisons - Moderate (Pinecone queries)
-  // ──────────────────────────────────────────────────────────────────────────────
-  // ✅ FIX #8: Support multi-document comparison via attached documents
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // âœ… FIX #8: Support multi-document comparison via attached documents
   // When user attaches 2+ documents and asks "compare these", use attachedDocumentId
   if (comparison) {
     // Check if attached documents should be used for comparison
@@ -3801,22 +3797,22 @@ Respond in the same language as the user's question.`;
     // If user has attached 2+ documents and comparison detection didn't find specific docs
     // OR if user explicitly attached docs, use those for comparison
     if (attachedIds.length >= 2 && (!comparison.documents || comparison.documents.length < 2)) {
-      console.log(`🔄 [COMPARISON] Using ${attachedIds.length} attached documents for comparison`);
+      console.log(`ðŸ”„ [COMPARISON] Using ${attachedIds.length} attached documents for comparison`);
       comparison.type = 'document';
       comparison.documents = attachedIds;
     }
 
-    console.log(`⚖️ [ROUTER] → COMPARISON (${comparison.type || 'document'})`);
+    console.log(`âš–ï¸ [ROUTER] â†’ COMPARISON (${comparison.type || 'document'})`);
     return await handleComparison(userId, query, comparison, onChunk, conversationHistory);
   }
 
-  // ✅ FIX #8: Handle multi-document queries even without explicit comparison keywords
+  // âœ… FIX #8: Handle multi-document queries even without explicit comparison keywords
   // If user attaches 2+ documents and asks any question, enable cross-document search
   const attachedIds = Array.isArray(attachedDocumentId) ? attachedDocumentId : [];
   if (attachedIds.length >= 2) {
     const hasCompareIntent = /\b(compare|difference|vs|versus|between|contrast|similarities)\b/i.test(query);
     if (hasCompareIntent) {
-      console.log(`⚖️ [ROUTER] → MULTI-DOC COMPARISON (${attachedIds.length} documents)`);
+      console.log(`âš–ï¸ [ROUTER] â†’ MULTI-DOC COMPARISON (${attachedIds.length} documents)`);
       return await handleComparison(userId, query, {
         type: 'document',
         documents: attachedIds
@@ -3824,22 +3820,22 @@ Respond in the same language as the user's question.`;
     }
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 5.8: Show vs Explain Intent Classification
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // PURPOSE: Distinguish between "show me the file" vs "explain what's in the file"
   // WHY: Users asking "what is this" want to SEE the document, not get an explanation
   // IMPACT: Routes show requests to file preview instead of RAG
-  // ✅ FIX #6: Using simple pattern-based detection instead of showVsExplainClassifier
+  // âœ… FIX #6: Using simple pattern-based detection instead of showVsExplainClassifier
   const showIntentResult = detectSimpleIntent(query);
   const isShowIntent = showIntentResult.type === 'data' && /\b(show|open|display|view|mostre|abre|muestra)\b/i.test(query.toLowerCase());
-  console.log(`👁️ [INTENT] ${isShowIntent ? 'SHOW' : 'EXPLAIN'} (type: ${showIntentResult.type}, confidence: ${showIntentResult.confidence.toFixed(2)}) - ${showIntentResult.detectionTimeMs}ms`);
+  console.log(`ðŸ‘ï¸ [INTENT] ${isShowIntent ? 'SHOW' : 'EXPLAIN'} (type: ${showIntentResult.type}, confidence: ${showIntentResult.confidence.toFixed(2)}) - ${showIntentResult.detectionTimeMs}ms`);
 
   if (isShowIntent && showIntentResult.confidence >= 0.75) {
-    console.log('📄 [SHOW FILE] User wants to see document, routing to semantic document search');
+    console.log('ðŸ“„ [SHOW FILE] User wants to see document, routing to semantic document search');
 
     // Use semantic document search to find and show the document
-    // ✅ FIX #6: Extract filename from query directly instead of using showVsExplainClassifier
+    // âœ… FIX #6: Extract filename from query directly instead of using showVsExplainClassifier
     const filenameMatch = query.match(/\b([a-z0-9_\-\s]+\.(?:pdf|xlsx|docx|txt|csv|pptx|xls|doc))\b/i);
     const searchQuery = filenameMatch?.[1] || query;
 
@@ -3884,51 +3880,51 @@ Respond in the same language as the user's question.`;
           };
         }
       } catch (error) {
-        console.error('❌ [SHOW FILE] Error searching for document:', error);
+        console.error('âŒ [SHOW FILE] Error searching for document:', error);
         // Fall through to regular RAG if search fails
       }
     }
 
     // If no specific document found, fall through to regular RAG
-    console.log('📄 [SHOW FILE] No specific document found, continuing with RAG');
+    console.log('ðŸ“„ [SHOW FILE] No specific document found, continuing with RAG');
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 6: File Actions - SLOW (LLM call) - Check LAST
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // REASON: Only check file actions if nothing else matched
   // WHY: LLM intent detection is expensive (20-30s)
   if (fileAction) {
-    console.log(`📁 [ROUTER] → FILE ACTION (${fileAction})`);
+    console.log(`ðŸ“ [ROUTER] â†’ FILE ACTION (${fileAction})`);
     await handleFileAction(userId, query, fileAction, onChunk);
     return { sources: [] }; // File actions don't have sources
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 6.5: File Location Queries - Direct DB Lookup
-  // ──────────────────────────────────────────────────────────────────────────────
-  // ✅ NEW: Handle "where is myfile.pdf?" queries with direct database lookup
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // âœ… NEW: Handle "where is myfile.pdf?" queries with direct database lookup
   const isFileLocationQuery = detectFileLocationQuery(query);
   if (isFileLocationQuery) {
-    console.log('📍 [ROUTER] → FILE LOCATION (where is file?)');
+    console.log('ðŸ“ [ROUTER] â†’ FILE LOCATION (where is file?)');
     return await handleFileLocationQuery(query, userId, onChunk);
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // MEMORY RETRIEVAL - Get relevant user memories for context
-  // ──────────────────────────────────────────────────────────────────────────────
-  console.log('🧠 [MEMORY] Retrieving relevant memories...');
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  console.log('ðŸ§  [MEMORY] Retrieving relevant memories...');
   const relevantMemories = await memoryService.getRelevantMemories(userId, query, undefined, 10);
   const memoryPromptContext = memoryService.formatMemoriesForPrompt(relevantMemories);
 
   if (relevantMemories.length > 0) {
-    console.log(`🧠 [MEMORY] Found ${relevantMemories.length} relevant memories`);
+    console.log(`ðŸ§  [MEMORY] Found ${relevantMemories.length} relevant memories`);
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 7: Regular Queries - Standard RAG
-  // ──────────────────────────────────────────────────────────────────────────────
-  console.log('📚 [ROUTER] → REGULAR RAG (standard document retrieval)');
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  console.log('ðŸ“š [ROUTER] â†’ REGULAR RAG (standard document retrieval)');
   return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage, memoryPromptContext, isFirstMessage, detectedLanguage, ragConfig);
 }
 
@@ -3939,12 +3935,12 @@ Respond in the same language as the user's question.`;
 async function detectFileAction(query: string): Promise<string | null> {
   const lower = query.toLowerCase().trim();
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STAGE 1: Regex Pattern Matching (Fast Path) - MULTILINGUAL
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   // Folder operations (multilingual)
-  if (/(create|make|new|add|cria|criar|nueva|nuevo|créer).*(?:folder|pasta|carpeta|dossier)/i.test(lower)) {
+  if (/(create|make|new|add|cria|criar|nueva|nuevo|crÃ©er).*(?:folder|pasta|carpeta|dossier)/i.test(lower)) {
     return 'createFolder';
   }
   if (/(rename|change.*name|renomear|renombrar|renommer).*(?:folder|pasta|carpeta|dossier)/i.test(lower)) {
@@ -3953,12 +3949,12 @@ async function detectFileAction(query: string): Promise<string | null> {
   if (/(delete|remove|deletar|apagar|eliminar|supprimer).*(?:folder|pasta|carpeta|dossier)/i.test(lower)) {
     return 'deleteFolder';
   }
-  if (/(move|relocate|mover|déplacer).*(?:folder|pasta|carpeta|dossier)/i.test(lower)) {
+  if (/(move|relocate|mover|dÃ©placer).*(?:folder|pasta|carpeta|dossier)/i.test(lower)) {
     return 'moveFolder';
   }
 
   // File operations (multilingual)
-  if (/(create|make|new|add|cria|criar|nueva|nuevo|créer).*(?:file|arquivo|archivo|fichier)/i.test(lower)) {
+  if (/(create|make|new|add|cria|criar|nueva|nuevo|crÃ©er).*(?:file|arquivo|archivo|fichier)/i.test(lower)) {
     return 'createFile';
   }
   if (/(rename|change.*name|renomear|renombrar|renommer).*(?:file|arquivo|archivo|fichier)/i.test(lower)) {
@@ -3967,23 +3963,23 @@ async function detectFileAction(query: string): Promise<string | null> {
   if (/(delete|remove|deletar|apagar|eliminar|supprimer).*(?:file|arquivo|archivo|fichier)/i.test(lower)) {
     return 'deleteFile';
   }
-  if (/(move|relocate|mover|déplacer).*(?:file|arquivo|archivo|fichier)/i.test(lower)) {
+  if (/(move|relocate|mover|dÃ©placer).*(?:file|arquivo|archivo|fichier)/i.test(lower)) {
     return 'moveFile';
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STAGE 2: Quick Pre-Filter - Skip LLM for Obvious Non-File-Actions
-  // ──────────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // REASON: Don't call expensive LLM for queries that are clearly not file actions
   // WHY: LLM intent detection takes 20-30 seconds
   // HOW: Check for file action keywords before calling LLM
   // IMPACT: 20-30s saved for 90% of queries
 
   const fileActionKeywords = [
-    'create', 'make', 'new', 'add', 'cria', 'criar', 'nueva', 'nuevo', 'créer',
+    'create', 'make', 'new', 'add', 'cria', 'criar', 'nueva', 'nuevo', 'crÃ©er',
     'rename', 'change', 'renomear', 'renombrar', 'renommer',
     'delete', 'remove', 'deletar', 'apagar', 'eliminar', 'supprimer',
-    'move', 'relocate', 'mover', 'déplacer'
+    'move', 'relocate', 'mover', 'dÃ©placer'
   ];
 
   const fileTargetKeywords = [
@@ -3992,29 +3988,29 @@ async function detectFileAction(query: string): Promise<string | null> {
     'document', 'doc', 'pdf', 'txt', 'directory', 'dir'
   ];
 
-  // ✅ IMPROVED: Require BOTH action keyword AND target keyword
+  // âœ… IMPROVED: Require BOTH action keyword AND target keyword
   const hasActionKeyword = fileActionKeywords.some(keyword => lower.includes(keyword));
   const hasTargetKeyword = fileTargetKeywords.some(keyword => lower.includes(keyword));
 
   if (!hasActionKeyword || !hasTargetKeyword) {
-    console.log('⚡ [FILE ACTION] No file action pattern detected - skipping LLM intent detection');
+    console.log('âš¡ [FILE ACTION] No file action pattern detected - skipping LLM intent detection');
     console.log(`   Action keyword: ${hasActionKeyword}, Target keyword: ${hasTargetKeyword}`);
     return null; // Skip expensive LLM call
   }
 
-  // ✅ IMPROVED: More comprehensive content question detection
+  // âœ… IMPROVED: More comprehensive content question detection
   const contentQuestionPatterns = [
     /what (is|are|does|do|can|could|would|should)/i,
     /how (is|are|does|do|can|could|would|should)/i,
     /why (is|are|does|do|can|could|would|should)/i,
-    /which (is|are|does|do|can|could|would|should|folders?|files?)/i,  // ✅ NEW
+    /which (is|are|does|do|can|could|would|should|folders?|files?)/i,  // âœ… NEW
     /explain|describe|summarize|compare|analyze|tell me about/i,
-    /show\s+(me|my)/i,  // ✅ NEW: "show me" is usually a query, not an action
-    /list\s+(my|all|the)/i  // ✅ NEW: "list my" is usually a query, not an action
+    /show\s+(me|my)/i,  // âœ… NEW: "show me" is usually a query, not an action
+    /list\s+(my|all|the)/i  // âœ… NEW: "list my" is usually a query, not an action
   ];
 
   if (contentQuestionPatterns.some(pattern => pattern.test(query))) {
-    console.log('⚡ [FILE ACTION] Detected content question - skipping LLM intent detection');
+    console.log('âš¡ [FILE ACTION] Detected content question - skipping LLM intent detection');
     return null;
   }
 
@@ -4061,13 +4057,13 @@ async function detectFileAction(query: string): Promise<string | null> {
     return null;
   }
 
-  // ✅ FIX #6: Use simple pattern-based intent detection instead of LLM
+  // âœ… FIX #6: Use simple pattern-based intent detection instead of LLM
   // REASON: LLM takes 3-6 seconds, pattern matching takes <10ms
-  console.log('⚡ [FILE ACTION] Using simple pattern-based intent detection');
+  console.log('âš¡ [FILE ACTION] Using simple pattern-based intent detection');
 
   // Use the simple intent detection service
   const simpleResult = detectSimpleIntent(query);
-  console.log(`⚡ [FILE ACTION] Simple intent: ${simpleResult.type} (${simpleResult.detectionTimeMs}ms)`);
+  console.log(`âš¡ [FILE ACTION] Simple intent: ${simpleResult.type} (${simpleResult.detectionTimeMs}ms)`);
 
   // If simple detection found a file action with good confidence, use it
   if (simpleResult.type === 'file_action' && simpleResult.fileAction && simpleResult.confidence > 0.7) {
@@ -4081,13 +4077,13 @@ async function detectFileAction(query: string): Promise<string | null> {
 
     const action = fileActionMap[simpleResult.fileAction];
     if (action) {
-      console.log(`✅ [FILE ACTION] Pattern detected: ${action} (confidence: ${simpleResult.confidence})`);
+      console.log(`âœ… [FILE ACTION] Pattern detected: ${action} (confidence: ${simpleResult.confidence})`);
       cacheIntent(query, action);
       return action;
     }
   }
 
-  console.log(`❌ [FILE ACTION] No file action pattern detected`);
+  console.log(`âŒ [FILE ACTION] No file action pattern detected`);
   cacheIntent(query, null);
   return null;
 }
@@ -4102,13 +4098,13 @@ async function handleFileAction(
   actionType: string,
   onChunk: (chunk: string) => void
 ): Promise<void> {
-  console.log(`🔧 [FILE ACTION] Executing: ${actionType}`);
+  console.log(`ðŸ”§ [FILE ACTION] Executing: ${actionType}`);
 
   // Detect language
   const lang = detectLanguage(query);
 
   try {
-    // ✅ FIX: Use fileActionsService.executeAction which handles name→ID lookup
+    // âœ… FIX: Use fileActionsService.executeAction which handles nameâ†’ID lookup
     const result = await fileActionsService.executeAction(query, userId);
 
     // Stream the result to the user with language translation
@@ -4135,12 +4131,12 @@ async function handleFileAction(
           .replace(/Folder "(.+?)" deleted successfully/i, 'Carpeta "$1" eliminada exitosamente');
       } else if (lang === 'fr') {
         translatedMessage = translatedMessage
-          .replace(/Folder "(.+?)" created successfully/i, 'Dossier "$1" créé avec succès')
-          .replace(/File "(.+?)" moved successfully/i, 'Fichier "$1" déplacé avec succès')
-          .replace(/File "(.+?)" renamed successfully/i, 'Fichier "$1" renommé avec succès')
-          .replace(/File "(.+?)" deleted successfully/i, 'Fichier "$1" supprimé avec succès')
-          .replace(/Folder "(.+?)" renamed successfully/i, 'Dossier "$1" renommé avec succès')
-          .replace(/Folder "(.+?)" deleted successfully/i, 'Dossier "$1" supprimé avec succès');
+          .replace(/Folder "(.+?)" created successfully/i, 'Dossier "$1" crÃ©Ã© avec succÃ¨s')
+          .replace(/File "(.+?)" moved successfully/i, 'Fichier "$1" dÃ©placÃ© avec succÃ¨s')
+          .replace(/File "(.+?)" renamed successfully/i, 'Fichier "$1" renommÃ© avec succÃ¨s')
+          .replace(/File "(.+?)" deleted successfully/i, 'Fichier "$1" supprimÃ© avec succÃ¨s')
+          .replace(/Folder "(.+?)" renamed successfully/i, 'Dossier "$1" renommÃ© avec succÃ¨s')
+          .replace(/Folder "(.+?)" deleted successfully/i, 'Dossier "$1" supprimÃ© avec succÃ¨s');
       }
 
       // File action success messages are typically short, but apply format enforcement for consistency
@@ -4154,17 +4150,17 @@ async function handleFileAction(
       // TODO: Record action for undo (needs refactoring)
       // The executeAction doesn't return document/folder IDs needed for undo
     } else {
-      const sorry = lang === 'pt' ? 'Desculpe, não consegui completar essa ação:' :
-                    lang === 'es' ? 'Lo siento, no pude completar esa acción:' :
+      const sorry = lang === 'pt' ? 'Desculpe, nÃ£o consegui completar essa aÃ§Ã£o:' :
+                    lang === 'es' ? 'Lo siento, no pude completar esa acciÃ³n:' :
                     'Sorry, I couldn\'t complete that action:';
       // Error messages are short, skip format enforcement
       onChunk(`${sorry} ${result.error || result.message}`);
     }
 
   } catch (error: any) {
-    console.error('❌ [FILE ACTION] Error:', error);
-    const sorry = lang === 'pt' ? 'Desculpe, ocorreu um erro ao tentar executar essa ação:' :
-                  lang === 'es' ? 'Lo siento, ocurrió un error al intentar ejecutar esa acción:' :
+    console.error('âŒ [FILE ACTION] Error:', error);
+    const sorry = lang === 'pt' ? 'Desculpe, ocorreu um erro ao tentar executar essa aÃ§Ã£o:' :
+                  lang === 'es' ? 'Lo siento, ocurriÃ³ un error al intentar ejecutar esa acciÃ³n:' :
                   'Sorry, an error occurred while trying to execute that action:';
     // Error messages are short, skip format enforcement
     onChunk(`${sorry} ${error.message}`);
@@ -4196,21 +4192,21 @@ async function detectComparison(userId: string, query: string): Promise<{
     /\bdistinctions\b/,
     // Portuguese
     /\bcomparar\b/,
-    /\bcomparação\b/,
-    /\bdiferença(s)?\b/,
+    /\bcomparaÃ§Ã£o\b/,
+    /\bdiferenÃ§a(s)?\b/,
     /\bentre\b/,
     /\bcontraste\b/,
-    /\bsemelhanças\b/,
+    /\bsemelhanÃ§as\b/,
     // Spanish
     /\bcomparar\b/,
-    /\bcomparación\b/,
+    /\bcomparaciÃ³n\b/,
     /\bdiferencia(s)?\b/,
     /\bentre\b/,
     /\bcontraste\b/,
     /\bsimilitudes\b/,
     // French
     /\bcomparer\b/,
-    /\bdifférence(s)?\b/,
+    /\bdiffÃ©rence(s)?\b/,
     // Generic
     /\band\b.*\band\b/,  // "doc1 and doc2"
   ];
@@ -4221,40 +4217,40 @@ async function detectComparison(userId: string, query: string): Promise<{
     return null;
   }
 
-  console.log('🔍 [COMPARISON] Detected comparison keyword');
+  console.log('ðŸ” [COMPARISON] Detected comparison keyword');
 
   // Try to extract document mentions with fuzzy matching
   const documentMentions = await extractDocumentMentions(userId, query);
 
-  console.log(`🔍 [COMPARISON] Query: "${query}"`);
-  console.log(`📊 [COMPARISON] Found ${documentMentions.length} matching documents`);
+  console.log(`ðŸ” [COMPARISON] Query: "${query}"`);
+  console.log(`ðŸ“Š [COMPARISON] Found ${documentMentions.length} matching documents`);
 
   if (documentMentions.length >= 2) {
     // Document comparison - found 2+ specific documents
-    console.log(`✅ [COMPARISON] Document comparison: ${documentMentions.length} documents`);
-    console.log(`📄 [COMPARISON] Document IDs: ${documentMentions.join(', ')}`);
+    console.log(`âœ… [COMPARISON] Document comparison: ${documentMentions.length} documents`);
+    console.log(`ðŸ“„ [COMPARISON] Document IDs: ${documentMentions.join(', ')}`);
 
-    // ✅ DEBUG: Fetch and log actual document names for debugging
+    // âœ… DEBUG: Fetch and log actual document names for debugging
     const docs = await prisma.document.findMany({
       where: { id: { in: documentMentions } },
       select: { id: true, filename: true }
     });
-    console.log(`📝 [COMPARISON] Matched documents:`, docs.map(d => ({ id: d.id.substring(0, 8), name: d.filename })));
+    console.log(`ðŸ“ [COMPARISON] Matched documents:`, docs.map(d => ({ id: d.id.substring(0, 8), name: d.filename })));
 
     return {
       type: 'document',
       documents: documentMentions,
     };
   } else if (documentMentions.length === 1) {
-    console.log(`⚠️ [COMPARISON] Only found 1 document, need 2+ for comparison`);
+    console.log(`âš ï¸ [COMPARISON] Only found 1 document, need 2+ for comparison`);
   } else {
-    console.log(`⚠️ [COMPARISON] No specific documents found in query`);
+    console.log(`âš ï¸ [COMPARISON] No specific documents found in query`);
   }
 
   // Concept comparison - no specific documents, extract concepts being compared
-  console.log('✅ [COMPARISON] Concept comparison detected');
+  console.log('âœ… [COMPARISON] Concept comparison detected');
   const concepts = extractComparisonConcepts(query);
-  console.log(`📝 [COMPARISON] Extracted concepts: ${concepts.join(', ')}`);
+  console.log(`ðŸ“ [COMPARISON] Extracted concepts: ${concepts.join(', ')}`);
 
   return {
     type: 'concept',
@@ -4265,9 +4261,9 @@ async function detectComparison(userId: string, query: string): Promise<{
 /**
  * Extract concepts being compared from query
  * Examples:
- * - "Compare Maslow vs SDT" → ["Maslow", "SDT"]
- * - "difference between lawyers and accountants" → ["lawyers", "accountants"]
- * - "compare Q1 vs Q2" → ["Q1", "Q2"]
+ * - "Compare Maslow vs SDT" â†’ ["Maslow", "SDT"]
+ * - "difference between lawyers and accountants" â†’ ["lawyers", "accountants"]
+ * - "compare Q1 vs Q2" â†’ ["Q1", "Q2"]
  */
 function extractComparisonConcepts(query: string): string[] {
   const lower = query.toLowerCase();
@@ -4302,7 +4298,7 @@ function extractComparisonConcepts(query: string): string[] {
 async function extractDocumentMentions(userId: string, query: string): Promise<string[]> {
   const queryLower = query.toLowerCase();
 
-  // ✅ CACHE: Check if we have user's documents cached
+  // âœ… CACHE: Check if we have user's documents cached
   // REASON: Avoid repeated database queries for same user
   // WHY: Same user often asks multiple questions in a row
   // IMPACT: 100-300ms saved per query
@@ -4310,7 +4306,7 @@ async function extractDocumentMentions(userId: string, query: string): Promise<s
   let documents = documentNameCache.get(userDocsCacheKey)?.documentIds as any;
 
   if (!documents || (Date.now() - (documentNameCache.get(userDocsCacheKey)?.timestamp || 0)) > CACHE_TTL) {
-    console.log(`❌ [CACHE MISS] User documents for ${userId}`);
+    console.log(`âŒ [CACHE MISS] User documents for ${userId}`);
 
     // Get all user's documents
     const docs = await prisma.document.findMany({
@@ -4326,16 +4322,16 @@ async function extractDocumentMentions(userId: string, query: string): Promise<s
 
     documents = docs;
   } else {
-    console.log(`✅ [CACHE HIT] User documents for ${userId} (${documents.length} docs)`);
+    console.log(`âœ… [CACHE HIT] User documents for ${userId} (${documents.length} docs)`);
   }
 
-  console.log(`📄 [FUZZY MATCH] Checking ${documents.length} documents`);
+  console.log(`ðŸ“„ [FUZZY MATCH] Checking ${documents.length} documents`);
 
   const matches: string[] = [];
 
   for (const doc of documents) {
     if (isDocumentMentioned(queryLower, doc.filename)) {
-      console.log(`✅ [FUZZY MATCH] Found: ${doc.filename}`);
+      console.log(`âœ… [FUZZY MATCH] Found: ${doc.filename}`);
       matches.push(doc.id);
     }
   }
@@ -4347,14 +4343,14 @@ async function extractDocumentMentions(userId: string, query: string): Promise<s
  * Normalize text for fuzzy matching (remove accents, special chars)
  *
  * Examples:
- * - "Capítulo8(FrameworkScrum)" → "capitulo 8 frameworkscrum"
- * - "Montana-Rocking-CC" → "montana rocking cc"
- * - "KODA_Master_Guide" → "koda master guide"
+ * - "CapÃ­tulo8(FrameworkScrum)" â†’ "capitulo 8 frameworkscrum"
+ * - "Montana-Rocking-CC" â†’ "montana rocking cc"
+ * - "KODA_Master_Guide" â†’ "koda master guide"
  */
 function normalizeForMatching(text: string): string {
   return text
     .toLowerCase()
-    .normalize('NFD')  // Decompose accented characters (Capítulo → Capitulo)
+    .normalize('NFD')  // Decompose accented characters (CapÃ­tulo â†’ Capitulo)
     .replace(/[\u0300-\u036f]/g, '')  // Remove diacritics (accents)
     .replace(/[^a-z0-9\s]/g, ' ')  // Replace special chars with spaces
     .replace(/\s+/g, ' ')  // Collapse multiple spaces
@@ -4394,7 +4390,7 @@ function isDocumentMentioned(queryLower: string, documentName: string): boolean 
   const matched = matchCount >= threshold || substringMatch;
 
   if (matched) {
-    console.log(`  ✓ "${documentName}" matched: ${matchCount}/${docWords.length} words (threshold: ${threshold}) or substring match: ${substringMatch}`);
+    console.log(`  âœ“ "${documentName}" matched: ${matchCount}/${docWords.length} words (threshold: ${threshold}) or substring match: ${substringMatch}`);
   }
 
   return matched;
@@ -4403,9 +4399,9 @@ function isDocumentMentioned(queryLower: string, documentName: string): boolean 
 /**
  * Extract potential document names from query
  * Examples:
- * - "what is pedro1 about" → ["pedro1"]
- * - "compare pedro1 and pedro2" → ["pedro1", "pedro2"]
- * - "tell me about the marketing report" → ["marketing", "report"]
+ * - "what is pedro1 about" â†’ ["pedro1"]
+ * - "compare pedro1 and pedro2" â†’ ["pedro1", "pedro2"]
+ * - "tell me about the marketing report" â†’ ["marketing", "report"]
  */
 function extractDocumentNames(query: string): string[] {
   const words = query.toLowerCase()
@@ -4413,7 +4409,7 @@ function extractDocumentNames(query: string): string[] {
     .split(/\s+/)
     .filter(w => w.length > 2);  // Ignore short words like "is", "me"
 
-  console.log('🔍 [EXTRACT] All words:', words);
+  console.log('ðŸ” [EXTRACT] All words:', words);
 
   // Remove common question words AND file extensions
   const stopWords = new Set([
@@ -4424,7 +4420,7 @@ function extractDocumentNames(query: string): string[] {
   ]);
 
   const result = words.filter(w => !stopWords.has(w));
-  console.log('🔍 [EXTRACT] After filtering stop words:', result);
+  console.log('ðŸ” [EXTRACT] After filtering stop words:', result);
   return result;
 }
 
@@ -4432,10 +4428,10 @@ function extractDocumentNames(query: string): string[] {
  * Extract section references from query
  *
  * Examples:
- * - "section 8.2" → ["8.2"]
- * - "chapter 3" → ["3"]
- * - "part II" → ["II"]
- * - "§ 8.2" → ["8.2"]
+ * - "section 8.2" â†’ ["8.2"]
+ * - "chapter 3" â†’ ["3"]
+ * - "part II" â†’ ["II"]
+ * - "Â§ 8.2" â†’ ["8.2"]
  */
 function extractSectionReferences(query: string): string[] {
   const sections: string[] = [];
@@ -4445,8 +4441,8 @@ function extractSectionReferences(query: string): string[] {
     /section\s+(\d+\.?\d*)/gi,
     /chapter\s+(\d+)/gi,
     /part\s+([IVX]+|\d+)/gi,
-    /§\s*(\d+\.?\d*)/g,  // § symbol
-    /capitulo\s+(\d+)/gi,  // Spanish "capítulo"
+    /Â§\s*(\d+\.?\d*)/g,  // Â§ symbol
+    /capitulo\s+(\d+)/gi,  // Spanish "capÃ­tulo"
   ];
 
   for (const pattern of patterns) {
@@ -4457,7 +4453,7 @@ function extractSectionReferences(query: string): string[] {
   }
 
   if (sections.length > 0) {
-    console.log(`📍 [SECTION DETECTION] Found section references: ${sections.join(', ')}`);
+    console.log(`ðŸ“ [SECTION DETECTION] Found section references: ${sections.join(', ')}`);
   }
 
   return sections;
@@ -4470,7 +4466,7 @@ function extractSectionReferences(query: string): string[] {
 function boostSectionMatches(matches: any[], sectionRefs: string[]): void {
   if (sectionRefs.length === 0) return;
 
-  console.log(`🎯 [SECTION BOOST] Boosting chunks containing sections: ${sectionRefs.join(', ')}`);
+  console.log(`ðŸŽ¯ [SECTION BOOST] Boosting chunks containing sections: ${sectionRefs.join(', ')}`);
 
   let boostedCount = 0;
   for (const match of matches) {
@@ -4478,9 +4474,9 @@ function boostSectionMatches(matches: any[], sectionRefs: string[]): void {
 
     // Check if chunk contains any of the section references
     for (const sectionRef of sectionRefs) {
-      // Match "section 8.2", "8.2", "§ 8.2", etc.
+      // Match "section 8.2", "8.2", "Â§ 8.2", etc.
       const sectionPattern = new RegExp(
-        `(section|chapter|§|capitulo|\\b)\\s*${sectionRef.replace('.', '\\.')}\\b`,
+        `(section|chapter|Â§|capitulo|\\b)\\s*${sectionRef.replace('.', '\\.')}\\b`,
         'i'
       );
 
@@ -4489,7 +4485,7 @@ function boostSectionMatches(matches: any[], sectionRefs: string[]): void {
         const oldScore = match.score || 0;
         match.score = oldScore * 1.3;
         boostedCount++;
-        console.log(`  ↑ Boosted chunk containing section ${sectionRef}: ${oldScore.toFixed(3)} → ${match.score.toFixed(3)}`);
+        console.log(`  â†‘ Boosted chunk containing section ${sectionRef}: ${oldScore.toFixed(3)} â†’ ${match.score.toFixed(3)}`);
         break;  // Only boost once per chunk
       }
     }
@@ -4498,9 +4494,9 @@ function boostSectionMatches(matches: any[], sectionRefs: string[]): void {
   if (boostedCount > 0) {
     // Re-sort by score after boosting
     matches.sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
-    console.log(`✅ [SECTION BOOST] Boosted ${boostedCount} chunks`);
+    console.log(`âœ… [SECTION BOOST] Boosted ${boostedCount} chunks`);
   } else {
-    console.warn(`⚠️ [SECTION BOOST] No chunks found containing sections ${sectionRefs.join(', ')}`);
+    console.warn(`âš ï¸ [SECTION BOOST] No chunks found containing sections ${sectionRefs.join(', ')}`);
   }
 }
 
@@ -4558,11 +4554,11 @@ async function findDocumentsByNameCached(userId: string, names: string[]): Promi
   // Check cache
   const cached = documentNameCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    console.log(`✅ [CACHE HIT] Document name lookup for ${names.join(', ')}`);
+    console.log(`âœ… [CACHE HIT] Document name lookup for ${names.join(', ')}`);
     return cached.documentIds;
   }
 
-  console.log(`❌ [CACHE MISS] Document name lookup for ${names.join(', ')}`);
+  console.log(`âŒ [CACHE MISS] Document name lookup for ${names.join(', ')}`);
 
   // Query database
   const documentIds = await findDocumentsByName(userId, names);
@@ -4595,7 +4591,7 @@ async function findDocumentsByName(
 ): Promise<string[]> {
   if (potentialNames.length === 0) return [];
 
-  console.log('🔍 [DOC SEARCH] Looking for documents matching:', potentialNames);
+  console.log('ðŸ” [DOC SEARCH] Looking for documents matching:', potentialNames);
 
   try {
     // Get all user's documents from database
@@ -4604,7 +4600,7 @@ async function findDocumentsByName(
       select: { id: true, filename: true },
     });
 
-    console.log(`📄 [DOC SEARCH] Checking ${allDocs.length} documents`);
+    console.log(`ðŸ“„ [DOC SEARCH] Checking ${allDocs.length} documents`);
 
     // Fuzzy match against potential names
     const matchedDocIds: string[] = [];
@@ -4613,19 +4609,19 @@ async function findDocumentsByName(
       const docLower = doc.filename.toLowerCase();
       const docWithoutExt = docLower.replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv)$/i, '');
 
-      console.log(`📄 [DOC SEARCH] Checking document: "${doc.filename}" (lower: "${docLower}", without ext: "${docWithoutExt}")`);
+      console.log(`ðŸ“„ [DOC SEARCH] Checking document: "${doc.filename}" (lower: "${docLower}", without ext: "${docWithoutExt}")`);
 
       for (const potentialName of potentialNames) {
         const match1 = docLower.includes(potentialName);
         const match2 = potentialName.includes(docWithoutExt);
         const match3 = docWithoutExt.includes(potentialName);
 
-        console.log(`  🔍 Testing "${potentialName}": docLower.includes="${match1}", potentialName.includes(docWithoutExt)="${match2}", docWithoutExt.includes="${match3}"`);
+        console.log(`  ðŸ” Testing "${potentialName}": docLower.includes="${match1}", potentialName.includes(docWithoutExt)="${match2}", docWithoutExt.includes="${match3}"`);
 
         // Check if document name contains the potential name OR vice versa
         if (match1 || match2 || match3) {
           matchedDocIds.push(doc.id);
-          console.log(`  ✅ [DOC SEARCH] MATCHED "${potentialName}" → "${doc.filename}"`);
+          console.log(`  âœ… [DOC SEARCH] MATCHED "${potentialName}" â†’ "${doc.filename}"`);
           break;
         }
       }
@@ -4634,7 +4630,7 @@ async function findDocumentsByName(
     return matchedDocIds;
 
   } catch (error) {
-    console.error('❌ [DOC SEARCH] Error:', error);
+    console.error('âŒ [DOC SEARCH] Error:', error);
     return [];
   }
 }
@@ -4650,7 +4646,7 @@ async function handleComparison(
   onChunk: (chunk: string) => void,
   conversationHistory?: Array<{ role: string; content: string }>
 ): Promise<{ sources: any[] }> {
-  console.log(`🔄 [COMPARISON] Type: ${comparison.type}`);
+  console.log(`ðŸ”„ [COMPARISON] Type: ${comparison.type}`);
 
   if (comparison.type === 'concept') {
     // Concept comparison (e.g., "Compare Maslow vs SDT")
@@ -4674,22 +4670,22 @@ async function handleConceptComparison(
   conversationHistory?: Array<{ role: string; content: string }>,
   detectedLanguage?: string
 ): Promise<{ sources: any[] }> {
-  // ⏱️ TIMING: Initialize timer for concept comparison
+  // â±ï¸ TIMING: Initialize timer for concept comparison
   const comparisonTimer = new PerformanceTimer();
   comparisonTimer.start('CONCEPT COMPARISON TOTAL');
 
-  console.log(`🔍 [CONCEPT COMPARISON] Searching for: ${concepts.join(' vs ')}`);
+  console.log(`ðŸ” [CONCEPT COMPARISON] Searching for: ${concepts.join(' vs ')}`);
 
-  // ⚡ PERFORMANCE FIX #1: Parallelize concept searches using Promise.all()
-  // REASON: Sequential searches take N × (embedding + pinecone) time
-  // IMPACT: Reduces 4468ms → max(concept times) ≈ 3625ms, saves ~843ms
+  // âš¡ PERFORMANCE FIX #1: Parallelize concept searches using Promise.all()
+  // REASON: Sequential searches take N Ã— (embedding + pinecone) time
+  // IMPACT: Reduces 4468ms â†’ max(concept times) â‰ˆ 3625ms, saves ~843ms
   comparisonTimer.start('All Concept Searches (Parallel)');
-  console.log(`🔄 [PARALLEL] Searching ${concepts.length} concepts in parallel...`);
+  console.log(`ðŸ”„ [PARALLEL] Searching ${concepts.length} concepts in parallel...`);
 
   // Create parallel search promises for all concepts
   const conceptSearchPromises = concepts.map(async (concept) => {
     const searchQuery = `${concept} definition meaning explanation`;
-    console.log(`  🔍 Searching for concept: "${concept}"`);
+    console.log(`  ðŸ” Searching for concept: "${concept}"`);
 
     try {
       const conceptStartTime = Date.now();
@@ -4700,7 +4696,7 @@ async function handleConceptComparison(
       const queryEmbedding = embeddingResult.embedding;
       const embeddingTime = Date.now() - embeddingStartTime;
 
-      // 🔀 HYBRID RETRIEVAL: Use combined Vector + BM25 search for concepts
+      // ðŸ”€ HYBRID RETRIEVAL: Use combined Vector + BM25 search for concepts
       const pineconeStartTime = Date.now();
       const hybridResults = await performHybridRetrieval(
         searchQuery,
@@ -4712,7 +4708,7 @@ async function handleConceptComparison(
       const pineconeTime = Date.now() - pineconeStartTime;
 
       const totalConceptTime = Date.now() - conceptStartTime;
-      console.log(`  ⏱️  [${concept}] Embedding: ${embeddingTime}ms, Hybrid: ${pineconeTime}ms, Total: ${totalConceptTime}ms`);
+      console.log(`  â±ï¸  [${concept}] Embedding: ${embeddingTime}ms, Hybrid: ${pineconeTime}ms, Total: ${totalConceptTime}ms`);
 
       // Return raw results with concept label (we'll filter deleted docs in batch later)
       return {
@@ -4723,7 +4719,7 @@ async function handleConceptComparison(
         totalTime: totalConceptTime
       };
     } catch (error) {
-      console.error(`❌ [CONCEPT COMPARISON] Error searching for "${concept}":`, error);
+      console.error(`âŒ [CONCEPT COMPARISON] Error searching for "${concept}":`, error);
       return { concept, matches: [], embeddingTime: 0, pineconeTime: 0, totalTime: 0 };
     }
   });
@@ -4735,11 +4731,11 @@ async function handleConceptComparison(
   // Log parallel timing summary
   const maxConceptTime = Math.max(...conceptResults.map(r => r.totalTime));
   const totalSequentialTime = conceptResults.reduce((sum, r) => sum + r.totalTime, 0);
-  console.log(`✅ [PARALLEL] All ${concepts.length} concepts searched. Max time: ${maxConceptTime}ms (saved ${totalSequentialTime - maxConceptTime}ms vs sequential)`);
+  console.log(`âœ… [PARALLEL] All ${concepts.length} concepts searched. Max time: ${maxConceptTime}ms (saved ${totalSequentialTime - maxConceptTime}ms vs sequential)`);
 
-  // ⚡ PERFORMANCE FIX #3: Batch filterDeletedDocuments
-  // REASON: Instead of N separate DB queries (N × 325ms), do ONE batch query
-  // IMPACT: Reduces 646ms (2 × 325ms) → ~325ms, saves ~321ms
+  // âš¡ PERFORMANCE FIX #3: Batch filterDeletedDocuments
+  // REASON: Instead of N separate DB queries (N Ã— 325ms), do ONE batch query
+  // IMPACT: Reduces 646ms (2 Ã— 325ms) â†’ ~325ms, saves ~321ms
   comparisonTimer.start('filterDeletedDocuments (Batch)');
 
   // Collect all matches from all concepts
@@ -4753,16 +4749,16 @@ async function handleConceptComparison(
     }
   }
 
-  console.log(`🔄 [BATCH FILTER] Filtering ${allRawMatches.length} total matches from ${concepts.length} concepts...`);
+  console.log(`ðŸ”„ [BATCH FILTER] Filtering ${allRawMatches.length} total matches from ${concepts.length} concepts...`);
 
   // Filter all matches in ONE batch DB query
   const filteredMatches = await filterDeletedDocuments(allRawMatches, userId);
   comparisonTimer.end('filterDeletedDocuments (Batch)');
 
-  // 🚀 HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost
+  // ðŸš€ HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost
   const boostedMatches = hybridRetrievalBooster.boostRetrievalScores(filteredMatches, query, 1.8);
 
-  console.log(`✅ [BATCH FILTER] ${boostedMatches.length}/${allRawMatches.length} matches after filtering and boosting`);
+  console.log(`âœ… [BATCH FILTER] ${boostedMatches.length}/${allRawMatches.length} matches after filtering and boosting`);
 
   // Now process boosted results
   const allChunks: any[] = [];
@@ -4800,7 +4796,7 @@ async function handleConceptComparison(
   // Log per-concept results
   for (const concept of concepts) {
     const conceptChunkCount = allChunks.filter(c => c.concept === concept).length;
-    console.log(`  ✅ Found ${conceptChunkCount} chunks for concept "${concept}"`);
+    console.log(`  âœ… Found ${conceptChunkCount} chunks for concept "${concept}"`);
   }
 
   // Convert Map to array for sources
@@ -4822,7 +4818,7 @@ async function handleConceptComparison(
     return { sources: [] };
   }
 
-  console.log(`✅ [CONCEPT COMPARISON] Found ${allChunks.length} total chunks across all concepts`);
+  console.log(`âœ… [CONCEPT COMPARISON] Found ${allChunks.length} total chunks across all concepts`);
 
   // ============================================================================
   // COMPARATIVE ANALYSIS - Extract structured comparison intelligence
@@ -4853,8 +4849,8 @@ async function handleConceptComparison(
 
   comparisonTimer.end('Comparative Analysis');
 
-  console.log(`🔍 [COMPARATIVE] Found ${comparativeResult.comparativeStatements.length} comparative statements`);
-  console.log(`🔍 [COMPARATIVE] Extracted attributes for ${comparativeResult.conceptAttributesMap.size} concepts`);
+  console.log(`ðŸ” [COMPARATIVE] Found ${comparativeResult.comparativeStatements.length} comparative statements`);
+  console.log(`ðŸ” [COMPARATIVE] Extracted attributes for ${comparativeResult.conceptAttributesMap.size} concepts`);
 
   // Build context for LLM, grouped by concept
   let context = '';
@@ -4873,7 +4869,7 @@ async function handleConceptComparison(
   // Add comparative intelligence to context
   if (comparativeResult.promptAddition) {
     context += comparativeResult.promptAddition;
-    console.log(`✅ [COMPARATIVE] Added comparative intelligence to prompt context`);
+    console.log(`âœ… [COMPARATIVE] Added comparative intelligence to prompt context`);
   }
 
   // Use pre-detected language from controller, or detect if not provided
@@ -4933,28 +4929,28 @@ async function handleDocumentComparison(
   conversationHistory?: Array<{ role: string; content: string }>,
   detectedLanguage?: string
 ): Promise<{ sources: any[] }> {
-  console.log('🔄 [DOCUMENT COMPARISON] Retrieving content for comparison');
-  console.log('📄 [DOCUMENT COMPARISON] Specific documents:', documentIds.length);
+  console.log('ðŸ”„ [DOCUMENT COMPARISON] Retrieving content for comparison');
+  console.log('ðŸ“„ [DOCUMENT COMPARISON] Specific documents:', documentIds.length);
 
   // ============================================================================
   // DOCUMENT COMPARISON: Query specific documents
   // ============================================================================
   // GUARANTEE: Search each document separately
-  // ✅ FAST: Parallel queries with Promise.all
+  // âœ… FAST: Parallel queries with Promise.all
   // REASON: Query all documents simultaneously
-  // WHY: Sequential queries waste time (3 docs × 3s = 9s)
+  // WHY: Sequential queries waste time (3 docs Ã— 3s = 9s)
   // HOW: Use Promise.all to run queries in parallel
-  // IMPACT: 9s → 3s for 3 documents (3× faster)
+  // IMPACT: 9s â†’ 3s for 3 documents (3Ã— faster)
 
   // Generate embedding for query (once, reuse for all documents) using OpenAI
   const embeddingResult = await embeddingService.generateEmbedding(query);
   const queryEmbedding = embeddingResult.embedding;
 
   const queryPromises = documentIds.map(async (docId) => {
-    console.log(`  📄 Searching document: ${docId}`);
+    console.log(`  ðŸ“„ Searching document: ${docId}`);
 
     try {
-      // 🔀 HYBRID RETRIEVAL: Use combined Vector + BM25 search for document
+      // ðŸ”€ HYBRID RETRIEVAL: Use combined Vector + BM25 search for document
       const hybridResults = await performHybridRetrieval(
         query,
         queryEmbedding,
@@ -4966,11 +4962,11 @@ async function handleDocumentComparison(
       // Filter out deleted documents
       const filteredMatches = await filterDeletedDocuments(hybridResults.matches || [], userId);
 
-      console.log(`  ✅ Found ${filteredMatches.length} chunks for ${docId}`);
+      console.log(`  âœ… Found ${filteredMatches.length} chunks for ${docId}`);
 
       return filteredMatches;
     } catch (error) {
-      console.error(`❌ [PARALLEL QUERY] Error querying document ${docId}:`, error);
+      console.error(`âŒ [PARALLEL QUERY] Error querying document ${docId}:`, error);
       return []; // Return empty array on error
     }
   });
@@ -4981,29 +4977,29 @@ async function handleDocumentComparison(
   // Flatten results
   const allChunks = allResultsArrays.flat();
 
-  console.log(`✅ [DOCUMENT COMPARISON] Queried ${documentIds.length} documents in parallel, found ${allChunks.length} total chunks`);
+  console.log(`âœ… [DOCUMENT COMPARISON] Queried ${documentIds.length} documents in parallel, found ${allChunks.length} total chunks`);
 
-  // 🔍 DEBUG: Log first chunk metadata to find the correct field names
+  // ðŸ” DEBUG: Log first chunk metadata to find the correct field names
   if (allChunks.length > 0) {
     const firstMeta = allChunks[0].metadata || {};
-    console.log(`🔍 [DEBUG] First chunk metadata keys:`, Object.keys(firstMeta));
-    console.log(`🔍 [DEBUG] First chunk content field:`, firstMeta.content ? `${firstMeta.content.substring(0, 100)}...` : 'EMPTY');
-    console.log(`🔍 [DEBUG] First chunk text field:`, firstMeta.text ? `${firstMeta.text.substring(0, 100)}...` : 'EMPTY');
+    console.log(`ðŸ” [DEBUG] First chunk metadata keys:`, Object.keys(firstMeta));
+    console.log(`ðŸ” [DEBUG] First chunk content field:`, firstMeta.content ? `${firstMeta.content.substring(0, 100)}...` : 'EMPTY');
+    console.log(`ðŸ” [DEBUG] First chunk text field:`, firstMeta.text ? `${firstMeta.text.substring(0, 100)}...` : 'EMPTY');
   }
 
   // Build context from all chunks
   const context = allChunks
     .map((match: any) => {
       const meta = match.metadata || {};
-      // ✅ FIX: Use correct field names from Pinecone - try 'text' first, then 'content'
+      // âœ… FIX: Use correct field names from Pinecone - try 'text' first, then 'content'
       const chunkContent = meta.text || meta.content || '';
-      // ✅ FIX: Only show page if it exists and is > 0 (100% confidence)
+      // âœ… FIX: Only show page if it exists and is > 0 (100% confidence)
       const pageInfo = (meta.page && meta.page > 0) ? `, Page: ${meta.page}` : '';
       return `[Document: ${meta.filename || 'Unknown'}${pageInfo}]\n${chunkContent}`;
     })
     .join('\n\n---\n\n');
 
-  console.log(`🔍 [DEBUG] Built context length: ${context.length} chars`);
+  console.log(`ðŸ” [DEBUG] Built context length: ${context.length} chars`);
 
   // Build sources array - Will be updated after LLM response
   let sources: any[] = [];
@@ -5043,26 +5039,26 @@ async function handleDocumentComparison(
 
   const fullResponse = await smartStreamLLMResponse(finalSystemPrompt, '', onChunk);
 
-  // ⚡ SPEED OPTIMIZATION: Build sources using enhanced citation tracking
-  console.log(`⚡ [DOCUMENT COMPARISON] Building sources using enhanced citation tracking`);
+  // âš¡ SPEED OPTIMIZATION: Build sources using enhanced citation tracking
+  console.log(`âš¡ [DOCUMENT COMPARISON] Building sources using enhanced citation tracking`);
 
-  // ✅ ENHANCED: Extract structured citations from hidden block (if present)
+  // âœ… ENHANCED: Extract structured citations from hidden block (if present)
   const citationResult = citationTracking.extractCitations(fullResponse);
   const cleanResponse = citationResult.cleanResponse;
   const extractedCitations = citationResult.citations;
 
   // Use LLM-provided citations if available, otherwise fall back to fast regex extraction
   if (extractedCitations.length > 0) {
-    console.log(`📎 [DOCUMENT COMPARISON] Using LLM-provided citations (${extractedCitations.length} docs)`);
+    console.log(`ðŸ“Ž [DOCUMENT COMPARISON] Using LLM-provided citations (${extractedCitations.length} docs)`);
     sources = citationTracking.buildSourcesFromCitations(extractedCitations, allChunks);
   } else {
-    console.log(`⚡ [DOCUMENT COMPARISON] No LLM citations, using fast regex extraction`);
+    console.log(`âš¡ [DOCUMENT COMPARISON] No LLM citations, using fast regex extraction`);
     sources = fastCitationExtraction(cleanResponse, allChunks);
   }
 
   // SPECIAL CASE: For document comparison, if no sources found, assume all compared docs were used
   if (sources.length === 0 && documentIds.length > 0) {
-    console.log('⚠️ [DOCUMENT COMPARISON] No citations found, assuming all compared documents were used');
+    console.log('âš ï¸ [DOCUMENT COMPARISON] No citations found, assuming all compared documents were used');
 
     const documents = await prisma.document.findMany({
       where: { id: { in: documentIds } },
@@ -5078,7 +5074,7 @@ async function handleDocumentComparison(
     })));
   }
 
-  console.log(`✅ [DOCUMENT COMPARISON] Built ${sources.length} accurate sources`);
+  console.log(`âœ… [DOCUMENT COMPARISON] Built ${sources.length} accurate sources`);
 
   // ============================================================================
   // NEW: ANSWER VALIDATION - Check answer quality
@@ -5087,15 +5083,15 @@ async function handleDocumentComparison(
   const validation = validateAnswer(cleanResponse, query, sources);
 
   if (!validation.isValid) {
-    console.log(`⚠️  [AGENT LOOP] Answer validation failed - issues detected`);
+    console.log(`âš ï¸  [AGENT LOOP] Answer validation failed - issues detected`);
     validation.issues?.forEach(issue => console.log(`   - ${issue}`));
 
     // Log for monitoring (could trigger alert in production)
-    console.log(`⚠️  [MONITORING] Low quality answer generated for query: "${query}"`);
+    console.log(`âš ï¸  [MONITORING] Low quality answer generated for query: "${query}"`);
   }
 
-  // ✅ DEBUG: Log sources being returned
-  console.log(`📚 [DOCUMENT COMPARISON] Returning ${sources.length} sources:`);
+  // âœ… DEBUG: Log sources being returned
+  console.log(`ðŸ“š [DOCUMENT COMPARISON] Returning ${sources.length} sources:`);
   sources.forEach((src, idx) => {
     console.log(`   ${idx + 1}. ${src.documentName} (page: ${src.pageNumber || 'N/A'}, score: ${src.score?.toFixed(3) || 0})`);
   });
@@ -5113,7 +5109,7 @@ function isDocumentCountingQuery(query: string): { isCounting: boolean; fileType
   // Check for counting keywords (multilingual)
   const hasCountKeyword = lower.includes('how many') || lower.includes('count') ||
                          lower.includes('quantos') || lower.includes('quantas') || // Portuguese
-                         lower.includes('cuántos') || lower.includes('cuántas') || // Spanish
+                         lower.includes('cuÃ¡ntos') || lower.includes('cuÃ¡ntas') || // Spanish
                          lower.includes('combien') || // French
                          lower.includes('contar');
 
@@ -5148,7 +5144,7 @@ async function handleDocumentCounting(
   fileType: string | undefined,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
-  console.log(`🔢 [DOCUMENT COUNTING] Counting documents${fileType ? ` of type ${fileType}` : ''}`);
+  console.log(`ðŸ”¢ [DOCUMENT COUNTING] Counting documents${fileType ? ` of type ${fileType}` : ''}`);
 
   // Detect language
   const lang = detectLanguage(query);
@@ -5177,13 +5173,13 @@ async function handleDocumentCounting(
       (lang === 'pt' ? 'arquivo' : lang === 'es' ? 'archivo' : lang === 'fr' ? 'fichier' : 'file') :
       (lang === 'pt' ? 'arquivos' : lang === 'es' ? 'archivos' : lang === 'fr' ? 'fichiers' : 'files');
 
-    const youHave = lang === 'pt' ? 'Você tem' : lang === 'es' ? 'Tienes' : lang === 'fr' ? 'Vous avez' : 'You have';
+    const youHave = lang === 'pt' ? 'VocÃª tem' : lang === 'es' ? 'Tienes' : lang === 'fr' ? 'Vous avez' : 'You have';
     response = `${youHave} **${count}** ${fileWord} ${typeName}.`;
 
     if (count > 0) {
       response += '\n\n';
       documents.forEach(doc => {
-        response += `• ${doc.filename}\n`;
+        response += `â€¢ ${doc.filename}\n`;
       });
     }
   } else {
@@ -5191,13 +5187,13 @@ async function handleDocumentCounting(
       (lang === 'pt' ? 'documento' : lang === 'es' ? 'documento' : lang === 'fr' ? 'document' : 'document') :
       (lang === 'pt' ? 'documentos' : lang === 'es' ? 'documentos' : lang === 'fr' ? 'documents' : 'documents');
 
-    const youHave = lang === 'pt' ? 'Você tem' : lang === 'es' ? 'Tienes' : lang === 'fr' ? 'Vous avez' : 'You have';
+    const youHave = lang === 'pt' ? 'VocÃª tem' : lang === 'es' ? 'Tienes' : lang === 'fr' ? 'Vous avez' : 'You have';
     const inTotal = lang === 'pt' ? 'no total' : lang === 'es' ? 'en total' : lang === 'fr' ? 'au total' : 'in total';
     response = `${youHave} **${count}** ${docWord} ${inTotal}.`;
   }
 
-  const question = lang === 'pt' ? 'O que você gostaria de saber sobre esses documentos?' :
-                   lang === 'es' ? '¿Qué te gustaría saber sobre estos documentos?' :
+  const question = lang === 'pt' ? 'O que vocÃª gostaria de saber sobre esses documentos?' :
+                   lang === 'es' ? 'Â¿QuÃ© te gustarÃ­a saber sobre estos documentos?' :
                    lang === 'fr' ? 'Que souhaitez-vous savoir sur ces documents?' :
                    'What would you like to know about these documents?';
 
@@ -5211,7 +5207,7 @@ async function handleDocumentCounting(
 
   onChunk(formattedCount);
 
-  // ❌ NO SOURCES: Document counting queries don't use document CONTENT
+  // âŒ NO SOURCES: Document counting queries don't use document CONTENT
   // We're just counting rows in the database, not reading/analyzing documents
   return { sources: [] };
 }
@@ -5299,7 +5295,7 @@ function isFormulaQuery(query: string): { isFormula: boolean; formulaType?: stri
     }
   }
 
-  console.log(`📊 [FORMULA QUERY] Detected formula query - Type: ${formulaType || 'general'}, Cell: ${cellReference || 'none'}`);
+  console.log(`ðŸ“Š [FORMULA QUERY] Detected formula query - Type: ${formulaType || 'general'}, Cell: ${cellReference || 'none'}`);
 
   return {
     isFormula: true,
@@ -5341,7 +5337,7 @@ function extractFormulasFromChunks(chunks: Array<{ text: string; metadata?: any 
   }
 
   if (formulas.length > 0) {
-    console.log(`📊 [FORMULA EXTRACT] Found ${formulas.length} formulas in chunks`);
+    console.log(`ðŸ“Š [FORMULA EXTRACT] Found ${formulas.length} formulas in chunks`);
   }
 
   return formulas;
@@ -5371,7 +5367,7 @@ function enhanceQueryForFormulas(query: string, formulaInfo: { isFormula: boolea
     enhanced += ` ${formulaInfo.formulaType}`;
   }
 
-  console.log(`📊 [FORMULA ENHANCE] Enhanced query: "${query}" → "${enhanced}"`);
+  console.log(`ðŸ“Š [FORMULA ENHANCE] Enhanced query: "${query}" â†’ "${enhanced}"`);
 
   return enhanced;
 }
@@ -5381,7 +5377,7 @@ function enhanceQueryForFormulas(query: string, formulaInfo: { isFormula: boolea
 // ============================================================================
 
 /**
- * ✅ NEW: Detect entity queries (property names, investment names, etc.)
+ * âœ… NEW: Detect entity queries (property names, investment names, etc.)
  * Returns true if the query is asking about entities like properties, investments, etc.
  */
 function isEntityQuery(query: string): { isEntity: boolean; entityType?: string } {
@@ -5425,7 +5421,7 @@ function isEntityQuery(query: string): { isEntity: boolean; entityType?: string 
     }
   }
 
-  console.log(`📊 [ENTITY QUERY] Detected entity query - Type: ${entityType || 'general'}`);
+  console.log(`ðŸ“Š [ENTITY QUERY] Detected entity query - Type: ${entityType || 'general'}`);
 
   return {
     isEntity: true,
@@ -5434,7 +5430,7 @@ function isEntityQuery(query: string): { isEntity: boolean; entityType?: string 
 }
 
 /**
- * ✅ NEW: Enhance query for entity retrieval
+ * âœ… NEW: Enhance query for entity retrieval
  * Adds entity-specific search terms like [Entities:
  */
 function enhanceQueryForEntities(query: string, entityInfo: { isEntity: boolean; entityType?: string }): string {
@@ -5452,13 +5448,13 @@ function enhanceQueryForEntities(query: string, entityInfo: { isEntity: boolean;
     enhanced += ` ${entityInfo.entityType}`;
   }
 
-  console.log(`📊 [ENTITY ENHANCE] Enhanced query: "${query}" → "${enhanced}"`);
+  console.log(`ðŸ“Š [ENTITY ENHANCE] Enhanced query: "${query}" â†’ "${enhanced}"`);
 
   return enhanced;
 }
 
 /**
- * ✅ NEW: Extract entities from chunk text
+ * âœ… NEW: Extract entities from chunk text
  * Looks for pattern: "[Entities: Entity1, Entity2] ..."
  */
 function extractEntitiesFromChunks(chunks: Array<{ text: string; metadata?: any }>): string[] {
@@ -5478,7 +5474,7 @@ function extractEntitiesFromChunks(chunks: Array<{ text: string; metadata?: any 
   }
 
   if (entities.size > 0) {
-    console.log(`📊 [ENTITY EXTRACT] Found ${entities.size} unique entities: ${Array.from(entities).join(', ')}`);
+    console.log(`ðŸ“Š [ENTITY EXTRACT] Found ${entities.size} unique entities: ${Array.from(entities).join(', ')}`);
   }
 
   return Array.from(entities);
@@ -5515,7 +5511,7 @@ function buildFormulaContext(
   if (displayFormulas.length > 0) {
     context += '**All Extracted Formulas:**\n';
     for (const f of displayFormulas) {
-      context += `- **${f.cell}**: ${f.value} → \`${f.formula}\`\n`;
+      context += `- **${f.cell}**: ${f.value} â†’ \`${f.formula}\`\n`;
     }
   }
 
@@ -5538,7 +5534,7 @@ function isDocumentTypesQuery(query: string): boolean {
   const hasTypeKeyword = lower.includes('what type') || lower.includes('what kind') ||
                          lower.includes('which type') || lower.includes('file type') ||
                          lower.includes('que tipo') || lower.includes('quais tipos') || // Portuguese
-                         lower.includes('qué tipo') || lower.includes('cuáles tipos') || // Spanish
+                         lower.includes('quÃ© tipo') || lower.includes('cuÃ¡les tipos') || // Spanish
                          lower.includes('quel type') || lower.includes('quels types'); // French
 
   const hasDocKeyword = lower.includes('document') || lower.includes('file') ||
@@ -5559,7 +5555,7 @@ async function handleDocumentTypes(
   query: string,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
-  console.log('📊 [DOCUMENT TYPES] Fetching document types from database');
+  console.log('ðŸ“Š [DOCUMENT TYPES] Fetching document types from database');
 
   // Detect language
   const lang = detectLanguage(query);
@@ -5584,21 +5580,21 @@ async function handleDocumentTypes(
   // Build multilingual response
   let response = '';
 
-  const basedOn = lang === 'pt' ? 'Com base nos arquivos que você enviou, você tem os seguintes tipos de arquivos:' :
-                  lang === 'es' ? 'Según los archivos que subiste, tienes los siguientes tipos de archivos:' :
-                  lang === 'fr' ? 'En fonction des fichiers que vous avez téléchargés, vous avez les types de fichiers suivants:' :
+  const basedOn = lang === 'pt' ? 'Com base nos arquivos que vocÃª enviou, vocÃª tem os seguintes tipos de arquivos:' :
+                  lang === 'es' ? 'SegÃºn los archivos que subiste, tienes los siguientes tipos de archivos:' :
+                  lang === 'fr' ? 'En fonction des fichiers que vous avez tÃ©lÃ©chargÃ©s, vous avez les types de fichiers suivants:' :
                   'Based on the files you uploaded, you have the following types of files:';
 
   if (typeMap.size === 0) {
-    const noDocsYet = lang === 'pt' ? 'Você ainda não tem documentos enviados.' :
-                      lang === 'es' ? 'Aún no tienes documentos subidos.' :
-                      lang === 'fr' ? 'Vous n\'avez pas encore de documents téléchargés.' :
+    const noDocsYet = lang === 'pt' ? 'VocÃª ainda nÃ£o tem documentos enviados.' :
+                      lang === 'es' ? 'AÃºn no tienes documentos subidos.' :
+                      lang === 'fr' ? 'Vous n\'avez pas encore de documents tÃ©lÃ©chargÃ©s.' :
                       "You don't have any documents uploaded yet.";
 
     // Removed nextStep label for natural endings
-    const uploadSome = lang === 'pt' ? 'Envie alguns documentos para começar!' :
-                       lang === 'es' ? '¡Sube algunos documentos para comenzar!' :
-                       lang === 'fr' ? 'Téléchargez des documents pour commencer!' :
+    const uploadSome = lang === 'pt' ? 'Envie alguns documentos para comeÃ§ar!' :
+                       lang === 'es' ? 'Â¡Sube algunos documentos para comenzar!' :
+                       lang === 'fr' ? 'TÃ©lÃ©chargez des documents pour commencer!' :
                        'Upload some documents to get started!';
 
     response = `${noDocsYet}\n\n${uploadSome}`;
@@ -5614,14 +5610,14 @@ async function handleDocumentTypes(
         (lang === 'pt' ? 'arquivo' : lang === 'es' ? 'archivo' : lang === 'fr' ? 'fichier' : 'file') :
         (lang === 'pt' ? 'arquivos' : lang === 'es' ? 'archivos' : lang === 'fr' ? 'fichiers' : 'files');
 
-      response += `• **${typeName}** (${files.length} ${fileWord}): `;
+      response += `â€¢ **${typeName}** (${files.length} ${fileWord}): `;
       response += files.map(f => f).join(', ');
       response += '\n';
     });
 
     // Removed nextStep label for natural endings
-    const question = lang === 'pt' ? 'O que você gostaria de saber sobre esses documentos?' :
-                     lang === 'es' ? '¿Qué te gustaría saber sobre estos documentos?' :
+    const question = lang === 'pt' ? 'O que vocÃª gostaria de saber sobre esses documentos?' :
+                     lang === 'es' ? 'Â¿QuÃ© te gustarÃ­a saber sobre estos documentos?' :
                      lang === 'fr' ? 'Que souhaitez-vous savoir sur ces documents?' :
                      'What would you like to know about these documents?';
 
@@ -5636,7 +5632,7 @@ async function handleDocumentTypes(
 
   onChunk(formattedTypes);
 
-  // ❌ NO SOURCES: Document types queries don't use document CONTENT
+  // âŒ NO SOURCES: Document types queries don't use document CONTENT
   // We're just grouping files by extension, not reading/analyzing documents
   return { sources: [] };
 }
@@ -5673,20 +5669,20 @@ function isDocumentListingQuery(query: string): boolean {
     'value', 'amount', 'number', 'date', 'name',
 
     // Portuguese
-    'entender', 'explicar', 'me fale sobre', 'o que é',
+    'entender', 'explicar', 'me fale sobre', 'o que Ã©',
     'como', 'por que', 'quando', 'onde', 'quem',
     'comparar', 'resumir', 'encontrar', 'buscar',
 
     // Spanish
-    'entender', 'explicar', 'dime sobre', 'qué es',
-    'cómo', 'por qué', 'cuándo', 'dónde', 'quién',
+    'entender', 'explicar', 'dime sobre', 'quÃ© es',
+    'cÃ³mo', 'por quÃ©', 'cuÃ¡ndo', 'dÃ³nde', 'quiÃ©n',
     'comparar', 'resumir', 'encontrar', 'buscar',
   ];
 
   const isContentQuery = contentKeywords.some(keyword => lower.includes(keyword));
 
   if (isContentQuery) {
-    console.log('🔍 [QUERY ROUTING] Content query detected, not a document listing request');
+    console.log('ðŸ” [QUERY ROUTING] Content query detected, not a document listing request');
     return false; // This is a content query, not a listing query
   }
 
@@ -5710,7 +5706,7 @@ function isDocumentListingQuery(query: string): boolean {
     /me\s+mostre\s+(os\s+)?(meus\s+)?(documentos?|arquivos?)/i,
 
     // Spanish
-    /cuáles\s+(documentos?|archivos?)\s+(tengo|subí|cargué)/i,
+    /cuÃ¡les\s+(documentos?|archivos?)\s+(tengo|subÃ­|carguÃ©)/i,
     /mostrar\s+(mis\s+)?(documentos?|archivos?)/i,
     /listar\s+(todos\s+)?(mis\s+)?(documentos?|archivos?)/i,
     /dame\s+una\s+lista\s+de\s+(mis\s+)?(documentos?|archivos?)/i,
@@ -5719,11 +5715,11 @@ function isDocumentListingQuery(query: string): boolean {
   const isExplicitListingRequest = explicitPatterns.some(pattern => pattern.test(query));
 
   if (isExplicitListingRequest) {
-    console.log('📋 [QUERY ROUTING] Explicit document listing request detected');
+    console.log('ðŸ“‹ [QUERY ROUTING] Explicit document listing request detected');
     return true;
   }
 
-  console.log('🔍 [QUERY ROUTING] Not a document listing request, routing to regular query handler');
+  console.log('ðŸ” [QUERY ROUTING] Not a document listing request, routing to regular query handler');
   return false;
 }
 
@@ -5732,7 +5728,7 @@ async function handleDocumentListing(
   query: string,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
-  console.log('📋 [DOCUMENT LISTING] Fetching all user documents from database');
+  console.log('ðŸ“‹ [DOCUMENT LISTING] Fetching all user documents from database');
 
   // Detect language
   const lang = detectLanguage(query);
@@ -5749,7 +5745,7 @@ async function handleDocumentListing(
   const DISPLAY_LIMIT = 15; // Show first 15 documents
   const totalCount = documents.length;
 
-  console.log(`📋 [DOCUMENT LISTING] Total: ${totalCount}, Display limit: ${DISPLAY_LIMIT}`);
+  console.log(`ðŸ“‹ [DOCUMENT LISTING] Total: ${totalCount}, Display limit: ${DISPLAY_LIMIT}`);
 
   let response: string;
 
@@ -5774,7 +5770,7 @@ async function handleDocumentListing(
 
   onChunk(formattedListing);
 
-  // ❌ NO SOURCES: Document listing queries don't use document CONTENT
+  // âŒ NO SOURCES: Document listing queries don't use document CONTENT
   // We're just listing filenames from the database, not reading/analyzing documents
   return { sources: [] };
 }
@@ -5786,18 +5782,18 @@ async function handleDocumentListing(
 function isMetaQuery(query: string): boolean {
   const lower = query.toLowerCase().trim();
 
-  // ✅ FIX: If query mentions user's documents, it's NOT a meta query!
+  // âœ… FIX: If query mentions user's documents, it's NOT a meta query!
   // These need RAG/metadata lookup, not capability responses
   if (/\b(my|our|the)\s+(documents?|files?|folders?)\b/i.test(lower)) {
     return false;  // Route to RAG or metadata service
   }
 
-  // ✅ FIX: If query asks to show/list/analyze documents, NOT a meta query!
+  // âœ… FIX: If query asks to show/list/analyze documents, NOT a meta query!
   if (/(show|list|display|analyze|find|search|summarize|extract).*\b(all|my|the)\s+(documents?|files?)/i.test(lower)) {
     return false;  // Route to RAG or metadata service
   }
 
-  // ✅ FIX: If query mentions specific data/content, NOT a meta query!
+  // âœ… FIX: If query mentions specific data/content, NOT a meta query!
   if (/\b(revenue|sales|profit|data|content|topics?|themes?|insights?)\b/i.test(lower)) {
     return false;  // Route to RAG
   }
@@ -5806,7 +5802,7 @@ function isMetaQuery(query: string): boolean {
   // Enhanced capability detection patterns - more natural and comprehensive
   const metaPatterns = [
     // Greetings - Multilingual (EN, PT, ES, FR, DE, IT)
-    /^(hi|hey|hello|greetings|ola|ol�|oi|hola|bonjour|salut|bom dia|boa tarde|boa noite|buenos dias|buenas tardes|buenas noches|bonsoir|guten tag|ciao|buongiorno)/i,
+    /^(hi|hey|hello|greetings|ola|olï¿½|oi|hola|bonjour|salut|bom dia|boa tarde|boa noite|buenos dias|buenas tardes|buenas noches|bonsoir|guten tag|ciao|buongiorno)/i,
 
     // Existing capability patterns
     /what (can|do) you (do|help)/,
@@ -5815,7 +5811,7 @@ function isMetaQuery(query: string): boolean {
     /how (do|can) (i|you)/,
     /tell me about (yourself|koda)/,
 
-    // ✅ NEW: More natural capability patterns
+    // âœ… NEW: More natural capability patterns
     /what do you do/i,
     /what are your capabilities/i,
     /what features/i,
@@ -5898,14 +5894,9 @@ async function handleMetaQuery(
     // Get localized greeting response - INSTANT (no LLM call)
     const greetingResponse = languageDetectionService.getLocalizedGreeting(language);
 
-    // Apply format enforcement to greeting response
-    const formattedGreeting = applyFormatEnforcement(greetingResponse, {
-      responseType: 'greeting',
-      logPrefix: '[GREETING FORMAT]'
-    });
-
-    // Stream the greeting response
-    onChunk(formattedGreeting);
+    // FIX: DO NOT apply format enforcement to greetings
+    // Greetings should be natural responses, not structured with "## Hello\!" headers
+    onChunk(greetingResponse);
     return;
   }
 
@@ -5959,9 +5950,9 @@ async function handleNavigationQuery(
   onChunk: (chunk: string) => void,
   detectedLanguage?: string
 ): Promise<void> {
-  console.log(`🧭 [NAVIGATION] Handling app navigation question`);
+  console.log(`ðŸ§­ [NAVIGATION] Handling app navigation question`);
 
-  // ✅ PERSONALIZATION: Fetch user's folders and document count
+  // âœ… PERSONALIZATION: Fetch user's folders and document count
   const folders = await prisma.folder.findMany({
     where: { userId },
     select: {
@@ -6065,7 +6056,7 @@ async function handleNavigationQuery(
 // PURPOSE: Answer "What is X?" queries with actual explanations, not just citations
 // WHY: Users need conceptual understanding - "What is ensemble learning?" should explain it
 // HOW: Check methodology knowledge base first, then fall back to RAG if not found
-// IMPACT: Transforms "mentioned in 15 papers" → full ChatGPT-style explanation
+// IMPACT: Transforms "mentioned in 15 papers" â†’ full ChatGPT-style explanation
 
 async function handleMethodologyKnowledgeQuery(
   userId: string,
@@ -6080,18 +6071,18 @@ async function handleMethodologyKnowledgeQuery(
     return { handled: false };
   }
 
-  console.log(`📚 [METHODOLOGY] Detected methodology query for: "${methodologyName}"`);
+  console.log(`ðŸ“š [METHODOLOGY] Detected methodology query for: "${methodologyName}"`);
 
   // Look up methodology knowledge from database
   const knowledge = await methodologyExtractionService.getMethodologyKnowledge(userId, methodologyName);
 
   if (!knowledge || !knowledge.definition) {
     // No knowledge found, fall back to regular RAG pipeline
-    console.log(`   ⚠️ No knowledge found for "${methodologyName}", falling back to RAG`);
+    console.log(`   âš ï¸ No knowledge found for "${methodologyName}", falling back to RAG`);
     return { handled: false };
   }
 
-  console.log(`   ✅ Found knowledge from ${knowledge.documentCount} documents`);
+  console.log(`   âœ… Found knowledge from ${knowledge.documentCount} documents`);
 
   // Format the knowledge for response
   const formattedResponse = methodologyExtractionService.formatKnowledgeForResponse(knowledge);
@@ -6195,7 +6186,7 @@ async function handleDomainKnowledgeQuery(
     // Generate embedding for the term
     const termEmbeddingResult = await embeddingService.generateEmbedding(term);
 
-    // 🔀 HYBRID RETRIEVAL: Use combined Vector + BM25 search for domain knowledge
+    // ðŸ”€ HYBRID RETRIEVAL: Use combined Vector + BM25 search for domain knowledge
     const hybridResults = await performHybridRetrieval(
       term,
       termEmbeddingResult.embedding,
@@ -6331,7 +6322,7 @@ async function searchDocumentsForTerm(
     // Generate embedding for the term
     const termEmbeddingResult = await embeddingService.generateEmbedding(term);
 
-    // 🔀 HYBRID RETRIEVAL: Use combined Vector + BM25 search
+    // ðŸ”€ HYBRID RETRIEVAL: Use combined Vector + BM25 search
     const hybridResults = await performHybridRetrieval(
       term,
       termEmbeddingResult.embedding,
@@ -6431,16 +6422,16 @@ async function handleRegularQuery(
   ragConfig: RAGConfig = DEFAULT_RAG_CONFIG  // RAG feature toggles
 ): Promise<{ sources: any[] }> {
 
-  // ⏱️ PERFORMANCE: Start timing with instrumentation
+  // â±ï¸ PERFORMANCE: Start timing with instrumentation
   const startTime = Date.now();
   requestTimer = new PerformanceTimer();
   requestTimer.start('TOTAL REQUEST');
 
-  // ⏱️ COMPLETE TIMING: Create dedicated timer for comprehensive measurement
+  // â±ï¸ COMPLETE TIMING: Create dedicated timer for comprehensive measurement
   const perfTimer = new PerformanceTimer();
   perfTimer.mark('start');
 
-  // ✅ FIX: Send immediate acknowledgment to establish streaming connection
+  // âœ… FIX: Send immediate acknowledgment to establish streaming connection
   onChunk('');
 
   // ============================================================================
@@ -6456,7 +6447,7 @@ async function handleRegularQuery(
   const cached = queryResultCache.get(cacheKey);
 
   if (cached && (Date.now() - cached.timestamp) < QUERY_CACHE_TTL) {
-    console.log(`✅ [CACHE HIT] Query result for "${query.substring(0, 50)}..."`);
+    console.log(`âœ… [CACHE HIT] Query result for "${query.substring(0, 50)}..."`);
 
     // Stream cached response
     onChunk(cached.response);
@@ -6465,10 +6456,10 @@ async function handleRegularQuery(
   }
 
   perfTimer.measure('Cache Check', 'cacheCheck');
-  console.log(`❌ [CACHE MISS] Query result for "${query.substring(0, 50)}..."`);
+  console.log(`âŒ [CACHE MISS] Query result for "${query.substring(0, 50)}..."`);
 
   // ============================================================================
-  // 🧠 CONVERSATION CONTEXT - Load and resolve references for multi-turn support
+  // ðŸ§  CONVERSATION CONTEXT - Load and resolve references for multi-turn support
   // ============================================================================
   // REASON: Multi-turn conversations need context from previous messages
   // WHY: Pronouns like "it", "that", "this" refer to previous entities
@@ -6484,19 +6475,19 @@ async function handleRegularQuery(
     multiTurnContext = await conversationContextService.getContext(conversationId);
 
     if (multiTurnContext && (multiTurnContext.entities.length > 0 || multiTurnContext.keyFindings.length > 0)) {
-      console.log(`🧠 [CONTEXT] Loaded context: ${multiTurnContext.entities.length} entities, ${multiTurnContext.keyFindings.length} findings`);
+      console.log(`ðŸ§  [CONTEXT] Loaded context: ${multiTurnContext.entities.length} entities, ${multiTurnContext.keyFindings.length} findings`);
 
-      // Resolve pronouns in the query ("it", "that", "this" → actual entities)
+      // Resolve pronouns in the query ("it", "that", "this" â†’ actual entities)
       resolvedQuery = conversationContextService.resolveReferences(query, multiTurnContext);
 
       if (resolvedQuery !== query) {
-        console.log(`🔄 [CONTEXT] Resolved query: "${query}" → "${resolvedQuery}"`);
+        console.log(`ðŸ”„ [CONTEXT] Resolved query: "${query}" â†’ "${resolvedQuery}"`);
       }
     } else {
-      console.log('🧠 [CONTEXT] No prior context found (first message or empty context)');
+      console.log('ðŸ§  [CONTEXT] No prior context found (first message or empty context)');
     }
   } catch (contextError) {
-    console.error('❌ [CONTEXT] Error loading conversation context:', contextError);
+    console.error('âŒ [CONTEXT] Error loading conversation context:', contextError);
     // Continue with original query if context loading fails
   }
 
@@ -6507,12 +6498,12 @@ async function handleRegularQuery(
   // FAST PATH: Skip reasoning for simple document queries
   // ============================================================================
   // REASON: Simple queries like "what does X say about Y" don't need 3 LLM calls
-  // WHY: Reduces 30s → 3-5s by skipping analyzeQuery, planResponse, generateTeachingAnswer
+  // WHY: Reduces 30s â†’ 3-5s by skipping analyzeQuery, planResponse, generateTeachingAnswer
   // HOW: Check if query is simple, then do direct retrieval + single LLM call
-  // IMPACT: 6-10× faster for 80% of queries
+  // IMPACT: 6-10Ã— faster for 80% of queries
 
   // ============================================================================
-  // ⚡ SMART QUERY ANALYSIS: Fast pattern matching with LLM fallback
+  // âš¡ SMART QUERY ANALYSIS: Fast pattern matching with LLM fallback
   // ============================================================================
   // REASON: Complex queries need decomposition, but most queries are simple
   // WHY: 90% of queries are simple (fast path), 10% are complex (need analysis)
@@ -6524,13 +6515,13 @@ async function handleRegularQuery(
   perfTimer.measure('Query Complexity Analysis', 'queryAnalysis');
 
   if (queryAnalysis.isComplex) {
-    console.log(`🧩 [COMPLEX QUERY] Detected ${queryAnalysis.queryType} query with ${queryAnalysis.subQueries?.length || 0} sub-queries`);
+    console.log(`ðŸ§© [COMPLEX QUERY] Detected ${queryAnalysis.queryType} query with ${queryAnalysis.subQueries?.length || 0} sub-queries`);
   } else {
-    console.log(`⚡ [SIMPLE QUERY] Using standard retrieval`);
+    console.log(`âš¡ [SIMPLE QUERY] Using standard retrieval`);
   }
 
   // ============================================================================
-  // ✅ FIX #8: Multi-Document Filtering
+  // âœ… FIX #8: Multi-Document Filtering
   // ============================================================================
   // REASON: Support querying across multiple attached documents
   // WHY: Enables document comparison and cross-document analysis
@@ -6555,20 +6546,20 @@ async function handleRegularQuery(
       if (attachedDocumentId.length === 1) {
         // Single document in array - use direct equality
         filter.documentId = attachedDocumentId[0];
-        console.log(`🔍 [FILTER] Searching in 1 attached document: ${attachedDocumentId[0]}`);
+        console.log(`ðŸ” [FILTER] Searching in 1 attached document: ${attachedDocumentId[0]}`);
       } else if (attachedDocumentId.length > 1) {
         // Multiple documents - use $in operator
         filter.documentId = { $in: attachedDocumentId };
-        console.log(`🔍 [FILTER] Searching in ${attachedDocumentId.length} attached documents:`, attachedDocumentId);
+        console.log(`ðŸ” [FILTER] Searching in ${attachedDocumentId.length} attached documents:`, attachedDocumentId);
       }
       // else: empty array, search all documents (no filter)
     } else {
       // Single document ID (string) - backward compatibility
       filter.documentId = attachedDocumentId;
-      console.log(`🔍 [FILTER] Searching in 1 attached document: ${attachedDocumentId}`);
+      console.log(`ðŸ” [FILTER] Searching in 1 attached document: ${attachedDocumentId}`);
     }
   } else {
-    console.log(`🔍 [FILTER] Searching across all user documents`);
+    console.log(`ðŸ” [FILTER] Searching across all user documents`);
   }
   perfTimer.measure('Filter Construction', 'filterConstruction');
 
@@ -6576,7 +6567,7 @@ async function handleRegularQuery(
 
   if (queryAnalysis.isComplex && queryAnalysis.subQueries && queryAnalysis.subQueries.length > 1) {
     // Complex query - use multi-step handler
-    console.log(`🧩 [AGENT LOOP] Complex ${queryAnalysis.queryType} query detected - decomposing...`);
+    console.log(`ðŸ§© [AGENT LOOP] Complex ${queryAnalysis.queryType} query detected - decomposing...`);
 
     // Initialize Pinecone before calling multi-step handler
     perfTimer.mark('complexQueryInit');
@@ -6587,7 +6578,7 @@ async function handleRegularQuery(
     searchResults = await handleMultiStepQuery(queryAnalysis, userId, filter, onChunk);
     perfTimer.measure('Multi-Step Query Handler', 'multiStepQuery');
 
-    // ✅ TRUE HYBRID SEARCH: Merge vector results with BM25 using RRF
+    // âœ… TRUE HYBRID SEARCH: Merge vector results with BM25 using RRF
     // Get BM25 results in parallel for better performance
     const vectorMatches = searchResults.matches || [];
     let hybridResults: any[];
@@ -6614,9 +6605,9 @@ async function handleRegularQuery(
 
       // Merge with RRF algorithm
       hybridResults = mergeWithRRF(vectorResultsForRRF, keywordResultsForRRF, 20);
-      console.log(`✅ [MULTI-STEP] True hybrid search: ${hybridResults.length} results (RRF merged)`);
+      console.log(`âœ… [MULTI-STEP] True hybrid search: ${hybridResults.length} results (RRF merged)`);
     } catch (error) {
-      console.warn('⚠️ [MULTI-STEP] BM25 search failed, using vector-only:', error);
+      console.warn('âš ï¸ [MULTI-STEP] BM25 search failed, using vector-only:', error);
       // Fallback to vector-only results
       hybridResults = vectorMatches.map((match: any) => ({
         content: match.metadata?.content || match.metadata?.text || '',
@@ -6632,7 +6623,7 @@ async function handleRegularQuery(
     const COMPARISON_MIN_SCORE = 0.65;
     const filteredChunks = hybridResults.filter(c => (c.hybridScore || c.vectorScore || 0) >= COMPARISON_MIN_SCORE);
 
-    console.log(`✅ [FILTER] ${filteredChunks.length}/${hybridResults.length} chunks above threshold (${COMPARISON_MIN_SCORE})`);
+    console.log(`âœ… [FILTER] ${filteredChunks.length}/${hybridResults.length} chunks above threshold (${COMPARISON_MIN_SCORE})`);
 
     // CONTEXT ENGINEERING: Prepare chunks for optimization
     const contextChunksForOptimization = filteredChunks.slice(0, 30).map((chunk: any) => ({
@@ -6654,12 +6645,12 @@ async function handleRegularQuery(
       deduplicateContent: true
     });
 
-    console.log(`📦 [CONTEXT] Optimized: ${optimizedContextResult.originalCount} → ${optimizedContextResult.chunks.length} chunks (removed ${optimizedContextResult.removedChunks} duplicates)`);
+    console.log(`ðŸ“¦ [CONTEXT] Optimized: ${optimizedContextResult.originalCount} â†’ ${optimizedContextResult.chunks.length} chunks (removed ${optimizedContextResult.removedChunks} duplicates)`);
 
     // Build context from optimized chunks with document type labels
     const contextChunks = optimizedContextResult.chunks.map((chunk: any, index: number) => {
       const content = chunk.content || '';
-      // ✅ FIX: Don't default to 0, keep as undefined if not set
+      // âœ… FIX: Don't default to 0, keep as undefined if not set
       const page = chunk.pageNumber;
 
       // Get document type/name for context (helps with cross-document synthesis)
@@ -6679,7 +6670,7 @@ async function handleRegularQuery(
         docLabel = chunk.documentTitle;
       }
 
-      // ✅ FIX: Only show page if it exists and is > 0 (100% confidence)
+      // âœ… FIX: Only show page if it exists and is > 0 (100% confidence)
       const pageInfo = (page && page > 0) ? ` (Page: ${page})` : '';
       return `[${docLabel} - Context ${index + 1}]${pageInfo}\n${content}`;
     });
@@ -6748,8 +6739,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
-        temperature: 0.5, // ⚡ FIX: Increased from 0.3 to allow better summarization into single-line cells
-        // ⚡ FIX: Increase token limit to 8192 for large tables
+        temperature: 0.5, // âš¡ FIX: Increased from 0.3 to allow better summarization into single-line cells
+        // âš¡ FIX: Increase token limit to 8192 for large tables
         // REASON: 4000 tokens is not enough for comprehensive comparison tables
         maxOutputTokens: 8192,
       },
@@ -6767,14 +6758,14 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     // Build sources from chunks
     const sources = filteredChunks.slice(0, 10).map((chunk: any) => ({
-      documentId: chunk.metadata?.documentId || null,  // ✅ CRITICAL: Frontend needs this to display sources
+      documentId: chunk.metadata?.documentId || null,  // âœ… CRITICAL: Frontend needs this to display sources
       documentName: chunk.metadata?.filename || 'Unknown',
       pageNumber: chunk.metadata?.page || null,
       score: chunk.score || 0,
-      mimeType: null as string | null,  // ✅ Added for later population from database
+      mimeType: null as string | null,  // âœ… Added for later population from database
     }));
 
-    // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
+    // âœ… FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
     perfTimer.mark('complexDocMetadata');
     const sourceDocumentIds: string[] = sources.map(s => s.documentId).filter((id): id is string => Boolean(id));
     const uniqueDocumentIds = [...new Set(sourceDocumentIds)];
@@ -6796,24 +6787,24 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
     perfTimer.measure('Complex Query Doc Metadata Fetch', 'complexDocMetadata');
 
-    console.log(`✅ [DECOMPOSE] Generated answer from ${sources.length} sources`);
+    console.log(`âœ… [DECOMPOSE] Generated answer from ${sources.length} sources`);
     perfTimer.printSummary(); // Print timing for complex query path
     return { sources };
   } else {
     // Simple query - proceed with normal flow
-    console.log(`✅ [AGENT LOOP] Simple query - using standard retrieval`);
+    console.log(`âœ… [AGENT LOOP] Simple query - using standard retrieval`);
   }
 
-  // ✅ NEW: Detect query complexity for answer length mapping
+  // âœ… NEW: Detect query complexity for answer length mapping
   // Map complexity detection to answer length system
   perfTimer.mark('complexityDetection');
   const complexity = detectQueryComplexity(query);
-  console.log(`📊 [COMPLEXITY] Detected complexity: ${complexity} for query: "${query.substring(0, 50)}..."`);
+  console.log(`ðŸ“Š [COMPLEXITY] Detected complexity: ${complexity} for query: "${query.substring(0, 50)}..."`);
 
-  // ✅ Issue #4 Fix: Detect comparison queries for better table formatting
+  // âœ… Issue #4 Fix: Detect comparison queries for better table formatting
   const isComparisonQuery = /\b(compare|difference|versus|vs\.?|contrast|similarities|between)\b/i.test(query);
   if (isComparisonQuery) {
-    console.log(`📊 [COMPARISON] Detected comparison query - will use comparison rules`);
+    console.log(`ðŸ“Š [COMPARISON] Detected comparison query - will use comparison rules`);
   }
 
   // Map complexity to answer length for unified system
@@ -6823,7 +6814,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
   perfTimer.measure('Complexity Detection', 'complexityDetection');
 
   // ============================================================================
-  // ✅ FIX: Use isFirstMessage parameter from controller
+  // âœ… FIX: Use isFirstMessage parameter from controller
   // ============================================================================
   // REASON: Controller determines if this is the first message by counting DB messages
   // WHY: Checking conversationHistory length doesn't work because history is retrieved
@@ -6836,9 +6827,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
   const shouldShowGreeting = isFirstMessage !== undefined
     ? isFirstMessage
     : (!conversationHistory || conversationHistory.length === 0);
-  console.log(`👋 [GREETING] shouldShowGreeting: ${shouldShowGreeting} (isFirstMessage param: ${isFirstMessage})`);
+  console.log(`ðŸ‘‹ [GREETING] shouldShowGreeting: ${shouldShowGreeting} (isFirstMessage param: ${isFirstMessage})`);
 
-  // ♾️ INFINITE CONVERSATION MEMORY - Manus-style architecture
+  // â™¾ï¸ INFINITE CONVERSATION MEMORY - Manus-style architecture
   // REASON: Never forget context, even in very long conversations
   // WHY: Last 3 messages loses important context from earlier discussion
   // HOW: Last 20 messages + semantic retrieval from historical chunks + memories
@@ -6865,7 +6856,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       conversationContext = infiniteContext.formattedContext;
       infiniteMemoryStats = infiniteContext.stats;
 
-      console.log(`♾️ [INFINITE MEMORY] Context built:`);
+      console.log(`â™¾ï¸ [INFINITE MEMORY] Context built:`);
       console.log(`   Recent messages: ${infiniteMemoryStats.recentMessageCount}`);
       console.log(`   Historical chunks: ${infiniteMemoryStats.historicalChunkCount}`);
       console.log(`   Memories: ${infiniteMemoryStats.memoryCount}`);
@@ -6874,7 +6865,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
         console.log(`   Compression level: ${infiniteMemoryStats.compressionLevel}`);
       }
     } catch (infiniteMemoryError) {
-      console.error(`⚠️ [INFINITE MEMORY] Failed, falling back to simple context:`, infiniteMemoryError);
+      console.error(`âš ï¸ [INFINITE MEMORY] Failed, falling back to simple context:`, infiniteMemoryError);
 
       // Fallback to simple conversation context (INCREASED from 5 to 20)
       if (conversationHistory && conversationHistory.length > 0) {
@@ -6882,7 +6873,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
           .slice(-20)
           .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
           .join('\n\n');
-        console.log(`⚡ [CONTEXT] Fallback: Using last 20 of ${conversationHistory.length} messages`);
+        console.log(`âš¡ [CONTEXT] Fallback: Using last 20 of ${conversationHistory.length} messages`);
       }
     }
   } else if (conversationHistory && conversationHistory.length > 0) {
@@ -6891,16 +6882,16 @@ Provide a comprehensive answer addressing all parts of the query.`;
       .slice(-20)
       .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
       .join('\n\n');
-    console.log(`⚡ [CONTEXT] Simple mode: Using last 20 of ${conversationHistory.length} messages`);
+    console.log(`âš¡ [CONTEXT] Simple mode: Using last 20 of ${conversationHistory.length} messages`);
   }
   perfTimer.measure('Conversation Context Build (Infinite Memory)', 'conversationContext');
 
   // ============================================================================
-  // ⚡ MAJOR PARALLELIZATION FIX: Run ALL independent operations in parallel
+  // âš¡ MAJOR PARALLELIZATION FIX: Run ALL independent operations in parallel
   // ============================================================================
   // REASON: Folder fetch, query enhancement, terminology expansion, Pinecone init,
   //         and embedding generation are ALL independent operations
-  // IMPACT: 5-7s → 2-3s (saves 3-4s by running in parallel instead of sequential)
+  // IMPACT: 5-7s â†’ 2-3s (saves 3-4s by running in parallel instead of sequential)
   //
   // BEFORE (Sequential - SLOW):
   //   1. Folder fetch: 300ms
@@ -6911,7 +6902,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
   //   TOTAL: 3-6s sequential
   //
   // AFTER (Parallel - FAST):
-  //   All operations run concurrently, total time = max(all operations) ≈ 2-3s
+  //   All operations run concurrently, total time = max(all operations) â‰ˆ 2-3s
 
   // Use pre-detected language from controller, or detect if not provided
   const queryLang = detectedLanguage || detectLanguage(query);
@@ -6926,27 +6917,27 @@ Provide a comprehensive answer addressing all parts of the query.`;
   onStage?.('searching', searchingMsg);
 
   // Simple query enhancement (instant, no LLM call)
-  // 🧠 Use resolvedQuery (with pronoun resolution) for document retrieval
+  // ðŸ§  Use resolvedQuery (with pronoun resolution) for document retrieval
   let enhancedQueryText = queryEnhancementService.enhanceQuerySimple(resolvedQuery);
-  console.log(`🔍 [QUERY ENHANCE] Enhanced: "${resolvedQuery}" → "${enhancedQueryText}"`);
+  console.log(`ðŸ” [QUERY ENHANCE] Enhanced: "${resolvedQuery}" â†’ "${enhancedQueryText}"`);
 
-  // ✅ Formula Query Detection - Enhance retrieval for formula questions
+  // âœ… Formula Query Detection - Enhance retrieval for formula questions
   const formulaQueryInfo = isFormulaQuery(resolvedQuery);
   if (formulaQueryInfo.isFormula) {
     enhancedQueryText = enhanceQueryForFormulas(enhancedQueryText, formulaQueryInfo);
   }
 
-  // ✅ Entity Query Detection - Enhance retrieval for property/investment name questions
+  // âœ… Entity Query Detection - Enhance retrieval for property/investment name questions
   const entityQueryInfo = isEntityQuery(resolvedQuery);
   if (entityQueryInfo.isEntity) {
     enhancedQueryText = enhanceQueryForEntities(enhancedQueryText, entityQueryInfo);
   }
 
-  console.log('⚡ [PARALLEL] Starting all independent operations in parallel...');
+  console.log('âš¡ [PARALLEL] Starting all independent operations in parallel...');
   perfTimer.mark('parallelOperations');
   if (requestTimer) requestTimer.start('Parallel Operations (Folder + Terminology + Pinecone + Embedding)');
 
-  // ⚡ PERFORMANCE FIX: Added detailed timing for each parallel operation
+  // âš¡ PERFORMANCE FIX: Added detailed timing for each parallel operation
   // REASON: To diagnose which operation is causing the 5s delay
   const parallelStart = Date.now();
 
@@ -6971,7 +6962,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
         },
         orderBy: { name: 'asc' }
       });
-      console.log(`  ✅ [PARALLEL] Folder fetch: ${Date.now() - t0}ms`);
+      console.log(`  âœ… [PARALLEL] Folder fetch: ${Date.now() - t0}ms`);
       return result;
     })(),
 
@@ -6983,10 +6974,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
           userId,
           maxSynonymsPerTerm: 2
         });
-        console.log(`  ✅ [PARALLEL] Terminology expansion: ${Date.now() - t0}ms`);
+        console.log(`  âœ… [PARALLEL] Terminology expansion: ${Date.now() - t0}ms`);
         return result;
       } catch (termError) {
-        console.warn(`  ⚠️ [PARALLEL] Terminology failed (${Date.now() - t0}ms):`, termError);
+        console.warn(`  âš ï¸ [PARALLEL] Terminology failed (${Date.now() - t0}ms):`, termError);
         return { searchTerms: [], detectedDomains: [], synonymsUsed: {} };
       }
     })(),
@@ -6995,14 +6986,14 @@ Provide a comprehensive answer addressing all parts of the query.`;
     (async () => {
       const t0 = Date.now();
       await initializePinecone();
-      console.log(`  ✅ [PARALLEL] Pinecone init: ${Date.now() - t0}ms`);
+      console.log(`  âœ… [PARALLEL] Pinecone init: ${Date.now() - t0}ms`);
     })(),
 
     // 4. Embedding generation with original query (expected: 300-500ms)
     (async () => {
       const t0 = Date.now();
       const result = await embeddingService.generateEmbedding(enhancedQueryText);
-      console.log(`  ✅ [PARALLEL] Embedding generation: ${Date.now() - t0}ms`);
+      console.log(`  âœ… [PARALLEL] Embedding generation: ${Date.now() - t0}ms`);
       return result;
     })()
   ]);
@@ -7010,13 +7001,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
   const parallelTime = Date.now() - parallelStart;
   if (requestTimer) requestTimer.end('Parallel Operations (Folder + Terminology + Pinecone + Embedding)');
   perfTimer.measure('Parallel Operations (Folder + Terminology + Pinecone + Embedding)', 'parallelOperations');
-  console.log(`✅ [PARALLEL] All independent operations completed in ${parallelTime}ms`);
+  console.log(`âœ… [PARALLEL] All independent operations completed in ${parallelTime}ms`);
 
   // Process folder tree context
   perfTimer.mark('folderTree');
   const folderTreeContext = buildFolderTreeContext(folders);
   perfTimer.measure('Folder Tree Fetch', 'folderTree');
-  console.log(`📁 [FOLDER CONTEXT] Built context for ${folders.length} folders`);
+  console.log(`ðŸ“ [FOLDER CONTEXT] Built context for ${folders.length} folders`);
 
   // Process terminology results
   perfTimer.mark('queryEnhancement');
@@ -7030,28 +7021,28 @@ Provide a comprehensive answer addressing all parts of the query.`;
     detectedDomains = terminologyResult.detectedDomains?.map((d: any) => d.domain) || [];
 
     if (terminologyResult.synonymsUsed && Object.keys(terminologyResult.synonymsUsed).length > 0) {
-      console.log(`📚 [TERMINOLOGY] Expanded query with synonyms:`);
+      console.log(`ðŸ“š [TERMINOLOGY] Expanded query with synonyms:`);
       for (const [term, synonyms] of Object.entries(terminologyResult.synonymsUsed)) {
-        console.log(`   "${term}" → [${(synonyms as string[]).slice(0, 3).join(', ')}]`);
+        console.log(`   "${term}" â†’ [${(synonyms as string[]).slice(0, 3).join(', ')}]`);
       }
 
       // If terminology added significant terms, regenerate embedding (fast, ~300ms)
       if (terminologyEnhancedQuery !== enhancedQueryText) {
-        console.log(`🔄 [EMBEDDING] Regenerating embedding with terminology-enhanced query`);
+        console.log(`ðŸ”„ [EMBEDDING] Regenerating embedding with terminology-enhanced query`);
         const enhancedEmbeddingResult = await embeddingService.generateEmbedding(terminologyEnhancedQuery);
         earlyEmbedding = enhancedEmbeddingResult.embedding;
       }
     }
 
     if (detectedDomains.length > 0) {
-      console.log(`📚 [TERMINOLOGY] Detected domains: ${detectedDomains.join(', ')}`);
+      console.log(`ðŸ“š [TERMINOLOGY] Detected domains: ${detectedDomains.join(', ')}`);
     }
   }
   perfTimer.measure('Query Enhancement + Terminology', 'queryEnhancement');
 
   // All queries now use the fast path (AgentLoop was removed as it used pgvector which isn't set up)
-  console.log('⚡ [FAST PATH] Using direct Pinecone retrieval');
-  console.log(`🔍 [EMBEDDING] Generated embedding for: "${terminologyEnhancedQuery.substring(0, 100)}..."`);
+  console.log('âš¡ [FAST PATH] Using direct Pinecone retrieval');
+  console.log(`ðŸ” [EMBEDDING] Generated embedding for: "${terminologyEnhancedQuery.substring(0, 100)}..."`);
 
     // filter already declared at top of function, just use it
 
@@ -7083,9 +7074,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
     if (requestTimer) requestTimer.start(`Retrieval Strategy: ${strategy}`);
 
     if (strategy === 'keyword') {
-      // ───────────────────────────────────────────────────────────────────
+      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Pure BM25 keyword search for exact matches
-      // ───────────────────────────────────────────────────────────────────
+      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       if (requestTimer) requestTimer.start('BM25 Search');
       const bm25Results = await pureBM25Search(query, userId, 20);
       if (requestTimer) requestTimer.end('BM25 Search');
@@ -7103,16 +7094,16 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // Set rawResults for graceful degradation fallback
       rawResults = bm25Results;
 
-      console.log(`✅ [KEYWORD] Pure BM25 search: ${hybridResults.length} chunks`);
+      console.log(`âœ… [KEYWORD] Pure BM25 search: ${hybridResults.length} chunks`);
 
       // Fallback to vector search if BM25 returns no results
       // This handles edge cases where documents haven't been chunked yet
-      console.log(`🔍 [KEYWORD CHECK] BM25 results length: ${hybridResults.length}`);
+      console.log(`ðŸ” [KEYWORD CHECK] BM25 results length: ${hybridResults.length}`);
       if (hybridResults.length === 0) {
-         console.log(`� �  [KEYWORD�'VECTOR FALLBACK] BM25 returned 0 results, falling back to Pinecone vector search...`);
+         console.log(`ï¿½ ï¿½  [KEYWORDï¿½'VECTOR FALLBACK] BM25 returned 0 results, falling back to Pinecone vector search...`);
         const queryEmbedding = earlyEmbedding;
 
-        // ✅ FIX: Use retrievalTopK for summary queries
+        // âœ… FIX: Use retrievalTopK for summary queries
         if (requestTimer) requestTimer.start('Pinecone Query (keyword fallback)');
         rawResults = await pineconeIndex.query({
           vector: queryEmbedding,
@@ -7131,19 +7122,19 @@ Provide a comprehensive answer addressing all parts of the query.`;
           inBoth: false,
         }));
 
-        console.log(`✅ [KEYWORD→VECTOR] Fallback vector search: ${hybridResults.length} chunks`);
+        console.log(`âœ… [KEYWORDâ†’VECTOR] Fallback vector search: ${hybridResults.length} chunks`);
       }
 
     } else if (strategy === 'hybrid') {
-      // ───────────────────────────────────────────────────────────────────
+      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Hybrid search (vector + keyword) for comparisons
       // Uses RRF (Reciprocal Rank Fusion) for optimal merging
-      // ───────────────────────────────────────────────────────────────────
+      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
       // FIX #6: Use pre-computed embedding from parallel init
       const queryEmbedding = earlyEmbedding;
 
-      // ✅ FIX: Use retrievalTopK for summary queries
+      // âœ… FIX: Use retrievalTopK for summary queries
       if (requestTimer) requestTimer.start('Pinecone Query (hybrid)');
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
@@ -7153,9 +7144,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
       });
       if (requestTimer) requestTimer.end('Pinecone Query (hybrid)');
 
-      console.log(`🔍 [HYBRID] Vector results: ${rawResults.matches?.length || 0} chunks`);
+      console.log(`ðŸ” [HYBRID] Vector results: ${rawResults.matches?.length || 0} chunks`);
 
-      // ✅ RRF MERGING: Get BM25 results and merge with RRF algorithm
+      // âœ… RRF MERGING: Get BM25 results and merge with RRF algorithm
       if (requestTimer) requestTimer.start('BM25 Search (hybrid)');
       const bm25HybridResults = await bm25RetrievalService.hybridSearch(query, [], userId, retrievalTopK * 2);
       if (requestTimer) requestTimer.end('BM25 Search (hybrid)');
@@ -7179,12 +7170,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // Apply RRF merging
       hybridResults = mergeWithRRF(vectorResultsForRRF, keywordResultsForRRF, retrievalTopK);
 
-      console.log(`✅ [HYBRID+RRF] Merged vector + BM25: ${hybridResults.length} chunks`);
+      console.log(`âœ… [HYBRID+RRF] Merged vector + BM25: ${hybridResults.length} chunks`);
 
     } else {
-      // ───────────────────────────────────────────────────────────────────
+      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // **HYBRID RETRIEVAL: Vector + BM25 with RRF** (FIX 4: +15-20% accuracy)
-      // ───────────────────────────────────────────────────────────────────
+      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // REASON: Combine semantic understanding (vector) with exact keyword matching (BM25)
       // WHY: Vector search alone misses exact keyword matches
       // HOW: RRF (Reciprocal Rank Fusion) merges results optimally
@@ -7252,7 +7243,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
         }));
       }
 
-      console.log(`✅ [HYBRID+RRF] Vector + BM25 search: ${hybridResults.length} chunks`);
+      console.log(`âœ… [HYBRID+RRF] Vector + BM25 search: ${hybridResults.length} chunks`);
     }
 
     if (requestTimer) requestTimer.end(`Retrieval Strategy: ${strategy}`);
@@ -7261,7 +7252,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // ============================================================================
     // DEBUG LOGGING - Diagnose retrieval issues
     // ============================================================================
-    console.log('🔍 [DEBUG] Pinecone Query Results:');
+    console.log('ðŸ” [DEBUG] Pinecone Query Results:');
     console.log(`   Total results: ${hybridResults.length}`);
     if (hybridResults.length > 0) {
       console.log(`   Top 5 results:`, hybridResults.slice(0, 5).map((r: any) => ({
@@ -7342,7 +7333,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
     // ============================================================================
 
-    // 🚀 HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost to main results
+    // ðŸš€ HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost to main results
     if (hybridResults.length > 0) {
       // Convert hybridResults to match format expected by booster
       const matchesForBoosting = hybridResults.map((hr: any) => ({
@@ -7366,7 +7357,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       hybridResults.sort((a: any, b: any) => (b.hybridScore || 0) - (a.hybridScore || 0));
     }
 
-    // ✅ ISSUE #6 FIX: Boost section matches for section-specific queries
+    // âœ… ISSUE #6 FIX: Boost section matches for section-specific queries
     const sectionRefs = extractSectionReferences(query);
     if (sectionRefs.length > 0) {
       // Add score property to hybridResults for boostSectionMatches
@@ -7384,7 +7375,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // ============================================================================
     // NEW: ITERATIVE REFINEMENT - Full agent loop with multiple attempts
     // ============================================================================
-    // ⚡ SPEED FIX: Skip iterative refinement for simple queries (saves 1-2s)
+    // âš¡ SPEED FIX: Skip iterative refinement for simple queries (saves 1-2s)
     // REASON: Simple queries rarely benefit from refinement, complex queries do
     // IMPACT: 80% of queries skip this step, saving 1-2s per query
 
@@ -7392,18 +7383,18 @@ Provide a comprehensive answer addressing all parts of the query.`;
     perfTimer.mark('iterativeRefinement');
     searchResults = { matches: hybridResults };
 
-    // ⚡ SPEED FIX: Only do iterative refinement for complex queries
+    // âš¡ SPEED FIX: Only do iterative refinement for complex queries
     if (queryAnalysis.isComplex) {
       const initialObservation = observeRetrievalResults(searchResults, query);
 
       if (initialObservation.needsRefinement) {
-        console.log(`🔄 [AGENT LOOP] Complex query needs refinement: ${initialObservation.reason}`);
-        console.log(`🔄 [AGENT LOOP] Starting iterative refinement...`);
+        console.log(`ðŸ”„ [AGENT LOOP] Complex query needs refinement: ${initialObservation.reason}`);
+        console.log(`ðŸ”„ [AGENT LOOP] Starting iterative refinement...`);
 
         // Use iterative retrieval instead of single refinement
         const iterativeResults = await iterativeRetrieval(query, userId, filter);
 
-        // ✅ TRUE HYBRID SEARCH: Merge vector results with BM25 using RRF
+        // âœ… TRUE HYBRID SEARCH: Merge vector results with BM25 using RRF
         const iterativeVectorMatches = iterativeResults.matches || [];
         let iterativeHybridResults: any[];
 
@@ -7429,9 +7420,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
           // Merge with RRF algorithm
           iterativeHybridResults = mergeWithRRF(vectorResultsForRRF, keywordResultsForRRF, 20);
-          console.log(`✅ [AGENT LOOP] True hybrid refinement: ${iterativeHybridResults.length} results (RRF merged)`);
+          console.log(`âœ… [AGENT LOOP] True hybrid refinement: ${iterativeHybridResults.length} results (RRF merged)`);
         } catch (error) {
-          console.warn('⚠️ [AGENT LOOP] BM25 search failed, using vector-only:', error);
+          console.warn('âš ï¸ [AGENT LOOP] BM25 search failed, using vector-only:', error);
           // Fallback to vector-only
           iterativeHybridResults = iterativeVectorMatches.map((match: any) => ({
             content: match.metadata?.content || match.metadata?.text || '',
@@ -7445,31 +7436,31 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
         // Update results if iterative refinement improved them
         if (iterativeHybridResults.length > 0) {
-          console.log(`✅ [AGENT LOOP] Iterative refinement completed - using best results`);
+          console.log(`âœ… [AGENT LOOP] Iterative refinement completed - using best results`);
           searchResults = { matches: iterativeHybridResults };
           hybridResults = iterativeHybridResults;
         } else {
-          console.log(`⚠️  [AGENT LOOP] Iterative refinement didn't improve results, using original`);
+          console.log(`âš ï¸  [AGENT LOOP] Iterative refinement didn't improve results, using original`);
           // Keep original searchResults and hybridResults
         }
       } else {
-        console.log(`✅ [AGENT LOOP] Complex query results are satisfactory - no refinement needed`);
+        console.log(`âœ… [AGENT LOOP] Complex query results are satisfactory - no refinement needed`);
       }
     } else {
-      console.log(`⚡ [SPEED] Simple query - skipping iterative refinement (saved ~2s)`);
+      console.log(`âš¡ [SPEED] Simple query - skipping iterative refinement (saved ~2s)`);
     }
     perfTimer.measure('Iterative Refinement Check', 'iterativeRefinement');
 
     // STREAM PROGRESS: Analyzing retrieved chunks
     const analyzingMsg = queryLang === 'pt' ? `Analisando ${hybridResults.length} trechos encontrados...` :
                          queryLang === 'es' ? `Analizando ${hybridResults.length} fragmentos encontrados...` :
-                         queryLang === 'fr' ? `Analyse de ${hybridResults.length} extraits trouvés...` :
+                         queryLang === 'fr' ? `Analyse de ${hybridResults.length} extraits trouvÃ©s...` :
                          `Analyzing ${hybridResults.length} chunks found...`;
     console.log(`[PROGRESS STREAM] Sending analyzing message (${hybridResults.length} chunks)`);
     onStage?.('analyzing', analyzingMsg);
 
     // ============================================================================
-    // ⚡ SPEED OPTIMIZATION #1: Disable LLM chunk filtering entirely (saves 3-5s)
+    // âš¡ SPEED OPTIMIZATION #1: Disable LLM chunk filtering entirely (saves 3-5s)
     // ============================================================================
     // REASON: LLM filtering adds 3-5 seconds but only improves accuracy by 5-10%
     // WHY: Vector similarity scores are already 85-90% accurate
@@ -7480,7 +7471,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // - Pinecone similarity score range: 0.0 to 1.0
     // - High similarity (>0.70) = High relevance (correlation: 0.85-0.90)
     // - LLM filtering correlation with relevance: 0.90-0.95
-    // - Improvement: 0.90 → 0.95 = +5% accuracy
+    // - Improvement: 0.90 â†’ 0.95 = +5% accuracy
     // - Cost: +3-5 seconds latency
     // - Trade-off: 5% accuracy loss for 70% speed gain = WORTH IT
     //
@@ -7488,7 +7479,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // Query: "What does the budget say about revenue?"
     // 1. Pinecone returns 20 chunks (800ms)
     // 2. Pre-filter to top 12 by score (instant)
-    // 3. LLM evaluates 12 chunks (3-5 seconds) ← SLOW
+    // 3. LLM evaluates 12 chunks (3-5 seconds) â† SLOW
     // 4. Returns top 8 chunks
     // Total: 3.8-5.8 seconds for retrieval
     //
@@ -7497,12 +7488,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // 1. Pinecone returns 20 chunks (800ms)
     // 2. Filter by score threshold (>0.70) (instant)
     // 3. Take top 8 chunks (instant)
-    // Total: 0.8 seconds for retrieval (5× faster)
+    // Total: 0.8 seconds for retrieval (5Ã— faster)
 
-    // ⚡ SPEED FIX #2: Reduced from 12 to 5 chunks (58% reduction)
+    // âš¡ SPEED FIX #2: Reduced from 12 to 5 chunks (58% reduction)
     // REASON: 5 chunks provide 95% of relevant info while reducing context size by 58%
     // IMPACT: Faster generation (less tokens to process), cheaper API calls
-    const MAX_CHUNKS_FOR_ANSWER = 5; // ⚡ Reduced for speed optimization
+    const MAX_CHUNKS_FOR_ANSWER = 5; // âš¡ Reduced for speed optimization
 
     // Sort by hybrid score (vector + BM25) or vector score
     perfTimer.mark('chunkSorting');
@@ -7513,41 +7504,41 @@ Provide a comprehensive answer addressing all parts of the query.`;
         return scoreB - scoreA;
       });
 
-    console.log(`🔍 [VECTOR FILTER] Sorting ${sortedChunks.length} chunks by similarity score`);
+    console.log(`ðŸ” [VECTOR FILTER] Sorting ${sortedChunks.length} chunks by similarity score`);
 
     // Log score range for debugging
     if (sortedChunks.length > 0) {
       const allScores = sortedChunks.map((c: any) => c.hybridScore || c.vectorScore || 0);
       const maxScore = Math.max(...allScores);
       const minScore = Math.min(...allScores);
-      console.log(`📊 [SCORE RANGE] Min: ${minScore.toFixed(3)}, Max: ${maxScore.toFixed(3)}`);
+      console.log(`ðŸ“Š [SCORE RANGE] Min: ${minScore.toFixed(3)}, Max: ${maxScore.toFixed(3)}`);
     }
 
     // Take top N chunks directly (no threshold filtering - vector scores vary too much)
     const filteredChunks = sortedChunks.slice(0, MAX_CHUNKS_FOR_ANSWER);
     perfTimer.measure('Chunk Sorting + Selection', 'chunkSorting');
 
-    console.log(`✅ [VECTOR FILTER] Taking top ${filteredChunks.length} chunks (no threshold filter)`)
+    console.log(`âœ… [VECTOR FILTER] Taking top ${filteredChunks.length} chunks (no threshold filter)`)
 
     if (ragConfig.useLLMFiltering) {
       // LLM filtering logic here
-      console.log(`🔍 [FILTER] LLM chunk filtering enabled`);
+      console.log(`ðŸ” [FILTER] LLM chunk filtering enabled`);
     } else {
-      console.log(`⚡ [SPEED] LLM chunk filtering disabled`);
+      console.log(`âš¡ [SPEED] LLM chunk filtering disabled`);
     }
-    console.log(`✅ [FAST PATH] Using ${filteredChunks.length} chunks based on vector scores`);
+    console.log(`âœ… [FAST PATH] Using ${filteredChunks.length} chunks based on vector scores`);
 
     // Log score distribution for debugging
     if (filteredChunks.length > 0) {
       const scores = filteredChunks.map((c: any) => (c.hybridScore || c.vectorScore || 0).toFixed(2));
-      console.log(`📊 [SCORES] Top chunks: [${scores.join(', ')}]`);
+      console.log(`ðŸ“Š [SCORES] Top chunks: [${scores.join(', ')}]`);
     }
 
     // Filter deleted documents
     perfTimer.mark('filterDeleted');
     const finalSearchResults = await filterDeletedDocuments(filteredChunks, userId);
     perfTimer.measure('Filter Deleted Documents', 'filterDeleted');
-    console.log(`⏱️ [PERF] Retrieval took ${Date.now() - startTime}ms`);
+    console.log(`â±ï¸ [PERF] Retrieval took ${Date.now() - startTime}ms`);
 
     // ============================================================================
     // FULL DOCUMENT RETRIEVAL (configurable via ragConfig)
@@ -7557,19 +7548,19 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     if (ragConfig.useFullDocuments) {
       // Full document retrieval logic
-      console.log(`📄 [FULL] Full document retrieval enabled`);
+      console.log(`ðŸ“„ [FULL] Full document retrieval enabled`);
       // Extract document IDs from search results for full document retrieval
       const documentIds = [...new Set(finalSearchResults.map((r: any) => r.metadata?.documentId).filter(Boolean))];
       if (documentIds.length > 0) {
         fullDocuments = await retrieveFullDocuments(documentIds, userId);
         if (fullDocuments.length > 0) {
           documentContext = buildDocumentContext(fullDocuments);
-          console.log(`📄 [FULL DOCS] Using ${fullDocuments.length} full documents for ${complexity} query`);
-          console.log(`⏱️ [PERF] Document loading took ${Date.now() - startTime}ms`);
+          console.log(`ðŸ“„ [FULL DOCS] Using ${fullDocuments.length} full documents for ${complexity} query`);
+          console.log(`â±ï¸ [PERF] Document loading took ${Date.now() - startTime}ms`);
         }
       }
     } else {
-      console.log(`⚡ [SPEED] Full document retrieval disabled (recommended)`);
+      console.log(`âš¡ [SPEED] Full document retrieval disabled (recommended)`);
     }
 
     // ============================================================================
@@ -7579,10 +7570,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     if (ragConfig.useContradictionDetection) {
       // Contradiction detection logic
-      console.log(`🔍 [CHECK] Contradiction detection enabled`);
+      console.log(`ðŸ” [CHECK] Contradiction detection enabled`);
       // TODO: Add actual contradiction detection logic here when enabled
     } else {
-      console.log(`⚡ [SPEED] Contradiction detection disabled`);
+      console.log(`âš¡ [SPEED] Contradiction detection disabled`);
     }
 
     // ============================================================================
@@ -7590,11 +7581,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // ============================================================================
     // REASON: Provide helpful, psychologically safe responses when exact answer not found
     // WHY: Reduces user abandonment by 40%, builds trust, maintains competence
-    // HOW: 4-type fallback (clarification → knowledge → refusal → error_recovery)
+    // HOW: 4-type fallback (clarification â†’ knowledge â†’ refusal â†’ error_recovery)
     // IMPACT: Users stay engaged, feel guided, try alternatives, upload documents
     //
-    // BEFORE: "I couldn't find information" → User leaves ❌
-    // AFTER:  Natural, AI-generated fallback → User tries again ✅
+    // BEFORE: "I couldn't find information" â†’ User leaves âŒ
+    // AFTER:  Natural, AI-generated fallback â†’ User tries again âœ…
     //
     // Psychological Safety Principles:
     // 1. Never blame the user
@@ -7628,11 +7619,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
       conversationHistory: conversationHistory || []
     });
 
-    console.log(`🎯 [FALLBACK] Detection result: needsFallback=${fallbackCheck.needsFallback}, type=${fallbackCheck.fallbackType}, confidence=${fallbackCheck.confidence}`);
+    console.log(`ðŸŽ¯ [FALLBACK] Detection result: needsFallback=${fallbackCheck.needsFallback}, type=${fallbackCheck.fallbackType}, confidence=${fallbackCheck.confidence}`);
 
     // Check if fallback is needed (high confidence threshold)
     if (fallbackCheck.needsFallback && fallbackCheck.confidence > 0.7) {
-      console.log(`💬 [FALLBACK] Generating ${fallbackCheck.fallbackType} fallback response`);
+      console.log(`ðŸ’¬ [FALLBACK] Generating ${fallbackCheck.fallbackType} fallback response`);
 
       perfTimer.mark('enhancedFallback');
 
@@ -7656,25 +7647,25 @@ Provide a comprehensive answer addressing all parts of the query.`;
         const safetyCheck = psychologicalSafety.checkResponseSafety(fallbackAnswer);
 
         if (!safetyCheck.isSafe) {
-          console.warn('⚠️ [FALLBACK] Safety issues detected:', safetyCheck.issues);
+          console.warn('âš ï¸ [FALLBACK] Safety issues detected:', safetyCheck.issues);
           // Could auto-improve here, but for now just log
         }
 
         // Check formatting
         const formatCheck = psychologicalSafety.checkFormatting(fallbackAnswer);
         if (!formatCheck.isValid) {
-          console.warn('⚠️ [FALLBACK] Formatting issues:', formatCheck.issues);
+          console.warn('âš ï¸ [FALLBACK] Formatting issues:', formatCheck.issues);
         }
 
         onChunk(fallbackAnswer.trim());
         perfTimer.measure('Enhanced Fallback Response', 'enhancedFallback');
 
-        console.log(`✅ [FALLBACK] ${fallbackCheck.fallbackType} fallback complete`);
+        console.log(`âœ… [FALLBACK] ${fallbackCheck.fallbackType} fallback complete`);
         perfTimer.printSummary();
         return { sources: [] };
 
       } catch (fallbackError) {
-        console.error('❌ [FALLBACK] Error generating fallback response:', fallbackError);
+        console.error('âŒ [FALLBACK] Error generating fallback response:', fallbackError);
 
         // Fall back to legacy graceful degradation
         perfTimer.mark('gracefulDegradation');
@@ -7692,7 +7683,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
         onChunk(response.trim());
         perfTimer.measure('Graceful Degradation (legacy fallback)', 'gracefulDegradation');
 
-        console.log(`✅ [FALLBACK] Legacy graceful degradation complete (strategy: ${legacyFallback.type})`);
+        console.log(`âœ… [FALLBACK] Legacy graceful degradation complete (strategy: ${legacyFallback.type})`);
         perfTimer.printSummary();
         return { sources: [] };
       }
@@ -7702,7 +7693,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     if (!finalSearchResults || finalSearchResults.length === 0 ||
         (finalSearchResults.every((chunk: any) => chunk.llmScore?.finalScore < 0.5))) {
 
-      console.log('⚠️  [FAST PATH] No relevant chunks found, using legacy graceful degradation');
+      console.log('âš ï¸  [FAST PATH] No relevant chunks found, using legacy graceful degradation');
 
       perfTimer.mark('gracefulDegradation');
       const fallback = await gracefulDegradationService.handleFailedQuery(
@@ -7719,13 +7710,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
       onChunk(response.trim());
       perfTimer.measure('Graceful Degradation', 'gracefulDegradation');
 
-      console.log(`✅ [FAST PATH] Graceful degradation complete (strategy: ${fallback.type})`);
+      console.log(`âœ… [FAST PATH] Graceful degradation complete (strategy: ${fallback.type})`);
       perfTimer.printSummary();
       return { sources: [] };
     }
 
     // ============================================================================
-    // ⚡ SPEED OPTIMIZATION #2: Disable Cohere reranking (saves 2-3 seconds)
+    // âš¡ SPEED OPTIMIZATION #2: Disable Cohere reranking (saves 2-3 seconds)
     // ============================================================================
     // REASON: Cohere reranking adds 2-3 seconds but vector scores are already sorted
     // WHY: Vector similarity provides good ranking, reranking adds marginal improvement
@@ -7734,15 +7725,15 @@ Provide a comprehensive answer addressing all parts of the query.`;
     //
     // BEFORE (with Cohere reranking):
     // 1. Vector search returns sorted chunks (800ms)
-    // 2. Cohere re-evaluates each chunk (2-3 seconds) ← SLOW
+    // 2. Cohere re-evaluates each chunk (2-3 seconds) â† SLOW
     // Total: 2.8-3.8 seconds
     //
     // AFTER (skip reranking):
     // 1. Vector search returns sorted chunks (800ms)
     // 2. Use chunks directly (0ms)
-    // Total: 0.8 seconds (3× faster)
+    // Total: 0.8 seconds (3Ã— faster)
 
-    // ⚡ DISABLED: Cohere reranking for speed optimization
+    // âš¡ DISABLED: Cohere reranking for speed optimization
     // const rerankedChunks = await rerankingService.rerankChunks(
     //   query,
     //   finalSearchResults,
@@ -7761,26 +7752,26 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }));
     perfTimer.measure('Reranking (disabled - just mapping)', 'reranking');
 
-    console.log(`⚡ [SPEED] Cohere reranking DISABLED (saved 2-3 seconds)`);
-    console.log(`✅ [FAST PATH] Using ${rerankedChunks.length} chunks in Pinecone order`);
+    console.log(`âš¡ [SPEED] Cohere reranking DISABLED (saved 2-3 seconds)`);
+    console.log(`âœ… [FAST PATH] Using ${rerankedChunks.length} chunks in Pinecone order`);
 
-    // ✅ NEW: Validate chunk quality before proceeding
+    // âœ… NEW: Validate chunk quality before proceeding
     const chunkQuality = emptyResponsePrevention.validateChunks(rerankedChunks, query);
     if (!chunkQuality.isValid) {
-      console.warn(`⚠️ [CHUNK QUALITY] Validation failed: ${chunkQuality.reason}`);
+      console.warn(`âš ï¸ [CHUNK QUALITY] Validation failed: ${chunkQuality.reason}`);
       // Continue but log warning - graceful degradation will handle if answer is poor
     } else {
-      console.log(`✅ [CHUNK QUALITY] Score: ${chunkQuality.score.toFixed(2)}`);
+      console.log(`âœ… [CHUNK QUALITY] Score: ${chunkQuality.score.toFixed(2)}`);
     }
 
     // Log score distribution for debugging
     if (rerankedChunks.length > 0) {
       const scores = rerankedChunks.slice(0, 5).map((c: any) => c.rerankScore.toFixed(2));
-      console.log(`📊 [SCORES] Top 5 chunks: [${scores.join(', ')}]`);
+      console.log(`ðŸ“Š [SCORES] Top 5 chunks: [${scores.join(', ')}]`);
     }
 
     // ============================================================================
-    // ⚡ SPEED OPTIMIZATION: Complex reasoning disabled (saves ~2000ms)
+    // âš¡ SPEED OPTIMIZATION: Complex reasoning disabled (saves ~2000ms)
     // ============================================================================
     // REASON: Claim extraction + contradiction detection add 2+ seconds
     // WHY: Most queries don't benefit from this complex analysis
@@ -7792,11 +7783,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
     let supportingEvidence: confidenceScoring.Evidence[] | undefined;
     let conflictingEvidence: confidenceScoring.Evidence[] | undefined;
 
-    // ⚡ DISABLED: Complex reasoning for speed optimization
+    // âš¡ DISABLED: Complex reasoning for speed optimization
     const enableComplexReasoning = false;
 
     if (enableComplexReasoning && queryDecomposition.needsDecomposition(query)) {
-      console.log('🧠 [COMPLEX REASONING] Query requires complex reasoning');
+      console.log('ðŸ§  [COMPLEX REASONING] Query requires complex reasoning');
 
       // Extract document information for claim extraction
       const documentChunks = rerankedChunks.slice(0, 5).map((chunk: any) => ({
@@ -7812,13 +7803,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
       const contradictions = await contradictionDetection.detectContradictions(claims);
 
       if (contradictions.length > 0) {
-        console.log(`⚠️  [COMPLEX REASONING] Found ${contradictions.length} contradictions`);
+        console.log(`âš ï¸  [COMPLEX REASONING] Found ${contradictions.length} contradictions`);
         contradictions.forEach(c => {
           console.log(`   - ${c.contradiction_type}: ${c.explanation}`);
         });
       }
     } else {
-      console.log(`⚡ [SPEED] Complex reasoning disabled for speed optimization`);
+      console.log(`âš¡ [SPEED] Complex reasoning disabled for speed optimization`);
 
       // Build evidence for confidence scoring (simplified without contradiction detection)
       perfTimer.mark('evidenceScoring');
@@ -7836,7 +7827,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       // Calculate confidence (no contradictions in speed-optimized path)
       const supporting = evidence.filter(e => e.support_strength > 0.5);
-      const conflicting: confidenceScoring.Evidence[] = []; // ⚡ No contradictions in speed mode
+      const conflicting: confidenceScoring.Evidence[] = []; // âš¡ No contradictions in speed mode
 
       const confidenceResult = confidenceScoring.calculateConfidence(supporting);
       answerConfidence = confidenceResult;
@@ -7844,11 +7835,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
       conflictingEvidence = conflicting;
       perfTimer.measure('Evidence Scoring', 'evidenceScoring');
 
-      console.log(`📊 [CONFIDENCE] Score: ${confidenceResult.score}/100 (speed-optimized path)`);
+      console.log(`ðŸ“Š [CONFIDENCE] Score: ${confidenceResult.score}/100 (speed-optimized path)`);
     }
 
     // Build context WITHOUT source labels (prevents Gemini from numbering documents)
-    // ✅ NEW: Include folder location information for file navigation awareness
+    // âœ… NEW: Include folder location information for file navigation awareness
     const uniqueDocuments = new Map<string, { filename: string; folderPath?: string }>();
     rerankedChunks.forEach((result: any) => {
       const meta = result.metadata || {};
@@ -7864,7 +7855,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       .map(doc => `- "${doc.filename}" is located in: ${doc.folderPath}`)
       .join('\n');
 
-    // ✅ FIX #8: Multi-document comparison instruction
+    // âœ… FIX #8: Multi-document comparison instruction
     const documentCount = uniqueDocuments.size;
     let multiDocInstruction = '';
     if (documentCount > 1) {
@@ -7876,7 +7867,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 4. Provide a summary comparison if the query asks for it
 
 `;
-      console.log(`🔀 [MULTI-DOC] Added comparison instructions for ${documentCount} documents`);
+      console.log(`ðŸ”€ [MULTI-DOC] Added comparison instructions for ${documentCount} documents`);
     }
 
     perfTimer.mark('contextBuilding');
@@ -7884,49 +7875,49 @@ Provide a comprehensive answer addressing all parts of the query.`;
       const meta = result.metadata || {};
       const documentId = meta.documentId || 'unknown';
       const filename = meta.filename || 'Unknown';
-      // ✅ FIX: Don't show page if not confident (undefined, 0, or N/A)
+      // âœ… FIX: Don't show page if not confident (undefined, 0, or N/A)
       const page = meta.page || meta.pageNumber;
       const pageInfo = (page && page > 0) ? `, Page: ${page}` : '';
 
-      // ✅ Include documentId for citation tracking
+      // âœ… Include documentId for citation tracking
       return `[Document ${idx + 1}] ${filename} (documentId: ${documentId}${pageInfo}):\n${meta.text || meta.content || result.content || ''}`;
     }).join('\n\n---\n\n');
 
-    console.log(`📚 [CONTEXT] Built context from ${rerankedChunks.length} chunks with folder locations`);
+    console.log(`ðŸ“š [CONTEXT] Built context from ${rerankedChunks.length} chunks with folder locations`);
 
     // STREAM PROGRESS: Generating answer
     const generatingMsg = queryLang === 'pt' ? 'Gerando resposta...' :
                           queryLang === 'es' ? 'Generando respuesta...' :
-                          queryLang === 'fr' ? 'Génération de la réponse...' :
+                          queryLang === 'fr' ? 'GÃ©nÃ©ration de la rÃ©ponse...' :
                           'Generating answer...';
     console.log('[PROGRESS STREAM] Sending generating message');
     onStage?.('generating', generatingMsg);
 
     // Removed nextStepText - using natural endings instead
 
-    // ✅ NEW: Build document context from search results
+    // âœ… NEW: Build document context from search results
     const documentContextFromChunks = rerankedChunks.map((chunk: any) =>
       chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
     ).join('\n\n---\n\n');
 
     // DEBUG: Log what's in the chunks
-    console.log(`🔍 [DEBUG] documentContextFromChunks length: ${documentContextFromChunks.length}`);
-    console.log(`🔍 [DEBUG] rerankedChunks[0] keys:`, rerankedChunks[0] ? Object.keys(rerankedChunks[0]) : 'no chunks');
+    console.log(`ðŸ” [DEBUG] documentContextFromChunks length: ${documentContextFromChunks.length}`);
+    console.log(`ðŸ” [DEBUG] rerankedChunks[0] keys:`, rerankedChunks[0] ? Object.keys(rerankedChunks[0]) : 'no chunks');
     if (rerankedChunks[0]?.metadata) {
-      console.log(`🔍 [DEBUG] rerankedChunks[0].metadata keys:`, Object.keys(rerankedChunks[0].metadata));
-      console.log(`🔍 [DEBUG] Sample text (first 200 chars):`, (rerankedChunks[0].metadata.text || rerankedChunks[0].metadata.content || 'EMPTY').substring(0, 200));
+      console.log(`ðŸ” [DEBUG] rerankedChunks[0].metadata keys:`, Object.keys(rerankedChunks[0].metadata));
+      console.log(`ðŸ” [DEBUG] Sample text (first 200 chars):`, (rerankedChunks[0].metadata.text || rerankedChunks[0].metadata.content || 'EMPTY').substring(0, 200));
     }
 
-    // ✅ NEW: Choose context based on query complexity and document availability
+    // âœ… NEW: Choose context based on query complexity and document availability
     const baseDocumentContext = (documentContext && fullDocuments.length > 0)
       ? documentContext
       : context; // FIX: Use context variable which has proper text extraction
 
-    // ✅ FIX #8: Prepend multi-document instruction if multiple documents
+    // âœ… FIX #8: Prepend multi-document instruction if multiple documents
     const finalDocumentContext = multiDocInstruction + baseDocumentContext;
 
-    console.log(`📝 [PROMPT] Using ${complexity} complexity prompt with ${documentContext && fullDocuments.length > 0 ? 'full documents' : 'chunks'}`);
-    console.log(`🔍 [DEBUG] finalDocumentContext length: ${finalDocumentContext.length}`);
+    console.log(`ðŸ“ [PROMPT] Using ${complexity} complexity prompt with ${documentContext && fullDocuments.length > 0 ? 'full documents' : 'chunks'}`);
+    console.log(`ðŸ” [DEBUG] finalDocumentContext length: ${finalDocumentContext.length}`);
     perfTimer.measure('Context Building', 'contextBuilding');
 
     // ============================================================================
@@ -7954,13 +7945,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const causalResult = causalExtractionService.getWhyQueryContext(query, chunksForCausalExtraction);
 
     if (causalResult.isWhyQuery) {
-      console.log(`🔍 [CAUSAL] Detected "why" query - subject: "${causalResult.subject}"`);
-      console.log(`🔍 [CAUSAL] Found ${causalResult.causes.length} causal relationships`);
-      console.log(`🔍 [CAUSAL] Found ${causalResult.context.length} contextual info pieces`);
+      console.log(`ðŸ” [CAUSAL] Detected "why" query - subject: "${causalResult.subject}"`);
+      console.log(`ðŸ” [CAUSAL] Found ${causalResult.causes.length} causal relationships`);
+      console.log(`ðŸ” [CAUSAL] Found ${causalResult.context.length} contextual info pieces`);
 
       if (causalResult.promptAddition) {
         causalContext = causalResult.promptAddition;
-        console.log(`✅ [CAUSAL] Added causal intelligence to prompt context`);
+        console.log(`âœ… [CAUSAL] Added causal intelligence to prompt context`);
       }
     }
     perfTimer.measure('Causal Extraction', 'causalExtraction');
@@ -7987,9 +7978,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       if (extractedFormulas.length > 0) {
         formulaContext = buildFormulaContext(extractedFormulas, formulaQueryInfo);
-        console.log(`✅ [FORMULA] Added ${extractedFormulas.length} formulas to prompt context`);
+        console.log(`âœ… [FORMULA] Added ${extractedFormulas.length} formulas to prompt context`);
       } else {
-        console.log(`⚠️ [FORMULA] No formulas found in chunks despite formula query detected`);
+        console.log(`âš ï¸ [FORMULA] No formulas found in chunks despite formula query detected`);
       }
     }
     perfTimer.measure('Formula Extraction', 'formulaExtraction');
@@ -8019,11 +8010,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
     perfTimer.measure('Practical Implications', 'practicalImplications');
 
-    // 🧠 Build multi-turn context summary for enhanced LLM understanding
+    // ðŸ§  Build multi-turn context summary for enhanced LLM understanding
     let multiTurnContextSummary = '';
     if (multiTurnContext && (multiTurnContext.entities.length > 0 || multiTurnContext.keyFindings.length > 0)) {
       multiTurnContextSummary = conversationContextService.buildContextSummary(multiTurnContext);
-      console.log(`🧠 [CONTEXT] Built context summary for LLM (${multiTurnContextSummary.length} chars)`);
+      console.log(`ðŸ§  [CONTEXT] Built context summary for LLM (${multiTurnContextSummary.length} chars)`);
     }
 
     // Append causal context, formula context, and implications to document context if available
@@ -8038,10 +8029,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
       contextWithIntelligence += implicationsContext;
     }
 
-    // 🧠 Add multi-turn context summary for reference resolution and continuity
+    // ðŸ§  Add multi-turn context summary for reference resolution and continuity
     if (multiTurnContextSummary) {
       contextWithIntelligence += multiTurnContextSummary;
-      console.log(`🧠 [CONTEXT] Injected context summary into document context`);
+      console.log(`ðŸ§  [CONTEXT] Injected context summary into document context`);
     }
 
     // ============================================================================
@@ -8070,7 +8061,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       answerLength === 'long' ? 'long' :
       'adaptive';
 
-    console.log(`📝 [ADAPTIVE] Generating answer with ${adaptiveLength} length for ${documentInfo.pageCount} page(s)`);
+    console.log(`ðŸ“ [ADAPTIVE] Generating answer with ${adaptiveLength} length for ${documentInfo.pageCount} page(s)`);
 
     let fullResponse = '';
 
@@ -8079,7 +8070,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
         query,
         documentContext: contextWithIntelligence,
         documentInfo,
-        // ♾️ Pass pre-formatted conversation context from infinite memory
+        // â™¾ï¸ Pass pre-formatted conversation context from infinite memory
         conversationContext: typeof conversationContext === 'string' && conversationContext.trim().length > 0
           ? conversationContext
           : undefined,
@@ -8099,17 +8090,17 @@ Provide a comprehensive answer addressing all parts of the query.`;
       fullResponse = answer.content;
 
       // Log generation stats
-      console.log(`📊 [ADAPTIVE STATS] Words: ${answer.stats.wordCount}, Tokens: ${answer.stats.estimatedTokens}, Compression: ${(answer.stats.compressionRatio * 100).toFixed(1)}%`);
+      console.log(`ðŸ“Š [ADAPTIVE STATS] Words: ${answer.stats.wordCount}, Tokens: ${answer.stats.estimatedTokens}, Compression: ${(answer.stats.compressionRatio * 100).toFixed(1)}%`);
 
       // Validate answer quality (for monitoring)
       const quality = adaptiveAnswerGeneration.validateAnswerQuality(answer);
       if (quality.score < 80) {
-        console.log(`⚠️ [QUALITY] Score: ${quality.score}/100 - Issues: ${quality.issues.join(', ')}`);
+        console.log(`âš ï¸ [QUALITY] Score: ${quality.score}/100 - Issues: ${quality.issues.join(', ')}`);
       } else {
-        console.log(`✅ [QUALITY] Score: ${quality.score}/100`);
+        console.log(`âœ… [QUALITY] Score: ${quality.score}/100`);
       }
     } catch (adaptiveError) {
-      console.error('❌ [ADAPTIVE] Adaptive generation failed, falling back to legacy:', adaptiveError);
+      console.error('âŒ [ADAPTIVE] Adaptive generation failed, falling back to legacy:', adaptiveError);
 
       // Fallback to legacy system prompt approach
       const systemPrompt = systemPromptsService.getSystemPrompt(
@@ -8138,17 +8129,17 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
 
     perfTimer.measure('Adaptive Answer Generation', 'adaptiveAnswerGeneration');
-    console.log(`⏱️ [PERF] Generation took ${Date.now() - startTime}ms`);
+    console.log(`â±ï¸ [PERF] Generation took ${Date.now() - startTime}ms`);
 
     // ============================================================================
     // NEW: CONFIDENCE SCORING - Calculate answer confidence
     // ============================================================================
 
-    // ✅ ENHANCED: Build ACCURATE sources from LLM citations with proper extraction
+    // âœ… ENHANCED: Build ACCURATE sources from LLM citations with proper extraction
     perfTimer.mark('sourcesExtraction');
     let sources: any[];
 
-    // ✅ ENHANCED: Extract structured citations from hidden block (if present)
+    // âœ… ENHANCED: Extract structured citations from hidden block (if present)
     const citationResult = citationTracking.extractCitations(fullResponse);
     const cleanResponse = citationResult.cleanResponse;
     const extractedCitations = citationResult.citations;
@@ -8156,16 +8147,16 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     // Log citation extraction results for debugging precision
     if (extractedCitations.length > 0) {
-      console.log(`📎 [CITATION TRACKING] LLM provided ${extractedCitations.length} structured citations`);
+      console.log(`ðŸ“Ž [CITATION TRACKING] LLM provided ${extractedCitations.length} structured citations`);
     } else {
-      console.log(`📎 [CITATION TRACKING] No hidden citation block found, will use fast extraction fallback`);
+      console.log(`ðŸ“Ž [CITATION TRACKING] No hidden citation block found, will use fast extraction fallback`);
     }
 
     // ============================================================================
     // FORMAT ENFORCEMENT - Ensure 100% compliance with Koda format rules
     // ============================================================================
     perfTimer.mark('formatEnforcement');
-    console.log(`🎨 [FORMAT] Enforcing structure and formatting...`);
+    console.log(`ðŸŽ¨ [FORMAT] Enforcing structure and formatting...`);
 
     // Step 1: Structure Enforcement (title, sections, source, follow-up)
     const structureResult = structureEnforcementService.enforceStructure(fullResponse, {
@@ -8180,7 +8171,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     });
 
     if (structureResult.violations.length > 0) {
-      console.log(`📐 [STRUCTURE] Fixed ${structureResult.violations.length} violations:`,
+      console.log(`ðŸ“ [STRUCTURE] Fixed ${structureResult.violations.length} violations:`,
         structureResult.violations.map(v => v.type).join(', '));
     }
     fullResponse = structureResult.text;
@@ -8189,12 +8180,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const formatResult = kodaFormatEnforcementService.enforceFormat(fullResponse);
 
     if (formatResult.violations.length > 0) {
-      console.log(`✏️ [FORMAT] Fixed ${formatResult.violations.length} violations:`,
+      console.log(`âœï¸ [FORMAT] Fixed ${formatResult.violations.length} violations:`,
         formatResult.violations.filter(v => v.severity === 'error').map(v => v.type).join(', '));
     }
     fullResponse = formatResult.fixedText || fullResponse;
 
-    console.log(`✅ [FORMAT] Enforcement complete - Stats:`, {
+    console.log(`âœ… [FORMAT] Enforcement complete - Stats:`, {
       hasTitle: structureResult.stats.hasTitle,
       sections: structureResult.stats.sectionCount,
       hasSource: structureResult.stats.hasSource,
@@ -8202,16 +8193,16 @@ Provide a comprehensive answer addressing all parts of the query.`;
     });
     perfTimer.measure('Format Enforcement', 'formatEnforcement');
 
-    // ✅ NEW: Send the format-enforced response to the client
+    // âœ… NEW: Send the format-enforced response to the client
     // This is now the ONLY place where the main response is sent
     onChunk(fullResponse);
-    console.log(`📤 [SEND] Sent format-enforced response (${fullResponse.length} chars)`);
+    console.log(`ðŸ“¤ [SEND] Sent format-enforced response (${fullResponse.length} chars)`);
 
-    // ⚡ SPEED OPTIMIZATION: Use LLM-provided citations first, fallback to fast regex extraction
-    // ✅ ENHANCED: Prioritize structured citations from LLM's hidden citation block for accuracy
+    // âš¡ SPEED OPTIMIZATION: Use LLM-provided citations first, fallback to fast regex extraction
+    // âœ… ENHANCED: Prioritize structured citations from LLM's hidden citation block for accuracy
     if (extractedCitations.length > 0) {
-      // ✅ LLM provided structured citations - use them for accurate source tracking
-      console.log(`📎 [CITATION] Using LLM-provided structured citations (${extractedCitations.length} docs)`);
+      // âœ… LLM provided structured citations - use them for accurate source tracking
+      console.log(`ðŸ“Ž [CITATION] Using LLM-provided structured citations (${extractedCitations.length} docs)`);
 
       // Build chunks array for citation matching
       const availableChunks = fullDocuments.length > 0
@@ -8230,10 +8221,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // Build sources from LLM citations
       sources = citationTracking.buildSourcesFromCitations(extractedCitations, availableChunks);
 
-      console.log(`✅ [CITATION] Built ${sources.length} accurate sources from LLM citations`);
+      console.log(`âœ… [CITATION] Built ${sources.length} accurate sources from LLM citations`);
     } else if (fullDocuments.length > 0) {
       // Fallback: No LLM citations, use fast regex extraction on full documents
-      console.log(`⚡ [FAST CITATION] No LLM citations, building from full documents (regex-based)`);
+      console.log(`âš¡ [FAST CITATION] No LLM citations, building from full documents (regex-based)`);
 
       // Build "chunks" array from full documents for citation matching
       const pseudoChunks = fullDocuments.map(doc => ({
@@ -8250,14 +8241,14 @@ Provide a comprehensive answer addressing all parts of the query.`;
       sources = fastCitationExtraction(fullResponse, pseudoChunks);
     } else {
       // Fallback: For chunks, use fast regex extraction
-      console.log(`⚡ [FAST CITATION] Building sources from chunks (regex-based)`);
+      console.log(`âš¡ [FAST CITATION] Building sources from chunks (regex-based)`);
       sources = fastCitationExtraction(fullResponse, rerankedChunks);
     }
 
-    console.log(`✅ [CITATION] Final: ${sources.length} sources (LLM citations: ${extractedCitations.length > 0 ? 'yes' : 'no'})`);
+    console.log(`âœ… [CITATION] Final: ${sources.length} sources (LLM citations: ${extractedCitations.length > 0 ? 'yes' : 'no'})`);
     perfTimer.measure('Sources Extraction', 'sourcesExtraction');
 
-    // ✅ NEW: Calculate confidence score (for internal tracking only, not displayed to user)
+    // âœ… NEW: Calculate confidence score (for internal tracking only, not displayed to user)
     perfTimer.mark('confidenceCalc');
     const confidence = confidenceScoring.calculateConfidence(
       sources,
@@ -8265,19 +8256,19 @@ Provide a comprehensive answer addressing all parts of the query.`;
       fullResponse
     );
 
-    console.log(`🎯 [CONFIDENCE] Final confidence: ${confidence.level} (${confidence.score}/100)`);
+    console.log(`ðŸŽ¯ [CONFIDENCE] Final confidence: ${confidence.level} (${confidence.score}/100)`);
     perfTimer.measure('Confidence Calculation', 'confidenceCalc');
 
-    // ✅ NEW: Append contradiction warnings if detected
+    // âœ… NEW: Append contradiction warnings if detected
     if (contradictionResult && contradictionResult.hasContradictions) {
       const contradictionMessage = contradictionDetection.formatContradictionsForUser(contradictionResult);
       onChunk(contradictionMessage);
-      console.log(`🔍 [CONTRADICTION] Appended ${contradictionResult.contradictions.length} contradiction warning(s) to response`);
+      console.log(`ðŸ” [CONTRADICTION] Appended ${contradictionResult.contradictions.length} contradiction warning(s) to response`);
     }
 
-    // ✅ NEW: Generate evidence map
+    // âœ… NEW: Generate evidence map
     if (evidenceAggregation.shouldAggregateEvidence(complexity, fullDocuments.length)) {
-      console.log(`📚 [EVIDENCE] Generating evidence map...`);
+      console.log(`ðŸ“š [EVIDENCE] Generating evidence map...`);
       const evidenceMap = await evidenceAggregation.generateEvidenceMap(
         fullResponse,
         fullDocuments.map(doc => ({ id: doc.id, filename: doc.title || 'Unknown', content: doc.content }))
@@ -8286,11 +8277,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
       const evidenceMessage = evidenceAggregation.formatEvidenceForUser(evidenceMap);
       if (evidenceMessage) {
         onChunk(evidenceMessage);
-        console.log(`📚 [EVIDENCE] Appended evidence breakdown with ${evidenceMap.claims.length} claims`);
+        console.log(`ðŸ“š [EVIDENCE] Appended evidence breakdown with ${evidenceMap.claims.length} claims`);
       }
     }
 
-    // ✅ NEW: MEMORY EXTRACTION - Extract memories from conversation
+    // âœ… NEW: MEMORY EXTRACTION - Extract memories from conversation
     if (conversationHistory && conversationHistory.length > 0) {
       const messages: any[] = conversationHistory.map(msg => ({
         role: msg.role,
@@ -8304,7 +8295,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // Extract memories asynchronously (don't block response)
       memoryExtraction.extractMemoriesFromRecentMessages(userId, messages, conversationId, 10)
         .catch(error => {
-          console.error('❌ [MEMORY EXTRACTION] Error:', error);
+          console.error('âŒ [MEMORY EXTRACTION] Error:', error);
         });
     }
 
@@ -8312,38 +8303,38 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const validation = validateAnswer(fullResponse, query, sources);
 
     if (!validation.isValid) {
-      console.log(`⚠️  [AGENT LOOP] Answer validation failed - issues detected`);
+      console.log(`âš ï¸  [AGENT LOOP] Answer validation failed - issues detected`);
       validation.issues?.forEach(issue => console.log(`   - ${issue}`));
 
       // Log for monitoring (could trigger alert in production)
-      console.log(`⚠️  [MONITORING] Low quality answer generated for query: "${query}"`);
+      console.log(`âš ï¸  [MONITORING] Low quality answer generated for query: "${query}"`);
     }
     perfTimer.measure('Answer Validation', 'answerValidation');
 
-    console.log(`✅ [FAST PATH] Complete - returning ${sources.length} sources`);
-    console.log(`🔍 [DEBUG - RETURN] About to return sources:`, JSON.stringify(sources.slice(0, 2), null, 2));
+    console.log(`âœ… [FAST PATH] Complete - returning ${sources.length} sources`);
+    console.log(`ðŸ” [DEBUG - RETURN] About to return sources:`, JSON.stringify(sources.slice(0, 2), null, 2));
 
     // Return with confidence scores
     const result: any = {
       sources,
-      confidence  // ✅ NEW: Include confidence from confidenceScoring service
+      confidence  // âœ… NEW: Include confidence from confidenceScoring service
     };
     if (answerConfidence !== undefined) {
-      result.complexReasoningConfidence = answerConfidence.score;  // ✅ Renamed to avoid conflict
+      result.complexReasoningConfidence = answerConfidence.score;  // âœ… Renamed to avoid conflict
       result.supporting_evidence = supportingEvidence;
       result.conflicting_evidence = conflictingEvidence;
-      console.log(`📊 [COMPLEX REASONING] Returning confidence: ${answerConfidence.level} (${answerConfidence.score}/100)`);
+      console.log(`ðŸ“Š [COMPLEX REASONING] Returning confidence: ${answerConfidence.level} (${answerConfidence.score}/100)`);
     }
-    console.log(`⏱️ [PERF] Total time: ${Date.now() - startTime}ms`);
+    console.log(`â±ï¸ [PERF] Total time: ${Date.now() - startTime}ms`);
 
-    // ⏱️ PERFORMANCE: Print timing summary
+    // â±ï¸ PERFORMANCE: Print timing summary
     if (requestTimer) {
       requestTimer.end('TOTAL REQUEST');
       requestTimer.printSummary();
       requestTimer = null;
     }
 
-    // ⏱️ COMPLETE TIMING: Print detailed breakdown
+    // â±ï¸ COMPLETE TIMING: Print detailed breakdown
     perfTimer.printSummary();
 
     return result;
@@ -8358,7 +8349,7 @@ async function streamLLMResponse(
   context: string,
   onChunk: (chunk: string) => void
 ): Promise<string> {
-  console.log('🌊 [STREAMING] Starting Gemini streaming with table fix');
+  console.log('ðŸŒŠ [STREAMING] Starting Gemini streaming with table fix');
 
   const MAX_RETRIES = 3;
   let fullAnswer = '';
@@ -8368,9 +8359,9 @@ async function streamLLMResponse(
       // Reset for retry
       fullAnswer = '';
 
-      console.log(`🔄 [STREAMING] Attempt ${attempt}/${MAX_RETRIES}`);
+      console.log(`ðŸ”„ [STREAMING] Attempt ${attempt}/${MAX_RETRIES}`);
 
-      // 🔧 FIX: Accumulate full response, then fix table cells
+      // ðŸ”§ FIX: Accumulate full response, then fix table cells
       fullAnswer = await geminiCache.generateStreamingWithCache({
         systemPrompt,
         documentContext: '', // Already included in systemPrompt - don't duplicate!
@@ -8380,46 +8371,46 @@ async function streamLLMResponse(
         onChunk: () => {} // Don't stream - accumulate instead
       });
 
-      console.log(`✅ [STREAMING] Complete. Total chars: ${fullAnswer.length}`);
+      console.log(`âœ… [STREAMING] Complete. Total chars: ${fullAnswer.length}`);
 
-      // ✅ ENHANCED: Validate response using EmptyResponsePrevention service
+      // âœ… ENHANCED: Validate response using EmptyResponsePrevention service
       const validation = emptyResponsePrevention.validateResponse(fullAnswer, context, { answerLength: 'medium' });
 
       if (!validation.isValid) {
-        console.warn(`⚠️ [STREAMING] Response validation failed: ${validation.reason}`);
+        console.warn(`âš ï¸ [STREAMING] Response validation failed: ${validation.reason}`);
 
         if (attempt < MAX_RETRIES) {
           // Wait before retry with exponential backoff
           const delayMs = 1000 * Math.pow(2, attempt - 1); // 1s, 2s, 4s
-          console.log(`⏳ [STREAMING] Retrying in ${delayMs}ms... (${validation.suggestions?.join(', ')})`);
+          console.log(`â³ [STREAMING] Retrying in ${delayMs}ms... (${validation.suggestions?.join(', ')})`);
           await new Promise(resolve => setTimeout(resolve, delayMs));
           continue; // Retry
         }
 
         // All retries failed - send context-aware fallback
-        console.error('❌ [STREAMING] All retry attempts failed validation');
+        console.error('âŒ [STREAMING] All retry attempts failed validation');
         const fallbackMessage = emptyResponsePrevention.getFallbackResponse(context, 'en');
         onChunk(fallbackMessage);
         return fallbackMessage;
       }
 
-      // 🔧 FIX: Apply table cell fix before returning response
+      // ðŸ”§ FIX: Apply table cell fix before returning response
       const fixedAnswer = fixMarkdownTableCells(fullAnswer);
-      console.log('🔧 [TABLE FIX] Applied in streamLLMResponse');
+      console.log('ðŸ”§ [TABLE FIX] Applied in streamLLMResponse');
 
-      // ✅ CRITICAL FIX: Send the response via onChunk before returning
+      // âœ… CRITICAL FIX: Send the response via onChunk before returning
       // This ensures the caller's callback receives the generated response
       // The "format enforcement first" approach was CAUSING empty responses
       // because callers like handleMetaQuery ignore the return value
       if (fixedAnswer && fixedAnswer.trim().length > 0) {
         onChunk(fixedAnswer);
-        console.log(`✅ [STREAMING] Sent response via onChunk: ${fixedAnswer.length} chars`);
+        console.log(`âœ… [STREAMING] Sent response via onChunk: ${fixedAnswer.length} chars`);
       }
 
       return fixedAnswer;
 
     } catch (error: any) {
-      console.error(`❌ [STREAMING] Error on attempt ${attempt}:`, {
+      console.error(`âŒ [STREAMING] Error on attempt ${attempt}:`, {
         message: error.message,
         stack: error.stack?.substring(0, 500),
         name: error.name
@@ -8433,7 +8424,7 @@ async function streamLLMResponse(
 
       if (isRetryable && attempt < MAX_RETRIES) {
         const delayMs = 1000 * Math.pow(2, attempt - 1);
-        console.log(`⏳ [STREAMING] Retryable error, waiting ${delayMs}ms...`);
+        console.log(`â³ [STREAMING] Retryable error, waiting ${delayMs}ms...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
         continue; // Retry
       }
@@ -8442,7 +8433,7 @@ async function streamLLMResponse(
       if (fullAnswer.length === 0) {
         onChunk('I apologize, but I encountered an error generating the response. Please try again.');
       } else {
-        console.warn('⚠️ [STREAMING] Error occurred AFTER successful response. Not sending error message to user.');
+        console.warn('âš ï¸ [STREAMING] Error occurred AFTER successful response. Not sending error message to user.');
       }
 
       return fullAnswer;
@@ -8454,7 +8445,7 @@ async function streamLLMResponse(
 }
 
 /**
- * Smart streaming - 🔧 FIX: Accumulate full response, fix table cells, then send
+ * Smart streaming - ðŸ”§ FIX: Accumulate full response, fix table cells, then send
  * This prevents newlines inside table cells from breaking markdown rendering
  */
 async function smartStreamLLMResponse(
@@ -8462,7 +8453,7 @@ async function smartStreamLLMResponse(
   context: string,
   onChunk: (chunk: string) => void
 ): Promise<string> {
-  console.log('🌊 [SMART STREAM] Starting with table fix');
+  console.log('ðŸŒŠ [SMART STREAM] Starting with table fix');
 
   let fullAnswer = '';
 
@@ -8477,22 +8468,22 @@ async function smartStreamLLMResponse(
       onChunk: () => {} // Don't stream - accumulate instead
     });
 
-    // 🔧 FIX: Apply table cell fix to remove newlines from table cells
+    // ðŸ”§ FIX: Apply table cell fix to remove newlines from table cells
     const fixedAnswer = fixMarkdownTableCells(fullAnswer);
-    console.log('🔧 [TABLE FIX] Applied in smartStreamLLMResponse');
+    console.log('ðŸ”§ [TABLE FIX] Applied in smartStreamLLMResponse');
 
-    // ✅ CRITICAL FIX: Send the response via onChunk before returning
+    // âœ… CRITICAL FIX: Send the response via onChunk before returning
     // This ensures the caller's callback receives the generated response
     if (fixedAnswer && fixedAnswer.trim().length > 0) {
       onChunk(fixedAnswer);
-      console.log(`✅ [SMART STREAM] Sent response via onChunk: ${fixedAnswer.length} chars`);
+      console.log(`âœ… [SMART STREAM] Sent response via onChunk: ${fixedAnswer.length} chars`);
     }
 
-    console.log('✅ [SMART STREAM] Complete. Total chars:', fixedAnswer.length);
+    console.log('âœ… [SMART STREAM] Complete. Total chars:', fixedAnswer.length);
     return fixedAnswer;
 
   } catch (error: any) {
-    console.error('❌ [SMART STREAM] Error:', error.message);
+    console.error('âŒ [SMART STREAM] Error:', error.message);
     if (fullAnswer.length === 0) {
       onChunk('I apologize, but I encountered an error generating the response. Please try again.');
     }
@@ -8531,7 +8522,7 @@ async function postProcessAnswer(answer: string): Promise<string> {
   processed = processed.replace(/```markdown\n([\s\S]*?)\n```/g, '$1');
   processed = processed.replace(/```\n([\s\S]*?)\n```/g, '$1');
 
-  // ✅ Fix: Remove inline code backticks (single backticks like `B15:B23`)
+  // âœ… Fix: Remove inline code backticks (single backticks like `B15:B23`)
   // This prevents blue code blocks from appearing in the UI
   processed = processed.replace(/`([^`]+)`/g, '$1');
 
@@ -8564,7 +8555,7 @@ async function postProcessAnswer(answer: string): Promise<string> {
   processed = processed.replace(/(?:According to|Based on)\s+[^,]+\.(pdf|docx|xlsx|pptx|txt),?\s*/gi, '');
 
   // Pattern 6: Superscript numbers (if Gemini adds them)
-  // Matches: ¹, ², ³, etc.
+  // Matches: Â¹, Â², Â³, etc.
   processed = processed.replace(/\s*[\u2070-\u209F]+/g, '');
 
   // Pattern 7: "See page X" or "Refer to page X"
@@ -8606,7 +8597,7 @@ async function postProcessAnswer(answer: string): Promise<string> {
 
   // Remove emojis
   processed = processed.replace(/[\u{1F300}-\u{1F9FF}]/gu, '');
-  processed = processed.replace(/[❌✅🔍📁📊📄🎯⚠️💡🚨]/g, '');
+  processed = processed.replace(/[âŒâœ…ðŸ”ðŸ“ðŸ“ŠðŸ“„ðŸŽ¯âš ï¸ðŸ’¡ðŸš¨]/g, '');
 
   // Fix multiple asterisks
   processed = processed.replace(/\*\*\*\*+/g, '**');
@@ -8615,8 +8606,8 @@ async function postProcessAnswer(answer: string): Promise<string> {
   processed = processed.replace(/\n{4,}/g, '\n\n');
 
   // Flatten nested bullets (no extra blank lines)
-  processed = processed.replace(/\n\s+[○◦]\s+/g, '\n• ');
-  processed = processed.replace(/\n\s{2,}[•\-\*]\s+/g, '\n• ');
+  processed = processed.replace(/\n\s+[â—‹â—¦]\s+/g, '\nâ€¢ ');
+  processed = processed.replace(/\n\s{2,}[â€¢\-\*]\s+/g, '\nâ€¢ ');
 
   // ============================================================================
   // CLEANUP ARTIFACTS
@@ -8648,10 +8639,10 @@ async function postProcessAnswer(answer: string): Promise<string> {
   processed = processed.replace(/(^#{1,6}\s+.+)(\n)(?!\n)/gm, '$1\n\n');
 
   // Ensure single newline between bullet points
-  processed = processed.replace(/(^[•\-\*]\s+.+)(\n)(?=[•\-\*])/gm, '$1\n');
+  processed = processed.replace(/(^[â€¢\-\*]\s+.+)(\n)(?=[â€¢\-\*])/gm, '$1\n');
 
   // Remove excessive spacing before bullet points
-  processed = processed.replace(/\n{2,}(?=[•\-\*])/g, '\n\n');
+  processed = processed.replace(/\n{2,}(?=[â€¢\-\*])/g, '\n\n');
 
   // ============================================================================
   // TABLE DETECTION & CONVERSION - Fallback for incomplete tables
@@ -8678,7 +8669,7 @@ async function postProcessAnswer(answer: string): Promise<string> {
 
     // If table is incomplete or malformed, convert to bullets
     if (hasTableHeader && (!hasSeparator || hasLongLine)) {
-      console.warn('⚠️ [POST-PROCESS] Incomplete/malformed table detected, converting to bullet format');
+      console.warn('âš ï¸ [POST-PROCESS] Incomplete/malformed table detected, converting to bullet format');
       processed = convertTableToBullets(processed);
     }
   }
@@ -8687,22 +8678,22 @@ async function postProcessAnswer(answer: string): Promise<string> {
   // FORMAT VALIDATION - Quality Gate (Final Pass)
   // ============================================================================
   try {
-    console.log('🔍 [POST-PROCESS] Running format validation...');
+    console.log('ðŸ” [POST-PROCESS] Running format validation...');
     const validationResult = await formatValidationService.validateAndCorrect(processed);
 
     if (!validationResult.isValid) {
-      console.log(`⚠️ [POST-PROCESS] Format issues detected: ${validationResult.violations.length} violations`);
+      console.log(`âš ï¸ [POST-PROCESS] Format issues detected: ${validationResult.violations.length} violations`);
       validationResult.violations.forEach(v => {
         console.log(`   - [${v.severity}] ${v.rule}: ${v.message} (Auto-corrected: ${v.autoCorrected})`);
       });
     } else {
-      console.log('✅ [POST-PROCESS] Format validation passed');
+      console.log('âœ… [POST-PROCESS] Format validation passed');
     }
 
     // Use corrected text
     processed = validationResult.correctedText;
   } catch (error) {
-    console.error('❌ [POST-PROCESS] Format validation error:', error);
+    console.error('âŒ [POST-PROCESS] Format validation error:', error);
     // Continue with original processed text on error
   }
 
@@ -8711,7 +8702,7 @@ async function postProcessAnswer(answer: string): Promise<string> {
   // ============================================================================
 
   // Only add spacing after bullet point sections (not after every sentence)
-  processed = processed.replace(/(\n[•\-\*].+)(\n)([A-Z][^•\-\*\n])/g, '$1\n\n$3');
+  processed = processed.replace(/(\n[â€¢\-\*].+)(\n)([A-Z][^â€¢\-\*\n])/g, '$1\n\n$3');
 
   // Normalize multiple consecutive newlines to max 2
   processed = processed.replace(/\n{3,}/g, '\n\n');
@@ -8773,8 +8764,8 @@ function convertTableLinesToBullets(tableLines: string[]): string {
 
   // For malformed tables, just show that we detected a table issue
   if (tableLines.length === 1 || tableLines[0].length > 500) {
-    result.push('• (Table formatting issue detected - showing summary instead)');
-    result.push('• Please refer to the document sources for detailed comparison');
+    result.push('â€¢ (Table formatting issue detected - showing summary instead)');
+    result.push('â€¢ Please refer to the document sources for detailed comparison');
     return result.join('\n');
   }
 
@@ -8784,7 +8775,7 @@ function convertTableLinesToBullets(tableLines: string[]): string {
     if (line.includes('|') && !line.includes('---')) {
       const cells = line.split('|').map(c => c.trim()).filter(c => c);
       if (cells.length > 0) {
-        result.push(`• ${cells.join(' - ')}`);
+        result.push(`â€¢ ${cells.join(' - ')}`);
       }
     }
   }
@@ -8811,7 +8802,7 @@ export async function generateAnswer(
   // ============================================================================
   // DEBUG LOGGING - Identify where chunks are lost
   // ============================================================================
-  console.log('🔍 [generateAnswer] Starting...');
+  console.log('ðŸ” [generateAnswer] Starting...');
   console.log(`   Query: "${query.substring(0, 50)}..."`);
   console.log(`   ConversationId: ${conversationId}`);
   console.log(`   AnswerLength: ${answerLength}`);
@@ -8834,7 +8825,7 @@ export async function generateAnswer(
 
     // Log first 3 chunks and every 10th chunk
     if (chunkCount <= 3 || chunkCount % 10 === 0) {
-      console.log(`🔍 [generateAnswer] Chunk #${chunkCount}: ${chunkLen} chars`);
+      console.log(`ðŸ” [generateAnswer] Chunk #${chunkCount}: ${chunkLen} chars`);
       if (chunk) {
         console.log(`   Chunk preview: "${chunk.substring(0, 50)}..."`);
       }
@@ -8854,7 +8845,7 @@ export async function generateAnswer(
   // ============================================================================
   // CALL generateAnswerStream with tracking callback
   // ============================================================================
-  console.log('🔍 [generateAnswer] Calling generateAnswerStream...');
+  console.log('ðŸ” [generateAnswer] Calling generateAnswerStream...');
 
   const result = await generateAnswerStream(
     userId,
@@ -8884,7 +8875,7 @@ export async function generateAnswer(
   // ============================================================================
   // COMPLETION LOGGING - Verify results
   // ============================================================================
-  console.log('🔍 [generateAnswer] Completed!');
+  console.log('ðŸ” [generateAnswer] Completed!');
   console.log(`   Total chunks received: ${chunkCount}`);
   console.log(`   Non-empty chunks: ${chunks.length}`);
   console.log(`   Total chunk length: ${totalChunkLength} chars`);
@@ -8896,7 +8887,7 @@ export async function generateAnswer(
   // CRITICAL VALIDATION - Detect empty responses
   // ============================================================================
   if (chunkCount === 0) {
-    console.error('❌ [generateAnswer] CRITICAL: No chunks received from generateAnswerStream!');
+    console.error('âŒ [generateAnswer] CRITICAL: No chunks received from generateAnswerStream!');
     console.error('   This indicates the onChunk callback was never called.');
     console.error('   Possible causes:');
     console.error('   1. generateAnswerStream returned early without streaming');
@@ -8905,12 +8896,12 @@ export async function generateAnswer(
   }
 
   if (chunkCount > 0 && chunks.length === 0) {
-    console.error('❌ [generateAnswer] CRITICAL: Chunks received but all were empty!');
+    console.error('âŒ [generateAnswer] CRITICAL: Chunks received but all were empty!');
     console.error('   This indicates chunks contain only whitespace.');
   }
 
   if (chunks.length > 0 && fullAnswer.length === 0) {
-    console.error('❌ [generateAnswer] CRITICAL: Chunks collected but fullAnswer is empty!');
+    console.error('âŒ [generateAnswer] CRITICAL: Chunks collected but fullAnswer is empty!');
     console.error('   This indicates chunk selection/sorting is broken.');
   }
 
@@ -8918,7 +8909,7 @@ export async function generateAnswer(
   // SAFETY CHECK - Provide fallback for empty responses (SAFETY NET)
   // ============================================================================
   if (!fullAnswer || fullAnswer.trim().length === 0) {
-    console.error('❌ [generateAnswer] CRITICAL: Empty response detected!');
+    console.error('âŒ [generateAnswer] CRITICAL: Empty response detected!');
     console.error('   Applying SAFETY NET fallback instead of throwing error.');
 
     // Provide detailed error for debugging
@@ -8938,77 +8929,121 @@ export async function generateAnswer(
     // Detect language from query for appropriate fallback
     const lang = detectLanguage(query);
     const fallbackMessages: Record<string, string> = {
-      pt: 'Desculpe, não consegui processar sua solicitação. Por favor, tente reformular sua pergunta.',
+      pt: 'Desculpe, nÃ£o consegui processar sua solicitaÃ§Ã£o. Por favor, tente reformular sua pergunta.',
       es: 'Lo siento, no pude procesar tu solicitud. Por favor, intenta reformular tu pregunta.',
       en: "I'm sorry, I couldn't process your request. Please try rephrasing your question."
     };
 
     // SAFETY NET: Return fallback instead of throwing error
     fullAnswer = fallbackMessages[lang] || fallbackMessages.en;
-    console.log(`✅ [generateAnswer] SAFETY NET applied: "${fullAnswer}"`);
+    console.log(`âœ… [generateAnswer] SAFETY NET applied: "${fullAnswer}"`);
   }
 
   // ============================================================================
   // MINIMUM LENGTH CHECK - Ensure meaningful responses
   // ============================================================================
   if (fullAnswer.trim().length < 10) {
-    console.warn('⚠️ [generateAnswer] WARNING: Very short response!');
+    console.warn('âš ï¸ [generateAnswer] WARNING: Very short response!');
     console.warn(`   Response: "${fullAnswer}"`);
     console.warn(`   This may indicate a low-quality response.`);
     // Don't throw error for short responses, but log for monitoring
     // Some valid responses can be short (e.g., "Yes", "No", "I don't know")
   }
 
+
+  // ============================================================================
+  // DOCUMENT ACCESS DENIAL FIX - Replace incorrect "no access" responses
+  // ============================================================================
+  const accessDenialPatterns = [
+    /as an ai,? i do not have access/i,
+    /i do not have access to your/i,
+    /i cannot access your (files|documents|personal)/i,
+    /i can't access your (files|documents|personal)/i,
+    /i don't have access to your/i,
+    /cannot view your private files/i,
+    /i am an ai assistant and cannot view/i,
+    /i cannot see your uploaded documents/i,
+    /please share the document content/i
+  ];
+
+  const hasAccessDenial = accessDenialPatterns.some(pattern => pattern.test(fullAnswer));
+
+  if (hasAccessDenial) {
+    console.warn('[generateAnswer] DETECTED ACCESS DENIAL RESPONSE - Replacing...');
+    console.warn('   Original: "' + fullAnswer.substring(0, 100) + '..."');
+
+    // Detect language and provide helpful response
+    const lang = detectLanguage(query);
+    const helpfulResponses: Record<string, string> = {
+      pt: 'Para ajudá-lo melhor, por favor especifique qual documento ou informação você gostaria de explorar. Você pode perguntar sobre documentos específicos, comparar arquivos, ou pedir um resumo de determinado tópico.',
+      es: 'Para ayudarte mejor, por favor especifica qué documento o información te gustaría explorar. Puedes preguntar sobre documentos específicos, comparar archivos o solicitar un resumen de un tema determinado.',
+      en: 'To help you better, please specify which document or information you would like to explore. You can ask about specific documents, compare files, or request a summary of a particular topic.'
+    };
+
+    fullAnswer = helpfulResponses[lang] || helpfulResponses.en;
+    console.log('[generateAnswer] Replaced with helpful response');
+  }
+
   // ============================================================================
   // SUCCESS METRICS - Log for monitoring
   // ============================================================================
-  console.log('✅ [generateAnswer] Success!');
+  console.log('âœ… [generateAnswer] Success!');
   console.log(`   Response preview: "${fullAnswer.substring(0, 100)}..."`);
   console.log(`   Chunks/second: ${(chunkCount / (duration / 1000)).toFixed(2)}`);
   console.log(`   Chars/second: ${(fullAnswer.length / (duration / 1000)).toFixed(2)}`);
 
   // ============================================================================
-  // ✅ FORMAT ENFORCEMENT (CRITICAL - 0% → 90% format score)
+  // âœ… FORMAT ENFORCEMENT (CRITICAL - 0% â†’ 90% format score)
   // ============================================================================
   let formatted = fullAnswer;
   let formatScore = 100;
   let formatErrors: string[] = [];
 
-  try {
-    console.log('[FORMAT] Applying format enforcement...');
-    console.log('[FORMAT] Pre-enforcement length:', fullAnswer.length);
+  // ✅ FIX V4: Skip format enforcement for greetings and file listings
+  const isGreeting = fullAnswer.length < 100 && /^(hello|hi|hey|olá|hola|bonjour|oi|bom dia|boa tarde|boa noite)!?\s*(how can i|como posso)?/i.test(fullAnswer.trim());
+  const isFileListing = fullAnswer.trim().startsWith('📁');
+  const shouldSkipFormatting = isGreeting || isFileListing;
 
-    // Apply format enforcement
-    const formatResult = kodaFormatEnforcementService.enforceFormat(fullAnswer);
-    formatted = formatResult.fixedText || fullAnswer;
+  if (shouldSkipFormatting) {
+    console.log('[FORMAT] Skipping format enforcement for:', isGreeting ? 'greeting' : 'file listing');
+    // Keep formatted as fullAnswer, skip format enforcement entirely
+  } else {
+    try {
+      console.log('[FORMAT] Applying format enforcement...');
+      console.log('[FORMAT] Pre-enforcement length:', fullAnswer.length);
 
-    console.log('[FORMAT] Post-enforcement length:', formatted.length);
+      // Apply format enforcement
+      const formatResult = kodaFormatEnforcementService.enforceFormat(fullAnswer);
+      formatted = formatResult.fixedText || fullAnswer;
 
-    // Validate the formatted response
-    const validation = await formatValidationService.validateAndCorrect(formatted);
-    formatScore = validation.stats?.boldPercentage ? Math.min(100, validation.stats.boldPercentage * 10) : 100;
-    formatErrors = validation.violations?.filter(v => v.severity === 'error').map(v => v.message) || [];
+      console.log('[FORMAT] Post-enforcement length:', formatted.length);
 
-    // Use the corrected text if available
-    if (validation.correctedText) {
-      formatted = validation.correctedText;
+      // Validate the formatted response
+      const validation = await formatValidationService.validateAndCorrect(formatted);
+      formatScore = validation.stats?.boldPercentage ? Math.min(100, validation.stats.boldPercentage * 10) : 100;
+      formatErrors = validation.violations?.filter(v => v.severity === 'error').map(v => v.message) || [];
+
+      // Use the corrected text if available
+      if (validation.correctedText) {
+        formatted = validation.correctedText;
+      }
+
+      console.log('[FORMAT] Format enforcement complete');
+      console.log('[FORMAT] Violations:', validation.violations?.length || 0);
+
+      if (formatErrors.length > 0) {
+        console.warn('[FORMAT] Format issues:', formatErrors);
+      }
+
+    } catch (error) {
+      console.error('[FORMAT] Format enforcement failed:', error);
+      formatted = fullAnswer;
+      formatScore = 0;
     }
-
-    console.log('[FORMAT] Format enforcement complete');
-    console.log('[FORMAT] Violations:', validation.violations?.length || 0);
-
-    if (formatErrors.length > 0) {
-      console.warn('[FORMAT] Format issues:', formatErrors);
-    }
-
-  } catch (error) {
-    console.error('[FORMAT] Format enforcement failed:', error);
-    formatted = fullAnswer;
-    formatScore = 0;
-  }
+  } // ✅ Close the else block
 
   // ============================================================================
-  // ✅ VALIDATE RESPONSE
+  // âœ… VALIDATE RESPONSE
   // ============================================================================
   const validationErrors: string[] = [];
 
@@ -9060,7 +9095,7 @@ export async function generateAnswerStreaming(
     onChunk(chunk); // Still call the original callback for streaming
   };
 
-  // ✅ FIXED: Capture sources from generateAnswerStream
+  // âœ… FIXED: Capture sources from generateAnswerStream
   const result = await generateAnswerStream(
     userId,
     query,
@@ -9069,14 +9104,14 @@ export async function generateAnswerStreaming(
     documentId || undefined
   );
 
-  // ✅ FORMAT FIX: Apply formatting fixes to the response
+  // âœ… FORMAT FIX: Apply formatting fixes to the response
   const { formatValidationService } = await import('./formatValidation.service');
   const fixedAnswer = formatValidationService.fixFormatting(fullAnswer);
 
   // Return result object for backwards compatibility
   return {
     answer: fixedAnswer,
-    sources: result.sources,  // ✅ FIXED: Return actual sources
+    sources: result.sources,  // âœ… FIXED: Return actual sources
   };
 }
 
@@ -9106,7 +9141,7 @@ async function handleFileLocationQuery(
   userId: string,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
-  console.log('📍 [FILE LOCATION] Searching database for file...');
+  console.log('ðŸ“ [FILE LOCATION] Searching database for file...');
 
   // Extract filename from query
   const filenameMatch = query.match(/([a-zA-Z0-9_\-\.]+\.(pdf|docx?|xlsx?|pptx?|txt|csv|png|jpe?g|gif))/i);
@@ -9236,7 +9271,7 @@ async function handleFolderContentQuery(
   userId: string,
   onChunk: (chunk: string) => void
 ): Promise<{ sources: any[] }> {
-  console.log('📁 [FOLDER CONTENT] Searching for folder...');
+  console.log('ðŸ“ [FOLDER CONTENT] Searching for folder...');
 
   // Extract folder name - try multiple patterns to support both word orders
   const folderMatch =
@@ -9301,7 +9336,7 @@ async function handleFolderContentQuery(
   } else {
     response += `**Files** (${folder.documents.length}):\n`;
     folder.documents.slice(0, 20).forEach(doc => {
-      response += `• ${doc.filename}\n`;
+      response += `â€¢ ${doc.filename}\n`;
     });
 
     if (folder.documents.length > 20) {
@@ -9313,7 +9348,7 @@ async function handleFolderContentQuery(
   if (folder.subfolders.length > 0) {
     response += `\n\n**Subfolders** (${folder.subfolders.length}):\n`;
     folder.subfolders.forEach(sf => {
-      const sfEmoji = sf.emoji || '📁';
+      const sfEmoji = sf.emoji || 'ðŸ“';
       const docCount = sf._count?.documents || 0;
       response += `${sfEmoji} ${sf.name} (${docCount} ${docCount === 1 ? 'file' : 'files'})\n`;
     });
@@ -9361,18 +9396,18 @@ function detectFolderListingQuery(query: string): boolean {
     /folders?\s+(i\s+have|i\s+created|i\s+made)/i,
 
     // Portuguese patterns
-    /(quais|que|mostrar|listar)\s+(pastas|diret[óo]rios)/i,
-    /(minhas?\s+)?(pastas|diret[óo]rios)\??$/i,
+    /(quais|que|mostrar|listar)\s+(pastas|diret[Ã³o]rios)/i,
+    /(minhas?\s+)?(pastas|diret[Ã³o]rios)\??$/i,
 
     // Spanish patterns
-    /(cuáles|qué|mostrar|listar)\s+(carpetas|directorios)/i,
+    /(cuÃ¡les|quÃ©|mostrar|listar)\s+(carpetas|directorios)/i,
     /(mis?\s+)?(carpetas|directorios)\??$/i,
   ];
 
   const isMatch = patterns.some(pattern => pattern.test(lower));
 
   if (isMatch) {
-    console.log('📂 [FOLDER LISTING DETECT] Query matched folder listing pattern:', query);
+    console.log('ðŸ“‚ [FOLDER LISTING DETECT] Query matched folder listing pattern:', query);
   }
 
   return isMatch;
@@ -9550,7 +9585,7 @@ function detectAdvancedQueryType(query: string): AdvancedQueryType {
     /what do (my|all) documents have in common/i,
     /main themes? (across|in) (all|my) documents?/i,
     /generate (a|an) (report|summary|outline)/i,
-    /(faça|crie|escreva) um (resumo|relatório)/i, // Portuguese
+    /(faÃ§a|crie|escreva) um (resumo|relatÃ³rio)/i, // Portuguese
     /(haz|crea|escribe) un (resumen|informe)/i, // Spanish
   ];
 
@@ -9603,7 +9638,7 @@ async function handleEntityExtractionQuery(
   onStage?: (stage: string, message: string) => void,
   language?: string
 ): Promise<{ sources: any[] }> {
-  console.log('👥 [ENTITY EXTRACTION] Starting entity extraction');
+  console.log('ðŸ‘¥ [ENTITY EXTRACTION] Starting entity extraction');
 
   if (onStage) {
     onStage('analyzing', 'Extracting entities from your documents...');
@@ -9627,7 +9662,7 @@ async function handleEntityExtractionQuery(
     take: 100 // Limit to prevent timeout
   });
 
-  console.log(`📚 [ENTITY EXTRACTION] Processing ${documents.length} documents`);
+  console.log(`ðŸ“š [ENTITY EXTRACTION] Processing ${documents.length} documents`);
 
   // Extract entities from all documents
   const entities = {
@@ -9662,7 +9697,7 @@ async function handleEntityExtractionQuery(
       }
     });
 
-    // Extract from filename (e.g., "worldbank_" → "World Bank")
+    // Extract from filename (e.g., "worldbank_" â†’ "World Bank")
     if (doc.filename.toLowerCase().includes('worldbank') || doc.filename.toLowerCase().includes('world bank')) {
       entities.organizations.add('World Bank');
       if (!entities.sources.has('World Bank')) {
@@ -9680,40 +9715,40 @@ async function handleEntityExtractionQuery(
     }
   }
 
-  console.log(`✅ [ENTITY EXTRACTION] Found ${entities.organizations.size} organizations`);
+  console.log(`âœ… [ENTITY EXTRACTION] Found ${entities.organizations.size} organizations`);
 
   // Generate response
   let response = '';
 
   if (entities.organizations.size === 0) {
     response = lang === 'pt'
-      ? 'Não encontrei menções explícitas a empresas ou organizações nos seus documentos.'
+      ? 'NÃ£o encontrei menÃ§Ãµes explÃ­citas a empresas ou organizaÃ§Ãµes nos seus documentos.'
       : lang === 'es'
-      ? 'No encontré menciones explícitas a empresas u organizaciones en tus documentos.'
+      ? 'No encontrÃ© menciones explÃ­citas a empresas u organizaciones en tus documentos.'
       : 'I didn\'t find explicit mentions of companies or organizations in your documents.';
   } else {
     const orgList = Array.from(entities.organizations).sort();
 
     if (lang === 'pt') {
-      response = `Encontrei ${orgList.length} ${orgList.length === 1 ? 'organização' : 'organizações'} mencionadas nos seus documentos:\n\n`;
+      response = `Encontrei ${orgList.length} ${orgList.length === 1 ? 'organizaÃ§Ã£o' : 'organizaÃ§Ãµes'} mencionadas nos seus documentos:\n\n`;
       orgList.forEach(org => {
         const docs = entities.sources.get(org) || [];
         const uniqueDocs = [...new Set(docs)];
-        response += `• **${org}** (mencionada em ${uniqueDocs.length} ${uniqueDocs.length === 1 ? 'documento' : 'documentos'})\n`;
+        response += `â€¢ **${org}** (mencionada em ${uniqueDocs.length} ${uniqueDocs.length === 1 ? 'documento' : 'documentos'})\n`;
       });
     } else if (lang === 'es') {
-      response = `Encontré ${orgList.length} ${orgList.length === 1 ? 'organización' : 'organizaciones'} mencionadas en tus documentos:\n\n`;
+      response = `EncontrÃ© ${orgList.length} ${orgList.length === 1 ? 'organizaciÃ³n' : 'organizaciones'} mencionadas en tus documentos:\n\n`;
       orgList.forEach(org => {
         const docs = entities.sources.get(org) || [];
         const uniqueDocs = [...new Set(docs)];
-        response += `• **${org}** (mencionada en ${uniqueDocs.length} ${uniqueDocs.length === 1 ? 'documento' : 'documentos'})\n`;
+        response += `â€¢ **${org}** (mencionada en ${uniqueDocs.length} ${uniqueDocs.length === 1 ? 'documento' : 'documentos'})\n`;
       });
     } else {
       response = `I found ${orgList.length} ${orgList.length === 1 ? 'organization' : 'organizations'} mentioned in your documents:\n\n`;
       orgList.forEach(org => {
         const docs = entities.sources.get(org) || [];
         const uniqueDocs = [...new Set(docs)];
-        response += `• **${org}** (mentioned in ${uniqueDocs.length} ${uniqueDocs.length === 1 ? 'document' : 'documents'})\n`;
+        response += `â€¢ **${org}** (mentioned in ${uniqueDocs.length} ${uniqueDocs.length === 1 ? 'document' : 'documents'})\n`;
       });
     }
   }
@@ -9738,7 +9773,7 @@ async function handleAdvancedSynthesisQuery(
   onStage?: (stage: string, message: string) => void,
   language?: string
 ): Promise<{ sources: any[] }> {
-  console.log('🔄 [SYNTHESIS] Starting document synthesis');
+  console.log('ðŸ”„ [SYNTHESIS] Starting document synthesis');
 
   if (onStage) {
     onStage('analyzing', 'Analyzing all your documents...');
@@ -9764,7 +9799,7 @@ async function handleAdvancedSynthesisQuery(
     take: 50 // Limit to prevent timeout
   });
 
-  console.log(`📚 [SYNTHESIS] Processing ${documents.length} documents`);
+  console.log(`ðŸ“š [SYNTHESIS] Processing ${documents.length} documents`);
 
   if (documents.length === 0) {
     const noDocsResponse = await outputIntegration.generateNoDocumentsError(lang);
@@ -9787,8 +9822,8 @@ async function handleAdvancedSynthesisQuery(
   const allContent = documentSummaries.join('\n---\n\n');
 
   if (documentSummaries.length === 0) {
-    const response = lang === 'pt' ? 'Não há conteúdo de texto disponível em seus documentos para síntese.' :
-                     lang === 'es' ? 'No hay contenido de texto disponible en sus documentos para síntesis.' :
+    const response = lang === 'pt' ? 'NÃ£o hÃ¡ conteÃºdo de texto disponÃ­vel em seus documentos para sÃ­ntese.' :
+                     lang === 'es' ? 'No hay contenido de texto disponible en sus documentos para sÃ­ntesis.' :
                      'There is no text content available in your documents for synthesis.';
     if (onChunk) onChunk(response);
     return { sources: [] };
@@ -9873,7 +9908,7 @@ ${allContent.substring(0, 15000)}
       onStage('generating', 'Creating synthesis...');
     }
 
-    // ✅ FIX: Use singleton client instead of new GoogleGenerativeAI()
+    // âœ… FIX: Use singleton client instead of new GoogleGenerativeAI()
     const { default: geminiClient } = await import('./geminiClient.service');
     const model = geminiClient.getModel({
       model: 'gemini-2.5-flash',
@@ -9899,7 +9934,7 @@ ${allContent.substring(0, 15000)}
 
     return { sources };
   } catch (error) {
-    console.error('❌ [SYNTHESIS] Error:', error);
+    console.error('âŒ [SYNTHESIS] Error:', error);
     const errorResponse = await outputIntegration.generateProcessingError(lang, 'synthesis');
     if (onChunk) onChunk(errorResponse);
     return { sources: [] };
@@ -9917,7 +9952,7 @@ async function handleDataExtractionQuery(
   onStage?: (stage: string, message: string) => void,
   language?: string
 ): Promise<{ sources: any[] }> {
-  console.log('📊 [DATA EXTRACTION] Starting data extraction from documents');
+  console.log('ðŸ“Š [DATA EXTRACTION] Starting data extraction from documents');
 
   if (onStage) {
     onStage('analyzing', 'Scanning documents for data...');
@@ -10021,19 +10056,19 @@ async function handleDataExtractionQuery(
   }
 
   if (extractedData.length === 0) {
-    const response = lang === 'pt' ? 'Não encontrei dados numéricos ou datas nos seus documentos.' :
-                     lang === 'es' ? 'No encontré datos numéricos o fechas en sus documentos.' :
-                     lang === 'fr' ? 'Je n\'ai pas trouvé de données numériques ou de dates dans vos documents.' :
+    const response = lang === 'pt' ? 'NÃ£o encontrei dados numÃ©ricos ou datas nos seus documentos.' :
+                     lang === 'es' ? 'No encontrÃ© datos numÃ©ricos o fechas en sus documentos.' :
+                     lang === 'fr' ? 'Je n\'ai pas trouvÃ© de donnÃ©es numÃ©riques ou de dates dans vos documents.' :
                      'I didn\'t find numerical data or dates in your documents.';
     if (onChunk) onChunk(response);
     return { sources: [] };
   }
 
   // Format response
-  const header = lang === 'pt' ? '📊 **Dados extraídos dos seus documentos:**\n\n' :
-                 lang === 'es' ? '📊 **Datos extraídos de sus documentos:**\n\n' :
-                 lang === 'fr' ? '📊 **Données extraites de vos documents:**\n\n' :
-                 '📊 **Data extracted from your documents:**\n\n';
+  const header = lang === 'pt' ? 'ðŸ“Š **Dados extraÃ­dos dos seus documentos:**\n\n' :
+                 lang === 'es' ? 'ðŸ“Š **Datos extraÃ­dos de sus documentos:**\n\n' :
+                 lang === 'fr' ? 'ðŸ“Š **DonnÃ©es extraites de vos documents:**\n\n' :
+                 'ðŸ“Š **Data extracted from your documents:**\n\n';
 
   let response = header;
 
@@ -10041,7 +10076,7 @@ async function handleDataExtractionQuery(
     response += `**${data.filename}**\n`;
 
     if (data.numbers.length > 0) {
-      const numLabel = lang === 'pt' ? 'Números' : lang === 'es' ? 'Números' : lang === 'fr' ? 'Nombres' : 'Numbers';
+      const numLabel = lang === 'pt' ? 'NÃºmeros' : lang === 'es' ? 'NÃºmeros' : lang === 'fr' ? 'Nombres' : 'Numbers';
       response += `- ${numLabel}: ${data.numbers.slice(0, 5).join(', ')}\n`;
     }
     if (data.percentages.length > 0) {
@@ -10076,7 +10111,7 @@ async function handleDocumentMetadataQuery(
   onStage?: (stage: string, message: string) => void,
   language?: string
 ): Promise<{ sources: any[] }> {
-  console.log('📁 [METADATA] Handling document metadata query');
+  console.log('ðŸ“ [METADATA] Handling document metadata query');
 
   const lang = language || detectLanguage(query);
   const lower = query.toLowerCase();
@@ -10144,8 +10179,8 @@ async function handleDocumentMetadataQuery(
 
   if (filterType === 'newest') {
     const header = lang === 'pt' ? 'Seus documentos mais recentes:' :
-                   lang === 'es' ? 'Sus documentos más recientes:' :
-                   lang === 'fr' ? 'Vos documents les plus récents:' :
+                   lang === 'es' ? 'Sus documentos mÃ¡s recientes:' :
+                   lang === 'fr' ? 'Vos documents les plus rÃ©cents:' :
                    'Your most recent documents:';
     response = `${header}\n\n`;
     documents.forEach((doc, i) => {
@@ -10153,7 +10188,7 @@ async function handleDocumentMetadataQuery(
     });
   } else if (filterType === 'oldest') {
     const header = lang === 'pt' ? 'Seus documentos mais antigos:' :
-                   lang === 'es' ? 'Sus documentos más antiguos:' :
+                   lang === 'es' ? 'Sus documentos mÃ¡s antiguos:' :
                    lang === 'fr' ? 'Vos documents les plus anciens:' :
                    'Your oldest documents:';
     response = `${header}\n\n`;
@@ -10161,8 +10196,8 @@ async function handleDocumentMetadataQuery(
       response += `${i + 1}. **${doc.filename}** - uploaded ${formatDate(doc.createdAt)}\n`;
     });
   } else if (filterType === 'titles') {
-    const header = lang === 'pt' ? 'Títulos dos seus documentos:' :
-                   lang === 'es' ? 'Títulos de sus documentos:' :
+    const header = lang === 'pt' ? 'TÃ­tulos dos seus documentos:' :
+                   lang === 'es' ? 'TÃ­tulos de sus documentos:' :
                    lang === 'fr' ? 'Titres de vos documents:' :
                    'Your document titles:';
     response = `${header}\n\n`;
@@ -10189,7 +10224,7 @@ async function handleDocumentMetadataQuery(
 async function getContext(contextId: string): Promise<any> {
   // Contexts are typically stored in-memory or in cache
   // For now, return null as contexts are ephemeral
-  console.log(`📋 [RAG] Getting context for: ${contextId}`);
+  console.log(`ðŸ“‹ [RAG] Getting context for: ${contextId}`);
   return null;
 }
 
@@ -10204,3 +10239,5 @@ export default {
 };
 
 
+
+// trigger reload Fri, Dec  5, 2025  5:59:47 PM

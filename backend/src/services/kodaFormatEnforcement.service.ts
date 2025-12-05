@@ -446,14 +446,35 @@ export class KodaFormatEnforcementService {
   /**
    * Ensure proper title (1 line, title case)
    */
+  /**
+   * Ensure proper title (1 line, title case)
+   * ✅ FIX V2: Better detection of existing titles, skip file listings
+   */
   private ensureTitle(text: string, userTone?: string): string {
     const lines = text.split('\n');
+    const firstLine = lines[0]?.trim() || '';
 
-    // Check if first non-empty line is a title (## or bold)
+    // ✅ FIX: Skip title enforcement for file listings (they already have proper format)
+    // File listings start with emoji + bold pattern like "📁 **Your Documents**"
+    if (firstLine.match(/^[📁📄📊🗂️]\s*\*\*.*\*\*/)) {
+      console.log('[KODA FORMAT] Skipping title enforcement for file listing');
+      return text;
+    }
+
+    // ✅ FIX: Skip if already has a proper ## header
+    if (firstLine.startsWith('##')) {
+      console.log('[KODA FORMAT] Title already exists, skipping');
+      return text;
+    }
+
+    // ✅ FIX: Better title detection - check multiple patterns
     let titleIndex = -1;
     for (let i = 0; i < Math.min(5, lines.length); i++) {
       const line = lines[i].trim();
-      if (line.startsWith('##') || line.match(/^\*\*[^*]+\*\*$/)) {
+      // Matches: ## Title, **Title**, 📁 **Title**, etc.
+      if (line.startsWith('##') ||
+          line.match(/^\*\*[^*]+\*\*$/) ||
+          line.match(/^[📁📄📊🗂️\*].*\*\*/)) {
         titleIndex = i;
         break;
       }
@@ -462,7 +483,7 @@ export class KodaFormatEnforcementService {
     if (titleIndex === -1) {
       // No title found, extract from first sentence
       const firstSentence = this.extractFirstSentence(text);
-      const title = this.toTitleCase(firstSentence.substring(0, 60));
+      const title = this.toTitleCase(firstSentence.substring(0, 120));
 
       // Add emoji only if casual tone
       const emoji = userTone === 'casual' ? this.selectEmoji(title) : '';
@@ -470,8 +491,16 @@ export class KodaFormatEnforcementService {
       return `## ${emoji}${title}\n\n${text}`;
     }
 
-    // Title exists, ensure it's properly formatted
-    let title = lines[titleIndex].trim();
+    // Title exists at titleIndex - don't modify it if it's a special format
+    const existingTitle = lines[titleIndex].trim();
+    if (existingTitle.match(/^[📁📄📊🗂️].*\*\*/)) {
+      // Special file listing format - don't modify
+      console.log('[KODA FORMAT] File listing header detected, preserving original format');
+      return text;
+    }
+
+    // For standard titles, ensure proper formatting
+    let title = existingTitle;
 
     // Remove ## if present
     title = title.replace(/^#+\s*/, '');
@@ -479,12 +508,14 @@ export class KodaFormatEnforcementService {
     // Remove bold markers if present
     title = title.replace(/^\*\*|\*\*$/g, '');
 
-    // Ensure title case
-    title = this.toTitleCase(title);
+    // ✅ FIX: Only apply title case if it's simple text (no emojis or special chars)
+    if (/^[a-zA-Z0-9\s.,!?'"-]+$/.test(title)) {
+      title = this.toTitleCase(title);
+    }
 
-    // Limit to 1 line (max ~80 chars)
-    if (title.length > 80) {
-      title = title.substring(0, 77) + '...';
+    // Limit to 1 line (max ~120 chars)
+    if (title.length > 120) {
+      title = title.substring(0, 117) + '...';
     }
 
     // Rebuild with proper title
@@ -637,21 +668,38 @@ export class KodaFormatEnforcementService {
    * Add closing statement if needed
    */
   private addClosingStatement(text: string, queryType: string): string {
-    // Don't add closing if it already has one
+    // Don't add closing if it already has a question
     if (text.match(/\n\n[^\n]*\?$/)) {
-      return text; // Already has a question
+      return text;
     }
 
-    // Add contextual closing based on query type
-    const closings: Record<string, string> = {
-      informational: '\n\nLet me know if you need more details on any specific aspect.',
-      instructional: '',
-      conversational: '',
-      file_action: ''
-    };
+    // ✅ FIX: Check if closing phrase already exists (prevents duplication)
+    const commonClosingPhrases = [
+      'let me know if you need',
+      'let me know if you have',
+      'feel free to ask',
+      "don't hesitate to ask",
+      'happy to help',
+      'hope this helps',
+      'if you need more',
+      'if you have any questions',
+      'let me know'
+    ];
 
-    const closing = closings[queryType] || '';
+    const lowerText = text.toLowerCase();
+    for (const phrase of commonClosingPhrases) {
+      if (lowerText.includes(phrase)) {
+        console.log('[KODA FORMAT] Closing phrase already exists, skipping');
+        return text; // Already has a closing phrase
+      }
+    }
 
+    // ✅ FIX: Only add closing for informational queries
+    if (queryType !== 'informational') {
+      return text;
+    }
+
+    const closing = '\n\nLet me know if you need more details on any specific aspect.';
     return text + closing;
   }
 
@@ -678,7 +726,7 @@ export class KodaFormatEnforcementService {
    */
   private extractFirstSentence(text: string): string {
     const match = text.match(/^[^.!?]+[.!?]/);
-    return match ? match[0].trim() : text.substring(0, 60);
+    return match ? match[0].trim() : text.substring(0, 120);
   }
 
   /**
@@ -687,14 +735,48 @@ export class KodaFormatEnforcementService {
   private toTitleCase(str: string): string {
     const smallWords = ['a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with'];
 
-    return str
-      .toLowerCase()
+    // ✅ FIX V2: List of common acronyms to preserve
+    const acronyms = ['III', 'II', 'IV', 'LLC', 'LP', 'CEO', 'CFO', 'CTO', 'USA', 'UK', 'EU', 'AI', 'ML', 'API', 'PDF', 'CSV'];
+
+    // ✅ FIX V2: Strip markdown/emoji formatting first, then apply title case
+    // Remove bold markers for processing
+    let cleanStr = str.replace(/\*\*/g, '');
+    // Remove leading emojis
+    cleanStr = cleanStr.replace(/^[📁📄📊🗂️🔍💡✅❌⚠️]\s*/, '');
+
+    return cleanStr
       .split(' ')
       .map((word, index) => {
-        if (index === 0 || !smallWords.includes(word)) {
-          return word.charAt(0).toUpperCase() + word.slice(1);
+        // Skip empty words
+        if (!word) return word;
+
+        // ✅ FIX: Preserve all-caps words (acronyms)
+        if (word === word.toUpperCase() && word.length > 1 && /^[A-Z]+$/.test(word)) {
+          return word;
         }
-        return word;
+
+        // ✅ FIX: Check if word is a known acronym
+        const upperWord = word.toUpperCase();
+        if (acronyms.includes(upperWord)) {
+          return upperWord;
+        }
+
+        // ✅ FIX: Preserve words already properly capitalized (first letter uppercase)
+        if (/^[A-Z][a-z]+$/.test(word)) {
+          return word; // Already proper case like 'Your', 'Documents'
+        }
+
+        // ✅ FIX: Skip words with special characters (like parentheses, numbers)
+        if (!/^[a-zA-Z]+$/.test(word)) {
+          return word;
+        }
+
+        // Apply title case to other words
+        const lowerWord = word.toLowerCase();
+        if (index === 0 || !smallWords.includes(lowerWord)) {
+          return lowerWord.charAt(0).toUpperCase() + lowerWord.slice(1);
+        }
+        return lowerWord;
       })
       .join(' ');
   }
