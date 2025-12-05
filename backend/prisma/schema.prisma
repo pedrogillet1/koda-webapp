@@ -171,6 +171,7 @@ model Document {
   filenameEncrypted      String?
   extractedTextEncrypted String?
   renderableContent      String?
+  language               String              @default("english")  // Detected language for BM25 search
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
   categories             DocumentCategory[]
@@ -199,6 +200,8 @@ model Document {
   @@index([userId, filename])
   @@index([fileHash])
   @@index([userId, fileHash, filename])
+  @@index([language])
+  @@index([userId, language])
   @@map("documents")
 }
 

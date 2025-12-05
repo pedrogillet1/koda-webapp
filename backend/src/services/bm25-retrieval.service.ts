@@ -134,6 +134,7 @@ export class BM25RetrievalService {
       // Use raw SQL for full-text search with ranking
       // ts_rank approximates BM25 scoring
       // OPTIMIZED: Uses pre-computed content_tsv column with GIN index
+      // MULTI-LANGUAGE: Uses document's language for proper stemming
       // Performance: 10-50ms (was 500-2000ms without index)
       const results = await prisma.$queryRaw<Array<{
         id: string;
@@ -141,6 +142,7 @@ export class BM25RetrievalService {
         text: string;
         chunkIndex: number;
         filename: string;
+        language: string;
         rank: number;
       }>>`
         SELECT
@@ -149,16 +151,26 @@ export class BM25RetrievalService {
           de.content as text,
           de."chunkIndex",
           d.filename,
-          ts_rank(de.content_tsv, plainto_tsquery('english', ${searchQuery})) as rank
+          d.language,
+          ts_rank(de.content_tsv, plainto_tsquery(d.language::regconfig, ${searchQuery})) as rank
         FROM "document_embeddings" de
         JOIN "documents" d ON de."documentId" = d.id
         WHERE
           d."userId" = ${userId}
           AND d.status != 'deleted'
-          AND de.content_tsv @@ plainto_tsquery('english', ${searchQuery})
+          AND de.content_tsv @@ plainto_tsquery(d.language::regconfig, ${searchQuery})
         ORDER BY rank DESC
         LIMIT ${topK}
       `;
+
+      // Log language distribution
+      const langCounts: Record<string, number> = {};
+      results.forEach(r => {
+        langCounts[r.language] = (langCounts[r.language] || 0) + 1;
+      });
+      if (Object.keys(langCounts).length > 0) {
+        console.log(`🌍 [BM25] Results by language:`, langCounts);
+      }
 
       return results.map(result => ({
         documentId: result.documentId,
@@ -171,6 +183,7 @@ export class BM25RetrievalService {
           pageNumber: result.chunkIndex,
           filename: result.filename,
           documentId: result.documentId,
+          language: result.language,
         },
       }));
 
@@ -185,19 +198,31 @@ export class BM25RetrievalService {
    *
    * REASON: Remove stopwords, focus on content words
    * WHY: Improves BM25 precision
+   * MULTI-LANGUAGE: Includes English, Spanish, Portuguese stopwords
    */
   private extractKeywords(query: string): string[] {
 
-    // Common stopwords to remove
+    // Common stopwords for English, Spanish, Portuguese
     const stopwords = new Set([
+      // English
       'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
       'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the',
       'to', 'was', 'will', 'with', 'what', 'when', 'where', 'who', 'how',
       'does', 'do', 'about', 'me', 'my', 'your', 'this', 'these', 'those',
+      // Spanish
+      'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'de', 'del',
+      'en', 'con', 'por', 'para', 'es', 'son', 'fue', 'ser', 'estar',
+      'que', 'cual', 'cuales', 'como', 'donde', 'cuando', 'quien',
+      // Portuguese
+      'o', 'os', 'um', 'uma', 'uns', 'umas', 'do', 'da', 'dos', 'das',
+      'no', 'na', 'nos', 'nas', 'ao', 'aos', 'pelo', 'pela', 'pelos', 'pelas',
+      'com', 'sem', 'sob', 'sobre', 'entre', 'apos',
+      'ser', 'estar', 'ter', 'haver', 'fazer', 'poder', 'dever',
+      'que', 'qual', 'quais', 'como', 'onde', 'quando', 'quem',
     ]);
 
     const words = query.toLowerCase()
-      .replace(/[^\w\s]/g, ' ') // Remove punctuation
+      .replace(/[^\w\sáéíóúñüàèìòùâêîôûãõç]/g, ' ') // Keep accented chars
       .split(/\s+/)
       .filter(word => word.length > 2 && !stopwords.has(word));
 

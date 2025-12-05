@@ -101,6 +101,7 @@
     "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
+    "franc": "^6.2.0",
     "googleapis": "^161.0.0",
     "gpt-tokenizer": "^3.0.1",
     "gray-matter": "^4.0.3",
