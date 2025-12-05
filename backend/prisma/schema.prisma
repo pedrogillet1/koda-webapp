@@ -479,14 +479,17 @@ model DocumentKeyword {
 }
 
 model DocumentEmbedding {
-  id         String   @id @default(uuid())
+  id         String                    @id @default(uuid())
   documentId String
   chunkIndex Int
-  content    String
-  embedding  String
-  metadata   String
-  createdAt  DateTime @default(now())
-  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  content    String                    @db.Text
+  embedding  String                    @db.Text
+  metadata   String                    @db.Text
+  createdAt  DateTime                  @default(now())
+  // Pre-computed tsvector for full-text search (GIN indexed)
+  // Auto-updated by PostgreSQL trigger when content changes
+  contentTsv Unsupported("tsvector")?
+  document   Document                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId])
   @@index([documentId, chunkIndex])
