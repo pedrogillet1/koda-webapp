@@ -443,8 +443,8 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     if (intentResult.intent === Intent.READ_EXCEL_CELL) {
       console.log(`📊 [EXCEL] Reading Excel cell from query: "${query}"`);
 
-      const excelCellReader = await import('../services/excelCellReader.service');
-      const cellResult = await excelCellReader.default.readCell(query);
+      const { excelCellReaderService: excelCellReader } = await import('../services/securityStubs.service');
+      const cellResult = await excelCellReader.readCell(query);
 
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);

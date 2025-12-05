@@ -20,7 +20,7 @@ process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
 });
 
 import { startReminderScheduler } from './jobs/reminder.scheduler';
-import rbacService from './services/rbac.service';
+import { rbacService } from './services/securityStubs.service';
 import prisma from './config/database';
 import websocketService from './services/websocket.service';
 import { initializePinecone } from './services/rag.service';

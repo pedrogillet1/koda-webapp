@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
-import auditLogService, { AuditAction, AuditStatus } from '../services/auditLog.service';
+import { auditLogService, AuditAction, AuditStatus } from '../services/securityStubs.service';
 
 /**
  * Role-Based Access Control (RBAC) Middleware

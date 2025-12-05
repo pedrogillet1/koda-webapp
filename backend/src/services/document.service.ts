@@ -18,6 +18,75 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
+// ═══════════════════════════════════════════════════════════════
+// Semantic Chunking with Overlap - Interfaces and Fallback
+// ═══════════════════════════════════════════════════════════════
+interface ChunkOptions {
+  maxSize: number;
+  overlap: number;
+  splitOn: string[];
+}
+
+interface ChunkWithPosition {
+  content: string;
+  index: number;
+  startChar: number;
+  endChar: number;
+}
+
+/**
+ * Fallback chunking with overlap for improved retrieval
+ * Uses smart boundary detection for cleaner chunks
+ */
+function chunkTextWithOverlap(text: string, options: ChunkOptions): ChunkWithPosition[] {
+  const { maxSize, overlap, splitOn } = options;
+  const chunks: ChunkWithPosition[] = [];
+
+  let currentPos = 0;
+  let chunkIndex = 0;
+
+  while (currentPos < text.length) {
+    let endPos = Math.min(currentPos + maxSize, text.length);
+
+    // Try to find a good break point
+    if (endPos < text.length) {
+      let bestBreak = endPos;
+
+      for (const delimiter of splitOn) {
+        const lastIndex = text.lastIndexOf(delimiter, endPos);
+        if (lastIndex > currentPos && lastIndex > bestBreak - 100) {
+          bestBreak = lastIndex + delimiter.length;
+          break;
+        }
+      }
+
+      endPos = bestBreak;
+    }
+
+    const content = text.substring(currentPos, endPos).trim();
+
+    if (content.length > 0) {
+      chunks.push({
+        content,
+        index: chunkIndex++,
+        startChar: currentPos,
+        endChar: endPos,
+      });
+    }
+
+    // Move forward, accounting for overlap
+    const prevStartChar = chunks[chunks.length - 1]?.startChar ?? -1;
+    currentPos = endPos - overlap;
+
+    // Ensure we make progress
+    if (currentPos <= prevStartChar) {
+      currentPos = endPos;
+    }
+  }
+
+  return chunks;
+}
+
 export interface UploadDocumentInput {
   userId: string;
   filename: string;
@@ -1029,10 +1098,29 @@ async function processDocumentWithTimeout(
                 }
               }));
             } else {
-              // ⚡ OPTIMIZATION: Use raw text for embeddings (skip markdown conversion for speed)
-              // Markdown is great for display but raw text is better for embeddings
-              // This saves 20-40 seconds of processing time!
-              chunks = chunkText(extractedText, 500);
+              // ═══════════════════════════════════════════════════════════════
+              // SEMANTIC CHUNKING with proper size and overlap
+              // ═══════════════════════════════════════════════════════════════
+              console.log('📝 [CHUNKING] Using improved chunking with overlap...');
+
+              // Use improved chunking with overlap for better retrieval
+              const overlapChunks = chunkTextWithOverlap(extractedText, {
+                maxSize: 1000,    // ~600 tokens (optimal for embeddings)
+                overlap: 200,     // 20% overlap for context continuity
+                splitOn: ['\n\n', '\n', '. ', '! ', '? '],  // Smart boundaries
+              });
+
+              // Convert to expected format with metadata
+              chunks = overlapChunks.map(chunk => ({
+                content: chunk.content,
+                metadata: {
+                  chunkIndex: chunk.index,
+                  startChar: chunk.startChar,
+                  endChar: chunk.endChar,
+                }
+              }));
+
+              console.log(`✅ [CHUNKING] Created ${chunks.length} chunks with overlap`);
             }
 
             // 🆕 Generate embeddings using OpenAI embedding service
@@ -1911,10 +1999,29 @@ async function processDocumentAsync(
                 }
               }));
             } else {
-              // ⚡ OPTIMIZATION: Use raw text for embeddings (skip markdown conversion for speed)
-              // Markdown is great for display but raw text is better for embeddings
-              // This saves 20-40 seconds of processing time!
-              chunks = chunkText(extractedText, 500);
+              // ═══════════════════════════════════════════════════════════════
+              // SEMANTIC CHUNKING with proper size and overlap
+              // ═══════════════════════════════════════════════════════════════
+              console.log('📝 [CHUNKING] Using improved chunking with overlap...');
+
+              // Use improved chunking with overlap for better retrieval
+              const overlapChunks = chunkTextWithOverlap(extractedText, {
+                maxSize: 1000,    // ~600 tokens (optimal for embeddings)
+                overlap: 200,     // 20% overlap for context continuity
+                splitOn: ['\n\n', '\n', '. ', '! ', '? '],  // Smart boundaries
+              });
+
+              // Convert to expected format with metadata
+              chunks = overlapChunks.map(chunk => ({
+                content: chunk.content,
+                metadata: {
+                  chunkIndex: chunk.index,
+                  startChar: chunk.startChar,
+                  endChar: chunk.endChar,
+                }
+              }));
+
+              console.log(`✅ [CHUNKING] Created ${chunks.length} chunks with overlap`);
             }
 
             // 🆕 Generate embeddings using OpenAI embedding service

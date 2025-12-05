@@ -1,6 +1,6 @@
 /// <reference path="../types/express.d.ts" />
 import { Request, Response } from 'express';
-import * as twoFactorService from '../services/twoFactor.service';
+import { twoFactorService } from '../services/securityStubs.service';
 
 /**
  * Enable 2FA

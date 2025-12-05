@@ -7,6 +7,11 @@
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DIRECT GEMINI BYPASS - For fast answers without RAG
+// ═══════════════════════════════════════════════════════════════════════════
+import geminiClient from './geminiClient.service';
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Semantic Document Search Service Stub
 // ═══════════════════════════════════════════════════════════════════════════
 export const semanticDocumentSearchService = {
@@ -34,19 +39,73 @@ export const hybridRetrievalBooster = {
 // ═══════════════════════════════════════════════════════════════════════════
 // FIX: Re-implemented to properly detect greetings/capability queries
 // Uses simpleIntentDetection patterns for fast (<10ms) classification
+// ENHANCED: Now supports Direct Gemini Bypass for general knowledge queries
 
 interface FastPathOptions {
   documentCount?: number;
   hasUploadedDocuments?: boolean;
   language?: string;
   userId?: string;
+  conversationContext?: string;  // For multi-turn bypass conversations
+}
+
+interface FastPathMetadata {
+  type: 'direct' | 'cached' | 'preset';
+  latency: number;
+  usedRAG: boolean;
+  model?: string;
 }
 
 interface FastPathResult {
   isFastPath: boolean;
   response: string | null;
-  type: 'greeting' | 'capability' | 'help' | null;
+  type: 'greeting' | 'capability' | 'help' | 'general_knowledge' | 'direct_answer' | null;
   detectedLanguage: string;
+  metadata?: FastPathMetadata;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIRECT GEMINI BYPASS FUNCTION
+// ═══════════════════════════════════════════════════════════════════════════
+async function directGeminiAnswer(
+  query: string,
+  conversationContext?: string,
+  language: string = 'en'
+): Promise<{ answer: string; latency: number } | null> {
+  const startTime = Date.now();
+
+  try {
+    // Build prompt with conversation context if available
+    const prompt = conversationContext
+      ? `Previous conversation:\n${conversationContext}\n\nUser question: ${query}\n\nProvide a direct, concise answer.`
+      : query;
+
+    // Get Gemini 2.5 Flash model
+    const model = geminiClient.getModel({
+      model: 'gemini-2.5-flash-preview-05-20',
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 500,
+      }
+    });
+
+    // Generate response
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const text = response.text();
+
+    const latency = Date.now() - startTime;
+    console.log(`✅ [BYPASS] Direct Gemini answer in ${latency}ms (no RAG)`);
+
+    return {
+      answer: text || 'I apologize, but I could not generate an answer.',
+      latency
+    };
+
+  } catch (error: any) {
+    console.error('❌ [BYPASS] Direct Gemini answer failed:', error?.message || error);
+    return null;
+  }
 }
 
 // Greeting patterns (multilingual)
@@ -76,6 +135,63 @@ const CAPABILITY_PATTERNS = [
   /^o\s*que\s*voc[eê]\s*pode\s*fazer[\s!.?]*$/i,
   // Spanish
   /^qu[eé]\s*(es|puede\s*hacer)\s*koda[\s!.?]*$/i,
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GENERAL KNOWLEDGE PATTERNS - Questions that don't need documents
+// ═══════════════════════════════════════════════════════════════════════════
+const GENERAL_KNOWLEDGE_PATTERNS = [
+  // General knowledge (not document-specific)
+  /^what is (the )?(capital|population|definition|meaning) of/i,
+  /^who (is|was|are|were) /i,
+  /^when (did|was|is) /i,
+  /^where (is|was|are) /i,
+  // But exclude document-related "where is"
+  /^how (do|does|did|can|could|would|should) /i,
+  /^why (is|are|do|does|did|was|were) /i,
+  /^what (is|are) (a|an|the) /i,
+  // Factual questions
+  /^(explain|define|describe) (what|the|a|an) /i,
+  /^tell me about /i,
+];
+
+// Date/time patterns
+const DATE_TIME_PATTERNS = [
+  /^what (is|are) (today|the date|the time|current date|current time)/i,
+  /^what day is (it|today)/i,
+  /^what('s| is) the (date|time|day)/i,
+  /^(today's|current) (date|time|day)/i,
+];
+
+// System/self question patterns
+const SYSTEM_QUESTION_PATTERNS = [
+  /^what (is|are) you$/i,
+  /^who (are|is) you$/i,
+  /^what can you do$/i,
+  /^are you (a |an )?(ai|bot|robot|human|person)/i,
+  /^who made you/i,
+  /^who created you/i,
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RAG INDICATOR PATTERNS - Questions that REQUIRE document retrieval
+// ═══════════════════════════════════════════════════════════════════════════
+const RAG_INDICATOR_PATTERNS = [
+  // Explicit document references
+  /what (is|are|does|do).*(in|from|according to).*(document|file|pdf|contract|policy|report)/i,
+  /summarize.*(document|file|pdf|uploaded|my)/i,
+  /what (is|are) (my|the).*(revenue|number|password|address|date|amount|value|total)/i,
+  /show me.*(from|in).*(document|file)/i,
+  /compare.*(document|file)/i,
+  /what does.*(say|state|mention|contain)/i,
+  /find.*(in|from).*(document|file|my)/i,
+  // Document content queries
+  /(according to|based on|from) (my|the|this) (document|file|pdf)/i,
+  /in (my|the|this) (document|file|pdf)/i,
+  /(my|the|this) (document|file|pdf|contract|report) (says?|mentions?|states?|contains?)/i,
+  // Implicit document queries (user has documents and asks about specific data)
+  /what('s| is| are) (my|the|our) .*(policy|procedure|guideline|rule|requirement)/i,
+  /how (do|does|should) (I|we) .*(according|per|as per)/i,
 ];
 
 // Detect language from query
@@ -180,31 +296,78 @@ export const fastPathDetector = {
     const detectedLanguage = options.language || detectQueryLanguage(query);
     const hasDocuments = options.hasUploadedDocuments || (options.documentCount || 0) > 0;
 
-    // Check for greetings
+    // Check for greetings (preset responses - fastest)
     if (GREETING_PATTERNS.some(p => p.test(lowerQuery))) {
-      console.log(`⚡ [FAST PATH] Greeting detected in ${Date.now() - startTime}ms`);
+      const latency = Date.now() - startTime;
+      console.log(`⚡ [FAST PATH] Greeting detected in ${latency}ms`);
       return {
         isFastPath: true,
         response: generateGreetingResponse(detectedLanguage, hasDocuments),
         type: 'greeting',
-        detectedLanguage
+        detectedLanguage,
+        metadata: {
+          type: 'preset',
+          latency,
+          usedRAG: false
+        }
       };
     }
 
     // Check for capability questions (but NOT about Koda's business/ICP)
     if (!/koda'?s\s+|koda\s+(icp|business|market|customer|target|revenue|pricing|strategy|plan|model)/i.test(query)) {
       if (CAPABILITY_PATTERNS.some(p => p.test(lowerQuery))) {
-        console.log(`⚡ [FAST PATH] Capability query detected in ${Date.now() - startTime}ms`);
+        const latency = Date.now() - startTime;
+        console.log(`⚡ [FAST PATH] Capability query detected in ${latency}ms`);
         return {
           isFastPath: true,
           response: generateCapabilityResponse(detectedLanguage, options.documentCount || 0),
           type: 'capability',
-          detectedLanguage
+          detectedLanguage,
+          metadata: {
+            type: 'preset',
+            latency,
+            usedRAG: false
+          }
         };
       }
     }
 
-    // Not a fast path query
+    // ═══════════════════════════════════════════════════════════════════════
+    // GENERAL KNOWLEDGE BYPASS - Use Direct Gemini for non-document queries
+    // ═══════════════════════════════════════════════════════════════════════
+    // Check if query is general knowledge that doesn't require document retrieval
+    const bypassType = getBypassType(query);
+
+    if (bypassType === 'general_knowledge' || bypassType === 'date_time' || bypassType === 'system') {
+      console.log(`⚡ [FAST PATH] ${bypassType} query detected - using Direct Gemini Bypass`);
+
+      // Use Direct Gemini 2.5 Flash for fast answer
+      const directResult = await directGeminiAnswer(
+        query,
+        options.conversationContext,
+        detectedLanguage
+      );
+
+      if (directResult) {
+        return {
+          isFastPath: true,
+          response: directResult.answer,
+          type: 'direct_answer',
+          detectedLanguage,
+          metadata: {
+            type: 'direct',
+            latency: directResult.latency,
+            usedRAG: false,
+            model: 'gemini-2.5-flash'
+          }
+        };
+      }
+
+      // If Direct Gemini fails, fall through to normal RAG
+      console.log(`⚠️ [FAST PATH] Direct Gemini failed, falling back to RAG`);
+    }
+
+    // Not a fast path query - proceed with RAG
     return {
       isFastPath: false,
       response: null,
@@ -213,6 +376,76 @@ export const fastPathDetector = {
     };
   }
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RAG BYPASS DETECTION - Determines if query needs document retrieval
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Check if a query requires RAG (document retrieval)
+ * Returns true if the query explicitly references documents or user-specific data
+ */
+export function requiresRAG(query: string): boolean {
+  const trimmed = query.trim();
+  return RAG_INDICATOR_PATTERNS.some(pattern => pattern.test(trimmed));
+}
+
+/**
+ * Check if a query should bypass RAG entirely
+ * Returns true for general knowledge questions, greetings, date/time, system questions
+ * that don't need document context
+ */
+export function shouldBypassRAG(query: string): boolean {
+  const trimmed = query.trim();
+
+  // First check: If query explicitly requires RAG, don't bypass
+  if (requiresRAG(trimmed)) {
+    return false;
+  }
+
+  // Check all bypass patterns
+  const bypassPatterns = [
+    ...GENERAL_KNOWLEDGE_PATTERNS,
+    ...DATE_TIME_PATTERNS,
+    ...GREETING_PATTERNS,
+    ...SYSTEM_QUESTION_PATTERNS,
+  ];
+
+  return bypassPatterns.some(pattern => pattern.test(trimmed));
+}
+
+/**
+ * Get the type of bypass query for appropriate response handling
+ */
+export function getBypassType(query: string): 'general_knowledge' | 'date_time' | 'greeting' | 'system' | 'capability' | null {
+  const trimmed = query.trim();
+
+  if (requiresRAG(trimmed)) {
+    return null;
+  }
+
+  if (GREETING_PATTERNS.some(p => p.test(trimmed))) {
+    return 'greeting';
+  }
+
+  if (DATE_TIME_PATTERNS.some(p => p.test(trimmed))) {
+    return 'date_time';
+  }
+
+  if (SYSTEM_QUESTION_PATTERNS.some(p => p.test(trimmed))) {
+    return 'system';
+  }
+
+  if (CAPABILITY_PATTERNS.some(p => p.test(trimmed))) {
+    return 'capability';
+  }
+
+  if (GENERAL_KNOWLEDGE_PATTERNS.some(p => p.test(trimmed))) {
+    return 'general_knowledge';
+  }
+
+  return null;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Post Processor Stub

@@ -1141,7 +1141,7 @@ export async function resetPasswordWithToken(token: string, newPassword: string)
 
   // Log audit event if audit service exists
   try {
-    const auditLogService = (await import('./auditLog.service')).default;
+    const { auditLogService } = await import('./securityStubs.service');
     await auditLogService.log({
       userId,
       action: 'PASSWORD_RESET' as any,

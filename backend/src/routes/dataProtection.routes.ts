@@ -1,11 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requirePermission, requireRole } from '../middleware/permission.middleware';
-import gdprService from '../services/gdpr.service';
-import dataRetentionService from '../services/dataRetention.service';
-import backupEncryptionService from '../services/backupEncryption.service';
-import keyRotationService from '../services/keyRotation.service';
-import piiService from '../services/pii.service';
+import { gdprService, dataRetentionService, backupEncryptionService, keyRotationService, piiService } from '../services/securityStubs.service';
 
 const router = Router();
 

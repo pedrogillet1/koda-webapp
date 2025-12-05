@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import prisma from '../config/database';
-import { triggerReminderNotification } from '../services/notification.service';
+import { triggerReminderNotification } from '../services/securityStubs.service';
 
 /**
  * Check for upcoming reminders and send notifications
