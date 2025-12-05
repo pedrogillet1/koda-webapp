@@ -655,19 +655,65 @@ export const citationTracking = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Output Integration Stub
+// Output Integration - FIXED: Proper file listing implementation
 // ═══════════════════════════════════════════════════════════════════════════
 export const outputIntegration = {
-  generateNoDocumentsError: async (lang: string) =>
-    lang === 'pt' ? 'Nenhum documento encontrado.' :
-    lang === 'es' ? 'No se encontraron documentos.' :
-    'No documents found.',
-  generateFileListing: async (lang: string, files: any[], _totalCount?: number, _limit?: number) =>
-    files.map(f => f.name || f.title).join('\n'),
-  generateProcessingError: async (lang: string, _type: string) =>
-    lang === 'pt' ? 'Erro ao processar sua solicitação.' :
-    lang === 'es' ? 'Error al procesar su solicitud.' :
-    'Error processing your request.'
+  generateNoDocumentsError: async (lang: string) => {
+    const messages: Record<string, string> = {
+      pt: 'Você ainda não tem documentos. Faça upload de arquivos para começar a usar a Koda!',
+      es: 'Aún no tienes documentos. ¡Sube archivos para empezar a usar Koda!',
+      en: "You don't have any documents yet. Upload files to start using Koda!"
+    };
+    return messages[lang] || messages.en;
+  },
+
+  generateFileListing: async (lang: string, files: any[], totalCount?: number, limit: number = 15) => {
+    if (!files || files.length === 0) {
+      return outputIntegration.generateNoDocumentsError(lang);
+    }
+
+    const total = totalCount || files.length;
+    const displayFiles = files.slice(0, limit);
+
+    // Header based on language
+    const headers: Record<string, string> = {
+      pt: `📁 **Seus Documentos** (${total} arquivo${total !== 1 ? 's' : ''}):\n`,
+      es: `📁 **Tus Documentos** (${total} archivo${total !== 1 ? 's' : ''}):\n`,
+      en: `📁 **Your Documents** (${total} file${total !== 1 ? 's' : ''}):\n`
+    };
+
+    let result = headers[lang] || headers.en;
+    result += '\n';
+
+    // List files with proper property checking
+    displayFiles.forEach((file, index) => {
+      // Support multiple property names: filename, name, title, originalName
+      const name = file.filename || file.name || file.title || file.originalName || 'Unknown File';
+      result += `${index + 1}. ${name}\n`;
+    });
+
+    // Show "and X more" if there are more files
+    if (total > limit) {
+      const remaining = total - limit;
+      const moreText: Record<string, string> = {
+        pt: `\n_...e mais ${remaining} arquivo${remaining !== 1 ? 's' : ''}_`,
+        es: `\n_...y ${remaining} archivo${remaining !== 1 ? 's' : ''} más_`,
+        en: `\n_...and ${remaining} more file${remaining !== 1 ? 's' : ''}_`
+      };
+      result += moreText[lang] || moreText.en;
+    }
+
+    return result;
+  },
+
+  generateProcessingError: async (lang: string, _type: string) => {
+    const messages: Record<string, string> = {
+      pt: 'Erro ao processar sua solicitação. Por favor, tente novamente.',
+      es: 'Error al procesar su solicitud. Por favor, inténtelo de nuevo.',
+      en: 'Error processing your request. Please try again.'
+    };
+    return messages[lang] || messages.en;
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -720,8 +766,12 @@ export const comparativeAnalysisService = {
 // Methodology Extraction Stub
 // ═══════════════════════════════════════════════════════════════════════════
 export const methodologyExtractionService = {
-  detectMethodologyQuery: (_query: string) => null,
-  getMethodologyKnowledge: async (_userId: string, _methodology: string) => null,
+  detectMethodologyQuery: (_query: string) => null as string | null,
+  getMethodologyKnowledge: async (_userId: string, _methodology: string): Promise<{
+    definition?: string;
+    documentCount: number;
+    sourceDocumentIds?: string[];
+  } | null> => null,
   formatKnowledgeForResponse: (_knowledge: any) => ''
 };
 
@@ -730,7 +780,11 @@ export const methodologyExtractionService = {
 // ═══════════════════════════════════════════════════════════════════════════
 export const trendAnalysisService = {
   isTrendQuery: (_query: string) => false,
-  analyzeUserTrends: async (_userId: string) => null,
+  analyzeUserTrends: async (_userId: string): Promise<{
+    summary: string;
+    trends: any[];
+    totalDocuments: number;
+  } | null> => null,
   formatTrendAnalysisForResponse: (_result: any) => ''
 };
 
@@ -768,11 +822,19 @@ export const crossDocumentSynthesisService = {
 export const emptyResponsePrevention = {
   validateChunks: (_chunks: any[], _query: string) => ({
     isValid: true,
-    score: 1
+    score: 1,
+    reason: '' as string | undefined
   }),
-  validateResponse: (_response: string, _context: any, _options: any) => ({
+  validateResponse: (_response: string, _context: any, _options: any): {
+    isValid: boolean;
+    issues: string[];
+    reason?: string;
+    suggestions?: string[];
+  } => ({
     isValid: true,
-    issues: []
+    issues: [],
+    reason: undefined,
+    suggestions: []
   }),
   getFallbackResponse: (_context: any, lang: string) =>
     lang === 'pt' ? 'Não foi possível gerar uma resposta.' :
@@ -863,7 +925,16 @@ export const practicalImplicationsService = {
     implications: [],
     recommendations: []
   }),
-  formatImplications: (_implications: any): string => ''
+  formatImplications: (_implications: any): string => '',
+  getImplicationsContext: (_query: string, _chunks?: any[]): {
+    isImplicationsQuery: boolean;
+    categorizedImplications: any[];
+    promptAddition: string;
+  } => ({
+    isImplicationsQuery: false,
+    categorizedImplications: [],
+    promptAddition: ''
+  })
 };
 
 // Default export for services that use default import
@@ -901,7 +972,8 @@ export const conversationContextService = {
   updateContext: async (_conversationId: string, _context: any) => {},
   clearContext: async (_conversationId: string) => {},
   updateContextAfterTurn: async (_conversationId: string, _userMessage: string, _assistantMessage: string) => {},
-  resolveReferences: (query: string, _context: any) => query  // Returns original query unchanged
+  resolveReferences: (query: string, _context: any) => query,  // Returns original query unchanged
+  buildContextSummary: (_context: any) => ''  // Returns empty summary
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1009,8 +1081,20 @@ export const fileMatchingService = {
 // ═══════════════════════════════════════════════════════════════════════════
 // Dynamic Response Generator Stubs (for fileActions.service.ts)
 // ═══════════════════════════════════════════════════════════════════════════
-export const generateDynamicResponse = async (_template: string, _params?: any): Promise<string> => {
-  return _template || '';
+export const generateDynamicResponse = async (
+  _options: string | {
+    action: string;
+    success: boolean;
+    language: string;
+    details?: any;
+    userQuery?: string;
+  },
+  _params?: any
+): Promise<string> => {
+  if (typeof _options === 'string') {
+    return _options || '';
+  }
+  return _options?.action ? `Action: ${_options.action}` : '';
 };
 
 export const generateResponse = generateDynamicResponse;
@@ -1043,4 +1127,28 @@ export const clarificationService = {
   question: '',
   groupingStrategy: 'none' as string,
   askForClarification: async (): Promise<string> => ''
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Evidence Aggregation Service Stub (for rag.service.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const evidenceAggregation = {
+  shouldAggregateEvidence: (_complexity: string, _docCount: number) => false,
+  generateEvidenceMap: async (_response: string, _docs: any[]) => ({
+    claims: [] as any[],
+    sources: [] as any[]
+  }),
+  formatEvidenceForUser: (_evidenceMap: any) => ''
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Memory Extraction Service Stub (for rag.service.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+export const memoryExtraction = {
+  extractMemoriesFromRecentMessages: async (
+    _userId: string,
+    _messages: any[],
+    _conversationId: string,
+    _limit: number
+  ) => {}
 };

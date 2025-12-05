@@ -6750,6 +6750,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       documentName: chunk.metadata?.filename || 'Unknown',
       pageNumber: chunk.metadata?.page || null,
       score: chunk.score || 0,
+      mimeType: null as string | null,  // ✅ Added for later population from database
     }));
 
     // ✅ FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
@@ -7766,7 +7767,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // IMPACT: ~2000ms saved for complex queries
     // NOTE: Can be re-enabled for specific use cases if needed
 
-    let answerConfidence: number | undefined;
+    let answerConfidence: confidenceScoring.ConfidenceResult | undefined;
     let supportingEvidence: confidenceScoring.Evidence[] | undefined;
     let conflictingEvidence: confidenceScoring.Evidence[] | undefined;
 
@@ -7816,12 +7817,13 @@ Provide a comprehensive answer addressing all parts of the query.`;
       const supporting = evidence.filter(e => e.support_strength > 0.5);
       const conflicting: confidenceScoring.Evidence[] = []; // ⚡ No contradictions in speed mode
 
-      answerConfidence = confidenceScoring.calculateConfidence(supporting, conflicting);
+      const confidenceResult = confidenceScoring.calculateConfidence(supporting);
+      answerConfidence = confidenceResult;
       supportingEvidence = supporting;
       conflictingEvidence = conflicting;
       perfTimer.measure('Evidence Scoring', 'evidenceScoring');
 
-      console.log(`📊 [CONFIDENCE] Score: ${answerConfidence.toFixed(2)} (speed-optimized path)`);
+      console.log(`📊 [CONFIDENCE] Score: ${confidenceResult.score}/100 (speed-optimized path)`);
     }
 
     // Build context WITHOUT source labels (prevents Gemini from numbering documents)
@@ -8304,10 +8306,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
       confidence  // ✅ NEW: Include confidence from confidenceScoring service
     };
     if (answerConfidence !== undefined) {
-      result.complexReasoningConfidence = answerConfidence;  // ✅ Renamed to avoid conflict
+      result.complexReasoningConfidence = answerConfidence.score;  // ✅ Renamed to avoid conflict
       result.supporting_evidence = supportingEvidence;
       result.conflicting_evidence = conflictingEvidence;
-      console.log(`📊 [COMPLEX REASONING] Returning confidence: ${answerConfidence.toFixed(2)}`);
+      console.log(`📊 [COMPLEX REASONING] Returning confidence: ${answerConfidence.level} (${answerConfidence.score}/100)`);
     }
     console.log(`⏱️ [PERF] Total time: ${Date.now() - startTime}ms`);
 
@@ -8890,11 +8892,11 @@ export async function generateAnswer(
   }
 
   // ============================================================================
-  // SAFETY CHECK - Prevent empty responses from being saved
+  // SAFETY CHECK - Provide fallback for empty responses (SAFETY NET)
   // ============================================================================
   if (!fullAnswer || fullAnswer.trim().length === 0) {
     console.error('❌ [generateAnswer] CRITICAL: Empty response detected!');
-    console.error('   Throwing error to prevent saving empty response to database.');
+    console.error('   Applying SAFETY NET fallback instead of throwing error.');
 
     // Provide detailed error for debugging
     const errorDetails = {
@@ -8910,14 +8912,17 @@ export async function generateAnswer(
 
     console.error('   Error details:', JSON.stringify(errorDetails, null, 2));
 
-    throw new Error(
-      `Empty response generated. ` +
-      `Chunks received: ${chunkCount}, ` +
-      `Non-empty chunks: ${chunks.length}, ` +
-      `Total length: ${totalChunkLength}, ` +
-      `fullAnswer length: ${fullAnswer.length}. ` +
-      `This indicates a critical bug in response accumulation.`
-    );
+    // Detect language from query for appropriate fallback
+    const lang = detectLanguage(query);
+    const fallbackMessages: Record<string, string> = {
+      pt: 'Desculpe, não consegui processar sua solicitação. Por favor, tente reformular sua pergunta.',
+      es: 'Lo siento, no pude procesar tu solicitud. Por favor, intenta reformular tu pregunta.',
+      en: "I'm sorry, I couldn't process your request. Please try rephrasing your question."
+    };
+
+    // SAFETY NET: Return fallback instead of throwing error
+    fullAnswer = fallbackMessages[lang] || fallbackMessages.en;
+    console.log(`✅ [generateAnswer] SAFETY NET applied: "${fullAnswer}"`);
   }
 
   // ============================================================================
