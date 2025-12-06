@@ -72,11 +72,10 @@
   margin-bottom: 0 !important;
 }
 
-/* Sub-headings (bold/strong) - 17px, bold (600 weight) */
+/* Bold/strong text - same size as body, just bold */
 .markdown-preview-container strong,
 .markdown-preview-container b {
   font-weight: 600 !important;
-  font-size: 17px !important;
   color: #2a2a2a !important;
 }
 
@@ -90,6 +89,56 @@
   border-radius: 4px !important;
   border: 1px solid #e5e7eb !important;
   font-family: 'Monaco', 'Menlo', 'Courier New', monospace !important;
+}
+
+/* ============================================
+   2B. UNIVERSAL SPACING RESET - Fix React Markdown auto-generated tags
+   ============================================ */
+
+/* Reset ALL elements to prevent React Markdown's auto-generated <p> tags from adding extra space */
+.markdown-preview-container > *,
+.markdown-preview-container p,
+.markdown-preview-container div,
+.markdown-preview-container span {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Reset ALL heading tags */
+.markdown-preview-container h1,
+.markdown-preview-container h2,
+.markdown-preview-container h3,
+.markdown-preview-container h4,
+.markdown-preview-container h5,
+.markdown-preview-container h6 {
+  margin: 0 !important;
+  padding: 0 !important;
+  margin-top: 16px !important;
+  margin-bottom: 8px !important;
+}
+
+/* First heading should have no top margin */
+.markdown-preview-container > h1:first-child,
+.markdown-preview-container > h2:first-child,
+.markdown-preview-container > h3:first-child {
+  margin-top: 0 !important;
+}
+
+/* Controlled spacing between block elements */
+.markdown-preview-container > * + * {
+  margin-top: 12px !important;
+}
+
+/* List items should have minimal spacing */
+.markdown-preview-container li {
+  margin: 0 !important;
+  padding: 0 !important;
+  margin-bottom: 4px !important;
+}
+
+/* Last list item has no bottom margin */
+.markdown-preview-container li:last-child {
+  margin-bottom: 0 !important;
 }
 
 /* ============================================
@@ -455,7 +504,7 @@
    - Base font: 16px (was 14px) +14%
    - Answer title (h2): 22px (was 16px) +38%
    - Section headings (h3): 18px, bold (was 12px) +50%
-   - Sub-headings (strong): 17px (was default)
+   - Bold text (strong): 16px, weight 600 (same size as body)
    - Line-height: 1.5 (consistent)
    - Paragraph margin: 0.7em (~11px) (was 0 or 8px)
    - List item margin: 0.35em (~6px) (was 0)
