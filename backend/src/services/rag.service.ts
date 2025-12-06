@@ -97,6 +97,13 @@ import { kodaCitationFormatService, type CitationSource as FormattedCitationSour
 // This replaces multiple conflicting intent detection services
 import { detectIntent as detectSimpleIntent, type SimpleIntentResult } from './simpleIntentDetection.service';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// CONTEXT-AWARE INTENT DETECTION (Advanced 6-Stage Pipeline)
+// ═══════════════════════════════════════════════════════════════════════════
+// Provides: Negation detection, completeness validation, entity extraction,
+// pronoun resolution, verb disambiguation, and multi-intent detection
+import { contextAwareIntentDetection, type ContextAwareIntentResult } from './contextAwareIntentDetection.service';
+
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // RAG CONFIGURATION INTERFACE
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -2447,9 +2454,10 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
 
 /**
  * Apply format enforcement to any response before sending to user
+ * Uses smart title detection based on query complexity
  *
  * @param response - The raw response text
- * @param skipForTypes - Array of response types to skip (e.g., ['error', 'greeting'])
+ * @param options - Configuration options including query for smart title decisions
  * @returns Formatted response with consistent styling
  */
 function applyFormatEnforcement(
@@ -2458,12 +2466,14 @@ function applyFormatEnforcement(
     skipForShortResponses?: boolean;
     responseType?: string;
     logPrefix?: string;
+    query?: string; // NEW: Pass query for smart title decisions
   }
 ): string {
   const {
     skipForShortResponses = true,
     responseType = 'general',
-    logPrefix = '[FORMAT]'
+    logPrefix = '[FORMAT]',
+    query = ''
   } = options || {};
 
   // Skip empty responses
@@ -2492,8 +2502,15 @@ function applyFormatEnforcement(
   try {
     console.log(`${logPrefix} Applying format enforcement to ${responseType} response (${response.length} chars)...`);
 
-    // Apply format enforcement
-    const formatResult = kodaFormatEnforcementService.enforceFormat(response);
+    // Apply format enforcement with query for smart title decisions
+    const formatResult = kodaFormatEnforcementService.enforceFormat(
+      response,
+      'informational',  // queryType
+      'medium',         // answerLength
+      undefined,        // userTone
+      undefined,        // fileList
+      query             // NEW: Pass query for smart title detection
+    );
 
     const formatted = formatResult.fixedText || response;
 
@@ -3150,10 +3167,11 @@ async function handleConversationContextQuery(
     });
 
     if (result.answer && result.answer.trim().length > 0) {
-      // Apply format enforcement before sending to user
+      // Apply format enforcement before sending to user (with query for smart title detection)
       const formattedAnswer = applyFormatEnforcement(result.answer, {
         responseType: 'conversation_context',
-        logPrefix: '[CONV-ANSWER FORMAT]'
+        logPrefix: '[CONV-ANSWER FORMAT]',
+        query  // Pass query for smart title detection
       });
       if (onChunk) onChunk(formattedAnswer);
       if (onStage) onStage('complete', 'Complete');
@@ -3196,10 +3214,11 @@ YOUR ANSWER:`;
       responseType: 'conversation'  // ✅ No title for conversation responses
     });
 
-    // Then apply format enforcement
+    // Then apply format enforcement (with query for smart title detection)
     const formattedAnswer = applyFormatEnforcement(structuredAnswer.text, {
       responseType: 'conversation_fallback',
-      logPrefix: '[CONV-FALLBACK FORMAT]'
+      logPrefix: '[CONV-FALLBACK FORMAT]',
+      query  // Pass query for smart title detection
     });
     if (onChunk) onChunk(formattedAnswer);
     if (onStage) onStage('complete', 'Complete');
@@ -3240,6 +3259,55 @@ export async function generateAnswerStream(
   console.log(`   User: ${userId}`);
   console.log(`   Conversation: ${conversationId}`);
   console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+
+  // ============================================================================
+  // STEP -2: CONTEXT-AWARE INTENT DETECTION (6-Stage Pipeline)
+  // ============================================================================
+  // Runs the advanced intent detection pipeline for:
+  // - Refusal detection (send email, book flight, etc.)
+  // - Incomplete query detection (missing objects)
+  // - Entity extraction (filenames, folders, topics)
+  // - Pronoun resolution using conversation history
+  // - Verb disambiguation (show, find, what, list, open)
+  // - Multi-intent detection (and, then, also)
+
+  const contextIntent = contextAwareIntentDetection.detectIntent(
+    query,
+    conversationHistory?.map(h => ({ role: h.role as 'user' | 'assistant', content: h.content })) || []
+  );
+
+  console.log(`🎯 [CONTEXT-INTENT] Primary: ${contextIntent.primaryIntent.primary} (${(contextIntent.confidence * 100).toFixed(0)}%)`);
+  if (contextIntent.primaryIntent.disambiguation) {
+    console.log(`   ↳ Disambiguation: ${contextIntent.primaryIntent.disambiguation}`);
+  }
+  if (contextIntent.entities.length > 0) {
+    console.log(`   ↳ Entities: ${contextIntent.entities.map(e => `${e.type}:${e.value}`).join(', ')}`);
+  }
+  if (!contextIntent.isComplete) {
+    console.log(`   ⚠️ Incomplete query: ${contextIntent.clarificationNeeded}`);
+  }
+
+  // ============================================================================
+  // STEP -1.5: REFUSAL DETECTION (Actions we cannot perform)
+  // ============================================================================
+  // Handle requests that Koda cannot fulfill (email, calls, bookings, etc.)
+
+  if (contextIntent.primaryIntent.isRefusal) {
+    console.log('🚫 [ROUTER] → REFUSAL (Action not supported)');
+
+    const refusalMessage = `I'm sorry, but I can't help with that request. As a document assistant, I can help you:
+
+• **Search and analyze** your uploaded documents
+• **Answer questions** about document content
+• **Summarize** and explain information from your files
+• **Create, move, or organize** folders and documents
+
+Is there something about your documents I can help with instead?`;
+
+    if (onChunk) onChunk(refusalMessage);
+    if (onStage) onStage('complete', 'Complete');
+    return { sources: [] };
+  }
 
   // ============================================================================
   // STEP -1: FAST PATH - File/Document Listing (MOVED UP FOR SPEED)
@@ -3365,10 +3433,11 @@ Respond in the same language as the user's question.`;
         onStage('calculating', 'Computing calculation...');
       }
 
-      // Apply format enforcement to calculation results
+      // Apply format enforcement to calculation results (with query for smart title)
       const formattedCalculation = applyFormatEnforcement(calculationResult, {
         responseType: 'calculation',
-        logPrefix: '[CALCULATION FORMAT]'
+        logPrefix: '[CALCULATION FORMAT]',
+        query  // Pass query for smart title detection
       });
 
       if (onChunk) {
@@ -3407,10 +3476,11 @@ Respond in the same language as the user's question.`;
           onStage('analyzing', 'Analyzing Excel data...');
         }
 
-        // Apply format enforcement to Excel results
+        // Apply format enforcement to Excel results (with query for smart title)
         const formattedExcel = applyFormatEnforcement(excelResult, {
           responseType: 'excel',
-          logPrefix: '[EXCEL FORMAT]'
+          logPrefix: '[EXCEL FORMAT]',
+          query  // Pass query for smart title detection
         });
 
         if (onChunk) {
@@ -3648,10 +3718,11 @@ Respond in the same language as the user's question.`;
         responseType: 'fallback'  // ✅ No title for fallback responses
       });
 
-      // Then apply format enforcement (emojis, bullets, etc.)
+      // Then apply format enforcement (with query for smart title detection)
       const formattedFallback = applyFormatEnforcement(structuredFallback.text, {
         responseType: 'early_fallback',
-        logPrefix: '[EARLY-FALLBACK FORMAT]'
+        logPrefix: '[EARLY-FALLBACK FORMAT]',
+        query  // Pass query for smart title detection
       });
 
       if (onChunk) onChunk(formattedFallback);

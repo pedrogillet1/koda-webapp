@@ -89,17 +89,209 @@ interface FileSummary {
   byFolder?: Record<string, number>;
 }
 
+/**
+ * Title formatting decision based on query complexity
+ */
+type TitleDecision = 'none' | 'single' | 'structured';
+
+/**
+ * Context for smart title decisions
+ */
+interface TitleContext {
+  query?: string;
+  responseWordCount: number;
+  isConversational: boolean;
+  isSimpleQuestion: boolean;
+  isMultiPartQuestion: boolean;
+  requiresStructure: boolean;
+}
+
 export class KodaFormatEnforcementService {
 
   /**
+   * ═══════════════════════════════════════════════════════════════════════════
+   * SMART TITLE DECISION SYSTEM
+   * ═══════════════════════════════════════════════════════════════════════════
+   *
+   * NO TITLE for:
+   * - Simple one-sentence answers
+   * - Direct instructions without complexity
+   * - Casual conversational questions (greetings, "how are you")
+   * - Yes/No or short factual answers
+   * - Responses under ~100 words
+   *
+   * SINGLE TITLE for:
+   * - Medium explanations (100-300 words)
+   * - Guides with limited steps
+   * - Comparisons
+   * - Short breakdowns
+   *
+   * TITLE + SUBTITLES for:
+   * - Complex explanations (300+ words)
+   * - Multi-part questions
+   * - Strategy/planning/business content
+   * - Long step-by-step guides
+   * - Deep explanations with examples
+   */
+
+  /**
+   * Detect query complexity and determine title formatting
+   */
+  detectTitleDecision(query: string, response: string): TitleDecision {
+    const queryLower = query.toLowerCase().trim();
+    const responseWordCount = response.split(/\s+/).filter(w => w.trim()).length;
+
+    console.log(`[TITLE DECISION] Query: "${query.substring(0, 50)}..." | Response words: ${responseWordCount}`);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RULE 1: NO TITLE patterns
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Greetings and casual conversation
+    const greetingPatterns = [
+      /^(hi|hello|hey|oi|olá|bom dia|boa tarde|boa noite|good morning|good afternoon|good evening)/i,
+      /^how are you/i,
+      /^what'?s up/i,
+      /^thanks?|thank you|obrigad[oa]/i,
+      /^(bye|goodbye|tchau|até)/i
+    ];
+
+    if (greetingPatterns.some(p => p.test(queryLower))) {
+      console.log('[TITLE DECISION] → NO TITLE (greeting/casual)');
+      return 'none';
+    }
+
+    // Simple factual questions (yes/no, definitions, translations)
+    const simplePatterns = [
+      /^(is|are|was|were|do|does|did|can|could|will|would|should|has|have|had)\s+\w+\s*\?*$/i, // Yes/No questions
+      /^what is\s+\w+\s*\?*$/i, // "What is X?"
+      /^define\s+/i,
+      /^translate\s+/i,
+      /^what('?s| is) the (capital|meaning|definition|translation)/i,
+      /^how (much|many)\s+/i,
+      /^when (is|was|did)/i,
+      /^where (is|was|are)/i,
+      /^who (is|was|are)/i,
+    ];
+
+    if (simplePatterns.some(p => p.test(queryLower))) {
+      console.log('[TITLE DECISION] → NO TITLE (simple factual)');
+      return 'none';
+    }
+
+    // Direct simple instructions
+    const simpleInstructionPatterns = [
+      /^fix (this|the)\s+\w+$/i,
+      /^summarize (this|the)\s+\w+$/i,
+      /^generate \d+\s+\w+$/i, // "Generate 5 names"
+      /^write a (short|quick|brief)\s+/i,
+      /^give me a (quick|short|brief)\s+/i,
+    ];
+
+    if (simpleInstructionPatterns.some(p => p.test(queryLower))) {
+      console.log('[TITLE DECISION] → NO TITLE (simple instruction)');
+      return 'none';
+    }
+
+    // Short responses (under 100 words) - no title needed
+    if (responseWordCount < 100) {
+      console.log('[TITLE DECISION] → NO TITLE (short response <100 words)');
+      return 'none';
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RULE 2: TITLE + SUBTITLES patterns (check before single title)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Multi-part questions (contains "and", multiple question marks, or multiple topics)
+    const multiPartPatterns = [
+      /\?\s*.*\?/, // Multiple question marks
+      /what.*and.*what/i,
+      /how.*and.*how/i,
+      /explain.*and.*explain/i,
+      /(pros|advantages).*and.*(cons|disadvantages)/i,
+      /compare.*and.*contrast/i,
+      /analyze.*(pros|cons|benefits|risks)/i,
+    ];
+
+    if (multiPartPatterns.some(p => p.test(queryLower))) {
+      console.log('[TITLE DECISION] → STRUCTURED (multi-part question)');
+      return 'structured';
+    }
+
+    // Complex/strategic content keywords
+    const complexPatterns = [
+      /step by step/i,
+      /step-by-step/i,
+      /create a (full|complete|detailed|comprehensive)/i,
+      /build a (full|complete|detailed)/i,
+      /explain (in detail|thoroughly|completely)/i,
+      /break(ing)? down/i,
+      /(business|product|project|marketing|training) (plan|roadmap|strategy|manual)/i,
+      /from scratch/i,
+      /complete guide/i,
+      /comprehensive/i,
+      /in-depth/i,
+    ];
+
+    if (complexPatterns.some(p => p.test(queryLower))) {
+      console.log('[TITLE DECISION] → STRUCTURED (complex request)');
+      return 'structured';
+    }
+
+    // Long responses (300+ words) automatically get structure
+    if (responseWordCount >= 300) {
+      console.log('[TITLE DECISION] → STRUCTURED (long response 300+ words)');
+      return 'structured';
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RULE 3: SINGLE TITLE patterns (medium complexity)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Medium explanations
+    const mediumPatterns = [
+      /^explain\s+/i,
+      /^what is\s+\w+\s+\w+/i, // "What is machine learning" (more than 2 words)
+      /^how (do|does|to|can)\s+/i,
+      /^(describe|overview|summarize|compare)\s+/i,
+      /difference between/i,
+      /vs\.?|versus/i,
+    ];
+
+    if (mediumPatterns.some(p => p.test(queryLower)) && responseWordCount >= 100) {
+      console.log('[TITLE DECISION] → SINGLE TITLE (medium explanation)');
+      return 'single';
+    }
+
+    // Default: If response is 100-300 words, use single title
+    if (responseWordCount >= 100 && responseWordCount < 300) {
+      console.log('[TITLE DECISION] → SINGLE TITLE (medium length 100-300 words)');
+      return 'single';
+    }
+
+    // Fallback: no title for anything else
+    console.log('[TITLE DECISION] → NO TITLE (default fallback)');
+    return 'none';
+  }
+
+  /**
    * Enforce complete Koda format on answer
+   *
+   * @param answer - The response text to format
+   * @param queryType - Type of query (informational, instructional, conversational, file_action)
+   * @param answerLength - Expected answer length
+   * @param userTone - User's preferred tone
+   * @param fileList - Optional file list for file_action queries
+   * @param query - The original user query (used for smart title decisions)
    */
   enforceFormat(
     answer: string,
     queryType: 'informational' | 'instructional' | 'conversational' | 'file_action' = 'informational',
     answerLength: 'short' | 'medium' | 'long' | 'detailed' = 'medium',
     userTone?: 'professional' | 'casual' | 'technical',
-    fileList?: FileItem[]
+    fileList?: FileItem[],
+    query?: string
   ): FormatResult {
 
     console.log('[KODA FORMAT] Starting format enforcement');
@@ -107,6 +299,15 @@ export class KodaFormatEnforcementService {
 
     const violations: FormatViolation[] = [];
     let formatted = answer;
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SMART TITLE DECISION - Determine if/how to add titles
+    // ═══════════════════════════════════════════════════════════════════════════
+    const titleDecision = query
+      ? this.detectTitleDecision(query, answer)
+      : (answerLength === 'short' ? 'none' : 'single');
+
+    console.log(`[KODA FORMAT] Title decision: ${titleDecision}`);
 
     // Special handling for file actions with large lists
     if (queryType === 'file_action' && fileList && fileList.length > 0) {
@@ -120,25 +321,38 @@ export class KodaFormatEnforcementService {
       violations.push({ severity: 'warning', type: 'SPACING', message: 'Fixed spacing issues' });
     }
 
-    // Step 2: Ensure proper title
-    const beforeTitle = formatted;
-    formatted = this.ensureTitle(formatted, userTone);
-    if (formatted !== beforeTitle) {
-      violations.push({ severity: 'info', type: 'TITLE', message: 'Added/fixed title' });
+    // Step 2: Handle title based on smart decision
+    if (titleDecision !== 'none') {
+      const beforeTitle = formatted;
+      formatted = this.ensureTitleSmart(formatted, userTone, titleDecision);
+      if (formatted !== beforeTitle) {
+        violations.push({ severity: 'info', type: 'TITLE', message: `Added ${titleDecision} title` });
+      }
+    } else {
+      // Remove any existing title for 'none' decision
+      const beforeTitle = formatted;
+      formatted = this.removeTitle(formatted);
+      if (formatted !== beforeTitle) {
+        violations.push({ severity: 'info', type: 'TITLE', message: 'Removed unnecessary title' });
+      }
     }
 
-    // Step 3: Validate introduction
-    const beforeIntro = formatted;
-    formatted = this.validateIntroduction(formatted);
-    if (formatted !== beforeIntro) {
-      violations.push({ severity: 'warning', type: 'INTRODUCTION', message: 'Truncated long introduction' });
+    // Step 3: Validate introduction (only for titled responses)
+    if (titleDecision !== 'none') {
+      const beforeIntro = formatted;
+      formatted = this.validateIntroduction(formatted);
+      if (formatted !== beforeIntro) {
+        violations.push({ severity: 'warning', type: 'INTRODUCTION', message: 'Truncated long introduction' });
+      }
     }
 
-    // Step 4: Ensure proper section structure
-    const beforeSections = formatted;
-    formatted = this.ensureSectionStructure(formatted);
-    if (formatted !== beforeSections) {
-      violations.push({ severity: 'info', type: 'SECTIONS', message: 'Fixed section structure' });
+    // Step 4: Ensure proper section structure (only for 'structured' decision)
+    if (titleDecision === 'structured') {
+      const beforeSections = formatted;
+      formatted = this.ensureSectionStructure(formatted);
+      if (formatted !== beforeSections) {
+        violations.push({ severity: 'info', type: 'SECTIONS', message: 'Fixed section structure' });
+      }
     }
 
     // Step 5: Fix bold/italic usage
@@ -148,18 +362,22 @@ export class KodaFormatEnforcementService {
       violations.push({ severity: 'info', type: 'FORMATTING', message: 'Fixed bold/italic usage' });
     }
 
-    // Step 6: Validate length
-    const beforeLength = formatted;
-    formatted = this.validateLength(formatted, answerLength);
-    if (formatted !== beforeLength) {
-      violations.push({ severity: 'warning', type: 'LENGTH', message: 'Added summary due to length' });
+    // Step 6: Validate length (only for structured responses)
+    if (titleDecision === 'structured') {
+      const beforeLength = formatted;
+      formatted = this.validateLength(formatted, answerLength);
+      if (formatted !== beforeLength) {
+        violations.push({ severity: 'warning', type: 'LENGTH', message: 'Added summary due to length' });
+      }
     }
 
-    // Step 7: Add closing statement if needed
-    const beforeClosing = formatted;
-    formatted = this.addClosingStatement(formatted, queryType);
-    if (formatted !== beforeClosing) {
-      violations.push({ severity: 'info', type: 'CLOSING', message: 'Added closing statement' });
+    // Step 7: Add closing statement if needed (skip for short/none responses)
+    if (titleDecision !== 'none') {
+      const beforeClosing = formatted;
+      formatted = this.addClosingStatement(formatted, queryType);
+      if (formatted !== beforeClosing) {
+        violations.push({ severity: 'info', type: 'CLOSING', message: 'Added closing statement' });
+      }
     }
 
     // Step 8: Final cleanup
@@ -171,6 +389,79 @@ export class KodaFormatEnforcementService {
       fixedText: formatted,
       violations
     };
+  }
+
+  /**
+   * Remove title from response (for 'none' title decision)
+   */
+  private removeTitle(text: string): string {
+    const lines = text.split('\n');
+
+    // Check if first non-empty line is a title
+    let firstContentIndex = 0;
+    while (firstContentIndex < lines.length && !lines[firstContentIndex].trim()) {
+      firstContentIndex++;
+    }
+
+    if (firstContentIndex >= lines.length) return text;
+
+    const firstLine = lines[firstContentIndex].trim();
+
+    // Remove ## headers at the start
+    if (firstLine.startsWith('##')) {
+      lines.splice(firstContentIndex, 1);
+      // Remove extra blank line after removed title
+      if (lines[firstContentIndex] && !lines[firstContentIndex].trim()) {
+        lines.splice(firstContentIndex, 1);
+      }
+      return lines.join('\n').trim();
+    }
+
+    return text;
+  }
+
+  /**
+   * Smart title enforcement based on title decision
+   */
+  private ensureTitleSmart(text: string, userTone?: string, decision: TitleDecision = 'single'): string {
+    const lines = text.split('\n');
+    const firstLine = lines[0]?.trim() || '';
+
+    // Skip title enforcement for file listings (they have their own format)
+    if (firstLine.match(/^[📁📄📊🗂️]\s*\*\*.*\*\*/)) {
+      console.log('[KODA FORMAT] Skipping title enforcement for file listing');
+      return text;
+    }
+
+    // If already has a proper ## header, keep it
+    if (firstLine.startsWith('##')) {
+      console.log('[KODA FORMAT] Title already exists, keeping');
+      return text;
+    }
+
+    // For 'single' decision - add a simple title
+    if (decision === 'single') {
+      // Look for existing title-like patterns
+      for (let i = 0; i < Math.min(3, lines.length); i++) {
+        const line = lines[i].trim();
+        if (line.match(/^\*\*[^*]+\*\*$/) && line.length < 100) {
+          // Convert bold to ## header
+          const title = line.replace(/^\*\*|\*\*$/g, '');
+          lines[i] = `## ${title}`;
+          return lines.join('\n');
+        }
+      }
+
+      // No existing title, extract from first sentence
+      const firstSentence = this.extractFirstSentence(text);
+      const title = this.toTitleCase(firstSentence.substring(0, 80));
+      return `## ${title}\n\n${text}`;
+    }
+
+    // For 'structured' decision - ensure proper title and will add sections later
+    const firstSentence = this.extractFirstSentence(text);
+    const title = this.toTitleCase(firstSentence.substring(0, 80));
+    return `## ${title}\n\n${text}`;
   }
 
   /**
