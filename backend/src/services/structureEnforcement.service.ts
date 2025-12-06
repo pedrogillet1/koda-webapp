@@ -11,7 +11,7 @@
  * RULES ENFORCED:
  * 1. ✅ Title: Response MUST start with ## Title (2-4 words) - EXCEPT fallbacks
  * 2. ✅ Sections: MUST have 2-5 ### sections - EXCEPT fallbacks
- * 3. ✅ Source section: MUST include ### Source when documents are used
+ * 3. ❌ Source section: DISABLED - Sources appear as inline citation buttons in UI
  * 4. ✅ Follow-up: MUST end with a follow-up question (?)
  * 5. ✅ Intro limit: Max 2 lines/60 words before first section
  * 6. ✅ Tables for comparisons: Use markdown tables when comparing
@@ -61,8 +61,8 @@ export interface StructureEnforcementResult {
 
 const DEFAULT_CONFIG: StructureEnforcementConfig = {
   forceTitle: true,
-  forceSections: true,
-  forceSource: true,
+  forceSections: true,  // RE-ENABLED: Needed to ensure content is displayed
+  forceSource: false,   // DISABLED: Sources appear as inline citation buttons, not ### Source sections
   forceFollowUp: true,
   maxIntroWords: 60,
   enableLogging: true
@@ -215,32 +215,78 @@ export class StructureEnforcementService {
   }
 
   private generateTitle(query: string): string {
-    // Remove common question words and extract key terms
-    const cleanQuery = query
-      .toLowerCase()
-      .replace(/[?.,!]/g, '')
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TITLE FORMAT RULES (ChatGPT-style):
+    // - Use natural noun phrases: "About X", "X Overview", "X Summary"
+    // - NOT awkward constructions: "X About", "About of X"
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const queryLower = query.toLowerCase().replace(/[?.,!]/g, '').trim();
+
+    // Pattern 1: "what is X about" / "about X" → "About X"
+    const aboutMatch = queryLower.match(/(?:what\s+is\s+)?(.+?)\s+about$/i) ||
+                       queryLower.match(/^about\s+(.+)$/i);
+    if (aboutMatch) {
+      const subject = this.titleCase(aboutMatch[1].trim());
+      return `About ${subject}`;
+    }
+
+    // Pattern 2: "show/list/find X" → "X Overview"
+    const showMatch = queryLower.match(/^(?:show|list|find|get|give)\s+(?:me\s+)?(?:the\s+)?(.+)$/i);
+    if (showMatch) {
+      const subject = this.titleCase(showMatch[1].trim());
+      return `${subject} Overview`;
+    }
+
+    // Pattern 3: "compare X and Y" → "X vs Y Comparison"
+    const compareMatch = queryLower.match(/^compare\s+(.+?)\s+(?:and|vs|with)\s+(.+)$/i);
+    if (compareMatch) {
+      const subj1 = this.titleCase(compareMatch[1].trim());
+      const subj2 = this.titleCase(compareMatch[2].trim());
+      return `${subj1} vs ${subj2}`;
+    }
+
+    // Pattern 4: "how to X" → "How to X"
+    const howToMatch = queryLower.match(/^how\s+to\s+(.+)$/i);
+    if (howToMatch) {
+      return `How to ${this.titleCase(howToMatch[1].trim())}`;
+    }
+
+    // Pattern 5: "what is/are X" → "X Overview"
+    const whatIsMatch = queryLower.match(/^what\s+(?:is|are)\s+(?:the\s+)?(.+)$/i);
+    if (whatIsMatch) {
+      const subject = this.titleCase(whatIsMatch[1].trim());
+      // Don't add "Overview" if subject is short (likely a definition query)
+      return subject.split(' ').length <= 2 ? `${subject} Overview` : subject;
+    }
+
+    // Fallback: Extract key words and form title
+    const cleanQuery = queryLower
       .replace(/^(what|how|show|tell|give|find|list|compare|can you|could you|please)\s+(is|are|me|the|a|an)?\s*/gi, '')
       .trim();
 
     const words = cleanQuery
       .split(/\s+/)
-      .filter(w => w.length > 2 && !['for', 'the', 'and', 'from', 'with'].includes(w));
+      .filter(w => w.length > 2 && !['for', 'the', 'and', 'from', 'with', 'about'].includes(w));
 
-    // Take first 2-3 meaningful words and title case
-    const titleWords = words
-      .slice(0, 3)
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1));
+    const titleWords = words.slice(0, 3).map(w => w.charAt(0).toUpperCase() + w.slice(1));
 
     if (titleWords.length === 0) {
       return 'Analysis Results';
     }
 
-    // Form a coherent title
     if (titleWords.length === 1) {
       return `${titleWords[0]} Overview`;
     }
 
     return titleWords.join(' ');
+  }
+
+  private titleCase(str: string): string {
+    return str
+      .split(/\s+/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

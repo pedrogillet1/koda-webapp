@@ -83,11 +83,11 @@ const InlineDocumentButton = ({ document, onClick, style = {} }) => {
         }}
       />
 
-      {/* File Title - Bold */}
+      {/* File Title - Bold, 15px per UI spec */}
       <span style={{
-        fontSize: '14px',
+        fontSize: '15px',
         fontWeight: '600',
-        color: '#374151',
+        color: '#1a1a1a',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',

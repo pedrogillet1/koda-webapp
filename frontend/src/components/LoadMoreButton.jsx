@@ -35,13 +35,13 @@ const LoadMoreButton = ({ loadMoreData, onClick, style = {} }) => {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '8px',
-        padding: '8px 16px',
-        marginTop: '8px',
-        marginBottom: '8px',
-        backgroundColor: 'transparent',
-        border: '2px dashed #D1D5DB',  // Dashed border
-        borderRadius: '24px',  // Pill-shaped
+        gap: '6px',
+        padding: '10px 16px',
+        marginTop: '12px',
+        marginBottom: '4px',
+        backgroundColor: '#4a90e2',
+        border: 'none',
+        borderRadius: '8px',
         cursor: loading ? 'wait' : 'pointer',
         transition: 'all 0.2s ease',
         fontFamily: 'inherit',
@@ -52,43 +52,35 @@ const LoadMoreButton = ({ loadMoreData, onClick, style = {} }) => {
       }}
       onMouseEnter={(e) => {
         if (!loading) {
-          e.currentTarget.style.backgroundColor = '#F9FAFB';
-          e.currentTarget.style.borderColor = '#9CA3AF';
+          e.currentTarget.style.backgroundColor = '#357abd';
         }
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = 'transparent';
-        e.currentTarget.style.borderColor = '#D1D5DB';
+        e.currentTarget.style.backgroundColor = '#4a90e2';
       }}
     >
       {/* Expand Icon */}
       {!loading && (
         <svg
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
-          fill="none"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="white"
           xmlns="http://www.w3.org/2000/svg"
           style={{
             flexShrink: 0
           }}
         >
-          <path
-            d="M10 5V15M5 10H15"
-            stroke="#6B7280"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <path d="M8 0L6.59 1.41L12.17 7H0v2h12.17l-5.58 5.59L8 16l8-8z"/>
         </svg>
       )}
 
       {/* Loading Spinner */}
       {loading && (
         <svg
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           style={{
@@ -97,27 +89,27 @@ const LoadMoreButton = ({ loadMoreData, onClick, style = {} }) => {
           }}
         >
           <circle
-            cx="10"
-            cy="10"
-            r="8"
-            stroke="#6B7280"
+            cx="8"
+            cy="8"
+            r="6"
+            stroke="white"
             strokeWidth="2"
-            strokeDasharray="12 12"
+            strokeDasharray="10 10"
             strokeLinecap="round"
           />
         </svg>
       )}
 
-      {/* Button Text */}
+      {/* Button Text - "View all X files" per UI spec */}
       <span style={{
-        fontSize: '14px',
+        fontSize: '15px',
         fontWeight: '500',
-        color: '#6B7280',
+        color: 'white',
         whiteSpace: 'nowrap'
       }}>
         {loading
           ? 'Loading...'
-          : `+ Show ${remainingCount} more file${remainingCount !== 1 ? 's' : ''}`
+          : `View all ${totalCount} files`
         }
       </span>
 

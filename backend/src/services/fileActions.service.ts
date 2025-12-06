@@ -19,6 +19,7 @@ import { emitDocumentEvent, emitFolderEvent } from './websocket.service';
 import semanticFileMatcher from './semanticFileMatcher.service'; // ✅ FIX #7: Import semantic matcher
 import clarificationService from './clarification.service'; // ✅ P0 Feature: Smart clarification with grouping
 import { generateDynamicResponse } from './dynamicResponseGenerator.service'; // ✅ Dynamic LLM-based responses
+import { createLoadMoreMarker } from '../utils/inlineDocumentInjector'; // ✅ UI: Load more button instead of text
 
 /**
  * Enhanced fuzzy matching using our dedicated service
@@ -2196,7 +2197,12 @@ class FileActionsService {
       }
 
       if (documents.length >= 100) {
-        response += `\n*Showing first 100 files. Use filters to narrow results.*`;
+        // Use LoadMore marker instead of text - renders as button in frontend
+        response += '\n' + createLoadMoreMarker({
+          remainingCount: 0, // Unknown without additional query
+          totalCount: documents.length,
+          loadedCount: 100
+        });
       }
 
       return {
