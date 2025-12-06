@@ -1009,7 +1009,7 @@ Rules for citations:
 // - For RAG (factual answers): topK=1 is BETTER (more consistent)
 
 // Initialize Gemini model for RAG queries
-// FLASH OPTIMIZED: Reduced maxOutputTokens from 8192 to 900 (81% reduction)
+// FIXED: Increased maxOutputTokens to 2500 - Gemini 2.5 Flash uses internal thinking tokens
 // Per-query adaptation done via classifyResponseType() and FLASH_OPTIMAL_CONFIG
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({
@@ -1018,10 +1018,10 @@ const model = genAI.getGenerativeModel({
     temperature: 0.4,    // FLASH: Reduced from 0.7 for more deterministic factual answers
     topP: 0.95,          // Keep same (nucleus sampling threshold)
     topK: 40,            // FLASH OPTIMIZED: 10 -> 40 (better vocabulary variety)
-    maxOutputTokens: 900, // FLASH OPTIMIZED: 8192 -> 900 (81% token reduction)
+    maxOutputTokens: 2500, // FIXED: Increased from 900 - Gemini 2.5 Flash needs room for internal thinking
   },
 });
-console.log('[FLASH] Gemini optimized: maxTokens 8192->900, topK 10->40, temp 0.7->0.4');
+console.log('[FLASH] Gemini optimized: maxTokens 2500, topK 40, temp 0.4');
 
 let pinecone: Pinecone | null = null;
 let pineconeIndex: any = null;
@@ -1035,7 +1035,7 @@ export async function initializePinecone() {
     pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY || '',
     });
-    pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME || 'koda-gemini');
+    pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME || 'koda-openai');
 
     // Initialize hybrid retrieval service with Pinecone index
     initializePineconeIndex(pineconeIndex);

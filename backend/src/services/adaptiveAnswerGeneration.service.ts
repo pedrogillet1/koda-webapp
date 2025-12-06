@@ -169,8 +169,8 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
   useThinking: boolean;
 }> = {
   simple: {
-    targetWords: 50,           // Was 150 → Reduced 67%
-    maxTokens: 100,            // Was 250 → Reduced 60%
+    targetWords: 150,          // Restored from 50 - needs room for summaries
+    maxTokens: 1000,           // FIXED: Increased from 300 - Gemini 2.5 Flash uses internal thinking tokens
     temperature: 0.2,          // Very deterministic for facts
     topP: 0.95,
     topK: 20,                  // Narrow vocabulary for precision
@@ -181,7 +181,7 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
   },
   medium: {
     targetWords: 180,          // Was 300 → Reduced 40%
-    maxTokens: 300,            // Was 500 → Reduced 40%
+    maxTokens: 1500,           // FIXED: Increased from 300 - Gemini 2.5 Flash needs room for thinking
     temperature: 0.4,          // Balanced
     topP: 0.95,
     topK: 40,                  // Was 10 → Increased 4x for variety
@@ -192,7 +192,7 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
   },
   complex: {
     targetWords: 550,          // Was 600 → Reduced 8%
-    maxTokens: 900,            // Was 1000 → Reduced 10%
+    maxTokens: 2500,           // FIXED: Increased from 900 - Complex answers need more room
     temperature: 0.5,          // Slightly creative
     topP: 0.95,
     topK: 64,                  // Full range
@@ -203,7 +203,7 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
   },
   explanation: {
     targetWords: 320,          // NEW category
-    maxTokens: 500,
+    maxTokens: 1500,           // FIXED: Increased from 500
     temperature: 0.4,
     topP: 0.95,
     topK: 40,
@@ -214,7 +214,7 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
   },
   guidance: {
     targetWords: 250,          // NEW category
-    maxTokens: 400,
+    maxTokens: 1200,           // FIXED: Increased from 400
     temperature: 0.6,          // More creative for suggestions
     topP: 0.95,
     topK: 50,
@@ -225,7 +225,7 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
   },
   stepbystep: {
     targetWords: 350,          // NEW category
-    maxTokens: 550,
+    maxTokens: 1800,           // FIXED: Increased from 550
     temperature: 0.3,          // Precise for instructions
     topP: 0.95,
     topK: 30,
@@ -542,7 +542,7 @@ export async function generateAdaptiveAnswer(
         topP: lengthConfig.topP,
         topK: lengthConfig.topK,
         maxOutputTokens: lengthConfig.maxTokens,
-        stopSequences: ['\n\n\n\n', '---END---']  // Early stopping
+        // stopSequences: ['\n\n\n\n', '---END---']  // DISABLED - was causing early termination
       }
     });
 

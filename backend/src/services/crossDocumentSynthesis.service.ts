@@ -235,7 +235,7 @@ ${Array.from(sourcesMap.values()).map(s => `- **${s.filename}**`).join('\n')}`;
     console.log(`   🤖 Generating synthesis with Gemini...`);
 
     const model = geminiClient.getModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       systemInstruction: systemPrompt,
       generationConfig: {
         temperature: 0.3, // Lower temperature for more focused analysis

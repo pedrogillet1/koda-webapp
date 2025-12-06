@@ -13,7 +13,7 @@ class PineconeService {
 
   constructor() {
     // Force reload from environment on each initialization
-    this.indexName = process.env.PINECONE_INDEX_NAME || 'koda-gemini';
+    this.indexName = process.env.PINECONE_INDEX_NAME || 'koda-openai';
     console.log(`🔧 [Pinecone] Constructor: indexName set to "${this.indexName}"`);
     this.initialize();
   }

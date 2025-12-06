@@ -53,7 +53,7 @@ async function cleanOrphanedPineconeVectors(): Promise<CleanupReport['pinecone']
     console.log('🔍 [OrphanCleanup] Scanning Pinecone for orphaned vectors...');
 
     const pinecone = new Pinecone({ apiKey });
-    const indexName = process.env.PINECONE_INDEX_NAME || 'koda-gemini';
+    const indexName = process.env.PINECONE_INDEX_NAME || 'koda-openai';
     const index = pinecone.index(indexName);
 
     // Get all valid document IDs from database

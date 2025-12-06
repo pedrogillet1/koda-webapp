@@ -47,7 +47,7 @@ const SUPPORTED_IMAGE_TYPES = [
 ];
 
 // Model configuration
-const OCR_MODEL = 'gemini-2.5-flash-preview-05-20';
+const OCR_MODEL = 'gemini-2.5-flash';
 
 class MistralOCRService {
   private static instance: MistralOCRService;
