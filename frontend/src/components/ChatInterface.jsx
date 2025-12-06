@@ -36,6 +36,7 @@ import StreamingMarkdown from './StreamingMarkdown';
 import StreamingWelcomeMessage from './StreamingWelcomeMessage';
 import { useToast } from '../context/ToastContext';
 import InlineDocumentButton from './InlineDocumentButton';
+import InlineDocumentList from './InlineDocumentList';
 import DocumentSources from './DocumentSources';
 import { hasInlineDocuments, splitTextWithDocuments, stripAllDocumentMarkers, parseInlineDocuments } from '../utils/inlineDocumentParser';
 
@@ -2702,34 +2703,73 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 {(() => {
                                                                     const content = stripDocumentSources(msg.content);
 
-                                                                    // Always strip all document markers - we'll show them in DocumentSources dropdown
+                                                                    // Define markdown components for text segments
+                                                                    const markdownComponents = {
+                                                                        a: DocumentLink,
+                                                                        table: ({node, ...props}) => <table className="markdown-table" {...props} />,
+                                                                        thead: ({node, ...props}) => <thead {...props} />,
+                                                                        tbody: ({node, ...props}) => <tbody {...props} />,
+                                                                        tr: ({node, ...props}) => <tr {...props} />,
+                                                                        th: ({node, ...props}) => <th {...props} />,
+                                                                        td: ({node, ...props}) => <td {...props} />,
+                                                                        h1: ({node, ...props}) => <h1 className="markdown-h1" {...props} />,
+                                                                        h2: ({node, ...props}) => <h2 className="markdown-h2" {...props} />,
+                                                                        h3: ({node, ...props}) => <h3 className="markdown-h3" {...props} />,
+                                                                        h4: ({node, ...props}) => <h4 className="markdown-h4" {...props} />,
+                                                                        h5: ({node, ...props}) => <h5 className="markdown-h5" {...props} />,
+                                                                        h6: ({node, ...props}) => <h6 className="markdown-h6" {...props} />,
+                                                                        p: ({node, ...props}) => <p className="markdown-paragraph" {...props} />,
+                                                                        ul: ({node, ...props}) => <ul className="markdown-ul" {...props} />,
+                                                                        ol: ({node, ...props}) => <ol className="markdown-ol" {...props} />,
+                                                                        code: ({node, inline, ...props}) =>
+                                                                            inline ? <code className="markdown-inline-code" {...props} /> : <code className="markdown-code-block" {...props} />,
+                                                                        blockquote: ({node, ...props}) => <blockquote className="markdown-blockquote" {...props} />,
+                                                                        hr: ({node, ...props}) => <hr className="markdown-hr" {...props} />,
+                                                                        img: ({node, ...props}) => <img className="markdown-image" {...props} alt={props.alt || ''} />,
+                                                                    };
+
+                                                                    // Check if content has inline document markers for file listings
+                                                                    if (hasInlineDocuments(content)) {
+                                                                        // Split content into text and document segments
+                                                                        const segments = splitTextWithDocuments(content);
+
+                                                                        // Separate text segments from document segments
+                                                                        const textSegments = segments.filter(s => s.type === 'text');
+                                                                        const documentSegments = segments.filter(s => s.type === 'document').map(s => s.content);
+
+                                                                        return (
+                                                                            <>
+                                                                                {/* Render text content first */}
+                                                                                {textSegments.map((segment, idx) => (
+                                                                                    <ReactMarkdown
+                                                                                        key={`text-${idx}`}
+                                                                                        remarkPlugins={[remarkGfm]}
+                                                                                        components={markdownComponents}
+                                                                                    >
+                                                                                        {segment.content}
+                                                                                    </ReactMarkdown>
+                                                                                ))}
+
+                                                                                {/* Render documents using InlineDocumentList (organized, limited to 10) */}
+                                                                                {documentSegments.length > 0 && (
+                                                                                    <InlineDocumentList
+                                                                                        documents={documentSegments}
+                                                                                        onDocumentClick={(doc) => {
+                                                                                            console.log('[INLINE DOC] Opening preview:', doc);
+                                                                                            setPreviewDocument(doc);
+                                                                                        }}
+                                                                                    />
+                                                                                )}
+                                                                            </>
+                                                                        );
+                                                                    }
+
+                                                                    // No inline documents - strip any markers and render as before
                                                                     const cleanedContent = stripAllDocumentMarkers(content);
                                                                     return (
                                                                         <ReactMarkdown
                                                                             remarkPlugins={[remarkGfm]}
-                                                                            components={{
-                                                                                a: DocumentLink,
-                                                                                table: ({node, ...props}) => <table className="markdown-table" {...props} />,
-                                                                                thead: ({node, ...props}) => <thead {...props} />,
-                                                                                tbody: ({node, ...props}) => <tbody {...props} />,
-                                                                                tr: ({node, ...props}) => <tr {...props} />,
-                                                                                th: ({node, ...props}) => <th {...props} />,
-                                                                                td: ({node, ...props}) => <td {...props} />,
-                                                                                h1: ({node, ...props}) => <h1 className="markdown-h1" {...props} />,
-                                                                                h2: ({node, ...props}) => <h2 className="markdown-h2" {...props} />,
-                                                                                h3: ({node, ...props}) => <h3 className="markdown-h3" {...props} />,
-                                                                                h4: ({node, ...props}) => <h4 className="markdown-h4" {...props} />,
-                                                                                h5: ({node, ...props}) => <h5 className="markdown-h5" {...props} />,
-                                                                                h6: ({node, ...props}) => <h6 className="markdown-h6" {...props} />,
-                                                                                p: ({node, ...props}) => <p className="markdown-paragraph" {...props} />,
-                                                                                ul: ({node, ...props}) => <ul className="markdown-ul" {...props} />,
-                                                                                ol: ({node, ...props}) => <ol className="markdown-ol" {...props} />,
-                                                                                code: ({node, inline, ...props}) =>
-                                                                                    inline ? <code className="markdown-inline-code" {...props} /> : <code className="markdown-code-block" {...props} />,
-                                                                                blockquote: ({node, ...props}) => <blockquote className="markdown-blockquote" {...props} />,
-                                                                                hr: ({node, ...props}) => <hr className="markdown-hr" {...props} />,
-                                                                                img: ({node, ...props}) => <img className="markdown-image" {...props} alt={props.alt || ''} />,
-                                                                            }}
+                                                                            components={markdownComponents}
                                                                         >
                                                                             {cleanedContent}
                                                                         </ReactMarkdown>
@@ -2737,17 +2777,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 })()}
                                                             </div>
 
-                                                            {/* Document Sources Dropdown - shows all sources used in this answer */}
-                                                            <DocumentSources
-                                                                sources={[
-                                                                    ...(msg.ragSources || []),
-                                                                    ...parseInlineDocuments(msg.content || '')
-                                                                ]}
-                                                                onDocumentClick={(doc) => {
-                                                                    console.log('[DOC SOURCES] Opening preview:', doc);
-                                                                    setPreviewDocument(doc);
-                                                                }}
-                                                            />
+                                                            {/* Document Sources Dropdown - only show when NOT a file listing response */}
+                                                            {/* If inline documents are rendered as buttons, don't show duplicate dropdown */}
+                                                            {!hasInlineDocuments(msg.content || '') && (
+                                                                <DocumentSources
+                                                                    sources={[
+                                                                        ...(msg.ragSources || []),
+                                                                        ...parseInlineDocuments(msg.content || '')
+                                                                    ]}
+                                                                    onDocumentClick={(doc) => {
+                                                                        console.log('[DOC SOURCES] Opening preview:', doc);
+                                                                        setPreviewDocument(doc);
+                                                                    }}
+                                                                />
+                                                            )}
 
                                                             {/* Manus-style Document Preview Button */}
                                                             {msg.chatDocument && (
