@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { ReactComponent as AttachmentIcon } from '../assets/Paperclip.svg';
 import { ReactComponent as SendIcon } from '../assets/arrow-narrow-up.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
@@ -32,6 +33,7 @@ import useStreamingAnimation from '../hooks/useStreamingAnimation';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import './MarkdownStyles.css';
 import './StreamingAnimation.css';
+import './SpacingUtilities.css';
 import StreamingMarkdown from './StreamingMarkdown';
 import StreamingWelcomeMessage from './StreamingWelcomeMessage';
 import { useToast } from '../context/ToastContext';
@@ -2664,11 +2666,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             }
 
                             // Normal message rendering
-                            // Calculate spacing based on consecutive messages from same sender
+                            // Calculate spacing based on message sender pattern (EXACT_FORMAT spec)
                             const nextMsg = messages[index + 1];
                             const isLastMessage = index === messages.length - 1;
-                            const isSameSenderAsNext = nextMsg && nextMsg.role === msg.role;
-                            const messageSpacing = isLastMessage ? 0 : (isSameSenderAsNext ? 8 : 20);
+                            // Spec spacing: Koda→Koda: 12px, User→Koda: 8px, default: 20px
+                            const messageSpacing = isLastMessage ? 0 : (
+                                msg.role === 'assistant' && nextMsg?.role === 'assistant' ? 12 :
+                                msg.role === 'user' && nextMsg?.role === 'assistant' ? 8 :
+                                20
+                            );
 
                             return (
                             <div
@@ -2686,20 +2692,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     msg.isRegenerating && !msg.content ? (
                                         <TypingIndicator userName="Koda" stage={currentStage} />
                                     ) : (
-                                    <div className="assistant-message" style={{display: 'flex', gap: 12, alignItems: 'flex-start', maxWidth: '70%'}}>
-                                        {/* Koda Avatar - Sphere Icon */}
+                                    <div className="assistant-message" style={{display: 'flex', gap: 16, alignItems: 'flex-start', maxWidth: '100%', width: '100%'}}>
+                                        {/* Koda Avatar - Sphere Icon (32px per spec) */}
                                         <img src={sphere} alt="Koda" style={{
-                                            width: 40,
-                                            height: 40,
+                                            width: 32,
+                                            height: 32,
                                             flexShrink: 0,
-                                            marginTop: 4
+                                            marginTop: 0
                                         }} />
-                                        <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', flex: 1}}>
-                                        <div style={{padding: '0', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
+                                        <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', flex: 1, maxWidth: 720}}>
+                                        <div style={{background: '#FFFFFF', borderRadius: '20px 20px 20px 16px', boxShadow: '0 8px 20px rgba(0,0,0,0.04)', padding: '16px 20px', width: '100%', maxWidth: 720, justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                             <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
                                                 <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
                                                         <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
-                                                            <div className="markdown-preview-container" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
+                                                            <div className="markdown-preview-container" style={{color: '#171717', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '22px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
                                                                 {(() => {
                                                                     const content = stripDocumentSources(msg.content);
 
@@ -2744,6 +2750,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                     <ReactMarkdown
                                                                                         key={`text-${idx}`}
                                                                                         remarkPlugins={[remarkGfm]}
+                                                                                        rehypePlugins={[rehypeRaw]}
                                                                                         components={markdownComponents}
                                                                                     >
                                                                                         {segment.content}
@@ -2769,6 +2776,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                     return (
                                                                         <ReactMarkdown
                                                                             remarkPlugins={[remarkGfm]}
+                                                                            rehypePlugins={[rehypeRaw]}
                                                                             components={markdownComponents}
                                                                         >
                                                                             {cleanedContent}

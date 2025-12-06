@@ -1,131 +1,228 @@
 /* ============================================
-   KODA Markdown Styling - BALANCED VERSION
-   Original style with MODERATE spacing reduction
+   KODA EXACT FORMAT - Matches Specification 100%
+   Based on format specification document
    ============================================ */
 
-/* APPROACH: Keep the original professional look
- * Just reduce spacing by ~25-30% (not 50%)
- * Focus on: paragraphs closer, sections closer, bullets slightly tighter
+/* CRITICAL RULE: NO spacing between bullet points
+ * Bullet points should be TIGHT with no gaps
+ * Only spacing between SECTIONS (8-12px)
  */
 
-/* Container */
+/* Container - Max width 640-720px */
 .markdown-preview-container {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  font-size: 16px;
-  line-height: 1.7;
-  color: #32302C;
-  max-width: 100%;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #171717;
+  max-width: 720px;
   padding: 0;
   background: transparent;
 }
 
-/* Headings - MODERATE reduction */
-.markdown-h1 {
-  font-size: 2.5rem !important;
-  font-weight: 700 !important;
-  color: #000000 !important;
-  margin-top: 0 !important;
-  margin-bottom: 20px !important; /* ✅ Was 24px, now 20px (-17%) */
-  line-height: 1.2 !important;
-  border-bottom: 3px solid #E6E6EC !important;
-  padding-bottom: 14px !important; /* ✅ Was 16px, now 14px */
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-}
+/* ============================================
+   TYPOGRAPHY HIERARCHY (Exact Specification)
+   ============================================ */
 
+/* Headline / Short Answer (1-2 lines max) */
 .markdown-h2 {
-  font-size: 1.1em !important;
+  font-size: 16px !important;
   font-weight: 600 !important;
-  color: #000000 !important;
-  margin: 0 !important;
+  line-height: 24px !important;
+  color: #111111 !important;
+  margin: 0 0 12px 0 !important;
   padding: 0 !important;
-  line-height: 1.3 !important;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-/* First h2 in a message should have no top margin */
+/* First h2 should have no top margin */
 .markdown-preview-container > h2:first-child,
 .markdown-preview-container > .markdown-h2:first-child {
   margin-top: 0 !important;
 }
 
+/* Micro-section labels (RESUMO RÁPIDO, DETALHES, PRÓXIMOS PASSOS) */
 .markdown-h3 {
-  font-size: 1.05em !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
-  color: #000000 !important;
-  margin: 0 !important;
+  letter-spacing: 0.5px !important;
+  text-transform: uppercase !important;
+  color: #9CA3AF !important;
+  margin: 8px 0 4px 0 !important;
   padding: 0 !important;
-  line-height: 1.3 !important;
+  line-height: 1.2 !important;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-.markdown-h4 {
-  font-size: 1.25rem !important;
-  font-weight: 600 !important;
-  color: #000000 !important;
-  margin-top: 18px !important; /* ✅ Was 24px, now 18px (-25%) */
-  margin-bottom: 10px !important; /* ✅ Was 12px, now 10px */
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-}
-
-.markdown-h5 {
-  font-size: 1.1rem !important;
-  font-weight: 600 !important;
-  color: #000000 !important;
-  margin-top: 16px !important; /* ✅ Was 20px, now 16px (-20%) */
-  margin-bottom: 8px !important; /* ✅ Was 10px, now 8px */
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-}
-
-.markdown-h6 {
-  font-size: 1rem !important;
-  font-weight: 600 !important;
-  color: #000000 !important;
-  margin-top: 12px !important; /* ✅ Was 16px, now 12px (-25%) */
-  margin-bottom: 6px !important; /* ✅ Was 8px, now 6px */
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-}
-
-/* Paragraphs - Natural spacing like Claude */
+/* Body text / bullets */
 .markdown-paragraph {
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  line-height: 22px !important;
+  color: #171717 !important;
   margin: 0 !important;
   padding: 0 !important;
-  line-height: 1.4 !important;
-  color: #323232 !important;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-/* Reset all p tags in markdown container */
-.markdown-preview-container p {
-  margin: 0 !important;
-  padding: 0 !important;
+/* Paragraph spacing: 6-8px between paragraphs */
+.markdown-paragraph + .markdown-paragraph {
+  margin-top: 8px !important;
 }
 
-/* Reset all headings in markdown container */
-.markdown-preview-container h1,
-.markdown-preview-container h2,
-.markdown-preview-container h3,
-.markdown-preview-container h4,
-.markdown-preview-container h5,
-.markdown-preview-container h6 {
-  margin: 0 !important;
+/* Meta text (paths, dates, "Ver todos") */
+.markdown-inline-code {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: #6B7280 !important;
+  background-color: transparent !important;
   padding: 0 !important;
+  border: none !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-/* Bold and Italic */
+/* Bold usage - ONLY for file names, key numbers, critical terms */
 .markdown-preview-container strong,
 .markdown-preview-container b {
   font-weight: 700 !important;
-  color: #1f2937 !important;
+  color: #171717 !important;
 }
 
-.markdown-preview-container em,
-.markdown-preview-container i {
-  font-style: italic !important;
-  color: #374151 !important;
+/* Never bold whole sentences - handled by backend */
+
+/* ============================================
+   LISTS - CRITICAL: NO SPACING BETWEEN BULLETS
+   ============================================ */
+
+/* Bullet lists - NO spacing between items */
+.markdown-ul {
+  margin: 0 !important;
+  padding-left: 16px !important;
+  list-style-type: disc !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-/* Links */
+/* CRITICAL: Zero margin between bullet points */
+.markdown-ul li {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 22px !important;
+  color: #171717 !important;
+  font-size: 14px !important;
+}
+
+/* Each bullet: max 2 lines */
+.markdown-ul li {
+  max-height: 44px; /* 2 lines * 22px line-height */
+  overflow: visible;
+}
+
+/* Bullet style: filled dot */
+.markdown-ul li::marker {
+  color: #171717;
+}
+
+/* Ordered lists */
+.markdown-ol {
+  margin: 0 !important;
+  padding-left: 16px !important;
+  list-style-type: decimal !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+.markdown-ol li {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 22px !important;
+  color: #171717 !important;
+  font-size: 14px !important;
+}
+
+/* Nested lists - NOT RECOMMENDED, but if needed */
+.markdown-ul ul,
+.markdown-ol ul {
+  margin: 0 !important;
+  padding-left: 16px !important;
+}
+
+/* ============================================
+   SECTION SPACING (8-12px between sections)
+   ============================================ */
+
+/* Space between headline and micro label */
+.markdown-h2 + .markdown-h3 {
+  margin-top: 8px !important;
+}
+
+/* Space between micro label and content */
+.markdown-h3 + .markdown-ul,
+.markdown-h3 + .markdown-paragraph {
+  margin-top: 4px !important;
+}
+
+/* Space between list and next section */
+.markdown-ul + .markdown-h3,
+.markdown-ul + .markdown-paragraph {
+  margin-top: 12px !important;
+}
+
+/* Space between paragraph and next section */
+.markdown-paragraph + .markdown-h3,
+.markdown-paragraph + .markdown-ul {
+  margin-top: 12px !important;
+}
+
+/* ============================================
+   TABLES - Professional styling
+   ============================================ */
+
+.markdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  background: white;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  margin: 20px 0 !important;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.markdown-table thead {
+  background: #000000 !important;
+  color: white !important;
+}
+
+.markdown-table thead th {
+  padding: 14px 16px !important;
+  text-align: left !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  color: white !important;
+  border: none !important;
+}
+
+.markdown-table tbody tr {
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+.markdown-table tbody tr:nth-child(even) {
+  background-color: #f9fafb !important;
+}
+
+.markdown-table tbody tr:hover {
+  background-color: #f3f4f6 !important;
+}
+
+.markdown-table tbody td {
+  padding: 12px 16px !important;
+  color: #171717 !important;
+  border: none !important;
+  font-size: 14px !important;
+}
+
+/* ============================================
+   LINKS
+   ============================================ */
+
 .markdown-link {
   color: #3b82f6 !important;
   text-decoration: none !important;
@@ -139,235 +236,15 @@
   border-bottom-color: #3b82f6 !important;
 }
 
-/* Lists - SLIGHTLY tighter */
-.markdown-ul,
-.markdown-ol {
-  margin-bottom: 12px !important; /* ✅ Was 16px, now 12px (-25%) */
-  padding-left: 28px !important;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-}
+/* ============================================
+   BLOCKQUOTES - Rarely used
+   ============================================ */
 
-.markdown-ul li,
-.markdown-ol li {
-  margin-bottom: 6px !important; /* ✅ Was 8px, now 6px (-25%) */
-  line-height: 1.7 !important; /* ✅ Keep original 1.7 */
-  color: #4b5563 !important;
-}
-
-.markdown-ul {
-  list-style-type: disc !important;
-}
-
-.markdown-ol {
-  list-style-type: decimal !important;
-}
-
-/* Nested lists */
-.markdown-ul ul,
-.markdown-ol ul {
-  list-style-type: circle !important;
-  margin-top: 6px !important; /* ✅ Was 8px, now 6px */
-}
-
-.markdown-ul ul ul,
-.markdown-ol ul ul {
-  list-style-type: square !important;
-}
-
-/* Tables - Professional gradient header like Manus */
-.table-wrapper {
-  overflow-x: auto;
-  margin: 20px 0 !important; /* ✅ Was 24px, now 20px (-17%) */
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.markdown-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.95rem;
-  background: white;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-  table-layout: fixed;
-}
-
-/* Equal column widths with table-layout: fixed */
-.markdown-table th,
-.markdown-table td {
-  width: auto;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
-.markdown-table thead {
-  background: #000000 !important;
-  color: white !important;
-}
-
-.markdown-table thead th {
-  padding: 14px 16px !important;
-  text-align: left !important;
-  font-weight: 600 !important;
-  font-size: 0.9rem !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.5px !important;
-  border: none !important;
-  color: white !important;
-  background: transparent !important;
-}
-
-.markdown-table tbody tr {
-  border-bottom: 1px solid #e5e7eb !important;
-  transition: background-color 0.2s ease !important;
-}
-
-.markdown-table tbody tr:nth-child(even) {
-  background-color: #f9fafb !important;
-}
-
-.markdown-table tbody tr:hover {
-  background-color: #f3f4f6 !important;
-}
-
-.markdown-table tbody td {
-  padding: 12px 16px !important;
-  color: #4b5563 !important;
-  border: none !important;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-}
-
-.markdown-table tbody tr:last-child {
-  border-bottom: none !important;
-}
-
-/* Comparison table styling - optimized for fast rendering */
-.comparison-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 14px 0; /* ✅ Was 16px, now 14px */
-  font-size: 14px;
-  animation: fadeIn 0.3s ease-in;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-  background: white;
-}
-
-.comparison-table thead {
-  background-color: #f3f4f6;
-}
-
-.comparison-table th {
-  padding: 12px;
-  text-align: left;
-  font-weight: 600;
-  border-bottom: 2px solid #e5e7eb;
-}
-
-.comparison-table td {
-  padding: 12px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.comparison-table tbody tr:hover {
-  background-color: #f9fafb;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* Excel-specific table styling (green gradient) */
-.excel-table-container {
-  margin: 20px 0 !important; /* ✅ Was 24px, now 20px */
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.excel-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-  font-size: 14px;
-}
-
-.excel-table thead {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-  color: white !important;
-}
-
-.excel-table thead th {
-  padding: 12px 16px !important;
-  text-align: left !important;
-  font-weight: 700 !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: white !important;
-}
-
-.excel-table thead th:last-child {
-  border-right: none !important;
-}
-
-.excel-table tbody tr {
-  border-bottom: 1px solid #e5e7eb !important;
-}
-
-.excel-table tbody tr:nth-child(even) {
-  background-color: #f9fafb !important;
-}
-
-.excel-table tbody tr:hover {
-  background-color: #ecfdf5 !important;
-}
-
-.excel-table tbody td {
-  padding: 10px 16px !important;
-  color: #374151 !important;
-  border-right: 1px solid #e5e7eb !important;
-}
-
-.excel-table tbody td:last-child {
-  border-right: none !important;
-}
-
-/* Numeric cells (right-aligned) */
-.excel-table tbody td.numeric {
-  text-align: right !important;
-  font-family: 'Courier New', monospace !important;
-  font-weight: 500 !important;
-}
-
-/* Code - Inline code styling (for filenames, variables, etc.) */
-.markdown-inline-code {
-  background-color: #f3f4f6 !important;
-  color: #374151 !important;
-  padding: 2px 6px !important;
-  border-radius: 4px !important;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-  font-size: 0.9em !important;
-  border: 1px solid #e5e7eb !important;
-  font-weight: 600 !important;
-}
-
-/* Code block - Only for actual code snippets, not filenames */
-.markdown-code-block {
-  display: inline !important;
-  background-color: #f3f4f6 !important;
-  color: #374151 !important;
-  padding: 2px 6px !important;
-  border-radius: 4px !important;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-  font-size: 0.9em !important;
-  border: 1px solid #e5e7eb !important;
-  font-weight: 600 !important;
-}
-
-/* Blockquotes */
 .markdown-blockquote {
   border-left: 4px solid #3b82f6 !important;
   background-color: #eff6ff !important;
   padding: 16px 20px !important;
-  margin: 16px 0 !important; /* ✅ Was 20px, now 16px (-20%) */
+  margin: 12px 0 !important;
   border-radius: 0 8px 8px 0 !important;
   color: #1e40af !important;
   font-style: italic !important;
@@ -379,86 +256,85 @@
   color: #1e40af !important;
 }
 
-/* Horizontal Rule - Hidden to avoid visual clutter */
-.markdown-hr {
-  display: none !important; /* Hide HR elements - they are used for document sources which we render via UI */
-}
+/* ============================================
+   IMAGES - Rarely used
+   ============================================ */
 
-/* Images */
 .markdown-image {
   max-width: 100% !important;
   height: auto !important;
   border-radius: 8px !important;
-  margin: 16px 0 !important; /* ✅ Was 20px, now 16px (-20%) */
+  margin: 16px 0 !important;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Checkboxes (for task lists) */
-.markdown-preview-container input[type="checkbox"] {
-  margin-right: 8px !important;
-  transform: scale(1.2) !important;
-  cursor: pointer !important;
+/* ============================================
+   HORIZONTAL RULE - Hidden
+   ============================================ */
+
+.markdown-hr {
+  display: none !important;
 }
 
-/* Emoji Support */
-.markdown-preview-container .emoji {
-  font-size: 1.2em !important;
-  vertical-align: middle !important;
+/* ============================================
+   CODE BLOCKS - For filenames in grey boxes
+   ============================================ */
+
+.markdown-code-block {
+  display: inline !important;
+  background-color: #f3f4f6 !important;
+  color: #374151 !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 12px !important;
+  border: 1px solid #e5e7eb !important;
+  font-weight: 400 !important;
 }
 
-/* Ensure emojis render properly */
-.markdown-preview-container {
-  font-feature-settings: "liga" 1, "calt" 1;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
 
-/* Responsive Design */
 @media (max-width: 768px) {
   .markdown-preview-container {
-    padding: 16px;
-    font-size: 15px;
-  }
-
-  .markdown-h1 {
-    font-size: 2rem !important;
+    font-size: 14px;
+    max-width: 100%;
   }
 
   .markdown-h2 {
-    font-size: 1.75rem !important;
+    font-size: 16px !important;
   }
 
   .markdown-h3 {
-    font-size: 1.35rem !important;
+    font-size: 12px !important;
   }
 
-  .markdown-table,
-  .excel-table {
-    font-size: 0.85rem;
+  .markdown-table {
+    font-size: 12px;
   }
 
   .markdown-table thead th,
-  .markdown-table tbody td,
-  .excel-table thead th,
-  .excel-table tbody td {
+  .markdown-table tbody td {
     padding: 10px 12px !important;
   }
 }
 
-/* Print Styles */
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+
 @media print {
   .markdown-preview-container {
     padding: 0;
     background: white;
   }
 
-  .markdown-h1,
   .markdown-h2 {
     page-break-after: avoid;
   }
 
-  .markdown-table,
-  .excel-table {
+  .markdown-table {
     page-break-inside: avoid;
   }
 
@@ -466,14 +342,12 @@
     color: #000 !important;
     text-decoration: underline !important;
   }
-
-  .markdown-table thead,
-  .excel-table thead {
-    background: #667eea !important;
-  }
 }
 
-/* Accessibility */
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
 .markdown-preview-container *:focus {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
@@ -486,44 +360,35 @@
 }
 
 /* ============================================
-   ChatGPT-Style Streaming Cursor
+   STREAMING CURSOR
    ============================================ */
 
-/* Blinking cursor at end of streaming message */
 .markdown-preview-container.streaming .cursor {
   display: inline-block;
   animation: blink 1s step-end infinite;
   margin-left: 2px;
-  color: #6366F1; /* Koda primary color */
+  color: #6366F1;
   font-weight: 400;
 }
 
 @keyframes blink {
-  0%, 50% {
-    opacity: 1;
-  }
-  51%, 100% {
-    opacity: 0;
-  }
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
 }
 
 /* ============================================
-   SUMMARY OF CHANGES (BALANCED APPROACH)
+   SUMMARY OF KEY CHANGES FROM CURRENT KODA:
    ============================================
-
-   ✅ H2 margin-top: 48px → 36px (-25%)
-   ✅ H2 margin-bottom: 20px → 16px (-20%)
-   ✅ H3 margin-top: 32px → 24px (-25%)
-   ✅ H3 margin-bottom: 16px → 12px (-25%)
-   ✅ H4 margin-top: 24px → 18px (-25%)
-   ✅ Paragraph margin-bottom: 16px → 12px (-25%)
-   ✅ List margin-bottom: 16px → 12px (-25%)
-   ✅ List item margin-bottom: 8px → 6px (-25%)
-   ✅ Line height: KEPT at 1.7 (original)
-   ✅ Table margins: 24px → 20px (-17%)
-   ✅ Code block margins: 16px → 14px (-13%)
-   ✅ HR margins: 32px → 24px (-25%)
-
-   RESULT: ~20-25% reduction in vertical spacing
-   Professional look maintained, just slightly tighter
+   
+   1. H2 (Headline): 16px (was 1.1em ≈ 17.6px)
+   2. H3 (Micro labels): 12px, ALL CAPS, #9CA3AF (was 1.05em)
+   3. Body text: 14px (was 16px)
+   4. Bullet spacing: 0px (was 6px)
+   5. Section spacing: 8-12px (was inconsistent)
+   6. Meta text: 12px, #6B7280 (was inline-code style)
+   7. Bold: Only file names/numbers (was inconsistent)
+   8. Max width: 720px (was 100%)
+   9. Line height: 22px (was 1.7 = 27.2px)
+   10. Paragraph spacing: 8px (was 0px)
+   
    ============================================ */

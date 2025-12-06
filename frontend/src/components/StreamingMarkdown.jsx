@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import './StreamingAnimation.css';
+import './SpacingUtilities.css';
 
 /**
  * ✨ StreamingMarkdown Component
@@ -112,11 +114,15 @@ const StreamingMarkdown = ({
       <h3
         className="markdown-h3"
         style={{
-          fontSize: '16px',
+          fontSize: '12px',
           fontWeight: '600',
           margin: 0,
           marginTop: '12px',
-          lineHeight: '1.4'
+          marginBottom: '8px',
+          lineHeight: '1.4',
+          color: '#9CA3AF',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
         }}
         {...props}
       />
@@ -170,9 +176,9 @@ const StreamingMarkdown = ({
     li: ({ node, ...props }) => (
       <li
         style={{
-          marginTop: '2px',
-          marginBottom: '2px',
-          lineHeight: '1.5'
+          margin: 0,
+          padding: 0,
+          lineHeight: '22px'
         }}
         {...props}
       />
@@ -267,6 +273,7 @@ const StreamingMarkdown = ({
     return (
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw]}
         components={components}
       >
         {content}
@@ -278,11 +285,11 @@ const StreamingMarkdown = ({
     <div
       className={`markdown-preview-container ${isStreaming ? 'streaming' : ''} ${className}`}
       style={{
-        color: '#323232',
-        fontSize: '16px',
+        color: '#171717',
+        fontSize: '14px',
         fontFamily: 'Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        fontWeight: '500',
-        lineHeight: '1.5',
+        fontWeight: '400',
+        lineHeight: '22px',
         width: '100%',
         wordWrap: 'break-word',
         overflowWrap: 'break-word'

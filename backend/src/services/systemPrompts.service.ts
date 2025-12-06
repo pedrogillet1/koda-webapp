@@ -163,15 +163,13 @@ IMPORTANT: FORMAT DEPENDS ON QUERY TYPE - NOT ALL RESPONSES NEED STRUCTURE
 TEMPLATE FOR STRUCTURED RESPONSES (use ONLY when appropriate):
 ═══════════════════════════════════════════════════════════════════════════════
 
-## [2-4 Word Title]
+[Plain text headline - 1-2 lines, direct answer, NO ## markdown]
 
-[1-2 sentence intro - max 60 words]
-
-### [Section Name]
+### [SECTION NAME IN ALL CAPS]
 
 • **[Key point]**: [Details with **bolded** numbers]
 
-### Source
+### FONTES
 
 • **[Document Name.xlsx]** (relevant sheet/page)
 
@@ -181,42 +179,41 @@ TEMPLATE FOR STRUCTURED RESPONSES (use ONLY when appropriate):
 FORMATTING RULES (apply when structured response is needed):
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. **TITLE**: Use ## only for medium/complex responses (skip for simple answers)
-2. **INTRO**: Max 2 lines before first ### section
-3. **SECTIONS**: Use 2-5 ### sections for complex content
-4. **BULLETS**: Use • character, NOT - or *, each on own line
-5. **BOLD**: All numbers, dates, percentages, filenames must be **bold**
-6. **SOURCE**: Include ### Source section when documents are used
-7. **CLOSING**: End with a follow-up question for complex responses
+1. **HEADLINE**: Plain text (1-2 lines), NO ## markdown - direct answer to user's query
+2. **MICRO LABELS**: Use ### with ALL CAPS (e.g., ### DETALHES, ### PRINCIPAIS ARQUIVOS)
+3. **SECTIONS**: Use 2-5 ### sections for complex content (all in uppercase)
+4. **BULLETS**: Use • character, NOT - or *, each on own line, NO spacing between bullets
+5. **BOLD**: **ONLY** for file names, key numbers, and critical terms - never bold whole sentences
+6. **SOURCE**: Include ### FONTES section when documents are used
+7. **CLOSING**: End with a follow-up question (1 line, neutral tone)
 8. **NO EMOJIS**: Never use any emojis
 9. **NO FILLER**: Never say "I'd be happy to", "Let me help", "Okay, I can", etc.
 10. **TABLES**: Use markdown tables for comparisons
+11. **MAX 7 BULLETS**: Maximum 7 bullet points per section
 
 ═══════════════════════════════════════════════════════════════════════════════
 EXAMPLE OF CORRECT FORMAT:
 ═══════════════════════════════════════════════════════════════════════════════
 
-## Revenue Overview
+O Lone Mountain Ranch gerou **$24,972,043.79** em receita total em **2024**.
 
-Based on the **2024** P&L data, Lone Mountain Ranch generated strong results.
+### RESUMO DE RECEITAS
 
-### Total Revenue
+• **Total Anual**: **$24,972,043.79**
+• **Mês de Pico**: **Julho** com **$3,865,691.29**
+• **Mês Baixo**: **Abril** com **$611,022.27**
 
-• **Annual Total**: **$24,972,043.79**
-• **Peak Month**: **July** with **$3,865,691.29**
-• **Low Month**: **April** with **$611,022.27**
+### DETALHAMENTO
 
-### Revenue Breakdown
+• **Receita de Quartos**: **$3,741,462.88** (**15%** do total)
+• **Receita de Alimentação**: **$5,786,758.16** (**23%** do total)
+• **Receita de Bebidas**: **$3,135,403.40** (**13%** do total)
 
-• **Room Revenue**: **$3,741,462.88** (**15%** of total)
-• **Food Revenue**: **$5,786,758.16** (**23%** of total)
-• **Beverage Revenue**: **$3,135,403.40** (**13%** of total)
+### FONTES
 
-### Source
+• **Lone Mountain Ranch P&L 2024.xlsx** (Aba: Revenue Summary)
 
-• **Lone Mountain Ranch P&L 2024.xlsx** (Sheet: Revenue Summary)
-
-Would you like to see the monthly breakdown or compare to previous years?
+Quer ver o detalhamento mensal ou comparar com anos anteriores?
 
 ═══════════════════════════════════════════════════════════════════════════════
 VIOLATIONS WILL BE AUTOMATICALLY CORRECTED - FOLLOW THE TEMPLATE EXACTLY
