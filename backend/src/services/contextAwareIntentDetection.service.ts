@@ -105,6 +105,7 @@ export type IntentCategory =
   | 'explanation'         // Why, how, explain
   | 'calculation'         // Calculate, sum, total from docs
   | 'synthesis'           // Across all documents
+  | 'exact_text'          // Quote, verbatim text, exact wording
   | 'refusal'             // Can't do / won't do
   | 'general';            // Default fallback
 
@@ -875,6 +876,18 @@ class ContextAwareIntentDetectionService {
       };
     }
 
+    // Check exact text/quote queries (before comparison)
+    if (this.isExactTextQuery(lowerQuery)) {
+      return {
+        primary: 'exact_text',
+        confidence: 0.94,
+        requiresDocuments: true,
+        requiresDatabase: false,
+        isRefusal: false,
+        disambiguation: 'exact text/quote retrieval',
+      };
+    }
+
     // Check comparison
     if (this.isComparisonQuery(lowerQuery)) {
       return {
@@ -1213,6 +1226,28 @@ class ContextAwareIntentDetectionService {
     return /\b(where\s+is|how\s+many\s+(?:files|documents)|list\s+all\s+(?:files|documents|folders)|what\s+files\s+do\s+i\s+have)\b/i.test(query);
   }
 
+  /**
+   * Check if query is asking for exact text/quote from documents
+   */
+  private isExactTextQuery(query: string): boolean {
+    const patterns = [
+      // English patterns
+      /\b(where\s+does\s+it\s+say|show\s+me\s+the\s+(?:exact\s+)?(?:line|phrase|clause|sentence|paragraph|wording|text))\b/i,
+      /\b(what'?s?\s+the\s+exact|copy\s+the\s+exact|quote\s+(?:the\s+)?(?:exact\s+)?)\b/i,
+      /\b(verbatim|exact\s+(?:text|phrase|wording|clause)|word\s+for\s+word|cite\s+the)\b/i,
+      /\b(what\s+(?:exactly|precisely)\s+does\s+(?:it|the\s+document|the\s+contract)\s+say)\b/i,
+      /\b(read\s+(?:me\s+)?the\s+(?:exact\s+)?(?:part|section|clause|paragraph)\s+(?:about|regarding|where))\b/i,
+      // Portuguese patterns
+      /\b(onde\s+(?:diz|está\s+escrito)|mostr(?:ar|e)\s+(?:o\s+)?(?:texto\s+)?exato)\b/i,
+      /\b(qual\s+é\s+(?:o\s+)?texto\s+exato|cit(?:ar|e)\s+(?:o\s+)?(?:trecho|texto))\b/i,
+      /\b(copiar\s+(?:o\s+)?(?:trecho|texto)|palavra\s+por\s+palavra)\b/i,
+      // Spanish patterns
+      /\b(dónde\s+(?:dice|está\s+escrito)|muestra\s+(?:el\s+)?(?:texto\s+)?exacto)\b/i,
+      /\b(cuál\s+es\s+(?:el\s+)?texto\s+exacto|cit(?:ar|a)\s+(?:el\s+)?(?:fragmento|texto))\b/i,
+    ];
+    return patterns.some(p => p.test(query));
+  }
+
   private isComparisonQuery(query: string): boolean {
     return /\b(compare|comparison|difference|vs\.?|versus|between.*and|contrast|comparar|diferença|diferencia)\b/i.test(query);
   }
@@ -1282,6 +1317,7 @@ class ContextAwareIntentDetectionService {
       explanation: 'explanation',
       calculation: 'data',
       synthesis: 'comparison',
+      exact_text: 'general',  // exact text/quote queries
       refusal: 'general',
       general: 'general',
     };

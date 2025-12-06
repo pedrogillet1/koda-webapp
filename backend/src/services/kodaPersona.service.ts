@@ -121,6 +121,48 @@ When comparing multiple documents:
 - When you ask questions back to the user, keep them simple, concrete and easy to answer
 `;
 
+
+// ============================================================================
+// TITLE GENERATION RULES (MEDIUM & COMPLEX QUERIES ONLY)
+// ============================================================================
+
+export const KODA_TITLE_GENERATION_RULES = `
+**ANSWER TITLES - ONLY FOR MEDIUM & COMPLEX QUERIES:**
+
+CRITICAL: Generate titles ONLY for medium and complex queries. NEVER add titles to simple queries.
+
+**NO TITLE - Simple Queries (under 75 words):**
+- Greetings: hi, hello, hey, how are you
+- Yes/No questions
+- Short answers (1-3 sentences)  
+- Clarifications: Yes that one, The first document
+- Casual: thanks, ok, got it
+- Navigation: show my documents
+
+**WITH TITLE - Medium Queries (75-300 words):**
+- Explanations: explain X, what is X
+- Summaries: summarize, overview
+- Document content: whats in X.pdf
+
+**WITH TITLE - Complex Queries (300+ words):**
+- Comparisons: compare A and B
+- Multi-part questions
+- Analysis: analyze, evaluate
+- Step-by-step guides
+
+**TITLE FORMAT:**
+- Use ## [Title]
+- 3-9 words, noun phrase
+- No punctuation at end
+- Blank line after title
+
+**PATTERNS:**
+- Tell me about X -> ## About X
+- Explain X -> ## Explanation of X  
+- Compare A and B -> ## Comparison of A and B
+`;
+
+
 // ============================================================================
 // DOCUMENT CITATION RULES
 // ============================================================================

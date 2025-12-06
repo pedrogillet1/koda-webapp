@@ -112,7 +112,9 @@ export enum ResponseType {
   COMPLEX = 'complex',         // "Analyze X" → 350-750 words
   EXPLANATION = 'explanation', // "Why X?" → 220-420 words
   GUIDANCE = 'guidance',       // "Should I X?" → 180-350 words
-  STEPBYSTEP = 'stepbystep'    // "How to X?" → 260-430 words
+  STEPBYSTEP = 'stepbystep',   // "How to X?" → 260-430 words
+  QUOTE = 'quote',             // "Show me exact text" → 100-200 words
+  COMPARISON = 'comparison'    // "Compare X and Y" → 300-450 words
 }
 
 /**
@@ -120,6 +122,16 @@ export enum ResponseType {
  */
 export function classifyResponseType(query: string): ResponseType {
   const lowerQuery = query.toLowerCase();
+
+  // QUOTE queries - exact text/quote retrieval (check FIRST - highest priority)
+  if (/\b(where\s+does\s+it\s+say|show\s+me\s+the\s+(?:exact\s+)?(?:line|phrase|clause|sentence|paragraph|wording|text)|what'?s?\s+the\s+exact|copy\s+the\s+exact|quote\s+(?:the\s+)?(?:exact\s+)?|verbatim|exact\s+(?:text|phrase|wording|clause)|word\s+for\s+word|cite\s+the)\b/i.test(lowerQuery)) {
+    return ResponseType.QUOTE;
+  }
+
+  // COMPARISON queries - multi-document comparison
+  if (/\b(compare|difference\s+between|how\s+(?:do|does|are|is)\s+.+\s+differ|versus|vs\.?|contrast|side\s+by\s+side|which\s+(?:one|document|contract)\s+is\s+(?:better|cheaper|longer|shorter))\b/i.test(lowerQuery)) {
+    return ResponseType.COMPARISON;
+  }
 
   // Simple queries - direct factual questions
   if (/^(what is|who is|when|where|which)\s+\w+\??$/i.test(lowerQuery)) {
@@ -234,6 +246,28 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
     sections: '3-6',
     useHeadings: true,
     useThinking: false
+  },
+  quote: {
+    targetWords: 200,          // Quote + short explanation
+    maxTokens: 1000,           // Room for quote + context
+    temperature: 0.2,          // Very low - exact text retrieval
+    topP: 0.95,
+    topK: 20,                  // Narrow vocabulary for precision
+    bulletPoints: '0-2',
+    sections: 1,
+    useHeadings: false,
+    useThinking: false
+  },
+  comparison: {
+    targetWords: 450,          // Structured comparison
+    maxTokens: 2000,           // Room for multi-doc comparison
+    temperature: 0.4,          // Balanced
+    topP: 0.95,
+    topK: 40,
+    bulletPoints: '8-15',
+    sections: '4-6',
+    useHeadings: true,
+    useThinking: false
   }
 };
 
@@ -242,7 +276,30 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
 // ============================================================================
 
 /**
- * System instruction for Gemini 2.5 Flash
+ * Get system instruction based on response type
+ * Uses kodaPersonaService for unified persona
+ */
+function getSystemInstruction(responseType: ResponseType, language?: string): string {
+  // Use kodaPersonaService for quote and comparison strategies
+  if (responseType === ResponseType.QUOTE) {
+    return kodaPersonaService.getQuoteStrategyPersona();
+  }
+
+  if (responseType === ResponseType.COMPARISON) {
+    return kodaPersonaService.getComparisonStrategyPersona();
+  }
+
+  // For other types, use persona with language adjustments
+  if (language) {
+    return kodaPersonaService.getPersonaForLanguage(language);
+  }
+
+  // Default: use persona with citations
+  return kodaPersonaService.getPersonaWithCitations();
+}
+
+/**
+ * Legacy System instruction for Gemini 2.5 Flash (kept for backwards compatibility)
  * Separate from prompt for efficiency (Flash caches system instructions)
  */
 const FLASH_SYSTEM_INSTRUCTION = `You are KODA, an intelligent document assistant powered by Gemini 2.5 Flash.
@@ -537,7 +594,7 @@ export async function generateAdaptiveAnswer(
     // Create Flash model with system instruction
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      systemInstruction: FLASH_SYSTEM_INSTRUCTION,
+      systemInstruction: getSystemInstruction(lengthConfig.responseType, params.language),
       generationConfig: {
         temperature: lengthConfig.temperature,
         topP: lengthConfig.topP,

@@ -8456,7 +8456,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
 - Translate information from the document into **${queryLangName}** if needed`;
 
       const finalSystemPrompt = systemPrompt + languageInstruction;
-      fullResponse = await streamLLMResponse(finalSystemPrompt, contextWithIntelligence, onChunk);
+      // Pass empty callback - we'll send the format-enforced response later via onChunk(fullResponse)
+      // This prevents duplication (raw response + format-enforced response)
+      fullResponse = await streamLLMResponse(finalSystemPrompt, contextWithIntelligence, () => {});
     }
 
     perfTimer.measure('Adaptive Answer Generation', 'adaptiveAnswerGeneration');
@@ -8525,10 +8527,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
     });
     perfTimer.measure('Format Enforcement', 'formatEnforcement');
 
-    // âœ… NEW: Send the format-enforced response to the client
-    // This is now the ONLY place where the main response is sent
+    // Send the format-enforced response to client
     onChunk(fullResponse);
-    console.log(`ðŸ“¤ [SEND] Sent format-enforced response (${fullResponse.length} chars)`);
 
     // âš¡ SPEED OPTIMIZATION: Use LLM-provided citations first, fallback to fast regex extraction
     // âœ… ENHANCED: Prioritize structured citations from LLM's hidden citation block for accuracy

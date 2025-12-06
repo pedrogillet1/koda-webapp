@@ -2713,11 +2713,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             marginTop: 0
                                         }} />
                                         <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', flex: 1, maxWidth: 720}}>
-                                        <div style={{background: '#FFFFFF', borderRadius: '20px 20px 20px 16px', boxShadow: '0 8px 20px rgba(0,0,0,0.04)', padding: '16px 20px', width: '100%', maxWidth: 720, justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
+                                        <div style={{background: '#FFFFFF', borderRadius: 16, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', padding: '24px 28px', width: '100%', maxWidth: 720, justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                             <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
                                                 <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
                                                         <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
-                                                            <div className="markdown-preview-container" style={{color: '#171717', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: '22px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
+                                                            <div className="markdown-preview-container" style={{color: '#1a1a1a', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: 1.5, width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
                                                                 {(() => {
                                                                     const content = stripDocumentSources(msg.content);
 

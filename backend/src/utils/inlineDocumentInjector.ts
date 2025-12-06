@@ -558,7 +558,12 @@ export function injectInlineDocuments(
   });
 
   if (remaining > 0) {
-    response += `\n_Showing ${displayDocs.length} of ${documents.length} files. ${remaining} more not displayed._`;
+    // Use LoadMore marker instead of text - renders as "View all X files" button in frontend
+    response += '\n' + createLoadMoreMarker({
+      remainingCount: remaining,
+      totalCount: documents.length,
+      loadedCount: displayDocs.length
+    });
   }
 
   if (responseSuffix) {
