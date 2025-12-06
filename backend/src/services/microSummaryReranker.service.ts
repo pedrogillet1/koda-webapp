@@ -1,368 +1,294 @@
 /**
  * Micro-Summary Reranker Service
- * Priority: P2 (MEDIUM)
  * 
- * Reranks chunks using micro-summaries for better relevance.
- * Micro-summaries provide high-level context about chunks.
+ * Reranks chunks using micro-summary relevance after RRF merge.
+ * Computes similarity between query and chunk.microSummary to boost
+ * chunks that match the query PURPOSE, not just keywords.
  * 
- * Key Functions:
- * - Generate micro-summaries for chunks
- * - Rerank chunks using micro-summaries
- * - Boost chunks with relevant micro-summaries
- * - Cache micro-summaries for performance
+ * Integration points:
+ * - Called in hybridSearch.service.ts AFTER RRF merge
+ * - BEFORE chunk-type reranking
+ * - Combines RRF score with micro-summary similarity score
+ * 
+ * Expected impact: +10-20% retrieval accuracy for explanation queries
  */
 
-import prisma from '../config/database';
-import geminiClient from './geminiClient.service';
+import embeddingService from './embedding.service';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TYPES
+// Types
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface MicroSummary {
+export interface SearchResult {
   chunkId: string;
-  summary: string;
-  keyTopics: string[];
-  createdAt: Date;
-}
-
-export interface RerankedChunk {
-  chunkId: string;
-  content: string;
-  originalScore: number;
-  rerankScore: number;
-  finalScore: number;
+  documentId: string;
+  documentTitle: string;
+  chunkText: string;
   microSummary?: string;
-  metadata?: any;
+  chunkType?: string;
+  sectionName?: string;
+  pageNumber?: number;
+  
+  // Scores
+  bm25Score?: number;
+  vectorScore?: number;
+  combinedScore: number;  // From RRF
+  microScore?: number;    // From micro-summary reranking
+  finalScore?: number;    // Combined final score
+  
+  metadata?: Record<string, unknown>;
 }
 
 export interface RerankOptions {
-  useMicroSummaries?: boolean;
-  microSummaryWeight?: number;
-  topK?: number;
+  query: string;
+  queryIntent?: string;
+  microWeight?: number;   // Weight for micro-summary score
+  rrfWeight?: number;     // Weight for RRF score
+  minMicroScore?: number; // Minimum micro-summary score to apply boost
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MAIN FUNCTIONS
+// Intent-Based Weight Tuning
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Rerank chunks using micro-summaries
- */
-export async function rerankWithMicroSummaries(
-  query: string,
-  chunks: Array<{ id?: string; content: string; score: number; metadata?: any }>,
-  options: RerankOptions = {}
-): Promise<RerankedChunk[]> {
-  const {
-    useMicroSummaries = true,
-    microSummaryWeight = 0.3,
-    topK = 10,
-  } = options;
-
-  if (!useMicroSummaries || chunks.length === 0) {
-    // Return chunks as-is
-    return chunks.map(chunk => ({
-      chunkId: chunk.id || '',
-      content: chunk.content,
-      originalScore: chunk.score,
-      rerankScore: 0,
-      finalScore: chunk.score,
-      metadata: chunk.metadata,
-    }));
-  }
-
-  // Get or generate micro-summaries for chunks
-  const microSummaries = await getMicroSummariesForChunks(chunks);
-
-  // Calculate rerank scores based on micro-summary relevance
-  const rerankedChunks = await calculateRerankScores(
-    query,
-    chunks,
-    microSummaries,
-    microSummaryWeight
-  );
-
-  // Sort by final score and return top K
-  return rerankedChunks
-    .sort((a, b) => b.finalScore - a.finalScore)
-    .slice(0, topK);
-}
-
-/**
- * Generate micro-summary for a single chunk
- */
-export async function generateMicroSummary(
-  chunkContent: string,
-  chunkId?: string
-): Promise<MicroSummary> {
-  try {
-    const prompt = buildMicroSummaryPrompt(chunkContent);
-
-    const result = await geminiClient.generateContent(prompt, {
-      temperature: 0.3,
-      maxOutputTokens: 150,
-    });
-
-    const responseText = result.response?.text() || '';
-    const parsed = parseMicroSummaryResult(responseText);
-
-    const microSummary: MicroSummary = {
-      chunkId: chunkId || '',
-      summary: parsed.summary,
-      keyTopics: parsed.keyTopics,
-      createdAt: new Date(),
-    };
-
-    // Cache micro-summary if chunkId is provided
-    if (chunkId) {
-      await cacheMicroSummary(chunkId, microSummary);
-    }
-
-    return microSummary;
-  } catch (error) {
-    console.error('[MicroSummaryReranker] Error generating micro-summary:', error);
-    
-    return {
-      chunkId: chunkId || '',
-      summary: chunkContent.slice(0, 100) + '...',
-      keyTopics: [],
-      createdAt: new Date(),
-    };
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// HELPER FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Get or generate micro-summaries for chunks
- */
-async function getMicroSummariesForChunks(
-  chunks: Array<{ id?: string; content: string }>
-): Promise<Map<string, MicroSummary>> {
-  const summaries = new Map<string, MicroSummary>();
-
-  for (const chunk of chunks) {
-    if (!chunk.id) {
-      // Generate on-the-fly without caching
-      const summary = await generateMicroSummary(chunk.content);
-      summaries.set(chunk.content, summary);
-      continue;
-    }
-
-    // Try to get from cache
-    const cached = await getCachedMicroSummary(chunk.id);
-    
-    if (cached) {
-      summaries.set(chunk.id, cached);
-    } else {
-      // Generate and cache
-      const summary = await generateMicroSummary(chunk.content, chunk.id);
-      summaries.set(chunk.id, summary);
-    }
-  }
-
-  return summaries;
-}
-
-/**
- * Calculate rerank scores using micro-summaries
- */
-async function calculateRerankScores(
-  query: string,
-  chunks: Array<{ id?: string; content: string; score: number; metadata?: any }>,
-  microSummaries: Map<string, MicroSummary>,
-  microSummaryWeight: number
-): Promise<RerankedChunk[]> {
-  const rerankedChunks: RerankedChunk[] = [];
-
-  for (const chunk of chunks) {
-    const key = chunk.id || chunk.content;
-    const microSummary = microSummaries.get(key);
-
-    if (!microSummary) {
-      // No micro-summary, use original score
-      rerankedChunks.push({
-        chunkId: chunk.id || '',
-        content: chunk.content,
-        originalScore: chunk.score,
-        rerankScore: 0,
-        finalScore: chunk.score,
-        metadata: chunk.metadata,
-      });
-      continue;
-    }
-
-    // Calculate relevance of micro-summary to query
-    const rerankScore = calculateMicroSummaryRelevance(query, microSummary);
-
-    // Combine original score with rerank score
-    const finalScore = 
-      chunk.score * (1 - microSummaryWeight) +
-      rerankScore * microSummaryWeight;
-
-    rerankedChunks.push({
-      chunkId: chunk.id || '',
-      content: chunk.content,
-      originalScore: chunk.score,
-      rerankScore,
-      finalScore,
-      microSummary: microSummary.summary,
-      metadata: chunk.metadata,
-    });
-  }
-
-  return rerankedChunks;
-}
-
-/**
- * Calculate relevance of micro-summary to query
- */
-function calculateMicroSummaryRelevance(
-  query: string,
-  microSummary: MicroSummary
-): number {
-  const queryLower = query.toLowerCase();
-  const summaryLower = microSummary.summary.toLowerCase();
+const INTENT_WEIGHTS: Record<string, { microWeight: number; rrfWeight: number }> = {
+  // High micro-weight for explanation/summary queries
+  'explanation': { microWeight: 0.4, rrfWeight: 0.6 },
+  'summary': { microWeight: 0.4, rrfWeight: 0.6 },
+  'overview': { microWeight: 0.4, rrfWeight: 0.6 },
+  'what_is': { microWeight: 0.4, rrfWeight: 0.6 },
   
-  // Simple keyword matching
-  const queryWords = queryLower.match(/\b\w{4,}\b/g) || [];
-  const summaryWords = new Set(summaryLower.match(/\b\w{4,}\b/g) || []);
+  // Medium micro-weight for information retrieval
+  'information_retrieval': { microWeight: 0.3, rrfWeight: 0.7 },
+  'comparison': { microWeight: 0.3, rrfWeight: 0.7 },
+  'analysis': { microWeight: 0.3, rrfWeight: 0.7 },
   
-  const matchCount = queryWords.filter(word => summaryWords.has(word)).length;
-  const matchRatio = matchCount / Math.max(queryWords.length, 1);
+  // Low micro-weight for exact ID/keyword queries
+  'exact_match': { microWeight: 0.1, rrfWeight: 0.9 },
+  'id_lookup': { microWeight: 0.1, rrfWeight: 0.9 },
+  'keyword_search': { microWeight: 0.2, rrfWeight: 0.8 },
   
-  // Boost if key topics match
-  const topicBoost = microSummary.keyTopics.some(topic => 
-    queryLower.includes(topic.toLowerCase())
-  ) ? 0.2 : 0;
-  
-  return Math.min(matchRatio + topicBoost, 1.0);
-}
-
-/**
- * Build prompt for generating micro-summary
- */
-function buildMicroSummaryPrompt(chunkContent: string): string {
-  return `You are a micro-summarization system. Generate a very brief summary of the text chunk.
-
-**Text Chunk:**
-${chunkContent.slice(0, 1000)}
-
-**Your Task:**
-Generate a 1-2 sentence summary that captures the main topic and key information.
-Extract 2-3 key topics.
-
-**Output Format (JSON):**
-{
-  "summary": "<1-2 sentence summary>",
-  "keyTopics": ["topic1", "topic2", "topic3"]
-}
-
-Respond with ONLY the JSON object, no additional text.`;
-}
-
-/**
- * Parse micro-summary result
- */
-function parseMicroSummaryResult(text: string): { summary: string; keyTopics: string[] } {
-  try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in micro-summary result');
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    
-    return {
-      summary: parsed.summary || '',
-      keyTopics: parsed.keyTopics || [],
-    };
-  } catch (error) {
-    console.error('[MicroSummaryReranker] Error parsing micro-summary result:', error);
-    
-    return {
-      summary: '',
-      keyTopics: [],
-    };
-  }
-}
-
-/**
- * Cache micro-summary in database
- */
-async function cacheMicroSummary(chunkId: string, microSummary: MicroSummary): Promise<void> {
-  try {
-    // Store in DocumentEmbedding metadata field (as JSON string)
-    const existingEmb = await prisma.documentEmbedding.findUnique({
-      where: { id: chunkId },
-      select: { metadata: true },
-    });
-
-    let existingMetadata: Record<string, unknown> = {};
-    if (existingEmb?.metadata) {
-      try {
-        existingMetadata = JSON.parse(existingEmb.metadata);
-      } catch {
-        existingMetadata = {};
-      }
-    }
-
-    await prisma.documentEmbedding.update({
-      where: { id: chunkId },
-      data: {
-        metadata: JSON.stringify({
-          ...existingMetadata,
-          microSummary: microSummary.summary,
-          keyTopics: microSummary.keyTopics,
-        }),
-      },
-    });
-  } catch (error) {
-    // Silently fail if caching doesn't work
-    console.error('[MicroSummaryReranker] Error caching micro-summary:', error);
-  }
-}
-
-/**
- * Get cached micro-summary from database
- */
-async function getCachedMicroSummary(chunkId: string): Promise<MicroSummary | null> {
-  try {
-    const embedding = await prisma.documentEmbedding.findUnique({
-      where: { id: chunkId },
-      select: { metadata: true },
-    });
-
-    if (!embedding || !embedding.metadata) {
-      return null;
-    }
-
-    const metadata = embedding.metadata as any;
-    
-    if (!metadata.microSummary) {
-      return null;
-    }
-
-    return {
-      chunkId,
-      summary: metadata.microSummary,
-      keyTopics: metadata.keyTopics || [],
-      createdAt: new Date(),
-    };
-  } catch (error) {
-    console.error('[MicroSummaryReranker] Error getting cached micro-summary:', error);
-    return null;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// EXPORT
-// ═══════════════════════════════════════════════════════════════════════════
-
-export default {
-  rerankWithMicroSummaries,
-  generateMicroSummary,
+  // Default
+  'default': { microWeight: 0.3, rrfWeight: 0.7 }
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Micro-Summary Reranker Service
+// ═══════════════════════════════════════════════════════════════════════════
+
+class MicroSummaryRerankerService {
+  /**
+   * Rerank chunks using micro-summary relevance
+   */
+  async rerankWithMicroSummaries(
+    candidates: SearchResult[],
+    options: RerankOptions
+  ): Promise<SearchResult[]> {
+    const startTime = Date.now();
+    const { query, queryIntent, minMicroScore = 0.3 } = options;
+
+    console.log(`🔄 [MICRO-RERANK] Reranking ${candidates.length} chunks with micro-summaries...`);
+
+    // Get intent-based weights
+    const weights = this.getWeights(queryIntent, options);
+    const { microWeight, rrfWeight } = weights;
+
+    console.log(`[MICRO-RERANK] Using weights: micro=${microWeight}, rrf=${rrfWeight}`);
+
+    // Generate query embedding once
+    const queryEmbeddingResult = await embeddingService.generateEmbedding(query);
+    const queryEmbedding = queryEmbeddingResult.embedding;
+
+    // Rerank each candidate
+    const reranked = await Promise.all(
+      candidates.map(async (chunk) => {
+        // Skip if no micro-summary
+        if (!chunk.microSummary) {
+          return {
+            ...chunk,
+            microScore: 0,
+            finalScore: chunk.combinedScore
+          };
+        }
+
+        try {
+          // Compute micro-summary similarity
+          const summaryResult = await embeddingService.generateEmbedding(chunk.microSummary);
+          const summaryEmbedding = summaryResult.embedding;
+          const microScore = this.cosineSimilarity(queryEmbedding, summaryEmbedding);
+
+          // Only apply boost if micro-score is above threshold
+          const effectiveMicroScore = microScore >= minMicroScore ? microScore : 0;
+
+          // Combine scores
+          const finalScore = rrfWeight * chunk.combinedScore + microWeight * effectiveMicroScore;
+
+          return {
+            ...chunk,
+            microScore,
+            finalScore
+          };
+
+        } catch (error: any) {
+          console.error(`❌ [MICRO-RERANK] Failed to compute micro-score for chunk ${chunk.chunkId}:`, error.message);
+          
+          // Fallback: use RRF score only
+          return {
+            ...chunk,
+            microScore: 0,
+            finalScore: chunk.combinedScore
+          };
+        }
+      })
+    );
+
+    // Sort by finalScore (descending)
+    const sorted = reranked.sort((a, b) => (b.finalScore || 0) - (a.finalScore || 0));
+
+    const latency = Date.now() - startTime;
+    console.log(`✅ [MICRO-RERANK] Reranking complete in ${latency}ms`);
+
+    // Log top 3 for debugging
+    console.log('[MICRO-RERANK] Top 3 chunks:');
+    sorted.slice(0, 3).forEach((chunk, i) => {
+      console.log(`  ${i + 1}. Score: ${chunk.finalScore?.toFixed(3)} (RRF: ${chunk.combinedScore.toFixed(3)}, Micro: ${chunk.microScore?.toFixed(3)})`);
+      console.log(`     Summary: "${chunk.microSummary?.slice(0, 60)}..."`);
+    });
+
+    return sorted;
+  }
+
+  /**
+   * Get weights based on query intent
+   */
+  private getWeights(
+    queryIntent: string | undefined,
+    options: RerankOptions
+  ): { microWeight: number; rrfWeight: number } {
+    // Use explicit weights if provided
+    if (options.microWeight !== undefined && options.rrfWeight !== undefined) {
+      return {
+        microWeight: options.microWeight,
+        rrfWeight: options.rrfWeight
+      };
+    }
+
+    // Use intent-based weights
+    const intentKey = queryIntent?.toLowerCase() || 'default';
+    return INTENT_WEIGHTS[intentKey] || INTENT_WEIGHTS.default;
+  }
+
+  /**
+   * Compute cosine similarity between two embeddings
+   */
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) {
+      throw new Error('Embedding dimensions must match');
+    }
+
+    const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
+    const magnitudeA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+    const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
+
+    if (magnitudeA === 0 || magnitudeB === 0) {
+      return 0;
+    }
+
+    return dotProduct / (magnitudeA * magnitudeB);
+  }
+
+  /**
+   * Analyze reranking impact (for debugging/monitoring)
+   */
+  analyzeRerankingImpact(
+    before: SearchResult[],
+    after: SearchResult[]
+  ): {
+    topKChanged: number;
+    avgScoreChange: number;
+    maxScoreChange: number;
+    reorderedChunks: number;
+  } {
+    const topK = Math.min(10, before.length);
+    const beforeTop = before.slice(0, topK).map(c => c.chunkId);
+    const afterTop = after.slice(0, topK).map(c => c.chunkId);
+
+    // Count how many chunks in top-K changed
+    const topKChanged = beforeTop.filter(id => !afterTop.includes(id)).length;
+
+    // Count total reordered chunks
+    const reorderedChunks = before.filter((chunk, i) => 
+      after[i]?.chunkId !== chunk.chunkId
+    ).length;
+
+    // Calculate score changes
+    const scoreChanges = before.map((chunk, i) => {
+      const afterChunk = after.find(c => c.chunkId === chunk.chunkId);
+      if (!afterChunk) return 0;
+      return (afterChunk.finalScore || afterChunk.combinedScore) - chunk.combinedScore;
+    });
+
+    const avgScoreChange = scoreChanges.reduce((sum, val) => sum + val, 0) / scoreChanges.length;
+    const maxScoreChange = Math.max(...scoreChanges.map(Math.abs));
+
+    return {
+      topKChanged,
+      avgScoreChange,
+      maxScoreChange,
+      reorderedChunks
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Export singleton instance
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const microSummaryRerankerService = new MicroSummaryRerankerService();
+export default microSummaryRerankerService;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Usage Examples
+// ═══════════════════════════════════════════════════════════════════════════
+
+/*
+// Example 1: Rerank with default weights
+const reranked = await microSummaryRerankerService.rerankWithMicroSummaries(
+  rrfResults,
+  {
+    query: "What is my salary?",
+    queryIntent: "information_retrieval"
+  }
+);
+
+// Example 2: Rerank with custom weights (explanation query)
+const reranked = await microSummaryRerankerService.rerankWithMicroSummaries(
+  rrfResults,
+  {
+    query: "Explain the termination clause",
+    queryIntent: "explanation",
+    microWeight: 0.5,  // High weight for explanation queries
+    rrfWeight: 0.5
+  }
+);
+
+// Example 3: Rerank with minimum score threshold
+const reranked = await microSummaryRerankerService.rerankWithMicroSummaries(
+  rrfResults,
+  {
+    query: "Show me invoice totals",
+    queryIntent: "exact_match",
+    microWeight: 0.1,  // Low weight for exact match
+    rrfWeight: 0.9,
+    minMicroScore: 0.5  // Only boost if micro-score > 0.5
+  }
+);
+
+// Example 4: Analyze reranking impact
+const impact = microSummaryRerankerService.analyzeRerankingImpact(
+  rrfResults,
+  reranked
+);
+console.log(`Reranking changed ${impact.topKChanged} chunks in top-10`);
+console.log(`Avg score change: ${impact.avgScoreChange.toFixed(3)}`);
+*/

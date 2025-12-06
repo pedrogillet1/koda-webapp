@@ -1,3 +1,5 @@
+import { smartProcessSpacing } from '../utils/markdownSpacing';
+
 /**
  * ============================================================================
  * KODA FORMAT ENFORCEMENT SERVICE V2
@@ -136,6 +138,11 @@ export class KodaFormatEnforcementService {
 
   /**
    * Detect query complexity and determine title formatting
+   *
+   * STRICT RULES:
+   * - NO TITLE: Greetings, simple questions, file actions, short responses (<100 words)
+   * - SINGLE TITLE: Medium explanations (100-400 words)
+   * - STRUCTURED: Complex requests, multi-part questions (400+ words)
    */
   detectTitleDecision(query: string, response: string): TitleDecision {
     const queryLower = query.toLowerCase().trim();
@@ -144,8 +151,23 @@ export class KodaFormatEnforcementService {
     console.log(`[TITLE DECISION] Query: "${query.substring(0, 50)}..." | Response words: ${responseWordCount}`);
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // RULE 1: NO TITLE patterns
+    // RULE 1: NO TITLE patterns (STRICT)
     // ═══════════════════════════════════════════════════════════════════════════
+
+    // File action queries - NEVER get titles
+    const fileActionPatterns = [
+      /^(show|find|search|locate|where is|list|get|open|display)\s+(me\s+)?(my\s+)?(the\s+)?[\w\s]+\.(pdf|docx?|xlsx?|pptx?|txt|png|jpe?g|gif|html?|csv)/i,
+      /^(show|find|search|locate|where is|list|get|open|display)\s+(me\s+)?(my\s+)?(the\s+)?[\w\s-]+$/i,
+      /^what format (is|are)/i,
+      /^which folder/i,
+      /^list (all|my)/i,
+      /^how many documents/i,
+    ];
+
+    if (fileActionPatterns.some(p => p.test(queryLower))) {
+      console.log('[TITLE DECISION] → NO TITLE (file action)');
+      return 'none';
+    }
 
     // Greetings and casual conversation
     const greetingPatterns = [
@@ -163,8 +185,8 @@ export class KodaFormatEnforcementService {
 
     // Simple factual questions (yes/no, definitions, translations)
     const simplePatterns = [
-      /^(is|are|was|were|do|does|did|can|could|will|would|should|has|have|had)\s+\w+\s*\?*$/i, // Yes/No questions
-      /^what is\s+\w+\s*\?*$/i, // "What is X?"
+      /^(is|are|was|were|do|does|did|can|could|will|would|should|has|have|had)\s+\w+\s*\?*$/i,
+      /^what is\s+\w+\s*\?*$/i,
       /^define\s+/i,
       /^translate\s+/i,
       /^what('?s| is) the (capital|meaning|definition|translation)/i,
@@ -183,7 +205,7 @@ export class KodaFormatEnforcementService {
     const simpleInstructionPatterns = [
       /^fix (this|the)\s+\w+$/i,
       /^summarize (this|the)\s+\w+$/i,
-      /^generate \d+\s+\w+$/i, // "Generate 5 names"
+      /^generate \d+\s+\w+$/i,
       /^write a (short|quick|brief)\s+/i,
       /^give me a (quick|short|brief)\s+/i,
     ];
@@ -205,7 +227,7 @@ export class KodaFormatEnforcementService {
 
     // Multi-part questions (contains "and", multiple question marks, or multiple topics)
     const multiPartPatterns = [
-      /\?\s*.*\?/, // Multiple question marks
+      /\?\s*.*\?/,
       /what.*and.*what/i,
       /how.*and.*how/i,
       /explain.*and.*explain/i,
@@ -214,7 +236,7 @@ export class KodaFormatEnforcementService {
       /analyze.*(pros|cons|benefits|risks)/i,
     ];
 
-    if (multiPartPatterns.some(p => p.test(queryLower))) {
+    if (multiPartPatterns.some(p => p.test(queryLower)) && responseWordCount >= 300) {
       console.log('[TITLE DECISION] → STRUCTURED (multi-part question)');
       return 'structured';
     }
@@ -234,14 +256,14 @@ export class KodaFormatEnforcementService {
       /in-depth/i,
     ];
 
-    if (complexPatterns.some(p => p.test(queryLower))) {
+    if (complexPatterns.some(p => p.test(queryLower)) && responseWordCount >= 300) {
       console.log('[TITLE DECISION] → STRUCTURED (complex request)');
       return 'structured';
     }
 
-    // Long responses (300+ words) automatically get structure
-    if (responseWordCount >= 300) {
-      console.log('[TITLE DECISION] → STRUCTURED (long response 300+ words)');
+    // Long responses (400+ words) automatically get structure
+    if (responseWordCount >= 400) {
+      console.log('[TITLE DECISION] → STRUCTURED (long response 400+ words)');
       return 'structured';
     }
 
@@ -252,7 +274,7 @@ export class KodaFormatEnforcementService {
     // Medium explanations
     const mediumPatterns = [
       /^explain\s+/i,
-      /^what is\s+\w+\s+\w+/i, // "What is machine learning" (more than 2 words)
+      /^what is\s+\w+\s+\w+/i,
       /^how (do|does|to|can)\s+/i,
       /^(describe|overview|summarize|compare)\s+/i,
       /difference between/i,
@@ -264,9 +286,9 @@ export class KodaFormatEnforcementService {
       return 'single';
     }
 
-    // Default: If response is 100-300 words, use single title
-    if (responseWordCount >= 100 && responseWordCount < 300) {
-      console.log('[TITLE DECISION] → SINGLE TITLE (medium length 100-300 words)');
+    // Default: If response is 100-400 words, use single title
+    if (responseWordCount >= 100 && responseWordCount < 400) {
+      console.log('[TITLE DECISION] → SINGLE TITLE (medium length 100-400 words)');
       return 'single';
     }
 
@@ -380,7 +402,10 @@ export class KodaFormatEnforcementService {
       }
     }
 
-    // Step 8: Final cleanup
+    // Step 8: Remove duplicate headers
+    formatted = this.removeDuplicates(formatted);
+
+    // Step 9: Final cleanup
     formatted = this.finalCleanup(formatted);
 
     console.log('[KODA FORMAT] Format enforcement complete');
@@ -716,20 +741,44 @@ export class KodaFormatEnforcementService {
   }
 
   /**
-   * Fix spacing issues (no multiple consecutive blank lines)
+   * Fix spacing issues in markdown
+   * AGGRESSIVE cleanup to prevent excessive whitespace
+   *
+   * Processing order:
+   * 1. Process spacing tokens ({{BREAK:*}}, {{SPACE:*}})
+   * 2. Remove excessive blank lines
+   * 3. Clean up list spacing
+   * 4. Normalize header spacing
+   * 5. Clean code block spacing
    */
   private fixSpacing(text: string): string {
-    // Remove multiple consecutive blank lines
-    let fixed = text.replace(/\n{3,}/g, '\n\n');
+    let fixed = text;
 
-    // Ensure single blank line between sections
-    fixed = fixed.replace(/(#{2,3}\s+[^\n]+)\n([^\n])/g, '$1\n\n$2');
+    // Step 1: Process spacing tokens FIRST (convert to newlines)
+    fixed = smartProcessSpacing(fixed);
 
-    // Ensure blank line before bullet lists
-    fixed = fixed.replace(/([^\n])\n([*\-]\s)/g, '$1\n\n$2');
+    // Step 2: Remove excessive blank lines (max 2 in a row)
+    fixed = fixed.replace(/\n{3,}/g, '\n\n');
 
-    // Ensure blank line after bullet lists
-    fixed = fixed.replace(/([*\-]\s[^\n]+)\n([^\n*\-])/g, '$1\n\n$2');
+    // Step 3: Remove spaces before newlines (trailing whitespace)
+    fixed = fixed.replace(/ +\n/g, '\n');
+
+    // Step 4: Remove blank lines between list items
+    // Pattern: list item + blank line + list item → list item + list item
+    fixed = fixed.replace(/(\n[-*•]\s+[^\n]+)\n\n(\n[-*•]\s+)/g, '$1\n$2');
+
+    // Step 5: Ensure single blank line before headers (not 2 or 3)
+    fixed = fixed.replace(/\n{3,}(#{1,6}\s+)/g, '\n\n$1');
+
+    // Step 6: Ensure single blank line after headers
+    fixed = fixed.replace(/(#{1,6}\s+[^\n]+)\n{3,}/g, '$1\n\n');
+
+    // Step 7: Remove blank lines at start and end
+    fixed = fixed.trim();
+
+    // Step 8: Ensure consistent spacing around code blocks
+    fixed = fixed.replace(/\n{3,}```/g, '\n\n```');
+    fixed = fixed.replace(/```\n{3,}/g, '```\n\n');
 
     return fixed;
   }
@@ -1010,6 +1059,44 @@ export class KodaFormatEnforcementService {
     }
 
     return cleaned;
+  }
+
+  /**
+   * Remove duplicate headers and intros
+   * Prevents formatting layers from stacking when format enforcement runs multiple times
+   *
+   * Strategy:
+   * - Track all ## headers seen
+   * - Skip any duplicate headers (case-insensitive comparison)
+   * - Keep all other content
+   */
+  private removeDuplicates(text: string): string {
+    const lines = text.split('\n');
+    const seen = new Set<string>();
+    const filtered: string[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // Check if line is a header (starts with ##)
+      if (trimmed.startsWith('##')) {
+        const normalized = trimmed.toLowerCase();
+
+        // Skip if we've already seen this header
+        if (seen.has(normalized)) {
+          console.log(`[KODA FORMAT] Removing duplicate header: ${trimmed.substring(0, 50)}`);
+          continue;
+        }
+
+        // Mark header as seen
+        seen.add(normalized);
+      }
+
+      // Keep this line
+      filtered.push(line);
+    }
+
+    return filtered.join('\n');
   }
 
   /**

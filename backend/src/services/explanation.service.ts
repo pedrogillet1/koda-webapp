@@ -107,9 +107,7 @@ class ExplanationService {
 
     const content = finalResponse.choices[0].message.content || 'I could not generate a response.';
 
-    if (sources.length > 0) {
-      return `${content}\n\n**Sources:**\n- ${sources.join('\n- ')}`;
-    }
+    // Sources are now shown as inline pill citations only - no text-based source section
     return content;
   }
 
@@ -431,10 +429,7 @@ Provide your explanation now:`;
 
     let finalResponse = response.choices[0]?.message?.content || '';
 
-    // Append sources if available
-    if (sources.length > 0) {
-      finalResponse += `\n\n**Sources:**\n- ${sources.join('\n- ')}`;
-    }
+    // Sources are now shown as inline pill citations only - no text-based source section
 
     console.log('[ExplanationService] Pipeline complete, response length:', finalResponse.length);
 

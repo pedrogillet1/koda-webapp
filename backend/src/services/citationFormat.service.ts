@@ -273,29 +273,11 @@ export class KodaCitationFormatService {
 
   /**
    * Format sources section for markdown
+   * NOTE: This function now returns empty string - sources are shown as inline pill citations only
    */
   formatSourcesSection(sources: CitationSource[]): string {
-    if (sources.length === 0) {
-      return '';
-    }
-
-    const lines: string[] = [
-      '',
-      '---',
-      '',
-      '**Sources:**',
-      ''
-    ];
-
-    sources.forEach((source, idx) => {
-      const citation = `[${idx + 1}] **${source.filename}**`;
-      const location = source.location !== source.filename ? ` - ${source.location}` : '';
-      const relevance = ` (${source.relevanceScore}% relevant)`;
-
-      lines.push(`${citation}${location}${relevance}`);
-    });
-
-    return lines.join('\n');
+    // Sources are now shown as inline pill citations only - no text-based source section
+    return '';
   }
 
   /**

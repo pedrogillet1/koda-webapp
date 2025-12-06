@@ -12,9 +12,8 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import prisma from '../config/database';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export interface MicroSummary {
   summary: string;           // 1-2 sentence purpose explanation
@@ -40,7 +39,7 @@ export async function generateMicroSummary(
   sectionName?: string
 ): Promise<MicroSummary> {
 
-  console.log(`[MICRO-SUMMARY] Generating for chunk type: ${chunkType}`);
+  console.log(`📝 [MICRO-SUMMARY] Generating for chunk type: ${chunkType}`);
 
   try {
     // Use Gemini Flash for fast, cheap micro-summary generation
@@ -54,7 +53,7 @@ export async function generateMicroSummary(
     // Parse response (expected format: "SUMMARY: ... | PURPOSE: ... | CATEGORY: ...")
     const parsed = parseMicroSummaryResponse(response);
 
-    console.log(`[MICRO-SUMMARY] Generated: "${parsed.summary.substring(0, 50)}..."`);
+    console.log(`✅ [MICRO-SUMMARY] Generated: "${parsed.summary}"`);
 
     return {
       summary: parsed.summary,
@@ -65,7 +64,7 @@ export async function generateMicroSummary(
     };
 
   } catch (error) {
-    console.error('[MICRO-SUMMARY] Generation failed:', error);
+    console.error('❌ [MICRO-SUMMARY] Generation failed:', error);
 
     // Fallback: Generate basic summary from chunk type and section
     return generateFallbackSummary(chunkText, chunkType, documentType, sectionName);
@@ -87,7 +86,7 @@ export async function generateBatchMicroSummaries(
   }>
 ): Promise<MicroSummary[]> {
 
-  console.log(`[MICRO-SUMMARY] Generating batch of ${chunks.length} summaries`);
+  console.log(`📝 [MICRO-SUMMARY] Generating batch of ${chunks.length} summaries`);
 
   const summaries: MicroSummary[] = [];
 
@@ -114,7 +113,7 @@ export async function generateBatchMicroSummaries(
     }
   }
 
-  console.log(`[MICRO-SUMMARY] Generated ${summaries.length} summaries`);
+  console.log(`✅ [MICRO-SUMMARY] Generated ${summaries.length} summaries`);
 
   return summaries;
 }
@@ -131,12 +130,6 @@ function buildMicroSummaryPrompt(
 
   const sectionContext = sectionName ? `\nSection: ${sectionName}` : '';
 
-  // Truncate chunk text if too long
-  const maxChunkLength = 2000;
-  const truncatedChunk = chunkText.length > maxChunkLength
-    ? chunkText.substring(0, maxChunkLength) + '...'
-    : chunkText;
-
   return `You are a document intelligence assistant. Generate a concise micro-summary for this chunk.
 
 Document Type: ${documentType}
@@ -144,7 +137,7 @@ Chunk Type: ${chunkType}${sectionContext}
 
 Chunk Text:
 """
-${truncatedChunk}
+${chunkText}
 """
 
 Generate a 1-2 sentence explanation of this chunk's PURPOSE and MEANING.
@@ -229,45 +222,32 @@ function generateFallbackSummary(
  */
 export async function updateChunkWithMicroSummary(
   chunkId: string,
-  microSummary: MicroSummary
+  microSummary: MicroSummary,
+  prisma: any
 ): Promise<void> {
 
   try {
-    // Get existing metadata
-    const existing = await prisma.documentEmbedding.findUnique({
-      where: { id: chunkId },
-      select: { metadata: true }
-    });
-
-    // Parse existing metadata (stored as JSON string in database)
-    let existingMetadata: Record<string, any> = {};
-    if (existing?.metadata) {
-      try {
-        existingMetadata = typeof existing.metadata === 'string'
-          ? JSON.parse(existing.metadata)
-          : existing.metadata as Record<string, any>;
-      } catch {
-        existingMetadata = {};
-      }
-    }
-
     await prisma.documentEmbedding.update({
       where: { id: chunkId },
       data: {
-        metadata: JSON.stringify({
-          ...existingMetadata,
+        metadata: {
+          // Preserve existing metadata and add micro-summary
+          ...(await prisma.documentEmbedding.findUnique({
+            where: { id: chunkId },
+            select: { metadata: true }
+          }))?.metadata,
           microSummary: microSummary.summary,
           purpose: microSummary.purpose,
           category: microSummary.category,
           summaryConfidence: microSummary.confidence
-        })
+        }
       }
     });
 
-    console.log(`[MICRO-SUMMARY] Updated chunk ${chunkId} with summary`);
+    console.log(`✅ [MICRO-SUMMARY] Updated chunk ${chunkId} with summary`);
 
   } catch (error) {
-    console.error(`[MICRO-SUMMARY] Failed to update chunk ${chunkId}:`, error);
+    console.error(`❌ [MICRO-SUMMARY] Failed to update chunk ${chunkId}:`, error);
     throw error;
   }
 }

@@ -33,6 +33,7 @@ export type SimpleIntentType =
   | 'explanation'    // why, how, explain, what is
   | 'comparison'     // compare, difference, vs
   | 'file_action'    // create folder, move, rename, delete
+  | 'list_folders'   // what folders do I have, list folders
   | 'metadata'       // where is file, how many documents
   | 'general';       // default - content query
 
@@ -94,7 +95,19 @@ export function detectIntent(query: string): SimpleIntentResult {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // 4. METADATA QUERIES (where is X, how many files) - Database lookup
+  // 4. LIST FOLDERS (what folders do I have) - Database lookup, NOT RAG
+  // ════════════════════════════════════════════════════════════════════════
+  if (isFolderListingQuery(lowerQuery)) {
+    return {
+      type: 'list_folders',
+      needsDocuments: false,
+      confidence: 0.95,
+      detectionTimeMs: Date.now() - startTime
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 5. METADATA QUERIES (where is X, how many files) - Database lookup
   // ════════════════════════════════════════════════════════════════════════
   const metadata = detectMetadataQuery(lowerQuery, query);
   if (metadata.isMetadata) {
@@ -108,28 +121,28 @@ export function detectIntent(query: string): SimpleIntentResult {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // 5. COMPARISON (compare, difference, vs) - Needs documents
+  // 6. COMPARISON (compare, difference, vs) - Needs documents
   // ════════════════════════════════════════════════════════════════════════
   if (isComparisonQuery(lowerQuery)) {
     return result('comparison', true, 0.95, startTime);
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // 6. DATA QUERIES (show, list, how many, total) - Needs documents
+  // 7. DATA QUERIES (show, list, how many, total) - Needs documents
   // ════════════════════════════════════════════════════════════════════════
   if (isDataQuery(lowerQuery)) {
     return result('data', true, 0.90, startTime);
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // 7. EXPLANATION QUERIES (why, how, explain, what is) - Needs documents
+  // 8. EXPLANATION QUERIES (why, how, explain, what is) - Needs documents
   // ════════════════════════════════════════════════════════════════════════
   if (isExplanationQuery(lowerQuery)) {
     return result('explanation', true, 0.85, startTime);
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // 8. GENERAL (default) - Needs documents
+  // 9. GENERAL (default) - Needs documents
   // ════════════════════════════════════════════════════════════════════════
   return result('general', true, 0.70, startTime);
 }
@@ -375,22 +388,38 @@ function detectMetadataQuery(lowerQuery: string, originalQuery: string): Metadat
     }
   }
 
-  // LIST FOLDERS patterns
-  const listFoldersPatterns = [
+  // NOTE: LIST FOLDERS patterns moved to isFolderListingQuery() - handled separately
+
+  return { isMetadata: false, confidence: 0 };
+}
+
+// ============================================================================
+// FOLDER LISTING DETECTION (separate from metadata)
+// ============================================================================
+
+/**
+ * Detects if the query is asking to list folders
+ * This is handled separately from metadata to ensure proper routing
+ */
+function isFolderListingQuery(lowerQuery: string): boolean {
+  const folderListingPatterns = [
     /which\s+folders\s+(?:do\s+i\s+have|are\s+there)/i,
     /what\s+folders\s+(?:do\s+i\s+have|are\s+there|exist)/i,
     /list\s+(?:all\s+)?(?:my\s+)?folders/i,
     /show\s+me\s+(?:all\s+)?(?:my\s+)?folders/i,
     /how\s+many\s+folders/i,
+    /folders\s+(?:do\s+i\s+have|i\s+have)/i,
+    // Portuguese
     /quais\s+pastas/i,
+    /(?:mostre|liste)\s+(?:as\s+)?(?:minhas\s+)?pastas/i,
+    /quantas\s+pastas/i,
+    // Spanish
     /qu[eé]\s+carpetas/i,
+    /(?:muestra|lista)\s+(?:las\s+)?(?:mis\s+)?carpetas/i,
+    /cu[aá]ntas\s+carpetas/i,
   ];
 
-  if (listFoldersPatterns.some(p => p.test(originalQuery))) {
-    return { isMetadata: true, confidence: 0.95 };
-  }
-
-  return { isMetadata: false, confidence: 0 };
+  return folderListingPatterns.some(p => p.test(lowerQuery));
 }
 
 // ============================================================================
@@ -449,6 +478,9 @@ export const Intent = {
   CAPABILITY: 'CAPABILITY',
   GENERAL: 'GENERAL',
 
+  // Folder Actions
+  LIST_FOLDERS: 'list_folders',
+
   // Legacy
   RAG_QUERY: 'rag_query',
   METADATA_QUERY: 'metadata_query',
@@ -472,6 +504,7 @@ export function toLegacyIntent(result: SimpleIntentResult): {
     explanation: Intent.RAG_QUERY,
     comparison: Intent.COMPARE_DOCUMENTS,
     file_action: result.fileAction || Intent.RAG_QUERY,
+    list_folders: Intent.LIST_FOLDERS,
     metadata: Intent.METADATA_QUERY,
     general: Intent.RAG_QUERY
   };

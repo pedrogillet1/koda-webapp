@@ -112,32 +112,37 @@ export async function postProcessAnswer(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Remove "Source" or "Sources" section from answer
+ * Remove "Source" or "Sources" section from answer (English and Portuguese)
  */
 function removeSourcesSection(text: string): { text: string; removed: boolean } {
-  // Pattern 1: ### Source or ### Sources (markdown header)
-  const pattern1 = /\n#{1,6}\s*Sources?\s*\n[\s\S]*$/i;
-  
-  // Pattern 2: **Sources:** or **Source:** (bold text)
-  const pattern2 = /\n\*\*Sources?:\*\*\s*\n[\s\S]*$/i;
-  
-  // Pattern 3: Sources: or Source: (plain text)
-  const pattern3 = /\nSources?:\s*\n[\s\S]*$/i;
-  
+  // Pattern 1: ### Source/Sources/Fontes (markdown header)
+  const pattern1 = /\n#{1,6}\s*(?:Sources?|Fontes?)\s*\n[\s\S]*$/i;
+
+  // Pattern 2: **Sources:**/**Fontes:** (bold text)
+  const pattern2 = /\n\*\*(?:Sources?|Fontes?):\*\*\s*\n[\s\S]*$/i;
+
+  // Pattern 3: Sources:/Fontes: (plain text)
+  const pattern3 = /\n(?:Sources?|Fontes?):\s*\n[\s\S]*$/i;
+
   // Pattern 4: --- separator followed by sources
-  const pattern4 = /\n---+\s*\n\*\*Sources?:\*\*[\s\S]*$/i;
-  
+  const pattern4 = /\n---+\s*\n\*\*(?:Sources?|Fontes?):\*\*[\s\S]*$/i;
+
+  // Pattern 5: Bullet list starting with SOURCE or FONTE
+  const pattern5 = /\n(?:SOURCE|FONTE|FONTES|SOURCES)\s*\n[\s\S]*$/i;
+
+  // Pattern 6: Plain "SOURCE" or "FONTE" followed by bullets
+  const pattern6 = /\n(?:SOURCE|FONTE)[\s\S]*?(?=\n[^\n•\-\*]|\n\n|$)/i;
+
   let cleaned = text;
   let removed = false;
-  
-  for (const pattern of [pattern1, pattern2, pattern3, pattern4]) {
+
+  for (const pattern of [pattern1, pattern2, pattern3, pattern4, pattern5, pattern6]) {
     if (pattern.test(cleaned)) {
       cleaned = cleaned.replace(pattern, '');
       removed = true;
-      break;
     }
   }
-  
+
   return { text: cleaned, removed };
 }
 

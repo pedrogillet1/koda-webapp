@@ -21,7 +21,15 @@ import { conversationContextService } from './deletedServiceStubs';
 import OpenAI from 'openai';
 import { config } from '../config/env';
 import { analyticsTrackingService } from './analytics-tracking.service';
-import { formatFileListingResponse } from '../utils/inlineDocumentInjector';
+import {
+  formatFileListingResponse,
+  generateFolderListingResponse,
+  generateShowMeResponse,
+  createInlineDocumentMarker,
+  detectQueryType,
+  type InlineDocument,
+  type InlineFolder
+} from '../utils/inlineDocumentInjector';
 // Note: Format enforcement is handled by rag.service.ts - no need to import here
 
 // OpenAI client for streaming title generation
@@ -1121,7 +1129,7 @@ export const handleFileActionsIfNeeded = async (
   console.log(`📝 [Entities]`, intentResult.parameters);
 
   // Only process file actions with high confidence
-  const fileActionIntents = ['create_folder', 'list_files', 'search_files', 'file_location', 'rename_file', 'delete_file', 'move_files', 'metadata_query'];
+  const fileActionIntents = ['create_folder', 'list_files', 'search_files', 'file_location', 'rename_file', 'delete_file', 'move_files', 'list_folders', 'metadata_query'];
 
   // Check if this is a file action intent
   // ✅ FIX: Use OR (||) instead of AND (&&) - return null if EITHER condition is true
@@ -1452,6 +1460,172 @@ export const handleFileActionsIfNeeded = async (
 
     return {
       action: 'list_files',
+      message: response
+    };
+  }
+
+  // ========================================
+  // LIST FOLDERS (NEW)
+  // ========================================
+  // Detect folder listing queries: "what folders do I have", "list my folders"
+  const lowerMessage = message.toLowerCase();
+  const isFolderQuery = /(?:what|which|list|show)\s+(?:all\s+)?(?:my\s+)?folders/i.test(message) ||
+                        /how\s+many\s+folders/i.test(message) ||
+                        /quais\s+pastas/i.test(message) ||
+                        /qu[eé]\s+carpetas/i.test(message);
+
+  if (isFolderQuery || intentResult.intent === 'list_folders') {
+    console.log(`📁 [Action] Listing folders with inline markers`);
+
+    const folders = await prisma.folder.findMany({
+      where: { userId },
+      include: {
+        _count: { select: { documents: true } }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    if (folders.length === 0) {
+      return {
+        action: 'list_folders',
+        message: 'You have no folders yet. You can create folders to organize your documents.'
+      };
+    }
+
+    // Convert to InlineFolder format
+    const inlineFolders: InlineFolder[] = folders.map(f => ({
+      folderId: f.id,
+      folderName: f.name,
+      fileCount: f._count.documents,
+      folderPath: f.name
+    }));
+
+    // Generate response with inline folder markers
+    const response = generateFolderListingResponse(inlineFolders, {
+      maxFolders: 10
+    });
+
+    return {
+      action: 'list_folders',
+      message: response
+    };
+  }
+
+  // ========================================
+  // SHOW SPECIFIC FILE (NEW)
+  // ========================================
+  // Detect "show me X" queries for specific files
+  const showMeMatch = message.match(/(?:show|open|display|view)\s+(?:me\s+)?(?:the\s+)?(?:file\s+)?["']?([^"']+)["']?/i);
+  const isShowMeQuery = showMeMatch && !isFolderQuery &&
+                        !/(?:all|my|every)\s+(?:files|documents|folders)/i.test(message);
+
+  if (isShowMeQuery && showMeMatch) {
+    const searchTerm = showMeMatch[1].trim()
+      .replace(/\s+file$/i, '')
+      .replace(/\s+document$/i, '');
+
+    console.log(`📄 [Action] Show specific file: "${searchTerm}"`);
+
+    // Search for the file
+    const documents = await prisma.document.findMany({
+      where: {
+        userId,
+        status: { not: 'deleted' },
+        filename: { contains: searchTerm, mode: 'insensitive' }
+      },
+      include: { folder: { select: { name: true } } },
+      take: 5
+    });
+
+    if (documents.length === 0) {
+      return {
+        action: 'show_file',
+        message: `No file found matching "${searchTerm}". Try using different keywords.`
+      };
+    }
+
+    if (documents.length === 1) {
+      // Single match - use generateShowMeResponse
+      const doc = documents[0];
+      const inlineDoc: InlineDocument = {
+        documentId: doc.id,
+        filename: doc.filename,
+        mimeType: doc.mimeType || 'application/octet-stream',
+        fileSize: doc.fileSize || undefined,
+        folderPath: doc.folder?.name
+      };
+
+      const response = generateShowMeResponse(inlineDoc, {
+        includeLocation: !!doc.folder?.name,
+        includeMetadata: true
+      });
+
+      return {
+        action: 'show_file',
+        message: response
+      };
+    }
+
+    // Multiple matches - show list with markers
+    const response = formatFileListingResponse(documents, {
+      maxInline: 5,
+      includeMetadata: true
+    });
+
+    return {
+      action: 'show_file',
+      message: `Found ${documents.length} files matching "${searchTerm}":\n\n${response}`
+    };
+  }
+
+  // ========================================
+  // LIST FOLDERS
+  // ========================================
+  if (intentResult.intent === 'list_folders') {
+    console.log(`📁 [Action] Listing all folders`);
+
+    // Get all folders from database
+    const folders = await prisma.folder.findMany({
+      where: {
+        userId,
+      },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        _count: {
+          select: {
+            documents: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    if (folders.length === 0) {
+      return {
+        action: 'list_folders',
+        message: 'You don\'t have any folders yet. Create one by saying "create folder [name]".'
+      };
+    }
+
+    // Build response with {{FOLDER:::}} markers
+    let response = `Found ${folders.length} folder${folders.length !== 1 ? 's' : ''}:\n\n`;
+
+    folders.forEach(folder => {
+      const fileCount = folder._count.documents;
+      const fileText = fileCount === 1 ? '1 file' : `${fileCount} files`;
+
+      // Inject {{FOLDER:::id:::name:::fileCount}} marker
+      response += `{{FOLDER:::${folder.id}:::${folder.name}:::${fileCount}}}\n`;
+    });
+
+    response += `\nClick any folder to view its contents.`;
+
+    return {
+      action: 'list_folders',
       message: response
     };
   }

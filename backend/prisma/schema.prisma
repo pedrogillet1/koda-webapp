@@ -180,6 +180,11 @@ model Document {
   extractedTextEncrypted String?
   renderableContent      String?
   language               String              @default("english")  // Detected language for BM25 search
+
+  // KODA FIX: Embedding tracking fields
+  embeddingsGenerated    Boolean             @default(false)  // Track if embeddings were successfully generated
+  chunksCount            Int?                @default(0)       // Track number of chunks/embeddings stored
+  error                  String?             @db.Text          // Store error message if processing failed
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
   categories             DocumentCategory[]
@@ -510,20 +515,50 @@ model DocumentKeyword {
 }
 
 model DocumentEmbedding {
-  id         String                    @id @default(uuid())
+  // Primary key & identifiers
+  id         String   @id @default(uuid())
   documentId String
-  chunkIndex Int
-  content    String                    @db.Text
-  embedding  String                    @db.Text
-  metadata   String                    @db.Text
-  createdAt  DateTime                  @default(now())
-  // Pre-computed tsvector for full-text search (GIN indexed)
-  // Auto-updated by PostgreSQL trigger when content changes
-  contentTsv Unsupported("tsvector")?
-  document   Document                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String?  @map("user_id")  // For multi-tenant filtering
 
+  // Chunk identity (order & location)
+  chunkIndex  Int
+  pageNumber  Int?    @map("page_number")  // Page number (extracted from metadata)
+  sectionName String? @map("section_name") // Section name (extracted from metadata)
+
+  // Content fields (keeping old fields for backward compatibility during transition)
+  content    String                    @db.Text  // Legacy - will be removed
+  chunkText  String? @map("chunk_text") @db.Text  // New: Chunk text content
+  embedding  String                    @db.Text  // Legacy - stored in Pinecone
+  metadata   String                    @db.Text  // Legacy - data extracted to columns
+
+  // New content fields
+  microSummary   String? @map("micro_summary") @db.Text  // 1-2 sentence purpose explanation
+  chunkType      String? @map("chunk_type")              // From chunkClassifier (legal_clause, diagnosis, etc.)
+
+  // Pinecone & embedding info
+  pineconeNamespace String? @map("pinecone_namespace")  // Org/user scoping (e.g., "user-123")
+  embeddingModel    String? @map("embedding_model")     // e.g., "text-embedding-3-large"
+
+  // BM25 / Full-text search
+  contentTsv   Unsupported("tsvector")? // Legacy tsvector
+  searchVector Unsupported("tsvector")? @map("search_vector") // New tsvector for BM25
+
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime? @map("updated_at")
+
+  // Relationships
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  // Indexes
   @@index([documentId])
   @@index([documentId, chunkIndex])
+  @@index([userId])
+  @@index([chunkType])
+  @@index([documentId, sectionName])
+  @@index([documentId, pageNumber])
+  @@index([pineconeNamespace])
+  @@index([userId, documentId])
   @@map("document_embeddings")
 }
 

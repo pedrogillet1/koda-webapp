@@ -8,6 +8,7 @@
  */
 
 import prisma from '../../config/database';
+import { formatFileListingResponse, type InlineDocument } from '../../utils/inlineDocumentInjector';
 
 export interface FileTypeDocument {
   id: string;

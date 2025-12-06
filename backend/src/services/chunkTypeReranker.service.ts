@@ -1,331 +1,321 @@
 /**
  * Chunk Type Reranker Service
  *
- * PURPOSE: Boost relevant chunk types based on query intent
- * WHY: Different queries need different chunk types (definitions, procedures, data)
- * HOW: Analyze query intent, boost chunks that match the expected type
- * IMPACT: +15-20% retrieval precision, more relevant context
+ * PURPOSE: Boost chunks by type relevance to the query
+ * WHY: Not all chunks are equally relevant - prioritize chunk types that match query intent
+ * HOW: Detect query type, boost matching chunk types, rerank results
+ * IMPACT: +15-20% retrieval accuracy, better context selection
  *
  * REQUIREMENT FROM MANUS/NOTES:
- * "Rerank based on chunk type relevance to query
- *  Boost definitions for 'what is', procedures for 'how to', etc."
+ * "Rerank candidates using:
+ *  - chunk type relevance
+ *  - section importance
+ *  - boost clauses/diagnosis/results where appropriate"
  */
 
-export interface RerankedChunk {
+export interface RerankingResult {
+  rerankedChunks: RankedChunk[];
+  boostApplied: boolean;
+  queryType: QueryType | null;
+  relevantChunkTypes: string[];
+}
+
+export interface RankedChunk {
   id: string;
   content: string;
-  originalScore: number;
-  rerankedScore: number;
-  boostReason: string | null;
+  metadata: any;
+  originalScore: number;              // Original hybrid search score
+  typeBoost: number;                  // Boost factor from chunk type (1.0 = no boost, 2.0 = 2x)
+  finalScore: number;                 // Final score after boosting
   chunkType: string;
-  metadata?: any;
 }
 
-export interface QueryIntent {
-  type: QueryIntentType;
-  confidence: number;
-  expectedChunkTypes: string[];
-  keywords: string[];
+export enum QueryType {
+  LEGAL_OBLIGATION = 'legal_obligation',           // "What are my obligations?"
+  LEGAL_RIGHTS = 'legal_rights',                   // "What are my rights?"
+  LEGAL_TERMINATION = 'legal_termination',         // "How can I terminate?"
+  MEDICAL_DIAGNOSIS = 'medical_diagnosis',         // "What is the diagnosis?"
+  MEDICAL_TREATMENT = 'medical_treatment',         // "What is the treatment plan?"
+  MEDICAL_RESULTS = 'medical_results',             // "What are the test results?"
+  FINANCIAL_REVENUE = 'financial_revenue',         // "What is the revenue?"
+  FINANCIAL_EXPENSES = 'financial_expenses',       // "What are the expenses?"
+  ACCOUNTING_BALANCE = 'accounting_balance',       // "What is the balance?"
+  DEFINITION = 'definition',                       // "What does X mean?"
+  PROCEDURE = 'procedure',                         // "How do I do X?"
+  GENERAL = 'general'                              // General query
 }
-
-export enum QueryIntentType {
-  DEFINITION = 'definition',           // "What is X?"
-  PROCEDURE = 'procedure',             // "How to X?"
-  COMPARISON = 'comparison',           // "Compare X and Y"
-  LISTING = 'listing',                 // "List all X"
-  FACTUAL = 'factual',                 // "When/Where/Who X?"
-  CALCULATION = 'calculation',         // "How much/many X?"
-  REASONING = 'reasoning',             // "Why X?"
-  SUMMARY = 'summary',                 // "Summarize X"
-  GENERAL = 'general'                  // General query
-}
-
-// Chunk types and their relevance to query intents
-const CHUNK_TYPE_RELEVANCE: Record<QueryIntentType, string[]> = {
-  [QueryIntentType.DEFINITION]: ['definition', 'overview', 'introduction', 'concept', 'description', 'explanation'],
-  [QueryIntentType.PROCEDURE]: ['procedure', 'steps', 'process', 'instructions', 'how_to', 'method', 'workflow'],
-  [QueryIntentType.COMPARISON]: ['comparison', 'table', 'matrix', 'versus', 'analysis', 'differences'],
-  [QueryIntentType.LISTING]: ['list', 'enumeration', 'items', 'contents', 'index', 'catalog', 'requirements'],
-  [QueryIntentType.FACTUAL]: ['fact', 'data', 'statistic', 'date', 'location', 'person', 'event', 'detail'],
-  [QueryIntentType.CALCULATION]: ['calculation', 'formula', 'number', 'metric', 'financial', 'total', 'sum', 'table'],
-  [QueryIntentType.REASONING]: ['reasoning', 'explanation', 'cause', 'effect', 'justification', 'rationale', 'analysis'],
-  [QueryIntentType.SUMMARY]: ['summary', 'overview', 'abstract', 'conclusion', 'highlights', 'key_points'],
-  [QueryIntentType.GENERAL]: []  // No specific preference
-};
 
 /**
- * Analyze query intent
+ * Rerank chunks by type relevance
  *
+ * @param chunks - Chunks from hybrid search with scores
  * @param query - User's query
- * @returns QueryIntent
+ * @param documentType - Type of document (legal, medical, financial, etc.)
+ * @returns RerankingResult
  */
-export function analyzeQueryIntent(query: string): QueryIntent {
-  const queryLower = query.toLowerCase();
+export async function rerankByChunkType(
+  chunks: Array<{ id: string; content: string; metadata: any; score: number }>,
+  query: string,
+  documentType?: string
+): Promise<RerankingResult> {
 
-  // Definition patterns
-  if (/^what\s+(is|are|does|do)\s/i.test(query) ||
-      /^define\s/i.test(query) ||
-      /^meaning\s+of\s/i.test(query)) {
+  console.log(`🔄 [RERANKER] Reranking ${chunks.length} chunks by type relevance`);
+
+  // Detect query type
+  const queryType = detectQueryType(query, documentType);
+
+  console.log(`   Query type: ${queryType || 'GENERAL'}`);
+
+  // Get relevant chunk types for this query
+  const relevantChunkTypes = getRelevantChunkTypes(queryType, documentType);
+
+  console.log(`   Relevant chunk types: ${relevantChunkTypes.join(', ')}`);
+
+  // Rerank chunks
+  const rankedChunks: RankedChunk[] = chunks.map(chunk => {
+    const chunkType = chunk.metadata?.chunkType || 'unknown';
+    const typeBoost = calculateTypeBoost(chunkType, relevantChunkTypes);
+    const finalScore = chunk.score * typeBoost;
+
     return {
-      type: QueryIntentType.DEFINITION,
-      confidence: 0.9,
-      expectedChunkTypes: CHUNK_TYPE_RELEVANCE[QueryIntentType.DEFINITION],
-      keywords: extractKeywords(query)
+      id: chunk.id,
+      content: chunk.content,
+      metadata: chunk.metadata,
+      originalScore: chunk.score,
+      typeBoost,
+      finalScore,
+      chunkType
     };
+  });
+
+  // Sort by final score
+  rankedChunks.sort((a, b) => b.finalScore - a.finalScore);
+
+  const boostApplied = relevantChunkTypes.length > 0;
+
+  console.log(`✅ [RERANKER] Reranking complete`);
+  if (boostApplied) {
+    const boostedCount = rankedChunks.filter(c => c.typeBoost > 1.0).length;
+    console.log(`   Boosted ${boostedCount} chunks`);
   }
 
-  // Procedure patterns
-  if (/^how\s+(to|do|can|should)\s/i.test(query) ||
-      /^steps\s+to\s/i.test(query) ||
-      /^process\s+(for|of)\s/i.test(query) ||
-      /^procedure\s/i.test(query)) {
-    return {
-      type: QueryIntentType.PROCEDURE,
-      confidence: 0.9,
-      expectedChunkTypes: CHUNK_TYPE_RELEVANCE[QueryIntentType.PROCEDURE],
-      keywords: extractKeywords(query)
-    };
-  }
-
-  // Comparison patterns
-  if (/compare|versus|vs\.?|difference|between|compared to/i.test(query)) {
-    return {
-      type: QueryIntentType.COMPARISON,
-      confidence: 0.85,
-      expectedChunkTypes: CHUNK_TYPE_RELEVANCE[QueryIntentType.COMPARISON],
-      keywords: extractKeywords(query)
-    };
-  }
-
-  // Listing patterns
-  if (/^list\s/i.test(query) ||
-      /^what\s+are\s+(the|all)\s/i.test(query) ||
-      /^show\s+(me\s+)?(the\s+)?(all|every)\s/i.test(query) ||
-      /requirements|items|components|elements/i.test(query)) {
-    return {
-      type: QueryIntentType.LISTING,
-      confidence: 0.85,
-      expectedChunkTypes: CHUNK_TYPE_RELEVANCE[QueryIntentType.LISTING],
-      keywords: extractKeywords(query)
-    };
-  }
-
-  // Factual patterns
-  if (/^(when|where|who)\s/i.test(query) ||
-      /^what\s+(date|time|location|place|person)\s/i.test(query)) {
-    return {
-      type: QueryIntentType.FACTUAL,
-      confidence: 0.85,
-      expectedChunkTypes: CHUNK_TYPE_RELEVANCE[QueryIntentType.FACTUAL],
-      keywords: extractKeywords(query)
-    };
-  }
-
-  // Calculation patterns
-  if (/^how\s+(much|many)\s/i.test(query) ||
-      /total|sum|count|amount|calculate|cost|price|value/i.test(query) ||
-      /\d+.*\d+/i.test(query)) {  // Contains multiple numbers
-    return {
-      type: QueryIntentType.CALCULATION,
-      confidence: 0.8,
-      expectedChunkTypes: CHUNK_TYPE_RELEVANCE[QueryIntentType.CALCULATION],
-      keywords: extractKeywords(query)
-    };
-  }
-
-  // Reasoning patterns
-  if (/^why\s/i.test(query) ||
-      /reason|cause|because|explanation|justify/i.test(query)) {
-    return {
-      type: QueryIntentType.REASONING,
-      confidence: 0.85,
-      expectedChunkTypes: CHUNK_TYPE_RELEVANCE[QueryIntentType.REASONING],
-      keywords: extractKeywords(query)
-    };
-  }
-
-  // Summary patterns
-  if (/^summarize|^summary|^overview|^highlight|key\s+points/i.test(query)) {
-    return {
-      type: QueryIntentType.SUMMARY,
-      confidence: 0.85,
-      expectedChunkTypes: CHUNK_TYPE_RELEVANCE[QueryIntentType.SUMMARY],
-      keywords: extractKeywords(query)
-    };
-  }
-
-  // Default: General query
   return {
-    type: QueryIntentType.GENERAL,
-    confidence: 0.5,
-    expectedChunkTypes: [],
-    keywords: extractKeywords(query)
+    rerankedChunks: rankedChunks,
+    boostApplied,
+    queryType,
+    relevantChunkTypes
   };
 }
 
 /**
- * Extract keywords from query
+ * Detect query type from the query text
  */
-function extractKeywords(query: string): string[] {
-  const stopWords = new Set(['what', 'is', 'are', 'the', 'a', 'an', 'how', 'to', 'do', 'does',
-    'can', 'should', 'would', 'could', 'in', 'of', 'for', 'on', 'with', 'at', 'by', 'from',
-    'this', 'that', 'these', 'those', 'my', 'your', 'their', 'our', 'and', 'or', 'but',
-    'if', 'then', 'else', 'when', 'where', 'why', 'which', 'who', 'whom', 'whose',
-    'be', 'been', 'being', 'have', 'has', 'had', 'having', 'it', 'its', 'me', 'you']);
+function detectQueryType(query: string, documentType?: string): QueryType | null {
 
-  return query.toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .split(/\s+/)
-    .filter(w => w.length > 2 && !stopWords.has(w));
+  const queryLower = query.toLowerCase();
+
+  // Legal queries
+  if (documentType === 'legal' || /contract|agreement|lease|clause/.test(queryLower)) {
+    if (/obligation|must|required|responsible|liable/.test(queryLower)) {
+      return QueryType.LEGAL_OBLIGATION;
+    }
+    if (/rights|entitled|can i|allowed/.test(queryLower)) {
+      return QueryType.LEGAL_RIGHTS;
+    }
+    if (/terminate|cancel|end|exit/.test(queryLower)) {
+      return QueryType.LEGAL_TERMINATION;
+    }
+  }
+
+  // Medical queries
+  if (documentType === 'medical' || /patient|medical|health|doctor/.test(queryLower)) {
+    if (/diagnosis|diagnosed|condition|disease/.test(queryLower)) {
+      return QueryType.MEDICAL_DIAGNOSIS;
+    }
+    if (/treatment|therapy|medication|prescription/.test(queryLower)) {
+      return QueryType.MEDICAL_TREATMENT;
+    }
+    if (/results|test|lab|findings/.test(queryLower)) {
+      return QueryType.MEDICAL_RESULTS;
+    }
+  }
+
+  // Financial queries
+  if (documentType === 'financial' || /financial|finance|portfolio/.test(queryLower)) {
+    if (/revenue|sales|income/.test(queryLower)) {
+      return QueryType.FINANCIAL_REVENUE;
+    }
+    if (/expense|cost|spending/.test(queryLower)) {
+      return QueryType.FINANCIAL_EXPENSES;
+    }
+  }
+
+  // Accounting queries
+  if (documentType === 'accounting' || /accounting|balance|ledger/.test(queryLower)) {
+    if (/balance|assets|liabilities/.test(queryLower)) {
+      return QueryType.ACCOUNTING_BALANCE;
+    }
+  }
+
+  // General patterns
+  if (/what (is|does|means?)|define|definition|explain/.test(queryLower)) {
+    return QueryType.DEFINITION;
+  }
+
+  if (/how (do|to|can)|steps|procedure|process/.test(queryLower)) {
+    return QueryType.PROCEDURE;
+  }
+
+  return QueryType.GENERAL;
 }
 
 /**
- * Rerank chunks based on query intent
+ * Get relevant chunk types for a query type
+ */
+function getRelevantChunkTypes(queryType: QueryType | null, documentType?: string): string[] {
+
+  if (!queryType || queryType === QueryType.GENERAL) {
+    return [];
+  }
+
+  const chunkTypeMap: Record<QueryType, string[]> = {
+    [QueryType.LEGAL_OBLIGATION]: [
+      'obligations_clause',
+      'requirements_clause',
+      'liability_clause',
+      'indemnification_clause',
+      'warranty_clause'
+    ],
+    [QueryType.LEGAL_RIGHTS]: [
+      'rights_clause',
+      'entitlements_clause',
+      'permissions_clause'
+    ],
+    [QueryType.LEGAL_TERMINATION]: [
+      'termination_clause',
+      'cancellation_clause',
+      'breach_clause',
+      'notice_clause'
+    ],
+    [QueryType.MEDICAL_DIAGNOSIS]: [
+      'diagnosis',
+      'assessment',
+      'chief_complaint',
+      'history_of_present_illness'
+    ],
+    [QueryType.MEDICAL_TREATMENT]: [
+      'treatment_plan',
+      'medications',
+      'therapy',
+      'follow_up_instructions'
+    ],
+    [QueryType.MEDICAL_RESULTS]: [
+      'lab_results',
+      'imaging_results',
+      'test_results',
+      'vital_signs'
+    ],
+    [QueryType.FINANCIAL_REVENUE]: [
+      'income_statement_revenue',
+      'revenue_section',
+      'sales_data'
+    ],
+    [QueryType.FINANCIAL_EXPENSES]: [
+      'income_statement_expenses',
+      'expense_section',
+      'cost_breakdown'
+    ],
+    [QueryType.ACCOUNTING_BALANCE]: [
+      'balance_sheet_assets',
+      'balance_sheet_liabilities',
+      'balance_sheet_equity'
+    ],
+    [QueryType.DEFINITION]: [
+      'definitions_clause',
+      'glossary_term',
+      'key_concept_definition'
+    ],
+    [QueryType.PROCEDURE]: [
+      'step_by_step_procedure',
+      'method',
+      'operational_steps',
+      'instructions'
+    ],
+    [QueryType.GENERAL]: []
+  };
+
+  return chunkTypeMap[queryType] || [];
+}
+
+/**
+ * Calculate type boost for a chunk
+ */
+function calculateTypeBoost(chunkType: string, relevantChunkTypes: string[]): number {
+
+  if (relevantChunkTypes.length === 0) {
+    return 1.0; // No boost
+  }
+
+  // Exact match: 2x boost
+  if (relevantChunkTypes.includes(chunkType)) {
+    return 2.0;
+  }
+
+  // Partial match (e.g., "obligations_clause" matches "clause"): 1.5x boost
+  const partialMatch = relevantChunkTypes.some(relevantType =>
+    chunkType.includes(relevantType) || relevantType.includes(chunkType)
+  );
+
+  if (partialMatch) {
+    return 1.5;
+  }
+
+  // No match: slight penalty
+  return 0.8;
+}
+
+/**
+ * Apply section importance boosting
  *
- * @param chunks - Chunks to rerank
- * @param query - User's query
- * @param queryIntent - Analyzed query intent (optional, will be computed if not provided)
- * @returns Reranked chunks
+ * @param chunks - Ranked chunks
+ * @param importantSections - List of important section names
+ * @returns Chunks with section boost applied
  */
-export function rerankChunks(
-  chunks: Array<{
-    id: string;
-    content: string;
-    score: number;
-    metadata?: any;
-  }>,
-  query: string,
-  queryIntent?: QueryIntent
-): RerankedChunk[] {
+export function applySectionBoost(
+  chunks: RankedChunk[],
+  importantSections: string[]
+): RankedChunk[] {
 
-  // Analyze query intent if not provided
-  const intent = queryIntent || analyzeQueryIntent(query);
-
-  console.log(`[RERANKER] Query intent: ${intent.type} (confidence: ${intent.confidence})`);
-  console.log(`   Expected chunk types: ${intent.expectedChunkTypes.join(', ') || 'any'}`);
-
-  const rerankedChunks: RerankedChunk[] = [];
-
-  for (const chunk of chunks) {
-    const chunkType = chunk.metadata?.chunkType || chunk.metadata?.type || 'unknown';
-    const chunkTypeLower = chunkType.toLowerCase();
-
-    let boost = 0;
-    let boostReason: string | null = null;
-
-    // Check if chunk type matches expected types
-    if (intent.expectedChunkTypes.length > 0) {
-      const isRelevantType = intent.expectedChunkTypes.some(t =>
-        chunkTypeLower.includes(t) || t.includes(chunkTypeLower)
-      );
-
-      if (isRelevantType) {
-        boost = 0.15;  // 15% boost for matching chunk type
-        boostReason = `Chunk type "${chunkType}" matches ${intent.type} intent`;
-      }
-    }
-
-    // Keyword boost
-    const keywordBoost = calculateKeywordBoost(chunk.content, intent.keywords);
-    if (keywordBoost > 0) {
-      boost += keywordBoost;
-      if (!boostReason) {
-        boostReason = `Contains query keywords`;
-      } else {
-        boostReason += ` + keywords`;
-      }
-    }
-
-    // Section/header boost for summary queries
-    if (intent.type === QueryIntentType.SUMMARY) {
-      const isHeaderOrSummary = /^(summary|overview|introduction|conclusion|abstract)/i.test(chunkTypeLower);
-      if (isHeaderOrSummary) {
-        boost += 0.1;
-        boostReason = (boostReason || '') + ' + summary section';
-      }
-    }
-
-    // Apply boost
-    const rerankedScore = Math.min(1, chunk.score * (1 + boost));
-
-    rerankedChunks.push({
-      id: chunk.id,
-      content: chunk.content,
-      originalScore: chunk.score,
-      rerankedScore,
-      boostReason: boost > 0 ? boostReason : null,
-      chunkType,
-      metadata: chunk.metadata
-    });
+  if (importantSections.length === 0) {
+    return chunks;
   }
 
-  // Sort by reranked score
-  rerankedChunks.sort((a, b) => b.rerankedScore - a.rerankedScore);
+  console.log(`🔄 [RERANKER] Applying section boost for: ${importantSections.join(', ')}`);
 
-  // Log reranking results
-  const boostedCount = rerankedChunks.filter(c => c.boostReason !== null).length;
-  console.log(`[RERANKER] Boosted ${boostedCount}/${chunks.length} chunks`);
+  const boostedChunks = chunks.map(chunk => {
+    const sectionName = chunk.metadata?.section?.toLowerCase() || '';
 
-  if (boostedCount > 0) {
-    console.log(`[RERANKER] Top boosted chunks:`);
-    rerankedChunks
-      .filter(c => c.boostReason !== null)
-      .slice(0, 3)
-      .forEach((c, i) => {
-        console.log(`   ${i + 1}. ${c.chunkType}: ${c.originalScore.toFixed(3)} -> ${c.rerankedScore.toFixed(3)} (${c.boostReason})`);
-      });
-  }
+    const isImportant = importantSections.some(important =>
+      sectionName.includes(important.toLowerCase())
+    );
 
-  return rerankedChunks;
-}
+    if (isImportant) {
+      return {
+        ...chunk,
+        finalScore: chunk.finalScore * 1.3 // 30% boost for important sections
+      };
+    }
 
-/**
- * Calculate keyword boost based on keyword presence
- */
-function calculateKeywordBoost(content: string, keywords: string[]): number {
-  if (keywords.length === 0) return 0;
+    return chunk;
+  });
 
-  const contentLower = content.toLowerCase();
-  const matchedKeywords = keywords.filter(k => contentLower.includes(k));
-  const matchRatio = matchedKeywords.length / keywords.length;
+  // Re-sort after section boost
+  boostedChunks.sort((a, b) => b.finalScore - a.finalScore);
 
-  // Up to 10% boost for keyword matches
-  return matchRatio * 0.1;
-}
-
-/**
- * Get recommended chunk count based on query intent
- *
- * @param intent - Query intent
- * @returns Recommended number of chunks to retrieve
- */
-export function getRecommendedChunkCount(intent: QueryIntent): number {
-  switch (intent.type) {
-    case QueryIntentType.DEFINITION:
-      return 3;  // Definitions are usually concise
-    case QueryIntentType.PROCEDURE:
-      return 5;  // Procedures may span multiple chunks
-    case QueryIntentType.COMPARISON:
-      return 6;  // Need multiple sources for comparison
-    case QueryIntentType.LISTING:
-      return 8;  // Lists may be spread across chunks
-    case QueryIntentType.FACTUAL:
-      return 3;  // Facts are usually specific
-    case QueryIntentType.CALCULATION:
-      return 4;  // Calculations may need context
-    case QueryIntentType.REASONING:
-      return 5;  // Reasoning needs supporting evidence
-    case QueryIntentType.SUMMARY:
-      return 6;  // Summaries need broad coverage
-    case QueryIntentType.GENERAL:
-    default:
-      return 5;  // Default
-  }
+  return boostedChunks;
 }
 
 export default {
-  analyzeQueryIntent,
-  rerankChunks,
-  getRecommendedChunkCount,
-  QueryIntentType
+  rerankByChunkType,
+  applySectionBoost
 };

@@ -1159,9 +1159,11 @@ async function processDocumentWithTimeout(
         filename
       });
 
-      // Run in background - don't await!
-      Promise.resolve().then(async () => {
-        try {
+      // ═══════════════════════════════════════════════════════════════
+      // KODA FIX: Synchronous embedding generation
+      // Wait for embeddings to complete before marking as completed
+      // ═══════════════════════════════════════════════════════════════
+      try {
           // Import WebSocket service for progress updates inside async context
           const { emitToUser: emitToUserAsync } = await import('./websocket.service');
           const vectorEmbeddingService = await import('./vectorEmbedding.service');
@@ -1335,10 +1337,18 @@ async function processDocumentWithTimeout(
 
             console.log(`✅ [VERIFICATION] Confirmed ${verification.count}/${chunks.length} embeddings stored`);
 
-          } catch (verifyError) {
+          } catch (verifyError: any) {
+            // ═══════════════════════════════════════════════════════════════
+            // KODA FIX: Re-throw verification errors to mark document as failed
+            // ═══════════════════════════════════════════════════════════════
             console.error('❌ [VERIFICATION] Verification error:', verifyError);
-            // Don't throw - allow document to be marked as completed
-            // But log the error for investigation
+            
+            // If it's a verification failure (not just a Pinecone connection issue), re-throw
+            if (verifyError.message?.includes('Embedding verification failed')) {
+              throw verifyError; // This will mark document as 'failed'
+            }
+            // For other errors (like Pinecone being down), log but continue
+            console.warn('⚠️ [VERIFICATION] Non-critical error, continuing...');
           }
 
           // Emit embedding completion (80%)
@@ -1358,30 +1368,49 @@ async function processDocumentWithTimeout(
             chunksCount: chunks.length,
             message: `${filename} is now ready for AI chat!`
           });
-        } catch (error: any) {
-          // Log error but don't fail the document - embeddings can be regenerated later
-          console.error('❌ [Background] Vector embedding generation failed (non-critical):', error);
-          console.error('   Document is still available, but AI chat may be limited until embeddings are generated');
+        // ═══════════════════════════════════════════════════════════════
+        // KODA FIX: Update status after embeddings complete
+        // ═══════════════════════════════════════════════════════════════
+        const crypto = require('crypto');
+        const fileHashActual = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-          // Emit error update
-          const { emitToUser: emitError } = await import('./websocket.service');
-          emitError(userId, 'document-processing-update', {
-            documentId,
-            stage: 'embedding-failed',
-            progress: 80,
-            message: 'Embedding generation failed (non-critical)',
-            filename,
-            error: error.message
-          });
+        await prisma.document.update({
+          where: { id: documentId },
+          data: {
+            status: 'completed',
+            fileHash: fileHashActual,
+            renderableContent: extractedText || null,
+            embeddingsGenerated: true,
+            chunksCount: chunks?.length || 0,
+            updatedAt: new Date()
+          },
+        });
 
-          // ⚡ NOTIFY USER: Embeddings failed
-          emitError(userId, 'document-embeddings-failed', {
-            documentId,
-            filename,
-            error: error.message || 'Unknown error'
-          });
-        }
-      });
+        console.log(`✅ [DOCUMENT] Completed with ${chunks?.length || 0} embeddings`);
+      } catch (embeddingError: any) {
+        // ═══════════════════════════════════════════════════════════════
+        // KODA FIX: Mark as FAILED if embeddings fail
+        // ═══════════════════════════════════════════════════════════════
+        console.error('❌ [EMBEDDING] Failed:', embeddingError);
+
+        await prisma.document.update({
+          where: { id: documentId },
+          data: {
+            status: 'failed',
+            error: embeddingError.message || 'Embedding generation failed',
+            embeddingsGenerated: false,
+            updatedAt: new Date()
+          },
+        });
+
+        emitToUser(userId, 'document-embeddings-failed', {
+          documentId,
+          filename,
+          error: embeddingError.message || 'Unknown error'
+        });
+
+        throw embeddingError;
+      }
 
     }
 
@@ -1392,19 +1421,10 @@ async function processDocumentWithTimeout(
     // const pineconeService = await import('./pinecone.service');
     // const verification = await pineconeService.default.verifyDocument(documentId);
 
-    // ⚡ CRITICAL: Update document status to completed IMMEDIATELY
-    // This makes the document appear in the UI instantly (2-3s instead of 14-17s)
-    // Background tasks (NER, embeddings) will continue running
-    const statusUpdateStartTime = Date.now();
-    await prisma.document.update({
-      where: { id: documentId },
-      data: {
-        status: 'completed',
-        renderableContent: extractedText || null, // ✨ Copy extracted text to renderableContent for chat
-        updatedAt: new Date()
-      },
-    });
-    const statusUpdateTime = Date.now() - statusUpdateStartTime;
+    // ═══════════════════════════════════════════════════════════════
+    // KODA FIX: Status update is now handled in the embedding try/catch block above
+    // Document is marked "completed" ONLY after embeddings succeed
+    // ═══════════════════════════════════════════════════════════════
 
     // ⚡ OPTIMIZATION: Run NER in BACKGROUND (non-blocking)
     // This saves 3-5 seconds of processing time

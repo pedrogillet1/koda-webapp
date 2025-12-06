@@ -21,6 +21,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { kodaPersonaService, KODA_CORE_PERSONA, KODA_DOCUMENT_CITATION_RULES } from './kodaPersona.service';
 
 // ============================================================================
 // TYPES & INTERFACES

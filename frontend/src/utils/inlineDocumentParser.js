@@ -1,32 +1,37 @@
 /**
- * Inline Document Parser Utility
+ * ============================================================================
+ * ENHANCED INLINE DOCUMENT PARSER
+ * ============================================================================
  *
- * Parses document markers from backend responses and splits content
- * into text and document segments for rendering.
+ * PURPOSE: Parse all marker types from backend responses
  *
- * Marker Format: {{DOC:::id:::filename:::mimeType:::size:::folderPath}}
- * Supports partial markers with missing fields
+ * MARKER TYPES:
+ * - {{DOC:::id:::filename:::mimeType:::fileSize:::folderPath}}
+ * - {{FOLDER:::id:::folderName:::fileCount:::folderPath}}
+ * - {{LOADMORE:::remainingCount:::totalCount:::loadedCount}}
+ */
+
+/**
+ * ============================================================================
+ * DOCUMENT MARKERS
+ * ============================================================================
  */
 
 /**
  * Check if content contains inline document markers
- * More flexible - matches {{DOC::: followed by anything until }}
  */
 export const hasInlineDocuments = (content) => {
   if (!content || typeof content !== 'string') return false;
-  // Use [\s\S] to match across newlines
   return /\{\{DOC:::[\s\S]*?\}\}/g.test(content);
 };
 
 /**
- * Parse all document markers from content
- * Returns array of document objects
- * Handles variable number of fields
+ * Parse inline document markers
+ * Format: {{DOC:::id:::filename:::mimeType:::fileSize:::folderPath}}
  */
 export const parseInlineDocuments = (content) => {
   if (!content || typeof content !== 'string') return [];
 
-  // More flexible regex - captures everything between {{DOC::: and }}, including newlines
   const markerRegex = /\{\{DOC:::([\s\S]*?)\}\}/g;
   const documents = [];
   let match;
@@ -34,18 +39,14 @@ export const parseInlineDocuments = (content) => {
   while ((match = markerRegex.exec(content)) !== null) {
     const fullMatch = match[0];
     const innerContent = match[1];
-
-    // Split by ::: to get fields
     const fields = innerContent.split(':::');
 
-    // Extract fields with defaults
     const documentId = fields[0] || '';
     const filename = fields[1] ? decodeURIComponent(fields[1]) : 'Document';
     const mimeType = fields[2] || 'application/octet-stream';
     const sizeStr = fields[3] || '';
     const folderPath = fields[4] ? decodeURIComponent(fields[4]) : '';
 
-    // Parse size, handle NaN
     let size = parseInt(sizeStr, 10);
     if (isNaN(size)) size = null;
 
@@ -64,50 +65,248 @@ export const parseInlineDocuments = (content) => {
 };
 
 /**
+ * ============================================================================
+ * FOLDER MARKERS (NEW)
+ * ============================================================================
+ */
+
+/**
+ * Check if content contains inline folder markers
+ */
+export const hasInlineFolders = (content) => {
+  if (!content || typeof content !== 'string') return false;
+  return /\{\{FOLDER:::[\s\S]*?\}\}/g.test(content);
+};
+
+/**
+ * Parse inline folder markers
+ * Format: {{FOLDER:::id:::folderName:::fileCount:::folderPath}}
+ */
+export const parseInlineFolders = (content) => {
+  if (!content || typeof content !== 'string') return [];
+
+  const folderRegex = /\{\{FOLDER:::([^:]+):::([^:]+):::([^:]+):::([^}]+)\}\}/g;
+  const folders = [];
+  let match;
+
+  while ((match = folderRegex.exec(content)) !== null) {
+    try {
+      folders.push({
+        folderId: match[1],
+        folderName: decodeURIComponent(match[2]),
+        fileCount: parseInt(match[3]),
+        folderPath: decodeURIComponent(match[4]),
+        marker: match[0]
+      });
+    } catch (error) {
+      console.error('Error parsing folder marker:', error, match[0]);
+    }
+  }
+
+  return folders;
+};
+
+/**
+ * ============================================================================
+ * LOAD MORE MARKERS (NEW)
+ * ============================================================================
+ */
+
+/**
+ * Check if content contains load more markers
+ */
+export const hasLoadMoreMarkers = (content) => {
+  if (!content || typeof content !== 'string') return false;
+  return /\{\{LOADMORE:::[\s\S]*?\}\}/g.test(content);
+};
+
+/**
+ * Parse load more markers
+ * Format: {{LOADMORE:::remainingCount:::totalCount:::loadedCount}}
+ */
+export const parseLoadMoreMarkers = (content) => {
+  if (!content || typeof content !== 'string') return [];
+
+  const loadMoreRegex = /\{\{LOADMORE:::(\d+):::(\d+):::(\d+)\}\}/g;
+  const loadMoreButtons = [];
+  let match;
+
+  while ((match = loadMoreRegex.exec(content)) !== null) {
+    try {
+      loadMoreButtons.push({
+        remainingCount: parseInt(match[1]),
+        totalCount: parseInt(match[2]),
+        loadedCount: parseInt(match[3]),
+        marker: match[0]
+      });
+    } catch (error) {
+      console.error('Error parsing load more marker:', error, match[0]);
+    }
+  }
+
+  return loadMoreButtons;
+};
+
+/**
+ * ============================================================================
+ * UNIFIED PARSING
+ * ============================================================================
+ */
+
+/**
+ * Check if content has any markers
+ */
+export const hasMarkers = (content) => {
+  if (!content || typeof content !== 'string') return false;
+
+  return (
+    content.includes('{{DOC:::') ||
+    content.includes('{{FOLDER:::') ||
+    content.includes('{{LOADMORE:::')
+  );
+};
+
+/**
+ * Parse all marker types at once
+ * Returns object with all parsed markers
+ */
+export const parseAllMarkers = (content) => {
+  return {
+    documents: parseInlineDocuments(content),
+    folders: parseInlineFolders(content),
+    loadMore: parseLoadMoreMarkers(content)
+  };
+};
+
+/**
+ * Get marker count by type
+ */
+export const getMarkerCounts = (content) => {
+  const markers = parseAllMarkers(content);
+
+  return {
+    documents: markers.documents.length,
+    folders: markers.folders.length,
+    loadMore: markers.loadMore.length,
+    total: markers.documents.length + markers.folders.length + markers.loadMore.length
+  };
+};
+
+/**
+ * ============================================================================
+ * STRIPPING FUNCTIONS
+ * ============================================================================
+ */
+
+/**
+ * Strip document markers from content
+ */
+export const stripDocumentMarkers = (content) => {
+  if (!content || typeof content !== 'string') return content;
+
+  let result = content.replace(/\{\{DOC:::[\s\S]*?\}\}/g, '');
+  result = result.replace(/\{\{DOC:::[^\}]*$/g, '');
+  result = result.replace(/\{\{DOC:::[^}]*(?![^{]*\}\})/g, (match) => {
+    if (!match.includes('}}')) {
+      return '';
+    }
+    return match;
+  });
+
+  return result.trim();
+};
+
+/**
+ * Strip folder markers from content
+ */
+export const stripFolderMarkers = (content) => {
+  if (!content || typeof content !== 'string') return content;
+  return content.replace(/\{\{FOLDER:::([^}]+)\}\}/g, '');
+};
+
+/**
+ * Strip load more markers from content
+ */
+export const stripLoadMoreMarkers = (content) => {
+  if (!content || typeof content !== 'string') return content;
+  return content.replace(/\{\{LOADMORE:::([^}]+)\}\}/g, '');
+};
+
+/**
+ * Strip ALL marker types from content
+ */
+export const stripAllMarkers = (content) => {
+  if (!content || typeof content !== 'string') return content;
+
+  let cleaned = content;
+  cleaned = stripDocumentMarkers(cleaned);
+  cleaned = stripFolderMarkers(cleaned);
+  cleaned = stripLoadMoreMarkers(cleaned);
+
+  return cleaned.trim();
+};
+
+/**
+ * Strip ALL document markers (complete or incomplete) from content
+ * More aggressive than stripDocumentMarkers
+ */
+export const stripAllDocumentMarkers = (content) => {
+  if (!content || typeof content !== 'string') return content;
+
+  let result = content.replace(/\{\{DOC:::[\s\S]*?\}\}/g, '');
+  result = result.replace(/\{\{DOC:::[^\n]*/g, '');
+
+  return result.trim();
+};
+
+/**
+ * ============================================================================
+ * CONTENT SPLITTING
+ * ============================================================================
+ */
+
+/**
  * Helper to strip incomplete markers from text
  */
 const stripIncompleteMarkers = (text) => {
   if (!text) return text;
-  // Remove any {{DOC::: that doesn't have closing }}
   return text.replace(/\{\{DOC:::[^\}]*$/g, '')
              .replace(/\{\{DOC:::[^\n]*/g, '')
+             .replace(/\{\{FOLDER:::[^\}]*$/g, '')
+             .replace(/\{\{LOADMORE:::[^\}]*$/g, '')
              .trim();
 };
 
 /**
- * Split content into text and document segments
- * Returns array of segments: { type: 'text'|'document', content: string|object }
+ * Split content into text and marker segments
+ * Returns array of segments: { type: 'text'|'document'|'folder'|'loadmore', content: string|object }
  */
-export const splitTextWithDocuments = (content) => {
+export const splitContentWithMarkers = (content) => {
   if (!content || typeof content !== 'string') {
     return [{ type: 'text', content: content || '' }];
   }
 
-  if (!hasInlineDocuments(content)) {
-    // Even if no complete markers, strip any incomplete markers
+  if (!hasMarkers(content)) {
     const cleanedContent = stripIncompleteMarkers(content);
     return [{ type: 'text', content: cleanedContent }];
   }
 
-  const documents = parseInlineDocuments(content);
+  const markers = parseAllMarkers(content);
   const segments = [];
   let lastIndex = 0;
 
-  // Sort documents by their position in the content
-  const sortedDocs = documents
-    .map(doc => ({
-      ...doc,
-      index: content.indexOf(doc.marker)
-    }))
-    .filter(doc => doc.index !== -1)
-    .sort((a, b) => a.index - b.index);
+  // Combine all markers with their types and positions
+  const allMarkers = [
+    ...markers.documents.map(m => ({ ...m, type: 'document', index: content.indexOf(m.marker) })),
+    ...markers.folders.map(m => ({ ...m, type: 'folder', index: content.indexOf(m.marker) })),
+    ...markers.loadMore.map(m => ({ ...m, type: 'loadmore', index: content.indexOf(m.marker) }))
+  ].filter(m => m.index !== -1).sort((a, b) => a.index - b.index);
 
-  // Split content into alternating text and document segments
-  sortedDocs.forEach(doc => {
-    // Add text segment before this document
-    if (doc.index > lastIndex) {
-      let textContent = content.substring(lastIndex, doc.index).trim();
-      // Strip any incomplete markers from text
+  // Split content into alternating text and marker segments
+  allMarkers.forEach((marker, idx) => {
+    // Add text segment before this marker
+    if (marker.index > lastIndex) {
+      let textContent = content.substring(lastIndex, marker.index).trim();
       textContent = stripIncompleteMarkers(textContent);
       if (textContent) {
         segments.push({
@@ -117,7 +316,95 @@ export const splitTextWithDocuments = (content) => {
       }
     }
 
-    // Add document segment
+    // Add marker segment
+    if (marker.type === 'document') {
+      segments.push({
+        type: 'document',
+        content: {
+          documentId: marker.documentId,
+          filename: marker.filename,
+          mimeType: marker.mimeType,
+          size: marker.size,
+          fileSize: marker.fileSize,
+          folderPath: marker.folderPath
+        }
+      });
+    } else if (marker.type === 'folder') {
+      segments.push({
+        type: 'folder',
+        content: {
+          folderId: marker.folderId,
+          folderName: marker.folderName,
+          fileCount: marker.fileCount,
+          folderPath: marker.folderPath
+        }
+      });
+    } else if (marker.type === 'loadmore') {
+      segments.push({
+        type: 'loadmore',
+        content: {
+          remainingCount: marker.remainingCount,
+          totalCount: marker.totalCount,
+          loadedCount: marker.loadedCount
+        }
+      });
+    }
+
+    lastIndex = marker.index + marker.marker.length;
+  });
+
+  // Add remaining text after last marker
+  if (lastIndex < content.length) {
+    let textContent = content.substring(lastIndex).trim();
+    textContent = stripIncompleteMarkers(textContent);
+    if (textContent) {
+      segments.push({
+        type: 'text',
+        content: textContent
+      });
+    }
+  }
+
+  return segments;
+};
+
+/**
+ * Split content into text and document segments (LEGACY - for backward compatibility)
+ */
+export const splitTextWithDocuments = (content) => {
+  if (!content || typeof content !== 'string') {
+    return [{ type: 'text', content: content || '' }];
+  }
+
+  if (!hasInlineDocuments(content)) {
+    const cleanedContent = stripIncompleteMarkers(content);
+    return [{ type: 'text', content: cleanedContent }];
+  }
+
+  const documents = parseInlineDocuments(content);
+  const segments = [];
+  let lastIndex = 0;
+
+  const sortedDocs = documents
+    .map(doc => ({
+      ...doc,
+      index: content.indexOf(doc.marker)
+    }))
+    .filter(doc => doc.index !== -1)
+    .sort((a, b) => a.index - b.index);
+
+  sortedDocs.forEach(doc => {
+    if (doc.index > lastIndex) {
+      let textContent = content.substring(lastIndex, doc.index).trim();
+      textContent = stripIncompleteMarkers(textContent);
+      if (textContent) {
+        segments.push({
+          type: 'text',
+          content: textContent
+        });
+      }
+    }
+
     segments.push({
       type: 'document',
       content: {
@@ -133,10 +420,8 @@ export const splitTextWithDocuments = (content) => {
     lastIndex = doc.index + doc.marker.length;
   });
 
-  // Add remaining text after last document
   if (lastIndex < content.length) {
     let textContent = content.substring(lastIndex).trim();
-    // Strip any incomplete markers from remaining text
     textContent = stripIncompleteMarkers(textContent);
     if (textContent) {
       segments.push({
@@ -150,6 +435,12 @@ export const splitTextWithDocuments = (content) => {
 };
 
 /**
+ * ============================================================================
+ * UTILITIES
+ * ============================================================================
+ */
+
+/**
  * Format file size for display
  */
 export const formatFileSize = (bytes) => {
@@ -160,53 +451,38 @@ export const formatFileSize = (bytes) => {
 };
 
 /**
- * Remove document markers from content (for fallback rendering)
- * Also removes incomplete markers that don't have closing }}
+ * ============================================================================
+ * EXPORTS
+ * ============================================================================
  */
-export const stripDocumentMarkers = (content) => {
-  if (!content || typeof content !== 'string') return content;
-
-  // First, remove complete markers: {{DOC:::...}}
-  let result = content.replace(/\{\{DOC:::[\s\S]*?\}\}/g, '');
-
-  // Then, remove incomplete markers that start with {{DOC::: but don't have closing }}
-  // This handles cases like {{DOC:::id:::filename... that appear at end of content
-  result = result.replace(/\{\{DOC:::[^\}]*$/g, '');
-
-  // Also handle incomplete markers that might be anywhere in text (no closing }})
-  // Match {{DOC::: followed by anything until newline or end, but only if no }} follows
-  result = result.replace(/\{\{DOC:::[^}]*(?![^{]*\}\})/g, (match) => {
-    // Only remove if there's no closing }} nearby
-    if (!match.includes('}}')) {
-      return '';
-    }
-    return match;
-  });
-
-  return result.trim();
-};
-
-/**
- * Strip ALL document markers (complete or incomplete) from content
- * More aggressive than stripDocumentMarkers - ensures no {{DOC::: text ever appears
- */
-export const stripAllDocumentMarkers = (content) => {
-  if (!content || typeof content !== 'string') return content;
-
-  // Remove complete markers first
-  let result = content.replace(/\{\{DOC:::[\s\S]*?\}\}/g, '');
-
-  // Remove any remaining {{DOC::: patterns (incomplete markers)
-  result = result.replace(/\{\{DOC:::[^\n]*/g, '');
-
-  return result.trim();
-};
 
 export default {
+  // Document parsing
   hasInlineDocuments,
   parseInlineDocuments,
-  splitTextWithDocuments,
-  formatFileSize,
   stripDocumentMarkers,
-  stripAllDocumentMarkers
+  stripAllDocumentMarkers,
+
+  // Folder parsing (NEW)
+  hasInlineFolders,
+  parseInlineFolders,
+  stripFolderMarkers,
+
+  // Load more parsing (NEW)
+  hasLoadMoreMarkers,
+  parseLoadMoreMarkers,
+  stripLoadMoreMarkers,
+
+  // Unified parsing (NEW)
+  hasMarkers,
+  parseAllMarkers,
+  getMarkerCounts,
+  stripAllMarkers,
+  splitContentWithMarkers,
+
+  // Legacy compatibility
+  splitTextWithDocuments,
+
+  // Utilities
+  formatFileSize
 };

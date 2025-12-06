@@ -49,7 +49,7 @@ export interface QualityCheckOptions {
 export async function checkAnswerQuality(
   query: string,
   answer: string,
-  retrievedChunks: Array<{ content: string; metadata?: any }>,
+  retrievedChunks: Array<{ id?: string; content: string; metadata?: any }>,
   options: QualityCheckOptions = {}
 ): Promise<QualityCheckResult> {
   const {
@@ -63,18 +63,17 @@ export async function checkAnswerQuality(
   const postProcessing = await postProcessAnswer(answer);
   const cleanedAnswer = postProcessing.cleanedAnswer;
 
+  // Map chunks to include id if not present
+  const chunksWithIds = retrievedChunks.map((chunk, i) => ({
+    ...chunk,
+    id: chunk.id || `chunk-${i}`
+  }));
+
   // Step 2: Verify grounding
-  const grounding = await verifyGrounding(query, cleanedAnswer, retrievedChunks, {
-    minConfidence: 0.7,
-    requireCompleteness: !allowPartialAnswers,
-    allowPartialAnswers,
-  });
+  const grounding = await verifyGrounding(cleanedAnswer, chunksWithIds, query);
 
   // Step 3: Verify citations
-  const citations = await verifyCitations(cleanedAnswer, retrievedChunks, {
-    requireAllCited: requireCitations,
-    minAccuracy: 0.9,
-  });
+  const citations = await verifyCitations(cleanedAnswer, chunksWithIds);
 
   // Step 4: Calculate overall quality score
   const overallScore = calculateOverallScore(grounding, citations, postProcessing);
@@ -149,7 +148,7 @@ function makeQualityDecision(
   }
 
   // If grounding is required and failed, regenerate
-  if (requireGrounding && !grounding.isWellGrounded) {
+  if (requireGrounding && !grounding.isGrounded) {
     if (grounding.confidence < 0.3) {
       return 'fallback'; // Very poor grounding, use fallback
     }
@@ -157,7 +156,7 @@ function makeQualityDecision(
   }
 
   // If citations are required and failed, regenerate
-  if (requireCitations && !citations.isAccurate) {
+  if (requireCitations && !citations.isValid) {
     return 'regenerate';
   }
 
@@ -183,7 +182,7 @@ function generateReasoning(
   if (decision === 'fallback') {
     return `Answer quality too low (score: ${(overallScore * 100).toFixed(1)}%). ` +
            `Using fallback response. ` +
-           `Grounding issues: ${grounding.reasoning}`;
+           `Grounding issues: ${"See ungrounded sentences for details"}`;
   }
 
   // decision === 'regenerate'
@@ -194,11 +193,11 @@ function generateReasoning(
   }
   
   if (citations.confidence < 0.9) {
-    issues.push(`citation issues (${citations.inaccurateCitations.length} inaccurate)`);
+    issues.push(`citation issues (${citations.invalidCitations.length} inaccurate)`);
   }
   
-  if (grounding.unsupportedClaims.length > 0) {
-    issues.push(`${grounding.unsupportedClaims.length} unsupported claims`);
+  if (grounding.ungroundedSentences.length > 0) {
+    issues.push(`${grounding.ungroundedSentences.length} unsupported claims`);
   }
 
   return `Answer needs regeneration due to: ${issues.join(', ')}.`;

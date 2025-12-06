@@ -8936,10 +8936,12 @@ async function postProcessAnswer(answer: string): Promise<string> {
   // Pattern 8: Numeric citations [1], [2], [3], etc.
   processed = processed.replace(/\s*\[\d+\]/g, '');
 
-  // Pattern 9: Remove "Source:" or "Sources:" sections at end of answer
-  processed = processed.replace(/\n+---\n+\*\*Sources?:?\*\*[\s\S]*$/i, '');
-  processed = processed.replace(/\n+## Sources?\s*Consulted[\s\S]*$/i, '');
-  processed = processed.replace(/\n+\*\*Sources?:?\*\*\s*\n[\s\S]*$/i, '');
+  // Pattern 9: Remove "Source:" or "Sources:" or "Fontes:" sections at end of answer
+  processed = processed.replace(/\n+---\n+\*\*(?:Sources?|Fontes?):?\*\*[\s\S]*$/i, '');
+  processed = processed.replace(/\n+## (?:Sources?|Fontes?)\s*(?:Consulted)?[\s\S]*$/i, '');
+  processed = processed.replace(/\n+\*\*(?:Sources?|Fontes?):?\*\*\s*\n[\s\S]*$/i, '');
+  processed = processed.replace(/\n+### (?:SOURCE|SOURCES|FONTE|FONTES)\s*\n[\s\S]*$/i, '');
+  processed = processed.replace(/\n+(?:SOURCE|FONTE):\s*\n[\s\S]*$/i, '');
 
   // Pattern 10: Remove "from **DocumentName**" inline references
   processed = processed.replace(/\s*\(from \*\*[^*]+\*\*\)/gi, '');
