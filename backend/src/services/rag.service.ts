@@ -8491,24 +8491,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
     perfTimer.mark('formatEnforcement');
     console.log(`ðŸŽ¨ [FORMAT] Enforcing structure and formatting...`);
 
-    // Step 1: Structure Enforcement (title, sections, source, follow-up)
-    const structureResult = structureEnforcementService.enforceStructure(fullResponse, {
-      query,
-      sources: fullDocuments.length > 0
-        ? fullDocuments.map(doc => ({ documentName: doc.title || 'Unknown', pageNumber: null }))
-        : rerankedChunks.map(chunk => ({
-            documentName: chunk.metadata?.filename || 'Unknown',
-            pageNumber: chunk.metadata?.page || null
-          })),
-      isComparison: isComparisonQuery,
-      responseType: 'rag'  // ✅ RAG responses get full structure enforcement
-    });
-
-    if (structureResult.violations.length > 0) {
-      console.log(`ðŸ“ [STRUCTURE] Fixed ${structureResult.violations.length} violations:`,
-        structureResult.violations.map(v => v.type).join(', '));
-    }
-    fullResponse = structureResult.text;
+    // ❌ DISABLED: Structure enforcement causes:
+    // 1. Content duplication (adds empty "Key Findings" + "Additional Details" wrappers)
+    // 2. Inconsistent formatting
+    // 3. LLM already generates properly structured responses via KODA_TITLE_GENERATION_RULES
+    console.log(`🔍 [STRUCTURE] Skipping structure enforcement - LLM handles formatting`);
+    // Keep fullResponse as-is from LLM
 
     // Step 2: Format Enforcement (bullets, bold, spacing, etc.)
     const formatResult = kodaFormatEnforcementService.enforceFormat(fullResponse);
@@ -8519,12 +8507,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
     fullResponse = formatResult.fixedText || fullResponse;
 
-    console.log(`âœ… [FORMAT] Enforcement complete - Stats:`, {
-      hasTitle: structureResult.stats.hasTitle,
-      sections: structureResult.stats.sectionCount,
-      hasSource: structureResult.stats.hasSource,
-      hasFollowUp: structureResult.stats.hasFollowUp
-    });
+    console.log(`âœ… [FORMAT] Enforcement complete - Violations:`, formatResult.violations.length);
     perfTimer.measure('Format Enforcement', 'formatEnforcement');
 
     // Send the format-enforced response to client

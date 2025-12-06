@@ -186,6 +186,45 @@
 }
 
 /* ============================================
+   4B. SPACING CONTROL - Match backend newlines
+   ============================================ */
+
+/* Control spacing between elements to match backend newlines */
+.markdown-preview-container > * + * {
+  margin-top: 16px !important; /* Single newline gap = 16px */
+}
+
+/* H2 (title) to first element: slightly more space */
+.markdown-preview-container > h2 + *,
+.markdown-preview-container > .markdown-h2 + * {
+  margin-top: 20px !important;
+}
+
+/* List items: tighter internal spacing */
+.markdown-preview-container li + li {
+  margin-top: 6px !important;
+}
+
+/* Paragraphs inside lists: no extra spacing */
+.markdown-preview-container li > p {
+  margin: 0 !important;
+}
+
+/* H3 sections: proper breathing room */
+.markdown-preview-container > h3 + *,
+.markdown-preview-container > .markdown-h3 + * {
+  margin-top: 12px !important;
+}
+
+/* After list, before next section: more space */
+.markdown-preview-container > ul + h3,
+.markdown-preview-container > ol + h3,
+.markdown-preview-container > .markdown-ul + .markdown-h3,
+.markdown-preview-container > .markdown-ol + .markdown-h3 {
+  margin-top: 24px !important;
+}
+
+/* ============================================
    5. TABLES - Professional styling
    ============================================ */
 

@@ -186,6 +186,9 @@ FORMATTING RULES (apply when structured response is needed):
 3. **SECTIONS**: Use 2-5 ### sections for complex content (all in uppercase)
 4. **BULLETS**: Use • character, NOT - or *, each on own line, NO spacing between bullets
 5. **BOLD**: **ONLY** for file names, key numbers, and critical terms - never bold whole sentences
+   - Document names: ONLY bold (**filename.pdf**), NEVER italic (*filename*)
+   - Numbers: **$1,234**, **25%**, **Q4 2024**
+   - NEVER nest bold inside italic: BAD *text **bold*** GOOD **bold text**
 6. **CLOSING**: End with a follow-up question (1 line, neutral tone)
 7. **NO EMOJIS**: Never use any emojis
 8. **NO FILLER**: Never say "I'd be happy to", "Let me help", "Okay, I can", etc.
