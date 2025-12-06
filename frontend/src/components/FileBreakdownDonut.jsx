@@ -154,7 +154,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
             marginBottom: 16,
             justifyItems: 'center',
             alignItems: 'flex-start',
-            gap: '16px 8px'
+            gap: isMobile ? '16px 8px' : '8px 8px'
           }}>
             {displayData.map((item) => {
               const fileCount = extensionBreakdown[item.type]?.count || 0;
@@ -181,8 +181,8 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                 >
                   <div
                     style={{
-                      width: 48,
-                      height: 48,
+                      width: isMobile ? 48 : 68,
+                      height: isMobile ? 48 : 68,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
@@ -192,14 +192,14 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                       src={item.icon}
                       alt={item.label}
                       style={{
-                        width: 48,
-                        height: 48,
+                        width: isMobile ? 48 : 68,
+                        height: isMobile ? 48 : 68,
                         objectFit: 'contain'
                       }}
                     />
                   </div>
                   <div style={{
-                    fontSize: '11px',
+                    fontSize: isMobile ? '11px' : '13px',
                     fontWeight: '600',
                     color: '#32302C',
                     fontFamily: 'Plus Jakarta Sans',
@@ -208,7 +208,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
                     {item.label}
                   </div>
                   <div style={{
-                    fontSize: '10px',
+                    fontSize: isMobile ? '10px' : '12px',
                     fontWeight: '500',
                     color: '#6C6B6E',
                     fontFamily: 'Plus Jakarta Sans'
@@ -227,7 +227,7 @@ const FileBreakdownDonut = ({ showEncryptionMessage = true, compact = false, sem
             gridTemplateRows: isMobile ? 'repeat(2, auto)' : undefined,
             flexDirection: isMobile ? undefined : 'row',
             flexWrap: isMobile ? undefined : 'wrap',
-            gap: isMobile ? '12px 8px' : (compact ? '0 24px' : '0 48px'),
+            gap: isMobile ? '12px 8px' : (compact ? '0 24px' : '0 60px'),
             marginTop: compact ? '4px' : '8px',
             marginBottom: compact ? '12px' : '24px',
             justifyContent: isMobile ? undefined : 'center',

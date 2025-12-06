@@ -1,18 +1,19 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { DocumentsProvider } from './context/DocumentsContext';
 import { FileProvider } from './context/FileContext';
 import { ToastProvider } from './context/ToastContext';
 import { NotificationsProvider } from './context/NotificationsStore';
+import { OnboardingProvider } from './context/OnboardingContext';
 import { ToastStack } from './components/Notifications';
 import { logPerformanceMetrics } from './utils/performance';
 import { useIsMobile } from './hooks/useIsMobile';
+import { ROUTES, AUTH_MODES, buildRoute } from './constants/routes';
 import './i18n/config';
 import './styles/designSystem.css';
 import './styles/safari-fixes.css';
-import Login from './components/Login';
-import SignUp from './components/Signup';
+import UnifiedAuth from './components/UnifiedAuth';
 import Authentication from './components/Authentication';
 import PhoneNumber from './components/PhoneNumber';
 import Verification from './components/Verification';
@@ -74,7 +75,8 @@ function App() {
         <FileProvider>
           <ToastProvider>
             <NotificationsProvider>
-              <Router>
+              <OnboardingProvider>
+                <Router>
                 <div style={{
                   width: '100%',
                   height: isMobile ? '100dvh' : '100vh',
@@ -91,12 +93,14 @@ function App() {
                   <Routes>
             {/* ✅ DEFAULT ROUTE: Chat screen is the first page users see (protected) */}
             <Route path="/" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />
-            <Route path="/chat" element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />
+            <Route path={ROUTES.CHAT} element={<ProtectedRoute><ChatScreen /></ProtectedRoute>} />
 
             {/* AUTH ROUTES */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/authentication" element={<Authentication />} />
+            <Route path={ROUTES.AUTH} element={<UnifiedAuth />} />
+            {/* Legacy routes - redirect to unified auth */}
+            <Route path={ROUTES.LOGIN} element={<Navigate to={buildRoute.auth(AUTH_MODES.LOGIN)} replace />} />
+            <Route path={ROUTES.SIGNUP} element={<Navigate to={buildRoute.auth(AUTH_MODES.SIGNUP)} replace />} />
+            <Route path={ROUTES.AUTHENTICATION} element={<Authentication />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/phone-number-pending" element={<PhoneNumberPending />} />
             <Route path="/verification-pending" element={<VerificationPending />} />
@@ -139,6 +143,7 @@ function App() {
                   <ToastStack />
                 </div>
               </Router>
+              </OnboardingProvider>
             </NotificationsProvider>
           </ToastProvider>
         </FileProvider>

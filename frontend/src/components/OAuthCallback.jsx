@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
+import { ROUTES, DEFAULT_AUTH_REDIRECT, buildRoute, AUTH_MODES } from '../constants/routes';
 
 const OAuthCallback = () => {
   const { t } = useTranslation();
@@ -35,13 +36,13 @@ const OAuthCallback = () => {
             errorMessage = 'Authentication failed';
         }
 
-        navigate(`/login?error=${errorMessage}`);
+        navigate(`${buildRoute.auth(AUTH_MODES.LOGIN)}?error=${errorMessage}`);
         return;
       }
 
       // Check if tokens exist
       if (!accessToken || !refreshToken) {
-        navigate('/login?error=Missing authentication tokens');
+        navigate(`${buildRoute.auth(AUTH_MODES.LOGIN)}?error=Missing authentication tokens`);
         return;
       }
 
@@ -64,14 +65,14 @@ const OAuthCallback = () => {
           // Update AuthContext state with both user data and authentication status
           setAuthState(userData.user);
 
-          // Navigate to home page after successful OAuth login
-          navigate('/home');
+          // Navigate to chat after successful OAuth login
+          navigate(DEFAULT_AUTH_REDIRECT);
         } else {
           throw new Error('Failed to fetch user data');
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
-        navigate('/login?error=Failed to fetch user data');
+        navigate(`${buildRoute.auth(AUTH_MODES.LOGIN)}?error=Failed to fetch user data`);
       }
     };
 

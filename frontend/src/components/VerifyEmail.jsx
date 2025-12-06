@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
+import { DEFAULT_AUTH_REDIRECT } from '../constants/routes';
 import backArrow from '../assets/arrow-narrow-left.svg';
 
 const VerifyEmail = () => {
@@ -82,8 +83,8 @@ const VerifyEmail = () => {
             await verifyPendingEmail({ email, code: verificationCode });
 
             console.log('✅ Email verified successfully');
-            // Navigate to documents screen after successful verification
-            navigate('/home');
+            // Navigate to chat after successful verification
+            navigate(DEFAULT_AUTH_REDIRECT);
         } catch (error) {
             console.error('Error verifying email:', error);
             setError(error.message || 'Invalid verification code');

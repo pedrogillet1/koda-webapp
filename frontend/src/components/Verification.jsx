@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
+import { DEFAULT_AUTH_REDIRECT } from '../constants/routes';
 import backArrow from '../assets/arrow-narrow-left.svg';
 
 const Verification = () => {
@@ -104,7 +105,7 @@ const Verification = () => {
 
                 console.log('✅ Phone verified successfully');
                 localStorage.removeItem('pendingEmail'); // Clean up
-                navigate('/home');
+                navigate(DEFAULT_AUTH_REDIRECT);
             } else {
                 // Existing user adding phone - requires auth
                 const token = localStorage.getItem('accessToken');
@@ -124,7 +125,7 @@ const Verification = () => {
                 }
 
                 console.log('✅ Phone verified successfully');
-                navigate('/home');
+                navigate(DEFAULT_AUTH_REDIRECT);
             }
         } catch (error) {
             console.error('Error verifying code:', error);

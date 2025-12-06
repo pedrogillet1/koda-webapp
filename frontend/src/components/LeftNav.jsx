@@ -10,14 +10,36 @@ import { ReactComponent as LogoutIcon } from '../assets/Logout-white.svg';
 import { ReactComponent as NotificationIcon } from '../assets/Bell-white.svg';
 import { ReactComponent as SettingsIcon } from '../assets/Settings.svg';
 import { ReactComponent as SignoutIcon } from '../assets/signout.svg';
+import { ReactComponent as CaretDoubleIcon } from '../assets/caret-double-right.svg';
 import LogoutModal from './LogoutModal';
+import SidebarTooltip from './SidebarTooltip';
 import { useIsMobile, useMobileBreakpoints } from '../hooks/useIsMobile';
 import { useDocuments } from '../context/DocumentsContext';
 import { useAuth } from '../context/AuthContext';
+import useSidebarState from '../hooks/useSidebarState';
 import api from '../services/api';
 import kodaLogoWhite from '../assets/koda-logo_white.svg';
+import kodaIcon from '../assets/koda-icon.svg';
 import { spacing, radius, typography } from '../design/tokens';
 
+/**
+ * LeftNav - Main sidebar navigation component
+ *
+ * Features:
+ * - Expand/collapse with state persistence
+ * - Responsive widths for different desktop sizes
+ * - Tooltips in collapsed state
+ * - Keyboard shortcut support (Cmd/Ctrl + Shift + L)
+ * - Multi-tab synchronization
+ * - Full accessibility support
+ * - Smooth animations
+ *
+ * Responsive Behavior:
+ * - Mobile (≤768px): Hidden (uses MobileBottomNav instead)
+ * - Small Desktop (1024-1366px): 160px / 64px
+ * - Medium Desktop (1367-1920px): 180px / 72px
+ * - Large Desktop (1921px+): 200px / 80px
+ */
 const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -25,36 +47,27 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
     const isMobile = useIsMobile();
     const mobile = useMobileBreakpoints();
     const { refreshAll } = useDocuments();
-    const { user } = useAuth(); // ✅ Check if user is authenticated
-    const [isExpanded, setIsExpanded] = useState(true);
+    const { user } = useAuth();
+
+    // Sidebar state management
+    const { isExpanded, toggle, currentWidth } = useSidebarState();
+
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
 
-    // ADAPTIVE SIZING - MOBILE ONLY
-    const hamburgerSize = isMobile ? mobile.buttonSize : 44;
-    const hamburgerLeft = isMobile ? mobile.padding.base : 16;
-    const sidebarWidth = isMobile ? (mobile.isSmallPhone ? 260 : 280) : 280;
-    const sidebarPadding = isMobile ? `${mobile.padding.lg}px 0` : '20px 0';
-    const menuItemPadding = isMobile ? `${mobile.padding.base}px ${mobile.padding.lg}px` : '12px 20px';
-    const menuFontSize = isMobile ? mobile.fontSize.base : 14;
-    const menuIconSize = isMobile ? mobile.iconSize.base : 24;
-
-    // ✅ Handle auth button click - Sign In or Sign Out based on authentication
+    // Handle auth button click - Sign In or Sign Out based on authentication
     const handleAuthButtonClick = () => {
         if (user) {
-            // User is logged in - show logout modal
             setShowLogoutModal(true);
             setIsMobileMenuOpen(false);
         } else {
-            // User is not logged in - navigate to login
             navigate('/login');
             setIsMobileMenuOpen(false);
         }
     };
 
-    // ✅ PREFETCH: Load documents data when user hovers over Documents nav item
-    // This makes the Documents page appear instantly when clicked
+    // PREFETCH: Load documents data when user hovers over Documents nav item
     const handleDocumentsHover = () => {
         refreshAll();
     };
@@ -66,96 +79,460 @@ const LeftNav = ({ onNotificationClick, hamburgerTop = 16 }) => {
         }
     }, [location.pathname, isMobile]);
 
-    // Handle mobile navigation
-    const handleMobileNavigate = (path) => {
-        navigate(path);
-        setIsMobileMenuOpen(false);
-    };
-
-    // Mobile: No hamburger - navigation handled by MobileBottomNav
+    // Mobile: No sidebar - navigation handled by MobileBottomNav
     if (isMobile) {
         return null;
     }
 
-    // Desktop: Original sidebar
+    // Shared button style generator
+    const getButtonStyle = (isActive) => ({
+        padding: spacing.sm,
+        borderRadius: 100,
+        cursor: 'pointer',
+        background: isActive ? 'rgba(255, 255, 255, 0.10)' : 'transparent',
+        display: 'flex',
+        alignItems: 'center',
+        gap: spacing.md,
+        justifyContent: isExpanded ? 'flex-start' : 'center',
+        width: isExpanded ? '100%' : 'auto',
+        transition: 'background 0.2s ease, transform 0.15s ease',
+        position: 'relative',
+    });
+
+    const handleButtonHover = (e, isActive) => {
+        e.currentTarget.style.transform = 'scale(1.04)';
+        if (!isActive) {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+        }
+    };
+
+    const handleButtonLeave = (e, isActive) => {
+        e.currentTarget.style.transform = 'scale(1)';
+        if (!isActive) {
+            e.currentTarget.style.background = 'transparent';
+        }
+    };
+
+    // Toggle button icon (double caret)
+    const ToggleIcon = () => (
+        <CaretDoubleIcon
+            style={{
+                width: 20,
+                height: 20,
+                transform: isExpanded ? 'rotate(0deg)' : 'rotate(180deg)',
+                transition: 'transform 0.3s ease',
+            }}
+        />
+    );
+
     return (
-        <div style={{width: isExpanded ? 180 : 64, height: '100%', background: '#181818', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: isExpanded ? 'flex-start' : 'center', paddingTop: 0, paddingBottom: spacing.xl, transition: 'width 0.3s ease'}}>
-            {/* Top Icons */}
-            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: spacing.md, width: '100%', paddingLeft: isExpanded ? 20 : spacing.md, paddingRight: isExpanded ? 20 : spacing.md}}>
-                <div style={{height: 84, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: isExpanded ? 'flex-start' : 'center', width: '100%', marginBottom: -12}}>
-                    <div onClick={() => navigate('/home')} style={{display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', cursor: 'pointer'}}>
-                        <img style={{height: 80}} src={kodaLogoWhite} alt="KODA Logo" />
+        <div
+            style={{
+                width: currentWidth,
+                height: '100%',
+                background: '#181818',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                alignItems: isExpanded ? 'flex-start' : 'center',
+                paddingTop: 0,
+                paddingBottom: spacing.xl,
+                transition: 'width 0.3s ease',
+                position: 'relative',
+                flexShrink: 0,
+            }}
+            role="navigation"
+            aria-label="Main navigation"
+            aria-expanded={isExpanded}
+        >
+            {/* Top Section */}
+            <div
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: isExpanded ? 'flex-start' : 'center',
+                    gap: spacing.md,
+                    width: '100%',
+                    paddingLeft: isExpanded ? 20 : spacing.md,
+                    paddingRight: isExpanded ? 20 : spacing.md,
+                }}
+            >
+                {/* Logo and Toggle Button */}
+                <div
+                    style={{
+                        display: 'flex',
+                        flexDirection: isExpanded ? 'row' : 'column',
+                        justifyContent: isExpanded ? 'space-between' : 'center',
+                        alignItems: 'center',
+                        width: '100%',
+                        gap: isExpanded ? 0 : spacing.md,
+                        marginBottom: isExpanded ? -12 : 0,
+                        paddingTop: isExpanded ? 0 : spacing.md,
+                    }}
+                >
+                    <div
+                        onClick={() => navigate('/home')}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            flex: isExpanded ? 1 : 'none',
+                        }}
+                        aria-label="Go to home"
+                    >
+                        <img
+                            style={{
+                                height: isExpanded ? 80 : 40,
+                                opacity: isExpanded ? 1 : 0.8
+                            }}
+                            src={isExpanded ? kodaLogoWhite : kodaIcon}
+                            alt="KODA Logo"
+                        />
+                    </div>
+
+                    {/* Toggle Button */}
+                    <div
+                        onClick={toggle}
+                        style={{
+                            padding: spacing.sm,
+                            borderRadius: 100,
+                            cursor: 'pointer',
+                            background: 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'background 0.2s ease, transform 0.15s ease',
+                            width: 40,
+                            height: 40,
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                            e.currentTarget.style.transform = 'scale(1.04)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+                        aria-expanded={isExpanded}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggle();
+                            }
+                        }}
+                    >
+                        <ToggleIcon />
                     </div>
                 </div>
-                {/* Separator line - aligns with header border at 84px from top */}
-                <div style={{width: 'calc(100% + 40px)', marginLeft: -20, marginRight: -20, height: 1, background: 'rgba(255, 255, 255, 0.20)', marginBottom: spacing.sm}}></div>
-                <div style={{display: 'flex', flexDirection: 'column', gap: spacing.lg, width: '100%', alignItems: isExpanded ? 'flex-start' : 'center'}}>
-                    <div onClick={() => navigate('/home')} style={{padding: spacing.sm, borderRadius: 100, cursor: 'pointer', background: location.pathname === '/home' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: 'flex-start', width: isExpanded ? '100%' : 'auto', transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/home') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/home') e.currentTarget.style.background = 'transparent'; }}>
-                        <HouseIcon style={{width: 20, height: 20, flexShrink: 0, color: 'white'}} />
-                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.home')}</span>}
-                    </div>
-                    <div
-                        onClick={() => navigate('/documents')}
-                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; handleDocumentsHover(); if (location.pathname !== '/documents') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/documents') e.currentTarget.style.background = 'transparent'; }}
-                        style={{padding: spacing.sm, borderRadius: 100, cursor: 'pointer', background: location.pathname === '/documents' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: 'flex-start', width: isExpanded ? '100%' : 'auto', transition: 'background 0.2s ease, transform 0.15s ease'}}
-                    >
-                        <Folder1Icon style={{width: 20, height: 20, flexShrink: 0, color: 'white'}} />
-                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.documents')}</span>}
-                    </div>
-                    <div onClick={() => navigate('/chat')} style={{padding: spacing.sm, borderRadius: 100, cursor: 'pointer', background: location.pathname === '/chat' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: 'flex-start', width: isExpanded ? '100%' : 'auto', transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/chat') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/chat') e.currentTarget.style.background = 'transparent'; }}>
-                        <MessageIcon style={{width: 20, height: 20, color: 'white', flexShrink: 0}} />
-                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.chat')}</span>}
-                    </div>
-                    <div onClick={() => navigate('/upload-hub')} style={{padding: spacing.sm, borderRadius: 100, cursor: 'pointer', background: location.pathname === '/upload-hub' ? 'rgba(255, 255, 255, 0.10)' : 'transparent', display: 'flex', alignItems: 'center', gap: spacing.md, justifyContent: 'flex-start', width: isExpanded ? '100%' : 'auto', transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/upload-hub') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/upload-hub') e.currentTarget.style.background = 'transparent'; }}>
-                        <LogoutIcon style={{width: 20, height: 20, flexShrink: 0}} />
-                        {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.upload')}</span>}
-                    </div>
+
+                {/* Separator */}
+                <div
+                    style={{
+                        width: 'calc(100% + 40px)',
+                        marginLeft: -20,
+                        marginRight: -20,
+                        height: 1,
+                        background: 'rgba(255, 255, 255, 0.20)',
+                        marginBottom: spacing.sm,
+                    }}
+                />
+
+                {/* Navigation Items */}
+                <div
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: spacing.lg,
+                        width: '100%',
+                        alignItems: isExpanded ? 'flex-start' : 'center',
+                    }}
+                >
+                    {/* Home */}
+                    <SidebarTooltip text={t('nav.home')} show={!isExpanded}>
+                        <div
+                            onClick={() => navigate('/home')}
+                            style={getButtonStyle(location.pathname === '/home')}
+                            onMouseEnter={(e) => handleButtonHover(e, location.pathname === '/home')}
+                            onMouseLeave={(e) => handleButtonLeave(e, location.pathname === '/home')}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={t('nav.home')}
+                            aria-current={location.pathname === '/home' ? 'page' : undefined}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    navigate('/home');
+                                }
+                            }}
+                        >
+                            <HouseIcon style={{ width: 20, height: 20, flexShrink: 0, color: 'white' }} />
+                            {isExpanded && (
+                                <span
+                                    style={{
+                                        color: 'white',
+                                        fontSize: typography.body.size,
+                                        fontWeight: typography.bodyStrong.weight,
+                                        fontFamily: typography.body.family,
+                                    }}
+                                >
+                                    {t('nav.home')}
+                                </span>
+                            )}
+                        </div>
+                    </SidebarTooltip>
+
+                    {/* Documents */}
+                    <SidebarTooltip text={t('nav.documents')} show={!isExpanded}>
+                        <div
+                            onClick={() => navigate('/documents')}
+                            onMouseEnter={(e) => {
+                                handleButtonHover(e, location.pathname === '/documents');
+                                handleDocumentsHover();
+                            }}
+                            onMouseLeave={(e) => handleButtonLeave(e, location.pathname === '/documents')}
+                            style={getButtonStyle(location.pathname === '/documents')}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={t('nav.documents')}
+                            aria-current={location.pathname === '/documents' ? 'page' : undefined}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    navigate('/documents');
+                                }
+                            }}
+                        >
+                            <Folder1Icon style={{ width: 20, height: 20, flexShrink: 0, color: 'white' }} />
+                            {isExpanded && (
+                                <span
+                                    style={{
+                                        color: 'white',
+                                        fontSize: typography.body.size,
+                                        fontWeight: typography.bodyStrong.weight,
+                                        fontFamily: typography.body.family,
+                                    }}
+                                >
+                                    {t('nav.documents')}
+                                </span>
+                            )}
+                        </div>
+                    </SidebarTooltip>
+
+                    {/* Chat */}
+                    <SidebarTooltip text={t('nav.chat')} show={!isExpanded}>
+                        <div
+                            onClick={() => navigate('/chat')}
+                            style={getButtonStyle(location.pathname === '/chat')}
+                            onMouseEnter={(e) => handleButtonHover(e, location.pathname === '/chat')}
+                            onMouseLeave={(e) => handleButtonLeave(e, location.pathname === '/chat')}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={t('nav.chat')}
+                            aria-current={location.pathname === '/chat' ? 'page' : undefined}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    navigate('/chat');
+                                }
+                            }}
+                        >
+                            <MessageIcon style={{ width: 20, height: 20, color: 'white', flexShrink: 0 }} />
+                            {isExpanded && (
+                                <span
+                                    style={{
+                                        color: 'white',
+                                        fontSize: typography.body.size,
+                                        fontWeight: typography.bodyStrong.weight,
+                                        fontFamily: typography.body.family,
+                                    }}
+                                >
+                                    {t('nav.chat')}
+                                </span>
+                            )}
+                        </div>
+                    </SidebarTooltip>
+
+                    {/* Upload */}
+                    <SidebarTooltip text={t('nav.upload')} show={!isExpanded}>
+                        <div
+                            onClick={() => navigate('/upload-hub')}
+                            style={getButtonStyle(location.pathname === '/upload-hub')}
+                            onMouseEnter={(e) => handleButtonHover(e, location.pathname === '/upload-hub')}
+                            onMouseLeave={(e) => handleButtonLeave(e, location.pathname === '/upload-hub')}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={t('nav.upload')}
+                            aria-current={location.pathname === '/upload-hub' ? 'page' : undefined}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    navigate('/upload-hub');
+                                }
+                            }}
+                        >
+                            <LogoutIcon style={{ width: 20, height: 20, flexShrink: 0 }} />
+                            {isExpanded && (
+                                <span
+                                    style={{
+                                        color: 'white',
+                                        fontSize: typography.body.size,
+                                        fontWeight: typography.bodyStrong.weight,
+                                        fontFamily: typography.body.family,
+                                    }}
+                                >
+                                    {t('nav.upload')}
+                                </span>
+                            )}
+                        </div>
+                    </SidebarTooltip>
                 </div>
             </div>
 
-            {/* Bottom Icons */}
-            <div style={{display: 'flex', flexDirection: 'column', alignItems: isExpanded ? 'flex-start' : 'center', gap: spacing.md, borderTop: '1px solid rgba(255, 255, 255, 0.20)', paddingTop: spacing.xl, width: '100%', paddingLeft: isExpanded ? 20 : spacing.md, paddingRight: isExpanded ? 20 : spacing.md}}>
-                <div onClick={onNotificationClick} style={{padding: spacing.sm, borderRadius: 100, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36, transition: 'background 0.2s ease, transform 0.15s ease'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'transparent'; }}>
-                    <div style={{position: 'relative', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                        <NotificationIcon style={{width: 20, height: 20}} />
-                        {hasUnreadNotifications && (
-                            <div style={{ width: 8, height: 8, position: 'absolute', right: -2, top: -2, background: '#D92D20', borderRadius: 9999 }} />
+            {/* Bottom Section */}
+            <div
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: isExpanded ? 'flex-start' : 'center',
+                    gap: spacing.md,
+                    borderTop: '1px solid rgba(255, 255, 255, 0.20)',
+                    paddingTop: spacing.xl,
+                    width: '100%',
+                    paddingLeft: isExpanded ? 20 : spacing.md,
+                    paddingRight: isExpanded ? 20 : spacing.md,
+                }}
+            >
+                {/* Notifications */}
+                <SidebarTooltip text={t('nav.notifications')} show={!isExpanded}>
+                    <div
+                        onClick={onNotificationClick}
+                        style={getButtonStyle(false)}
+                        onMouseEnter={(e) => handleButtonHover(e, false)}
+                        onMouseLeave={(e) => handleButtonLeave(e, false)}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={t('nav.notifications')}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                onNotificationClick?.();
+                            }
+                        }}
+                    >
+                        <div style={{ position: 'relative', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <NotificationIcon style={{ width: 20, height: 20 }} />
+                            {hasUnreadNotifications && (
+                                <div
+                                    style={{
+                                        width: 8,
+                                        height: 8,
+                                        position: 'absolute',
+                                        right: -2,
+                                        top: -2,
+                                        background: '#D92D20',
+                                        borderRadius: 9999,
+                                    }}
+                                    aria-label="Unread notifications"
+                                />
+                            )}
+                        </div>
+                        {isExpanded && (
+                            <span
+                                style={{
+                                    color: 'white',
+                                    fontSize: typography.body.size,
+                                    fontWeight: typography.bodyStrong.weight,
+                                    fontFamily: typography.body.family,
+                                }}
+                            >
+                                {t('nav.notifications')}
+                            </span>
                         )}
                     </div>
-                    {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.notifications')}</span>}
-                </div>
-                <div onClick={() => navigate('/settings')} style={{padding: spacing.sm, borderRadius: 100, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36, transition: 'background 0.2s ease, transform 0.15s ease', background: location.pathname === '/settings' ? 'rgba(255, 255, 255, 0.10)' : 'transparent'}} onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; if (location.pathname !== '/settings') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; if (location.pathname !== '/settings') e.currentTarget.style.background = 'transparent'; }}>
-                    <div style={{width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                        <SettingsIcon style={{width: 20, height: 20, color: 'white'}} />
+                </SidebarTooltip>
+
+                {/* Settings */}
+                <SidebarTooltip text={t('nav.settings')} show={!isExpanded}>
+                    <div
+                        onClick={() => navigate('/settings')}
+                        style={getButtonStyle(location.pathname === '/settings')}
+                        onMouseEnter={(e) => handleButtonHover(e, location.pathname === '/settings')}
+                        onMouseLeave={(e) => handleButtonLeave(e, location.pathname === '/settings')}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={t('nav.settings')}
+                        aria-current={location.pathname === '/settings' ? 'page' : undefined}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                navigate('/settings');
+                            }
+                        }}
+                    >
+                        <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <SettingsIcon style={{ width: 20, height: 20, color: 'white' }} />
+                        </div>
+                        {isExpanded && (
+                            <span
+                                style={{
+                                    color: 'white',
+                                    fontSize: typography.body.size,
+                                    fontWeight: typography.bodyStrong.weight,
+                                    fontFamily: typography.body.family,
+                                }}
+                            >
+                                {t('nav.settings')}
+                            </span>
+                        )}
                     </div>
-                    {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>{t('nav.settings')}</span>}
-                </div>
-                <div
-                    data-action="logout"
-                    className="logout-button"
-                    onClick={handleAuthButtonClick}
-                    style={{padding: spacing.sm, borderRadius: 100, display: 'flex', alignItems: 'center', justifyContent: isExpanded ? 'flex-start' : 'center', gap: spacing.md, cursor: 'pointer', minWidth: 36, transition: 'background 0.2s ease, transform 0.15s ease'}}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'transparent'; }}
-                >
-                    <div style={{width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                        <SignoutIcon style={{width: 20, height: 20, color: 'white'}} />
+                </SidebarTooltip>
+
+                {/* Sign In/Out */}
+                <SidebarTooltip text={user ? t('nav.signOut') : t('nav.signIn')} show={!isExpanded}>
+                    <div
+                        data-action="logout"
+                        className="logout-button"
+                        onClick={handleAuthButtonClick}
+                        style={getButtonStyle(false)}
+                        onMouseEnter={(e) => handleButtonHover(e, false)}
+                        onMouseLeave={(e) => handleButtonLeave(e, false)}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={user ? t('nav.signOut') : t('nav.signIn')}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleAuthButtonClick();
+                            }
+                        }}
+                    >
+                        <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <SignoutIcon style={{ width: 20, height: 20, color: 'white' }} />
+                        </div>
+                        {isExpanded && (
+                            <span
+                                style={{
+                                    color: 'white',
+                                    fontSize: typography.body.size,
+                                    fontWeight: typography.bodyStrong.weight,
+                                    fontFamily: typography.body.family,
+                                }}
+                            >
+                                {user ? t('nav.signOut') : t('nav.signIn')}
+                            </span>
+                        )}
                     </div>
-                    {isExpanded && <span style={{color: 'white', fontSize: typography.body.size, fontWeight: typography.bodyStrong.weight, fontFamily: typography.body.family}}>
-                        {user ? t('nav.signOut') : t('nav.signIn')}
-                    </span>}
-                </div>
+                </SidebarTooltip>
             </div>
 
             {/* Logout Modal */}
-            <LogoutModal
-                isOpen={showLogoutModal}
-                onClose={() => setShowLogoutModal(false)}
-            />
+            <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} />
         </div>
     );
 };
 
 export default LeftNav;
-

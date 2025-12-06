@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useOnboarding } from '../context/OnboardingContext';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import LeftNav from './LeftNav';
 import NotificationPanel from './NotificationPanel';
@@ -62,6 +63,7 @@ const Settings = () => {
   const isMobile = useIsMobile();
   const { showSuccess, showError } = useToast();
   const { documents: contextDocuments } = useDocuments();
+  const { open: openOnboarding } = useOnboarding();
   const [activeSection, setActiveSection] = useState('general');
   const [isExpanded, setIsExpanded] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -444,6 +446,12 @@ const Settings = () => {
     } catch (error) {
       showError(error.response?.data?.error || t('settings.errors.invalidVerificationCode'));
     }
+  };
+
+  const handleReplayOnboarding = () => {
+    console.log('🔄 [Settings] Replaying onboarding...');
+    // Open onboarding modal directly on Settings page (no navigation)
+    openOnboarding(0, 'settings');
   };
 
   const handlePasswordChange = async () => {
@@ -934,6 +942,67 @@ const Settings = () => {
 
           {/* Language & Region Card */}
           <LanguageCard />
+
+          {/* Introduction to Koda - Replay Onboarding */}
+          <div
+            onClick={handleReplayOnboarding}
+            style={{
+              alignSelf: 'stretch',
+              padding: isMobile ? 16 : 24,
+              background: 'white',
+              borderRadius: isMobile ? 12 : 20,
+              border: '2px solid #E6E6EC',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)',
+              justifyContent: 'flex-start',
+              alignItems: 'center',
+              gap: isMobile ? 12 : 20,
+              display: 'flex',
+              cursor: 'pointer',
+              transition: 'background 0.2s ease'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = '#F5F5F5'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'white'}
+          >
+            {/* Icon - Sparkle/Monitor emoji with shadow (matching LanguageCard pattern) */}
+            <div style={{
+              width: 56,
+              height: 56,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 42,
+              filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))'
+            }}>
+              ✨
+            </div>
+
+            {/* Text content */}
+            <div style={{ flex: '1 1 0', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 6, display: 'flex' }}>
+              <div style={{
+                color: '#32302C',
+                fontSize: 20,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '700',
+                lineHeight: '28px'
+              }}>
+                {t('settingsPage.introductionToKoda', 'Introduction to Koda')}
+              </div>
+              <div style={{
+                color: '#6C6B6E',
+                fontSize: 15,
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '500',
+                lineHeight: '20px'
+              }}>
+                {t('settingsPage.replayOnboardingDescription', 'Replay the welcome tour and learn how to use Koda.')}
+              </div>
+            </div>
+
+            {/* Chevron icon */}
+            <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Right3Icon style={{ width: 24, height: 24 }} />
+            </div>
+          </div>
 
           {/* Profile Card - Row 1 */}
           <div
