@@ -217,38 +217,41 @@ model Document {
 }
 
 model DocumentMetadata {
-  id                    String    @id @default(uuid())
-  documentId            String    @unique
-  extractedText         String?
-  ocrConfidence         Float?
-  pageCount             Int?
-  wordCount             Int?
-  characterCount        Int?
-  thumbnailUrl          String?
-  entities              String?
-  classification        String?
-  summary               String?
-  author                String?
-  creationDate          DateTime?
-  modificationDate      DateTime?
-  language              String?
-  topics                String?
-  keyEntities           String?
-  hasSignature          Boolean   @default(false)
-  hasTables             Boolean   @default(false)
-  hasImages             Boolean   @default(false)
-  markdownContent       String?
-  markdownUrl           String?
-  markdownStructure     String?
-  sheetCount            Int?
-  slideCount            Int?
-  slidesData            String?
-  pptxMetadata          String?
-  slideGenerationStatus String?   @default("pending")
-  slideGenerationError  String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  document              Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id                       String    @id @default(uuid())
+  documentId               String    @unique
+  extractedText            String?
+  ocrConfidence            Float?
+  pageCount                Int?
+  wordCount                Int?
+  characterCount           Int?
+  thumbnailUrl             String?
+  entities                 String?
+  classification           String?
+  classificationConfidence Float?    // Confidence score for document type classification
+  domain                   String?   // Document domain (legal, medical, financial, etc.)
+  domainConfidence         Float?    // Confidence score for domain classification
+  summary                  String?
+  author                   String?
+  creationDate             DateTime?
+  modificationDate         DateTime?
+  language                 String?
+  topics                   String?
+  keyEntities              String?
+  hasSignature             Boolean   @default(false)
+  hasTables                Boolean   @default(false)
+  hasImages                Boolean   @default(false)
+  markdownContent          String?
+  markdownUrl              String?
+  markdownStructure        String?
+  sheetCount               Int?
+  slideCount               Int?
+  slidesData               String?
+  pptxMetadata             String?
+  slideGenerationStatus    String?   @default("pending")
+  slideGenerationError     String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  document                 Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@map("document_metadata")
 }
@@ -475,10 +478,11 @@ model DocumentEntity {
   entityType      String
   value           String
   normalizedValue String
-  pageNumber      Int
-  textIndex       Int
-  context         String
-  metadata        String?
+  pageNumber      Int?     // Page number if applicable
+  textIndex       Int      // Position in text
+  context         String   // Surrounding text context
+  confidence      Float    @default(1.0) // Extraction confidence score
+  metadata        String?  // Additional metadata as JSON
   createdAt       DateTime @default(now())
 
   @@index([documentId, entityType])
@@ -486,18 +490,22 @@ model DocumentEntity {
   @@index([entityType])
   @@index([value])
   @@index([normalizedValue])
+  @@index([confidence])
   @@map("document_entities")
 }
 
 model DocumentKeyword {
-  id         String   @id @default(uuid())
-  documentId String
-  word       String
-  count      Int
-  createdAt  DateTime @default(now())
+  id               String   @id @default(uuid())
+  documentId       String
+  word             String
+  count            Int
+  tfIdf            Float?   // TF-IDF score for keyword importance
+  isDomainSpecific Boolean  @default(false) // Whether this is a domain-specific keyword
+  createdAt        DateTime @default(now())
 
   @@index([documentId])
   @@index([word])
+  @@index([documentId, tfIdf])
   @@map("document_keywords")
 }
 
