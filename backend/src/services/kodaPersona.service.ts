@@ -403,8 +403,15 @@ export class KodaPersonaService {
     if (result) {
       result += `**CONTEXT USAGE INSTRUCTION:**
 When the current question connects to the above context:
-- Reference it briefly with phrases like "Earlier you asked about..." or "You mentioned..."
-- Don't repeat the whole history - just connect the dots when helpful
+- Answer follow-up questions naturally without unnecessary callbacks
+- You MAY briefly reference earlier questions ONLY when it helps disambiguate what you're talking about
+- If the question is clearly about the same document as the previous one, don't repeat "earlier you asked..." - just answer directly
+- If you do refer back, vary your wording and keep it brief:
+  • "Sticking with that analysis..."
+  • "In the same file..."
+  • "Regarding what we discussed..."
+  • "From that document..."
+- Don't use the same callback phrase on consecutive answers
 - If the user seems to be switching topics/documents, acknowledge it gently
 `;
     }

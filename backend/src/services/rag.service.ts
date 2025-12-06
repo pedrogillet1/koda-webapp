@@ -5095,17 +5095,39 @@ async function handleConceptComparison(
 
   if (allChunks.length === 0) {
     const lang = detectLanguage(query);
-    const message = ErrorMessagesService.getNotFoundMessage({
-      query,
-      documentCount: 1, // We know they have documents since we got here
-      language: lang as 'en' | 'pt' | 'es' | 'fr',
-    });
-    // Apply format enforcement to error/not found messages
-    const formattedMessage = applyFormatEnforcement(message, {
-      responseType: 'not_found',
-      logPrefix: '[NOT-FOUND FORMAT]'
-    });
-    onChunk(formattedMessage);
+
+    // ✅ FIXED: More direct and precise "not found" message
+    // Don't use ErrorMessagesService which adds generic content
+    // Don't apply format enforcement which adds generic closing
+    const message = lang === 'pt'
+      ? `Não encontrei informações sobre "${query.slice(0, 100)}" nos seus documentos.
+
+**Possíveis razões:**
+• O documento não foi carregado ainda
+• A informação não está presente nos documentos
+• Tente reformular a pergunta de outra forma
+
+Posso ajudar com algo mais?`
+      : lang === 'es'
+      ? `No encontré información sobre "${query.slice(0, 100)}" en tus documentos.
+
+**Posibles razones:**
+• El documento aún no se ha cargado
+• La información no está en los documentos
+• Intenta reformular la pregunta
+
+¿Puedo ayudarte con algo más?`
+      : `I couldn't find information about "${query.slice(0, 100)}" in your documents.
+
+**Possible reasons:**
+• The document hasn't been uploaded yet
+• The information isn't in your documents
+• Try rephrasing your question differently
+
+Can I help with something else?`;
+
+    console.log(`❌ [NOT FOUND] No chunks found for query: "${query.slice(0, 50)}..."`);
+    onChunk(message);
     return { sources: [] };
   }
 

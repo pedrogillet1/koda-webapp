@@ -981,13 +981,31 @@ export class KodaFormatEnforcementService {
   /**
    * Add closing statement if needed
    */
+  /**
+   * Add closing statement if needed
+   * ✅ FIXED: Skip for empty/minimal responses, add variety
+   */
   private addClosingStatement(text: string, queryType: string): string {
     // Don't add closing if it already has a question
     if (text.match(/\n\n[^\n]*\?$/)) {
       return text;
     }
 
-    // ✅ FIX: Check if closing phrase already exists (prevents duplication)
+    // ✅ NEW: Skip closing for empty/minimal responses (<100 chars)
+    const contentLength = text.trim().length;
+    if (contentLength < 100) {
+      console.log(`[KODA FORMAT] Skipping closing for minimal response (${contentLength} chars)`);
+      return text;
+    }
+
+    // ✅ NEW: Skip closing if response is just a title/header (<=2 lines)
+    const lines = text.trim().split('\n').filter(l => l.trim().length > 0);
+    if (lines.length <= 2) {
+      console.log(`[KODA FORMAT] Skipping closing for short response (${lines.length} lines)`);
+      return text;
+    }
+
+    // Check if closing phrase already exists (prevents duplication)
     const commonClosingPhrases = [
       'let me know if you need',
       'let me know if you have',
@@ -997,23 +1015,41 @@ export class KodaFormatEnforcementService {
       'hope this helps',
       'if you need more',
       'if you have any questions',
-      'let me know'
+      'let me know',
+      'posso ajudar',
+      'pode me perguntar'
     ];
 
     const lowerText = text.toLowerCase();
     for (const phrase of commonClosingPhrases) {
       if (lowerText.includes(phrase)) {
         console.log('[KODA FORMAT] Closing phrase already exists, skipping');
-        return text; // Already has a closing phrase
+        return text;
       }
     }
 
-    // ✅ FIX: Only add closing for informational queries
+    // Only add closing for informational queries
     if (queryType !== 'informational') {
       return text;
     }
 
-    const closing = '\n\nLet me know if you need more details on any specific aspect.';
+    // ✅ NEW: Make closing optional (50% of the time for variety)
+    if (Math.random() > 0.5) {
+      console.log('[KODA FORMAT] Skipping closing for variety');
+      return text;
+    }
+
+    // ✅ NEW: Multiple closing phrases for variety
+    const closingPhrases = [
+      '\n\nLet me know if you need more details on any specific aspect.',
+      '\n\nFeel free to ask if you need clarification on anything.',
+      '\n\nI can provide more details if you need them.',
+      "\n\nLet me know if you'd like me to elaborate on any point.",
+      '\n\nPosso fornecer mais detalhes se necessário.',
+      '\n\nMe avise se precisar de mais informações.'
+    ];
+
+    const closing = closingPhrases[Math.floor(Math.random() * closingPhrases.length)];
     return text + closing;
   }
 
