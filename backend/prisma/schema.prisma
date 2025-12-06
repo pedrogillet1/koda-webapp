@@ -1028,6 +1028,14 @@ model ConversationContextState {
   lastQueryEmbedding   Json?
   updatedAt            DateTime  @updatedAt
 
+  // New fields for ChatGPT-style conversation intelligence
+  currentTopic         String?
+  keyEntities          String[]  @default([])
+  keyTopics            String[]  @default([])
+  summary              String?
+  lastMessageCount     Int       @default(0)
+  metadata             Json?
+
   @@index([conversationId])
   @@index([userId])
   @@map("conversation_context_states")

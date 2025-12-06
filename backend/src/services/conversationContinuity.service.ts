@@ -1,124 +1,168 @@
 /**
  * Conversation Continuity Service
- *
- * PURPOSE: Resolve pronouns and references to maintain conversation coherence
- * WHY: Users naturally use "it", "that", "this" - need to resolve to actual entities
- * HOW: Track conversation history, resolve references to previous entities
- * IMPACT: +20-25% conversation coherence, better multi-turn interactions
- *
- * REQUIREMENT FROM MANUS/NOTES:
- * "Track conversation history for reference resolution
- *  Resolve pronouns (it, that, this) to actual entities
- *  Support follow-up questions naturally"
+ * Priority: P2 (MEDIUM)
+ * 
+ * Maintains conversation context across multiple turns.
+ * Resolves pronouns and references to previous messages.
+ * 
+ * Key Functions:
+ * - Track conversation history
+ * - Resolve pronouns (it, this, that, etc.)
+ * - Maintain topic continuity
+ * - Detect topic shifts
  */
 
 import prisma from '../config/database';
+import geminiClient from './geminiClient.service';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface ConversationContext {
+  conversationId: string;
+  currentTopic: string;
+  previousQueries: string[];
+  previousAnswers: string[];
+  entities: Map<string, string>; // pronoun -> entity mapping
+  topicShift: boolean;
+}
 
 export interface ResolvedQuery {
   originalQuery: string;
   resolvedQuery: string;
-  wasResolved: boolean;
-  resolutions: Resolution[];
-  confidence: number;
+  hasPronouns: boolean;
+  resolutions: Array<{ pronoun: string; resolution: string }>;
 }
 
-export interface Resolution {
-  original: string;           // The pronoun/reference (e.g., "it", "that")
-  resolved: string;           // What it resolves to (e.g., "the lease agreement")
-  type: ResolutionType;
-  confidence: number;
-}
-
-export enum ResolutionType {
-  PRONOUN = 'pronoun',                 // it, they, he, she
-  DEMONSTRATIVE = 'demonstrative',     // this, that, these, those
-  DEFINITE_ARTICLE = 'definite_article', // the document, the section
-  ELLIPSIS = 'ellipsis',               // Missing subject (e.g., "and the deadline?")
-  ANAPHORA = 'anaphora'                // Reference to earlier mentioned entity
-}
-
-// Pronouns and their patterns
-const PRONOUNS: Record<string, string[]> = {
-  'it': ['it', "it's", 'its'],
-  'they': ['they', "they're", 'their', 'them'],
-  'this': ['this'],
-  'that': ['that', "that's"],
-  'these': ['these'],
-  'those': ['those'],
-  'the': ['the document', 'the file', 'the section', 'the page', 'the contract', 'the agreement']
-};
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Resolve pronouns and references in a query
- *
- * @param query - User's query
- * @param conversationId - Conversation ID for context
- * @param userId - User ID
- * @returns ResolvedQuery
+ * Resolve pronouns and references in query using conversation history
  */
 export async function resolveQuery(
   query: string,
-  conversationId: string,
-  userId: string
+  conversationId: string
 ): Promise<ResolvedQuery> {
-
-  console.log(`[CONTINUITY] Resolving query: "${query.substring(0, 50)}..."`);
-
-  // Get conversation history
-  const history = await getConversationHistory(conversationId, 10);
-
-  // Get recent entities mentioned
-  const recentEntities = extractRecentEntities(history);
-
-  // Check if query needs resolution
-  const needsResolution = checkNeedsResolution(query);
-
-  if (!needsResolution) {
-    console.log(`[CONTINUITY] No resolution needed`);
+  // Check if query has pronouns
+  const pronouns = detectPronouns(query);
+  
+  if (pronouns.length === 0) {
     return {
       originalQuery: query,
       resolvedQuery: query,
-      wasResolved: false,
+      hasPronouns: false,
       resolutions: [],
-      confidence: 1.0
     };
   }
 
-  // Perform resolution
-  const resolutions: Resolution[] = [];
-  let resolvedQuery = query;
-
-  // Resolve pronouns
-  resolvedQuery = resolvePronoun(resolvedQuery, recentEntities, resolutions);
-
-  // Resolve demonstratives
-  resolvedQuery = resolveDemonstratives(resolvedQuery, recentEntities, resolutions);
-
-  // Resolve definite articles
-  resolvedQuery = resolveDefiniteArticles(resolvedQuery, recentEntities, resolutions);
-
-  // Resolve ellipsis (missing subject)
-  resolvedQuery = resolveEllipsis(resolvedQuery, history, resolutions);
-
-  const wasResolved = resolutions.length > 0;
-  const confidence = wasResolved
-    ? resolutions.reduce((acc, r) => acc + r.confidence, 0) / resolutions.length
-    : 1.0;
-
-  if (wasResolved) {
-    console.log(`[CONTINUITY] Resolved query: "${resolvedQuery.substring(0, 50)}..."`);
-    resolutions.forEach(r => {
-      console.log(`   "${r.original}" -> "${r.resolved}" (${r.type}, ${r.confidence.toFixed(2)})`);
-    });
+  // Get conversation history
+  const history = await getConversationHistory(conversationId, 5); // Last 5 turns
+  
+  if (history.length === 0) {
+    // No history, can't resolve pronouns
+    return {
+      originalQuery: query,
+      resolvedQuery: query,
+      hasPronouns: true,
+      resolutions: [],
+    };
   }
 
-  return {
-    originalQuery: query,
-    resolvedQuery,
-    wasResolved,
-    resolutions,
-    confidence
-  };
+  // Use LLM to resolve pronouns
+  const resolved = await resolvePronounsWithLLM(query, history);
+  
+  return resolved;
+}
+
+/**
+ * Get conversation context
+ */
+export async function getConversationContext(
+  conversationId: string
+): Promise<ConversationContext | null> {
+  try {
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
+      },
+    });
+
+    if (!conversation) {
+      return null;
+    }
+
+    const messages = conversation.messages || [];
+    const previousQueries = messages
+      .filter(m => m.role === 'user')
+      .map(m => m.content)
+      .reverse();
+    
+    const previousAnswers = messages
+      .filter(m => m.role === 'assistant')
+      .map(m => m.content)
+      .reverse();
+
+    // Extract current topic from recent messages
+    const currentTopic = await extractCurrentTopic(previousQueries, previousAnswers);
+
+    return {
+      conversationId,
+      currentTopic,
+      previousQueries,
+      previousAnswers,
+      entities: new Map(),
+      topicShift: false,
+    };
+  } catch (error) {
+    console.error('[ConversationContinuity] Error getting conversation context:', error);
+    return null;
+  }
+}
+
+/**
+ * Detect if there's a topic shift
+ */
+export async function detectTopicShift(
+  newQuery: string,
+  conversationId: string
+): Promise<boolean> {
+  const context = await getConversationContext(conversationId);
+  
+  if (!context || context.previousQueries.length === 0) {
+    return false; // No previous context, no shift
+  }
+
+  const previousQuery = context.previousQueries[context.previousQueries.length - 1];
+  
+  // Use simple heuristic: check if queries share keywords
+  const newWords = new Set(newQuery.toLowerCase().match(/\b\w{4,}\b/g) || []);
+  const prevWords = new Set(previousQuery.toLowerCase().match(/\b\w{4,}\b/g) || []);
+  
+  const intersection = new Set([...newWords].filter(w => prevWords.has(w)));
+  const overlap = intersection.size / Math.max(newWords.size, 1);
+  
+  // If <30% overlap, consider it a topic shift
+  return overlap < 0.3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect pronouns in query
+ */
+function detectPronouns(query: string): string[] {
+  const pronounPattern = /\b(it|this|that|they|them|these|those|he|she|him|her)\b/gi;
+  const matches = query.match(pronounPattern);
+  return matches ? Array.from(new Set(matches.map(m => m.toLowerCase()))) : [];
 }
 
 /**
@@ -126,372 +170,152 @@ export async function resolveQuery(
  */
 async function getConversationHistory(
   conversationId: string,
-  limit: number
+  limit: number = 5
 ): Promise<Array<{ role: string; content: string }>> {
   try {
     const messages = await prisma.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
-      take: limit,
-      select: { role: true, content: true }
+      take: limit * 2, // Get both user and assistant messages
+      select: {
+        role: true,
+        content: true,
+      },
     });
 
     return messages.reverse();
   } catch (error) {
-    console.error('[CONTINUITY] Failed to get conversation history:', error);
+    console.error('[ConversationContinuity] Error getting conversation history:', error);
     return [];
   }
 }
 
 /**
- * Extract recent entities from conversation history
+ * Resolve pronouns using LLM
  */
-function extractRecentEntities(
+async function resolvePronounsWithLLM(
+  query: string,
   history: Array<{ role: string; content: string }>
-): Map<string, string> {
-  const entities = new Map<string, string>();
+): Promise<ResolvedQuery> {
+  const prompt = buildPronounResolutionPrompt(query, history);
 
-  // Extract document names
-  const documentPatterns = [
-    /(?:document|file|contract|agreement|report|pdf|doc)[\s:]+["""']?([^"""'\n,]+)["""']?/gi,
-    /uploaded\s+["""']?([^"""'\n,]+\.(?:pdf|docx?|txt|xlsx?))["""']?/gi,
-    /(?:the|this|that)\s+([^,.\n]+(?:pdf|docx?|contract|agreement|report))/gi
-  ];
-
-  // Extract section names
-  const sectionPatterns = [
-    /(?:section|chapter|clause|article)[\s:]+["""']?([^"""'\n,]+)["""']?/gi,
-    /in\s+(?:the\s+)?([A-Z][^,.\n]+)\s+section/gi
-  ];
-
-  // Extract topics
-  const topicPatterns = [
-    /(?:about|regarding|concerning)\s+([^,.\n]+)/gi,
-    /(?:question|asking)\s+(?:about\s+)?([^,.\n]+)/gi
-  ];
-
-  for (const msg of history) {
-    const content = msg.content;
-
-    // Extract documents
-    for (const pattern of documentPatterns) {
-      let match;
-      while ((match = pattern.exec(content)) !== null) {
-        const docName = match[1].trim();
-        if (docName.length > 2 && docName.length < 100) {
-          entities.set('document', docName);
-        }
-      }
-    }
-
-    // Extract sections
-    for (const pattern of sectionPatterns) {
-      let match;
-      while ((match = pattern.exec(content)) !== null) {
-        const sectionName = match[1].trim();
-        if (sectionName.length > 2 && sectionName.length < 50) {
-          entities.set('section', sectionName);
-        }
-      }
-    }
-
-    // Extract topics
-    for (const pattern of topicPatterns) {
-      let match;
-      while ((match = pattern.exec(content)) !== null) {
-        const topic = match[1].trim();
-        if (topic.length > 2 && topic.length < 50) {
-          entities.set('topic', topic);
-        }
-      }
-    }
-  }
-
-  // Also extract nouns from user's last message
-  if (history.length > 0) {
-    const lastUserMsg = history.filter(m => m.role === 'user').pop();
-    if (lastUserMsg) {
-      const nouns = extractNouns(lastUserMsg.content);
-      if (nouns.length > 0) {
-        entities.set('lastNoun', nouns[0]);
-      }
-    }
-  }
-
-  return entities;
-}
-
-/**
- * Extract nouns from text (simple heuristic)
- */
-function extractNouns(text: string): string[] {
-  // Simple noun extraction - capitalized words and words after "the/a/an"
-  const patterns = [
-    /the\s+([a-z]+(?:\s+[a-z]+)?)/gi,
-    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/g
-  ];
-
-  const nouns: string[] = [];
-
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      const noun = match[1].trim();
-      if (noun.length > 2 && !isCommonWord(noun)) {
-        nouns.push(noun);
-      }
-    }
-  }
-
-  return nouns;
-}
-
-/**
- * Check if word is a common/stop word
- */
-function isCommonWord(word: string): boolean {
-  const commonWords = new Set([
-    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-    'should', 'may', 'might', 'must', 'can', 'and', 'or', 'but', 'if',
-    'then', 'else', 'when', 'where', 'why', 'how', 'what', 'which', 'who',
-    'this', 'that', 'these', 'those', 'here', 'there', 'now', 'then'
-  ]);
-  return commonWords.has(word.toLowerCase());
-}
-
-/**
- * Check if query needs resolution
- */
-function checkNeedsResolution(query: string): boolean {
-  const queryLower = query.toLowerCase();
-
-  // Check for pronouns at start of query
-  const startPatterns = [
-    /^(it|this|that|these|those)\s/i,
-    /^(what|how|why|when|where|who)\s+(is|does|did|can|should)\s+(it|this|that)\s/i,
-    /^(does|is|can|should|will)\s+(it|this|that)\s/i,
-    /^(and|also|what\s+about)\s/i  // Continuation patterns
-  ];
-
-  for (const pattern of startPatterns) {
-    if (pattern.test(query)) {
-      return true;
-    }
-  }
-
-  // Check for vague "the" references
-  const vagueThePatterns = [
-    /^the\s+(document|file|section|page|contract|agreement)\b/i
-  ];
-
-  for (const pattern of vagueThePatterns) {
-    if (pattern.test(query)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/**
- * Resolve pronouns (it, they)
- */
-function resolvePronoun(
-  query: string,
-  entities: Map<string, string>,
-  resolutions: Resolution[]
-): string {
-  let resolved = query;
-
-  // Resolve "it" at start of query
-  if (/^it\s/i.test(query)) {
-    const replacement = entities.get('document') || entities.get('topic') || entities.get('lastNoun');
-    if (replacement) {
-      resolved = resolved.replace(/^it\s/i, `"${replacement}" `);
-      resolutions.push({
-        original: 'it',
-        resolved: replacement,
-        type: ResolutionType.PRONOUN,
-        confidence: 0.8
-      });
-    }
-  }
-
-  // Resolve "it" in middle of query
-  const itPattern = /\s(it|it's)\s/gi;
-  if (itPattern.test(query)) {
-    const replacement = entities.get('document') || entities.get('topic');
-    if (replacement) {
-      resolved = resolved.replace(itPattern, ` "${replacement}" `);
-      if (!resolutions.find(r => r.original === 'it')) {
-        resolutions.push({
-          original: 'it',
-          resolved: replacement,
-          type: ResolutionType.PRONOUN,
-          confidence: 0.7
-        });
-      }
-    }
-  }
-
-  return resolved;
-}
-
-/**
- * Resolve demonstratives (this, that, these, those)
- */
-function resolveDemonstratives(
-  query: string,
-  entities: Map<string, string>,
-  resolutions: Resolution[]
-): string {
-  let resolved = query;
-
-  // Resolve "this" and "that" at start
-  if (/^(this|that)\s/i.test(query)) {
-    const replacement = entities.get('document') || entities.get('section') || entities.get('topic');
-    if (replacement) {
-      resolved = resolved.replace(/^(this|that)\s/i, `"${replacement}" `);
-      const original = query.match(/^(this|that)/i)?.[1] || 'this';
-      resolutions.push({
-        original,
-        resolved: replacement,
-        type: ResolutionType.DEMONSTRATIVE,
-        confidence: 0.75
-      });
-    }
-  }
-
-  return resolved;
-}
-
-/**
- * Resolve definite articles (the document, the section)
- */
-function resolveDefiniteArticles(
-  query: string,
-  entities: Map<string, string>,
-  resolutions: Resolution[]
-): string {
-  let resolved = query;
-
-  // Resolve "the document"
-  if (/the\s+document/i.test(query)) {
-    const docName = entities.get('document');
-    if (docName) {
-      resolved = resolved.replace(/the\s+document/gi, `"${docName}"`);
-      resolutions.push({
-        original: 'the document',
-        resolved: docName,
-        type: ResolutionType.DEFINITE_ARTICLE,
-        confidence: 0.85
-      });
-    }
-  }
-
-  // Resolve "the section"
-  if (/the\s+section/i.test(query)) {
-    const sectionName = entities.get('section');
-    if (sectionName) {
-      resolved = resolved.replace(/the\s+section/gi, `the "${sectionName}" section`);
-      resolutions.push({
-        original: 'the section',
-        resolved: sectionName,
-        type: ResolutionType.DEFINITE_ARTICLE,
-        confidence: 0.8
-      });
-    }
-  }
-
-  return resolved;
-}
-
-/**
- * Resolve ellipsis (missing subject)
- */
-function resolveEllipsis(
-  query: string,
-  history: Array<{ role: string; content: string }>,
-  resolutions: Resolution[]
-): string {
-  let resolved = query;
-
-  // Check for continuation patterns
-  const continuationPatterns = [
-    /^(and|also|what\s+about|how\s+about)\s+/i
-  ];
-
-  for (const pattern of continuationPatterns) {
-    if (pattern.test(query)) {
-      // Get the topic from the last exchange
-      const lastUserMsg = history.filter(m => m.role === 'user').slice(-2, -1)[0];
-      if (lastUserMsg) {
-        // Extract what the previous question was about
-        const previousTopic = extractQueryTopic(lastUserMsg.content);
-        if (previousTopic) {
-          // Add context to the query
-          resolved = `Regarding ${previousTopic}: ${query}`;
-          resolutions.push({
-            original: query.match(pattern)?.[0] || 'continuation',
-            resolved: `Regarding ${previousTopic}`,
-            type: ResolutionType.ELLIPSIS,
-            confidence: 0.7
-          });
-        }
-      }
-      break;
-    }
-  }
-
-  return resolved;
-}
-
-/**
- * Extract the topic from a query
- */
-function extractQueryTopic(query: string): string | null {
-  // Remove question words and extract main topic
-  const cleaned = query
-    .replace(/^(what|how|when|where|why|who|is|are|does|do|can|could|should|would|will)\s+/gi, '')
-    .replace(/[?.,!]$/g, '')
-    .trim();
-
-  if (cleaned.length > 3 && cleaned.length < 100) {
-    return cleaned;
-  }
-
-  return null;
-}
-
-/**
- * Format context for LLM with resolved query
- *
- * @param resolvedQuery - The resolved query result
- * @returns Context string for LLM
- */
-export function formatResolvedQueryForLLM(resolvedQuery: ResolvedQuery): string {
-  if (!resolvedQuery.wasResolved) {
-    return resolvedQuery.originalQuery;
-  }
-
-  const parts: string[] = [];
-
-  parts.push(`Original query: "${resolvedQuery.originalQuery}"`);
-  parts.push(`Resolved query: "${resolvedQuery.resolvedQuery}"`);
-
-  if (resolvedQuery.resolutions.length > 0) {
-    parts.push('Reference resolutions:');
-    resolvedQuery.resolutions.forEach(r => {
-      parts.push(`  - "${r.original}" refers to "${r.resolved}"`);
+  try {
+    const result = await geminiClient.generateContent(prompt, {
+      temperature: 0.1,
+      maxOutputTokens: 300,
     });
+
+    const responseText = result.response?.text() || '';
+    return parsePronounResolution(query, responseText);
+  } catch (error) {
+    console.error('[ConversationContinuity] Error resolving pronouns:', error);
+    
+    // Fallback: return original query
+    return {
+      originalQuery: query,
+      resolvedQuery: query,
+      hasPronouns: true,
+      resolutions: [],
+    };
+  }
+}
+
+/**
+ * Build prompt for pronoun resolution
+ */
+function buildPronounResolutionPrompt(
+  query: string,
+  history: Array<{ role: string; content: string }>
+): string {
+  const historyText = history.map(msg => `${msg.role}: ${msg.content}`).join('\n');
+
+  return `You are a pronoun resolution system. Resolve pronouns in the user's query using conversation history.
+
+**Conversation History:**
+${historyText}
+
+**User Query:**
+${query}
+
+**Your Task:**
+Replace pronouns (it, this, that, they, etc.) with their actual referents from the conversation history.
+
+**Output Format (JSON):**
+{
+  "resolvedQuery": "<query with pronouns replaced>",
+  "resolutions": [
+    {"pronoun": "it", "resolution": "the document"},
+    ...
+  ]
+}
+
+Respond with ONLY the JSON object, no additional text.`;
+}
+
+/**
+ * Parse pronoun resolution result
+ */
+function parsePronounResolution(originalQuery: string, text: string): ResolvedQuery {
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in pronoun resolution result');
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    
+    return {
+      originalQuery,
+      resolvedQuery: parsed.resolvedQuery || originalQuery,
+      hasPronouns: true,
+      resolutions: parsed.resolutions || [],
+    };
+  } catch (error) {
+    console.error('[ConversationContinuity] Error parsing pronoun resolution:', error);
+    
+    return {
+      originalQuery,
+      resolvedQuery: originalQuery,
+      hasPronouns: true,
+      resolutions: [],
+    };
+  }
+}
+
+/**
+ * Extract current topic from conversation
+ */
+async function extractCurrentTopic(
+  queries: string[],
+  answers: string[]
+): Promise<string> {
+  if (queries.length === 0) {
+    return 'general';
   }
 
-  return parts.join('\n');
+  // Simple heuristic: most common keywords in recent queries
+  const recentQueries = queries.slice(-3).join(' ');
+  const words = recentQueries.toLowerCase().match(/\b\w{4,}\b/g) || [];
+  
+  const wordCounts = new Map<string, number>();
+  words.forEach(word => {
+    wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+  });
+
+  const sortedWords = Array.from(wordCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([word]) => word);
+
+  return sortedWords.join(', ') || 'general';
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════════════════════
 
 export default {
   resolveQuery,
-  formatResolvedQueryForLLM,
-  ResolutionType
+  getConversationContext,
+  detectTopicShift,
 };

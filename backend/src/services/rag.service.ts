@@ -22,6 +22,7 @@ import { fallbackDetection, fallbackResponse, psychologicalSafety } from './fall
 import type { FallbackType, FallbackContext } from './fallback';
 import * as folderNav from './folderNavigation.service';
 import { formatFileListingResponse } from '../utils/inlineDocumentInjector';
+import { smartProcessSpacing } from '../utils/markdownSpacing';
 
 // Calculation Engine Imports (Manus Method)
 import calculationDetector from './calculation/calculationDetector.service';
@@ -76,6 +77,18 @@ import adaptiveAnswerGeneration, { classifyResponseType, FLASH_OPTIMAL_CONFIG, R
 import contextEngineering from './contextEngineering.service';
 import { emptyResponsePrevention } from './emptyResponsePrevention.service';
 import { fallbackResponseService } from './fallbackResponse.service';
+
+// ChatGPT-style Quality Assurance Pipeline
+import { postProcessAnswer as qaPostProcessAnswer } from './outputPostProcessor.service';
+import { verifyGrounding, quickGroundingCheck } from './groundingVerification.service';
+import { verifyCitations } from './citationVerification.service';
+import { checkAnswerQuality } from './answerQualityChecker.service';
+import { generateFallback as generateQAFallback } from './fallbackStrategy.service';
+import { checkNeedsClarification } from './clarificationLogic.service';
+import { resolveQuery, detectTopicShift } from './conversationContinuity.service';
+import { getConversationSummary, updateConversationSummary } from './rollingConversationSummary.service';
+import { rerankWithMicroSummaries } from './microSummaryReranker.service';
+import { getConversationState, updateConversationState, extractEntities, extractTopics } from './conversationStateTracker.service';
 
 // Infinite Conversation Memory (Manus-style)
 import infiniteConversationMemory from './infiniteConversationMemory.service';
@@ -9010,6 +9023,45 @@ async function postProcessAnswer(answer: string): Promise<string> {
   // Normalize multiple consecutive newlines to max 2
   processed = processed.replace(/\n{3,}/g, '\n\n');
 
+  // ============================================================================
+  // CUSTOM SPACING CONTROL - Convert {{BREAK:size}} and {{SPACE:N}} to HTML
+  // ============================================================================
+  // Converts spacing markers to HTML elements for frontend rendering:
+  // - {{BREAK:lg}} → <div class="space-lg"></div> (24px)
+  // - {{SPACE:50}} → <div style="margin-top: 50px;"></div>
+  processed = smartProcessSpacing(processed);
+
+  // ============================================================================
+  // EXACT_FORMAT ENFORCEMENT - Convert to specification format
+  // ============================================================================
+
+  // 1. Remove ## headers at the start (headlines should be plain text)
+  processed = processed.replace(/^##\s+[^\n]+\n+/, '');
+
+  // 2. Convert * bullets to • bullets (EXACT_FORMAT requires • character)
+  processed = processed.replace(/^\*\s+/gm, '• ');
+  processed = processed.replace(/^-\s+/gm, '• ');
+
+  // 3. Uppercase section headers after ### (micro labels should be ALL CAPS)
+  processed = processed.replace(/^###\s+([^\n]+)/gm, (match, title) => {
+    const upperCount = (title.match(/[A-ZÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ]/g) || []).length;
+    const letterCount = (title.match(/[a-zA-ZàáâãäåçèéêëìíîïñòóôõöùúûüýÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ]/g) || []).length;
+    if (letterCount > 0 && upperCount / letterCount < 0.7) {
+      return '### ' + title.toUpperCase();
+    }
+    return match;
+  });
+
+  // 4. Remove duplicate responses (LLM sometimes outputs both formatted and plain versions)
+  const lines = processed.split('\n');
+  if (lines.length > 1) {
+    const firstLine = lines[0].trim();
+    const contentWithoutFirst = lines.slice(1).join('\n').trim();
+    if (firstLine && contentWithoutFirst.toLowerCase().includes(firstLine.toLowerCase().replace(/[*#]/g, '').trim().substring(0, 30))) {
+      processed = contentWithoutFirst;
+    }
+  }
+
   return processed.trim();
 }
 
@@ -9381,6 +9433,33 @@ export async function generateAnswer(
 
   if (validationErrors.length > 0 && contentValidation.score !== undefined && contentValidation.score < 30) {
     console.warn('[VALIDATION] Critical issues found:', validationErrors);
+  }
+
+  // ============================================================================
+  // POST-PROCESSING - Clean up citations, remove source sections
+  // ============================================================================
+  try {
+    console.log('[POST-PROCESS] Applying output post-processing...');
+    const postProcessResult = await qaPostProcessAnswer(formatted, {
+      removeSourceSection: true,
+      removeDocumentNames: true,
+      removeRawLinks: true,
+      fixEmptyBullets: true,
+      ensureNumericCitations: false, // Keep original citation format
+    });
+
+    if (postProcessResult.sourcesRemoved || postProcessResult.rawLinksRemoved > 0) {
+      console.log('[POST-PROCESS] Cleaned:', {
+        sourcesRemoved: postProcessResult.sourcesRemoved,
+        rawLinksRemoved: postProcessResult.rawLinksRemoved,
+        emptyBulletsRemoved: postProcessResult.emptyBulletsRemoved,
+      });
+    }
+
+    formatted = postProcessResult.cleanedAnswer;
+  } catch (error) {
+    console.error('[POST-PROCESS] Post-processing failed:', error);
+    // Continue with original formatted answer
   }
 
   return {

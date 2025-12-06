@@ -98,6 +98,42 @@ class GeminiClientService {
       cachedModels: this.models.size
     };
   }
+
+  /**
+   * Convenience method to generate content directly
+   * Used by quality assurance services (groundingVerification, citationVerification, etc.)
+   */
+  public async generateContent(
+    prompt: string,
+    options: {
+      temperature?: number;
+      maxOutputTokens?: number;
+      model?: string;
+    } = {}
+  ): Promise<{ response: { text: () => string } }> {
+    const {
+      temperature = 0.7,
+      maxOutputTokens = 1000,
+      model: modelName = 'gemini-1.5-flash'
+    } = options;
+
+    const model = this.getModel({
+      model: modelName,
+      generationConfig: {
+        temperature,
+        maxOutputTokens
+      }
+    });
+
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+
+    return {
+      response: {
+        text: () => response.text()
+      }
+    };
+  }
 }
 
 // Export singleton instance
