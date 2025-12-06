@@ -153,17 +153,14 @@ const CAPABILITY_PATTERNS = [
 // ═══════════════════════════════════════════════════════════════════════════
 const GENERAL_KNOWLEDGE_PATTERNS = [
   // General knowledge (not document-specific)
-  /^what is (the )?(capital|population|definition|meaning) of/i,
-  /^who (is|was|are|were) /i,
-  /^when (did|was|is) /i,
-  /^where (is|was|are) /i,
-  // But exclude document-related "where is"
-  /^how (do|does|did|can|could|would|should) /i,
-  /^why (is|are|do|does|did|was|were) /i,
-  /^what (is|are) (a|an|the) /i,
-  // Factual questions
-  /^(explain|define|describe) (what|the|a|an) /i,
-  /^tell me about /i,
+  // NOTE: Be VERY conservative here - prefer RAG over bypass
+  // Only bypass for truly generic factual questions
+  /^what is (the )?(capital|population) of [A-Z]/i,  // Capital of France, Population of China
+  /^who (is|was) the (president|king|queen|prime minister) of/i,  // Specific factual
+  // REMOVED: /^tell me about /i - too broad, could refer to user docs
+  // REMOVED: /^what (is|are) (a|an|the) /i - could be asking about docs
+  // REMOVED: /^explain|define|describe /i - could be asking about docs
+  // REMOVED: /^how do|does /i - could be asking about procedures in docs
 ];
 
 // Date/time patterns

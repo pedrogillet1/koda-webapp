@@ -319,6 +319,8 @@ class CalculationDetectorService {
     const dataExtractionPatterns = [
       // "What is the X in/from/of the Y file?"
       /(?:what|show|find|get|tell me|list).*(?:in|from|of|for).*(?:the|this|these)/i,
+      // "What does X say about Y?" / "What does the report say about..."
+      /(?:what|how)\s+(?:does|do|did)\s+(?:the\s+)?(?:\w+\s+)?(?:report|document|file|budget|spreadsheet)\s+(?:say|tell|mention|show)/i,
       // "What is the average MoIC across all properties?"
       /(?:what is|what's).*(?:the|a).*(?:across|in|from|for)/i,
       // "How many/much X in Y?"

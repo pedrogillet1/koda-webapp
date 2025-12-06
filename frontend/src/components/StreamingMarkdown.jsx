@@ -81,66 +81,66 @@ const StreamingMarkdown = ({
       />
     ),
 
-    // Headings
+    // Headings - 16px
     h1: ({ node, ...props }) => (
       <h1
         className="markdown-h1"
         style={{
-          fontSize: '2em',
-          fontWeight: '700',
-          marginTop: '24px',
-          marginBottom: '16px',
+          fontSize: '16px',
+          fontWeight: '600',
+          margin: 0,
+          marginBottom: '8px',
           lineHeight: '1.3'
         }}
         {...props}
       />
     ),
-    h2: ({ node, ...props }) => {
-      // Check if this is the first element (title) - align with avatar
-      const isFirstElement = node.position && node.position.start.line === 1;
-
-      return (
-        <h2
-          className="markdown-h2"
-          style={{
-            fontSize: '1.3em',  // Reduced from 1.5em
-            fontWeight: '600',
-            marginTop: isFirstElement ? '0px' : '16px',  // No margin if first!
-            marginBottom: '8px',  // Reduced from 12px
-            lineHeight: '1.4'
-          }}
-          {...props}
-        />
-      );
-    },
-    h3: ({ node, ...props }) => (
-      <h3
-        className="markdown-h3"
+    h2: ({ node, ...props }) => (
+      <h2
+        className="markdown-h2"
         style={{
-          fontSize: '1.15em',  // Reduced from 1.25em
+          fontSize: '16px',
           fontWeight: '600',
-          marginTop: '12px',  // Reduced from 16px
-          marginBottom: '6px',  // Reduced from 8px
+          margin: 0,
+          marginBottom: '8px',
           lineHeight: '1.4'
         }}
         {...props}
       />
     ),
-    h4: ({ node, ...props }) => <h4 className="markdown-h4" {...props} />,
-    h5: ({ node, ...props}) => <h5 className="markdown-h5" {...props} />,
-    h6: ({ node, ...props }) => <h6 className="markdown-h6" {...props} />,
+    h3: ({ node, ...props }) => (
+      <h3
+        className="markdown-h3"
+        style={{
+          fontSize: '16px',
+          fontWeight: '600',
+          margin: 0,
+          marginTop: '12px',
+          lineHeight: '1.4'
+        }}
+        {...props}
+      />
+    ),
+    h4: ({ node, ...props }) => <h4 className="markdown-h4" style={{margin: 0, marginTop: '12px', fontSize: '16px', fontWeight: 600}} {...props} />,
+    h5: ({ node, ...props}) => <h5 className="markdown-h5" style={{margin: 0, marginTop: '8px'}} {...props} />,
+    h6: ({ node, ...props }) => <h6 className="markdown-h6" style={{margin: 0, marginTop: '8px'}} {...props} />,
 
-    // Paragraphs
+    // Paragraphs - No gaps, just line breaks
     p: ({ node, ...props }) => (
       <p
         className="markdown-paragraph"
         style={{
-          marginTop: '8px',
-          marginBottom: '8px',
-          lineHeight: '1.6'
+          margin: 0,
+          padding: 0,
+          lineHeight: '1.5'
         }}
         {...props}
       />
+    ),
+
+    // Bold text
+    strong: ({ node, ...props }) => (
+      <strong style={{ fontWeight: 700 }} {...props} />
     ),
 
     // Lists
@@ -282,9 +282,8 @@ const StreamingMarkdown = ({
         fontSize: '16px',
         fontFamily: 'Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontWeight: '500',
-        lineHeight: '24px',
+        lineHeight: '1.5',
         width: '100%',
-        whiteSpace: 'pre-wrap',
         wordWrap: 'break-word',
         overflowWrap: 'break-word'
       }}

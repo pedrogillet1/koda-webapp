@@ -48,6 +48,8 @@
     "stress-test:load": "cd stress-tests && npx ts-node file-actions-stress-test.ts --load-only",
     "test:conversation": "npx ts-node --transpile-only test-suite/16-conversation-flow-test.ts",
     "test:conversation:quick": "npx ts-node --transpile-only test-suite/16-conversation-flow-test.ts --quick",
+    "test:rag-precision": "npx ts-node --transpile-only src/tests/rag-precision-test.ts",
+    "visualize-reasoning": "npx ts-node --transpile-only src/tests/rag-reasoning-visualizer.ts",
     "prepare": "husky"
   },
   "lint-staged": {

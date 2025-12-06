@@ -187,8 +187,13 @@ export class BM25RetrievalService {
         },
       }));
 
-    } catch (error) {
-      console.error('❌ [BM25] Search error:', error);
+    } catch (error: any) {
+      // Suppress known issues (missing content_tsv column when local embeddings not synced)
+      if (error?.meta?.message?.includes('content_tsv does not exist')) {
+        console.log('⚠️ [BM25] Local embeddings not available, using vector-only search');
+      } else {
+        console.error('❌ [BM25] Search error:', error);
+      }
       return [];
     }
   }
