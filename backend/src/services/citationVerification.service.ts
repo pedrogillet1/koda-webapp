@@ -178,7 +178,7 @@ Respond with ONLY the JSON object, no additional text.`;
 function parseCitationVerificationResult(
   text: string,
   totalCitations: number
-): CitationVerificationResult {
+): Omit<CitationVerificationResult, 'recommendation'> {
   try {
     // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -195,12 +195,11 @@ function parseCitationVerificationResult(
       accurateCitations: parsed.accurateCitations || 0,
       inaccurateCitations: parsed.inaccurateCitations || [],
       missingCitations: parsed.missingCitations || [],
-      recommendation: 'accept', // Will be overridden
       reasoning: parsed.reasoning || 'No reasoning provided',
     };
   } catch (error) {
     console.error('[CitationVerification] Error parsing verification result:', error);
-    
+
     // Fallback parsing
     return {
       isAccurate: true,
@@ -209,7 +208,6 @@ function parseCitationVerificationResult(
       accurateCitations: totalCitations,
       inaccurateCitations: [],
       missingCitations: [],
-      recommendation: 'accept',
       reasoning: 'Failed to parse verification result',
     };
   }

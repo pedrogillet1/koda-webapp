@@ -52,8 +52,15 @@ export async function getConversationState(
     });
 
     if (!state) {
+      // Get userId from conversation for initialization
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { userId: true },
+      });
+      const userId = conversation?.userId || 'unknown';
+
       // Initialize new state
-      return await initializeConversationState(conversationId);
+      return await initializeConversationState(conversationId, userId);
     }
 
     const messageCount = await prisma.message.count({
@@ -137,17 +144,10 @@ export async function updateConversationState(
  * Initialize conversation state
  */
 export async function initializeConversationState(
-  conversationId: string
+  conversationId: string,
+  userId: string
 ): Promise<ConversationState> {
   try {
-    // Get userId from conversation
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      select: { userId: true },
-    });
-
-    const userId = conversation?.userId || 'unknown';
-
     await prisma.conversationContextState.create({
       data: {
         conversationId,

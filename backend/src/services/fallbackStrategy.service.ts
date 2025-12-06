@@ -147,7 +147,7 @@ async function getRelevantDocumentTitles(conversationId: string): Promise<string
       return [];
     }
 
-    // Get document filenames from Document table
+    // Query documents by IDs
     const documents = await prisma.document.findMany({
       where: {
         id: { in: conversation.scopeDocumentIds },
@@ -157,7 +157,7 @@ async function getRelevantDocumentTitles(conversationId: string): Promise<string
       },
     });
 
-    return documents.map(doc => doc.filename || 'Untitled Document');
+    return documents.map((doc: { filename: string }) => doc.filename || 'Untitled Document');
   } catch (error) {
     console.error('[FallbackStrategy] Error getting document titles:', error);
     return [];

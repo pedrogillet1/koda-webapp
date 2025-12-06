@@ -295,31 +295,29 @@ function parseMicroSummaryResult(text: string): { summary: string; keyTopics: st
  */
 async function cacheMicroSummary(chunkId: string, microSummary: MicroSummary): Promise<void> {
   try {
-    // Get existing metadata and merge
-    const existing = await prisma.documentEmbedding.findUnique({
+    // Store in DocumentEmbedding metadata field (as JSON string)
+    const existingEmb = await prisma.documentEmbedding.findUnique({
       where: { id: chunkId },
       select: { metadata: true },
     });
 
-    let existingMetadata = {};
-    try {
-      existingMetadata = existing?.metadata ? JSON.parse(existing.metadata) : {};
-    } catch {
-      existingMetadata = {};
+    let existingMetadata: Record<string, unknown> = {};
+    if (existingEmb?.metadata) {
+      try {
+        existingMetadata = JSON.parse(existingEmb.metadata);
+      } catch {
+        existingMetadata = {};
+      }
     }
 
-    // Merge with new micro-summary data
-    const updatedMetadata = {
-      ...existingMetadata,
-      microSummary: microSummary.summary,
-      keyTopics: microSummary.keyTopics,
-    };
-
-    // Store in DocumentEmbedding metadata field (as JSON string)
     await prisma.documentEmbedding.update({
       where: { id: chunkId },
       data: {
-        metadata: JSON.stringify(updatedMetadata),
+        metadata: JSON.stringify({
+          ...existingMetadata,
+          microSummary: microSummary.summary,
+          keyTopics: microSummary.keyTopics,
+        }),
       },
     });
   } catch (error) {
@@ -342,14 +340,8 @@ async function getCachedMicroSummary(chunkId: string): Promise<MicroSummary | nu
       return null;
     }
 
-    // Parse metadata string to JSON
-    let metadata: any;
-    try {
-      metadata = JSON.parse(embedding.metadata);
-    } catch {
-      return null;
-    }
-
+    const metadata = embedding.metadata as any;
+    
     if (!metadata.microSummary) {
       return null;
     }

@@ -164,7 +164,7 @@ Respond with ONLY the JSON object, no additional text.`;
 /**
  * Parse LLM verification result
  */
-function parseVerificationResult(text: string): GroundingVerificationResult {
+function parseVerificationResult(text: string): Omit<GroundingVerificationResult, 'recommendation'> {
   try {
     // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -181,12 +181,11 @@ function parseVerificationResult(text: string): GroundingVerificationResult {
       supportedClaims: parsed.supportedClaims || 0,
       totalClaims: parsed.totalClaims || 0,
       completeness: parsed.completeness || 0,
-      recommendation: 'accept', // Will be overridden
       reasoning: parsed.reasoning || 'No reasoning provided',
     };
   } catch (error) {
     console.error('[GroundingVerification] Error parsing verification result:', error);
-    
+
     // Fallback parsing
     return {
       isWellGrounded: false,
@@ -195,7 +194,6 @@ function parseVerificationResult(text: string): GroundingVerificationResult {
       supportedClaims: 0,
       totalClaims: 0,
       completeness: 0.5,
-      recommendation: 'accept',
       reasoning: 'Failed to parse verification result',
     };
   }

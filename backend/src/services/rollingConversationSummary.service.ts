@@ -144,11 +144,11 @@ export async function updateConversationSummary(
     });
 
     // Get userId from conversation
-    const conversation = await prisma.conversation.findUnique({
+    const conversationData = await prisma.conversation.findUnique({
       where: { id: conversationId },
       select: { userId: true },
     });
-    const userId = conversation?.userId || 'unknown';
+    const userId = conversationData?.userId || 'unknown';
 
     // Save to database
     await prisma.conversationContextState.upsert({
