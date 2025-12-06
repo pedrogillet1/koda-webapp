@@ -904,6 +904,9 @@ Rules for citations:
 - If you didn't use any documents, write: ---CITATIONS---\nNONE\n---END_CITATIONS---
 - This section will be hidden from the user, so don't mention it in your answer
 - Do NOT include inline citations like [pg 1] or (document.pdf, page 2) in your answer text
+- Do NOT include document names, filenames, or source references anywhere in your answer
+- Do NOT add "Sources:", "Source:", "References:", or similar sections to your answer
+- The sources will be displayed separately in a dedicated UI section - your answer should be clean text only
 `;
 
   if (complexity === 'simple') {
@@ -912,8 +915,8 @@ Rules for citations:
 
 **FORMAT:**
 - Start with the direct answer
-- Cite the source document in **bold**
 - Keep it brief (2-3 sentences)
+- DO NOT include document names, citations, or source references (sources are displayed separately)
 `;
   }
 
@@ -925,13 +928,12 @@ Rules for citations:
 1. Identify relevant information in each document
 2. Compare information across documents if multiple sources exist
 3. Synthesize a coherent answer
-4. Cite sources for each claim
 
 **FORMAT:**
 - Start with a clear summary answer
-- Provide supporting details with citations
+- Provide supporting details
 - Use bullet points for multiple items
-- End with source list if using multiple documents
+- DO NOT include citations, source lists, or document names in your answer (sources are displayed separately)
 `;
   }
 
@@ -945,29 +947,26 @@ Rules for citations:
 3. **Compare**: Identify similarities and differences across documents
 4. **Validate**: Check for contradictions or inconsistencies
 5. **Synthesize**: Combine information into a coherent answer
-6. **Cite**: Provide specific sources for each claim
 
 **OUTPUT FORMAT:**
 ## Summary
 [Brief 2-3 sentence answer]
 
 ## Detailed Analysis
-[Comprehensive analysis with inline citations in **bold**]
+[Comprehensive analysis]
 
 ### Key Findings
-- Finding 1 (from **Document Name**)
-- Finding 2 (from **Document Name**)
+- Finding 1
+- Finding 2
 - [etc.]
 
 ### Contradictions or Uncertainties
 [If any contradictions found, list them here]
 
-## Sources Consulted
-1. **Document Name** - [brief description of what was found]
-2. **Document Name** - [brief description of what was found]
-
 ## Confidence Assessment
 [Rate confidence 0-100% and explain why]
+
+**IMPORTANT:** DO NOT include source lists, document names, citations, or references in your answer. Sources are displayed separately in a dedicated section.
 `;
 }
 
@@ -1258,8 +1257,9 @@ function buildAnswerWithCitations(
   // Sort by score descending
   sources.sort((a, b) => b.score - a.score);
 
-  // Build source section to append to answer
+  // ✅ FIX: Sources NOT appended to answer - displayed in frontend dropdown only
   if (sources.length > 0) {
+    // NOTE: sourceLines kept for backwards compatibility but NOT appended to answer
     const sourceLines: string[] = ['', '---', '**Sources:**'];
     sources.forEach(src => {
       const pageStr = src.pages.length > 0
@@ -1274,13 +1274,11 @@ function buildAnswerWithCitations(
       console.log(`   ${idx + 1}. ${src.documentName} (${pagesStr})`);
     });
 
-    return {
-      answer: answer + sourceLines.join('\n'),
-      sources
-    };
+    // ✅ FIX: Return sources without appending to answer
+    return { answer, sources };
   }
 
-  return { answer, sources: [] };
+  return { answer, sources };
 }
 
 // ============================================================================
@@ -8878,6 +8876,23 @@ async function postProcessAnswer(answer: string): Promise<string> {
 
   // Pattern 5: "According to [document]," or "As stated in [document],"
   processed = processed.replace(/(?:As (?:stated|mentioned) in|Referring to)\s+[^\.,]+[,\.]\s*/gi, '');
+
+  // Pattern 6: Document names in bold parentheses - e.g., (**document.pdf**), (**Business Plan.docx**)
+  processed = processed.replace(/\s*\(\*\*[^)]+\.(pdf|docx?|txt|xlsx?|pptx?|csv|md)\*\*\)/gi, '');
+
+  // Pattern 7: Document names in parentheses (not bold) - e.g., (document.pdf), (Business Plan.docx)
+  processed = processed.replace(/\s*\([^)]+\.(pdf|docx?|txt|xlsx?|pptx?|csv|md)\)/gi, '');
+
+  // Pattern 8: Numeric citations [1], [2], [3], etc.
+  processed = processed.replace(/\s*\[\d+\]/g, '');
+
+  // Pattern 9: Remove "Source:" or "Sources:" sections at end of answer
+  processed = processed.replace(/\n+---\n+\*\*Sources?:?\*\*[\s\S]*$/i, '');
+  processed = processed.replace(/\n+## Sources?\s*Consulted[\s\S]*$/i, '');
+  processed = processed.replace(/\n+\*\*Sources?:?\*\*\s*\n[\s\S]*$/i, '');
+
+  // Pattern 10: Remove "from **DocumentName**" inline references
+  processed = processed.replace(/\s*\(from \*\*[^*]+\*\*\)/gi, '');
 
   // ============================================================================
   // FORMATTING CLEANUP
