@@ -1684,3 +1684,35 @@ model DailyAnalyticsAggregate {
   @@index([date])
   @@map("daily_analytics_aggregates")
 }
+
+// ============================================================================
+// ENHANCED RAG SYSTEM - CONVERSATION STATE
+// Used by rollingConversationSummary.service.ts for conversation continuity
+// ============================================================================
+
+model ConversationState {
+  id                      String   @id @default(cuid())
+  conversationId          String   @unique
+  userId                  String
+
+  // Conversation context tracking
+  userGoal                String   @default("Exploring documents")
+  currentDocument         String?  // Current document being discussed
+  currentTopic            String   @default("General inquiry")
+  knownSections           String[] @default([])  // Sections that have been discussed
+  knownDocuments          String[] @default([])  // Documents that have been mentioned
+
+  // Rolling summary
+  summary                 String   @default("Conversation just started.")
+  lastSummaryAt           DateTime @default(now())
+  turnsSinceLastSummary   Int      @default(0)
+
+  // Timestamps
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([conversationId])
+  @@index([userId])
+  @@index([turnsSinceLastSummary])
+  @@map("conversation_states")
+}
