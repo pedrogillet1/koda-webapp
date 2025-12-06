@@ -1,14 +1,23 @@
 /**
- * ADAPTIVE ANSWER GENERATION SERVICE
+ * ADAPTIVE ANSWER GENERATION SERVICE - GEMINI 2.5 FLASH OPTIMIZED
  *
- * Provides dynamic, context-aware answer generation with:
- * - Adaptive length based on query complexity and document size
- * - Dynamic tone based on query type and user preferences
- * - Confidence scoring based on source quality and coverage
- * - Quality validation to prevent poor answers
- * - Streaming support via onChunk callback
+ * Optimizations:
+ * - Response type classification (6 types)
+ * - Adaptive temperature (0.2-0.6)
+ * - Optimal topK (20-64 instead of fixed 10)
+ * - Reduced token limits (100-900 instead of 8192)
+ * - System instructions (separate from prompt)
+ * - Information density optimization (15-20% target)
+ * - Flash-specific prompt engineering
  *
- * This replaces the stub in deletedServiceStubs.ts
+ * Changes from original:
+ * 1. Added ResponseType enum
+ * 2. Added classifyResponseType() function
+ * 3. Updated LENGTH_TARGETS (reduced by 40-67%)
+ * 4. Added FLASH_OPTIMAL_CONFIG with adaptive parameters
+ * 5. Added FLASH_SYSTEM_INSTRUCTION
+ * 6. Updated buildAdaptivePrompt() to use system instruction
+ * 7. Updated generateAdaptiveAnswer() to use Flash config
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -28,23 +37,17 @@ export interface DocumentInfo {
 
 export interface GenerateAnswerParams {
   query: string;
-  // Support multiple context param names for compatibility
   context?: string;
   documentContext?: string;
-  // User and session info
   userId?: string;
   profilePrompt?: string;
-  // Document info - single object or array
   documentInfo?: DocumentInfo | DocumentInfo[];
-  // Documents array for conversation-only mode
   documents?: any[];
   fullDocumentTexts?: Map<string, string>;
   retrievedChunks?: any[];
-  // Conversation context
   conversationContext?: string;
   conversationHistory?: string | Array<{ role: string; content: string }>;
   forceConversationOnly?: boolean;
-  // Answer configuration
   answerLength?: 'short' | 'medium' | 'long' | 'adaptive';
   language?: string;
   includeConfidence?: boolean;
@@ -60,7 +63,7 @@ export interface GenerateAnswerParams {
 
 export interface AnswerResult {
   answer: string;
-  content: string; // Alias for answer (rag.service.ts uses this)
+  content: string;
   confidence: number;
   sources: Array<{
     documentId: string;
@@ -96,78 +99,271 @@ export interface QualityValidationResult {
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // ============================================================================
-// ADAPTIVE LENGTH CALCULATION
+// RESPONSE TYPE CLASSIFICATION (NEW)
 // ============================================================================
 
 /**
- * Calculate optimal answer length based on query complexity and document size
+ * Response types aligned with ChatGPT/Gemini patterns
+ */
+export enum ResponseType {
+  SIMPLE = 'simple',           // "What is X?" → 30-60 words
+  MEDIUM = 'medium',           // "Explain X" → 100-220 words
+  COMPLEX = 'complex',         // "Analyze X" → 350-750 words
+  EXPLANATION = 'explanation', // "Why X?" → 220-420 words
+  GUIDANCE = 'guidance',       // "Should I X?" → 180-350 words
+  STEPBYSTEP = 'stepbystep'    // "How to X?" → 260-430 words
+}
+
+/**
+ * Classify query into response type for optimal parameter selection
+ */
+export function classifyResponseType(query: string): ResponseType {
+  const lowerQuery = query.toLowerCase();
+
+  // Simple queries - direct factual questions
+  if (/^(what is|who is|when|where|which)\s+\w+\??$/i.test(lowerQuery)) {
+    return ResponseType.SIMPLE;
+  }
+
+  // Step-by-step queries
+  if (/\b(how to|step by step|guide|tutorial|walkthrough|instructions)\b/i.test(lowerQuery)) {
+    return ResponseType.STEPBYSTEP;
+  }
+
+  // Explanation queries
+  if (/\b(explain|why|how does|what does.*mean|clarify|describe)\b/i.test(lowerQuery)) {
+    return ResponseType.EXPLANATION;
+  }
+
+  // Guidance queries
+  if (/\b(should i|recommend|suggest|advice|best practice|tips|strategies)\b/i.test(lowerQuery)) {
+    return ResponseType.GUIDANCE;
+  }
+
+  // Complex queries - analysis, comparison, synthesis
+  if (/\b(analyze|compare|synthesize|evaluate|assess|across all|relationship|themes)\b/i.test(lowerQuery)) {
+    return ResponseType.COMPLEX;
+  }
+
+  // Default to medium
+  return ResponseType.MEDIUM;
+}
+
+// ============================================================================
+// FLASH-OPTIMIZED CONFIGURATION (NEW)
+// ============================================================================
+
+/**
+ * Optimal parameters for Gemini 2.5 Flash per response type
+ * Based on ChatGPT/Gemini information density standards
+ */
+export const FLASH_OPTIMAL_CONFIG: Record<string, {
+  targetWords: number;
+  maxTokens: number;
+  temperature: number;
+  topP: number;
+  topK: number;
+  bulletPoints: string;
+  sections: number | string;
+  useHeadings: boolean;
+  useThinking: boolean;
+}> = {
+  simple: {
+    targetWords: 50,           // Was 150 → Reduced 67%
+    maxTokens: 100,            // Was 250 → Reduced 60%
+    temperature: 0.2,          // Very deterministic for facts
+    topP: 0.95,
+    topK: 20,                  // Narrow vocabulary for precision
+    bulletPoints: '0-3',
+    sections: 1,
+    useHeadings: false,
+    useThinking: false
+  },
+  medium: {
+    targetWords: 180,          // Was 300 → Reduced 40%
+    maxTokens: 300,            // Was 500 → Reduced 40%
+    temperature: 0.4,          // Balanced
+    topP: 0.95,
+    topK: 40,                  // Was 10 → Increased 4x for variety
+    bulletPoints: '3-6',
+    sections: '2-3',
+    useHeadings: true,
+    useThinking: false
+  },
+  complex: {
+    targetWords: 550,          // Was 600 → Reduced 8%
+    maxTokens: 900,            // Was 1000 → Reduced 10%
+    temperature: 0.5,          // Slightly creative
+    topP: 0.95,
+    topK: 64,                  // Full range
+    bulletPoints: '8-16',
+    sections: '4-7',
+    useHeadings: true,
+    useThinking: true          // Enable thinking for complex reasoning
+  },
+  explanation: {
+    targetWords: 320,          // NEW category
+    maxTokens: 500,
+    temperature: 0.4,
+    topP: 0.95,
+    topK: 40,
+    bulletPoints: '4-10',
+    sections: '2-4',
+    useHeadings: true,
+    useThinking: false
+  },
+  guidance: {
+    targetWords: 250,          // NEW category
+    maxTokens: 400,
+    temperature: 0.6,          // More creative for suggestions
+    topP: 0.95,
+    topK: 50,
+    bulletPoints: '5-12',
+    sections: '2-3',
+    useHeadings: true,
+    useThinking: false
+  },
+  stepbystep: {
+    targetWords: 350,          // NEW category
+    maxTokens: 550,
+    temperature: 0.3,          // Precise for instructions
+    topP: 0.95,
+    topK: 30,
+    bulletPoints: '6-14',
+    sections: '3-6',
+    useHeadings: true,
+    useThinking: false
+  }
+};
+
+// ============================================================================
+// FLASH SYSTEM INSTRUCTION (NEW)
+// ============================================================================
+
+/**
+ * System instruction for Gemini 2.5 Flash
+ * Separate from prompt for efficiency (Flash caches system instructions)
+ */
+const FLASH_SYSTEM_INSTRUCTION = `You are KODA, an intelligent document assistant powered by Gemini 2.5 Flash.
+
+**CORE PRINCIPLES:**
+1. Only use information from the provided context
+2. Cite sources using document titles in **bold**
+3. Be concise and information-dense (15-20% fact density)
+4. Use structured formatting (headings, bullets)
+5. If information is missing, state this explicitly
+
+**INFORMATION DENSITY RULES:**
+- Every sentence must contain specific facts - No filler or vague statements
+- Use numbers and specifics: "45% increase" not "significant growth"
+- Combine related facts: "Revenue: Q1 $1.2M, Q2 $1.5M, Q3 $1.8M"
+- Remove unnecessary qualifiers: "Document states" → Just state the fact
+- Use **bold** for key terms to save explanation words
+
+**TARGET:** 15-20% information density (unique facts / total words)
+
+**EXAMPLES:**
+
+❌ LOW DENSITY (8%):
+"The document mentions that the company has experienced significant growth over the past year. According to the financial report, revenue has increased substantially."
+(27 words, 2 facts = 7.4% density)
+
+✅ HIGH DENSITY (18%):
+"Revenue grew **45%** to **$2.5M** in Q1 2024, driven by **enterprise contracts** (+60%) and **SaaS subscriptions** (+35%)."
+(17 words, 3 facts = 17.6% density)
+
+**RESPONSE STYLE:**
+- Professional and clear
+- Information-dense (no filler words)
+- Structured with headings and bullets
+- Precise language (avoid vague terms)
+- Direct answers (no "According to..." preambles)
+
+**FORMATTING RULES:**
+- Use headings ONLY for complex answers (>100 words)
+- Keep bullet points tight (1-2 lines each)
+- Use **bold** for key terms and document titles
+- Avoid excessive blank lines
+- First heading should have NO blank line before it
+
+**CRITICAL RULES:**
+1. Only use information from the provided context
+2. Cite sources using document titles in **bold**
+3. If information is missing, state this explicitly
+4. If documents contradict, point this out
+5. Use Markdown formatting (bold, lists, headings)
+6. Do NOT include inline page citations like [pg 1]`;
+
+// ============================================================================
+// ADAPTIVE LENGTH CALCULATION (UPDATED)
+// ============================================================================
+
+/**
+ * Calculate optimal answer length based on query type and complexity
+ * UPDATED: Now uses response type classification and Flash-optimized targets
  */
 function calculateAdaptiveLength(
   query: string,
   documentInfo?: DocumentInfo | DocumentInfo[],
   answerLength?: 'short' | 'medium' | 'long' | 'adaptive'
-): { targetWords: number; maxTokens: number } {
+): {
+  targetWords: number;
+  maxTokens: number;
+  responseType: ResponseType;
+  temperature: number;
+  topK: number;
+  topP: number;
+} {
 
-  // If explicit length specified, use it
+  // If explicit length specified, map to response type
   if (answerLength && answerLength !== 'adaptive') {
     const lengthMap = {
-      short: { targetWords: 100, maxTokens: 200 },
-      medium: { targetWords: 300, maxTokens: 500 },
-      long: { targetWords: 600, maxTokens: 1000 }
+      short: ResponseType.SIMPLE,
+      medium: ResponseType.MEDIUM,
+      long: ResponseType.COMPLEX
     };
-    return lengthMap[answerLength];
+    const responseType = lengthMap[answerLength];
+    const config = FLASH_OPTIMAL_CONFIG[responseType];
+
+    return {
+      targetWords: config.targetWords,
+      maxTokens: config.maxTokens,
+      responseType,
+      temperature: config.temperature,
+      topK: config.topK,
+      topP: config.topP
+    };
   }
 
-  // Calculate complexity score
-  let complexityScore = 0;
+  // Classify query into response type
+  let responseType = classifyResponseType(query);
 
-  // Query complexity indicators
-  const complexIndicators = [
-    'compare', 'analyze', 'synthesize', 'evaluate', 'explain',
-    'all documents', 'across all', 'every document',
-    'contradiction', 'conflict', 'disagree',
-    'relationship between', 'timeline', 'changes over time'
-  ];
-
-  const lowerQuery = query.toLowerCase();
-  complexIndicators.forEach(indicator => {
-    if (lowerQuery.includes(indicator)) complexityScore += 1;
-  });
-
-  // Normalize documentInfo to array
+  // Adjust based on document complexity
   const docs = Array.isArray(documentInfo) ? documentInfo : (documentInfo ? [documentInfo] : []);
-
-  // Document size factor
   const totalPages = docs.reduce((sum, doc) => sum + (doc.pageCount || 0), 0);
   const totalWords = docs.reduce((sum, doc) => sum + (doc.wordCount || 0), 0);
 
-  if (totalPages > 10) complexityScore += 2;
-  else if (totalPages > 5) complexityScore += 1;
-
-  if (totalWords > 5000) complexityScore += 2;
-  else if (totalWords > 2000) complexityScore += 1;
-
-  // Multiple documents = more complex
-  if (docs.length > 3) complexityScore += 2;
-  else if (docs.length > 1) complexityScore += 1;
-
-  // Calculate target length
-  if (complexityScore >= 5) {
-    return { targetWords: 600, maxTokens: 1000 };
-  } else if (complexityScore >= 2) {
-    return { targetWords: 300, maxTokens: 500 };
-  } else {
-    return { targetWords: 150, maxTokens: 250 };
+  // Upgrade response type if documents are complex
+  if ((totalPages > 10 || totalWords > 5000 || docs.length > 3) && responseType === ResponseType.MEDIUM) {
+    responseType = ResponseType.COMPLEX;
   }
+
+  const config = FLASH_OPTIMAL_CONFIG[responseType];
+
+  return {
+    targetWords: config.targetWords,
+    maxTokens: config.maxTokens,
+    responseType,
+    temperature: config.temperature,
+    topK: config.topK,
+    topP: config.topP
+  };
 }
 
 // ============================================================================
-// DYNAMIC TONE SELECTION
+// DYNAMIC TONE SELECTION (UNCHANGED)
 // ============================================================================
 
-/**
- * Determine appropriate tone based on query type and user preferences
- */
 function determineTone(
   query: string,
   responseType?: string,
@@ -197,12 +393,9 @@ function determineTone(
 }
 
 // ============================================================================
-// CONFIDENCE SCORING
+// CONFIDENCE SCORING (UNCHANGED)
 // ============================================================================
 
-/**
- * Calculate confidence score based on source quality and coverage
- */
 function calculateConfidence(
   query: string,
   context: string,
@@ -240,15 +433,20 @@ function calculateConfidence(
 }
 
 // ============================================================================
-// BUILD ADAPTIVE PROMPT
+// BUILD ADAPTIVE PROMPT (UPDATED)
 // ============================================================================
 
 /**
- * Build prompt with adaptive instructions based on parameters
+ * Build prompt for Flash model
+ * UPDATED: Simplified (system instruction moved to model config)
  */
 function buildAdaptivePrompt(
   params: GenerateAnswerParams,
-  lengthConfig: { targetWords: number; maxTokens: number },
+  lengthConfig: {
+    targetWords: number;
+    maxTokens: number;
+    responseType: ResponseType;
+  },
   tone: string
 ): string {
 
@@ -259,43 +457,19 @@ function buildAdaptivePrompt(
       ? params.conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n')
       : '';
 
-  let prompt = `You are KODA, an intelligent document assistant. Answer the user's question based on the provided context.
+  const config = FLASH_OPTIMAL_CONFIG[lengthConfig.responseType];
 
-**LANGUAGE:** ${params.language || 'en'}
+  let prompt = `**LANGUAGE:** ${params.language || 'en'}
 
 **TONE:** ${tone}
-`;
 
-  if (tone === 'technical') {
-    prompt += `- Use precise technical terminology
-- Include specific details and references
-- Explain complex concepts clearly
-- Use code examples if relevant
-`;
-  } else if (tone === 'professional') {
-    prompt += `- Use professional, business-appropriate language
-- Be clear and concise
-- Focus on actionable insights
-- Use structured formatting
-`;
-  } else if (tone === 'conversational') {
-    prompt += `- Use natural, friendly language
-- Explain concepts simply
-- Avoid jargon unless necessary
-- Be helpful and approachable
-`;
-  }
+**TARGET LENGTH:** Approximately ${lengthConfig.targetWords} words (±20%)
 
-  prompt += `
-**TARGET LENGTH:** Approximately ${lengthConfig.targetWords} words
-
-**CRITICAL RULES:**
-1. Only use information from the provided context
-2. Cite sources using document titles in **bold**
-3. If information is missing, state this explicitly
-4. If documents contradict, point this out
-5. Use Markdown formatting (bold, lists, headings)
-6. Do NOT include inline page citations like [pg 1]
+**RESPONSE STRUCTURE:**
+- Bullet points: ${config.bulletPoints} recommended
+- Sections: ${config.sections} ${typeof config.sections === 'number' ? 'section' : 'sections'}
+- Lines per bullet: 1-2 lines (keep concise)
+- Use headings: ${config.useHeadings ? 'Yes (for structure)' : 'No (direct answer)'}
 
 `;
 
@@ -330,12 +504,12 @@ ${params.query}
 }
 
 // ============================================================================
-// GENERATE ADAPTIVE ANSWER
+// GENERATE ADAPTIVE ANSWER (UPDATED)
 // ============================================================================
 
 /**
- * Generate adaptive answer with dynamic length, tone, and formatting
- * Supports streaming via onChunk callback
+ * Generate adaptive answer with Flash-optimized configuration
+ * UPDATED: Uses system instruction, adaptive parameters, stop sequences
  */
 export async function generateAdaptiveAnswer(
   params: GenerateAnswerParams,
@@ -346,6 +520,7 @@ export async function generateAdaptiveAnswer(
   const context = params.documentContext || params.context || '';
 
   try {
+    // Calculate adaptive length with Flash config
     const lengthConfig = calculateAdaptiveLength(
       params.query,
       params.documentInfo,
@@ -358,34 +533,48 @@ export async function generateAdaptiveAnswer(
       params.userPreferences
     );
 
-    const prompt = buildAdaptivePrompt(params, lengthConfig, tone);
-
+    // Create Flash model with system instruction
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
+      systemInstruction: FLASH_SYSTEM_INSTRUCTION,
       generationConfig: {
-        temperature: 0.7,
-        topP: 0.95,
-        topK: 10,
+        temperature: lengthConfig.temperature,
+        topP: lengthConfig.topP,
+        topK: lengthConfig.topK,
         maxOutputTokens: lengthConfig.maxTokens,
+        stopSequences: ['\n\n\n\n', '---END---']  // Early stopping
       }
     });
 
-    let answer = '';
+    const prompt = buildAdaptivePrompt(params, lengthConfig, tone);
+
+    console.log(`🎯 [FLASH] Generating answer:`, {
+      responseType: lengthConfig.responseType,
+      targetWords: lengthConfig.targetWords,
+      maxTokens: lengthConfig.maxTokens,
+      temperature: lengthConfig.temperature,
+      topK: lengthConfig.topK,
+      tone
+    });
+
+    let fullResponse = '';
 
     if (onChunk) {
       // Streaming mode
       const result = await model.generateContentStream(prompt);
+
       for await (const chunk of result.stream) {
         const chunkText = chunk.text();
-        answer += chunkText;
+        fullResponse += chunkText;
         onChunk(chunkText);
       }
     } else {
       // Non-streaming mode
       const result = await model.generateContent(prompt);
-      answer = result.response.text();
+      fullResponse = result.response.text();
     }
 
+    // Calculate confidence
     const confidence = calculateConfidence(params.query, context, params.documentInfo);
 
     // Normalize documentInfo for sources
@@ -400,17 +589,23 @@ export async function generateAdaptiveAnswer(
       pages: []
     }));
 
-    const wordCount = answer.split(/\s+/).length;
-    const estimatedTokens = Math.ceil(answer.length / 4);
-    const compressionRatio = context.length > 0 ? answer.length / context.length : 1;
+    // Calculate stats
+    const wordCount = fullResponse.split(/\s+/).length;
+    const estimatedTokens = Math.ceil(wordCount * 1.3);
+    const compressionRatio = context.length > 0 ? context.length / fullResponse.length : 1;
     const estimatedReadTime = Math.ceil(wordCount / 200);
 
-    const latency = Date.now() - startTime;
-    console.log(`✅ [ADAPTIVE] Generated ${wordCount}-word answer in ${latency}ms (tone: ${tone}, confidence: ${confidence.toFixed(2)})`);
+    console.log(`✅ [FLASH] Answer generated:`, {
+      wordCount,
+      targetWords: lengthConfig.targetWords,
+      deviation: `${((wordCount / lengthConfig.targetWords - 1) * 100).toFixed(1)}%`,
+      tokens: estimatedTokens,
+      duration: `${Date.now() - startTime}ms`
+    });
 
     return {
-      answer,
-      content: answer, // Alias for rag.service.ts compatibility
+      answer: fullResponse,
+      content: fullResponse,
       confidence,
       sources,
       stats: {
@@ -421,13 +616,15 @@ export async function generateAdaptiveAnswer(
       metadata: {
         wordCount,
         estimatedReadTime,
-        complexity: lengthConfig.targetWords > 400 ? 'complex' : lengthConfig.targetWords > 200 ? 'medium' : 'simple',
+        complexity: lengthConfig.responseType === ResponseType.COMPLEX ? 'complex'
+                  : lengthConfig.responseType === ResponseType.SIMPLE ? 'simple'
+                  : 'medium',
         tone
       }
     };
 
   } catch (error: any) {
-    console.error('❌ [ADAPTIVE] Generation failed:', error);
+    console.error('❌ [FLASH] Error generating answer:', error);
     throw new Error(`Adaptive answer generation failed: ${error.message}`);
   }
 }
@@ -436,9 +633,6 @@ export async function generateAdaptiveAnswer(
 // LEGACY GENERATE ANSWER (for backwards compatibility)
 // ============================================================================
 
-/**
- * Legacy generateAnswer method - supports all param variations
- */
 export async function generateAnswer(
   params: GenerateAnswerParams,
   onChunk?: (chunk: string) => void
@@ -447,13 +641,9 @@ export async function generateAnswer(
 }
 
 // ============================================================================
-// QUALITY VALIDATION
+// QUALITY VALIDATION (UNCHANGED)
 // ============================================================================
 
-/**
- * Validate answer quality to prevent poor responses
- * Accepts either string or AnswerResult for compatibility
- */
 export function validateAnswerQuality(
   answerOrResult: string | AnswerResult,
   context?: string,
@@ -465,9 +655,8 @@ export function validateAnswerQuality(
     : (answerOrResult.content || answerOrResult.answer || '');
 
   const issues: string[] = [];
-  let score = 100; // Use 0-100 scale for rag.service.ts compatibility
+  let score = 100;
 
-  // Check 1: Empty or too short
   if (!answer || answer.trim().length === 0) {
     issues.push('Answer is empty');
     score -= 100;
@@ -476,7 +665,6 @@ export function validateAnswerQuality(
     score -= 30;
   }
 
-  // Check 2: Generic/unhelpful responses
   const genericPhrases = [
     'i don\'t know',
     'i cannot answer',
@@ -491,7 +679,6 @@ export function validateAnswerQuality(
     score -= 20;
   }
 
-  // Check 3: Hallucination indicators (if context provided)
   if (context && query) {
     const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
     const contextLower = context.toLowerCase();
@@ -513,7 +700,6 @@ export function validateAnswerQuality(
     }
   }
 
-  // Check 4: Formatting quality
   if (answer.length > 200) {
     const hasLists = /[-*•]\s/.test(answer);
     const hasBold = /\*\*/.test(answer);
@@ -525,7 +711,6 @@ export function validateAnswerQuality(
     }
   }
 
-  // Check 5: Repetition
   const sentences = answer.split(/[.!?]+/).filter(s => s.trim().length > 0);
   const uniqueSentences = new Set(sentences.map(s => s.trim().toLowerCase()));
   const repetitionRatio = 1 - (uniqueSentences.size / Math.max(sentences.length, 1));

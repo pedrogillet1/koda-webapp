@@ -21,6 +21,7 @@ import { conversationContextService } from './deletedServiceStubs';
 import OpenAI from 'openai';
 import { config } from '../config/env';
 import { analyticsTrackingService } from './analytics-tracking.service';
+import { formatFileListingResponse } from '../utils/inlineDocumentInjector';
 // Note: Format enforcement is handled by rag.service.ts - no need to import here
 
 // OpenAI client for streaming title generation
@@ -1390,39 +1391,19 @@ export const handleFileActionsIfNeeded = async (
       }
     });
 
-    // Handle no results
-    if (documents.length === 0) {
-      let message = 'No files found';
-      if (fileType) message += ` of type "${fileType}"`;
-      if (folderName) message += ` in folder "${folderName}"`;
-      message += '.';
-
-      return {
-        action: 'list_files',
-        message
-      };
-    }
-
-    // Format response
-    let message = `**Found ${documents.length} file${documents.length !== 1 ? 's' : ''}**`;
-    if (fileType) message += ` of type **${fileType.toUpperCase()}**`;
-    if (folderName) message += ` in folder **"${folderName}"**`;
-    message += ':\n\n';
-
-    // List files
-    documents.forEach(doc => {
-      const size = doc.fileSize ? `(${(doc.fileSize / 1024).toFixed(1)} KB)` : '';
-      message += `• ${doc.filename} ${size}\n`;
+    // NEW: Use inline document injection for file listing
+    // This injects {{DOC:::id:::filename:::mimeType:::size:::folder}} markers
+    // that will be rendered as clickable buttons on the frontend
+    const response = formatFileListingResponse(documents, {
+      fileType,
+      folderName,
+      maxInline: 15, // Show up to 15 files inline
+      includeMetadata: true
     });
-
-    // Add note if list was truncated
-    if (documents.length === 50) {
-      message += '\n_Showing first 50 files. Narrow your search by specifying a file type or folder._';
-    }
 
     return {
       action: 'list_files',
-      message: message.trim()
+      message: response
     };
   }
 

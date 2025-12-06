@@ -168,6 +168,12 @@ Which one are you interested in, or would you like me to search all of them?"
 - NO emojis
 - Respond in ${language}
 
+**Formatting:**
+- Use proper markdown bullet lists: "- **Item**: Description"
+- Use **bold** for document names and key terms
+- NEVER use empty bullet points (• without content)
+- ALWAYS include content after each bullet point
+
 Generate the clarification request now:`;
 
     const result = await model.generateContent(prompt);
@@ -243,6 +249,13 @@ Would you like to know about Q4 instead, or could the information be in a differ
 - NO emojis
 - Respond in ${language}
 
+**Formatting:**
+- Use proper markdown bullet lists: "- **Item**: Description"
+- Use **bold** for document names and key terms
+- Use line breaks between sections
+- NEVER use empty bullet points (• without content)
+- ALWAYS include content after each bullet point
+
 Generate the knowledge fallback response now:`;
 
     const result = await model.generateContent(prompt);
@@ -301,6 +314,11 @@ Would any of those help?"
 - Offer 2-3 concrete alternatives
 - NO emojis
 - Respond in ${language}
+
+**Formatting:**
+- Use proper markdown bullet lists: "- **Feature**: Description"
+- Use **bold** for key capabilities
+- NEVER use empty bullet points
 
 Generate the refusal response now:`;
 
@@ -363,6 +381,11 @@ I'm here to help you find what you need."
 - NO technical jargon
 - NO emojis
 - Respond in ${language}
+
+**Formatting:**
+- Use proper markdown bullet lists for action steps
+- Use **bold** for key action items
+- NEVER use empty bullet points
 
 Generate the error recovery response now:`;
 
@@ -455,6 +478,206 @@ ${documentSummaries}
 6. Respond in ${language}
 
 Generate a comprehensive synthesis answer now:`;
+  }
+
+  /**
+   * Generate file not found response
+   */
+  async generateFileNotFoundResponse(
+    query: string,
+    filename: string,
+    totalDocuments: number,
+    similarFilenames: string[],
+    language: string
+  ): Promise<string> {
+    const model = geminiClient.getModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 250,
+      },
+    });
+
+    const similarList = similarFilenames.length > 0
+      ? similarFilenames.slice(0, 3).map(f => `- ${f}`).join('\n')
+      : '';
+
+    const prompt = `Generate a helpful response when a file search finds no exact match.
+
+**Context:**
+- User searched for: "${filename}"
+- User's query: "${query}"
+- Total documents in library: ${totalDocuments}
+${similarList ? `- Similar filenames found:\n${similarList}` : '- No similar filenames found'}
+- Language: ${language}
+
+**Manus Principles:**
+1. DON'T say "I couldn't find it" (sounds incompetent)
+2. DO acknowledge what we searched for
+3. DO explain possible reasons (deleted, renamed, different spelling)
+4. DO offer alternatives (similar files, search by content)
+5. NO emojis
+
+**Structure:**
+1. Acknowledge the search (1 sentence)
+2. Explain possible reasons (1 sentence)
+${similarList ? '3. Show similar files\n4. Ask if one of these is what they meant' : '3. Offer alternatives (search by content, check filename spelling)'}
+
+**Example (with similar files):**
+"I searched for **${filename}** in your library. It may have been deleted, renamed, or the filename might be slightly different.
+
+Did you mean one of these?
+- Financial_Report_Q4.pdf
+- Finance_Report_2024.pdf"
+
+**Example (no similar files):**
+"I searched for **${filename}** across all ${totalDocuments} documents. It may have been deleted or the filename might be different.
+
+Would you like me to:
+- Search by content instead of filename?
+- Show all files in a specific folder?"
+
+**Formatting:**
+- Use proper markdown bullet lists: "- **Item**: Description"
+- Use **bold** for filenames/folder names
+- NEVER use empty bullet points
+
+Generate the response now (keep under 150 words, respond in ${language}):`;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  }
+
+  /**
+   * Generate folder not found response
+   */
+  async generateFolderNotFoundResponse(
+    query: string,
+    folderName: string,
+    totalFolders: number,
+    existingFolders: string[],
+    language: string
+  ): Promise<string> {
+    const model = geminiClient.getModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 250,
+      },
+    });
+
+    const folderList = existingFolders.length > 0
+      ? existingFolders.slice(0, 5).map(f => `- ${f}`).join('\n')
+      : '';
+
+    const prompt = `Generate a helpful response when a folder search finds no match.
+
+**Context:**
+- User searched for folder: "${folderName}"
+- User's query: "${query}"
+- Total folders: ${totalFolders}
+${folderList ? `- Existing folders:\n${folderList}` : '- No folders created yet'}
+- Language: ${language}
+
+**Manus Principles:**
+1. DON'T say "folder doesn't exist" (sounds unhelpful)
+2. DO acknowledge the search
+3. DO show what folders DO exist
+4. DO offer to create the folder or show alternatives
+5. NO emojis
+
+**Structure:**
+1. Acknowledge the search (1 sentence)
+2. Show existing folders (if any)
+3. Offer to create folder or suggest alternatives
+
+**Example (has folders):**
+"I searched for a folder named **${folderName}**. Here are your current folders:
+
+- trabalhos
+- documentos
+
+Would you like me to show files from one of these folders?"
+
+**Example (no folders):**
+"I searched for **${folderName}**, but you don't have any folders created yet.
+
+Would you like me to show all your files?"
+
+**Formatting:**
+- Use proper markdown bullet lists: "- **Item**: Description"
+- Use **bold** for filenames/folder names
+- NEVER use empty bullet points
+
+Generate the response now (keep under 150 words, respond in ${language}):`;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  }
+
+  /**
+   * Generate empty folder response
+   */
+  async generateEmptyFolderResponse(
+    folderName: string,
+    hasSubfolders: boolean,
+    subfolderNames: string[],
+    language: string
+  ): Promise<string> {
+    const model = geminiClient.getModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 200,
+      },
+    });
+
+    const subfolderList = subfolderNames.length > 0
+      ? subfolderNames.map(f => `- ${f}`).join('\n')
+      : '';
+
+    const prompt = `Generate a helpful response for an empty folder.
+
+**Context:**
+- Folder name: "${folderName}"
+- Has subfolders: ${hasSubfolders}
+${subfolderList ? `- Subfolders:\n${subfolderList}` : ''}
+- Language: ${language}
+
+**Manus Principles:**
+1. DON'T just say "no files" (sounds empty/unhelpful)
+2. DO acknowledge the folder exists
+3. DO show subfolders if any
+4. DO offer to upload files or explore subfolders
+5. NO emojis
+
+**Structure:**
+1. Confirm folder location (1 sentence)
+2. Mention it's empty (positive framing)
+${hasSubfolders ? '3. Show subfolders\n4. Offer to explore subfolders or upload' : '3. Offer to upload files'}
+
+**Example (with subfolders):**
+"Your **${folderName}** folder is ready to use. It doesn't have files yet, but contains these subfolders:
+
+- test
+- work1
+
+Would you like to explore one of these subfolders?"
+
+**Example (no subfolders):**
+"Your **${folderName}** folder is ready for files.
+
+Would you like to upload documents to organize them here?"
+
+**Formatting:**
+- Use proper markdown bullet lists for subfolders
+- Use **bold** for folder names
+- NEVER use empty bullet points
+
+Generate the response now (keep under 100 words, respond in ${language}):`;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
   }
 }
 

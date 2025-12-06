@@ -77,7 +77,14 @@ export const getFileIcon = (filename = '', mimeType = '') => {
 
   // ========== EXTENSION CHECK (PRIORITY 2) ==========
   if (filename) {
-    const ext = filename.toLowerCase().split('.').pop();
+    // Decode URL-encoded filenames first
+    let decodedFilename = filename;
+    try {
+      decodedFilename = decodeURIComponent(filename);
+    } catch (e) {
+      // If decoding fails, use original
+    }
+    const ext = decodedFilename.toLowerCase().split('.').pop();
 
     switch (ext) {
       case 'pdf':

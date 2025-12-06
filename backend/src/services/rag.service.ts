@@ -21,6 +21,7 @@ import { performHybridRetrieval, initializePineconeIndex, type HybridRetrievalRe
 import { fallbackDetection, fallbackResponse, psychologicalSafety } from './fallback';
 import type { FallbackType, FallbackContext } from './fallback';
 import * as folderNav from './folderNavigation.service';
+import { formatFileListingResponse } from '../utils/inlineDocumentInjector';
 
 // Calculation Engine Imports (Manus Method)
 import calculationDetector from './calculation/calculationDetector.service';
@@ -71,7 +72,7 @@ import {
 } from './deletedServiceStubs';
 
 // Real Service Implementations (replacing stubs)
-import adaptiveAnswerGeneration from './adaptiveAnswerGeneration.service';
+import adaptiveAnswerGeneration, { classifyResponseType, FLASH_OPTIMAL_CONFIG, ResponseType } from './adaptiveAnswerGeneration.service';
 import contextEngineering from './contextEngineering.service';
 import { emptyResponsePrevention } from './emptyResponsePrevention.service';
 import { fallbackResponseService } from './fallbackResponse.service';
@@ -1001,17 +1002,19 @@ Rules for citations:
 // - For RAG (factual answers): topK=1 is BETTER (more consistent)
 
 // Initialize Gemini model for RAG queries
+// FLASH OPTIMIZED: Reduced maxOutputTokens from 8192 to 900 (81% reduction)
+// Per-query adaptation done via classifyResponseType() and FLASH_OPTIMAL_CONFIG
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({
   model: 'gemini-2.5-flash',
   generationConfig: {
-    temperature: 0.7,    // Keep same (controls randomness)
+    temperature: 0.4,    // FLASH: Reduced from 0.7 for more deterministic factual answers
     topP: 0.95,          // Keep same (nucleus sampling threshold)
-    topK: 10,            // âš¡ OPTIMIZED: 40 â†’ 10 (balanced: faster + quality)
-    maxOutputTokens: 8192, // Keep same (max response length)
+    topK: 40,            // FLASH OPTIMIZED: 10 -> 40 (better vocabulary variety)
+    maxOutputTokens: 900, // FLASH OPTIMIZED: 8192 -> 900 (81% token reduction)
   },
 });
-console.log('âš¡ [SPEED] Gemini topK optimized: 40 â†’ 10 (balanced speed/quality)');
+console.log('[FLASH] Gemini optimized: maxTokens 8192->900, topK 10->40, temp 0.7->0.4');
 
 let pinecone: Pinecone | null = null;
 let pineconeIndex: any = null;
@@ -2480,6 +2483,12 @@ function applyFormatEnforcement(
     return response;
   }
 
+  // Skip inline document markers - these need to be preserved for frontend parsing
+  if (response.includes('{{DOC:::')) {
+    console.log(`${logPrefix} Skipping format enforcement for inline document markers`);
+    return response;
+  }
+
   try {
     console.log(`${logPrefix} Applying format enforcement to ${responseType} response (${response.length} chars)...`);
 
@@ -3179,8 +3188,16 @@ YOUR ANSWER:`;
     const response = await model.generateContent(prompt);
     const answer = response.response.text();
 
-    // Apply format enforcement before sending to user
-    const formattedAnswer = applyFormatEnforcement(answer, {
+    // Apply structure enforcement (will skip title/sections for conversation)
+    const structuredAnswer = structureEnforcementService.enforceStructure(answer, {
+      query,
+      sources: [],
+      isComparison: false,
+      responseType: 'conversation'  // ✅ No title for conversation responses
+    });
+
+    // Then apply format enforcement
+    const formattedAnswer = applyFormatEnforcement(structuredAnswer.text, {
       responseType: 'conversation_fallback',
       logPrefix: '[CONV-FALLBACK FORMAT]'
     });
@@ -3554,20 +3571,49 @@ Respond in the same language as the user's question.`;
   // IMPACT: Saves 3-5 seconds on queries that would fail anyway
 
   // Early fallback detection for clarification and refusal queries
+  // CRITICAL FIX: ragExecuted: false tells fallbackDetection NOT to trigger knowledge fallback
   const earlyFallbackCheck = fallbackDetection.detectFallback({
     query,
     documentCount,
     ragResults: [], // No RAG results yet
     ragScore: undefined,
-    conversationHistory: conversationHistory || []
+    conversationHistory: conversationHistory || [],
+    ragExecuted: false  // ⚡ FIX: RAG hasn't run yet - don't trigger knowledge fallback
   });
 
-  // Only handle clarification and refusal fallbacks early (knowledge fallback needs RAG results)
-  if (earlyFallbackCheck.needsFallback &&
-      earlyFallbackCheck.confidence > 0.85 &&
-      (earlyFallbackCheck.fallbackType === 'clarification' || earlyFallbackCheck.fallbackType === 'refusal')) {
+  // ⚡ FIX: Check if query looks like it's asking about a specific document
+  // Queries like "what is trabalho projeto about" should NOT trigger early fallback
+  const queryLower = query.toLowerCase();
+  const looksLikeDocumentQuery = (
+    // Contains "about" with other specific words (likely document name)
+    (/\babout\b/.test(queryLower) && query.split(/\s+/).length >= 4) ||
+    // Contains quoted text (document name in quotes)
+    /["'].+["']/.test(query) ||
+    // Contains file extension references
+    /\.(pdf|xlsx?|docx?|pptx?|csv|txt)\b/i.test(query) ||
+    // Contains "document named", "file called", etc.
+    /(document|file|report|spreadsheet)\s+(named|called|titled)/i.test(query) ||
+    // Has 3+ consecutive non-English/unusual words (likely document name)
+    /\b[a-záàâãéèêíïóôõöúçñ]{3,}\s+[a-záàâãéèêíïóôõöúçñ]{3,}\b/i.test(queryLower)
+  );
 
-    console.log(`âš¡ [EARLY FALLBACK] ${earlyFallbackCheck.fallbackType} detected - skipping RAG`);
+  // Only handle clarification and refusal fallbacks early (knowledge fallback needs RAG results)
+  // ⚡ FIX: Skip early fallback for clarification if query looks like a document query
+  // ⚡ FIX: Raise confidence threshold from 0.85 to 0.92 to be more conservative
+  const shouldTriggerEarlyFallback = (
+    earlyFallbackCheck.needsFallback &&
+    earlyFallbackCheck.confidence > 0.92 &&
+    (earlyFallbackCheck.fallbackType === 'refusal' ||
+     (earlyFallbackCheck.fallbackType === 'clarification' && !looksLikeDocumentQuery))
+  );
+
+  // Log when early fallback is skipped due to document query detection
+  if (earlyFallbackCheck.needsFallback && !shouldTriggerEarlyFallback) {
+    console.log(`🔍 [EARLY FALLBACK SKIPPED] type=${earlyFallbackCheck.fallbackType}, confidence=${earlyFallbackCheck.confidence}, looksLikeDocumentQuery=${looksLikeDocumentQuery} - proceeding to RAG`);
+  }
+
+  if (shouldTriggerEarlyFallback) {
+    console.log(`⚡ [EARLY FALLBACK] ${earlyFallbackCheck.fallbackType} detected - skipping RAG`);
 
     // Get document names for context
     const earlyUserDocuments = await prisma.document.findMany({
@@ -3594,8 +3640,16 @@ Respond in the same language as the user's question.`;
     try {
       const earlyFallbackAnswer = await fallbackResponse.generateFallbackResponse(earlyFallbackContext);
 
-      // Apply format enforcement to early fallback responses
-      const formattedFallback = applyFormatEnforcement(earlyFallbackAnswer.trim(), {
+      // Apply structure enforcement (will skip title/sections for fallback)
+      const structuredFallback = structureEnforcementService.enforceStructure(earlyFallbackAnswer.trim(), {
+        query,
+        sources: [],
+        isComparison: false,
+        responseType: 'fallback'  // ✅ No title for fallback responses
+      });
+
+      // Then apply format enforcement (emojis, bullets, etc.)
+      const formattedFallback = applyFormatEnforcement(structuredFallback.text, {
         responseType: 'early_fallback',
         logPrefix: '[EARLY-FALLBACK FORMAT]'
       });
@@ -5888,17 +5942,25 @@ async function handleDocumentListing(
     // Use outputIntegration for no documents error
     response = await outputIntegration.generateNoDocumentsError(lang);
   } else {
-    // Use outputIntegration for file listing
-    response = await outputIntegration.generateFileListing(
-      lang,
-      documents,
-      totalCount,
-      DISPLAY_LIMIT
-    );
+    // NEW: Use inline document injection for file listing
+    // This injects {{DOC:::id:::filename:::mimeType:::size:::folder}} markers
+    // that the frontend parses to render clickable document buttons
+    response = formatFileListingResponse(documents, {
+      maxInline: DISPLAY_LIMIT,
+      includeMetadata: true
+    });
   }
 
-  // Apply format enforcement to file listing response
-  const formattedListing = applyFormatEnforcement(response, {
+  // Apply structure enforcement (will skip title/sections for file listing)
+  const structuredListing = structureEnforcementService.enforceStructure(response, {
+    query,
+    sources: [],
+    isComparison: false,
+    responseType: 'file_listing'  // ✅ No title for file listing responses
+  });
+
+  // Then apply format enforcement
+  const formattedListing = applyFormatEnforcement(structuredListing.text, {
     responseType: 'file_listing',
     logPrefix: '[FILE-LISTING FORMAT]'
   });
@@ -7746,12 +7808,14 @@ Provide a comprehensive answer addressing all parts of the query.`;
     const userDocumentCount = userDocuments.length;
 
     // Detect fallback need with enhanced psychological safety
+    // CRITICAL FIX: ragExecuted: true tells fallbackDetection that RAG has run
     const fallbackCheck = fallbackDetection.detectFallback({
       query,
       documentCount: userDocumentCount,
       ragResults: finalSearchResults || [],
       ragScore,
-      conversationHistory: conversationHistory || []
+      conversationHistory: conversationHistory || [],
+      ragExecuted: true  // ⚡ FIX: RAG has run - can trigger knowledge fallback if no results
     });
 
     console.log(`ðŸŽ¯ [FALLBACK] Detection result: needsFallback=${fallbackCheck.needsFallback}, type=${fallbackCheck.fallbackType}, confidence=${fallbackCheck.confidence}`);
@@ -7792,7 +7856,14 @@ Provide a comprehensive answer addressing all parts of the query.`;
           console.warn('âš ï¸ [FALLBACK] Formatting issues:', formatCheck.issues);
         }
 
-        onChunk(fallbackAnswer.trim());
+        // Apply structure enforcement (will skip title/sections for fallback)
+        const structuredFallback = structureEnforcementService.enforceStructure(fallbackAnswer.trim(), {
+          query,
+          sources: [],
+          isComparison: false,
+          responseType: 'fallback'  // ✅ No title for fallback responses
+        });
+        onChunk(structuredFallback.text);
         perfTimer.measure('Enhanced Fallback Response', 'enhancedFallback');
 
         console.log(`âœ… [FALLBACK] ${fallbackCheck.fallbackType} fallback complete`);
@@ -8302,7 +8373,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
             documentName: chunk.metadata?.filename || 'Unknown',
             pageNumber: chunk.metadata?.page || null
           })),
-      isComparison: isComparisonQuery
+      isComparison: isComparisonQuery,
+      responseType: 'rag'  // ✅ RAG responses get full structure enforcement
     });
 
     if (structureResult.violations.length > 0) {
@@ -10622,11 +10694,12 @@ async function handleDocumentMetadataQuery(
       response += `${i + 1}. ${doc.filename}\n`;
     });
   } else {
-    response = await outputIntegration.generateFileListing(lang, documents.map(d => ({
-      filename: d.filename,
-      createdAt: d.createdAt,
-      mimeType: d.mimeType
-    })), documents.length, limit);
+    // NEW: Use inline document injection for file listing
+    // This injects {{DOC:::id:::filename:::mimeType:::size:::folder}} markers
+    response = formatFileListingResponse(documents, {
+      maxInline: limit,
+      includeMetadata: true
+    });
   }
 
   if (onChunk) onChunk(response);

@@ -1,12 +1,16 @@
 /**
  * Structure Enforcement Service
  *
- * PURPOSE: Enforce structural format rules on all Koda responses
+ * PURPOSE: Enforce structural format rules on Koda responses
  * This complements FormatEnforcementService which handles micro-formatting
  *
+ * CRITICAL FIX: NO TITLES for fallback responses
+ * - Fallback responses (clarification, knowledge, refusal, error_recovery) should NOT have titles
+ * - Only RAG-based document answers should have titles
+ *
  * RULES ENFORCED:
- * 1. ✅ Title: Response MUST start with ## Title (2-4 words)
- * 2. ✅ Sections: MUST have 2-5 ### sections
+ * 1. ✅ Title: Response MUST start with ## Title (2-4 words) - EXCEPT fallbacks
+ * 2. ✅ Sections: MUST have 2-5 ### sections - EXCEPT fallbacks
  * 3. ✅ Source section: MUST include ### Source when documents are used
  * 4. ✅ Follow-up: MUST end with a follow-up question (?)
  * 5. ✅ Intro limit: Max 2 lines/60 words before first section
@@ -32,6 +36,8 @@ export interface StructureEnforcementContext {
   query: string;
   sources: Array<{ documentName: string; pageNumber?: number | null }>;
   isComparison: boolean;
+  /** NEW: Response type to determine if title should be added */
+  responseType?: 'rag' | 'fallback' | 'conversation' | 'file_listing' | 'calculation';
 }
 
 export interface StructureViolation {
@@ -77,6 +83,7 @@ export class StructureEnforcementService {
 
   /**
    * MAIN ENTRY POINT: Enforce structure on response
+   * CRITICAL FIX: Skip title/section enforcement for fallback responses
    */
   enforceStructure(
     text: string,
@@ -84,6 +91,36 @@ export class StructureEnforcementService {
   ): StructureEnforcementResult {
     const violations: StructureViolation[] = [];
     let result = text.trim();
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CRITICAL FIX: NO TITLES OR SECTIONS FOR FALLBACK RESPONSES
+    // ═══════════════════════════════════════════════════════════════════════════
+    const isFallbackResponse = context.responseType === 'fallback' ||
+                                context.responseType === 'conversation' ||
+                                context.responseType === 'file_listing';
+
+    if (isFallbackResponse) {
+      this.log('⚡ [STRUCTURE] Skipping title/section enforcement for fallback response');
+
+      // Only clean spacing for fallback responses
+      result = this.cleanSpacing(result);
+
+      return {
+        text: result,
+        violations: [],
+        stats: {
+          hasTitle: false,
+          sectionCount: 0,
+          hasSource: false,
+          hasFollowUp: false,
+          introWords: this.countIntroWords(result)
+        }
+      };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NORMAL ENFORCEMENT FOR RAG/CALCULATION RESPONSES
+    // ═══════════════════════════════════════════════════════════════════════════
 
     // Step 1: Check and add title if missing
     const titleCheck = this.checkTitle(result);

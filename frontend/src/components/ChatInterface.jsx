@@ -35,6 +35,9 @@ import './StreamingAnimation.css';
 import StreamingMarkdown from './StreamingMarkdown';
 import StreamingWelcomeMessage from './StreamingWelcomeMessage';
 import { useToast } from '../context/ToastContext';
+import InlineDocumentButton from './InlineDocumentButton';
+import DocumentSources from './DocumentSources';
+import { hasInlineDocuments, splitTextWithDocuments, stripAllDocumentMarkers, parseInlineDocuments } from '../utils/inlineDocumentParser';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
 let globalSocketInitialized = false;
@@ -2696,35 +2699,55 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                 <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
                                                         <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
                                                             <div className="markdown-preview-container" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
-                                                                <ReactMarkdown
-                                                                    remarkPlugins={[remarkGfm]}
-                                                                    components={{
-                                                                        a: DocumentLink,
-                                                                        table: ({node, ...props}) => <table className="markdown-table" {...props} />,
-                                                                        thead: ({node, ...props}) => <thead {...props} />,
-                                                                        tbody: ({node, ...props}) => <tbody {...props} />,
-                                                                        tr: ({node, ...props}) => <tr {...props} />,
-                                                                        th: ({node, ...props}) => <th {...props} />,
-                                                                        td: ({node, ...props}) => <td {...props} />,
-                                                                        h1: ({node, ...props}) => <h1 className="markdown-h1" {...props} />,
-                                                                        h2: ({node, ...props}) => <h2 className="markdown-h2" {...props} />,
-                                                                        h3: ({node, ...props}) => <h3 className="markdown-h3" {...props} />,
-                                                                        h4: ({node, ...props}) => <h4 className="markdown-h4" {...props} />,
-                                                                        h5: ({node, ...props}) => <h5 className="markdown-h5" {...props} />,
-                                                                        h6: ({node, ...props}) => <h6 className="markdown-h6" {...props} />,
-                                                                        p: ({node, ...props}) => <p className="markdown-paragraph" {...props} />,
-                                                                        ul: ({node, ...props}) => <ul className="markdown-ul" {...props} />,
-                                                                        ol: ({node, ...props}) => <ol className="markdown-ol" {...props} />,
-                                                                        code: ({node, inline, ...props}) =>
-                                                                            inline ? <code className="markdown-inline-code" {...props} /> : <code className="markdown-code-block" {...props} />,
-                                                                        blockquote: ({node, ...props}) => <blockquote className="markdown-blockquote" {...props} />,
-                                                                        hr: ({node, ...props}) => <hr className="markdown-hr" {...props} />,
-                                                                        img: ({node, ...props}) => <img className="markdown-image" {...props} alt={props.alt || ''} />,
-                                                                    }}
-                                                                >
-                                                                    {stripDocumentSources(msg.content)}
-                                                                </ReactMarkdown>
+                                                                {(() => {
+                                                                    const content = stripDocumentSources(msg.content);
+
+                                                                    // Always strip all document markers - we'll show them in DocumentSources dropdown
+                                                                    const cleanedContent = stripAllDocumentMarkers(content);
+                                                                    return (
+                                                                        <ReactMarkdown
+                                                                            remarkPlugins={[remarkGfm]}
+                                                                            components={{
+                                                                                a: DocumentLink,
+                                                                                table: ({node, ...props}) => <table className="markdown-table" {...props} />,
+                                                                                thead: ({node, ...props}) => <thead {...props} />,
+                                                                                tbody: ({node, ...props}) => <tbody {...props} />,
+                                                                                tr: ({node, ...props}) => <tr {...props} />,
+                                                                                th: ({node, ...props}) => <th {...props} />,
+                                                                                td: ({node, ...props}) => <td {...props} />,
+                                                                                h1: ({node, ...props}) => <h1 className="markdown-h1" {...props} />,
+                                                                                h2: ({node, ...props}) => <h2 className="markdown-h2" {...props} />,
+                                                                                h3: ({node, ...props}) => <h3 className="markdown-h3" {...props} />,
+                                                                                h4: ({node, ...props}) => <h4 className="markdown-h4" {...props} />,
+                                                                                h5: ({node, ...props}) => <h5 className="markdown-h5" {...props} />,
+                                                                                h6: ({node, ...props}) => <h6 className="markdown-h6" {...props} />,
+                                                                                p: ({node, ...props}) => <p className="markdown-paragraph" {...props} />,
+                                                                                ul: ({node, ...props}) => <ul className="markdown-ul" {...props} />,
+                                                                                ol: ({node, ...props}) => <ol className="markdown-ol" {...props} />,
+                                                                                code: ({node, inline, ...props}) =>
+                                                                                    inline ? <code className="markdown-inline-code" {...props} /> : <code className="markdown-code-block" {...props} />,
+                                                                                blockquote: ({node, ...props}) => <blockquote className="markdown-blockquote" {...props} />,
+                                                                                hr: ({node, ...props}) => <hr className="markdown-hr" {...props} />,
+                                                                                img: ({node, ...props}) => <img className="markdown-image" {...props} alt={props.alt || ''} />,
+                                                                            }}
+                                                                        >
+                                                                            {cleanedContent}
+                                                                        </ReactMarkdown>
+                                                                    );
+                                                                })()}
                                                             </div>
+
+                                                            {/* Document Sources Dropdown - shows all sources used in this answer */}
+                                                            <DocumentSources
+                                                                sources={[
+                                                                    ...(msg.ragSources || []),
+                                                                    ...parseInlineDocuments(msg.content || '')
+                                                                ]}
+                                                                onDocumentClick={(doc) => {
+                                                                    console.log('[DOC SOURCES] Opening preview:', doc);
+                                                                    setPreviewDocument(doc);
+                                                                }}
+                                                            />
 
                                                             {/* Manus-style Document Preview Button */}
                                                             {msg.chatDocument && (
@@ -3653,7 +3676,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
                                                 <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4, display: 'flex'}}>
                                                     <StreamingMarkdown
-                                                        content={displayedText}
+                                                        content={stripAllDocumentMarkers(displayedText)}
                                                         isStreaming={isStreaming}
                                                         customComponents={{
                                                             a: DocumentLink,

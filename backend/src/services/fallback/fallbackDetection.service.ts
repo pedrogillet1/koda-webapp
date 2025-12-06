@@ -32,14 +32,23 @@ export interface DetectionConfig {
   ragScore?: number;
   errorDetails?: string;
   conversationHistory?: Array<{ role: string; content: string }>;
+  /** CRITICAL FIX: Indicates if RAG has been executed yet
+   * - ragExecuted: false → RAG hasn't run, don't trigger knowledge fallback
+   * - ragExecuted: true → RAG ran, can trigger knowledge fallback if no results
+   */
+  ragExecuted?: boolean;
 }
 
 class FallbackDetectionService {
   /**
    * Main detection function - determines if fallback is needed and which type
+   *
+   * CRITICAL FIX: Added ragExecuted flag to distinguish between:
+   * - ragResults: [] + ragExecuted: false → RAG hasn't run yet, DON'T fallback
+   * - ragResults: [] + ragExecuted: true → RAG ran and found nothing, DO fallback
    */
   detectFallback(config: DetectionConfig): FallbackDetectionResult {
-    const { query, documentCount, ragResults, ragScore, errorDetails } = config;
+    const { query, documentCount, ragResults, ragScore, errorDetails, ragExecuted = false } = config;
 
     // 1. Check for Error Recovery Fallback (highest priority)
     if (errorDetails) {
@@ -81,16 +90,25 @@ class FallbackDetectionService {
       };
     }
 
-    // 4. Check for Knowledge Fallback (no relevant results)
-    const knowledgeCheck = this.checkKnowledgeGap(ragResults, ragScore, documentCount);
-    if (knowledgeCheck.needed) {
-      return {
-        needsFallback: true,
-        fallbackType: 'knowledge',
-        reason: knowledgeCheck.reason,
-        confidence: knowledgeCheck.confidence,
-        context: { query, documentCount, ragResults }
-      };
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CRITICAL FIX: Only check knowledge gap if RAG has been executed
+    // ═══════════════════════════════════════════════════════════════════════════
+    // BEFORE: Checked knowledge gap even when ragResults was empty because RAG hadn't run
+    // AFTER: Only check knowledge gap when ragExecuted = true
+    if (ragExecuted) {
+      // 4. Check for Knowledge Fallback (no relevant results AFTER RAG ran)
+      const knowledgeCheck = this.checkKnowledgeGap(ragResults, ragScore, documentCount);
+      if (knowledgeCheck.needed) {
+        return {
+          needsFallback: true,
+          fallbackType: 'knowledge',
+          reason: knowledgeCheck.reason,
+          confidence: knowledgeCheck.confidence,
+          context: { query, documentCount, ragResults }
+        };
+      }
+    } else {
+      console.log(`🔍 [FALLBACK] Skipping knowledge gap check - RAG hasn't executed yet`);
     }
 
     // No fallback needed
@@ -112,6 +130,32 @@ class FallbackDetectionService {
     confidence: number;
   } {
     const queryLower = query.toLowerCase().trim();
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CRITICAL FIX: Detect content queries that should go to RAG
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Patterns like "what is X about", "tell me about X", "explain X" are CONTENT queries
+    // They should NOT trigger clarification when documentCount > 0
+    const contentQueryPatterns = [
+      /what (is|are|does|do) .+ (about|regarding|concerning)/i,
+      /tell me (about|more about) .+/i,
+      /explain .+/i,
+      /describe .+/i,
+      /summarize .+/i,
+      /what (does|do) .+ (say|mention|state|indicate)/i,
+      /what (information|info|details) .+ (have|contain|include)/i,
+      /show me .+/i,
+      /find .+/i,
+      /search (for )?(.+)/i
+    ];
+
+    const isContentQuery = contentQueryPatterns.some(pattern => pattern.test(queryLower));
+
+    // If it's a content query and user has documents, let RAG handle it
+    if (isContentQuery && documentCount > 0) {
+      console.log('🎯 [FALLBACK] Content query detected with documents - allowing RAG');
+      return { needed: false, reason: '', confidence: 0 };
+    }
 
     // Pattern 1: Vague pronouns without context
     // Check for pronouns at start OR in common question patterns like "what does it say"

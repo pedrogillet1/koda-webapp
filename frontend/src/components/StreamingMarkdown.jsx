@@ -95,27 +95,32 @@ const StreamingMarkdown = ({
         {...props}
       />
     ),
-    h2: ({ node, ...props }) => (
-      <h2
-        className="markdown-h2"
-        style={{
-          fontSize: '1.5em',
-          fontWeight: '600',
-          marginTop: '20px',
-          marginBottom: '12px',
-          lineHeight: '1.4'
-        }}
-        {...props}
-      />
-    ),
+    h2: ({ node, ...props }) => {
+      // Check if this is the first element (title) - align with avatar
+      const isFirstElement = node.position && node.position.start.line === 1;
+
+      return (
+        <h2
+          className="markdown-h2"
+          style={{
+            fontSize: '1.3em',  // Reduced from 1.5em
+            fontWeight: '600',
+            marginTop: isFirstElement ? '0px' : '16px',  // No margin if first!
+            marginBottom: '8px',  // Reduced from 12px
+            lineHeight: '1.4'
+          }}
+          {...props}
+        />
+      );
+    },
     h3: ({ node, ...props }) => (
       <h3
         className="markdown-h3"
         style={{
-          fontSize: '1.25em',
+          fontSize: '1.15em',  // Reduced from 1.25em
           fontWeight: '600',
-          marginTop: '16px',
-          marginBottom: '8px',
+          marginTop: '12px',  // Reduced from 16px
+          marginBottom: '6px',  // Reduced from 8px
           lineHeight: '1.4'
         }}
         {...props}
@@ -165,8 +170,9 @@ const StreamingMarkdown = ({
     li: ({ node, ...props }) => (
       <li
         style={{
-          marginTop: '4px',
-          marginBottom: '4px'
+          marginTop: '2px',
+          marginBottom: '2px',
+          lineHeight: '1.5'
         }}
         {...props}
       />

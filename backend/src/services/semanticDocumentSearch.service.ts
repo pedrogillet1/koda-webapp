@@ -58,21 +58,38 @@ interface SearchOptions {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const DOCUMENT_SEARCH_PATTERNS = [
-  // English patterns
+  // English patterns - Direct document search
   /\b(find|search|locate|look\s*for|show\s*me)\b.*\b(document|file|pdf|doc|excel|spreadsheet)\b/i,
   /\b(where|which)\b.*\b(document|file)\b.*\b(about|contains?|mentions?|talks?\s*about|regarding|on)\b/i,
   /\bwhat\s*(document|file)s?\b.*\b(have|do\s*i\s*have|contain|mention)/i,
   /\b(list|show)\b.*\b(all|my)\b.*\b(document|file)s?\b/i,
   /\b(document|file)\b.*\b(about|regarding|on|that\s*talks?\s*about)\b/i,
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CRITICAL FIX: Content query patterns - "what is X about"
+  // These are legitimate document content queries that need RAG search
+  // ═══════════════════════════════════════════════════════════════════════════
+  /what (is|are|does|do) .+ (about|regarding|concerning)/i,
+  /tell me (about|more about) .+/i,
+  /explain .+/i,
+  /describe .+/i,
+  /summarize .+/i,
+  /what (does|do) .+ (say|mention|state|indicate)/i,
+  /what (information|info|details) .+ (have|contain|include)/i,
+  /show me .+ (about|regarding|concerning)/i,
+
   // Portuguese patterns
   /\b(encontre|busque|procure|ache|mostre)\b.*\b(documento|arquivo|pdf)\b/i,
   /\b(qual|quais|onde)\b.*\b(documento|arquivo)\b.*\b(sobre|fala|menciona|contém)\b/i,
   /\b(listar|mostrar)\b.*\b(todos?|meus?)\b.*\b(documento|arquivo)s?\b/i,
+  /o que (é|são|fala|diz) .+ sobre/i,
+  /me (fale|conte|explique) sobre .+/i,
 
   // Spanish patterns
   /\b(encontrar|buscar|localizar|mostrar)\b.*\b(documento|archivo|pdf)\b/i,
   /\b(cuál|cuáles|dónde)\b.*\b(documento|archivo)\b.*\b(sobre|habla|menciona|contiene)\b/i,
+  /qué (es|son|dice|habla) .+ sobre/i,
+  /(cuéntame|explica|describe) .+/i,
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════

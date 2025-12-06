@@ -1017,47 +1017,52 @@ Cell B1 in Sheet 1 'ex1' is empty."
   private getLengthConfiguration(answerLength: AnswerLength): LengthConfiguration {
     switch (answerLength) {
       case 'short':
+        // ⚡ FLASH OPTIMIZED: Reduced from 150 to 100 tokens (33% reduction)
         return {
           instruction: `**Query Complexity**: SIMPLE
 
 Use this format for direct, factual questions:
-- Answer directly in 1-2 sentences
+- Answer directly in 1-2 sentences (30-60 words max)
 - Bold key information
 - Natural closing sentence
 - NO bullet points for simple questions
 - NO emojis, NO citations
 
 Example: "Your passport number is **123456789**, issued on **March 16, 2015**. You'll find it on page 2 of your passport document."`,
-          maxTokens: 150,
+          maxTokens: 100, // ⚡ FLASH: 150 → 100
         };
 
       case 'medium':
+        // ⚡ FLASH OPTIMIZED: Reduced from 2000 to 300 tokens (85% reduction)
         return {
           instruction: `**Query Complexity**: MEDIUM
 
-Use this format for questions needing more detail:
+Use this format for questions needing more detail (100-220 words):
 - Short paragraph (2-3 sentences) explaining the answer
-- Use bullets ONLY when listing multiple items
+- Use bullets ONLY when listing multiple items (3-6 bullets max)
 - Bold important terms throughout
 - Natural closing sentence
 - NO emojis, NO citations in text
+- INFORMATION DENSE: Every sentence = specific facts
 
 Example: "I found revenue information across three of your documents. Your **Business Plan** projects **$2.5M** by Year 2, while the **Financial Report** shows actual Q1 revenue of **$1.2M**. The **Investor Deck** includes a growth chart showing **45% year-over-year** increase."`,
-          maxTokens: 2000,
+          maxTokens: 300, // ⚡ FLASH: 2000 → 300
         };
 
       case 'summary':
       case 'long':
+        // ⚡ FLASH OPTIMIZED: Reduced from 2500-3500 to 900 tokens (74% reduction)
         return {
           instruction: `**Query Complexity**: COMPLEX
 
-Use this format for analysis, comparisons, or comprehensive explanations:
-- Multiple paragraphs organized by topic
-- Use bullets for lists within explanations
+Use this format for analysis, comparisons, or comprehensive explanations (350-750 words):
+- Multiple paragraphs organized by topic (4-7 sections)
+- Use bullets for lists within explanations (8-16 bullets total)
 - Use tables for comparing 3+ aspects
 - Natural transitions between paragraphs
 - Bold key terms throughout
 - NO emojis, NO citations in text
+- INFORMATION DENSE: 15-20% fact density, no filler words
 
 Example structure:
 Paragraph 1: Main overview with key facts
@@ -1066,7 +1071,7 @@ Paragraph 3: Specific details on aspect 2
 Paragraph 4: Summary and implications
 
 Stay conversational and natural - write like an executive assistant explaining something, not like a robot reading a report.`,
-          maxTokens: answerLength === 'long' ? 3500 : 2500,
+          maxTokens: 900, // ⚡ FLASH: 2500-3500 → 900
         };
 
       default:

@@ -30,6 +30,8 @@ import { CachedContent, HarmCategory, HarmBlockThreshold } from '@google/generat
 import { retryStreamingWithBackoff } from '../utils/retryUtils';
 // ✅ FIX: Use singleton client instead of creating new instance
 import geminiClient from './geminiClient.service';
+// ⚡ FLASH OPTIMIZATION: Import adaptive config
+import { classifyResponseType, FLASH_OPTIMAL_CONFIG, ResponseType } from './adaptiveAnswerGeneration.service';
 
 // Safety settings to prevent empty responses from safety filters
 const SAFETY_SETTINGS = [
@@ -76,10 +78,22 @@ class GeminiCacheService {
       documentContext,
       query,
       conversationHistory = [],
-      temperature = 0.4,
-      maxTokens = 1000, // ⚡ SPEED FIX #1: Reduced from 3000 to 1000 (67% reduction)
+      temperature: overrideTemp,
+      maxTokens: overrideMaxTokens,
       onChunk,
     } = params;
+
+    // ⚡ FLASH OPTIMIZATION: Classify query and get adaptive config
+    const responseType = classifyResponseType(query);
+    const flashConfig = FLASH_OPTIMAL_CONFIG[responseType];
+
+    // Use adaptive config or allow override
+    const temperature = overrideTemp ?? flashConfig.temperature;
+    const maxTokens = overrideMaxTokens ?? flashConfig.maxTokens;
+    const topK = flashConfig.topK;
+
+    console.log(`🎯 [FLASH-CACHE] Query classified as: ${responseType}`);
+    console.log(`🎯 [FLASH-CACHE] Adaptive config: temp=${temperature}, maxTokens=${maxTokens}, topK=${topK}`);
 
     try {
       // ✅ FIX: Use singleton client instead of new GoogleGenerativeAI()
@@ -87,11 +101,14 @@ class GeminiCacheService {
       // Gemini 2.5+ automatically caches this - no manual cache management needed
       // ⚡ SPEED FIX #1: Reduced maxOutputTokens for faster generation
       // Most answers are 200-500 tokens, 1000 is enough for 95% of queries
+      // ⚡ FLASH OPTIMIZATION: Use adaptive topK from FLASH_OPTIMAL_CONFIG
       const model = geminiClient.getModel({
         model: 'gemini-2.5-flash',
         systemInstruction: systemPrompt, // AUTO-CACHED by Gemini 2.5+
         generationConfig: {
           temperature,
+          topK,                           // ⚡ FLASH: Adaptive topK (20-64)
+          topP: 0.95,                      // Standard nucleus sampling
           maxOutputTokens: maxTokens,
           stopSequences: ['\n\n\n\n', '---END---'], // ⚡ Early stopping when done
         },

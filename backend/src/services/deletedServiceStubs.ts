@@ -113,19 +113,39 @@ const GREETING_PATTERNS = [
   /^(bonjour|bonsoir|salut|coucou|ça\s*va|merci)[\s!.?]*$/i,
 ];
 
-// Capability patterns (what can you do?)
+// Capability patterns (what can you do?) - EXPANDED for natural conversation
 const CAPABILITY_PATTERNS = [
-  /^what\s*(is|can)\s*koda[\s!.?]*$/i,
-  /^what'?s\s*koda[\s!.?]*$/i,
-  /^what\s*can\s*(you|koda)\s*do[\s!.?]*$/i,
-  /^how\s*do(es)?\s*(you|koda)\s*work[\s!.?]*$/i,
-  /^(help|ajuda|ayuda|aide)[\s!.?]*$/i,
-  /^what\s*are\s*your\s*(capabilities|features)[\s!.?]*$/i,
-  // Portuguese
-  /^o\s*que\s*[eé]\s*(o\s*)?koda[\s!.?]*$/i,
-  /^o\s*que\s*voc[eê]\s*pode\s*fazer[\s!.?]*$/i,
-  // Spanish
-  /^qu[eé]\s*(es|puede\s*hacer)\s*koda[\s!.?]*$/i,
+  // English - flexible patterns (not exact match)
+  /what\s*(?:is|can)\s*koda/i,
+  /what'?s\s*koda/i,
+  /what\s*can\s*(?:you|koda)\s*do/i,
+  /how\s*do(?:es)?\s*(?:you|koda)\s*work/i,
+  /^(?:help|ajuda|ayuda|aide)[\s!.?]*$/i,
+  /what\s*are\s*your\s*(?:capabilities|features|abilities|functions)/i,
+  // Language capability questions - NEW
+  /\b(?:do you|can you|are you able to)\s+(?:understand|speak|support|know|read|write)\s+(?:portuguese|spanish|english|french|german|italian)/i,
+  /\b(?:understand|speak|support|know)\s+(?:portuguese|spanish|english|french|german|italian)/i,
+  /what\s+languages?\s+(?:do you|can you|does koda)/i,
+  /(?:which|what)\s+languages?\s+(?:are|is)\s+supported/i,
+  // General capability - flexible
+  /what\s+(?:can|could)\s+(?:you|koda)\s+(?:do|help|assist)/i,
+  /(?:can|could)\s+(?:you|koda)\s+(?:help|assist|analyze|summarize|explain)/i,
+  /(?:tell|show)\s+me\s+(?:about|what)\s+(?:your|koda'?s?)\s+(?:capabilities?|features?)/i,
+  /(?:are you|is koda)\s+(?:able|capable)\s+(?:of|to)/i,
+  // Portuguese - flexible
+  /o\s*que\s*[eé]\s*(?:o\s*)?koda/i,
+  /o\s*que\s*voc[eê]\s*(?:pode|consegue|sabe)\s*fazer/i,
+  /(?:quais?|que)\s+(?:são|sao)\s+(?:suas?|os|as)\s+(?:capacidades?|funcionalidades?|recursos?)/i,
+  /como\s+(?:você|voce|vc|koda)\s+(?:funciona|trabalha|ajuda)/i,
+  /\b(?:você|voce|vc)\s+(?:fala|entende|sabe)\s+(?:português|portugues|espanhol|inglês)/i,
+  /(?:quais?|que)\s+(?:idiomas?|línguas?)\s+(?:você|voce|vc|koda)/i,
+  // Spanish - flexible
+  /qu[eé]\s*(?:es|puede\s*hacer)\s*koda/i,
+  /(?:qué|que)\s+(?:puedes?|puede|sabes?)\s+hacer/i,
+  /(?:cuáles?|cuales)\s+son\s+(?:tus|sus)\s+(?:capacidades?|funcionalidades?)/i,
+  /cómo\s+(?:funcionas?|trabajas?|ayudas?)/i,
+  /\b(?:hablas?|entiendes?|sabes?)\s+(?:portugués|español|inglés)/i,
+  /(?:qué|cuáles?)\s+(?:idiomas?|lenguas?)\s+(?:hablas?|soportas?)/i,
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -232,47 +252,176 @@ function generateGreetingResponse(language: string, hasDocuments: boolean): stri
   return hasDocuments ? lang.withDocs : lang.noDocs;
 }
 
+// Check if query is specifically about language capabilities
+function isLanguageCapabilityQuery(query: string): boolean {
+  const languagePatterns = [
+    /\b(?:do you|can you|are you able to)\s+(?:understand|speak|support|know|read|write)\s+(?:portuguese|spanish|english|french|german|italian|português|espanhol|inglês)/i,
+    /\b(?:understand|speak|support|know)\s+(?:portuguese|spanish|english|french|german|italian|português|espanhol|inglês)/i,
+    /what\s+languages?\s+(?:do you|can you|does koda)/i,
+    /(?:which|what)\s+languages?\s+(?:are|is)\s+supported/i,
+    /\b(?:você|voce|vc)\s+(?:fala|entende|sabe)\s+(?:português|portugues|espanhol|inglês)/i,
+    /(?:quais?|que)\s+(?:idiomas?|línguas?)/i,
+    /\b(?:hablas?|entiendes?|sabes?)\s+(?:portugués|español|inglés)/i,
+    /(?:qué|cuáles?)\s+(?:idiomas?|lenguas?)/i,
+  ];
+  return languagePatterns.some(p => p.test(query.toLowerCase()));
+}
+
+// Generate language capability response
+function generateLanguageResponse(language: string): string {
+  const responses: Record<string, string> = {
+    en: `Yes, I understand multiple languages!
+
+**Languages I support:**
+- **English**: Full support
+- **Portuguese**: Full support (including Brazilian Portuguese)
+- **Spanish**: Full support
+
+I can:
+- Answer questions in your preferred language
+- Analyze documents in any of these languages
+- Detect your language automatically
+- Switch languages mid-conversation
+
+My primary focus is helping you work with your documents. How can I help you today?`,
+    pt: `Sim, eu entendo vários idiomas!
+
+**Idiomas que eu suporto:**
+- **Português**: Suporte completo (incluindo português brasileiro)
+- **Inglês**: Suporte completo
+- **Espanhol**: Suporte completo
+
+Eu posso:
+- Responder perguntas no seu idioma preferido
+- Analisar documentos em qualquer um desses idiomas
+- Detectar seu idioma automaticamente
+- Trocar de idioma durante a conversa
+
+Meu foco principal é ajudá-lo a trabalhar com seus documentos. Como posso ajudá-lo hoje?`,
+    es: `¡Sí, entiendo varios idiomas!
+
+**Idiomas que soporto:**
+- **Español**: Soporte completo
+- **Portugués**: Soporte completo (incluyendo portugués brasileño)
+- **Inglés**: Soporte completo
+
+Puedo:
+- Responder preguntas en tu idioma preferido
+- Analizar documentos en cualquiera de estos idiomas
+- Detectar tu idioma automáticamente
+- Cambiar de idioma durante la conversación
+
+Mi enfoque principal es ayudarte a trabajar con tus documentos. ¿Cómo puedo ayudarte hoy?`,
+    fr: `Oui, je comprends plusieurs langues!
+
+**Langues que je supporte:**
+- **Français**: Support complet
+- **Anglais**: Support complet
+- **Portugais**: Support complet
+- **Espagnol**: Support complet
+
+Je peux:
+- Répondre aux questions dans votre langue préférée
+- Analyser des documents dans toutes ces langues
+- Détecter votre langue automatiquement
+- Changer de langue en cours de conversation
+
+Mon objectif principal est de vous aider avec vos documents. Comment puis-je vous aider?`
+  };
+
+  return responses[language] || responses['en'];
+}
+
 // Generate capability response
-function generateCapabilityResponse(language: string, documentCount: number): string {
+function generateCapabilityResponse(language: string, documentCount: number, query?: string): string {
+  // Check if this is specifically a language question
+  if (query && isLanguageCapabilityQuery(query)) {
+    return generateLanguageResponse(language);
+  }
+
   const responses: Record<string, string> = {
     en: `I'm Koda, your intelligent document assistant! Here's what I can do:
 
-📄 **Document Analysis** - Search, summarize, and extract insights from your documents
-📊 **Data Queries** - Find specific data, totals, and statistics in your files
-🔍 **Smart Search** - Find information across all your ${documentCount > 0 ? documentCount + ' ' : ''}documents
-📁 **File Management** - Create folders, organize, and manage your files
-🧮 **Calculations** - Perform calculations on data from your documents
-🔄 **Comparisons** - Compare information across multiple documents
+**Document Analysis**
+- Search, summarize, and extract insights from your documents
+- Find specific data, totals, and statistics in your files
+- Find information across all your ${documentCount > 0 ? documentCount + ' ' : ''}documents
+
+**Cross-Document Intelligence**
+- Identify themes and topics across documents
+- Analyze trends and patterns
+- Compare information between documents
+
+**Calculations & Data**
+- Perform financial calculations (IRR, NPV, projections)
+- Process tables and spreadsheets
+- Execute complex formulas
+
+**Languages**
+- English, Portuguese, Spanish - full support
 
 Just ask me anything about your documents!`,
     pt: `Sou a Koda, sua assistente inteligente de documentos! Veja o que posso fazer:
 
-📄 **Análise de Documentos** - Pesquisar, resumir e extrair insights dos seus documentos
-📊 **Consultas de Dados** - Encontrar dados específicos, totais e estatísticas
-🔍 **Busca Inteligente** - Encontrar informações em todos os seus ${documentCount > 0 ? documentCount + ' ' : ''}documentos
-📁 **Gestão de Arquivos** - Criar pastas, organizar e gerenciar seus arquivos
-🧮 **Cálculos** - Realizar cálculos com dados dos seus documentos
-🔄 **Comparações** - Comparar informações entre múltiplos documentos
+**Análise de Documentos**
+- Pesquisar, resumir e extrair insights dos seus documentos
+- Encontrar dados específicos, totais e estatísticas
+- Encontrar informações em todos os seus ${documentCount > 0 ? documentCount + ' ' : ''}documentos
+
+**Inteligência Cross-Document**
+- Identificar temas e tópicos entre documentos
+- Analisar tendências e padrões
+- Comparar informações entre documentos
+
+**Cálculos e Dados**
+- Realizar cálculos financeiros (TIR, VPL, projeções)
+- Processar tabelas e planilhas
+- Executar fórmulas complexas
+
+**Idiomas**
+- Português, Inglês, Espanhol - suporte completo
 
 Basta me perguntar qualquer coisa sobre seus documentos!`,
     es: `¡Soy Koda, tu asistente inteligente de documentos! Esto es lo que puedo hacer:
 
-📄 **Análisis de Documentos** - Buscar, resumir y extraer información de tus documentos
-📊 **Consultas de Datos** - Encontrar datos específicos, totales y estadísticas
-🔍 **Búsqueda Inteligente** - Encontrar información en todos tus ${documentCount > 0 ? documentCount + ' ' : ''}documentos
-📁 **Gestión de Archivos** - Crear carpetas, organizar y administrar tus archivos
-🧮 **Cálculos** - Realizar cálculos con datos de tus documentos
-🔄 **Comparaciones** - Comparar información entre múltiples documentos
+**Análisis de Documentos**
+- Buscar, resumir y extraer información de tus documentos
+- Encontrar datos específicos, totales y estadísticas
+- Encontrar información en todos tus ${documentCount > 0 ? documentCount + ' ' : ''}documentos
+
+**Inteligencia Cross-Document**
+- Identificar temas y tópicos entre documentos
+- Analizar tendencias y patrones
+- Comparar información entre documentos
+
+**Cálculos y Datos**
+- Realizar cálculos financieros (TIR, VPN, proyecciones)
+- Procesar tablas y hojas de cálculo
+- Ejecutar fórmulas complejas
+
+**Idiomas**
+- Español, Portugués, Inglés - soporte completo
 
 ¡Solo pregúntame cualquier cosa sobre tus documentos!`,
     fr: `Je suis Koda, votre assistant intelligent de documents! Voici ce que je peux faire:
 
-📄 **Analyse de Documents** - Rechercher, résumer et extraire des informations
-📊 **Requêtes de Données** - Trouver des données spécifiques, totaux et statistiques
-🔍 **Recherche Intelligente** - Trouver des informations dans tous vos ${documentCount > 0 ? documentCount + ' ' : ''}documents
-📁 **Gestion de Fichiers** - Créer des dossiers, organiser et gérer vos fichiers
-🧮 **Calculs** - Effectuer des calculs sur les données de vos documents
-🔄 **Comparaisons** - Comparer des informations entre plusieurs documents
+**Analyse de Documents**
+- Rechercher, résumer et extraire des informations
+- Trouver des données spécifiques, totaux et statistiques
+- Trouver des informations dans tous vos ${documentCount > 0 ? documentCount + ' ' : ''}documents
+
+**Intelligence Cross-Document**
+- Identifier les thèmes et sujets entre documents
+- Analyser les tendances et patterns
+- Comparer les informations entre documents
+
+**Calculs et Données**
+- Effectuer des calculs financiers (TRI, VAN, projections)
+- Traiter des tableaux et feuilles de calcul
+- Exécuter des formules complexes
+
+**Langues**
+- Français, Anglais, Portugais, Espagnol - support complet
 
 Demandez-moi n'importe quoi sur vos documents!`
   };
@@ -308,10 +457,12 @@ export const fastPathDetector = {
     if (!/koda'?s\s+|koda\s+(icp|business|market|customer|target|revenue|pricing|strategy|plan|model)/i.test(query)) {
       if (CAPABILITY_PATTERNS.some(p => p.test(lowerQuery))) {
         const latency = Date.now() - startTime;
-        console.log(`⚡ [FAST PATH] Capability query detected in ${latency}ms`);
+        // Check if it's a language-specific question
+        const queryType = isLanguageCapabilityQuery(query) ? 'language capability' : 'capability';
+        console.log(`⚡ [FAST PATH] ${queryType} query detected in ${latency}ms`);
         return {
           isFastPath: true,
-          response: generateCapabilityResponse(detectedLanguage, options.documentCount || 0),
+          response: generateCapabilityResponse(detectedLanguage, options.documentCount || 0, query),
           type: 'capability',
           detectedLanguage,
           metadata: {
@@ -727,17 +878,11 @@ export interface DocumentInfo {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Synthesis Query Detection Stub
+// Synthesis Query Detection - REAL IMPLEMENTATION
 // ═══════════════════════════════════════════════════════════════════════════
-export const synthesisQueryDetectionService = {
-  detect: (_query: string) => ({
-    isSynthesis: false,
-    isSynthesisQuery: false,
-    type: '' as string,
-    topic: '' as string,
-    confidence: 0
-  })
-};
+// ✅ RESTORED: Real synthesis query detection for cross-document analysis
+import { synthesisQueryDetectionService } from './synthesisQueryDetection.service';
+export { synthesisQueryDetectionService };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Comparative Analysis Stub
@@ -796,16 +941,11 @@ export const terminologyIntelligenceService = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Cross Document Synthesis Stub
+// Cross Document Synthesis - REAL IMPLEMENTATION
 // ═══════════════════════════════════════════════════════════════════════════
-export const crossDocumentSynthesisService = {
-  synthesizeMethodologies: async (_userId: string, _topic?: string) => ({
-    synthesis: '',
-    sources: [] as any[],
-    methodologies: [] as Array<{ name: string; documentIds: string[]; description?: string }>,
-    totalDocuments: 0
-  })
-};
+// ✅ RESTORED: Real cross-document synthesis for theme/topic analysis
+import { crossDocumentSynthesisService } from './crossDocumentSynthesis.service';
+export { crossDocumentSynthesisService };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Empty Response Prevention Stub
