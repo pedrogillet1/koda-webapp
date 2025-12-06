@@ -324,10 +324,16 @@ export class KodaPersonaService {
     language?: string;
     strategy?: 'quote' | 'comparison' | 'standard';
     includeCitations?: boolean;
+    includeTitleRules?: boolean;
   } = {}): string {
-    const { language = 'en', strategy = 'standard', includeCitations = true } = options;
+    const { language = 'en', strategy = 'standard', includeCitations = true, includeTitleRules = true } = options;
 
     let persona = KODA_CORE_PERSONA;
+
+    // Add title generation rules (ChatGPT-style)
+    if (includeTitleRules) {
+      persona += '\n\n' + KODA_TITLE_GENERATION_RULES;
+    }
 
     // Add citation rules
     if (includeCitations) {
