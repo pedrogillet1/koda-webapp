@@ -20,6 +20,14 @@ import os from 'os';
 import path from 'path';
 
 // ═══════════════════════════════════════════════════════════════
+// Document Intelligence System - Classification, Entities, Keywords
+// ═══════════════════════════════════════════════════════════════
+import { classifyDocument, type DocumentClassification } from './documentClassifier.service';
+import { extractEntities, type ExtractedEntity } from './entityExtractor.service';
+import { extractKeywords, type ExtractedKeyword } from './keywordExtractor.service';
+import { classifyChunk, type ChunkClassification } from './chunkClassifier.service';
+
+// ═══════════════════════════════════════════════════════════════
 // Semantic Chunking with Overlap - Interfaces and Fallback
 // ═══════════════════════════════════════════════════════════════
 interface ChunkOptions {
@@ -882,18 +890,56 @@ async function processDocumentWithTimeout(
     // AUTO-CATEGORIZATION DISABLED: Documents now stay in "Recently Added" by default
     // Users can manually organize documents using the chat interface or drag-and-drop
 
-    // Analyze document with OpenAI to get classification and entities
+    // ═══════════════════════════════════════════════════════════════
+    // DOCUMENT INTELLIGENCE SYSTEM - Classification, Entities, Keywords
+    // Replaces the old Gemini analysis with local TF-IDF + pattern matching
+    // ═══════════════════════════════════════════════════════════════
     let classification = null;
     let entities = null;
+    let docIntelligence: {
+      classification?: DocumentClassification;
+      entities?: ExtractedEntity[];
+      keywords?: ExtractedKeyword[];
+    } = {};
 
     if (extractedText && extractedText.length > 0) {
       const analysisStartTime = Date.now();
       try {
-        const analysis = await geminiService.analyzeDocumentWithGemini(extractedText, mimeType);
-        classification = analysis.suggestedCategories?.[0] || null;
-        entities = JSON.stringify(analysis.keyEntities || {});
+        // 1. Document Classification (type + domain)
+        const docClassification = await classifyDocument(extractedText, filename, mimeType);
+        docIntelligence.classification = docClassification;
+        classification = `${docClassification.domain}:${docClassification.documentType}`;
+        console.log(`📊 [DocIntel] Classification: ${docClassification.domain}/${docClassification.documentType} (${(docClassification.domainConfidence * 100).toFixed(1)}%)`);
+
+        // 2. Entity Extraction (with domain context)
+        const extractedEntities = await extractEntities(extractedText, {
+          domain: docClassification.domain,
+          useLLM: false // Use fast pattern matching
+        });
+        docIntelligence.entities = extractedEntities;
+        entities = JSON.stringify(extractedEntities.slice(0, 50)); // Store top 50 entities
+        console.log(`🏷️ [DocIntel] Extracted ${extractedEntities.length} entities`);
+
+        // 3. Keyword Extraction (TF-IDF with domain boosting)
+        const extractedKeywords = extractKeywords(extractedText, {
+          domain: docClassification.domain,
+          maxKeywords: 100
+        });
+        docIntelligence.keywords = extractedKeywords;
+        console.log(`🔑 [DocIntel] Extracted ${extractedKeywords.length} keywords`);
+
         const analysisTime = Date.now() - analysisStartTime;
-      } catch (error) {
+        console.log(`✅ [DocIntel] Document Intelligence completed in ${analysisTime}ms`);
+      } catch (error: any) {
+        console.error(`❌ [DocIntel] Document Intelligence failed:`, error.message);
+        // Fallback to old Gemini analysis if Document Intelligence fails
+        try {
+          const analysis = await geminiService.analyzeDocumentWithGemini(extractedText, mimeType);
+          classification = analysis.suggestedCategories?.[0] || null;
+          entities = JSON.stringify(analysis.keyEntities || {});
+        } catch (fallbackError) {
+          // Silent fail - document will still be processed
+        }
       }
     }
 
@@ -937,14 +983,36 @@ async function processDocumentWithTimeout(
 
     // Create or update metadata record (enriched data added in background)
     const metadataUpsertStartTime = Date.now();
+
+    // Prepare Document Intelligence data for storage
+    const docIntelData = {
+      classification, // "domain:documentType" format
+      classificationConfidence: docIntelligence.classification?.typeConfidence || null,
+      domain: docIntelligence.classification?.domain || null,
+      domainConfidence: docIntelligence.classification?.domainConfidence || null,
+      entities, // JSON string of entities
+      // Store keywords as JSON in topics field (TF-IDF top keywords)
+      topics: docIntelligence.keywords
+        ? JSON.stringify(docIntelligence.keywords.slice(0, 50).map(k => ({
+            word: k.word,
+            tfIdf: k.tfIdf,
+            isDomainSpecific: k.isDomainSpecific
+          })))
+        : null,
+    };
+
     await prisma.documentMetadata.upsert({
       where: { documentId },
       create: {
         documentId,
         extractedText,
         ocrConfidence,
-        classification,
-        entities,
+        classification: docIntelData.classification,
+        classificationConfidence: docIntelData.classificationConfidence,
+        domain: docIntelData.domain,
+        domainConfidence: docIntelData.domainConfidence,
+        entities: docIntelData.entities,
+        topics: docIntelData.topics,
         summary: null, // Summary added by background enrichment
         thumbnailUrl,
         pageCount,
@@ -956,8 +1024,12 @@ async function processDocumentWithTimeout(
       update: {
         extractedText,
         ocrConfidence,
-        classification,
-        entities,
+        classification: docIntelData.classification,
+        classificationConfidence: docIntelData.classificationConfidence,
+        domain: docIntelData.domain,
+        domainConfidence: docIntelData.domainConfidence,
+        entities: docIntelData.entities,
+        topics: docIntelData.topics,
         summary: null, // Summary added by background enrichment
         thumbnailUrl,
         pageCount,
@@ -968,6 +1040,7 @@ async function processDocumentWithTimeout(
       },
     });
     const metadataUpsertTime = Date.now() - metadataUpsertStartTime;
+    console.log(`💾 [DocIntel] Stored Document Intelligence metadata in ${metadataUpsertTime}ms`);
 
     // ⚡ OPTIMIZATION: AUTO-GENERATE TAGS IN BACKGROUND (NON-BLOCKING)
     // Tag generation takes 10-20s but doesn't block embedding generation
@@ -1115,17 +1188,47 @@ async function processDocumentWithTimeout(
                 splitOn: ['\n\n', '\n', '. ', '! ', '? '],  // Smart boundaries
               });
 
-              // Convert to expected format with metadata
-              chunks = overlapChunks.map(chunk => ({
-                content: chunk.content,
-                metadata: {
-                  chunkIndex: chunk.index,
-                  startChar: chunk.startChar,
-                  endChar: chunk.endChar,
+              // Get document classification info for chunk classification context
+              const docType = docIntelligence.classification?.documentType;
+              const domain = docIntelligence.classification?.domain;
+
+              // ═══════════════════════════════════════════════════════════════
+              // DOCUMENT INTELLIGENCE: Chunk Classification
+              // Classify each chunk to identify content type (header, table, etc.)
+              // ═══════════════════════════════════════════════════════════════
+              console.log('📦 [DocIntel] Classifying chunks...');
+              const { classifyChunk: classifyChunkFn } = await import('./chunkClassifier.service');
+
+              chunks = await Promise.all(overlapChunks.map(async (chunk) => {
+                // Classify each chunk
+                let chunkClass: ChunkClassification | null = null;
+                try {
+                  chunkClass = await classifyChunkFn(chunk.content, {
+                    documentType: docType,
+                    domain: domain
+                  });
+                } catch (e) {
+                  // Non-critical - continue without chunk classification
                 }
+
+                return {
+                  content: chunk.content,
+                  metadata: {
+                    chunkIndex: chunk.index,
+                    startChar: chunk.startChar,
+                    endChar: chunk.endChar,
+                    // Document Intelligence: Chunk Classification
+                    chunkType: chunkClass?.chunkType || 'content',
+                    chunkCategory: chunkClass?.category || 'main_content',
+                    chunkConfidence: chunkClass?.confidence || 0,
+                    // Document context
+                    documentType: docType,
+                    domain: domain
+                  }
+                };
               }));
 
-              console.log(`✅ [CHUNKING] Created ${chunks.length} chunks with overlap`);
+              console.log(`✅ [CHUNKING] Created ${chunks.length} chunks with overlap + classification`);
             }
 
             // 🆕 Generate embeddings using OpenAI embedding service
@@ -2038,9 +2141,9 @@ async function processDocumentAsync(
               }));
             } else {
               // ═══════════════════════════════════════════════════════════════
-              // SEMANTIC CHUNKING with proper size and overlap
+              // SEMANTIC CHUNKING with proper size and overlap (Background)
               // ═══════════════════════════════════════════════════════════════
-              console.log('📝 [CHUNKING] Using improved chunking with overlap...');
+              console.log('📝 [CHUNKING-BG] Using improved chunking with overlap...');
 
               // Use improved chunking with overlap for better retrieval
               const overlapChunks = chunkTextWithOverlap(extractedText, {
@@ -2049,8 +2152,8 @@ async function processDocumentAsync(
                 splitOn: ['\n\n', '\n', '. ', '! ', '? '],  // Smart boundaries
               });
 
-              // Convert to expected format with metadata
-              chunks = overlapChunks.map(chunk => ({
+              // Background process - no access to docIntelligence, use basic chunking
+              chunks = overlapChunks.map((chunk) => ({
                 content: chunk.content,
                 metadata: {
                   chunkIndex: chunk.index,
@@ -2059,7 +2162,7 @@ async function processDocumentAsync(
                 }
               }));
 
-              console.log(`✅ [CHUNKING] Created ${chunks.length} chunks with overlap`);
+              console.log(`✅ [CHUNKING-BG] Created ${chunks.length} chunks with overlap`);
             }
 
             // 🆕 Generate embeddings using OpenAI embedding service

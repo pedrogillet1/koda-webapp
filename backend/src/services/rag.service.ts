@@ -98,6 +98,12 @@ import { kodaCitationFormatService, type CitationSource as FormattedCitationSour
 import { detectIntent as detectSimpleIntent, type SimpleIntentResult } from './simpleIntentDetection.service';
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DOCUMENT INTELLIGENCE SYSTEM - Routing, Hybrid Search
+// ═══════════════════════════════════════════════════════════════════════════
+import { routeToDocument, routeToMultipleDocuments, type DocumentRoutingResult } from './documentRouter.service';
+import { hybridSearch, analyzeQueryIntent, type SearchFilters, type HybridSearchOptions } from './hybridSearch.service';
+
+// ═══════════════════════════════════════════════════════════════════════════
 // CONTEXT-AWARE INTENT DETECTION (Advanced 6-Stage Pipeline)
 // ═══════════════════════════════════════════════════════════════════════════
 // Provides: Negation detection, completeness validation, entity extraction,
