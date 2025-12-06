@@ -1042,6 +1042,65 @@ async function processDocumentWithTimeout(
     const metadataUpsertTime = Date.now() - metadataUpsertStartTime;
     console.log(`💾 [DocIntel] Stored Document Intelligence metadata in ${metadataUpsertTime}ms`);
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STORE ENTITIES AND KEYWORDS IN DEDICATED TABLES (for advanced querying)
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (docIntelligence.entities && docIntelligence.entities.length > 0) {
+      try {
+        // Delete existing entities for this document (in case of re-upload)
+        await prisma.documentEntity.deleteMany({
+          where: { documentId },
+        });
+
+        // Store entities in dedicated table (batch insert)
+        const entityRecords = docIntelligence.entities.slice(0, 100).map((entity: any) => ({
+          documentId,
+          entityType: entity.type || 'UNKNOWN',
+          value: entity.value || '',
+          normalizedValue: entity.normalizedValue || entity.value || '',
+          pageNumber: entity.pageNumber || null,
+          textIndex: entity.textIndex || 0,
+          context: entity.context || '',
+          confidence: entity.confidence || 1.0,
+          metadata: entity.metadata ? JSON.stringify(entity.metadata) : null,
+        }));
+
+        await prisma.documentEntity.createMany({
+          data: entityRecords,
+          skipDuplicates: true,
+        });
+        console.log(`🏷️ [DocIntel] Stored ${entityRecords.length} entities in DocumentEntity table`);
+      } catch (entityError: any) {
+        console.warn(`⚠️ [DocIntel] Failed to store entities in dedicated table:`, entityError.message);
+      }
+    }
+
+    if (docIntelligence.keywords && docIntelligence.keywords.length > 0) {
+      try {
+        // Delete existing keywords for this document (in case of re-upload)
+        await prisma.documentKeyword.deleteMany({
+          where: { documentId },
+        });
+
+        // Store keywords in dedicated table (batch insert)
+        const keywordRecords = docIntelligence.keywords.slice(0, 100).map((keyword: any) => ({
+          documentId,
+          word: keyword.word || '',
+          count: keyword.count || 1,
+          tfIdf: keyword.tfIdf || null,
+          isDomainSpecific: keyword.isDomainSpecific || false,
+        }));
+
+        await prisma.documentKeyword.createMany({
+          data: keywordRecords,
+          skipDuplicates: true,
+        });
+        console.log(`🔑 [DocIntel] Stored ${keywordRecords.length} keywords in DocumentKeyword table`);
+      } catch (keywordError: any) {
+        console.warn(`⚠️ [DocIntel] Failed to store keywords in dedicated table:`, keywordError.message);
+      }
+    }
+
     // ⚡ OPTIMIZATION: AUTO-GENERATE TAGS IN BACKGROUND (NON-BLOCKING)
     // Tag generation takes 10-20s but doesn't block embedding generation
     // This saves 10-20 seconds by running in parallel!
