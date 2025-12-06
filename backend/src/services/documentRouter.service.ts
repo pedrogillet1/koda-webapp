@@ -304,7 +304,7 @@ IMPORTANT:
 - Return 0 for bestMatchIndex if the query is general and doesn't target a specific document
 - Consider document type, domain, and content when matching`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const response = result.response.text();
 
@@ -382,7 +382,7 @@ IMPORTANT:
 - Maximum ${maxDocuments} documents
 - Return empty array [] if no documents are relevant`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const response = result.response.text();
 
