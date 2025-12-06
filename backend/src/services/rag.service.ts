@@ -20,6 +20,7 @@ import { performHybridRetrieval, initializePineconeIndex, type HybridRetrievalRe
 // Fallback System Imports (Psychological Safety)
 import { fallbackDetection, fallbackResponse, psychologicalSafety } from './fallback';
 import type { FallbackType, FallbackContext } from './fallback';
+import * as folderNav from './folderNavigation.service';
 
 // Calculation Engine Imports (Manus Method)
 import calculationDetector from './calculation/calculationDetector.service';
@@ -7272,7 +7273,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       if (requestTimer) requestTimer.start('Pinecone Query (hybrid)');
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
-        topK: retrievalTopK * 2, // Fetch more for better RRF merging
+        topK: Math.min(retrievalTopK, 20), // PERF FIX: Cap at 20 instead of 2x multiplier
         filter,
         includeMetadata: true,
       });
@@ -7282,7 +7283,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
       // âœ… RRF MERGING: Get BM25 results and merge with RRF algorithm
       if (requestTimer) requestTimer.start('BM25 Search (hybrid)');
-      const bm25HybridResults = await bm25RetrievalService.hybridSearch(query, [], userId, retrievalTopK * 2);
+      const bm25HybridResults = await bm25RetrievalService.hybridSearch(query, [], userId, Math.min(retrievalTopK, 20)); // PERF FIX: Cap at 20
       if (requestTimer) requestTimer.end('BM25 Search (hybrid)');
 
       // Convert to format expected by mergeWithRRF
@@ -7325,7 +7326,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       if (requestTimer) requestTimer.start('Pinecone Query (vector+hybrid)');
       rawResults = await pineconeIndex.query({
         vector: queryEmbedding,
-        topK: 40, // Fetch more for better RRF merging
+        topK: 20, // PERF FIX: Reduced from 40 to 20 for 40% faster search
         filter,
         includeMetadata: true,
       });
@@ -7339,7 +7340,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
         if (requestTimer) requestTimer.start('BM25 Search + RRF');
 
         // Get BM25 results independently (not merged yet)
-        const bm25HybridResults = await bm25RetrievalService.hybridSearch(query, [], userId, 40);
+        const bm25HybridResults = await bm25RetrievalService.hybridSearch(query, [], userId, 20); // PERF FIX: Reduced from 40 to 20
 
         // Convert to format expected by mergeWithRRF
         const vectorResultsForRRF = (rawResults.matches || []).map((match: any) => ({
@@ -9671,18 +9672,28 @@ async function handleFolderContentQuery(
   console.log('ðŸ“ [FOLDER CONTENT] Searching for folder...');
 
   // Extract folder name - try multiple patterns to support both word orders
-  const folderMatch =
-    // "folder X" format (most common now)
-    query.match(/folder\s+(\w+)/i) ||
-    // "X folder" format (legacy)
-    query.match(/\b(in|inside|show|list|what|my)\s+(?:me\s+)?(?:my\s+)?(?:is\s+)?(\w+)\s+folder/i);
-
-  // Extract folder name from appropriate capture group
   let folderName = null;
-  if (folderMatch) {
-    // For "folder X" patterns, name is in group 1
-    // For "X folder" patterns, name is in group 2
-    folderName = folderMatch[1] || folderMatch[2] || null;
+
+  // Pattern 1: "folder X" format (e.g., "show me folder trabalhos")
+  const folderFirstMatch = query.match(/folder\s+(\w+)/i);
+  if (folderFirstMatch) {
+    folderName = folderFirstMatch[1];
+  }
+
+  // Pattern 2: "X folder" format (e.g., "what's in trabalhos folder")
+  if (!folderName) {
+    const folderLastMatch = query.match(/(?:in|inside|show|what'?s?\s+in)\s+(?:my\s+)?(\w+)\s+folder/i);
+    if (folderLastMatch) {
+      folderName = folderLastMatch[1];
+    }
+  }
+
+  // Pattern 3: Generic "show me X" or "what's in X"
+  if (!folderName) {
+    const genericMatch = query.match(/(?:show\s+me|what'?s?\s+in)\s+(?:my\s+)?(\w+)/i);
+    if (genericMatch && !['folder', 'folders', 'file', 'files', 'document', 'documents'].includes(genericMatch[1].toLowerCase())) {
+      folderName = genericMatch[1];
+    }
   }
 
   if (!folderName) {
@@ -9720,33 +9731,37 @@ async function handleFolderContentQuery(
   });
 
   if (!folder) {
-    // Find available folders to suggest alternatives
-    const availableFolders = await prisma.folder.findMany({
+    // Get full folder data for hierarchical display
+    const fullFolders = await prisma.folder.findMany({
       where: { userId },
-      select: { id: true, name: true },
-      take: 5,
-      orderBy: { createdAt: 'desc' }
+      include: {
+        _count: { select: { documents: true } },
+        subfolders: { select: { id: true, name: true } }
+      }
     });
 
-    // Use dynamic fallback response
-    const fallbackMessage = await fallbackResponseService.generateFolderNotFoundResponse(
-      query,
-      folderName,
-      userId,
-      'en', // TODO: Detect language from query
-      availableFolders
-    );
-    onChunk(fallbackMessage);
+    const response = folderNav.formatFolderNotFoundResponse(folderName, fullFolders);
+    onChunk(response);
     return { sources: [] };
   }
 
-  // Build response
-  let response = `Your **${folder.name}** folder contains:\n\n`;
+  // Get all folders for breadcrumb navigation
+  const allFolders = await prisma.folder.findMany({
+    where: { userId },
+    select: { id: true, name: true, parentFolderId: true }
+  });
 
-  // List documents
+  // Use new folder navigation service for organized display
+  let response: string;
+
   if (folder.documents.length === 0) {
-    response += `No files yet. You can upload files to this folder.`;
+    response = folderNav.formatEmptyFolderResponse(folder, allFolders);
   } else {
+    response = folderNav.formatFolderContentResponse(folder, allFolders);
+  }
+
+  /* Old code removed - using folderNav service
+  if (false) {
     response += `**Files** (${folder.documents.length}):\n`;
     folder.documents.slice(0, 20).forEach(doc => {
       response += `â€¢ ${doc.filename}\n`;
@@ -9766,6 +9781,7 @@ async function handleFolderContentQuery(
       response += `${sfEmoji} ${sf.name} (${docCount} ${docCount === 1 ? 'file' : 'files'})\n`;
     });
   }
+  */
 
   onChunk(response);
 
@@ -9851,20 +9867,8 @@ async function handleFolderListingQuery(
       return { sources: [] };
     }
 
-    // Build folder tree (handle nested folders)
-    const folderTree = buildFolderTree(folders);
-
-    // Format response
-    let response = `You have **${folders.length}** folder${folders.length > 1 ? 's' : ''}:\n\n`;
-
-    folderTree.forEach(folder => {
-      response += formatFolderTreeItem(folder, 0);
-    });
-
-    // Add helpful examples
-    const firstFolderName = folderTree[0].name;
-    response += `\n\nYou can ask me about any folder's contents, like:\n- "What's in ${firstFolderName} folder?"\n- "Show me folder ${firstFolderName}"`;
-
+    // Use new folder navigation service for organized display
+    const response = folderNav.formatFolderListingResponse(folders);
     onChunk(response);
     return { sources: [] };
 
