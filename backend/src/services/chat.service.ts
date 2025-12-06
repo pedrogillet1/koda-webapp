@@ -803,8 +803,13 @@ export const sendMessageStreaming = async (
 // ============================================================================
 
 /**
- * Auto-generate a conversation title with character-by-character streaming
- * @param firstResponse - Optional assistant response for better context
+ * Auto-generate conversation title with fallback detection
+ *
+ * NEW RULES:
+ * 1. NEVER generate titles for fallback responses
+ * 2. ONLY generate titles for successful, informative responses
+ * 3. Detect fallback patterns: "I Cannot Answer", "I'm Not Confident", "I don't have enough information"
+ * 4. Return "New Chat" for fallback responses
  */
 const autoGenerateTitle = async (
   conversationId: string,
@@ -819,6 +824,41 @@ const autoGenerateTitle = async (
     if (!firstResponse && firstMessage.length < 10) {
       console.log('⏭️ Skipping title generation for very short message without response');
       return;
+    }
+
+    // ✅ NEW: Detect fallback responses and skip title generation
+    if (firstResponse) {
+      const fallbackPatterns = [
+        /I cannot answer/i,
+        /I'm not confident/i,
+        /I don't have enough information/i,
+        /I couldn't find/i,
+        /I'm unable to/i,
+        /I don't know/i,
+        /I can't determine/i,
+        /I can't provide/i,
+        /I don't see/i,
+        /I wasn't able to/i,
+        /No relevant information/i,
+        /I need more context/i,
+        /Could you clarify/i,
+        /Could you provide more details/i,
+      ];
+
+      const isFallback = fallbackPatterns.some(pattern => pattern.test(firstResponse));
+
+      if (isFallback) {
+        console.log('⏭️ [TITLE] Skipping title generation for fallback response');
+        // Set title to "New Chat" for fallback responses
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: {
+            title: 'New Chat',
+            updatedAt: new Date()
+          },
+        });
+        return;
+      }
     }
 
     // ✅ NEW: Stream title generation character-by-character
@@ -845,19 +885,32 @@ const autoGenerateTitle = async (
 
 **CRITICAL RULES:**
 1. Maximum 50 characters
-2. If the message is just a greeting (hi, hello, hey, etc.) with no specific question or topic, return "New Chat"
-3. ONLY create a specific title if there is a clear topic or question
-4. Use natural, conversational language
-5. No quotes, no colons, no special formatting
-6. Focus on the ACTION or TOPIC mentioned
-7. DO NOT hallucinate or guess topics - only use what's explicitly mentioned
+2. NEVER use greetings as titles (hi, hello, hey, hi there, etc.)
+3. NEVER use the first line of the AI response as the title
+4. ONLY create a specific title if there is a clear topic or question
+5. Analyze the USER MESSAGE for the topic, not the AI response
+6. If the message is just a greeting with no specific topic, return "New Chat"
+7. Use natural, conversational language
+8. No quotes, no colons, no special formatting
+9. Focus on the ACTION or TOPIC mentioned in the USER MESSAGE
+10. DO NOT hallucinate or guess topics - only use what's explicitly mentioned
+
+**Examples:**
+- User: "hello" → "New Chat" (just a greeting)
+- User: "hi there" → "New Chat" (just a greeting)
+- User: "What are tax documents for 2024?" → "Tax documents for 2024"
+- User: "Check my passport expiry" → "Passport expiry date"
+- User: "Compare these lease agreements" → "Compare lease agreements"
+- User: "Help me organize medical records" → "Organize medical records"
+- User: "list companies mentioned in" → "List Companies Mentioned"
+- User: "what is trabalho projeto about" → "Trabalho Projeto Details"
 
 Return ONLY the title, nothing else.`,
           },
           {
             role: 'user',
             content: firstResponse
-              ? `User: "${firstMessage.slice(0, 500)}"\nAssistant: "${firstResponse.slice(0, 300)}"\n\nCreate a title that captures the ACTUAL topic discussed.`
+              ? `User asked: "${firstMessage.slice(0, 500)}"\n\nCreate a title based on what the USER ASKED, not the AI response. Focus on the topic or action in the user's question.`
               : `User: "${firstMessage.slice(0, 500)}"\n\nIf this is just a greeting with no specific topic, return "New Chat". Otherwise, create a title for the topic.`,
           },
         ],
@@ -920,25 +973,21 @@ Return ONLY the title, nothing else.`,
         },
       });
 
-      // Still emit the update event for instant display
-      try {
-        const io = getIO();
-        if (io) {
-          io.to(`user:${userId}`).emit('conversation:updated', {
-            conversationId,
-            title: cleanTitle,
-            updatedAt: new Date()
-          });
-        }
-      } catch (e) {
-        // Ignore socket errors in fallback
+      // Emit completion event
+      const io = getIO();
+      if (io) {
+        io.to(`user:${userId}`).emit('title:generating:complete', {
+          conversationId,
+          title: cleanTitle,
+          updatedAt: new Date()
+        });
       }
 
-      console.log(`✅ Generated title (no streaming): "${cleanTitle}"`);
+      console.log(`✅ Generated title (fallback): "${cleanTitle}"`);
     }
-
-  } catch (error: any) {
-    console.error('❌ Error generating title:', error.message);
+  } catch (error) {
+    console.error('❌ Error auto-generating title:', error);
+    // Don't throw - title generation is non-critical
   }
 };
 
