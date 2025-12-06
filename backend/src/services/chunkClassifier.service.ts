@@ -178,7 +178,7 @@ IMPORTANT:
 - If no specific type fits, use "paragraph" as default
 - Only respond with valid JSON`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const response = result.response.text();
 

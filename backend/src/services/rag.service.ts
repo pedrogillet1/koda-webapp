@@ -80,14 +80,14 @@ import { fallbackResponseService } from './fallbackResponse.service';
 
 // ChatGPT-style Quality Assurance Pipeline
 import { postProcessAnswer as qaPostProcessAnswer } from './outputPostProcessor.service';
-import { verifyGrounding, quickGroundingCheck } from './groundingVerification.service';
-import { verifyCitations } from './citationVerification.service';
+import groundingVerificationService, { GroundingVerificationResult } from './groundingVerification.service';
+import citationVerificationService, { CitationVerificationResult } from './citationVerification.service';
 import { checkAnswerQuality } from './answerQualityChecker.service';
 import { generateFallback as generateQAFallback } from './fallbackStrategy.service';
-import { checkNeedsClarification } from './clarificationLogic.service';
-import { resolveQuery, detectTopicShift } from './conversationContinuity.service';
-import { getConversationSummary, updateConversationSummary } from './rollingConversationSummary.service';
-import { rerankWithMicroSummaries } from './microSummaryReranker.service';
+import clarificationLogicService from './clarificationLogic.service';
+// TODO: Re-enable after schema update - import conversationContinuityService from "./conversationContinuity.service";
+import rollingConversationSummaryService from './rollingConversationSummary.service';
+import { microSummaryRerankerService } from './microSummaryReranker.service';
 import { getConversationState, updateConversationState, extractEntities, extractTopics } from './conversationStateTracker.service';
 
 // Infinite Conversation Memory (Manus-style)
@@ -122,6 +122,12 @@ import { hybridSearch, analyzeQueryIntent, type SearchFilters, type HybridSearch
 // Provides: Negation detection, completeness validation, entity extraction,
 // pronoun resolution, verb disambiguation, and multi-intent detection
 import { contextAwareIntentDetection, type ContextAwareIntentResult } from './contextAwareIntentDetection.service';
+
+// HIERARCHICAL INTENT CLASSIFICATION (Two-Stage: Heuristic + LLM)
+import { classifyIntent, shouldDecompose, decomposeQuery, type IntentResult } from './hierarchicalIntentClassifier.service';
+import { getPipelineConfig, planAnswerShape, buildPromptWithPlan, type PipelineConfig, type AnswerPlan } from './pipelineConfiguration.service';
+import { executeSubQuestion, assembleMultiPartAnswer, type SubQuestionResult, type MultiPartAnswer } from './queryExecutor.service';
+import { handleHierarchicalIntent, handleQueryDecomposition } from './hierarchicalIntentHandler.service';
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // RAG CONFIGURATION INTERFACE
@@ -3034,19 +3040,45 @@ async function checkConversationContextFirst(
     return { canAnswer: false, confidence: 0, source: 'none' };
   }
 
-  // Check for conversation context indicators
-  const contextIndicators = [
-    /\b(we|our|discussed|mentioned|said|told|earlier|before|previous)\b/i,
-    /\b(the|that)\s+(budget|revenue|project|team|lead|cost|price|amount|total)\b/i,
-    /\bwhat\s+(was|were|is|are)\s+(the|our|my)\b/i,
-    /\bwho\s+(is|was)\s+(the|our|my)\b/i,
-    /\b(q[1-4]|quarter|fiscal|year)\s*\d{0,4}\b/i,
-    /\b(project|initiative|team|lead|manager|budget)\b/i,
+  // FIX: Skip pre-check for document content queries
+  // REASON: Queries asking about document content should go to RAG, not conversation
+  const documentContentPatterns = [
+    /\bwhat\s+(?:is|are|does)\s+.+?\s+about\b/i,  // "what is X about"
+    /\bexplain\s+(?:the\s+)?(?:document|file|content|pdf|report)\b/i,  // "explain the document"
+    /\bsummarize\s+(?:the\s+)?(?:document|file|content|pdf|report)\b/i,  // "summarize the file"
+    /\banalyze\s+(?:the\s+)?(?:document|file|content|pdf|report)\b/i,  // "analyze the document"
+    /\btell\s+me\s+about\s+(?:the\s+)?(?:document|file|content)\b/i,  // "tell me about the document"
+    /\bwhat\s+(?:is|are)\s+in\s+(?:the\s+)?(?:document|file)\b/i,  // "what is in the document"
+    /\bwhat\s+does\s+(?:the\s+)?(?:document|file)\s+say\b/i,  // "what does the document say"
+    /\b(?:show|find|search)\s+(?:me\s+)?(?:information|content|data)\s+(?:in|from|about)\b/i,  // "show me information in"
   ];
 
-  const hasContextIndicator = contextIndicators.some(p => p.test(query));
+  if (documentContentPatterns.some(p => p.test(query))) {
+    console.log('   [SKIP] Document content query - should use RAG');
+    return { canAnswer: false, confidence: 0, source: 'none' };
+  }
 
-  if (!hasContextIndicator && keyTerms.length < 2) {
+  // FIX: Skip if query mentions a filename
+  // REASON: User is asking about a specific document, not conversation
+  const filenamePattern = /\b[a-z0-9_\-\s]+\.(?:pdf|xlsx?|docx?|txt|csv|pptx?|png|jpe?g)\b/i;
+  if (filenamePattern.test(query)) {
+    console.log('   [SKIP] Query mentions filename - should use RAG');
+    return { canAnswer: false, confidence: 0, source: 'none' };
+  }
+
+  // FIX: Require EXPLICIT conversation reference words
+  // REASON: Only intercept if user is clearly asking about the conversation
+  const explicitConversationReferences = [
+    /\b(we|our|us)\s+(discussed|mentioned|said|talked about|agreed)\b/i,  // "we discussed"
+    /\b(you|earlier|before|previously)\s+(said|told|mentioned)\b/i,  // "you said earlier"
+    /\bwhat\s+did\s+(we|you|i)\s+(say|discuss|mention|talk about)\b/i,  // "what did we say"
+    /\bin\s+(?:our|the)\s+(?:previous|earlier|last)\s+conversation\b/i,  // "in our previous conversation"
+    /\baccording\s+to\s+(?:our|the)\s+conversation\b/i,  // "according to our conversation"
+  ];
+
+  const hasExplicitConversationReference = explicitConversationReferences.some(p => p.test(query));
+
+  if (!hasExplicitConversationReference) {
     console.log('   â­ï¸ Skipping: No context indicators and few key terms');
     return { canAnswer: false, confidence: 0, source: 'none' };
   }
@@ -3069,7 +3101,8 @@ async function checkConversationContextFirst(
       const termMatchRatio = termsFound.length / Math.max(keyTerms.length, 1);
       console.log(`   ðŸ“Š Term match ratio: ${termMatchRatio.toFixed(2)} (${termsFound.length}/${keyTerms.length})`);
 
-      if (termMatchRatio >= 0.4 || termsFound.length >= 2) {
+      // FIX: Require higher confidence for conversation-only answers
+      if (termMatchRatio >= 0.7 && termsFound.length >= 3) {
         console.log('   âœ… Found relevant context in infinite memory!');
         return {
           canAnswer: true,
@@ -3119,7 +3152,8 @@ async function checkConversationContextFirst(
       const historyMatchRatio = termsInHistory.length / Math.max(keyTerms.length, 1);
       console.log(`   ðŸ“Š History match ratio: ${historyMatchRatio.toFixed(2)} (${termsInHistory.length}/${keyTerms.length})`);
 
-      if (historyMatchRatio >= 0.5 || termsInHistory.length >= 2) {
+      // FIX: Require higher confidence for conversation-only answers
+      if (historyMatchRatio >= 0.8 && termsInHistory.length >= 3) {
         // Build context from matching ASSISTANT messages only
         const relevantMessages = assistantMessages.filter(m =>
           keyTerms.some(term => m.content.toLowerCase().includes(term.toLowerCase()))
@@ -3305,6 +3339,9 @@ export async function generateAnswerStream(
   }
 
   // ============================================================================
+
+  // ============================================================================
+  // STEP -1.7: HIERARCHICAL INTENT CLASSIFICATION (Two-Stage: Heuristic + LLM)  // ============================================================================  // REASON: Better intent classification for summarization, comparison, transformation  // WHY: 80% of queries use fast heuristic path (<10ms), 20% use LLM (~300ms)  // IMPACT: Enables intent-specific pipelines for better answer quality  const hierarchicalResult = await handleHierarchicalIntent(query, userId);  const { hierarchicalIntent, pipelineConfig, answerPlan } = hierarchicalResult;  // Handle clarification_needed intent (early return)  if (hierarchicalResult.handled && hierarchicalResult.clarificationMessage) {    if (onChunk) onChunk(hierarchicalResult.clarificationMessage);    if (onStage) onStage('complete', 'Complete');    return { sources: [] };  }
   // STEP -1.5: REFUSAL DETECTION (Actions we cannot perform)
   // ============================================================================
   // Handle requests that Koda cannot fulfill (email, calls, bookings, etc.)

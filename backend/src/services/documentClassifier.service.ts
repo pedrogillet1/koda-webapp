@@ -165,7 +165,7 @@ IMPORTANT:
 - Confidence should reflect how certain you are (0.5 = guess, 0.9+ = very certain)
 - Only respond with valid JSON, no other text`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const response = result.response.text();
 
