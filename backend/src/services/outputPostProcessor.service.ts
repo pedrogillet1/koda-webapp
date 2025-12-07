@@ -505,11 +505,92 @@ function calculateSimilarity(str1: string, str2: string): number {
 }
 
 /**
+ * Detect and remove whole-block duplication
+ * This catches cases where the LLM generates the same multi-paragraph response twice in a row
+ * Example: "... project management.You asked for..." (no space = concatenated duplicate)
+ */
+function removeWholeBlockDuplication(text: string): { text: string; removed: boolean } {
+  if (!text || text.length < 200) return { text, removed: false };
+
+  // Try to detect if the text contains a duplicate block
+  // Strategy: Look for repeated long phrases that indicate block duplication
+
+  // Method 1: Check if the second half is similar to the first half
+  const halfLength = Math.floor(text.length / 2);
+  const firstHalf = text.substring(0, halfLength);
+  const secondHalf = text.substring(halfLength);
+
+  // Calculate similarity between halves
+  const firstWords = new Set(firstHalf.toLowerCase().split(/\s+/).filter(w => w.length > 4));
+  const secondWords = new Set(secondHalf.toLowerCase().split(/\s+/).filter(w => w.length > 4));
+
+  if (firstWords.size > 10 && secondWords.size > 10) {
+    const intersection = new Set([...firstWords].filter(w => secondWords.has(w)));
+    const similarity = intersection.size / Math.min(firstWords.size, secondWords.size);
+
+    if (similarity > 0.7) {
+      console.log(`[DEDUP] Detected whole-block duplication (${(similarity * 100).toFixed(0)}% similar halves)`);
+      // Return only the first half, plus any unique ending from second half
+      return { text: firstHalf.trim(), removed: true };
+    }
+  }
+
+  // Method 2: Look for a repeated opening phrase that indicates restart
+  // Common patterns: "You asked", "Based on", "Here's", "Let me", "I'll"
+  const restartPatterns = [
+    /You asked/gi,
+    /Based on the/gi,
+    /Here's what/gi,
+    /Let me summarize/gi,
+    /I'll provide/gi,
+    /I can see that/gi,
+    /Looking at/gi,
+    /From the documents/gi,
+    /According to/gi
+  ];
+
+  for (const pattern of restartPatterns) {
+    const matches = [...text.matchAll(pattern)];
+    if (matches.length >= 2) {
+      // Found pattern twice - potential duplication
+      const firstMatch = matches[0].index || 0;
+      const secondMatch = matches[1].index || 0;
+
+      // Check if they're far enough apart and second is after meaningful content
+      if (secondMatch > 100 && secondMatch - firstMatch > 100) {
+        // Check similarity of text after each match
+        const afterFirst = text.substring(firstMatch, firstMatch + 200);
+        const afterSecond = text.substring(secondMatch, secondMatch + 200);
+
+        const afterFirstWords = new Set(afterFirst.toLowerCase().split(/\s+/));
+        const afterSecondWords = new Set(afterSecond.toLowerCase().split(/\s+/));
+        const afterIntersection = new Set([...afterFirstWords].filter(w => afterSecondWords.has(w)));
+        const afterSimilarity = afterIntersection.size / Math.min(afterFirstWords.size, afterSecondWords.size);
+
+        if (afterSimilarity > 0.6) {
+          console.log(`[DEDUP] Detected restart pattern "${matches[0][0]}" with duplicate content (${(afterSimilarity * 100).toFixed(0)}% similar)`);
+          // Keep only up to the second occurrence
+          return { text: text.substring(0, secondMatch).trim(), removed: true };
+        }
+      }
+    }
+  }
+
+  return { text, removed: false };
+}
+
+/**
  * Remove duplicate paragraphs from response
  * Detects and removes exact or near-duplicate paragraphs (>90% similarity)
  */
 function removeDuplicateParagraphs(text: string): { text: string; removed: number } {
   if (!text) return { text, removed: 0 };
+
+  // First, check for whole-block duplication
+  const blockResult = removeWholeBlockDuplication(text);
+  if (blockResult.removed) {
+    text = blockResult.text;
+  }
 
   // Split into paragraphs (double newline separated)
   const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 20);
